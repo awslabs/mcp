@@ -103,6 +103,10 @@ class TestIntegScanFlow:
     """Integration tests for the scan flow."""
 
     @pytest.mark.asyncio
+    @patch(
+        'awslabs.security_agent_mcp_server.server._validate_path',
+        new=AsyncMock(return_value='/app'),
+    )
     @patch('awslabs.security_agent_mcp_server.server._scanner')
     @patch('awslabs.security_agent_mcp_server.server._state')
     async def test_full_scan_flow(self, mock_state, mock_scanner, mock_context):

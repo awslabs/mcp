@@ -1,0 +1,529 @@
+{
+  "attributes": {
+    "aws.service_events.deployment.id": "26659110176",
+    "aws.service_events.duration_ms": 10078.934523,
+    "aws.service_events.is_partial": false,
+    "aws.service_events.operation": "GET /",
+    "aws.service_events.request.type": "http",
+    "aws.service_events.snapshot_id": "snap_8609794f-6082-4265-a5f6-aa000b515e1e",
+    "aws.service_events.trigger_type": "exception",
+    "event.name": "aws.service_events.incident_snapshot",
+    "http.request.method": "GET",
+    "http.response.status_code": 500,
+    "url.route": "/",
+    "vcs.ref.head.revision": "abababababababababababababababababab0003",
+    "vcs.repository.url.full": "https://github.com/jj22ee/indico"
+  },
+  "body": {
+    "exception_info": [
+      {
+        "call_path": [],
+        "exception_message": "QueuePool limit of size 5 overflow 3 reached, connection timed out, timeout 10.00 (Background on this error at: https://sqlalche.me/e/14/3o7r)",
+        "exception_type": "TimeoutError",
+        "stack_trace": "Traceback (most recent call last):\n  File \"/usr/local/lib/python3.12/site-packages/flask/app.py\", line 1514, in wsgi_app\n    response = self.handle_exception(e)\n               ^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/flask/app.py\", line 1511, in wsgi_app\n    response = self.full_dispatch_request()\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/flask/app.py\", line 919, in full_dispatch_request\n    rv = self.handle_user_exception(e)\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/flask/app.py\", line 809, in handle_user_exception\n    return self.ensure_sync(handler)(e)  # type: ignore[no-any-return]\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/flask/app.py\", line 915, in full_dispatch_request\n    rv = self.preprocess_request()\n         ^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/flask/app.py\", line 1291, in preprocess_request\n    rv = self.ensure_sync(before_func)()\n         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/indico/indico/modules/categories/blueprint.py\", line 126, in _redirect_to_bootstrap\n    not User.query.filter_by(is_system=False).has_rows()):\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/opt/indico/indico/core/db/sqlalchemy/util/models.py\", line 68, in has_rows\n    return self.session.query(self.enable_eagerloads(False).exists()).scalar()\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/query.py\", line 2893, in scalar\n    ret = self.one()\n          ^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/query.py\", line 2870, in one\n    return self._iter().one()\n           ^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/query.py\", line 2916, in _iter\n    result = self.session.execute(\n             ^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/session.py\", line 1716, in execute\n    conn = self._connection_for_bind(bind)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/session.py\", line 1555, in _connection_for_bind\n    return self._transaction._connection_for_bind(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/sqlalchemy/orm/session.py\", line 750, in _connection_for_bind\n    conn = bind.connect()\n           ^^^^^^^^^^^^^^\n  File \"/otel-auto-instrumentation-python/wrapt/wrappers.py\", line 670, in __call__\n    return self._self_wrapper(self.__wrapped__, self._self_instance,\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/otel-auto-instrumentation-python/opentelemetry/instrumentation/sqlalchemy/engine.py\", line 129, in _wrap_connect_internal\n    return func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/base.py\", line 3325, in connect\n    return self._connection_cls(self, close_with_result=close_with_result)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/base.py\", line 96, in __init__\n    else engine.raw_connection()\n         ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/base.py\", line 3404, in raw_connection\n    return self._wrap_pool_connect(self.pool.connect, _connection)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/base.py\", line 3371, in _wrap_pool_connect\n    return fn()\n           ^^^^\n  File \"/usr/local/lib/python3.12/site-packages/sqlalchemy/pool/base.py\", line 327, in connect\n    return _ConnectionFairy._checkout(self)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/sqlalchemy/pool/base.py\", line 894, in _checkout\n    fairy = _ConnectionRecord.checkout(pool)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/sqlalchemy/pool/base.py\", line 493, in checkout\n    rec = pool._do_get()\n          ^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/sqlalchemy/pool/impl.py\", line 134, in _do_get\n    raise exc.TimeoutError(\nsqlalchemy.exc.TimeoutError: QueuePool limit of size 5 overflow 3 reached, connection timed out, timeout 10.00 (Background on this error at: https://sqlalche.me/e/14/3o7r)\n"
+      }
+    ],
+    "profiler_call_path": {
+      "nodes": [
+        {
+          "frame": "threading._bootstrap(threading.py:1018)",
+          "id": 0,
+          "parent": -1,
+          "samples": 903
+        },
+        {
+          "frame": "threading._bootstrap_inner(threading.py:1058)",
+          "id": 1,
+          "parent": 0,
+          "samples": 903
+        },
+        {
+          "frame": "sentry_sdk.integrations.threading.run(threading.py:63)",
+          "id": 2,
+          "parent": 1,
+          "samples": 903
+        },
+        {
+          "frame": "threading.run(threading.py:1001)",
+          "id": 3,
+          "parent": 2,
+          "samples": 903
+        },
+        {
+          "frame": "socketserver.process_request_thread(socketserver.py:690)",
+          "id": 4,
+          "parent": 3,
+          "samples": 903
+        },
+        {
+          "frame": "socketserver.finish_request(socketserver.py:360)",
+          "id": 5,
+          "parent": 4,
+          "samples": 903
+        },
+        {
+          "frame": "socketserver.__init__(socketserver.py:760)",
+          "id": 6,
+          "parent": 5,
+          "samples": 903
+        },
+        {
+          "frame": "werkzeug.serving.handle(serving.py:395)",
+          "id": 7,
+          "parent": 6,
+          "samples": 903
+        },
+        {
+          "frame": "http.server.handle(server.py:436)",
+          "id": 8,
+          "parent": 7,
+          "samples": 903
+        },
+        {
+          "frame": "http.server.handle_one_request(server.py:399)",
+          "id": 9,
+          "parent": 8,
+          "samples": 903
+        },
+        {
+          "frame": "werkzeug.serving.run_wsgi(serving.py:248)",
+          "id": 10,
+          "parent": 9,
+          "samples": 903
+        },
+        {
+          "frame": "werkzeug.serving.execute(serving.py:330)",
+          "id": 11,
+          "parent": 10,
+          "samples": 903
+        },
+        {
+          "frame": "werkzeug.debug.debug_application(__init__.py:336)",
+          "id": 12,
+          "parent": 11,
+          "samples": 903
+        },
+        {
+          "frame": "sentry_sdk.integrations.flask.sentry_patched_wsgi_app(flask.py:80)",
+          "id": 13,
+          "parent": 12,
+          "samples": 903
+        },
+        {
+          "frame": "sentry_sdk.integrations.wsgi.__call__(wsgi.py:77)",
+          "id": 14,
+          "parent": 13,
+          "samples": 903
+        },
+        {
+          "frame": "sentry_sdk.integrations.flask.<lambda>(flask.py:85)",
+          "id": 15,
+          "parent": 14,
+          "samples": 903
+        },
+        {
+          "frame": "flask.app.__call__(app.py:1529)",
+          "id": 16,
+          "parent": 15,
+          "samples": 903
+        },
+        {
+          "frame": "opentelemetry.instrumentation.flask._wrapped_app(__init__.py:354)",
+          "id": 17,
+          "parent": 16,
+          "samples": 903
+        },
+        {
+          "frame": "flask.app.wsgi_app(app.py:1479)",
+          "id": 18,
+          "parent": 17,
+          "samples": 903
+        },
+        {
+          "frame": "flask.app.full_dispatch_request(app.py:904)",
+          "id": 19,
+          "parent": 18,
+          "samples": 897
+        },
+        {
+          "frame": "flask.app.preprocess_request(app.py:1271)",
+          "id": 20,
+          "parent": 19,
+          "samples": 897
+        },
+        {
+          "frame": "indico.modules.categories.blueprint._redirect_to_bootstrap(blueprint.py:122)",
+          "id": 21,
+          "parent": 20,
+          "samples": 897
+        },
+        {
+          "frame": "indico.core.db.sqlalchemy.util.models.has_rows(models.py:62)",
+          "id": 22,
+          "parent": 21,
+          "samples": 897
+        },
+        {
+          "frame": "sqlalchemy.orm.query.scalar(query.py:2872)",
+          "id": 23,
+          "parent": 22,
+          "samples": 897
+        },
+        {
+          "frame": "sqlalchemy.orm.query.one(query.py:2852)",
+          "id": 24,
+          "parent": 23,
+          "samples": 897
+        },
+        {
+          "frame": "sqlalchemy.orm.query._iter(query.py:2911)",
+          "id": 25,
+          "parent": 24,
+          "samples": 897
+        },
+        {
+          "frame": "sqlalchemy.orm.session.execute(session.py:1566)",
+          "id": 26,
+          "parent": 25,
+          "samples": 897
+        },
+        {
+          "frame": "sqlalchemy.orm.session._connection_for_bind(session.py:1551)",
+          "id": 27,
+          "parent": 26,
+          "samples": 897
+        },
+        {
+          "frame": "sqlalchemy.orm.session._connection_for_bind(session.py:723)",
+          "id": 28,
+          "parent": 27,
+          "samples": 897
+        },
+        {
+          "frame": "wrapt.wrappers.__call__(wrappers.py:641)",
+          "id": 29,
+          "parent": 28,
+          "samples": 897
+        },
+        {
+          "frame": "opentelemetry.instrumentation.sqlalchemy.engine._wrap_connect_internal(engine.py:118)",
+          "id": 30,
+          "parent": 29,
+          "samples": 897
+        },
+        {
+          "frame": "sqlalchemy.engine.base.connect(base.py:3310)",
+          "id": 31,
+          "parent": 30,
+          "samples": 897
+        },
+        {
+          "frame": "sqlalchemy.engine.base.__init__(base.py:67)",
+          "id": 32,
+          "parent": 31,
+          "samples": 897
+        },
+        {
+          "frame": "sqlalchemy.engine.base.raw_connection(base.py:3382)",
+          "id": 33,
+          "parent": 32,
+          "samples": 897
+        },
+        {
+          "frame": "sqlalchemy.engine.base._wrap_pool_connect(base.py:3368)",
+          "id": 34,
+          "parent": 33,
+          "samples": 897
+        },
+        {
+          "frame": "sqlalchemy.pool.base.connect(base.py:319)",
+          "id": 35,
+          "parent": 34,
+          "samples": 897
+        },
+        {
+          "frame": "sqlalchemy.pool.base._checkout(base.py:891)",
+          "id": 36,
+          "parent": 35,
+          "samples": 897
+        },
+        {
+          "frame": "sqlalchemy.pool.base.checkout(base.py:491)",
+          "id": 37,
+          "parent": 36,
+          "samples": 897
+        },
+        {
+          "frame": "sqlalchemy.pool.impl._do_get(impl.py:119)",
+          "id": 38,
+          "parent": 37,
+          "samples": 897
+        },
+        {
+          "frame": "sqlalchemy.util.queue.get(queue.py:131)",
+          "id": 39,
+          "parent": 38,
+          "samples": 897
+        },
+        {
+          "frame": "threading.wait(threading.py:323)",
+          "id": 40,
+          "parent": 39,
+          "samples": 897
+        },
+        {
+          "frame": "flask.app.handle_exception(app.py:811)",
+          "id": 41,
+          "parent": 18,
+          "samples": 5
+        },
+        {
+          "frame": "blinker.base.send(base.py:204)",
+          "id": 42,
+          "parent": 41,
+          "samples": 5
+        },
+        {
+          "frame": "sentry_sdk.integrations.flask._capture_exception(flask.py:195)",
+          "id": 43,
+          "parent": 42,
+          "samples": 5
+        },
+        {
+          "frame": "sentry_sdk.utils.event_from_exception(utils.py:1079)",
+          "id": 44,
+          "parent": 43,
+          "samples": 1
+        },
+        {
+          "frame": "sentry_sdk.utils.exceptions_from_error_tuple(utils.py:939)",
+          "id": 45,
+          "parent": 44,
+          "samples": 1
+        },
+        {
+          "frame": "sentry_sdk.utils.single_exception_from_error_tuple(utils.py:721)",
+          "id": 46,
+          "parent": 45,
+          "samples": 1
+        },
+        {
+          "frame": "sentry_sdk.utils.serialize_frame(utils.py:638)",
+          "id": 47,
+          "parent": 46,
+          "samples": 1
+        },
+        {
+          "frame": "sentry_sdk.utils.get_source_context(utils.py:543)",
+          "id": 48,
+          "parent": 47,
+          "samples": 1
+        },
+        {
+          "frame": "sentry_sdk.utils.get_lines_from_file(utils.py:497)",
+          "id": 49,
+          "parent": 48,
+          "samples": 1
+        },
+        {
+          "frame": "importlib._bootstrap_external.get_source(<frozen importlib._bootstrap_external>:1048)",
+          "id": 50,
+          "parent": 49,
+          "samples": 1
+        },
+        {
+          "frame": "importlib._bootstrap_external.get_data(<frozen importlib._bootstrap_external>:1187)",
+          "id": 51,
+          "parent": 50,
+          "samples": 1
+        },
+        {
+          "frame": "sentry_sdk.hub.capture_event(hub.py:306)",
+          "id": 52,
+          "parent": 43,
+          "samples": 4
+        },
+        {
+          "frame": "sentry_sdk.scope.capture_event(scope.py:843)",
+          "id": 53,
+          "parent": 52,
+          "samples": 4
+        },
+        {
+          "frame": "sentry_sdk.client.capture_event(client.py:595)",
+          "id": 54,
+          "parent": 53,
+          "samples": 4
+        },
+        {
+          "frame": "sentry_sdk.client._prepare_event(client.py:349)",
+          "id": 55,
+          "parent": 54,
+          "samples": 4
+        },
+        {
+          "frame": "sentry_sdk.scope.wrapper(scope.py:83)",
+          "id": 56,
+          "parent": 55,
+          "samples": 4
+        },
+        {
+          "frame": "sentry_sdk.scope.apply_to_event(scope.py:1115)",
+          "id": 57,
+          "parent": 56,
+          "samples": 4
+        },
+        {
+          "frame": "sentry_sdk.integrations.pure_eval.add_executing_info(pure_eval.py:41)",
+          "id": 58,
+          "parent": 57,
+          "samples": 4
+        },
+        {
+          "frame": "sqlalchemy.dialects.mysql.<module>(__init__.py:1)",
+          "id": 59,
+          "parent": 58,
+          "samples": 4
+        },
+        {
+          "frame": "executing.executing.for_frame(executing.py:137)",
+          "id": 60,
+          "parent": 59,
+          "samples": 3
+        },
+        {
+          "frame": "executing.executing.for_filename(executing.py:145)",
+          "id": 61,
+          "parent": 60,
+          "samples": 3
+        },
+        {
+          "frame": "linecache.checkcache(linecache.py:52)",
+          "id": 62,
+          "parent": 61,
+          "samples": 3
+        },
+        {
+          "frame": "pure_eval.core.interesting_expressions_grouped(core.py:365)",
+          "id": 63,
+          "parent": 59,
+          "samples": 1
+        },
+        {
+          "frame": "pure_eval.core.group_expressions(core.py:425)",
+          "id": 64,
+          "parent": 63,
+          "samples": 1
+        },
+        {
+          "frame": "ast.dump(ast.py:115)",
+          "id": 65,
+          "parent": 64,
+          "samples": 1
+        },
+        {
+          "frame": "ast._format(ast.py:127)",
+          "id": 66,
+          "parent": 65,
+          "samples": 1
+        },
+        {
+          "frame": "flask.ctx.pop(ctx.py:396)",
+          "id": 67,
+          "parent": 18,
+          "samples": 1
+        },
+        {
+          "frame": "flask.app.do_teardown_request(app.py:1326)",
+          "id": 68,
+          "parent": 67,
+          "samples": 1
+        },
+        {
+          "frame": "amazon.opentelemetry.serviceevents.instrumentation.flask_instrumentation._teardown_request_hook(flask_instrumentation.py:199)",
+          "id": 69,
+          "parent": 68,
+          "samples": 1
+        },
+        {
+          "frame": "amazon.opentelemetry.serviceevents.collectors.incident_snapshot_collector.process_potential_incident(incident_snapshot_collector.py:298)",
+          "id": 70,
+          "parent": 69,
+          "samples": 1
+        },
+        {
+          "frame": "traceback.format_exception(traceback.py:128)",
+          "id": 71,
+          "parent": 70,
+          "samples": 1
+        },
+        {
+          "frame": "traceback.__init__(traceback.py:718)",
+          "id": 72,
+          "parent": 71,
+          "samples": 1
+        },
+        {
+          "frame": "traceback._extract_from_extended_frame_gen(traceback.py:399)",
+          "id": 73,
+          "parent": 72,
+          "samples": 1
+        },
+        {
+          "frame": "linecache.checkcache(linecache.py:52)",
+          "id": 74,
+          "parent": 73,
+          "samples": 1
+        }
+      ],
+      "total_samples": 903
+    },
+    "request_context": {
+      "custom_context": {},
+      "status_code": 500,
+      "timestamp": 1780098105589,
+      "type": "http"
+    }
+  },
+  "eventName": "aws.service_events.incident_snapshot",
+  "flags": 1,
+  "observedTimeUnixNano": 1780098109463321683,
+  "resource": {
+    "attributes": {
+      "aws.local.service": "indico-service-python",
+      "aws.service_events.deployment.id": "26659110176",
+      "aws.service_events.version": "0.16.0",
+      "cloud.account.id": "341705376693",
+      "cloud.availability_zone": "us-west-2a",
+      "cloud.platform": "aws_ec2",
+      "cloud.provider": "aws",
+      "cloud.region": "us-west-2",
+      "com.amazonaws.cloudwatch.entity.internal.service.name.source": "K8sWorkload",
+      "deployment.environment.name": "beta",
+      "host.id": "i-0c95e582088254245",
+      "host.type": "t3.large",
+      "k8s.container.name": "indico-service-python",
+      "k8s.deployment.name": "indico-service-python",
+      "k8s.namespace.name": "default",
+      "k8s.node.name": "ip-10-0-1-67.us-west-2.compute.internal",
+      "k8s.pod.name": "indico-service-python-98c8bcc47-x7mdc",
+      "k8s.replicaset.name": "indico-service-python-98c8bcc47",
+      "service.name": "indico-service-python",
+      "service.version": "latest",
+      "telemetry.sdk.language": "python",
+      "telemetry.sdk.name": "opentelemetry",
+      "telemetry.sdk.version": "1.40.0",
+      "vcs.ref.head.revision": "abababababababababababababababababab0003",
+      "vcs.repository.url.full": "https://github.com/jj22ee/indico"
+    }
+  },
+  "scope": {
+    "name": "serviceevents",
+    "version": "1.0"
+  },
+  "severityNumber": 0,
+  "severityText": "",
+  "spanId": "497700f5fbb0b990",
+  "timeUnixNano": 1780098109463317248,
+  "traceId": "deadbeefdeadbeefdeadbeefdead0002"
+}

@@ -337,27 +337,36 @@ class TestEksStackHandler:
         mock_ctx = MagicMock(spec=Context)
 
         # Mock the _ensure_stack_ownership method to return failure
-        with patch.object(
-            handler,
-            '_ensure_stack_ownership',
-            return_value=(False, {'StackId': 'test-stack-id'}, 'Stack not created by this tool'),
+        with patch(
+            'awslabs.eks_mcp_server.eks_stack_handler.validate_file_path',
+            side_effect=lambda p: p,
         ):
-            # Mock the open function to avoid file not found error
-            mock_template_content = 'test template content'
-            with patch('builtins.open', mock_open(read_data=mock_template_content)):
-                # Call the _deploy_stack method
-                result = await handler._deploy_stack(
-                    ctx=mock_ctx,
-                    template_file='/path/to/template.yaml',
-                    stack_name='eks-test-cluster-stack',
-                    cluster_name='test-cluster',
-                )
+            with patch.object(
+                handler,
+                '_ensure_stack_ownership',
+                return_value=(
+                    False,
+                    {'StackId': 'test-stack-id'},
+                    'Stack not created by this tool',
+                ),
+            ):
+                with patch.object(AwsHelper, 'create_boto3_client', return_value=MagicMock()):
+                    # Mock the open function to avoid file not found error
+                    mock_template_content = 'test template content'
+                    with patch('builtins.open', mock_open(read_data=mock_template_content)):
+                        # Call the _deploy_stack method
+                        result = await handler._deploy_stack(
+                            ctx=mock_ctx,
+                            template_file='/path/to/template.yaml',
+                            stack_name='eks-test-cluster-stack',
+                            cluster_name='test-cluster',
+                        )
 
-                # Verify the result
-                assert result.isError
-                assert len(result.content) == 1
-                assert result.content[0].type == 'text'
-                assert 'Stack not created by this tool' in result.content[0].text
+                        # Verify the result
+                        assert result.isError
+                        assert len(result.content) == 1
+                        assert result.content[0].type == 'text'
+                        assert 'Stack not created by this tool' in result.content[0].text
 
     @pytest.mark.asyncio
     async def test_describe_stack_success(self):
@@ -562,6 +571,10 @@ class TestEksStackHandler:
 
         # Mock the necessary functions
         with (
+            patch(
+                'awslabs.eks_mcp_server.eks_stack_handler.validate_file_path',
+                side_effect=lambda p: p,
+            ),
             patch('builtins.open', mock_open(read_data=mock_template_content)),
             patch('os.path.dirname', return_value='/mock/path'),
             patch('os.path.join', return_value='/mock/path/template.yaml'),
@@ -628,6 +641,10 @@ class TestEksStackHandler:
 
         # Mock the necessary functions
         with (
+            patch(
+                'awslabs.eks_mcp_server.eks_stack_handler.validate_file_path',
+                side_effect=lambda p: p,
+            ),
             patch('builtins.open', mock_open(read_data=mock_template_content)),
             patch('os.path.dirname', return_value='/mock/path'),
             patch('os.path.join', return_value='/mock/path/template.yaml'),
@@ -1315,3 +1332,46 @@ class TestEksStackHandler:
             assert result.content[0].type == 'text'
             assert 'Error in manage_eks_stacks' in result.content[0].text
             assert 'Unexpected error' in result.content[0].text
+
+
+class TestEksStackHandlerPathValidation:
+    """Tests that path validation is wired up in EksStackHandler methods."""
+
+    @pytest.mark.asyncio
+    async def test_deploy_stack_calls_validate_file_path(self):
+        mock_mcp = MagicMock()
+        handler = EksStackHandler(mock_mcp, allow_write=True)
+        mock_ctx = MagicMock(spec=Context)
+
+        with patch(
+            'awslabs.eks_mcp_server.eks_stack_handler.validate_file_path',
+            side_effect=ValueError('blocked'),
+        ) as mock_validate:
+            result = await handler._deploy_stack(
+                ctx=mock_ctx,
+                template_file='/some/template.yaml',
+                stack_name='test-stack',
+                cluster_name='test-cluster',
+            )
+
+            mock_validate.assert_called_once_with('/some/template.yaml')
+            assert result.isError
+
+    @pytest.mark.asyncio
+    async def test_generate_template_calls_validate_file_path(self):
+        mock_mcp = MagicMock()
+        handler = EksStackHandler(mock_mcp, allow_write=True)
+        mock_ctx = MagicMock(spec=Context)
+
+        with patch(
+            'awslabs.eks_mcp_server.eks_stack_handler.validate_file_path',
+            side_effect=ValueError('blocked'),
+        ) as mock_validate:
+            result = await handler._generate_template(
+                ctx=mock_ctx,
+                template_path='/some/template.yaml',
+                cluster_name='test-cluster',
+            )
+
+            mock_validate.assert_called_once_with('/some/template.yaml')
+            assert result.isError
