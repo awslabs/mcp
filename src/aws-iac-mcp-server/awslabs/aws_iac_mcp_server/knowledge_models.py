@@ -18,12 +18,19 @@ from typing import List, Optional
 
 @dataclass
 class KnowledgeResult:
-    """Represents a single knowledge search result."""
+    """Represents a single knowledge search result.
+
+    The AWS Knowledge MCP endpoint returns two shapes in the same result list:
+    - Document results carry a `url` pointing at the doc page.
+    - Skill results carry no `url`; their content is a skill descriptor.
+
+    `url` is therefore optional so both shapes can be represented.
+    """
 
     rank: int
     title: str
-    url: str
     context: str
+    url: Optional[str] = None
 
 
 @dataclass

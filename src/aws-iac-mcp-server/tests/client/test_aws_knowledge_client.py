@@ -238,10 +238,47 @@ class TestParseSearchResult:
             _parse_search_documentation_result(mock_result)
 
     def test_missing_required_field_in_item(self):
-        """Test handling of search result items missing required fields.
+        """Test handling of search result items missing required identity fields.
 
-        Verifies that search result items missing required fields like
-        'url' or 'context' are rejected with appropriate error messages.
+        Verifies that items missing `rank_order` or `title` (the two fields the
+        Knowledge MCP endpoint always emits) are rejected. `url` and `context`
+        are optional to support skill-type results, so their absence is not an
+        error -- see test_skill_type_item_without_url.
+        """
+        mock_result = MagicMock()
+        mock_result.is_error = False
+        mock_content = TextContent(
+            type='text',
+            text=json.dumps(
+                {
+                    'content': {
+                        'result': [
+                            {
+                                # Missing rank_order and title
+                                'url': 'https://example.com',
+                                'context': 'ctx',
+                            }
+                        ]
+                    }
+                }
+            ),
+        )
+        mock_result.content = [mock_content]
+
+        with pytest.raises(KeyError):
+            _parse_search_documentation_result(mock_result)
+
+    def test_skill_type_item_without_url(self):
+        """Test parsing of skill-type results that carry no `url`.
+
+        The Knowledge MCP endpoint mixes two result shapes in the same list:
+
+        - Document results: {rank_order, title, url, context}
+        - Skill results:    {rank_order, title, skill_name, skill_description}
+
+        Skill-type items must be parsed successfully with url=None and
+        `skill_description` mapped into `context`, not dropped or raised on.
+        Reproduces the KeyError from issue #3339.
         """
         mock_result = MagicMock()
         mock_result.is_error = False
@@ -254,8 +291,15 @@ class TestParseSearchResult:
                             {
                                 'rank_order': 1,
                                 'title': 'AWS Lambda',
-                                # Missing url and context
-                            }
+                                'url': 'https://docs.aws.amazon.com/lambda/',
+                                'context': 'Serverless compute service',
+                            },
+                            {
+                                'rank_order': 2,
+                                'title': 'lambda-optimizer-skill',
+                                'skill_name': 'lambda-optimizer',
+                                'skill_description': 'Optimizes Lambda handlers.',
+                            },
                         ]
                     }
                 }
@@ -263,5 +307,10 @@ class TestParseSearchResult:
         )
         mock_result.content = [mock_content]
 
-        with pytest.raises(KeyError):
-            _parse_search_documentation_result(mock_result)
+        parsed = _parse_search_documentation_result(mock_result)
+
+        assert len(parsed) == 2
+        assert parsed[0].url == 'https://docs.aws.amazon.com/lambda/'
+        assert parsed[0].context == 'Serverless compute service'
+        assert parsed[1].url is None
+        assert parsed[1].context == 'Optimizes Lambda handlers.'
