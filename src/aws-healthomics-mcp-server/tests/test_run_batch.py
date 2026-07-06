@@ -14,12 +14,14 @@
 
 """Unit tests for run batch tools."""
 
+import inspect as _inspect
 import pytest
 from awslabs.aws_healthomics_mcp_server.consts import (
     BATCH_STATUSES,
     ERROR_INVALID_BATCH_RUN_SETTINGS,
     SUBMISSION_STATUSES,
 )
+from awslabs.aws_healthomics_mcp_server.tools import run_batch as _run_batch
 from awslabs.aws_healthomics_mcp_server.tools.run_batch import (
     _validate_batch_run_settings,
     cancel_run_batch,
@@ -1311,3 +1313,416 @@ class TestDeleteBatch:
         mock_get_client.assert_called_once_with(
             region_name='sa-east-1', profile_name='admin-profile'
         )
+
+
+# --- Property-Based Tests: scratch storage mode ---
+
+from hypothesis import given, settings  # noqa: E402
+from hypothesis import strategies as st  # noqa: E402
+
+
+# Feature: local-temp-storage, Property: start_run_batch forwards the effective scratch
+# storage mode into default run settings
+class TestStartRunBatchForwardsEffectiveScratchStorageMode:
+    """start_run_batch forwards the effective scratch storage mode into default run settings.
+
+    For any caller input where scratch_storage_mode is either a valid member of
+    SCRATCH_STORAGE_MODES (LOCAL/SHARED) or None, when start_run_batch successfully starts a
+    batch, the defaultRunSetting passed to the HealthOmics start_run_batch API contains a
+    scratchStorageMode equal to the effective mode -- the caller-provided value when non-null,
+    or LOCAL when the caller value is None.
+
+    **Validates: Requirements MCP server defaults to LOCAL scratch storage, Scratch storage
+    mode parameter on the batch-run tool**
+    """
+
+    _sample_response = {
+        'id': 'batch-12345678',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:batch/batch-12345678',
+        'status': 'PENDING',
+        'uuid': 'uuid-12345678-1234-1234-1234-123456789012',
+        'tags': {'env': 'test'},
+    }
+
+    _batch_run_settings = {
+        'inlineSettings': [
+            {
+                'runSettingId': 'sample-001',
+                'name': 'Sample 001 Analysis',
+                'parameters': {'input_file': 's3://bucket/sample001.bam'},
+            },
+        ]
+    }
+
+    @given(scratch_storage_mode=st.one_of(st.sampled_from(['LOCAL', 'SHARED']), st.none()))
+    @settings(max_examples=100)
+    @pytest.mark.asyncio
+    async def test_forwards_effective_mode_into_default_run_setting(self, scratch_storage_mode):
+        """defaultRunSetting['scratchStorageMode'] equals the effective mode (caller or LOCAL)."""
+        mock_ctx = AsyncMock()
+        mock_client = MagicMock()
+        mock_client.start_run_batch.return_value = self._sample_response
+
+        kwargs = {
+            'ctx': mock_ctx,
+            'workflow_id': 'workflow-123',
+            'role_arn': 'arn:aws:iam::123456789012:role/OmicsRole',
+            'output_uri': 's3://output-bucket/results/',
+            'batch_run_settings': self._batch_run_settings,
+        }
+        if scratch_storage_mode is not None:
+            kwargs['scratch_storage_mode'] = scratch_storage_mode
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.run_batch.get_omics_client',
+            return_value=mock_client,
+        ):
+            result = await start_run_batch_wrapper.call(**kwargs)
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        mock_client.start_run_batch.assert_called_once()
+
+        expected_mode = scratch_storage_mode if scratch_storage_mode is not None else 'LOCAL'
+        call_kwargs = mock_client.start_run_batch.call_args.kwargs
+        assert 'defaultRunSetting' in call_kwargs
+        assert call_kwargs['defaultRunSetting'].get('scratchStorageMode') == expected_mode
+
+
+import copy  # noqa: E402
+
+
+# Feature: local-temp-storage, Property: start_run_batch rejects any invalid scratch storage
+# mode without calling the API
+class TestStartRunBatchRejectsInvalidScratchStorageMode:
+    """start_run_batch rejects any invalid scratch storage mode without calling the API.
+
+    For any non-null scratch_storage_mode value that is not an exact (case-sensitive) member of
+    SCRATCH_STORAGE_MODES -- including case variants, empty strings, and whitespace-only strings
+    -- start_run_batch returns an error response that names the rejected value and lists all
+    allowed values, leaves caller-provided run inputs unchanged, and never calls the HealthOmics
+    start_run_batch API.
+
+    **Validates: Requirements MCP server defaults to LOCAL scratch storage, Scratch storage
+    mode parameter on the batch-run tool, Validation of the scratch storage mode value**
+    """
+
+    @staticmethod
+    def _build_batch_run_settings():
+        return {
+            'inlineSettings': [
+                {
+                    'runSettingId': 'sample-001',
+                    'name': 'Sample 001 Analysis',
+                    'parameters': {'input_file': 's3://bucket/sample001.bam'},
+                },
+            ]
+        }
+
+    @given(
+        scratch_storage_mode=st.one_of(
+            # Arbitrary text that is not an exact valid mode.
+            st.text().filter(lambda value: value not in ('LOCAL', 'SHARED')),
+            # Explicit edge cases: case variants, trailing whitespace, empty, whitespace-only.
+            st.sampled_from(
+                [
+                    'local',
+                    'shared',
+                    'Local',
+                    'Shared',
+                    'LOCAL ',
+                    ' LOCAL',
+                    'SHARED ',
+                    'lOCAL',
+                    '',
+                    '   ',
+                    '\t',
+                    '\n',
+                ]
+            ),
+        )
+    )
+    @settings(max_examples=100)
+    @pytest.mark.asyncio
+    async def test_rejects_invalid_mode_without_calling_api(self, scratch_storage_mode):
+        """Invalid modes are rejected; API not called; caller inputs unchanged."""
+        mock_ctx = AsyncMock()
+        mock_client = MagicMock()
+
+        batch_run_settings = self._build_batch_run_settings()
+        original_batch_run_settings = copy.deepcopy(batch_run_settings)
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.run_batch.get_omics_client',
+            return_value=mock_client,
+        ):
+            result = await start_run_batch_wrapper.call(
+                ctx=mock_ctx,
+                workflow_id='workflow-123',
+                role_arn='arn:aws:iam::123456789012:role/OmicsRole',
+                output_uri='s3://output-bucket/results/',
+                batch_run_settings=batch_run_settings,
+                scratch_storage_mode=scratch_storage_mode,
+            )
+
+        # An error response is returned.
+        assert 'error' in result, f'Expected an error response, got: {result}'
+        error_message = result['error']
+
+        # The error names the rejected value and lists all allowed values.
+        assert str(scratch_storage_mode) in error_message
+        assert 'LOCAL' in error_message
+        assert 'SHARED' in error_message
+
+        # The HealthOmics start_run_batch API was never called.
+        mock_client.start_run_batch.assert_not_called()
+
+        # Caller-provided run inputs are left unchanged.
+        assert batch_run_settings == original_batch_run_settings
+
+
+# Feature: local-temp-storage, Property: start_run_batch response preserves the pre-scratch-storage schema
+class TestStartRunBatchResponsePreservesPreScratchStorageSchema:
+    """start_run_batch response preserves the pre-scratch-storage schema.
+
+    For any valid caller input and HealthOmics start_run_batch API response, when
+    start_run_batch succeeds, every field present in the pre-scratch-storage top-level response
+    schema (id, arn, status, uuid, tags) is present with unchanged name, type, and value.
+
+    **Validates: Requirements Backward compatibility**
+    """
+
+    _batch_run_settings = {
+        'inlineSettings': [
+            {
+                'runSettingId': 'sample-001',
+                'name': 'Sample 001 Analysis',
+                'parameters': {'input_file': 's3://bucket/sample001.bam'},
+            },
+        ]
+    }
+
+    @given(
+        scratch_storage_mode=st.one_of(st.sampled_from(['LOCAL', 'SHARED']), st.none()),
+        batch_id=st.text(min_size=1, max_size=40),
+        status=st.sampled_from(['PENDING', 'STARTING', 'RUNNING', 'COMPLETED', 'FAILED']),
+        uuid=st.text(min_size=1, max_size=40),
+        tags=st.dictionaries(
+            keys=st.text(min_size=1, max_size=10),
+            values=st.text(min_size=0, max_size=10),
+            max_size=5,
+        ),
+    )
+    @settings(max_examples=100)
+    @pytest.mark.asyncio
+    async def test_response_preserves_legacy_top_level_fields(
+        self, scratch_storage_mode, batch_id, status, uuid, tags
+    ):
+        """Every legacy top-level field is present with unchanged name, type, and value."""
+        mock_ctx = AsyncMock()
+        mock_client = MagicMock()
+
+        # Known response dict the mocked HealthOmics API returns.
+        arn = f'arn:aws:omics:us-east-1:123456789012:batch/{batch_id}'
+        api_response = {
+            'id': batch_id,
+            'arn': arn,
+            'status': status,
+            'uuid': uuid,
+            'tags': tags,
+        }
+        mock_client.start_run_batch.return_value = api_response
+
+        kwargs = {
+            'ctx': mock_ctx,
+            'workflow_id': 'workflow-123',
+            'role_arn': 'arn:aws:iam::123456789012:role/OmicsRole',
+            'output_uri': 's3://output-bucket/results/',
+            'batch_run_settings': self._batch_run_settings,
+        }
+        if scratch_storage_mode is not None:
+            kwargs['scratch_storage_mode'] = scratch_storage_mode
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.run_batch.get_omics_client',
+            return_value=mock_client,
+        ):
+            result = await start_run_batch_wrapper.call(**kwargs)
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+
+        # Each legacy top-level field is present with unchanged name, type, and value.
+        for field in ('id', 'arn', 'status', 'uuid', 'tags'):
+            assert field in result, f'Missing legacy field: {field}'
+            expected_value = api_response[field]
+            assert result[field] == expected_value
+            assert type(result[field]) is type(expected_value)
+
+
+# ---------------------------------------------------------------------------
+# Scratch storage mode example tests (Feature: local-temp-storage)
+# ---------------------------------------------------------------------------
+
+
+def _build_batch_run_settings():
+    """Build minimal valid inline batch run settings for example tests."""
+    return {
+        'inlineSettings': [
+            {
+                'runSettingId': 'sample-001',
+                'name': 'Sample 001 Analysis',
+                'parameters': {'input_file': 's3://bucket/sample001.bam'},
+            },
+        ]
+    }
+
+
+def _build_start_run_batch_response():
+    """Build a minimal successful start_run_batch API response for example tests."""
+    return {
+        'id': 'batch-scratch-1',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:batch/batch-scratch-1',
+        'status': 'PENDING',
+        'uuid': 'uuid-batch-scratch-1',
+        'tags': {'env': 'test'},
+    }
+
+
+@pytest.mark.asyncio
+async def test_start_run_batch_scratch_storage_mode_local_happy_path():
+    """LOCAL is injected into defaultRunSetting passed to the API.
+
+    Validates: Requirements Scratch storage mode parameter on the batch-run tool.
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.start_run_batch.return_value = _build_start_run_batch_response()
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.run_batch.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await start_run_batch_wrapper.call(
+            ctx=mock_ctx,
+            workflow_id='workflow-123',
+            role_arn='arn:aws:iam::123456789012:role/OmicsRole',
+            output_uri='s3://output-bucket/results/',
+            batch_run_settings=_build_batch_run_settings(),
+            scratch_storage_mode='LOCAL',
+        )
+
+    assert 'error' not in result, f'Unexpected error: {result}'
+    call_kwargs = mock_client.start_run_batch.call_args.kwargs
+    assert call_kwargs['defaultRunSetting']['scratchStorageMode'] == 'LOCAL'
+
+
+@pytest.mark.asyncio
+async def test_start_run_batch_scratch_storage_mode_shared_happy_path():
+    """SHARED is injected into defaultRunSetting passed to the API.
+
+    Validates: Requirements Scratch storage mode parameter on the batch-run tool.
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.start_run_batch.return_value = _build_start_run_batch_response()
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.run_batch.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await start_run_batch_wrapper.call(
+            ctx=mock_ctx,
+            workflow_id='workflow-123',
+            role_arn='arn:aws:iam::123456789012:role/OmicsRole',
+            output_uri='s3://output-bucket/results/',
+            batch_run_settings=_build_batch_run_settings(),
+            scratch_storage_mode='SHARED',
+        )
+
+    assert 'error' not in result, f'Unexpected error: {result}'
+    call_kwargs = mock_client.start_run_batch.call_args.kwargs
+    assert call_kwargs['defaultRunSetting']['scratchStorageMode'] == 'SHARED'
+
+
+@pytest.mark.asyncio
+async def test_start_run_batch_scratch_storage_mode_omitted_defaults_to_local():
+    """Omitting scratch_storage_mode applies the MCP default LOCAL in defaultRunSetting.
+
+    Validates: Requirements MCP server defaults to LOCAL scratch storage,
+    Scratch storage mode parameter on the batch-run tool.
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.start_run_batch.return_value = _build_start_run_batch_response()
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.run_batch.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await start_run_batch_wrapper.call(
+            ctx=mock_ctx,
+            workflow_id='workflow-123',
+            role_arn='arn:aws:iam::123456789012:role/OmicsRole',
+            output_uri='s3://output-bucket/results/',
+            batch_run_settings=_build_batch_run_settings(),
+            # scratch_storage_mode intentionally omitted -> defaults to LOCAL
+        )
+
+    assert 'error' not in result, f'Unexpected error: {result}'
+    call_kwargs = mock_client.start_run_batch.call_args.kwargs
+    assert call_kwargs['defaultRunSetting']['scratchStorageMode'] == 'LOCAL'
+
+
+@pytest.mark.asyncio
+async def test_start_run_batch_scratch_storage_misconfigured_default_rejected():
+    """A misconfigured (invalid) MCP default is rejected without calling the API.
+
+    Validates: Requirements Backward compatibility (misconfigured default rejection).
+    """
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.start_run_batch.return_value = _build_start_run_batch_response()
+
+    with (
+        patch(
+            'awslabs.aws_healthomics_mcp_server.tools.run_batch.get_omics_client',
+            return_value=mock_client,
+        ),
+        patch(
+            'awslabs.aws_healthomics_mcp_server.tools.run_batch.DEFAULT_SCRATCH_STORAGE_MODE',
+            'INVALID',
+        ),
+    ):
+        result = await start_run_batch_wrapper.call(
+            ctx=mock_ctx,
+            workflow_id='workflow-123',
+            role_arn='arn:aws:iam::123456789012:role/OmicsRole',
+            output_uri='s3://output-bucket/results/',
+            batch_run_settings=_build_batch_run_settings(),
+            # scratch_storage_mode omitted -> resolves to the misconfigured default
+        )
+
+    # The request is rejected with an error and the API is never invoked.
+    assert 'error' in result
+    assert 'INVALID' in result['error']
+    mock_client.start_run_batch.assert_not_called()
+
+
+def test_start_run_batch_scratch_storage_mode_parameter_description():
+    """The parameter description documents LOCAL, SHARED, their meaning, and the LOCAL default.
+
+    Validates: Requirements Scratch storage mode parameter on the batch-run tool
+    (parameter documentation).
+    """
+    signature = _inspect.signature(_run_batch.start_run_batch)
+    field_info = signature.parameters['scratch_storage_mode'].default
+    description = field_info.description
+
+    assert description is not None
+    # Documents both allowed values.
+    assert 'LOCAL' in description
+    assert 'SHARED' in description
+    # Documents the meaning of each value.
+    assert 'ephemeral' in description.lower()
+    assert 'shared scratch storage' in description.lower()
+    # Documents that the MCP server default is LOCAL.
+    assert 'default' in description.lower()

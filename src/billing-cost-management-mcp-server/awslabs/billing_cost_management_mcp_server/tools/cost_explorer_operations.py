@@ -25,7 +25,7 @@ from ..utilities.aws_service_base import (
     paginate_aws_response,
     parse_json,
 )
-from ..utilities.sql_utils import convert_api_response_to_table
+from ..utilities.sql_utils import convert_response_if_needed
 from datetime import datetime, timedelta
 from fastmcp import Context
 from typing import Any, Dict, Optional
@@ -106,7 +106,11 @@ async def get_cost_and_usage(
 
         # Use shared pagination utility
         if next_token or max_pages:
-            # For paginated requests, use the paginate utility
+            # paginate_aws_response only sets the token on iter 2+, so inject
+            # the caller's token into the first boto3 request explicitly.
+            if next_token:
+                request_params['NextPageToken'] = next_token
+
             results, pagination_metadata = await paginate_aws_response(
                 ctx,
                 'getCostAndUsage',
@@ -118,17 +122,14 @@ async def get_cost_and_usage(
                 max_pages,
             )
 
-            # Format paginated response
             response = {'ResultsByTime': results, 'Pagination': pagination_metadata}
         else:
-            # For single page, make direct call
             response = ce_client.get_cost_and_usage(**request_params)
 
-        # Convert large responses to SQL table
-        table_response = await convert_api_response_to_table(
+        table_response = await convert_response_if_needed(
             ctx,
             response,
-            'getCostAndUsage',
+            'cost_explorer_get_cost_and_usage',
             granularity=granularity,
             start_date=start,
             end_date=end,
@@ -136,13 +137,7 @@ async def get_cost_and_usage(
             metrics=metrics,
         )
 
-        # Return the response (either the original or the SQL table info)
-        return format_response(
-            'success',
-            table_response
-            if isinstance(table_response, dict) and 'data_stored' in table_response
-            else response,
-        )
+        return format_response('success', table_response)
 
     except Exception as e:
         # Use shared error handling
@@ -158,6 +153,8 @@ async def get_cost_and_usage_with_resources(
     metrics: Optional[str] = None,
     group_by: Optional[str] = None,
     filter_expr: Optional[str] = None,
+    next_token: Optional[str] = None,
+    max_pages: Optional[int] = None,
     billing_view_arn: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Get resource-level cost and usage data.
@@ -173,6 +170,8 @@ async def get_cost_and_usage_with_resources(
         metrics: List of metrics as JSON string
         group_by: Optional grouping as JSON string
         filter_expr: Optional filters as JSON string
+        next_token: Pagination token
+        max_pages: Maximum number of pages to fetch
         billing_view_arn: Optional ARN of a billing view to scope the query.
             If not provided, defaults to the account's primary billing view.
 
@@ -216,11 +215,41 @@ async def get_cost_and_usage_with_resources(
         if billing_view_arn:
             request_params['BillingViewArn'] = billing_view_arn
 
-        # Make API call
-        await ctx.info('Calling getCostAndUsageWithResources API')
-        response = ce_client.get_cost_and_usage_with_resources(**request_params)
+        # Handle pagination — same NextPageToken contract as getCostAndUsage.
+        if next_token or max_pages:
+            # paginate_aws_response only sets the token on iter 2+, so inject
+            # the caller's token into the first boto3 request explicitly.
+            if next_token:
+                request_params['NextPageToken'] = next_token
 
-        return format_response('success', response)
+            results, pagination_metadata = await paginate_aws_response(
+                ctx,
+                'getCostAndUsageWithResources',
+                lambda **params: ce_client.get_cost_and_usage_with_resources(**params),
+                request_params,
+                'ResultsByTime',
+                'NextPageToken',
+                'NextPageToken',
+                max_pages,
+            )
+
+            response = {'ResultsByTime': results, 'Pagination': pagination_metadata}
+        else:
+            await ctx.info('Calling getCostAndUsageWithResources API')
+            response = ce_client.get_cost_and_usage_with_resources(**request_params)
+
+        table_response = await convert_response_if_needed(
+            ctx,
+            response,
+            'cost_explorer_get_cost_and_usage_with_resources',
+            granularity=granularity,
+            start_date=start,
+            end_date=end,
+            group_by=group_by,
+            metrics=metrics,
+        )
+
+        return format_response('success', table_response)
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'getCostAndUsageWithResources', 'Cost Explorer')
@@ -286,7 +315,8 @@ async def get_dimension_values(
 
         # Handle pagination
         if next_token or max_pages:
-            # For paginated requests, use the paginate utility
+            if next_token:
+                request_params['NextPageToken'] = next_token
             results, pagination_metadata = await paginate_aws_response(
                 ctx,
                 'getDimensionValues',
@@ -304,7 +334,17 @@ async def get_dimension_values(
             # For single page, make direct call
             response = ce_client.get_dimension_values(**request_params)
 
-        return format_response('success', response)
+        table_response = await convert_response_if_needed(
+            ctx,
+            response,
+            'cost_explorer_get_dimension_values',
+            dimension=dimension,
+            start_date=start,
+            end_date=end,
+            search_string=search_string,
+        )
+
+        return format_response('success', table_response)
 
     except Exception as e:
         # Use shared error handling
@@ -378,7 +418,19 @@ async def get_cost_forecast(
         await ctx.info('Calling getCostForecast API')
         response = ce_client.get_cost_forecast(**request_params)
 
-        return format_response('success', response)
+        # Forecast responses can be large with DAILY granularity over months —
+        # offload through the SQL gate so callers get a queryable table.
+        table_response = await convert_response_if_needed(
+            ctx,
+            response,
+            'cost_explorer_get_cost_forecast',
+            metric=metric,
+            granularity=granularity,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+        return format_response('success', table_response)
 
     except Exception as e:
         # Use shared error handling
@@ -451,7 +503,17 @@ async def get_usage_forecast(
         await ctx.info('Calling getUsageForecast API')
         response = ce_client.get_usage_forecast(**request_params)
 
-        return format_response('success', response)
+        table_response = await convert_response_if_needed(
+            ctx,
+            response,
+            'cost_explorer_get_usage_forecast',
+            metric=metric,
+            granularity=granularity,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+        return format_response('success', table_response)
 
     except Exception as e:
         # Use shared error handling
@@ -512,7 +574,8 @@ async def get_tags(
             api_function = ce_client.get_tags
             result_key = 'Tags' if not tag_key else 'TagValues'
 
-            # For paginated requests, use the paginate utility
+            if next_token:
+                request_params['NextPageToken'] = next_token
             results, pagination_metadata = await paginate_aws_response(
                 ctx,
                 operation,
@@ -530,7 +593,17 @@ async def get_tags(
             # For single page, make direct call
             response = ce_client.get_tags(**request_params)
 
-        return format_response('success', response)
+        table_response = await convert_response_if_needed(
+            ctx,
+            response,
+            'cost_explorer_get_tags',
+            start_date=start,
+            end_date=end,
+            search_string=search_string,
+            tag_key=tag_key,
+        )
+
+        return format_response('success', table_response)
 
     except Exception as e:
         # Use shared error handling
@@ -596,6 +669,11 @@ async def get_cost_categories(
 
         # Handle pagination
         if next_token or max_pages:
+            result_key = 'CostCategories' if not cost_category_name else 'CostCategoryValues'
+
+            if next_token:
+                request_params['NextPageToken'] = next_token
+
             # For paginated requests, use the paginate utility
             results, pagination_metadata = await paginate_aws_response(
                 ctx,
@@ -614,7 +692,17 @@ async def get_cost_categories(
             # For single page, make direct call
             response = ce_client.get_cost_categories(**request_params)
 
-        return format_response('success', response)
+        table_response = await convert_response_if_needed(
+            ctx,
+            response,
+            'cost_explorer_get_cost_categories',
+            start_date=start,
+            end_date=end,
+            search_string=search_string,
+            cost_category_name=cost_category_name,
+        )
+
+        return format_response('success', table_response)
 
     except Exception as e:
         # Use shared error handling
@@ -665,7 +753,8 @@ async def get_savings_plans_utilization(
 
         # Handle pagination
         if next_token or max_pages:
-            # For paginated requests, use the paginate utility
+            if next_token:
+                request_params['NextToken'] = next_token
             results, pagination_metadata = await paginate_aws_response(
                 ctx,
                 'getSavingsPlansUtilization',
