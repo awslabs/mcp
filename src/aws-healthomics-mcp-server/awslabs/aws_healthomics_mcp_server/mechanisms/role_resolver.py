@@ -18,7 +18,7 @@ This module introduces the seam that maps a request's decoded token claims to
 the downstream role the server must assume, so a single ``jwt`` endpoint can act
 in many customers' accounts.
 
-Two concepts live here:
+Core abstractions:
 
 - :class:`RoleTarget` -- the resolved downstream target for a request: a role
   ARN plus an optional ``ExternalId``.
@@ -26,11 +26,22 @@ Two concepts live here:
   ``InboundJwtExchange`` that maps decoded token claims to a
   :class:`RoleTarget`.
 
-Concrete implementations (``StaticRoleResolver`` and ``RegistryRoleResolver``)
-are added in later tasks. Regardless of implementation, resolution is always
-driven by provider-controlled configuration or a provider-controlled registry --
-never by an unvalidated token claim -- and the resulting mapping is the enforced
-cross-tenant boundary (Requirement 5.1).
+Two concrete resolvers are implemented here:
+
+- :class:`StaticRoleResolver` -- returns a single provider-configured role ARN
+  (from ``MCP_JWT_ROLE_ARN``) with no ``ExternalId``, for every request. This is
+  the backward-compatible single-role behavior.
+- :class:`RegistryRoleResolver` -- looks up the authenticated identity in a
+  provider-controlled :class:`RegistrySource` (a file-based JSON map,
+  :class:`FileRegistrySource`, or a DynamoDB table, :class:`DynamoDbRegistrySource`,
+  selected from ``MCP_JWT_ROLE_REGISTRY`` by :func:`parse_registry_source`) and
+  returns that identity's role ARN and per-customer ``ExternalId`` for
+  cross-account assumption.
+
+Regardless of implementation, resolution is always driven by provider-controlled
+configuration or a provider-controlled registry -- never by an unvalidated token
+claim -- and the resulting mapping is the enforced cross-tenant boundary
+(Requirement 5.1).
 
 SECURITY: Resolvers MUST fail closed. When a role target cannot be resolved for
 a request, a resolver raises
@@ -179,8 +190,7 @@ class RegistrySourceError(Exception):
 
     This is an internal signal from a :class:`RegistrySource` backend that its
     underlying store (a JSON file or a DynamoDB table) could not be read or
-    parsed. ``RegistryRoleResolver`` (added in a later task) catches this and
-    re-raises a
+    parsed. :class:`RegistryRoleResolver` catches this and re-raises a
     :class:`~awslabs.aws_healthomics_mcp_server.utils.aws_utils.CredentialDerivationError`
     so the request fails closed (Requirement 3.7). Backends MUST NOT include any
     claim, token, or credential material in the message; only non-secret facts
