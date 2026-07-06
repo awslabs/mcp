@@ -44,9 +44,6 @@ def test_filter_zero_width_and_bidi_characters():
 
 def test_filter_all_invisible_ranges():
     """Test that a representative code point from each filtered range is removed."""
-<<<<<<< HEAD
-    for code_point in (0x00AD, 0x180E, 0x200B, 0x202A, 0x2060, 0x2066, 0xFEFF, 0xE0001):
-=======
     # One or more probes per range in _INVISIBLE_CHAR_RANGES, including the
     # boundary points that the earlier hand-picked list missed (0x180B, 0x2065,
     # 0x206F, variation selectors 0xFE0F / 0xE0100).
@@ -68,7 +65,6 @@ def test_filter_all_invisible_ranges():
         0xE0100,
     )
     for code_point in probes:
->>>>>>> be638bcb (fix(aws-iac-mcp-server): validate rules_file_path and harden invisible-char filter)
         text = f'a{chr(code_point)}b'
         assert filter_unicode_tags(text) == 'ab', f'failed for U+{code_point:04X}'
 
