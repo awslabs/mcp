@@ -30,7 +30,7 @@ dev = [
 ]
 
 [project.scripts]
-roda-mcp-server = "awslabs.roda_mcp_server.server:main"
+awslabs.roda-mcp-server = "awslabs.roda_mcp_server.server:main"
 
 [build-system]
 requires = ["hatchling"]
