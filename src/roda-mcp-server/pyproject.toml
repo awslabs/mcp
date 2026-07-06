@@ -1,0 +1,77 @@
+[project]
+name = "awslabs.roda-mcp-server"
+version = "0.1.2"
+description = "MCP server for discovering and exploring AWS Registry of Open Data datasets"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastmcp>=2.13.1",
+    "httpx[http2]>=0.27.0",
+    "boto3>=1.28.0",
+    "loguru>=0.7.0",
+]
+license = {text = "Apache-2.0"}
+license-files = ["LICENSE", "NOTICE"]
+
+[project.urls]
+Homepage = "https://awslabs.github.io/mcp/"
+Documentation = "https://awslabs.github.io/mcp/servers/roda-mcp-server/"
+Source = "https://github.com/awslabs/mcp.git"
+"Bug Tracker" = "https://github.com/awslabs/mcp/issues"
+Changelog = "https://github.com/awslabs/mcp/blob/main/src/roda-mcp-server/CHANGELOG.md"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=6.0.0",
+    "pyright>=1.1.0",
+    "ruff>=0.14.0",
+]
+
+[project.scripts]
+"awslabs.roda-mcp-server" = "awslabs.roda_mcp_server.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["awslabs"]
+
+[tool.ruff]
+line-length = 99
+exclude = [
+    ".venv",
+    "**/__pycache__",
+]
+
+[tool.ruff.lint]
+exclude = ["__init__.py"]
+select = ["C", "D", "E", "F", "I", "W"]
+ignore = ["C901", "E501", "E741", "F402", "F823", "D100", "D106"]
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+no-sections = true
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+
+[tool.pyright]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+filterwarnings = [
+    "ignore::DeprecationWarning:pytest_asyncio",
+]
+
+[tool.coverage.run]
+source = ["awslabs"]

@@ -105,6 +105,34 @@ class TestInsightsHandler:
         }
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize('insight_id', ['', '   '])
+    async def test_get_eks_insights_list_mode_for_blank_insight_id(
+        self, mock_context, mock_mcp, insight_id
+    ):
+        """Blank insight_id values should list insights instead of entering detail mode."""
+        mock_eks_client = MagicMock()
+        mock_eks_client.list_insights.return_value = {
+            'insights': [
+                self._create_mock_insight_item(insight_id='insight-1', category='CONFIGURATION'),
+            ]
+        }
+
+        handler = InsightsHandler(mock_mcp)
+        handler.eks_client = mock_eks_client
+
+        result = await handler._get_eks_insights_impl(
+            mock_context, cluster_name='test-cluster', insight_id=insight_id
+        )
+
+        mock_eks_client.list_insights.assert_called_once_with(clusterName='test-cluster')
+        mock_eks_client.describe_insight.assert_not_called()
+
+        assert not result.isError
+        data = json.loads(result.content[1].text)
+        assert data['detail_mode'] is False
+        assert len(data['insights']) == 1
+
+    @pytest.mark.asyncio
     async def test_get_eks_insights_list_mode(self, mock_context, mock_mcp):
         """Test _get_eks_insights_impl in list mode (without an insight_id)."""
         # Create mock AWS client
