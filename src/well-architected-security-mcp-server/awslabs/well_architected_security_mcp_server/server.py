@@ -52,7 +52,7 @@ from awslabs.well_architected_security_mcp_server.util.storage_security import (
 
 # Set up AWS region and profile from environment variables
 AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
-AWS_PROFILE = os.environ.get("AWS_PROFILE", "default")
+AWS_PROFILE = os.environ.get("AWS_PROFILE")
 
 # Remove default logger and add custom configuration
 logger.remove()
@@ -168,10 +168,10 @@ async def check_security_services(
                 f"[DEBUG:CheckSecurityServices] Starting security services check for region: {region}"
             )
             print(f"[DEBUG:CheckSecurityServices] Services to check: {', '.join(services)}")
-            print(f"[DEBUG:CheckSecurityServices] Using AWS profile: {aws_profile or 'default'}")
+            print(f"[DEBUG:CheckSecurityServices] Using AWS profile: {aws_profile or 'None (will use default chain)'}")
 
-        # Use the provided AWS profile or default to 'default'
-        profile_name = aws_profile or "default"
+        # Use the provided AWS profile or default to full credential chain
+        profile_name = aws_profile
 
         # Create a session using the specified profile
         session = boto3.Session(profile_name=profile_name)
@@ -409,8 +409,8 @@ async def get_security_findings(
                     f"No stored security services data found for region: {region}. Will check service status directly."
                 )
 
-        # Use the provided AWS profile or default to 'default'
-        profile_name = aws_profile or "default"
+        # Use the provided AWS profile or default to full credential chain
+        profile_name = aws_profile
 
         # Create a session using the specified profile
         session = boto3.Session(profile_name=profile_name)
@@ -597,10 +597,10 @@ async def check_storage_encryption_tool(
     try:
         print(f"Starting storage encryption check for region: {region}")
         print(f"Services to check: {', '.join(services)}")
-        print(f"Using AWS profile: {aws_profile or 'default'}")
+        print(f"Using AWS profile: {aws_profile or 'None (will use default chain)'}")
 
-        # Use the provided AWS profile or default to 'default'
-        profile_name = aws_profile or "default"
+        # Use the provided AWS profile or default to full credential chain
+        profile_name = aws_profile
 
         # Create a session using the specified profile
         session = boto3.Session(profile_name=profile_name)
@@ -651,10 +651,10 @@ async def list_services_in_region_tool(
     - Read permissions for various AWS services
     """
     print(f"Starting service discovery for region: {region}")
-    print(f"Using AWS profile: {aws_profile or 'default'}")
+    print(f"Using AWS profile: {aws_profile or 'None (will use default chain)'}")
 
-    # Use the provided AWS profile or default to 'default'
-    profile_name = aws_profile or "default"
+    # Use the provided AWS profile or default to full credential chain
+    profile_name = aws_profile
 
     # Create a session using the specified profile
     session = boto3.Session(profile_name=profile_name)
@@ -720,10 +720,10 @@ async def check_network_security_tool(
     try:
         print(f"Starting network security check for region: {region}")
         print(f"Services to check: {', '.join(services)}")
-        print(f"Using AWS profile: {aws_profile or 'default'}")
+        print(f"Using AWS profile: {aws_profile or 'None (will use default chain)'}")
 
-        # Use the provided AWS profile or default to 'default'
-        profile_name = aws_profile or "default"
+        # Use the provided AWS profile or default to full credential chain
+        profile_name = aws_profile
 
         # Create a session using the specified profile
         session = boto3.Session(profile_name=profile_name)

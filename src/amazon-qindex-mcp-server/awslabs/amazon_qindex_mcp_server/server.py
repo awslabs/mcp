@@ -203,7 +203,7 @@ async def create_token_with_iam(
     """
     try:
         # Create boto3 client for SSO OIDC
-        aws_profile = os.environ.get('AWS_PROFILE', 'default')
+        aws_profile = os.environ.get('AWS_PROFILE')
         session = boto3.Session(region_name=idc_region, profile_name=aws_profile)
 
         sts_client = session.client('sts')
@@ -282,7 +282,7 @@ async def assume_role_with_identity_context(
     """
     try:
         # Create boto3 client for STS
-        aws_profile = os.environ.get('AWS_PROFILE', 'default')
+        aws_profile = os.environ.get('AWS_PROFILE')
         session = boto3.Session(region_name=idc_region, profile_name=aws_profile)
         client = session.client('sts')
 
