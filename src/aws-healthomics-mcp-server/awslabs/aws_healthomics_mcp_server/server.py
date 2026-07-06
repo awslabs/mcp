@@ -15,7 +15,6 @@
 """awslabs aws-healthomics MCP Server implementation."""
 
 import anyio
-import os
 import sys
 from awslabs.aws_healthomics_mcp_server import consts
 from awslabs.aws_healthomics_mcp_server.config import (
@@ -25,6 +24,11 @@ from awslabs.aws_healthomics_mcp_server.config import (
 )
 from awslabs.aws_healthomics_mcp_server.mechanisms.explicit import InboundExplicitCredentials
 from awslabs.aws_healthomics_mcp_server.mechanisms.jwt_exchange import InboundJwtExchange
+from awslabs.aws_healthomics_mcp_server.mechanisms.role_resolver import (
+    RegistryRoleResolver,
+    RoleResolver,
+    StaticRoleResolver,
+)
 from awslabs.aws_healthomics_mcp_server.mechanisms.sigv4 import InboundSigV4
 from awslabs.aws_healthomics_mcp_server.middleware import (
     ASGIApp,
@@ -370,40 +374,96 @@ mcp.tool(name='ListAHOConfigurations')(list_configurations)
 mcp.tool(name='DeleteAHOConfiguration')(delete_configuration)
 
 
-def _build_inbound_mechanisms(mechanisms: tuple[str, ...]) -> list[InboundMechanism]:
-    """Build inbound identity mechanism instances from configured mechanism names.
+def _build_jwt_role_resolver(config: ServerConfig) -> RoleResolver:
+    """Select and build the JWT :class:`RoleResolver` from the resolved config.
 
-    Maps each configured mechanism name (already validated and ordered by
-    precedence in :func:`config.parse_config`) to its concrete implementation:
-    ``'sigv4'`` -> :class:`InboundSigV4`, ``'explicit'`` ->
-    :class:`InboundExplicitCredentials`, and ``'jwt'`` ->
-    :class:`InboundJwtExchange`. The JWT exchange mechanism requires the ARN of the
-    role to assume, which is read from the :data:`consts.MCP_JWT_ROLE_ARN_ENV`
-    environment variable.
+    The resolver is chosen by which single role-resolution source the config
+    carries (``parse_config`` already rejects configuring both sources at once):
+
+    - :attr:`ServerConfig.jwt_role_arn` set -> :class:`StaticRoleResolver`,
+      reproducing the current static ``MCP_JWT_ROLE_ARN`` behavior (backward
+      compatible; every request resolves to that ARN with no ``ExternalId``).
+    - :attr:`ServerConfig.jwt_role_registry` set ->
+      :class:`RegistryRoleResolver`, built from the provider-controlled registry
+      source value (``file:///path/map.json`` or ``dynamodb://table-name``).
+    - neither set -> a startup error, so the server fails closed rather than
+      running the ``'jwt'`` mechanism with no way to resolve a role.
 
     Args:
-        mechanisms: The enabled inbound mechanism names, ordered by precedence.
+        config: The resolved server configuration carrying the (already
+            validated and mutually exclusive) role-resolution sources.
 
     Returns:
-        The constructed inbound mechanism instances.
+        The selected role resolver.
 
     Raises:
-        TransportConfigError: If ``'jwt'`` is enabled but no role ARN is configured
-            via :data:`consts.MCP_JWT_ROLE_ARN_ENV`. The server does not start.
+        TransportConfigError: If neither role-resolution source is configured, or
+            if the configured registry source value is malformed / names an
+            unsupported backend. The server does not start in either case.
+    """
+    if config.jwt_role_arn:
+        return StaticRoleResolver(config.jwt_role_arn)
+
+    if config.jwt_role_registry:
+        try:
+            return RegistryRoleResolver.from_registry_value(config.jwt_role_registry)
+        except ValueError as exc:
+            # Fail closed on a malformed/unsupported registry source value. The
+            # value is provider-controlled configuration (not secret), so the
+            # underlying reason is safe to surface for correction.
+            raise TransportConfigError(
+                consts.ERROR_INVALID_JWT_ROLE_REGISTRY.format(
+                    consts.MCP_JWT_ROLE_REGISTRY_ENV, exc
+                )
+            ) from exc
+
+    raise TransportConfigError(
+        consts.ERROR_MISSING_JWT_ROLE_SOURCE.format(
+            consts.MCP_JWT_ROLE_ARN_ENV, consts.MCP_JWT_ROLE_REGISTRY_ENV
+        )
+    )
+
+
+def _build_inbound_mechanisms(config: ServerConfig) -> list[InboundMechanism]:
+    """Build inbound identity mechanism instances from the resolved config.
+
+    Maps each enabled mechanism name (already validated and ordered by precedence
+    in :func:`config.parse_config`) to its concrete implementation: ``'sigv4'`` ->
+    :class:`InboundSigV4`, ``'explicit'`` -> :class:`InboundExplicitCredentials`,
+    and ``'jwt'`` -> :class:`InboundJwtExchange`.
+
+    The JWT exchange mechanism is wired with the :class:`RoleResolver` selected by
+    :func:`_build_jwt_role_resolver` (static or registry) and the validated
+    :attr:`ServerConfig.jwt_session_duration`. Backward compatibility is preserved:
+    with only ``MCP_JWT_ROLE_ARN`` set, a :class:`StaticRoleResolver` is built and
+    the mechanism behaves exactly as before.
+
+    Args:
+        config: The resolved server configuration providing the enabled inbound
+            mechanisms and the JWT role-resolution / session-duration settings.
+
+    Returns:
+        The constructed inbound mechanism instances, ordered by precedence.
+
+    Raises:
+        TransportConfigError: If ``'jwt'`` is enabled but no role-resolution source
+            is configured, or the configured registry source is invalid. The
+            server does not start (fails closed on misconfiguration).
     """
     built: list[InboundMechanism] = []
-    for name in mechanisms:
+    for name in config.inbound_mechanisms:
         if name == 'sigv4':
             built.append(InboundSigV4())
         elif name == 'explicit':
             built.append(InboundExplicitCredentials())
         elif name == 'jwt':
-            role_arn = (os.environ.get(consts.MCP_JWT_ROLE_ARN_ENV) or '').strip()
-            if not role_arn:
-                raise TransportConfigError(
-                    consts.ERROR_MISSING_JWT_ROLE_ARN.format(consts.MCP_JWT_ROLE_ARN_ENV)
+            role_resolver = _build_jwt_role_resolver(config)
+            built.append(
+                InboundJwtExchange(
+                    role_resolver=role_resolver,
+                    session_duration=config.jwt_session_duration,
                 )
-            built.append(InboundJwtExchange(role_arn=role_arn))
+            )
     return built
 
 
@@ -467,8 +527,9 @@ def _run_multi_tenant(mcp_instance: FastMCP, config: ServerConfig) -> None:
         )
 
     # Build the enabled mechanisms first so any configuration error (e.g. a missing
-    # JWT role ARN) surfaces before the resolver is swapped or the server binds.
-    enabled_mechanisms = _build_inbound_mechanisms(config.inbound_mechanisms)
+    # JWT role-resolution source) surfaces before the resolver is swapped or the
+    # server binds.
+    enabled_mechanisms = _build_inbound_mechanisms(config)
 
     set_active_resolver(RequestScopedCredentialResolver())
 

@@ -407,6 +407,23 @@ MCP_INBOUND_AUTH_ENV = 'MCP_INBOUND_AUTH'
 # for the target role ARN.
 MCP_JWT_ROLE_ARN_ENV = 'MCP_JWT_ROLE_ARN'
 
+# Provider-controlled registry source for per-request role/ExternalId resolution
+# (customer-account role assumption). Selects the RegistryRoleResolver; its value
+# names exactly one backend, either a file-based JSON map (file:///path/map.json)
+# or a DynamoDB table (dynamodb://table-name). Mutually exclusive with
+# MCP_JWT_ROLE_ARN.
+MCP_JWT_ROLE_REGISTRY_ENV = 'MCP_JWT_ROLE_REGISTRY'
+
+# Optional session duration (in seconds) applied to the inbound JWT-to-STS
+# AssumeRole exchange. When unset the exchange uses DEFAULT_JWT_SESSION_DURATION.
+MCP_JWT_SESSION_DURATION_ENV = 'MCP_JWT_SESSION_DURATION'
+
+# Session-duration bounds for the inbound JWT-to-STS AssumeRole exchange.
+# The inclusive range mirrors the AWS STS AssumeRole DurationSeconds limits.
+JWT_SESSION_DURATION_MIN = 900
+JWT_SESSION_DURATION_MAX = 43200
+DEFAULT_JWT_SESSION_DURATION = 3600
+
 # Inbound authentication mechanisms (Phase 2).
 # INBOUND_PRECEDENCE documents the deterministic order in which mechanisms apply.
 INBOUND_MECHANISMS = ('sigv4', 'jwt', 'explicit')
@@ -429,3 +446,30 @@ ERROR_MULTI_TENANT_REQUIRES_MECHANISM = (
     'or the {} environment variable; otherwise every inbound request would be '
     'rejected.'
 )
+
+# Startup error messages for the customer-account role-assumption resolver surface.
+# Both role-resolution sources configured is a conflict (fail fast at startup):
+# the '{}' placeholders name the two conflicting sources (MCP_JWT_ROLE_ARN and
+# MCP_JWT_ROLE_REGISTRY).
+ERROR_CONFLICTING_ROLE_RESOLUTION_SOURCES = (
+    'Conflicting JWT role-resolution sources configured: both {} and {} are set. '
+    'Configure exactly one of them.'
+)
+# Invalid session duration: the first '{}' is the rejected value, the following
+# two are the inclusive minimum and maximum of the accepted range.
+ERROR_INVALID_JWT_SESSION_DURATION = (
+    "Invalid JWT session duration '{}'. Must be an integer within the inclusive "
+    'range {} to {} seconds.'
+)
+# The 'jwt' inbound mechanism is enabled but neither role-resolution source is
+# configured. The two '{}' placeholders name the acceptable sources
+# (MCP_JWT_ROLE_ARN for the static resolver and MCP_JWT_ROLE_REGISTRY for the
+# registry resolver); exactly one of them must be set.
+ERROR_MISSING_JWT_ROLE_SOURCE = (
+    "The 'jwt' inbound mechanism is enabled but no role-resolution source is "
+    'configured. Set exactly one of {} (a static role ARN) or {} (a registry '
+    'source) to select the role to assume.'
+)
+# An MCP_JWT_ROLE_REGISTRY value that names an unsupported source backend. The
+# first '{}' is the env-var name and the second '{}' is the underlying reason.
+ERROR_INVALID_JWT_ROLE_REGISTRY = 'Invalid {} value: {}'

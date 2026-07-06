@@ -58,6 +58,11 @@ import boto3
 import botocore.session
 import json
 import re
+from awslabs.aws_healthomics_mcp_server.consts import DEFAULT_JWT_SESSION_DURATION
+from awslabs.aws_healthomics_mcp_server.mechanisms.role_resolver import (
+    RoleResolver,
+    StaticRoleResolver,
+)
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
     CredentialContext,
     CredentialDerivationError,
@@ -166,19 +171,32 @@ class InboundJwtExchange:
 
     def __init__(
         self,
-        role_arn: str,
-        session_duration: int = 3600,
+        role_arn: str | None = None,
+        session_duration: int = DEFAULT_JWT_SESSION_DURATION,
         region: str | None = None,
         caller_claim: str = 'sub',
         tag_key: str = 'caller',
         sts_client_factory: Any = get_sts_client,
+        role_resolver: RoleResolver | None = None,
     ):
         """Initialize the JWT exchange mechanism.
 
+        The mechanism resolves the downstream role per request through a
+        :class:`~awslabs.aws_healthomics_mcp_server.mechanisms.role_resolver.RoleResolver`.
+        For backward-compatible construction, a bare ``role_arn`` may be supplied
+        instead of a resolver; in that case a
+        :class:`~awslabs.aws_healthomics_mcp_server.mechanisms.role_resolver.StaticRoleResolver`
+        is created that resolves every request to that single ARN (with no
+        ``ExternalId``), preserving the original static behavior. Exactly one of
+        ``role_resolver`` or ``role_arn`` must be provided; ``role_resolver`` takes
+        precedence when both are given.
+
         Args:
-            role_arn: ARN of the per-caller/per-tenant role to assume.
+            role_arn: ARN of the per-caller/per-tenant role to assume. Retained for
+                backward-compatible construction; when provided without a
+                ``role_resolver`` it is wrapped in a ``StaticRoleResolver``.
             session_duration: ``DurationSeconds`` for the assumed-role session
-                (default 3600 seconds / 1 hour).
+                (default :data:`DEFAULT_JWT_SESSION_DURATION`).
             region: Optional region for the STS client.
             caller_claim: JWT claim used as the stable caller identifier and ABAC
                 tag value (default ``'sub'``).
@@ -186,8 +204,22 @@ class InboundJwtExchange:
                 ``'caller'``).
             sts_client_factory: Callable returning a fresh STS client. Injectable
                 for testing; defaults to :func:`get_sts_client`.
+            role_resolver: Resolver mapping decoded token claims to a
+                :class:`RoleTarget` (role ARN + optional ``ExternalId``). When
+                omitted, a ``StaticRoleResolver`` is built from ``role_arn``.
+
+        Raises:
+            ValueError: If neither ``role_resolver`` nor ``role_arn`` is provided.
         """
+        if role_resolver is None:
+            if role_arn is None:
+                raise ValueError(
+                    'InboundJwtExchange requires either a role_resolver or a role_arn.'
+                )
+            role_resolver = StaticRoleResolver(role_arn)
+
         self.role_arn = role_arn
+        self.role_resolver = role_resolver
         self.session_duration = session_duration
         self.region = region
         self.caller_claim = caller_claim
@@ -244,8 +276,11 @@ class InboundJwtExchange:
             CredentialContext: The per-request identity (``source='jwt'``).
 
         Raises:
-            CredentialDerivationError: If the token is missing/invalid or the STS
-                assume-role call fails.
+            CredentialDerivationError: If the token is missing/invalid, the caller
+                claim is absent or empty, role resolution fails, a non-static
+                resolver supplies no ExternalId, or the STS assume-role call fails.
+                In every case no ``CredentialContext`` is populated and no further
+                AWS call is made (Requirements 7.4, 8.1, 8.2, 8.4).
         """
         token = self._extract_bearer_token(scope)
         if token is None:
@@ -258,17 +293,42 @@ class InboundJwtExchange:
                 f'Bearer token is missing a usable "{self.caller_claim}" claim.'
             )
 
+        # Resolve the downstream target (role ARN + optional ExternalId) from the
+        # provider-controlled resolver, never from a token claim. Resolvers fail
+        # closed by raising CredentialDerivationError; that error propagates
+        # unchanged here, so a resolution failure denies the request before any
+        # STS client is built or AWS call is made (Requirements 8.1, 8.4).
+        target = self.role_resolver.resolve(claims)
+
+        # Confused-deputy protection (Requirement 7.4): every resolver other than
+        # the static single-role resolver MUST supply a non-empty ExternalId. The
+        # StaticRoleResolver legitimately returns external_id=None (its role is
+        # fixed provider configuration, not a cross-account customer role), so it
+        # is the only exemption. Fail closed BEFORE building the STS client so no
+        # assume_role call is made when the ExternalId is absent.
+        has_external_id = isinstance(target.external_id, str) and bool(target.external_id)
+        if not has_external_id and not isinstance(self.role_resolver, StaticRoleResolver):
+            raise CredentialDerivationError(
+                'Resolved role target is missing a required ExternalId.'
+            )
+
         # Build a fresh STS client using the server's own credentials (never the
         # inbound token). No AWS call has been made yet.
         sts_client = self._sts_client_factory(self.region)
 
+        assume_role_kwargs: dict[str, Any] = {
+            'RoleArn': target.role_arn,
+            'RoleSessionName': _sanitize_session_name(caller),
+            'DurationSeconds': self.session_duration,
+            'Tags': [{'Key': self.tag_key, 'Value': caller}],
+        }
+        # Include ExternalId only when the resolved target supplies a non-empty
+        # value; otherwise omit the parameter entirely (static single-role case).
+        if has_external_id:
+            assume_role_kwargs['ExternalId'] = target.external_id
+
         try:
-            response = sts_client.assume_role(
-                RoleArn=self.role_arn,
-                RoleSessionName=_sanitize_session_name(caller),
-                DurationSeconds=self.session_duration,
-                Tags=[{'Key': self.tag_key, 'Value': caller}],
-            )
+            response = sts_client.assume_role(**assume_role_kwargs)
         except (ClientError, BotoCoreError) as exc:
             # No context is populated and no other AWS call is made for this
             # request. Never log the token or any credential material.

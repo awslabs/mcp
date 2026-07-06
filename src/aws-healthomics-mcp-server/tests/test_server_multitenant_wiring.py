@@ -18,6 +18,10 @@ from awslabs.aws_healthomics_mcp_server import consts, server
 from awslabs.aws_healthomics_mcp_server.config import ServerConfig, TransportConfigError
 from awslabs.aws_healthomics_mcp_server.mechanisms.explicit import InboundExplicitCredentials
 from awslabs.aws_healthomics_mcp_server.mechanisms.jwt_exchange import InboundJwtExchange
+from awslabs.aws_healthomics_mcp_server.mechanisms.role_resolver import (
+    RegistryRoleResolver,
+    StaticRoleResolver,
+)
 from awslabs.aws_healthomics_mcp_server.mechanisms.sigv4 import InboundSigV4
 from awslabs.aws_healthomics_mcp_server.middleware import IdentityMiddleware
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
@@ -37,6 +41,9 @@ def _config(
     host='127.0.0.1',
     port=8000,
     path='/mcp',
+    jwt_session_duration=consts.DEFAULT_JWT_SESSION_DURATION,
+    jwt_role_arn=None,
+    jwt_role_registry=None,
 ):
     """Build a ServerConfig for tests."""
     return ServerConfig(
@@ -46,6 +53,9 @@ def _config(
         path=path,
         multi_tenant=multi_tenant,
         inbound_mechanisms=tuple(inbound_mechanisms),
+        jwt_session_duration=jwt_session_duration,
+        jwt_role_arn=jwt_role_arn,
+        jwt_role_registry=jwt_role_registry,
     )
 
 
@@ -168,44 +178,119 @@ class TestMultiTenantWiring:
 
 
 class TestMechanismBuilding:
-    """The enabled mechanisms list is built from config.inbound_mechanisms."""
+    """The enabled mechanisms list is built from the resolved config."""
 
     def test_builds_sigv4_and_explicit(self):
         """'sigv4' and 'explicit' map to their concrete mechanisms."""
-        built = server._build_inbound_mechanisms(('sigv4', 'explicit'))
+        config = _config(inbound_mechanisms=('sigv4', 'explicit'))
+        built = server._build_inbound_mechanisms(config)
 
         assert [type(m) for m in built] == [InboundSigV4, InboundExplicitCredentials]
 
-    def test_builds_jwt_with_role_arn_from_env(self, monkeypatch):
-        """'jwt' is built with the role ARN read from MCP_JWT_ROLE_ARN."""
+    def test_builds_jwt_with_static_role_arn(self):
+        """'jwt' with a static role ARN builds a StaticRoleResolver-backed exchange."""
         role_arn = 'arn:aws:iam::123456789012:role/jwt-callers'
-        monkeypatch.setenv(consts.MCP_JWT_ROLE_ARN_ENV, role_arn)
+        config = _config(inbound_mechanisms=('jwt',), jwt_role_arn=role_arn)
 
-        built = server._build_inbound_mechanisms(('jwt',))
+        built = server._build_inbound_mechanisms(config)
 
         assert len(built) == 1
         assert isinstance(built[0], InboundJwtExchange)
-        assert built[0].role_arn == role_arn
+        assert isinstance(built[0].role_resolver, StaticRoleResolver)
+        assert built[0].role_resolver.resolve({'sub': 'anyone'}).role_arn == role_arn
+        assert built[0].role_resolver.resolve({'sub': 'anyone'}).external_id is None
+
+    def test_jwt_static_resolver_uses_configured_session_duration(self):
+        """The validated session duration is injected into the JWT exchange."""
+        config = _config(
+            inbound_mechanisms=('jwt',),
+            jwt_role_arn='arn:aws:iam::123456789012:role/jwt-callers',
+            jwt_session_duration=7200,
+        )
+
+        built = server._build_inbound_mechanisms(config)
+
+        assert isinstance(built[0], InboundJwtExchange)
+        assert built[0].session_duration == 7200
+
+    def test_builds_jwt_with_registry_source(self):
+        """'jwt' with a registry source builds a RegistryRoleResolver-backed exchange."""
+        config = _config(
+            inbound_mechanisms=('jwt',),
+            jwt_role_registry='dynamodb://customer-roles',
+        )
+
+        built = server._build_inbound_mechanisms(config)
+
+        assert len(built) == 1
+        assert isinstance(built[0], InboundJwtExchange)
+        assert isinstance(built[0].role_resolver, RegistryRoleResolver)
+        # Registry config must not build the static resolver (single-source selection).
+        assert not isinstance(built[0].role_resolver, StaticRoleResolver)
+
+    def test_static_role_arn_does_not_build_registry_resolver(self):
+        """'jwt' with a static ARN builds only the static resolver, never the registry one.
+
+        Guards the single-resolver-source selection so a static-ARN config can never
+        be wired to the registry-backed resolver.
+
+        Validates: Requirements Backward Compatibility, Configuration surface and
+        single-resolver selection.
+        """
+        config = _config(
+            inbound_mechanisms=('jwt',),
+            jwt_role_arn='arn:aws:iam::123456789012:role/jwt-callers',
+        )
+
+        built = server._build_inbound_mechanisms(config)
+
+        assert isinstance(built[0], InboundJwtExchange)
+        assert isinstance(built[0].role_resolver, StaticRoleResolver)
+        assert not isinstance(built[0].role_resolver, RegistryRoleResolver)
+
+    def test_jwt_registry_resolver_uses_configured_session_duration(self):
+        """The validated session duration is injected into the registry-backed exchange.
+
+        Complements the static-resolver session-duration coverage so the injection is
+        asserted for both resolver types.
+
+        Validates: Requirements Configuration surface and single-resolver selection.
+        """
+        config = _config(
+            inbound_mechanisms=('jwt',),
+            jwt_role_registry='dynamodb://customer-roles',
+            jwt_session_duration=1800,
+        )
+
+        built = server._build_inbound_mechanisms(config)
+
+        assert isinstance(built[0], InboundJwtExchange)
+        assert isinstance(built[0].role_resolver, RegistryRoleResolver)
+        assert built[0].session_duration == 1800
 
     def test_mechanisms_built_in_config_order(self):
         """The mechanisms list mirrors the order of config.inbound_mechanisms."""
-        built = server._build_inbound_mechanisms(('explicit', 'sigv4'))
+        config = _config(inbound_mechanisms=('explicit', 'sigv4'))
+        built = server._build_inbound_mechanisms(config)
 
         assert [m.name for m in built] == ['explicit', 'sigv4']
 
-    def test_jwt_without_role_arn_raises_config_error(self, monkeypatch):
-        """'jwt' enabled without a configured role ARN raises a config error."""
-        monkeypatch.delenv(consts.MCP_JWT_ROLE_ARN_ENV, raising=False)
+    def test_jwt_without_role_source_raises_config_error(self):
+        """'jwt' enabled with neither role source configured raises a config error."""
+        config = _config(inbound_mechanisms=('jwt',))
 
         with pytest.raises(TransportConfigError):
-            server._build_inbound_mechanisms(('jwt',))
+            server._build_inbound_mechanisms(config)
 
-    def test_jwt_with_blank_role_arn_raises_config_error(self, monkeypatch):
-        """A whitespace-only role ARN is treated as unset."""
-        monkeypatch.setenv(consts.MCP_JWT_ROLE_ARN_ENV, '   ')
+    def test_jwt_with_invalid_registry_source_raises_config_error(self):
+        """An unsupported registry source value fails closed at startup."""
+        config = _config(
+            inbound_mechanisms=('jwt',),
+            jwt_role_registry='ftp://not-supported',
+        )
 
         with pytest.raises(TransportConfigError):
-            server._build_inbound_mechanisms(('jwt',))
+            server._build_inbound_mechanisms(config)
 
 
 class TestMultiTenantRequiresMechanism:
@@ -237,6 +322,43 @@ class TestMultiTenantRequiresMechanism:
 
         assert exc_info.value.code == 1
         mock_serve.assert_not_called()
+        assert isinstance(get_active_resolver(), DefaultCredentialResolver)
+
+
+class TestConflictingRoleSourcesExit:
+    """Configuring both JWT role-resolution sources is rejected before serving."""
+
+    def test_main_exits_when_both_role_sources_configured(self):
+        """main() exits with code 1 and never serves when both role sources are set.
+
+        parse_config performs the single-resolver-source selection and rejects
+        configuring both MCP_JWT_ROLE_ARN and MCP_JWT_ROLE_REGISTRY at once by raising
+        a config error; main() surfaces that as a non-zero exit without starting any
+        transport, so the conflicting configuration fails closed.
+
+        Validates: Requirements Configuration surface and single-resolver selection.
+        """
+        conflict = TransportConfigError(
+            consts.ERROR_CONFLICTING_ROLE_RESOLUTION_SOURCES.format(
+                consts.MCP_JWT_ROLE_ARN_ENV, consts.MCP_JWT_ROLE_REGISTRY_ENV
+            )
+        )
+
+        with (
+            patch.object(server, 'parse_config', side_effect=conflict),
+            patch.object(server.TransportSelector, 'start') as mock_start,
+            patch.object(server, '_run_multi_tenant') as mock_run_mt,
+            patch.object(server, '_serve_asgi_app') as mock_serve,
+            pytest.raises(SystemExit) as exc_info,
+        ):
+            server.main()
+
+        assert exc_info.value.code == 1
+        # Neither the single-tenant nor the multi-tenant serving path was entered.
+        mock_start.assert_not_called()
+        mock_run_mt.assert_not_called()
+        mock_serve.assert_not_called()
+        # The active resolver was never swapped to the request-scoped one.
         assert isinstance(get_active_resolver(), DefaultCredentialResolver)
 
 

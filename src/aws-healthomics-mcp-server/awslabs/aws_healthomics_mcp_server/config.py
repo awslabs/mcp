@@ -70,6 +70,19 @@ class ServerConfig:
         inbound_mechanisms: The enabled inbound identity mechanisms (Phase 2), a
             subset of ``{'sigv4', 'jwt', 'explicit'}`` ordered by
             :data:`consts.INBOUND_PRECEDENCE`. Empty when none are selected.
+        jwt_session_duration: Session duration (in seconds) applied to the inbound
+            JWT-to-STS AssumeRole exchange. Defaults to
+            :data:`consts.DEFAULT_JWT_SESSION_DURATION` when unset and is always an
+            integer within the inclusive range
+            ``consts.JWT_SESSION_DURATION_MIN..consts.JWT_SESSION_DURATION_MAX``.
+        jwt_role_arn: The static role ARN used to select the ``StaticRoleResolver``
+            for the inbound ``jwt`` mechanism, or ``None`` when unset. Mutually
+            exclusive with :attr:`jwt_role_registry`; at most one of the two is
+            ever non-``None`` on a resolved configuration.
+        jwt_role_registry: The registry source (for example
+            ``file:///path/map.json`` or ``dynamodb://table-name``) used to select
+            the ``RegistryRoleResolver`` for the inbound ``jwt`` mechanism, or
+            ``None`` when unset. Mutually exclusive with :attr:`jwt_role_arn`.
     """
 
     transport: str
@@ -78,6 +91,9 @@ class ServerConfig:
     path: str
     multi_tenant: bool = False
     inbound_mechanisms: tuple[str, ...] = ()
+    jwt_session_duration: int = consts.DEFAULT_JWT_SESSION_DURATION
+    jwt_role_arn: Optional[str] = None
+    jwt_role_registry: Optional[str] = None
 
 
 def _resolve(cli_value: Optional[str], env_var: str) -> Optional[str]:
@@ -238,6 +254,96 @@ def _parse_port(raw: Optional[str]) -> int:
     return port
 
 
+def _parse_jwt_session_duration(raw: Optional[str]) -> int:
+    """Convert a raw JWT session-duration value to a validated integer of seconds.
+
+    An absent or whitespace-only value yields
+    :data:`consts.DEFAULT_JWT_SESSION_DURATION`. Otherwise the value must parse as
+    an integer within the inclusive range
+    ``consts.JWT_SESSION_DURATION_MIN..consts.JWT_SESSION_DURATION_MAX``.
+
+    Args:
+        raw: The raw session-duration value from CLI or environment, or ``None``.
+
+    Returns:
+        The validated session duration in seconds.
+
+    Raises:
+        TransportConfigError: If a supplied value is not an integer or falls
+            outside the accepted range. The error message identifies the rejected
+            value and the accepted range, and the server does not start in this
+            case.
+    """
+    if raw is None or raw.strip() == '':
+        return consts.DEFAULT_JWT_SESSION_DURATION
+
+    trimmed = raw.strip()
+    try:
+        duration = int(trimmed)
+    except ValueError as exc:
+        raise TransportConfigError(
+            consts.ERROR_INVALID_JWT_SESSION_DURATION.format(
+                raw, consts.JWT_SESSION_DURATION_MIN, consts.JWT_SESSION_DURATION_MAX
+            )
+        ) from exc
+
+    if duration < consts.JWT_SESSION_DURATION_MIN or duration > consts.JWT_SESSION_DURATION_MAX:
+        raise TransportConfigError(
+            consts.ERROR_INVALID_JWT_SESSION_DURATION.format(
+                raw, consts.JWT_SESSION_DURATION_MIN, consts.JWT_SESSION_DURATION_MAX
+            )
+        )
+
+    return duration
+
+
+def _resolve_role_resolution_sources(
+    raw_role_arn: Optional[str], raw_role_registry: Optional[str]
+) -> tuple[Optional[str], Optional[str]]:
+    """Select the single active JWT role-resolution source, rejecting conflicts.
+
+    The two sources ``MCP_JWT_ROLE_ARN`` (static resolver) and
+    ``MCP_JWT_ROLE_REGISTRY`` (registry resolver) are mutually exclusive. Each raw
+    value is normalized by trimming surrounding whitespace; an absent, empty, or
+    whitespace-only value is treated as unset (``None``). When exactly one source
+    is set, that source's normalized value is returned and the other is ``None``.
+    When neither is set, both are ``None`` and JWT-based role resolution is left
+    disabled. When both are set, the configuration is rejected so the server exits
+    without starting a transport.
+
+    Args:
+        raw_role_arn: The raw static role ARN value from CLI or environment, or
+            ``None`` when absent.
+        raw_role_registry: The raw registry source value from CLI or environment,
+            or ``None`` when absent.
+
+    Returns:
+        A ``(role_arn, role_registry)`` tuple in which at most one element is a
+        non-empty string and the other is ``None``.
+
+    Raises:
+        TransportConfigError: If both role-resolution sources are set. The error
+            message names both conflicting sources and the server does not start.
+    """
+    role_arn = (
+        raw_role_arn.strip() if raw_role_arn is not None and raw_role_arn.strip() != '' else None
+    )
+    role_registry = (
+        raw_role_registry.strip()
+        if raw_role_registry is not None and raw_role_registry.strip() != ''
+        else None
+    )
+
+    if role_arn is not None and role_registry is not None:
+        raise TransportConfigError(
+            consts.ERROR_CONFLICTING_ROLE_RESOLUTION_SOURCES.format(
+                consts.MCP_JWT_ROLE_ARN_ENV, consts.MCP_JWT_ROLE_REGISTRY_ENV
+            )
+        )
+
+    return role_arn, role_registry
+
+
 # Recognized boolean values for the multi-tenant flag/env var. Parsing is
 # case-insensitive and trims surrounding whitespace before matching.
 _MULTI_TENANT_ENABLE_VALUES = ('true', '1', 'yes', 'on', 'enabled')
@@ -386,6 +492,41 @@ def _build_parser() -> argparse.ArgumentParser:
             f'Overrides the {consts.MCP_INBOUND_AUTH_ENV} environment variable.'
         ),
     )
+    parser.add_argument(
+        '--jwt-session-duration',
+        dest='jwt_session_duration',
+        default=None,
+        help=(
+            'Session duration in seconds for the inbound JWT-to-STS AssumeRole '
+            f'exchange. Must be an integer within the inclusive range '
+            f'{consts.JWT_SESSION_DURATION_MIN} to {consts.JWT_SESSION_DURATION_MAX} '
+            f'(default: {consts.DEFAULT_JWT_SESSION_DURATION}). Overrides the '
+            f'{consts.MCP_JWT_SESSION_DURATION_ENV} environment variable.'
+        ),
+    )
+    parser.add_argument(
+        '--jwt-role-arn',
+        dest='jwt_role_arn',
+        default=None,
+        help=(
+            'Static IAM role ARN assumed by the inbound JWT-to-STS exchange, '
+            'selecting the static role resolver. Mutually exclusive with '
+            f'--jwt-role-registry. Overrides the {consts.MCP_JWT_ROLE_ARN_ENV} '
+            'environment variable.'
+        ),
+    )
+    parser.add_argument(
+        '--jwt-role-registry',
+        dest='jwt_role_registry',
+        default=None,
+        help=(
+            'Registry source for per-request role/ExternalId resolution (for '
+            'example "file:///path/map.json" or "dynamodb://table-name"), '
+            'selecting the registry role resolver. Mutually exclusive with '
+            f'--jwt-role-arn. Overrides the {consts.MCP_JWT_ROLE_REGISTRY_ENV} '
+            'environment variable.'
+        ),
+    )
     return parser
 
 
@@ -405,10 +546,14 @@ def parse_config(argv: Optional[Sequence[str]] = None) -> ServerConfig:
     Raises:
         UnsupportedTransportError: If an unsupported transport value is supplied.
         TransportConfigError: If the supplied multi-tenant value is unrecognized,
-            an inbound-auth token is not a recognized mechanism, multi-tenant mode
-            is enabled together with the ``stdio`` transport, or, for a network
-            transport, the supplied host is not a valid IPv4/IPv6 address or
-            hostname or the supplied port is not an integer in ``1..65535``.
+            an inbound-auth token is not a recognized mechanism, the supplied JWT
+            session duration is not an integer or falls outside the inclusive range
+            ``consts.JWT_SESSION_DURATION_MIN..consts.JWT_SESSION_DURATION_MAX``,
+            both JWT role-resolution sources (``MCP_JWT_ROLE_ARN`` and
+            ``MCP_JWT_ROLE_REGISTRY``) are configured, multi-tenant mode is enabled
+            together with the ``stdio`` transport, or, for a network transport, the
+            supplied host is not a valid IPv4/IPv6 address or hostname or the
+            supplied port is not an integer in ``1..65535``.
     """
     parser = _build_parser()
     args, _unknown = parser.parse_known_args(argv)
@@ -419,10 +564,19 @@ def parse_config(argv: Optional[Sequence[str]] = None) -> ServerConfig:
     raw_path = _resolve(args.path, consts.MCP_PATH_ENV)
     raw_multi_tenant = _resolve(args.multi_tenant, consts.MCP_MULTI_TENANT_ENV)
     raw_inbound_auth = _resolve(args.inbound_auth, consts.MCP_INBOUND_AUTH_ENV)
+    raw_jwt_session_duration = _resolve(
+        args.jwt_session_duration, consts.MCP_JWT_SESSION_DURATION_ENV
+    )
+    raw_jwt_role_arn = _resolve(args.jwt_role_arn, consts.MCP_JWT_ROLE_ARN_ENV)
+    raw_jwt_role_registry = _resolve(args.jwt_role_registry, consts.MCP_JWT_ROLE_REGISTRY_ENV)
 
     transport = normalize_transport(raw_transport)
     multi_tenant = _parse_multi_tenant(raw_multi_tenant)
     inbound_mechanisms = _parse_inbound_mechanisms(raw_inbound_auth)
+    jwt_session_duration = _parse_jwt_session_duration(raw_jwt_session_duration)
+    jwt_role_arn, jwt_role_registry = _resolve_role_resolution_sources(
+        raw_jwt_role_arn, raw_jwt_role_registry
+    )
 
     # Multi-tenant mode requires a network transport. Reject the stdio + multi-tenant
     # combination before any transport starts so the server exits without serving.
@@ -441,6 +595,9 @@ def parse_config(argv: Optional[Sequence[str]] = None) -> ServerConfig:
             path=consts.DEFAULT_HTTP_PATH,
             multi_tenant=multi_tenant,
             inbound_mechanisms=inbound_mechanisms,
+            jwt_session_duration=jwt_session_duration,
+            jwt_role_arn=jwt_role_arn,
+            jwt_role_registry=jwt_role_registry,
         )
 
     host = _validate_host(raw_host)
@@ -456,4 +613,7 @@ def parse_config(argv: Optional[Sequence[str]] = None) -> ServerConfig:
         path=path,
         multi_tenant=multi_tenant,
         inbound_mechanisms=inbound_mechanisms,
+        jwt_session_duration=jwt_session_duration,
+        jwt_role_arn=jwt_role_arn,
+        jwt_role_registry=jwt_role_registry,
     )
