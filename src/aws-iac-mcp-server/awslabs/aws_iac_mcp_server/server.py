@@ -186,7 +186,10 @@ def check_cloudformation_template_compliance(
 
     Args:
         template_content: CloudFormation template as YAML or JSON string
-        rules_file_path: Path to guard rules file (default: default_guard_rules.guard)
+        rules_file_path: Path to guard rules file (default: default_guard_rules.guard).
+            For security, only files inside the bundled rules directory (or a directory
+            configured via the AWS_IAC_MCP_RULES_DIR environment variable) are read;
+            paths outside these allowed directories are rejected.
     """
     result = check_compliance(
         template_content=template_content,

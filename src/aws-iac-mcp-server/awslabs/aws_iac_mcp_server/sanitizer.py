@@ -37,13 +37,37 @@ def sanitize_tool_response(content: str) -> str:
     return encapsulate_content(filtered)
 
 
-def filter_unicode_tags(text: str) -> str:
-    """Remove unicode tag characters used for obfuscation.
+# Ranges of invisible / non-rendering code points used to smuggle hidden
+# instructions past human review (prompt-injection obfuscation). Each entry is
+# an inclusive (start, end) code-point range. Legitimate whitespace (tab,
+# newline, carriage return, ordinary space) is intentionally NOT included.
+_INVISIBLE_CHAR_RANGES = (
+    (0x00AD, 0x00AD),  # Soft hyphen
+    (0x180E, 0x180E),  # Mongolian vowel separator
+    (0x200B, 0x200F),  # Zero-width space/non-joiner/joiner, LRM, RLM
+    (0x202A, 0x202E),  # Bidirectional embedding/override controls
+    (0x2060, 0x2064),  # Word joiner, invisible math operators
+    (0x2066, 0x2069),  # Bidirectional isolate controls
+    (0xFEFF, 0xFEFF),  # Zero-width no-break space / BOM
+    (0xE0000, 0xE007F),  # Unicode Tags block
+)
 
-    Filters character range 0xE0000 to 0xE007F which can be used
-    to hide malicious instructions from human review.
+
+def _is_invisible_smuggling_char(code_point: int) -> bool:
+    """Return True if the code point is an invisible character used for smuggling."""
+    return any(start <= code_point <= end for start, end in _INVISIBLE_CHAR_RANGES)
+
+
+def filter_unicode_tags(text: str) -> str:
+    """Remove invisible unicode characters used for obfuscation.
+
+    Filters characters across several invisible / non-rendering ranges
+    (zero-width, bidirectional control, and Unicode Tags characters) that can
+    be used to hide malicious instructions from human review. See
+    ``_INVISIBLE_CHAR_RANGES`` for the exact set. Ordinary whitespace such as
+    tab, newline, and space is preserved.
     """
-    return ''.join(char for char in text if not (0xE0000 <= ord(char) <= 0xE007F))
+    return ''.join(char for char in text if not _is_invisible_smuggling_char(ord(char)))
 
 
 def encapsulate_content(text: str) -> str:

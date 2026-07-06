@@ -19,6 +19,7 @@ import json
 import os
 import re
 import yaml
+from pathlib import Path
 from typing import Any, Optional
 
 
@@ -26,6 +27,54 @@ from typing import Any, Optional
 _REMEDIATION_CACHE = {}
 _RULES_CONTENT_CACHE = None
 _TEMPLATE_RESOURCES = {}
+
+
+def _allowed_rule_roots() -> list[Path]:
+    """Return the directories a rules file is allowed to be read from.
+
+    The package's bundled ``data`` directory is always allowed. An operator
+    may allow one additional directory by setting the ``AWS_IAC_MCP_RULES_DIR``
+    environment variable.
+    """
+    import awslabs.aws_iac_mcp_server
+
+    package_dir = os.path.dirname(awslabs.aws_iac_mcp_server.__file__)
+    # Resolve every root so comparisons against the resolved candidate are
+    # symmetric; otherwise a symlinked install path would wrongly reject a
+    # legitimate file under the bundled data directory.
+    roots = [(Path(package_dir) / 'data').resolve()]
+    if 'AWS_IAC_MCP_RULES_DIR' in os.environ:
+        roots.append(Path(os.environ['AWS_IAC_MCP_RULES_DIR']).resolve())
+    return roots
+
+
+def _safe_rules_path(user_path: str) -> Path:
+    """Resolve a user-supplied rules path, rejecting anything outside allowed roots.
+
+    Args:
+        user_path: Path supplied by the caller for the guard rules file.
+
+    Returns:
+        A resolved path guaranteed to live inside an allowed rules directory.
+
+    Raises:
+        ValueError: If the resolved path is not inside an allowed rules directory.
+    """
+    allowed_roots = _allowed_rule_roots()
+
+    if user_path == 'default_guard_rules.guard':
+        return allowed_roots[0] / 'default_guard_rules.guard'
+
+    # Resolve symlinks BEFORE the prefix check.
+    candidate = Path(user_path).resolve()
+    if not any(
+        candidate == root or str(candidate).startswith(str(root) + os.sep)
+        for root in allowed_roots
+    ):
+        raise ValueError(
+            f'rules_file_path must be inside an allowed rules directory; got {user_path!r}'
+        )
+    return candidate
 
 
 def initialize_guard_rules(rules_file_path: Optional[str] = None) -> bool:
@@ -39,18 +88,15 @@ def initialize_guard_rules(rules_file_path: Optional[str] = None) -> bool:
     """
     global _REMEDIATION_CACHE, _RULES_CONTENT_CACHE
 
-    # Use absolute path to default guard rules if none provided
-    if rules_file_path is None or rules_file_path == 'default_guard_rules.guard':
-        try:
-            import awslabs.aws_iac_mcp_server
-
-            package_dir = os.path.dirname(awslabs.aws_iac_mcp_server.__file__)
-            rules_file_path = os.path.join(package_dir, 'data', 'default_guard_rules.guard')
-        except Exception:
-            return False
+    # Treat "no path" the same as the default rules file.
+    if rules_file_path is None:
+        rules_file_path = 'default_guard_rules.guard'
 
     try:
-        with open(rules_file_path, 'r') as f:
+        # Reject any path outside the allowed rules directories before reading.
+        safe_path = _safe_rules_path(rules_file_path)
+
+        with open(safe_path, 'r') as f:
             rules_content = f.read()
 
         # Cache the rules content
@@ -61,6 +107,9 @@ def initialize_guard_rules(rules_file_path: Optional[str] = None) -> bool:
 
         return True
 
+    except ValueError:
+        # rules_file_path was rejected as outside the allowed directories.
+        return False
     except FileNotFoundError:
         return False
     except Exception:
