@@ -75,7 +75,7 @@ from awslabs.billing_cost_management_mcp_server.tools.unified_sql_tools import u
 from awslabs.billing_cost_management_mcp_server.utilities.logging_utils import get_logger
 from fastmcp import FastMCP
 from fastmcp.server.middleware import Middleware
-from fastmcp.tools.tool import ToolResult
+from fastmcp.tools import ToolResult
 
 
 # Configure logger for server
