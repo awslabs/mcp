@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""awslabs.aurora-dsql-mcp-server"""
+"""Registry of Open Data on AWS (RODA) MCP Server."""
 
-__version__ = '1.0.34'
+__version__ = '0.1.2'

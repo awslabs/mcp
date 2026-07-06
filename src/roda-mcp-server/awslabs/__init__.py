@@ -12,6 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""awslabs.aurora-dsql-mcp-server"""
-
-__version__ = '1.0.34'
+# This file is part of the awslabs namespace.
+# It is intentionally minimal to support PEP 420 namespace packages.
+__path__ = __import__('pkgutil').extend_path(__path__, __name__)
