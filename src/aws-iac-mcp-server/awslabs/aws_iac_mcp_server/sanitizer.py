@@ -37,19 +37,15 @@ def sanitize_tool_response(content: str) -> str:
     return encapsulate_content(filtered)
 
 
-# Ranges of invisible / non-rendering code points used to smuggle hidden
-# instructions past human review (prompt-injection obfuscation). Each entry is
-# an inclusive (start, end) code-point range. Legitimate whitespace (tab,
-# newline, carriage return, ordinary space) is intentionally NOT included.
 _INVISIBLE_CHAR_RANGES = (
-    (0x00AD, 0x00AD),  # Soft hyphen
-    (0x180E, 0x180E),  # Mongolian vowel separator
-    (0x200B, 0x200F),  # Zero-width space/non-joiner/joiner, LRM, RLM
-    (0x202A, 0x202E),  # Bidirectional embedding/override controls
-    (0x2060, 0x2064),  # Word joiner, invisible math operators
-    (0x2066, 0x2069),  # Bidirectional isolate controls
-    (0xFEFF, 0xFEFF),  # Zero-width no-break space / BOM
-    (0xE0000, 0xE007F),  # Unicode Tags block
+    (0x00AD, 0x00AD),
+    (0x180B, 0x180F),
+    (0x200B, 0x200F),
+    (0x202A, 0x202E),
+    (0x2060, 0x206F),
+    (0xFE00, 0xFE0F),
+    (0xFEFF, 0xFEFF),
+    (0xE0000, 0xE0FFF),
 )
 
 
