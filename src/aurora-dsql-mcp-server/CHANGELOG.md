@@ -25,5 +25,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- DSQL skill and Kiro Power guidance for the `Amazon.AuroraDsql.EntityFrameworkCore` (EF Core) adapter: C# / .NET connectivity section, EF Core adapter entry, and updated adapter count
 - `dsql_lint` tool: validates SQL for Aurora DSQL compatibility via the `dsql-lint` binary, with optional auto-fix
 - Initial project setup

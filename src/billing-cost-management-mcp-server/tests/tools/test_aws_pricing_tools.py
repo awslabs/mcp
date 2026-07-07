@@ -774,11 +774,11 @@ async def test_ap_real_get_pricing_from_api_reload_identity_decorator(mock_conte
     with patch.object(ap_mod, 'get_pricing_from_api', new_callable=AsyncMock) as mock_impl:
         mock_impl.return_value = {'status': 'success', 'data': {'PriceList': []}}
         filters = {'instanceType': 'c7i.large'}
-        res = await real_fn(  # type: ignore  # type: ignore
+        res = await real_fn(  # type: ignore
             mock_context,
             operation='get_pricing_from_api',
             service_code='AmazonEC2',
-            filters=filters,
+            filters=filters,  # type: ignore
             max_results=100,
         )
         assert res['status'] == 'success'
