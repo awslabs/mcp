@@ -375,3 +375,37 @@ class TestInvoicingServer:
         )
 
         assert invoicing_server.name == 'invoicing-tools'
+
+
+class TestInvoicingRouting:
+    """Operation routing for the top-level ``invoicing`` tool."""
+
+    @pytest.mark.asyncio
+    async def test_routes_list_invoice_summaries(self, mock_context, sample_summary):
+        """operation=list_invoice_summaries dispatches to the handler."""
+        from awslabs.billing_cost_management_mcp_server.tools.invoicing_tools import _invoicing
+
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.return_value = mock_client
+            result = await _invoicing(
+                mock_context,
+                'list_invoice_summaries',
+                account_id='123456789012',
+                billing_period='2026-05',
+            )
+
+        assert result['status'] == 'success'
+        assert result['data']['invoice_summaries'][0]['InvoiceId'] == 'INV-001'
+
+    @pytest.mark.asyncio
+    async def test_unknown_operation_returns_error(self, mock_context):
+        """An unsupported operation returns a standardized error."""
+        from awslabs.billing_cost_management_mcp_server.tools.invoicing_tools import _invoicing
+
+        result = await _invoicing(mock_context, 'not_a_real_operation')
+
+        assert result['status'] == 'error'
+        assert 'not_a_real_operation' in result['data']['message']

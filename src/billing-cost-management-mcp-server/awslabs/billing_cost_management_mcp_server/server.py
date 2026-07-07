@@ -153,7 +153,7 @@ TOOLS:
 - billing-view: AWS Billing View tools for managing and querying billing views (get-billing-view, list-billing-views, list-source-views-for-billing-view, get-resource-policy)
 - cost-allocation-tags: List cost allocation tags and backfill history (list-cost-allocation-tags, list-cost-allocation-tag-backfill-history)
 - cost-category: Describe and list cost category definitions (describe-cost-category-definition, list-cost-category-definitions)
-- invoicing: List AWS invoice summaries with amounts, taxes, due dates, and issuing entity (list-invoice-summaries)
+- invoicing: AWS Invoicing data — invoice summaries with amounts, tax, discounts/fees, currency/FX, due dates, PO numbers, and credit memos (operation: list_invoice_summaries)
 
 PROMPTS:
 - savings_plans: Analyzes AWS usage and identifies opportunities for Savings Plans purchases
@@ -254,7 +254,7 @@ async def setup():
         'list-cost-allocation-tag-backfill-history',
         'describe-cost-category-definition',
         'list-cost-category-definitions',
-        'list-invoice-summaries',
+        'invoicing',
     ]
     for tool in tools:
         logger.info(f'- {tool}')
