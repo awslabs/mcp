@@ -457,6 +457,8 @@ To determine the exact format for a command:
 
 **Note**: IAM permissions remain the primary security control mechanism. The security policy provides an additional layer of protection but cannot override IAM restrictions.
 
+**Fail-closed startup**: Enforcing the security policy (denylist / elicitList as well as `READ_OPERATIONS_ONLY` and `REQUIRE_MUTATION_CONSENT`) requires the server to load its read-only operations metadata at startup, which involves a network call. If that data cannot be loaded, the server **refuses to start** rather than running with security policy checks disabled. If startup fails due to a transient network issue (DNS, VPN, egress proxy), retry once connectivity is restored.
+
 ## License
 Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 

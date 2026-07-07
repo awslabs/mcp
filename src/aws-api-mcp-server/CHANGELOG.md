@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Security
+
+- Fail closed when security policy enforcement data cannot be initialized at startup. Previously, if loading the read-only operations index failed (e.g. a transient network error), the server continued running with the configured security policy (denylist / elicitList) silently skipped for the entire process lifetime, allowing denylisted operations to execute unchecked. The server now refuses to start when this data cannot be loaded, and requests are denied at execution time if the index is unavailable.
+
 ### Fixed
 
 - Remove max range check on parameters to remain forwards compatible with any API changes (#2445)

@@ -34,9 +34,7 @@ from .core.common.config import (
     HOST,
     MAX_BATCH_COMMANDS,
     PORT,
-    READ_ONLY_KEY,
     READ_OPERATIONS_ONLY_MODE,
-    REQUIRE_MUTATION_CONSENT,
     STATELESS_HTTP,
     TRANSPORT,
     WORKING_DIRECTORY,
@@ -319,26 +317,23 @@ async def call_aws_helper(
     )
 
     try:
-        # Check security policy
-        if READ_OPERATIONS_INDEX is not None:
-            policy_decision = check_security_policy(ir, READ_OPERATIONS_INDEX, ctx)
+        # Check security policy.
+        if READ_OPERATIONS_INDEX is None:
+            error_message = (
+                'Execution of this operation is denied because the security policy '
+                'enforcement data failed to initialize.'
+            )
+            await ctx.error(error_message)
+            raise AwsApiMcpError(error_message)
 
-            if policy_decision == PolicyDecision.DENY:
-                error_message = 'Execution of this operation is denied by security policy.'
-                await ctx.error(error_message)
-                raise AwsApiMcpError(error_message)
-            elif policy_decision == PolicyDecision.ELICIT:
-                await request_consent(cli_command, ctx)
-        else:
-            if READ_OPERATIONS_ONLY_MODE:
-                error_message = (
-                    'Execution of this operation is not allowed because read only mode is enabled. '
-                    f'It can be disabled by setting the {READ_ONLY_KEY} environment variable to False.'
-                )
-                await ctx.error(error_message)
-                raise AwsApiMcpError(error_message)
-            elif REQUIRE_MUTATION_CONSENT:
-                await request_consent(cli_command, ctx)
+        policy_decision = check_security_policy(ir, READ_OPERATIONS_INDEX, ctx)
+
+        if policy_decision == PolicyDecision.DENY:
+            error_message = 'Execution of this operation is denied by security policy.'
+            await ctx.error(error_message)
+            raise AwsApiMcpError(error_message)
+        elif policy_decision == PolicyDecision.ELICIT:
+            await request_consent(cli_command, ctx)
 
         if ir.command and ir.command.is_help_operation:
             return await get_help_document(cli_command, ctx)
@@ -437,12 +432,15 @@ def main():
     validate_aws_region(DEFAULT_REGION)
     logger.info('AWS_REGION: {}', DEFAULT_REGION)
 
-    # Always load read operations index for security policy checking
     try:
         READ_OPERATIONS_INDEX = get_read_only_operations()
     except Exception as e:
-        logger.warning('Failed to load read operations index: {}', e)
-        READ_OPERATIONS_INDEX = None
+        logger.error(
+            'Failed to load read operations index required for security policy '
+            'enforcement; refusing to start: {}',
+            e,
+        )
+        raise
 
     if TRANSPORT == 'stdio':
         server.run(
