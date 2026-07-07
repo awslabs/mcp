@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import re
+import sqlparse
 
 
 # -- Mutating keyword set for quick string matching --
@@ -146,8 +147,19 @@ KEYWORD_PATTERNS = [
 SUSPICIOUS_PATTERNS = INJECTION_PATTERNS + KEYWORD_PATTERNS
 
 
+def _strip_comments(sql: str) -> str:
+    r"""Strip SQL comments before regex evaluation.
+
+    SQL inline comments (/**/) are treated as whitespace by PostgreSQL but not
+    by Python's regex engine, allowing payloads like COPY/**/TO or
+    INTO/**/OUTFILE to bypass \s+ patterns.
+    """
+    return sqlparse.format(sql, strip_comments=True)
+
+
 def detect_mutating_keywords(sql: str) -> list[str]:
     """Return a list of mutating keywords found in the SQL (excluding comments)."""
+    sql = _strip_comments(sql)
     matched = []
 
     if DDL_REGEX.search(sql):
@@ -192,9 +204,10 @@ def check_sql_injection_risk(sql: str, read_only: bool = True) -> list[dict]:
             to avoid leaking filter internals to callers).
           - severity: always 'high'.
     """
+    stripped_sql = _strip_comments(sql)
     patterns = SUSPICIOUS_PATTERNS if read_only else INJECTION_PATTERNS
     for pattern, label in patterns:
-        if re.search(pattern, sql):
+        if re.search(pattern, sql) or re.search(pattern, stripped_sql):
             return [
                 {
                     'type': 'sql',
@@ -218,6 +231,8 @@ def detect_transaction_bypass_attempt(sql: str) -> bool:
     Returns:
         True if a bypass attempt is detected, False otherwise
     """
+    sql = _strip_comments(sql)
+
     # Look for COMMIT followed by other statements
     commit_bypass_pattern = re.compile(r'(?i)\bcommit\b.*?;\s*(?!($|\s*--|\s*/\*))\w+', re.DOTALL)
 
