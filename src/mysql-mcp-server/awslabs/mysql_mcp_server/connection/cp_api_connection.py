@@ -60,6 +60,69 @@ def internal_get_instance_properties(target_endpoint: str, region: str) -> Dict[
     raise ValueError(not_found_error)
 
 
+def internal_get_instance_properties_by_identifier(
+    db_instance_identifier: str, region: str
+) -> Dict[str, Any]:
+    """Retrieve RDS instance properties from AWS by instance identifier.
+
+    Unlike :func:`internal_get_instance_properties` (which scans every
+    instance in the region for a matching endpoint), this looks up a
+    single standalone RDS instance directly by its identifier - the
+    counterpart to :func:`internal_get_cluster_properties` for callers
+    that only have an instance identifier and no endpoint.
+
+    Args:
+        db_instance_identifier: RDS instance identifier
+        region: AWS region (e.g., 'us-east-1')
+
+    Returns:
+        Dict[str, Any]: Instance properties from AWS RDS API
+
+    Raises:
+        ValueError: If db_instance_identifier or region is empty, or the
+            instance is not found
+        ClientError: If AWS API call fails for a reason other than
+            DBInstanceNotFound
+    """
+    if not db_instance_identifier or not region:
+        raise ValueError('db_instance_identifier and region are required')
+
+    logger.info(f"Fetching properties for instance '{db_instance_identifier}' in '{region}' ")
+
+    try:
+        rds_client = internal_create_rds_client(region)
+        response = rds_client.describe_db_instances(DBInstanceIdentifier=db_instance_identifier)
+
+        instances = response.get('DBInstances', [])
+        if not instances:
+            raise ValueError(f"Instance '{db_instance_identifier}' not found in region '{region}'")
+
+        instance_properties = instances[0]
+
+        logger.info(
+            f"Retrieved instance '{db_instance_identifier}': "
+            f'Status={instance_properties.get("DBInstanceStatus")}, '
+            f'Engine={instance_properties.get("Engine")}'
+        )
+
+        logger.debug(
+            f'Instance properties: {json.dumps(instance_properties, indent=2, default=str)}'
+        )
+
+        return instance_properties
+
+    except ClientError as e:
+        error_code = e.response['Error']['Code']
+        logger.error(
+            f"AWS error fetching instance '{db_instance_identifier}': "
+            f'{error_code} - {e.response["Error"]["Message"]}'
+        )
+        raise
+    except Exception as e:
+        logger.error(f'Error fetching instance properties: {type(e).__name__}: {e}')
+        raise
+
+
 def internal_get_cluster_properties(cluster_identifier: str, region: str) -> Dict[str, Any]:
     """Retrieve RDS cluster properties from AWS.
 
