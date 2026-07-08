@@ -83,23 +83,26 @@ def _region() -> str:
     return AWS_REGION
 
 
-_logs_client = None
-
-
 def _get_logs_client():
-    """Return a lazily-built CloudWatch Logs boto3 client."""
-    global _logs_client
-    if _logs_client is None:
-        import boto3
+    """Return the shared CloudWatch Logs client.
 
-        _logs_client = boto3.client('logs', region_name=_region())
-    return _logs_client
+    Delegates to the package-level client in ``aws_clients``, which is built from
+    the active ``AWS_PROFILE`` and is the single source of AWS clients for the
+    server. Resolved lazily so ``mock.patch`` of this function works in tests.
+    """
+    from ..aws_clients import get_logs_client
+
+    return get_logs_client()
 
 
 def _reset_client() -> None:
-    """Drop the cached logs client (test hook)."""
-    global _logs_client
-    _logs_client = None
+    """No-op retained for test compatibility.
+
+    The logs client is now owned by ``aws_clients`` rather than cached here, so
+    there is nothing module-local to reset. Kept so existing tests/fixtures that
+    call it continue to work.
+    """
+    return None
 
 
 def _resolve_log_groups(service_name: Optional[str]) -> List[str]:

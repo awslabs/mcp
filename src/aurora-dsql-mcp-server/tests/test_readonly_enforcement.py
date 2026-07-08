@@ -942,3 +942,41 @@ class TestInjectionCorpus:
     def test_legitimate_query_not_flagged(self, sql, reason):
         issues = check_sql_injection_risk(sql)
         assert issues == [], f'false positive on "{reason}": {sql} -> {issues}'
+
+
+class TestCommentBypass:
+    """Test that inline SQL comments cannot bypass regex-based detection."""
+
+    @pytest.mark.parametrize("sql,label", [
+        ("SELECT * INTO/**/OUTFILE '/tmp/data'", "into_outfile"),
+        ("SELECT * INTO /* comment */ OUTFILE '/tmp/data'", "into_outfile"),
+        ("COPY users/**/ TO /**/'/tmp/out'", "copy_to"),
+        ("COPY/**/users FROM '/tmp/data'", "copy_from"),
+    ])
+    def test_comment_bypass_injection_detected(self, sql, label):
+        """Inline comments between SQL keywords must not bypass injection detection."""
+        issues = check_sql_injection_risk(sql, read_only=True)
+        assert len(issues) == 1, f'comment bypass not detected: {sql}'
+        assert issues[0]['label'] == label
+
+    @pytest.mark.parametrize("sql", [
+        "LOAD/**/DATA/**/INFILE '/tmp/data' INTO TABLE t",
+        "LOAD /* x */ DATA /* y */ INFILE '/tmp/data' INTO TABLE t",
+        "SELECT/**/*/**/INTO/**/OUTFILE '/tmp/data' FROM users",
+    ])
+    def test_comment_bypass_mutating_detected(self, sql):
+        """Inline comments between SQL keywords must not bypass mutating keyword detection."""
+        result = detect_mutating_keywords(sql)
+        assert len(result) > 0, f'comment bypass not detected for mutating keywords: {sql}'
+
+    @pytest.mark.parametrize("sql", [
+        "SELECT/* this is a comment */ * FROM users",
+        "SELECT * FROM users /* filter */ WHERE id = 1",
+        "SELECT * FROM /* table */ orders WHERE status = 'active'",
+    ])
+    def test_legitimate_comments_not_flagged(self, sql):
+        """Legitimate use of comments in benign queries should not trigger false positives."""
+        issues = check_sql_injection_risk(sql, read_only=True)
+        assert issues == [], f'false positive on commented query: {sql}'
+        result = detect_mutating_keywords(sql)
+        assert result == [], f'false positive on mutating keywords: {sql}'
