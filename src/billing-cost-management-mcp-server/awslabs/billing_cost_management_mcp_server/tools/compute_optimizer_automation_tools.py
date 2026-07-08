@@ -85,7 +85,7 @@ def _valid_filter_names_by_operation() -> Dict[str, List[str]]:
     """
     result: Dict[str, List[str]] = {}
     try:
-        service_model = botocore.session.get_session().get_service_model(_BOTO_SERVICE_NAME)
+        service_model: Any = botocore.session.get_session().get_service_model(_BOTO_SERVICE_NAME)
     except Exception:
         # Older boto3 without this service, or model load failure: skip local validation.
         return result
