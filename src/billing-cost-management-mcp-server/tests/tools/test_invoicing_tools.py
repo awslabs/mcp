@@ -132,6 +132,21 @@ class TestListInvoiceSummariesSelector:
         assert result['status'] == 'error'
         assert 'not both' in result['data']['message']
 
+    @pytest.mark.asyncio
+    async def test_sts_exception_returns_error(self, mock_context):
+        """When account_id is omitted and STS get_caller_identity raises, status is error."""
+        mock_sts = MagicMock()
+        mock_sts.get_caller_identity.side_effect = ClientError(
+            {'Error': {'Code': 'ExpiredTokenException', 'Message': 'Token expired'}},
+            'GetCallerIdentity',
+        )
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.return_value = mock_sts
+            result = await list_invoice_summaries(mock_context, billing_period='2026-05')
+
+        assert result['status'] == 'error'
+
 
 class TestListInvoiceSummariesFilter:
     """Filter construction and validation."""
@@ -216,15 +231,6 @@ class TestListInvoiceSummariesFilter:
         assert 'month' in result['data']['message'].lower()
 
     @pytest.mark.asyncio
-    async def test_billing_period_year_out_of_range(self, mock_context):
-        """A year outside 2005-2050 returns an error."""
-        result = await list_invoice_summaries(mock_context, billing_period='1999-05')
-
-        assert result['status'] == 'error'
-        assert '2005' in result['data']['message']
-        assert '2050' in result['data']['message']
-
-    @pytest.mark.asyncio
     async def test_invalid_date_format(self, mock_context):
         """A malformed start_date returns a format error."""
         result = await list_invoice_summaries(
@@ -256,6 +262,39 @@ class TestListInvoiceSummariesResponse:
         summary = result['data']['invoice_summaries'][0]
         assert summary['IssuedDate'] == '2026-05-01T00:00:00'
         assert summary['DueDate'] == '2026-06-15T00:00:00'
+
+    @pytest.mark.asyncio
+    async def test_epoch_int_timestamps_normalized_to_iso(self, mock_context):
+        """Epoch INTEGER seconds for IssuedDate/DueDate are normalized to ISO 8601 strings."""
+        # 1746144000 == 2025-05-02T00:00:00 UTC
+        # 1748822400 == 2025-06-02T00:00:00 UTC
+        epoch_summary = {
+            'AccountId': '123456789012',
+            'InvoiceId': 'INV-EPOCH',
+            'InvoiceType': 'INVOICE',
+            'IssuedDate': 1746144000,
+            'DueDate': 1748822400,
+            'BillingPeriod': {'Month': 5, 'Year': 2025},
+            'Entity': {'InvoicingEntity': 'Amazon Web Services, Inc.'},
+            'BaseCurrencyAmount': {
+                'TotalAmount': '500.00',
+                'TotalAmountBeforeTax': '450.00',
+                'CurrencyCode': 'USD',
+            },
+        }
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [epoch_summary]}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.return_value = mock_client
+            result = await list_invoice_summaries(
+                mock_context, account_id='123456789012', billing_period='2025-05'
+            )
+
+        assert result['status'] == 'success'
+        summary = result['data']['invoice_summaries'][0]
+        assert summary['IssuedDate'] == '2025-05-02T00:00:00'
+        assert summary['DueDate'] == '2025-06-02T00:00:00'
 
     @pytest.mark.asyncio
     async def test_pagination_across_pages(self, mock_context, sample_summary):

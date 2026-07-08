@@ -108,7 +108,7 @@ async def _invoicing(
      - account_id: 12-digit AWS account ID; lists all invoices for that account. Auto-detected via STS GetCallerIdentity when omitted.
      - invoice_id: retrieve one specific invoice's summary. Mutually exclusive with account_id.
    Time filter (optional; provide at most one):
-     - billing_period: a single calendar month "YYYY-MM" (e.g. "2026-05"; valid years 2005-2050)
+     - billing_period: a single calendar month "YYYY-MM" (e.g. "2026-05")
      - start_date + end_date: an inclusive UTC range "YYYY-MM-DD" (or "YYYY-MM-DDTHH:MM:SS"); required together and mutually exclusive with billing_period
      - invoicing_entity: filter by the AWS legal selling entity (seller of record) name. Examples: "Amazon Web Services, Inc." (US), "Amazon Web Services EMEA SARL" (Europe/Middle East/Africa), "Amazon Web Services Australia Pty Ltd" (Australia), "Amazon Web Services Japan G.K." (Japan).
    Pagination: max_results caps items per page (1-100); max_pages caps pages fetched (default: all). The response `pagination` block reports total_results, pages_fetched, has_more, and next_token.

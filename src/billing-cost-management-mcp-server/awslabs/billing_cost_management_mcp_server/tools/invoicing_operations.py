@@ -33,10 +33,6 @@ from fastmcp import Context
 from typing import Any, Dict, Optional
 
 
-# Calendar-year bounds accepted for a billing period (per the Invoicing API).
-MIN_BILLING_YEAR = 2005
-MAX_BILLING_YEAR = 2050
-
 # InvoiceSummary fields that AWS returns as timestamps. We normalize these to
 # human-readable ISO 8601 UTC strings so the values are JSON-serializable and
 # self-explanatory to the agent, while leaving every other field untouched.
@@ -173,16 +169,6 @@ async def list_invoice_summaries(
                 return format_response(
                     'error',
                     {'message': 'billing_period month must be between 1 and 12.'},
-                )
-            if year < MIN_BILLING_YEAR or year > MAX_BILLING_YEAR:
-                return format_response(
-                    'error',
-                    {
-                        'message': (
-                            f'billing_period year must be between {MIN_BILLING_YEAR} '
-                            f'and {MAX_BILLING_YEAR}.'
-                        )
-                    },
                 )
 
         # --- Resolve the required Selector ---
