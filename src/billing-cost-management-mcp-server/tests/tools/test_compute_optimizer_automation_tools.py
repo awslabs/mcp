@@ -28,14 +28,10 @@ from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_automati
     compute_optimizer_automation_server,
 )
 from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_automation_tools import (
-    compute_optimizer_automation as automation_tool,
+    compute_optimizer_automation as automation_fn,
 )
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
-
-
-# The dispatch tool's underlying async function (unwrapped from the FastMCP tool object).
-automation_fn = automation_tool.fn
 
 
 STATUS_SUCCESS = 'success'
@@ -75,9 +71,11 @@ def test_server_initialization():
     assert compute_optimizer_automation_server.name == 'compute-optimizer-automation-tools'
 
 
-def test_tool_registered_with_name():
-    """The single dispatch tool is registered with the expected MCP name."""
-    assert automation_tool.name == 'compute-optimizer-automation'
+async def test_tool_registered_with_name():
+    """The single dispatch tool is registered on the server under the expected MCP name."""
+    tool = await compute_optimizer_automation_server.get_tool('compute-optimizer-automation')
+    assert tool is not None
+    assert tool.name == 'compute-optimizer-automation'
 
 
 def test_valid_operations_list():
