@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 1.0.24
+
+### Fixed
+
+- **#3787** — `connect_to_database` failed with `DBClusterNotFoundFault`
+  against a standalone RDS MySQL / MariaDB instance. `internal_connect_to_database`
+  treated any non-empty `cluster_identifier` as an RDS cluster name and
+  always called `describe_db_clusters`, even for `database_type=mysql`
+  / `mariadb`, which can be standalone instances with no cluster at all.
+  Cluster resolution is now scoped to `database_type=aurora-mysql`; RDS
+  MySQL / MariaDB resolve via a new `internal_get_instance_properties_by_identifier`
+  (looks up a standalone instance directly by identifier) when only
+  `cluster_identifier` is given, or via the existing endpoint-based lookup
+  when `db_endpoint` is given.
+
 ## 1.0.22
 
 ### Security
