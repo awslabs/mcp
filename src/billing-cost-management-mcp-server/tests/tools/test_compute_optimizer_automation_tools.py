@@ -478,6 +478,30 @@ class TestListRecommendedActions:
         assert summary['total']['recommended_action_count'] == 3
         assert summary['total']['estimated_monthly_savings']['currency'] == 'USD'
 
+    async def test_actions_forward_filters(self, mock_ctx):
+        """list_recommended_actions parses and forwards a JSON filter string."""
+        client = MagicMock()
+        client.list_recommended_actions.return_value = {'recommendedActions': []}
+
+        await ops.list_recommended_actions(
+            mock_ctx, client, filters='[{"name": "ResourceType", "values": ["EbsVolume"]}]'
+        )
+
+        _, kwargs = client.list_recommended_actions.call_args
+        assert kwargs['filters'] == [{'name': 'ResourceType', 'values': ['EbsVolume']}]
+
+    async def test_action_summaries_forward_filters(self, mock_ctx):
+        """list_recommended_action_summaries parses and forwards a JSON filter string."""
+        client = MagicMock()
+        client.list_recommended_action_summaries.return_value = {'recommendedActionSummaries': []}
+
+        await ops.list_recommended_action_summaries(
+            mock_ctx, client, filters='[{"name": "AccountId", "values": ["123456789012"]}]'
+        )
+
+        _, kwargs = client.list_recommended_action_summaries.call_args
+        assert kwargs['filters'] == [{'name': 'AccountId', 'values': ['123456789012']}]
+
 
 @pytest.mark.asyncio
 class TestListRulePreview:
@@ -525,6 +549,26 @@ class TestListRulePreview:
         assert summary['key'] == 'k1'
         assert summary['total']['recommended_action_count'] == 2
         assert summary['total']['estimated_monthly_savings'] is None
+
+    async def test_preview_summaries_forward_scope_and_criteria(self, mock_ctx):
+        """Preview summaries parse and forward organization_scope and criteria."""
+        client = MagicMock()
+        client.list_automation_rule_preview_summaries.return_value = {'previewResultSummaries': []}
+
+        await ops.list_automation_rule_preview_summaries(
+            mock_ctx,
+            client,
+            rule_type='OrganizationRule',
+            recommended_action_types='["UpgradeEbsVolumeType"]',
+            organization_scope='{"accountIds": ["123456789012"]}',
+            criteria='{"region": [{"comparison": "StringEquals", "values": ["us-east-1"]}]}',
+        )
+
+        _, kwargs = client.list_automation_rule_preview_summaries.call_args
+        assert kwargs['organizationScope'] == {'accountIds': ['123456789012']}
+        assert kwargs['criteria'] == {
+            'region': [{'comparison': 'StringEquals', 'values': ['us-east-1']}]
+        }
 
 
 @pytest.mark.asyncio
@@ -948,5 +992,43 @@ class TestFilterNamesFromModel:
 
         mod._valid_filter_names_by_operation.cache_clear()
         with patch('botocore.session.Session.get_service_model', side_effect=RuntimeError('boom')):
+            assert mod._valid_filter_names_by_operation() == {}
+        mod._valid_filter_names_by_operation.cache_clear()
+
+    def test_skips_ops_without_input_shape_or_enum(self):
+        """Ops with no input shape, no filters, or a non-enum filter name are skipped."""
+        from awslabs.billing_cost_management_mcp_server.tools import (
+            compute_optimizer_automation_tools as mod,
+        )
+
+        def _op(input_shape):
+            m = MagicMock()
+            m.input_shape = input_shape
+            return m
+
+        def _filters_member(name_enum):
+            name_member = MagicMock()
+            name_member.enum = name_enum
+            member = MagicMock()
+            member.members = {'name': name_member}
+            filters = MagicMock()
+            filters.type_name = 'list'
+            filters.member = member
+            return filters
+
+        no_input = _op(None)
+        no_filters = _op(MagicMock(members={}))
+        no_enum = _op(MagicMock(members={'filters': _filters_member(None)}))
+
+        service_model = MagicMock()
+        service_model.operation_names = ['NoInput', 'NoFilters', 'NoEnum']
+        service_model.operation_model.side_effect = lambda n: {
+            'NoInput': no_input,
+            'NoFilters': no_filters,
+            'NoEnum': no_enum,
+        }[n]
+
+        mod._valid_filter_names_by_operation.cache_clear()
+        with patch('botocore.session.Session.get_service_model', return_value=service_model):
             assert mod._valid_filter_names_by_operation() == {}
         mod._valid_filter_names_by_operation.cache_clear()
