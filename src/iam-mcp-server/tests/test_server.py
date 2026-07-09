@@ -1541,6 +1541,30 @@ async def test_attach_user_policy_denied_arn():
 
 
 @pytest.mark.asyncio
+async def test_attach_user_policy_denied_arn_case_insensitive():
+    """Denied ARNs must be rejected regardless of case.
+
+    IAM resolves managed-policy ARNs case-insensitively, so case variants of a
+    denied ARN must not bypass the denylist (bug bounty P468271457).
+    """
+    from awslabs.iam_mcp_server.server import attach_user_policy
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    for arn in [
+        'arn:aws:iam::aws:policy/administratoraccess',
+        'arn:aws:iam::aws:policy/ADMINISTRATORACCESS',
+        'arn:aws:iam::aws:policy/AdMiNiStRaToRaCcEsS',
+        'arn:aws:iam::aws:policy/iamfullaccess',
+        'arn:aws:iam::aws:policy/PowerUserACCESS',
+        '  arn:aws:iam::aws:policy/administratoraccess  ',
+    ]:
+        with pytest.raises(IamValidationError) as exc_info:
+            await attach_user_policy(user_name='test-user', policy_arn=arn, confirmed=True)
+        assert 'denylist' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
 async def test_attach_group_policy_denied_arn():
     """Test that attach_group_policy rejects denied policy ARNs."""
     from awslabs.iam_mcp_server.server import attach_group_policy
@@ -1551,6 +1575,22 @@ async def test_attach_group_policy_denied_arn():
         await attach_group_policy(
             group_name='test-group',
             policy_arn='arn:aws:iam::aws:policy/AdministratorAccess',
+            confirmed=True,
+        )
+    assert 'denylist' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_attach_group_policy_denied_arn_case_insensitive():
+    """Denied ARNs must be rejected on groups regardless of case (bug bounty P468271457)."""
+    from awslabs.iam_mcp_server.server import attach_group_policy
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await attach_group_policy(
+            group_name='test-group',
+            policy_arn='arn:aws:iam::aws:policy/administratoraccess',
             confirmed=True,
         )
     assert 'denylist' in str(exc_info.value)
