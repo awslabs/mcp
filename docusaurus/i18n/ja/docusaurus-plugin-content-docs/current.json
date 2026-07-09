@@ -1,0 +1,62 @@
+{
+  "version.label": {
+    "message": "Next",
+    "description": "The label for version current"
+  },
+  "sidebar.mainSidebar.category.Get Started": {
+    "message": "はじめに",
+    "description": "The label for category 'Get Started' in sidebar 'mainSidebar'"
+  },
+  "sidebar.mainSidebar.category.Available MCP Servers for AWS": {
+    "message": "利用可能なAWS向けMCPサーバー",
+    "description": "The label for category 'Available MCP Servers for AWS' in sidebar 'mainSidebar'"
+  },
+  "sidebar.mainSidebar.category.Getting Started": {
+    "message": "スタートガイド",
+    "description": "The label for category 'Getting Started' in sidebar 'mainSidebar'"
+  },
+  "sidebar.mainSidebar.category.Documentation": {
+    "message": "ドキュメント",
+    "description": "The label for category 'Documentation' in sidebar 'mainSidebar'"
+  },
+  "sidebar.mainSidebar.category.Migration & Modernization": {
+    "message": "移行とモダナイゼーション",
+    "description": "The label for category 'Migration & Modernization' in sidebar 'mainSidebar'"
+  },
+  "sidebar.mainSidebar.category.Infrastructure & Deployment": {
+    "message": "インフラストラクチャとデプロイ",
+    "description": "The label for category 'Infrastructure & Deployment' in sidebar 'mainSidebar'"
+  },
+  "sidebar.mainSidebar.category.AI & Machine Learning": {
+    "message": "AIと機械学習",
+    "description": "The label for category 'AI & Machine Learning' in sidebar 'mainSidebar'"
+  },
+  "sidebar.mainSidebar.category.Data & Analytics": {
+    "message": "データと分析",
+    "description": "The label for category 'Data & Analytics' in sidebar 'mainSidebar'"
+  },
+  "sidebar.mainSidebar.category.Developer Tools & Support": {
+    "message": "開発者ツールとサポート",
+    "description": "The label for category 'Developer Tools & Support' in sidebar 'mainSidebar'"
+  },
+  "sidebar.mainSidebar.category.Integration & Messaging": {
+    "message": "統合とメッセージング",
+    "description": "The label for category 'Integration & Messaging' in sidebar 'mainSidebar'"
+  },
+  "sidebar.mainSidebar.category.Cost & Operations": {
+    "message": "コストと運用",
+    "description": "The label for category 'Cost & Operations' in sidebar 'mainSidebar'"
+  },
+  "sidebar.mainSidebar.category.Healthcare & Lifesciences": {
+    "message": "ヘルスケアとライフサイエンス",
+    "description": "The label for category 'Healthcare & Lifesciences' in sidebar 'mainSidebar'"
+  },
+  "sidebar.mainSidebar.category.Samples": {
+    "message": "サンプル",
+    "description": "The label for category 'Samples' in sidebar 'mainSidebar'"
+  },
+  "sidebar.mainSidebar.link.AWS MCP": {
+    "message": "AWS MCP",
+    "description": "The label for link 'AWS MCP' in sidebar 'mainSidebar', linking to 'https://docs.aws.amazon.com/aws-mcp/latest/userguide/what-is-mcp-server.html'"
+  }
+}
