@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Amazon Redshift MCP Server icon">
+  <rect width="256" height="256" rx="48" fill="#232F3E"/>
+  <path d="M64 80h128c17.7 0 32 14.3 32 32v32c0 17.7-14.3 32-32 32H64c-17.7 0-32-14.3-32-32v-32c0-17.7 14.3-32 32-32z" fill="#FF9900"/>
+  <path d="M76 96h104v16H76zm0 32h80v16H76z" fill="#FFFFFF"/>
+  <path d="M80 156h96c11.1 0 20 8.9 20 20v20H60v-20c0-11.1 8.9-20 20-20z" fill="#3B48CC"/>
+</svg>

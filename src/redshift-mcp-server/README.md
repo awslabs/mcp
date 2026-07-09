@@ -111,6 +111,10 @@ or docker after a successful `docker build -t awslabs/redshift-mcp-server:latest
 - `FASTMCP_LOG_LEVEL`: Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`)
 - `LOG_FILE`: Path to log file (optional, logs to stdout if not specified)
 
+## Support
+
+If you need help or want to report problems, please open an issue in the [AWS Labs MCP repository](https://github.com/awslabs/mcp/issues).
+
 ## Basic Usage
 
 ### Discovery Workflow
@@ -126,6 +130,15 @@ or docker after a successful `docker build -t awslabs/redshift-mcp-server:latest
 - "List databases in cluster 'my-redshift-cluster'"
 - "What tables are in the 'public' schema of database 'analytics'?"
 - "Execute: SELECT COUNT(*) FROM users WHERE created_date > '2024-01-01'"
+
+### Prompt Examples
+
+Here are a few concrete prompts that work well with the Redshift MCP tools:
+
+- "List all available Redshift clusters and workgroups in my account."
+- "Show me the databases available in the analytics cluster."
+- "What tables are in the public schema of the analytics database?"
+- "Run a safe query to show the latest 10 rows from the sales table."
 
 ### Advanced Examples
 

@@ -1,0 +1,7 @@
+{
+  "name": "awslabs.redshift-mcp-server",
+  "version": "0.0.27",
+  "description": "MCP server for discovering and querying Amazon Redshift clusters and serverless workgroups.",
+  "support": "https://github.com/awslabs/mcp/issues",
+  "icon": "icon.svg"
+}

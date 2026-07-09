@@ -14,6 +14,7 @@
 
 """Tests for the Redshift MCP Server tools."""
 
+import json
 import pytest
 from awslabs.redshift_mcp_server.models import (
     QueryResult,
@@ -30,8 +31,42 @@ from awslabs.redshift_mcp_server.server import (
     list_databases_tool,
     list_schemas_tool,
     list_tables_tool,
+    mcp,
 )
 from mcp.server.fastmcp import Context
+from pathlib import Path
+
+
+class TestDirectoryMetadata:
+    """Tests for MCP directory metadata and annotations."""
+
+    def test_server_tools_have_read_only_annotations(self):
+        """Read-only discovery tools should expose MCP annotations."""
+        tool_manager = mcp._tool_manager
+
+        for tool_name in [
+            'list_clusters',
+            'list_databases',
+            'list_schemas',
+            'list_tables',
+            'list_columns',
+        ]:
+            tool = tool_manager._tools[tool_name]
+            assert tool.annotations is not None
+            assert tool.annotations.readOnlyHint is True
+
+        execute_tool = tool_manager._tools['execute_query']
+        assert execute_tool.annotations is not None
+        assert execute_tool.annotations.readOnlyHint is True
+
+    def test_directory_assets_are_present(self):
+        """The server package should include the icon and support manifest metadata."""
+        package_root = Path(__file__).resolve().parents[1]
+
+        assert (package_root / 'icon.svg').exists()
+
+        manifest = json.loads((package_root / 'manifest.json').read_text(encoding='utf-8'))
+        assert manifest['support'] == 'https://github.com/awslabs/mcp/issues'
 
 
 class TestListClustersTool:

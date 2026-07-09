@@ -37,6 +37,7 @@ from awslabs.redshift_mcp_server.redshift import (
 )
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
+from mcp.types import ToolAnnotations
 from pydantic import Field
 
 
@@ -126,11 +127,16 @@ The server reuses one Redshift Data API session per `cluster:database`:
 - We use the Redshift API and Redshift Data API.
 - Leverage IAM authentication when possible instead of secrets (database passwords).
 """,
+    website_url='https://github.com/awslabs/mcp/tree/main/src/redshift-mcp-server',
+    icons=[{'src': 'icon.svg', 'mimeType': 'image/svg+xml', 'sizes': ['256x256']}],
     dependencies=['boto3', 'loguru', 'pydantic', 'sqlglot'],
 )
 
 
-@mcp.tool(name='list_clusters')
+@mcp.tool(
+    name='list_clusters',
+    annotations=ToolAnnotations(readOnlyHint=True),
+)
 async def list_clusters_tool(ctx: Context) -> list[RedshiftCluster]:
     """List all available Amazon Redshift clusters and serverless workgroups.
 
@@ -195,7 +201,10 @@ async def list_clusters_tool(ctx: Context) -> list[RedshiftCluster]:
         raise
 
 
-@mcp.tool(name='list_databases')
+@mcp.tool(
+    name='list_databases',
+    annotations=ToolAnnotations(readOnlyHint=True),
+)
 async def list_databases_tool(
     ctx: Context,
     cluster_identifier: str = Field(
@@ -274,7 +283,10 @@ async def list_databases_tool(
         raise
 
 
-@mcp.tool(name='list_schemas')
+@mcp.tool(
+    name='list_schemas',
+    annotations=ToolAnnotations(readOnlyHint=True),
+)
 async def list_schemas_tool(
     ctx: Context,
     cluster_identifier: str = Field(
@@ -361,7 +373,10 @@ async def list_schemas_tool(
         raise
 
 
-@mcp.tool(name='list_tables')
+@mcp.tool(
+    name='list_tables',
+    annotations=ToolAnnotations(readOnlyHint=True),
+)
 async def list_tables_tool(
     ctx: Context,
     cluster_identifier: str = Field(
@@ -456,7 +471,10 @@ async def list_tables_tool(
         raise
 
 
-@mcp.tool(name='list_columns')
+@mcp.tool(
+    name='list_columns',
+    annotations=ToolAnnotations(readOnlyHint=True),
+)
 async def list_columns_tool(
     ctx: Context,
     cluster_identifier: str = Field(
@@ -565,7 +583,10 @@ async def list_columns_tool(
         raise
 
 
-@mcp.tool(name='execute_query')
+@mcp.tool(
+    name='execute_query',
+    annotations=ToolAnnotations(readOnlyHint=True),
+)
 async def execute_query_tool(
     ctx: Context,
     cluster_identifier: str = Field(
