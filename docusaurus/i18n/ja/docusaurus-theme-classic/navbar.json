@@ -1,14 +1,14 @@
 {
-  "title": {
-    "message": "AWS向けオープンソースMCPサーバー",
-    "description": "The title in the navbar"
+  "item.label.GitHub": {
+    "description": "Navbar item with label GitHub",
+    "message": "GitHub"
   },
   "logo.alt": {
-    "message": "AWS向けオープンソースMCPサーバーのロゴ",
-    "description": "The alt text of navbar logo"
+    "description": "The alt text of navbar logo",
+    "message": "AWS\u5411\u3051\u30aa\u30fc\u30d7\u30f3\u30bd\u30fc\u30b9MCP\u30b5\u30fc\u30d0\u30fc\u306e\u30ed\u30b4"
   },
-  "item.label.GitHub": {
-    "message": "GitHub",
-    "description": "Navbar item with label GitHub"
+  "title": {
+    "description": "The title in the navbar",
+    "message": "AWS\u5411\u3051\u30aa\u30fc\u30d7\u30f3\u30bd\u30fc\u30b9MCP\u30b5\u30fc\u30d0\u30fc"
   }
 }
