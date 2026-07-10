@@ -76,7 +76,7 @@ The two tools ship from different servers, so migrating means swapping server en
       "timeout": 100000,
       "transport": "stdio",
       "args": [
-        "mcp-proxy-for-aws@latest",
+        "mcp-proxy-for-aws@1.6.3",
         "https://aws-mcp.us-east-1.api.aws/mcp",
         "--metadata", "AWS_REGION=us-west-2"
       ]
@@ -90,6 +90,7 @@ The two tools ship from different servers, so migrating means swapping server en
 * **What `uvx` runs.** Before, `uvx` ran the entire MCP server locally (`awslabs.aws-api-mcp-server`), executing AWS calls on your machine with local boto3. After, `uvx` runs only a thin proxy (`mcp-proxy-for-aws`) that forwards to a **managed remote server** — the actual execution happens on the AWS-hosted endpoint, not locally.
 * **Region setup.** Region moves out of `env.AWS_REGION` and into a `--metadata AWS_REGION=...` arg. Note these are two independent Regions: the endpoint URL Region is where the MCP server runs, while `--metadata AWS_REGION` is the default Region for the AWS operations it performs — they can differ. Omitting the metadata defaults all operations to `us-east-1`.
 * **Server name.** Delete the old entry entirely — running both at once causes tool conflicts that confuse the agent.
+* **Pin the proxy version.** Use a specific version (e.g., `mcp-proxy-for-aws@1.6.3`) rather than `@latest`. Unpinned installs resolve all transitive dependencies to their newest versions at install time, which is a supply chain risk if any dependency is compromised. Check [PyPI](https://pypi.org/project/mcp-proxy-for-aws/) for the latest release and update the pin when you upgrade.
 
 ## Environment variable migration
 
