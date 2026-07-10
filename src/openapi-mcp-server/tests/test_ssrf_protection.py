@@ -940,3 +940,138 @@ def test_load_openapi_spec_bare_url_is_validated_and_blocks_private():
     ):
         with pytest.raises(SSRFError, match='blocked IP'):
             load_openapi_spec(url='https://internal-primary.example.com/openapi.json')
+
+
+def test_pinned_fetch_rejects_disallowed_scheme():
+    """A non-http(s) scheme on the validated URL is rejected."""
+    vurl = _validated(original_url='ftp://spec.example.com/openapi.json')
+    with pytest.raises(SSRFError, match='not allowed'):
+        _pinned_fetch(vurl, allow_http=False)
+
+
+def test_pinned_fetch_tries_next_ip_on_transient_error():
+    """A transient error on the first pinned IP falls through to the next."""
+    capture = {}
+    good = _FakeStreamResponse(chunks=(b'{"ok": true}',))
+
+    class _FlakyClient:
+        _calls = {'n': 0}
+
+        def __init__(self, *args, **kwargs):
+            capture['client_kwargs'] = kwargs
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def stream(self, method, url, headers=None, extensions=None):
+            capture.setdefault('urls', []).append(url)
+            type(self)._calls['n'] += 1
+            if type(self)._calls['n'] == 1:
+                raise httpx.ConnectError('connection refused')
+            return good
+
+    vurl = _validated(resolved_ips=['93.184.216.34', '198.51.100.7'])
+    with patch('httpx.Client', _FlakyClient):
+        body = _pinned_fetch(vurl, allow_http=False)
+
+    assert body == b'{"ok": true}'
+    # Both pinned IPs were attempted, in order.
+    assert capture['urls'] == [
+        'https://93.184.216.34:443/openapi.json',
+        'https://198.51.100.7:443/openapi.json',
+    ]
+
+
+def test_pinned_fetch_raises_last_error_when_all_ips_fail():
+    """When every pinned IP errors transiently, the last error is raised."""
+
+    class _AlwaysFailClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def stream(self, *args, **kwargs):
+            raise httpx.ConnectError('down')
+
+    vurl = _validated(resolved_ips=['93.184.216.34', '198.51.100.7'])
+    with patch('httpx.Client', _AlwaysFailClient):
+        with pytest.raises(httpx.ConnectError, match='down'):
+            _pinned_fetch(vurl, allow_http=False)
+
+
+def test_pinned_fetch_no_resolved_ips():
+    """A ValidatedURL with no IPs surfaces a clear SSRFFetchError."""
+    vurl = _validated(resolved_ips=[])
+    with pytest.raises(SSRFFetchError, match='No resolved IPs'):
+        _pinned_fetch(vurl, allow_http=False)
+
+
+def test_validate_url_sync_bridges_from_running_loop():
+    """_validate_url_sync works when called from inside a running event loop.
+
+    load_openapi_spec is synchronous but is invoked from create_mcp_server_async;
+    the async validator must be driven without touching the live loop.
+    """
+    from awslabs.openapi_mcp_server.utils.openapi import _validate_url_sync
+
+    async def _drive():
+        # Calling the sync helper from within this running loop must not raise
+        # "asyncio.run() cannot be called from a running event loop".
+        return _validate_url_sync(
+            'https://spec.example.com/openapi.json',
+            allow_http=False,
+            allow_private_networks=False,
+        )
+
+    with patch(
+        'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
+        return_value=['93.184.216.34'],
+    ):
+        import asyncio
+
+        result = asyncio.run(_drive())
+
+    assert result.hostname == 'spec.example.com'
+    assert result.resolved_ips == ['93.184.216.34']
+
+
+def test_load_openapi_spec_does_not_retry_ssrf_failures():
+    """An SSRFFetchError from the fetch is raised immediately, not retried away."""
+    with (
+        patch(
+            'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
+            return_value=['93.184.216.34'],
+        ),
+        patch(
+            'awslabs.openapi_mcp_server.utils.openapi._pinned_fetch',
+            side_effect=SSRFFetchError('redirect refused'),
+        ) as mock_fetch,
+    ):
+        with pytest.raises(SSRFFetchError, match='redirect refused'):
+            load_openapi_spec(url='https://no-retry.example.com/openapi.json')
+
+    # Exactly one attempt — security failures must not be retried.
+    assert mock_fetch.call_count == 1
+
+
+def test_pinned_fetch_http_opt_in_uses_no_sni():
+    """An opted-in http:// fetch dials the pinned IP with no TLS SNI extension."""
+    capture = {}
+    response = _FakeStreamResponse(chunks=(b'{}',))
+    vurl = _validated(original_url='http://spec.example.com/openapi.json', port=80)
+    with patch('httpx.Client', _make_fake_client(capture, response)):
+        _pinned_fetch(vurl, allow_http=True)
+
+    req = capture['requests'][0]
+    assert req['url'] == 'http://93.184.216.34:80/openapi.json'
+    assert req['headers']['Host'] == 'spec.example.com'
+    # No SNI extension for plaintext http.
+    assert req['extensions'] == {}
