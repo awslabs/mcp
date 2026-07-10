@@ -418,6 +418,21 @@ def internal_create_connection(
         db_connection,
         port,
     )
+    # Validate connectivity now so the tool reports a real failure at connect time
+    # (unreachable endpoint, bad secret, SSL error) instead of returning "Connected"
+    # and only surfacing the error on the first query. Evict the cached entry on
+    # failure so a broken connection is not left behind.
+    try:
+        db_connection.validate_sync()
+    except Exception as e:
+        db_connection_map.remove(
+            ConnectionMethod.DB2_PASSWORD,
+            instance_identifier,
+            db_endpoint,
+            database,
+            port,
+        )
+        raise ValueError(f'Failed to validate connection: {e}') from e
     return db_connection, {
         'status': 'Connected',
         'instance_identifier': instance_identifier,
@@ -616,19 +631,18 @@ def main():
                         '--instance_identifier and/or --secret_arn explicitly. Exiting.'
                     )
                     sys.exit(1)
-            db_connection, _ = internal_create_connection(
-                region=args.region,
-                instance_identifier=instance_identifier,
-                db_endpoint=args.db_endpoint,
-                port=server_config.configured_port,
-                database=args.database,
-                secret_arn=server_config.default_secret_arn,
-            )
             try:
-                db_connection.validate_sync()
+                db_connection, _ = internal_create_connection(
+                    region=args.region,
+                    instance_identifier=instance_identifier,
+                    db_endpoint=args.db_endpoint,
+                    port=server_config.configured_port,
+                    database=args.database,
+                    secret_arn=server_config.default_secret_arn,
+                )
                 logger.success('Successfully validated database connection to Db2')
             except Exception as e:
-                logger.error(f'Failed to validate Db2 connection: {e}. Exiting.')
+                logger.error(f'Failed to create/validate Db2 connection: {e}. Exiting.')
                 sys.exit(1)
 
         logger.info('rds-db2 MCP server started')

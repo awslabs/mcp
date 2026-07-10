@@ -122,22 +122,33 @@ class IbmDbConnection(AbstractDBConnection):
 
     def _build_conn_string(self, user: str, password: str) -> str:
         """Build the ibm_db (DSN-less) connection string."""
+
+        def _q(v: str) -> str:
+            # Db2 CLI allows wrapping an attribute value in braces so ';' '=' and
+            # other delimiters are treated literally. A literal '}' cannot be
+            # represented, so reject it rather than emit a corrupt/injectable DSN.
+            if '}' in v:
+                raise ValueError('Credential contains an unsupported character: }')
+            return '{' + v + '}'
+
         parts = [
             f'DATABASE={self.database}',
             f'HOSTNAME={self.host}',
             f'PORT={self.port}',
             'PROTOCOL=TCPIP',
-            f'UID={user}',
-            f'PWD={password}',
+            f'UID={_q(user)}',
+            f'PWD={_q(password)}',
         ]
         if self.ssl_encryption == 'require':
             parts.append('SECURITY=SSL')
             if self.ssl_server_certificate:
                 parts.append(f'SSLServerCertificate={self.ssl_server_certificate}')
-            # Db2 v12 clients default SSLClientHostnameValidation to BASIC. When
-            # connecting through a tunnel (e.g. 127.0.0.1), the local hostname
-            # cannot match the certificate CN, so allow an explicit opt-out.
-            if not self.ssl_hostname_validation:
+            # Emit the hostname-validation mode explicitly rather than relying on the
+            # client default: BASIC in production, OFF only for tunnel/port-forward
+            # testing where the local hostname cannot match the certificate CN.
+            if self.ssl_hostname_validation:
+                parts.append('SSLClientHostnameValidation=BASIC')
+            else:
                 parts.append('SSLClientHostnameValidation=OFF')
         return ';'.join(parts) + ';'
 
@@ -250,19 +261,24 @@ class IbmDbConnection(AbstractDBConnection):
             if not stmt:
                 raise ValueError(f'ibm_db.prepare failed: {ibm_db.stmt_errormsg()}')
             if self.query_timeout_s and self.query_timeout_s > 0:
+                set_option_error = None
                 try:
-                    ibm_db.set_option(
+                    ok_timeout = ibm_db.set_option(
                         stmt, {ibm_db.SQL_ATTR_QUERY_TIMEOUT: self.query_timeout_s}, 0
                     )
                 except Exception as e:
-                    # Do NOT silently continue: running without the operator's
-                    # configured timeout could hold the single serialized connection
-                    # lock indefinitely (self-inflicted DoS on all tools). Fail the
-                    # query instead so the safety bound is never dropped unnoticed.
+                    ok_timeout = False
+                    set_option_error = e
+                if not ok_timeout:
+                    # set_option signals failure via a falsy return as well as by
+                    # raising. Do NOT silently continue: running without the operator's
+                    # configured timeout could hold the single serialized connection lock
+                    # indefinitely (self-inflicted DoS on all tools). Fail the query.
                     raise ValueError(
                         f'Refusing to run query: could not enforce the configured '
-                        f'{self.query_timeout_s}s query timeout (set_option failed: {e}).'
-                    ) from e
+                        f'{self.query_timeout_s}s query timeout '
+                        f'(set_option failed: {set_option_error}).'
+                    ) from set_option_error
 
             params = self._to_positional(parameters)
             ok = ibm_db.execute(stmt, params) if params else ibm_db.execute(stmt)

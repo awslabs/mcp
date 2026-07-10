@@ -267,7 +267,9 @@ class TestInternalCreateConnection:
         """An explicit secret_arn skips RDS describe and builds a connection."""
         mocker.patch.object(server.db_connection_map, 'get', return_value=None)
         set_spy = mocker.patch.object(server.db_connection_map, 'set')
-        fake = mocker.patch.object(server, 'IbmDbConnection', return_value=FakeConn())
+        fake_conn = mocker.Mock()
+        fake_conn.validate_sync = mocker.Mock()  # Mock the validation
+        fake = mocker.patch.object(server, 'IbmDbConnection', return_value=fake_conn)
         conn, resp = server.internal_create_connection(
             'us-east-1',
             'id',
@@ -279,12 +281,15 @@ class TestInternalCreateConnection:
         assert resp['status'] == 'Connected'
         fake.assert_called_once()
         set_spy.assert_called_once()
+        fake_conn.validate_sync.assert_called_once()  # Verify validation was called
 
     def test_resolves_rds_master_secret(self, mocker):
         """With no secret, the RDS managed master secret is resolved."""
         mocker.patch.object(server.db_connection_map, 'get', return_value=None)
         mocker.patch.object(server.db_connection_map, 'set')
-        mocker.patch.object(server, 'IbmDbConnection', return_value=FakeConn())
+        fake_conn = mocker.Mock()
+        fake_conn.validate_sync = mocker.Mock()
+        mocker.patch.object(server, 'IbmDbConnection', return_value=fake_conn)
         rds = MagicMock()
         rds.describe_db_instances.return_value = {
             'DBInstances': [{'MasterUserSecret': {'SecretArn': DUMMY_RDS_SECRET_ARN}}]
@@ -292,6 +297,7 @@ class TestInternalCreateConnection:
         mocker.patch.object(server.boto3, 'client', return_value=rds)
         conn, resp = server.internal_create_connection('us-east-1', 'id', 'host', 50443, 'DB2DB')
         assert resp['status'] == 'Connected'
+        fake_conn.validate_sync.assert_called_once()
 
     def test_instance_not_found(self, mocker):
         """A DBInstanceNotFound error becomes a clear ValueError."""
@@ -429,13 +435,15 @@ class TestMain:
             ],  # pragma: allowlist secret
         )
         validated = MagicMock()
+        validated.validate_sync = mocker.Mock()  # Mock validation
         mocker.patch.object(
             server, 'internal_create_connection', return_value=(validated, {'status': 'Connected'})
         )
         mocker.patch.object(server.mcp, 'run')
         mocker.patch.object(server.db_connection_map, 'close_all')
         server.main()
-        validated.validate_sync.assert_called_once()
+        # validate_sync is called inside internal_create_connection, not in main
+        # So we just need to verify internal_create_connection was called
 
     def test_main_endpoint_requires_region_exits(self, mocker, monkeypatch):
         """--db_endpoint without --region exits with a non-zero status."""
@@ -460,10 +468,9 @@ class TestMain:
                 'arn:x',
             ],  # pragma: allowlist secret
         )
-        bad = MagicMock()
-        bad.validate_sync.side_effect = RuntimeError('boom')
+        # internal_create_connection now raises on validation failure
         mocker.patch.object(
-            server, 'internal_create_connection', return_value=(bad, {'status': 'Connected'})
+            server, 'internal_create_connection', side_effect=ValueError('validation failed')
         )
         mocker.patch.object(server.mcp, 'run')
         mocker.patch.object(server.db_connection_map, 'close_all')
@@ -493,7 +500,9 @@ class TestReadonlyPropagation:
         """
         mocker.patch.object(server.db_connection_map, 'get', return_value=None)
         mocker.patch.object(server.db_connection_map, 'set')
-        fake = mocker.patch.object(server, 'IbmDbConnection', return_value=FakeConn())
+        fake_conn = mocker.Mock()
+        fake_conn.validate_sync = mocker.Mock()
+        fake = mocker.patch.object(server, 'IbmDbConnection', return_value=fake_conn)
         server.server_config.readonly_query = readonly
         server.internal_create_connection(
             'us-east-1',
@@ -504,6 +513,7 @@ class TestReadonlyPropagation:
             secret_arn='arn:explicit',  # pragma: allowlist secret
         )
         assert fake.call_args.kwargs['readonly'] is readonly
+        fake_conn.validate_sync.assert_called_once()
 
 
 async def test_connect_botocore_error_returns_failed(mocker):
@@ -573,3 +583,46 @@ def test_main_dotless_endpoint_without_secret_exits(mocker, monkeypatch):
     mocker.patch.object(server.db_connection_map, 'close_all')
     with pytest.raises(SystemExit):
         server.main()
+
+
+def test_internal_create_connection_validates_and_evicts_on_failure(mocker):
+    """internal_create_connection validates connectivity and evicts broken connections.
+
+    When validate_sync fails (unreachable endpoint, bad secret, SSL error), the
+    tool must remove the cached entry so a broken connection is not left behind.
+    """
+    mocker.patch.object(server.db_connection_map, 'get', return_value=None)
+    set_spy = mocker.patch.object(server.db_connection_map, 'set')
+    remove_spy = mocker.patch.object(server.db_connection_map, 'remove')
+    bad = MagicMock()
+    bad.validate_sync.side_effect = RuntimeError('connection refused')
+    mocker.patch.object(server, 'IbmDbConnection', return_value=bad)
+    # Now we wrap the original exception in ValueError
+    with pytest.raises(ValueError, match='Failed to validate connection: connection refused'):
+        server.internal_create_connection(
+            'us-east-1',
+            'id',
+            'host',
+            50443,
+            'DB2DB',
+            secret_arn='arn:explicit',  # pragma: allowlist secret
+        )
+    # Cached the connection then removed it on validation failure.
+    set_spy.assert_called_once()
+    remove_spy.assert_called_once()
+
+
+async def test_connect_to_database_validation_failure_returns_failed(mocker):
+    """connect_to_database returns Failed status when validation fails at connect time."""
+    mocker.patch.object(server.db_connection_map, 'get', return_value=None)
+    mocker.patch.object(server.db_connection_map, 'set')
+    mocker.patch.object(server.db_connection_map, 'remove')
+    bad = MagicMock()
+    bad.validate_sync.side_effect = RuntimeError('SSL handshake failed')
+    mocker.patch.object(server, 'IbmDbConnection', return_value=bad)
+    out = await server.connect_to_database(
+        'us-east-1',
+        'host',
+        secret_arn='arn:x',  # pragma: allowlist secret
+    )
+    assert out['status'] == 'Failed' and 'SSL handshake failed' in out['error']

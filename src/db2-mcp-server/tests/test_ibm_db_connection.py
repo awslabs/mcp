@@ -147,10 +147,10 @@ class TestCredentials:
 class TestHostnameValidation:
     """Tests for the SSL hostname-validation option."""
 
-    def test_default_on_omits_keyword(self):
-        """By default the conn string does not disable hostname validation."""
+    def test_default_on_emits_basic(self):
+        """By default the conn string explicitly enables BASIC hostname validation."""
         s = _conn(ssl_encryption='require')._build_conn_string('u', 'p')
-        assert 'SSLClientHostnameValidation' not in s
+        assert 'SSLClientHostnameValidation=BASIC' in s
 
     def test_off_adds_keyword(self):
         """Disabling validation adds SSLClientHostnameValidation=OFF."""
@@ -392,3 +392,42 @@ async def test_timeout_set_option_failure_refuses_query(mocker):
     c = _conn(readonly=True)  # default query_timeout_s=30 -> set_option is attempted
     with pytest.raises(ValueError, match='timeout'):
         await c.execute_query('SELECT A FROM T')
+
+
+async def test_timeout_set_option_falsy_return_refuses_query(mocker):
+    """If set_option returns falsy (False/0), the query is also refused.
+
+    ibm_db.set_option can signal failure by returning falsy without raising, so
+    both paths must be checked to avoid silently dropping the timeout.
+    """
+    fake = _fake_ibm_db(mocker, rows=[{'A': 1}])
+    fake.set_option.return_value = 0  # falsy return, no exception
+    c = _conn(readonly=True, query_timeout_s=30)
+    with pytest.raises(ValueError, match='timeout'):
+        await c.execute_query('SELECT A FROM T')
+
+
+def test_conn_string_escapes_credentials_with_braces():
+    """Credentials containing ';' or '=' are wrapped in {} braces for Db2 CLI."""
+    c = _conn()
+    # A password with ';' and '=' that would corrupt the DSN if unescaped.
+    conn_str = c._build_conn_string('user;name', 'p@ss=word;')
+    # The Db2 CLI {} brace syntax makes delimiters literal.
+    assert 'UID={user;name}' in conn_str
+    assert 'PWD={p@ss=word;}' in conn_str
+
+
+def test_conn_string_rejects_closing_brace_in_credential():
+    """A credential containing '}' cannot be represented in Db2 CLI syntax and is rejected."""
+    c = _conn()
+    with pytest.raises(ValueError, match='unsupported character'):
+        c._build_conn_string('admin', 'pass}word')
+
+
+def test_conn_string_emits_hostname_validation_explicitly():
+    """SSLClientHostnameValidation is always emitted (BASIC or OFF) when SSL is on."""
+    c_on = _conn(ssl_encryption='require', ssl_hostname_validation=True)
+    assert 'SSLClientHostnameValidation=BASIC' in c_on._build_conn_string('u', 'p')
+
+    c_off = _conn(ssl_encryption='require', ssl_hostname_validation=False)
+    assert 'SSLClientHostnameValidation=OFF' in c_off._build_conn_string('u', 'p')

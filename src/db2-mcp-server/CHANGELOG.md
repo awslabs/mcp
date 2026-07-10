@@ -26,8 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed the `list_db2_instances` / `describe_db2_instance` discovery tools (account-wide enumeration with no connection precondition), aligning with the `oracle-mcp-server` template.
 - Read-only enforcement now reads a single source of truth (the per-connection flag) for both the mutation and injection checks.
 - `connect_to_database` now also handles `BotoCoreError` (endpoint/credential failures, timeouts) via the `Failed` contract instead of crashing the tool.
-- Query execution now **refuses to run** if the configured per-query timeout cannot be applied (previously it logged a warning and ran unbounded, which could hold the connection lock indefinitely).
+- Query execution now **refuses to run** if the configured per-query timeout cannot be applied (previously it logged a warning and ran unbounded, which could hold the connection lock indefinitely). Both exception-based and falsy-return failure modes from `ibm_db.set_option` are now checked.
 - Replaced cached connections are now closed on overwrite (fixes a connection leak when reconnecting under a different secret); the `get()` docstring was corrected to describe the actual secret/replacement semantics.
+- **Credential injection protection**: UID/PWD values in the connection string are now wrapped in Db2 CLI `{}` braces so passwords containing `;` or `=` delimiters are treated literally and cannot corrupt the DSN or inject connection attributes. A credential containing a closing brace `}` (unrepresentable in Db2 CLI syntax) is rejected with a clear error.
+- **Explicit hostname validation mode**: `SSLClientHostnameValidation` is now emitted explicitly (BASIC in production, OFF only for tunnel testing) rather than relying on the clidriver's implicit default, closing an injection vector from unescaped credentials.
+- **Connect-time validation**: `connect_to_database` now validates connectivity (SSL handshake, auth, network) immediately and reports real failures ("unreachable endpoint", "bad secret") at connect time instead of returning "Connected" and only surfacing errors on the first query. Broken connections are evicted from the cache on validation failure.
 - Startup instance-identifier derivation guards dotless/IP (tunnel) endpoints and gives an actionable error asking for `--instance_identifier` / `--secret_arn` instead of a misleading "instance not found".
 - `_to_positional` handles an explicit `{'isNull': False}` marker instead of raising an "unrecognized format" error.
 
