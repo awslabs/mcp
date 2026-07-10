@@ -38,9 +38,9 @@ from loguru import logger
 from sqlglot import exp
 
 
-def _sql_string_literal(value: str) -> str:
-    """Render a value as a Redshift SQL string literal, safely escaped."""
-    return exp.Literal.string(value).sql(dialect='redshift')
+def _sql_identifier(value: str) -> str:
+    """Render a value as a Redshift SQL identifier, safely quoted and escaped."""
+    return exp.to_identifier(value, quoted=True).sql(dialect='redshift')
 
 
 class RedshiftClientManager:
@@ -589,7 +589,7 @@ async def discover_schemas(cluster_identifier: str, schema_database_name: str) -
         results_response, _ = await _execute_protected_statement(
             cluster_identifier=cluster_identifier,
             database_name=schema_database_name,
-            sql=SCHEMAS_SQL.format(database=_sql_string_literal(schema_database_name)),
+            sql=SCHEMAS_SQL.format(database=_sql_identifier(schema_database_name)),
         )
 
         schemas = []
@@ -643,8 +643,8 @@ async def discover_tables(
             cluster_identifier=cluster_identifier,
             database_name=table_database_name,
             sql=TABLES_SQL.format(
-                database=_sql_string_literal(table_database_name),
-                schema=_sql_string_literal(table_schema_name),
+                database=_sql_identifier(table_database_name),
+                schema=_sql_identifier(table_schema_name),
             ),
         )
 
@@ -703,9 +703,9 @@ async def discover_columns(
             cluster_identifier=cluster_identifier,
             database_name=column_database_name,
             sql=COLUMNS_SQL.format(
-                database=_sql_string_literal(column_database_name),
-                schema=_sql_string_literal(column_schema_name),
-                table=_sql_string_literal(column_table_name),
+                database=_sql_identifier(column_database_name),
+                schema=_sql_identifier(column_schema_name),
+                table=_sql_identifier(column_table_name),
             ),
         )
 

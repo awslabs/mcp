@@ -23,7 +23,7 @@ from awslabs.redshift_mcp_server.redshift import (
     RedshiftSessionManager,
     _execute_protected_statement,
     _execute_statement,
-    _sql_string_literal,
+    _sql_identifier,
     discover_clusters,
     discover_columns,
     discover_databases,
@@ -1193,8 +1193,7 @@ class TestDiscoverFunctions:
 
         # SHOW DATABASES takes no bind parameters.
         sql = mock_execute_protected.call_args[1]['sql']
-        normalized = ' '.join(sql.split()).upper()
-        assert 'SHOW DATABASES' in normalized
+        assert 'SHOW DATABASES' in sql
         assert mock_execute_protected.call_args[1].get('parameters') is None
 
     @pytest.mark.asyncio
@@ -1239,29 +1238,19 @@ class TestDiscoverFunctions:
         assert result[0]['schema_name'] == 'public'
         assert result[0]['schema_owner'] == 100
 
-        # The database is embedded as a quoted string literal (no bind params).
+        # The database is embedded as a quoted identifier (no bind params).
         mock_execute_protected.assert_called_once()
         call_args = mock_execute_protected.call_args
-        normalized = ' '.join(call_args[1]['sql'].split()).upper()
-        assert 'SHOW SCHEMAS FROM DATABASE' in normalized
-        assert "'DEV'" in normalized
+        sql = call_args[1]['sql']
+        assert 'SHOW SCHEMAS FROM DATABASE' in sql
+        assert '"dev"' in sql
         assert call_args[1].get('parameters') is None
 
-    @pytest.mark.asyncio
-    async def test_discover_schemas_escapes_database_name(self, mocker):
-        """Single quotes in the database name are escaped to prevent injection."""
-        mock_execute_protected = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
-        )
-        mock_execute_protected.return_value = ({'Records': []}, 'query-456')
-
-        await discover_schemas('test-cluster', "d'b")
-
-        sql = mock_execute_protected.call_args[1]['sql']
-        # The single quote is escaped inside the string literal so the value
-        # cannot break out of it.
-        assert "'d\\'b'" in sql
-        assert mock_execute_protected.call_args[1].get('parameters') is None
+        # A double quote in the database name is doubled so the value cannot
+        # break out of the identifier (injection-safe).
+        mock_execute_protected.return_value = ({'Records': []}, 'query-457')
+        await discover_schemas('test-cluster', 'd"b')
+        assert '"d""b"' in mock_execute_protected.call_args[1]['sql']
 
     @pytest.mark.asyncio
     async def test_discover_schemas_error(self, mocker):
@@ -1310,13 +1299,19 @@ class TestDiscoverFunctions:
         assert result[0]['table_acl'] == 'user=admin'
         assert result[0]['remarks'] == 'User data table'
 
-        # db.schema is embedded as quoted string literals (no bind params).
+        # db.schema is embedded as quoted identifiers (no bind params).
         mock_execute_protected.assert_called_once()
         call_args = mock_execute_protected.call_args
-        normalized = ' '.join(call_args[1]['sql'].split()).upper()
-        assert 'SHOW TABLES FROM SCHEMA' in normalized
-        assert "'DEV'.'PUBLIC'" in normalized
+        sql = call_args[1]['sql']
+        assert 'SHOW TABLES FROM SCHEMA' in sql
+        assert '"dev"."public"' in sql
         assert call_args[1].get('parameters') is None
+
+        # Double quotes in the identifiers are doubled so the values cannot
+        # break out of them (injection-safe).
+        mock_execute_protected.return_value = ({'Records': []}, 'query-790')
+        await discover_tables('test-cluster', 'd"b', 's"c')
+        assert '"d""b"."s""c"' in mock_execute_protected.call_args[1]['sql']
 
     @pytest.mark.asyncio
     async def test_discover_tables_error(self, mocker):
@@ -1368,13 +1363,19 @@ class TestDiscoverFunctions:
         assert result[0]['ordinal_position'] == 1
         assert result[0]['data_type'] == 'integer'
 
-        # db.schema.table is embedded as quoted string literals (no bind params).
+        # db.schema.table is embedded as quoted identifiers (no bind params).
         mock_execute_protected.assert_called_once()
         call_args = mock_execute_protected.call_args
-        normalized = ' '.join(call_args[1]['sql'].split()).upper()
-        assert 'SHOW COLUMNS FROM TABLE' in normalized
-        assert "'DEV'.'PUBLIC'.'USERS'" in normalized
+        sql = call_args[1]['sql']
+        assert 'SHOW COLUMNS FROM TABLE' in sql
+        assert '"dev"."public"."users"' in sql
         assert call_args[1].get('parameters') is None
+
+        # Double quotes in the identifiers are doubled so the values cannot
+        # break out of them (injection-safe).
+        mock_execute_protected.return_value = ({'Records': []}, 'query-102')
+        await discover_columns('test-cluster', 'd"b', 's"c', 't"l')
+        assert '"d""b"."s""c"."t""l"' in mock_execute_protected.call_args[1]['sql']
 
     @pytest.mark.asyncio
     async def test_discover_columns_error(self, mocker):
@@ -1980,32 +1981,32 @@ class TestConcurrency:
         )
 
 
-class TestSqlStringLiteral:
-    """`_sql_string_literal` renders a value as one safely-escaped string literal that round-trips unchanged."""
+class TestSqlIdentifier:
+    """`_sql_identifier` renders a value as one safely-quoted identifier that round-trips unchanged."""
 
     @pytest.mark.parametrize(
         'value',
         [
             'dev',
             'sample_data_dev',
-            '',
-            "d'b",  # embedded single quote
+            'MixedCase',  # case is preserved because the identifier is quoted
+            'weird name',  # spaces require quoting
+            'd"b',  # embedded double quote must be doubled
+            'a""b',  # an already-doubled sequence still round-trips
             'a\\',  # trailing backslash must not escape the closing quote
-            "a\\'b",  # backslash followed by a quote
-            'weird "dq" name',  # double quotes are not special in a string literal
-            "'; DROP TABLE users; --",  # injection attempt
+            '"; DROP TABLE users; --',  # injection attempt via a double quote
+            "'; DROP TABLE users; --",  # single quotes are not special in an identifier
         ],
     )
-    def test_value_round_trips_as_a_single_string_literal(self, value):
-        """Parsing the rendered literal yields exactly one string literal equal to the input."""
-        statement = 'SELECT ' + _sql_string_literal(value)
+    def test_value_round_trips_as_a_single_identifier(self, value):
+        """Parsing the rendered identifier yields exactly one identifier equal to the input."""
+        statement = 'SELECT * FROM ' + _sql_identifier(value)
 
         # Exactly one statement -- the value cannot introduce extra statements.
         statements = sqlglot.parse(statement, read='redshift')
         assert len(statements) == 1
 
-        # The parsed literal is a string whose value equals the original input.
-        literal = sqlglot.parse_one(statement, read='redshift').find(exp.Literal)
-        assert literal is not None
-        assert literal.is_string
-        assert literal.this == value
+        # The parsed identifier's name equals the original input.
+        identifier = sqlglot.parse_one(statement, read='redshift').find(exp.Identifier)
+        assert identifier is not None
+        assert identifier.name == value
