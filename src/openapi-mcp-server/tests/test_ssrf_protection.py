@@ -1043,6 +1043,45 @@ def test_validate_url_sync_bridges_from_running_loop():
     assert result.resolved_ips == ['93.184.216.34']
 
 
+def test_parse_spec_bytes_uses_prance_when_available():
+    """When prance is available, its resolved specification is returned."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    resolved = {'openapi': '3.0.0', 'info': {'title': 'Resolved', 'version': '1'}}
+    with (
+        patch.object(openapi_mod, 'PRANCE_AVAILABLE', True),
+        patch.object(openapi_mod, 'ResolvingParser') as mock_parser,
+    ):
+        mock_parser.return_value.specification = resolved
+        result = openapi_mod._parse_spec_bytes(b'{"openapi": "3.0.0"}')
+
+    assert result == resolved
+
+
+def test_parse_spec_bytes_falls_back_to_json_when_prance_fails():
+    """A prance failure falls back to basic JSON parsing."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    with (
+        patch.object(openapi_mod, 'PRANCE_AVAILABLE', True),
+        patch.object(openapi_mod, 'ResolvingParser', side_effect=Exception('prance boom')),
+    ):
+        result = openapi_mod._parse_spec_bytes(b'{"openapi": "3.0.0", "x": 1}')
+
+    assert result == {'openapi': '3.0.0', 'x': 1}
+
+
+def test_parse_spec_bytes_falls_back_to_yaml_when_not_json():
+    """Non-JSON content is parsed as YAML."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    yaml_body = b'openapi: "3.0.0"\ninfo:\n  title: YAML API\n  version: "1"\n'
+    with patch.object(openapi_mod, 'PRANCE_AVAILABLE', False):
+        result = openapi_mod._parse_spec_bytes(yaml_body)
+
+    assert result['info']['title'] == 'YAML API'
+
+
 def test_load_openapi_spec_does_not_retry_ssrf_failures():
     """An SSRFFetchError from the fetch is raised immediately, not retried away."""
     with (
