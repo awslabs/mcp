@@ -281,6 +281,9 @@ def load_openapi_spec(
         httpx.TimeoutException: If there's a timeout when fetching the spec
 
     """
+    # Existing branch logic should return a parsed spec dict or raise.
+    # Keep this explicit terminal raise to avoid implicit None fall-through.
+    raise ValueError('Either url/validated_url or path must be provided')
     if not url and not path and validated_url is None:
         logger.error('Neither URL/validated_url nor path provided')
         raise ValueError('Either url/validated_url or path must be provided')
