@@ -24,65 +24,12 @@ QUERY_TIMEOUT = 3600
 QUERY_POLL_INTERVAL = 1
 SESSION_KEEPALIVE = 600
 
-# SQL queries
-
-SVV_REDSHIFT_DATABASES_QUERY = """
-SELECT
-    database_name,
-    database_owner,
-    database_type,
-    database_acl,
-    database_options,
-    database_isolation_level
-FROM pg_catalog.svv_redshift_databases
-ORDER BY database_name;
-"""
-
-SVV_ALL_SCHEMAS_QUERY = """
-SELECT
-    database_name,
-    schema_name,
-    schema_owner,
-    schema_type,
-    schema_acl,
-    source_database,
-    schema_option
-FROM pg_catalog.svv_all_schemas
-WHERE database_name = :database_name
-ORDER BY schema_name;
-"""
-
-SVV_ALL_TABLES_QUERY = """
-SELECT
-    database_name,
-    schema_name,
-    table_name,
-    table_acl,
-    table_type,
-    remarks
-FROM pg_catalog.svv_all_tables
-WHERE database_name = :database_name AND schema_name = :schema_name
-ORDER BY table_name;
-"""
-
-SVV_ALL_COLUMNS_QUERY = """
-SELECT
-    database_name,
-    schema_name,
-    table_name,
-    column_name,
-    ordinal_position,
-    column_default,
-    is_nullable,
-    data_type,
-    character_maximum_length,
-    numeric_precision,
-    numeric_scale,
-    remarks
-FROM pg_catalog.svv_all_columns
-WHERE database_name = :database_name AND schema_name = :schema_name AND table_name = :table_name
-ORDER BY ordinal_position;
-"""
+# SQL discovery commands. Results are read positionally; {placeholders} are
+# filled with quoted identifiers by the caller.
+DATABASES_SQL = 'SHOW DATABASES;'
+SCHEMAS_SQL = 'SHOW SCHEMAS FROM DATABASE {database};'
+TABLES_SQL = 'SHOW TABLES FROM SCHEMA {database}.{schema};'
+COLUMNS_SQL = 'SHOW COLUMNS FROM TABLE {database}.{schema}.{table};'
 
 # SQL guardrails
 
