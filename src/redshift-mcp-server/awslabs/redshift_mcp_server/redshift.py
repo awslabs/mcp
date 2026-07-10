@@ -56,69 +56,149 @@ def _sql_identifier(value: str) -> str:
 _ACCESS_DENIED = {'AccessDeniedException', 'UnauthorizedAccess', 'AccessDenied'}
 
 
+_EXPIRED_TOKEN_CODES = frozenset({'ExpiredToken', 'ExpiredTokenException'})
+
+# The only boto3 services this server wraps. The adapter is Redshift-specific, so
+# constructing it for anything else is a programming error we surface immediately.
+_REDSHIFT_SERVICES = frozenset({'redshift', 'redshift-serverless', 'redshift-data'})
+
+
+class _RetryingPaginator:
+    """Paginator wrapper that materializes all pages under a single credential retry.
+
+    ``paginate`` fetches every page into a list rather than returning a lazy iterator.
+    All callers iterate the result, and materializing under one retry keeps pagination
+    correct: because botocore only populates ``resume_token`` when paginating with
+    MaxItems, a partially consumed lazy iterator cannot be resumed mid-stream without
+    re-yielding pages. Materializing means a mid-iteration ExpiredToken restarts the
+    whole (idempotent, read-only) listing once, with no duplicates reaching the caller.
+    """
+
+    def __init__(self, call_with_retry, raw_getter, operation_name: str):
+        """Initialize with the parent client's retry runner and live-client getter."""
+        self._call_with_retry = call_with_retry
+        self._raw_getter = raw_getter
+        self._operation_name = operation_name
+
+    def paginate(self, **kwargs) -> list:
+        """Materialize all pages, retrying once on expired credentials."""
+        return self._call_with_retry(
+            lambda: list(self._raw_getter().get_paginator(self._operation_name).paginate(**kwargs))
+        )
+
+
+class _ServiceClientAdapter:
+    """Adapter over one boto3 Redshift-family service client, adding retry on expiry.
+
+    Lazily creates and caches its boto3 client, and exposes only the operations the
+    server uses. Each operation runs through :meth:`_call_with_retry`: on an
+    ExpiredToken/ExpiredTokenException error the cached client is discarded and the
+    call is retried once against a freshly created client, which re-reads refreshed
+    credentials from the default chain. A new operation must be added deliberately
+    here rather than being proxied automatically. Only the Redshift services in
+    ``_REDSHIFT_SERVICES`` are supported.
+    """
+
+    def __init__(
+        self,
+        service_name: str,
+        config: Config,
+        aws_region: str | None = None,
+        aws_profile: str | None = None,
+    ):
+        """Initialize the adapter for a single Redshift-family boto3 service."""
+        if service_name not in _REDSHIFT_SERVICES:
+            raise ValueError(
+                f'Unsupported service {service_name!r}; '
+                f'expected one of {sorted(_REDSHIFT_SERVICES)}'
+            )
+        self._service_name = service_name
+        self._config = config
+        self._aws_region = aws_region
+        self._aws_profile = aws_profile
+        self._client = None
+
+    def _raw(self):
+        """Get or create the cached boto3 client for this service."""
+        if self._client is None:
+            try:
+                # Session works with None values - uses default credentials/region chain
+                session = boto3.Session(
+                    profile_name=self._aws_profile, region_name=self._aws_region
+                )
+                self._client = session.client(self._service_name, config=self._config)
+                logger.info(
+                    f'Created {self._service_name} client with profile: {self._aws_profile or "default"}, region: {self._aws_region or "default"}'
+                )
+            except Exception as e:
+                logger.error(f'Error creating {self._service_name} client: {str(e)}')
+                raise
+
+        return self._client
+
+    def invalidate(self):
+        """Discard the cached client so the next call recreates it with fresh credentials."""
+        self._client = None
+        logger.info(f'Invalidated cached {self._service_name} client for credential refresh')
+
+    def _call_with_retry(self, fn):
+        """Run fn(); on expired credentials, discard the cached client and retry once."""
+        try:
+            return fn()
+        except ClientError as e:
+            if e.response['Error']['Code'] not in _EXPIRED_TOKEN_CODES:
+                raise e
+            logger.warning('Expired credentials detected, refreshing and retrying')
+            self.invalidate()
+            return fn()
+
+    def execute_statement(self, **kwargs):
+        """Run ExecuteStatement (Data API), retrying once on expired credentials."""
+        return self._call_with_retry(lambda: self._raw().execute_statement(**kwargs))
+
+    def describe_statement(self, **kwargs):
+        """Run DescribeStatement (Data API), retrying once on expired credentials."""
+        return self._call_with_retry(lambda: self._raw().describe_statement(**kwargs))
+
+    def get_statement_result(self, **kwargs):
+        """Run GetStatementResult (Data API), retrying once on expired credentials."""
+        return self._call_with_retry(lambda: self._raw().get_statement_result(**kwargs))
+
+    def get_workgroup(self, **kwargs):
+        """Run GetWorkgroup (Serverless), retrying once on expired credentials."""
+        return self._call_with_retry(lambda: self._raw().get_workgroup(**kwargs))
+
+    def get_paginator(self, operation_name: str) -> '_RetryingPaginator':
+        """Return a paginator whose pages are fetched under credential retry."""
+        return _RetryingPaginator(self._call_with_retry, self._raw, operation_name)
+
+
 class RedshiftClientManager:
-    """Manages AWS clients for Redshift operations."""
+    """Builds and holds the retry-wrapped clients used for Redshift operations."""
 
     def __init__(
         self, config: Config, aws_region: str | None = None, aws_profile: str | None = None
     ):
-        """Initialize the client manager."""
-        self.aws_region = aws_region
-        self.aws_profile = aws_profile
-        self._redshift_client = None
-        self._redshift_serverless_client = None
-        self._redshift_data_client = None
-        self._config = config
+        """Create one self-refreshing client adapter per Redshift service."""
+        self._redshift = _ServiceClientAdapter('redshift', config, aws_region, aws_profile)
+        self._redshift_serverless = _ServiceClientAdapter(
+            'redshift-serverless', config, aws_region, aws_profile
+        )
+        self._redshift_data = _ServiceClientAdapter(
+            'redshift-data', config, aws_region, aws_profile
+        )
 
-    def redshift_client(self):
-        """Get or create the Redshift client for provisioned clusters."""
-        if self._redshift_client is None:
-            try:
-                # Session works with None values - uses default credentials/region chain
-                session = boto3.Session(profile_name=self.aws_profile, region_name=self.aws_region)
-                self._redshift_client = session.client('redshift', config=self._config)
-                logger.info(
-                    f'Created Redshift client with profile: {self.aws_profile or "default"}, region: {self.aws_region or "default"}'
-                )
-            except Exception as e:
-                logger.error(f'Error creating Redshift client: {str(e)}')
-                raise
+    def redshift_client(self) -> _ServiceClientAdapter:
+        """Get the Redshift client for provisioned clusters (auto-refreshes on expiry)."""
+        return self._redshift
 
-        return self._redshift_client
+    def redshift_serverless_client(self) -> _ServiceClientAdapter:
+        """Get the Redshift Serverless client (auto-refreshes on expiry)."""
+        return self._redshift_serverless
 
-    def redshift_serverless_client(self):
-        """Get or create the Redshift Serverless client."""
-        if self._redshift_serverless_client is None:
-            try:
-                # Session works with None values - uses default credentials/region chain
-                session = boto3.Session(profile_name=self.aws_profile, region_name=self.aws_region)
-                self._redshift_serverless_client = session.client(
-                    'redshift-serverless', config=self._config
-                )
-                logger.info(
-                    f'Created Redshift Serverless client with profile: {self.aws_profile or "default"}, region: {self.aws_region or "default"}'
-                )
-            except Exception as e:
-                logger.error(f'Error creating Redshift Serverless client: {str(e)}')
-                raise
-
-        return self._redshift_serverless_client
-
-    def redshift_data_client(self):
-        """Get or create the Redshift Data API client."""
-        if self._redshift_data_client is None:
-            try:
-                # Session works with None values - uses default credentials/region chain
-                session = boto3.Session(profile_name=self.aws_profile, region_name=self.aws_region)
-                self._redshift_data_client = session.client('redshift-data', config=self._config)
-                logger.info(
-                    f'Created Redshift Data API client with profile: {self.aws_profile or "default"}, region: {self.aws_region or "default"}'
-                )
-            except Exception as e:
-                logger.error(f'Error creating Redshift Data API client: {str(e)}')
-                raise
-
-        return self._redshift_data_client
+    def redshift_data_client(self) -> _ServiceClientAdapter:
+        """Get the Redshift Data API client (auto-refreshes on expiry)."""
+        return self._redshift_data
 
 
 class RedshiftSessionManager:
@@ -475,10 +555,10 @@ async def discover_clusters() -> list[RedshiftCluster]:
     try:
         # Get provisioned clusters
         logger.debug('Discovering provisioned Redshift clusters')
-        redshift_client = client_manager.redshift_client()
 
-        paginator = redshift_client.get_paginator('describe_clusters')
-        for page in paginator.paginate():
+        redshift_client = client_manager.redshift_client()
+        pages = redshift_client.get_paginator('describe_clusters').paginate()
+        for page in pages:
             for cluster in page.get('Clusters', []):
                 cluster_info = {
                     'identifier': cluster['ClusterIdentifier'],
@@ -510,10 +590,10 @@ async def discover_clusters() -> list[RedshiftCluster]:
     try:
         # Get serverless workgroups
         logger.debug('Discovering Redshift Serverless workgroups')
-        serverless_client = client_manager.redshift_serverless_client()
 
-        paginator = serverless_client.get_paginator('list_workgroups')
-        for page in paginator.paginate():
+        serverless_client = client_manager.redshift_serverless_client()
+        pages = serverless_client.get_paginator('list_workgroups').paginate()
+        for page in pages:
             for workgroup in page.get('workgroups', []):
                 # Get detailed workgroup information
                 workgroup_detail = serverless_client.get_workgroup(
