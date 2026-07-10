@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.aurora-dsql-mcp-server"
-version = "1.0.34"
+version = "1.0.35"
 description = "An AWS Labs Model Context Protocol (MCP) server for Aurora DSQL"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -13,7 +13,6 @@ dependencies = [
     "psycopg[binary]>=3.0",
     "httpx>=0.27.0",
     "dsql-lint>=0.2.1,<0.3",
-    "sqlparse>=0.5.0"
 ]
 license = {text = "Apache-2.0"}
 license-files = ["LICENSE", "NOTICE" ]
