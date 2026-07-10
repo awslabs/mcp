@@ -38,6 +38,31 @@ Tools: `start_security_scan`, `get_scan_status`, `get_scan_findings`, `list_scan
 2. Poll with `get_scan_status` until COMPLETED (or call `get_scan_findings` anytime for partial results)
 3. `get_scan_findings` → vulnerabilities with remediation guidance and code locations
 
+### Diff Scan (fast incremental scan)
+Tools: `start_diff_scan`, `get_scan_status`, `get_scan_findings`
+
+For scanning only changed code with full repo as context. No prior scan required.
+
+1. `start_diff_scan(path=".", base_ref="HEAD")` → generates git diff, uploads current repo + diff patch, starts diff scan
+2. Poll with `get_scan_status` until COMPLETED (10-15 min vs ~45 min for full scan)
+3. `get_scan_findings` → vulnerabilities focused on changed code
+
+base_ref options:
+- "HEAD" (default) — scan uncommitted workspace changes (staged + unstaged)
+- "main" or any ref — scan all changes on branch vs that ref
+
+### Threat Model Review (design/spec-guided)
+Tools: `start_threat_model_review`, `get_scan_status`, `get_scan_findings`
+
+Analyzes source code guided by design/requirement specs (e.g., Kiro design.md and
+requirements.md). The specs are used as scope documents the agent focuses on, prioritized
+over general source code analysis. No prior scan required.
+
+1. `start_threat_model_review(path=".", specs=["/abs/design.md", "/abs/requirements.md"])`
+   → zips + uploads the source dir, uploads the specs as scope docs, creates a threat model, starts a job
+2. Poll with `get_scan_status` until COMPLETED
+3. `get_scan_findings` → identified threats (severity, STRIDE, impact, recommendation)
+
 ### Penetration Test and All Other Operations (via generic API)
 Tools: `call_api`, `get_api_guide`
 
