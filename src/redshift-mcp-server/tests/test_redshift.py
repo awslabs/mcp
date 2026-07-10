@@ -32,11 +32,8 @@ from awslabs.redshift_mcp_server.redshift import (
     execute_query,
 )
 from botocore.config import Config
-<<<<<<< fix/graceful-serverless-discovery
 from botocore.exceptions import ClientError
-=======
 from sqlglot import exp
->>>>>>> main
 from types import SimpleNamespace
 
 
