@@ -37,6 +37,8 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 from loguru import logger
 
+# ClientError codes that indicate missing IAM permissions.
+_ACCESS_DENIED = {'AccessDeniedException', 'UnauthorizedAccess', 'AccessDenied'}
 
 class RedshiftClientManager:
     """Manages AWS clients for Redshift operations."""
