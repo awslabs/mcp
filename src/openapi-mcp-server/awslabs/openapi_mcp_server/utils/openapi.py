@@ -193,7 +193,11 @@ def _pinned_fetch(
                                     f'Spec too large: {content_length} bytes (max {max_size})'
                                 )
                         except ValueError:
-                            pass
+                            # Ignore malformed Content-Length; enforce max_size while streaming below.
+                            logger.debug(
+                                'Ignoring invalid Content-Length header value: %s',
+                                content_length,
+                            )
 
                     # ...and enforce the cap while streaming regardless.
                     chunks = []
