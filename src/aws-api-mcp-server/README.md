@@ -1,5 +1,7 @@
 # AWS API MCP Server
 
+> [!TIP]
+> This MCP server is superseded by the official [AWS MCP server](https://docs.aws.amazon.com/agent-toolkit/latest/userguide/mcp-server.html). Check out the [migration guide](https://github.com/awslabs/mcp/blob/main/src/aws-api-mcp-server/MIGRATION.md) on how to move your configuration over!
 
 ## Overview
 The AWS API MCP Server enables AI assistants to interact with AWS services and resources through AWS CLI commands. It provides programmatic access to manage your AWS infrastructure while maintaining proper security controls.
