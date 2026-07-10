@@ -141,9 +141,11 @@ class TestOpenAPIUtils:
     @patch('json.loads', return_value={'openapi': '3.0.0'})
     def test_path_invalid_validation(self, mock_json, mock_file, mock_exists):
         """Test invalid OpenAPI spec from file."""
-        # Override the validation function to return False
+        # Override the validation function to return False. Patch the name in the
+        # module where it is used (openapi.py binds it at import time), not where
+        # it is defined, or the mock never takes effect.
         with patch(
-            'awslabs.openapi_mcp_server.utils.openapi_validator.validate_openapi_spec',
+            'awslabs.openapi_mcp_server.utils.openapi.validate_openapi_spec',
             return_value=False,
         ):
             with pytest.raises(ValueError, match='Invalid OpenAPI specification'):
