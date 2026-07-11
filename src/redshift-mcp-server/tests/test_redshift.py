@@ -32,8 +32,9 @@ from awslabs.redshift_mcp_server.redshift import (
     execute_query,
 )
 from botocore.config import Config
-from sqlglot import exp
 from botocore.exceptions import ClientError
+from sqlglot import exp
+>>>>>>>>> Temporary merge branch 2
 from types import SimpleNamespace
 
 
