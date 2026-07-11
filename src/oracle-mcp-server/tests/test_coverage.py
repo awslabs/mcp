@@ -59,7 +59,8 @@ def _reset_server_config():
     defaults = ServerConfig()
     yield
     server_config.readonly_query = defaults.readonly_query
-    server_config.default_secret_arn = defaults.default_secret_arn
+    server_config.configured_secret_arns = defaults.configured_secret_arns
+    server_config.configured_default_secret_arn = defaults.configured_default_secret_arn
     server_config.ssl_encryption_mode = defaults.ssl_encryption_mode
     server_config.configured_port = defaults.configured_port
     server_config.max_rows = defaults.max_rows
@@ -208,7 +209,7 @@ def test_get_database_connection_info_returns_map_keys(mocker):
 
 
 def test_internal_create_connection_without_secret_uses_rds_describe(mocker):
-    """When no secret_arn is supplied, fall back to RDS describe_db_instances."""
+    """When no --secret_arn is configured, fall back to RDS describe_db_instances."""
     mocker.patch.object(db_connection_map, 'get', return_value=None)
     mocker.patch.object(db_connection_map, 'set')
 
@@ -233,7 +234,6 @@ def test_internal_create_connection_without_secret_uses_rds_describe(mocker):
         port=1521,
         database='ORCL',
         service_name='ORCL',
-        secret_arn=None,  # force fallback
     )
 
     assert isinstance(conn, OracledbPoolConnection)
@@ -617,7 +617,7 @@ def test_get_credentials_from_secret_missing_username(mocker):
     mock_session.client.return_value = mock_sm
     mocker.patch('boto3.Session', return_value=mock_session)
 
-    with pytest.raises(ValueError, match='does not contain username'):
+    with pytest.raises(ValueError, match='no usable username value'):
         conn._get_credentials_from_secret('arn:any', 'us-east-1')
 
 
@@ -631,7 +631,7 @@ def test_get_credentials_from_secret_missing_password(mocker):
     mock_session.client.return_value = mock_sm
     mocker.patch('boto3.Session', return_value=mock_session)
 
-    with pytest.raises(ValueError, match='does not contain password'):
+    with pytest.raises(ValueError, match='no usable password value'):
         conn._get_credentials_from_secret('arn:any', 'us-east-1')
 
 
