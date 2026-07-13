@@ -73,7 +73,7 @@ See also:
     'REC_007': """\
 ## To improve query performance, choose the best sort key
 
-For large tables, adding a sort key can speed up queries with predicates. Review commonly filtered fields and add a sort key: ALTER TABLE [table_name] ALTER SORTKEY ([column1], [columnN]). For small tables (less than 5 million rows), sort keys are not effective and will add maintenance and storage overhead: ALTER TABLE [table_name] ALTER SORTKEY NONE; For unknown table sizes or access patterns, you can set the sort key to AUTO which allows Redshift to define the optimal sort key: ALTER TABLE [table_name] ALTER SORTKEY AUTO;
+For large tables, adding a sort key can speed up queries with predicates. Review commonly filtered fields and add a sort key: ALTER TABLE [table_name] ALTER SORTKEY ([column1], [columnN]). If you're unsure whether a sort key helps — for example on smaller tables or tables with varied access patterns — let Amazon Redshift manage it: ALTER TABLE [table_name] ALTER SORTKEY AUTO; Redshift then adds or removes the sort key based on the table's size and workload.
 
 See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-sort-key.html
@@ -81,7 +81,7 @@ See also:
     'REC_008': """\
 ## To improve query performance, choose the best distribution style
 
-Heavy skew (where the ratio of the number of rows on a slice is more than 4x of another slice) can cause queries to perform slower as they are waiting on the compute node with the most data to complete before returning the result set. If the first node is skewed, this may be due to using a distribution key containing nulls. To change the column used as a distribution key: ALTER TABLE [table_name] ALTER DISTSTYLE KEY DISTKEY [column_name]; For small tables (< 5 million rows) e.g. reference or dimension tables that are frequently used in JOINS consider an ALL distribution style. To manage the distribution style automatically, create your tables with DISTSTYLE AUTO. Amazon Redshift initially assigns ALL distribution to a small table, then changes to EVEN distribution when the table grows larger. A low skew value indicates that table data is properly distributed. If a table has a skew value of 4.00 or higher, consider modifying its data distribution style.
+Heavy skew (where the ratio of the number of rows on a slice is more than 4x of another slice) can cause queries to perform slower as they are waiting on the compute node with the most data to complete before returning the result set. If the first node is skewed, this may be due to using a distribution key containing nulls. To change the column used as a distribution key: ALTER TABLE [table_name] ALTER DISTSTYLE KEY DISTKEY [column_name]; If you're unsure of the best distribution style — for example on smaller reference or dimension tables frequently used in JOINs — let Amazon Redshift manage it: ALTER TABLE [table_name] ALTER DISTSTYLE AUTO; Amazon Redshift initially assigns ALL distribution to a small table, then changes to EVEN distribution when the table grows larger. A low skew value indicates that table data is properly distributed. If a table has a skew value of 4.00 or higher, consider modifying its data distribution style.
 
 See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-best-dist-key.html
@@ -105,14 +105,6 @@ It is a best practice to not encode the first column of a sort key for optimal q
 See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/t_Verifying_data_compression.html
 """,
-    'REC_011': """\
-## To optimize memory consumption and avoid disk spill, reduce varchar fields to be inline with their max length
-
-Use caution when setting a large length on character type fields such as VARCHAR. When allocating memory for queries using these fields, Amazon Redshift will allocate based on the maximum values and queries are more likely to spill to disk. To change the length of the column, the following command can be executed: ALTER TABLE [table_name] ALTER COLUMN [column_name] TYPE varchar([size])
-
-See also:
-- https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-smallest-column-size.html
-""",
     'REC_012': """\
 ## To save cost, remove extra compute nodes using elastic or classic resize
 
@@ -134,13 +126,14 @@ See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/performing-a-deep-copy.html
 """,
     'REC_014': """\
-## To improve query performance and reduce maintenance overhead, replace Interleaved Sort keys with Materialized Views
+## Replace interleaved sort keys — use an AUTO sort key
 
-While interleaved sort keys may provide some benefit for tables with multiple access patterns, Materialized Views (MVs) are a newer strategy to optimize for performance in similar situations. MVs can be used to support not only different sorting strategies, but also calculated fields, different distribution strategies, and pre-aggregated results. Also, tables with an interleaved sort key are not eligible for concurrency scaling and data sharing. If your use case still requires interleaved sort keys, keep in mind a VACUUM REINDEX is required to take advantage of it, but it is an expensive operation and in many cases the performance benefit is not worth the additional maintenance effort.
+For the vast majority of workloads, Amazon Redshift recommends letting it manage the sort key automatically (AUTO) rather than using an interleaved sort key, which gives better performance with far lower maintenance overhead. Interleaved sort keys require periodic, expensive VACUUM REINDEX operations to remain effective, and queries against tables that use them can't run on concurrency scaling clusters. Set the table to manage its sort key automatically: ALTER TABLE [table_name] ALTER SORTKEY AUTO; For tables that genuinely serve several distinct access patterns, you can also consider purpose-built Materialized Views (each can define its own sort and distribution key), weighing their storage and refresh overhead.
 
 See also:
+- https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-sort-key.html
+- https://docs.aws.amazon.com/redshift/latest/dg/t_Creating_tables.html#ato-enabling
 - https://docs.aws.amazon.com/redshift/latest/dg/materialized-view-overview.html
-- https://docs.aws.amazon.com/redshift/latest/dg/r_VACUUM_command.html#vacuum-reindex
 """,
     'REC_015': """\
 ## To maximize system throughput and use resources most effectively, set up automatic WLM
@@ -150,24 +143,6 @@ With automatic workload management (autoWLM), Amazon Redshift manages query conc
 See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/automatic-wlm.html
 - https://aws.amazon.com/blogs/big-data/benchmarking-the-performance-of-the-new-auto-wlm-with-adaptive-concurrency-in-amazon-redshift/
-""",
-    'REC_016': """\
-## Re-allocate your memory distribution to add up to 100%
-
-When using manual WLM total memory allocation should equal 100%. Allocating less than 100% may result in unpredictable query performance and/or inefficient use of cluster resources.
-
-See also:
-- https://docs.aws.amazon.com/redshift/latest/dg/cm-c-defining-query-queues.html
-- https://docs.aws.amazon.com/redshift/latest/dg/cm-c-defining-query-queues.html#wlm-memory-percent
-""",
-    'REC_017': """\
-## To improve query performance, configure no more than 20 WLM slots
-
-When using manual WLM, high slot counts can result in too little memory being allocated to each query and results spilling to disk which may affect the query performance and having a lower query throughput. When you use lower concurrency, query throughput is increased and overall system performance is improved for most workloads.
-
-See also:
-- https://docs.aws.amazon.com/redshift/latest/dg/cm-c-defining-query-queues.html
-- https://docs.aws.amazon.com/redshift/latest/dg/cm-c-defining-query-queues.html#cm-c-defining-query-queues-concurrency-level
 """,
     'REC_018': """\
 ## To have better visibility on resource usage by workload and optimize resource allocation, create separate query queues for each workload
@@ -299,15 +274,6 @@ You can define limits to monitor and control your usage and associated cost of s
 See also:
 - https://docs.aws.amazon.com/redshift/latest/mgmt/managing-cluster-usage-limits.html
 - https://aws.amazon.com/blogs/big-data/manage-and-control-your-cost-with-amazon-redshift-concurrency-scaling-and-spectrum/
-""",
-    'REC_031': """\
-## To improve query performance, create a materialized view to use incremental refresh in the producer cluster and share the materialized view to the consumer cluster(s)
-
-Materialized views (MVs) provide a powerful route to precompute complex aggregations for use cases where high throughput is needed, and you can directly share a materialized view object via data sharing as well. For materialized views built on tables where there are frequent write operations, it is ideal to create the materialized view object on the producer itself and share the view. This method gives us the opportunity to centralize the management of the view on the producer cluster itself. For slowly changing data tables, you can share the table objects directly and build the materialized view on the shared objects directly on the consumer. This method gives us the flexibility of creating a customized view of data on each consumer according to your use case. This can help optimize the block metadata download and caching times in the data sharing query lifecycle. This also helps in materialized view refreshes because Redshift does not support incremental refresh for MVs built on shared objects.
-
-See also:
-- https://aws.amazon.com/blogs/big-data/speed-up-your-elt-and-bi-queries-with-amazon-redshift-materialized-views/
-- https://aws.amazon.com/blogs/big-data/amazon-redshift-data-sharing-best-practices-and-considerations/
 """,
     'REC_032': """\
 ## For better price performance, leverage Redshift serverless
@@ -455,47 +421,12 @@ group by 1,2,3,4,5
 -- Signal: files per copy are less than slice count
 SELECT count(*), 'REC_023'
 FROM data
-WHERE no_of_copy > 24 AND (avg_files_per_copy < (SELECT COUNT(1) FROM stv_slices WHERE type='D'))
+WHERE no_of_copy > 24 AND split_copies = 0 AND (avg_files_per_copy < (SELECT COUNT(1) FROM stv_slices WHERE type='D'))
 UNION ALL
 -- Signal: files with a small size
 SELECT count(*), 'REC_023'
 FROM data
 WHERE no_of_copy > 24 AND (avg_file_size_mb < 10)
-""",
-    ),
-    (
-        'DataShareProducerObject',
-        'all',
-        """\
--- DataShareProducerObject
-WITH data AS (
-SELECT d.share_type,
-    d.share_name,
-    d.include_new,
-    d.producer_account,
-    d.object_type,
-    split_part(d.object_name, '.', 1) namespace,
-    split_part(d.object_name, '.', 2) table_name,
-    ti.estimated_visible_rows,
-    vi.record_time last_vacuum_date,
-    vi.vacuum_type,
-    mi.is_stale mv_is_stale,
-    CASE WHEN mi.state = 1 THEN 'Y' WHEN mi.state <> 1 THEN 'N' ELSE NULL END AS is_mv_incremental_refresh,
-    CASE WHEN mi.autorefresh = 't' THEN 'Y' ELSE 'N' END AS is_mv_auto_refresh
-FROM SVV_DATASHARE_OBJECTS d
-LEFT OUTER JOIN SVV_TABLE_INFO ti ON (split_part(d.object_name, '.', 1) = ti."schema" and split_part(d.object_name, '.', 2) = ti."table" and current_database() = ti."database")
-LEFT OUTER JOIN SVV_MV_INFO mi ON (ti."database" = mi.database_name and ti."schema" = mi."schema_name" and ti."table" = mi."name")
-LEFT OUTER JOIN (SELECT record_time, table_id, table_name, status, vacuum_type,
-    row_number() over (PARTITION BY table_id order by record_time desc) rownum
-    FROM SYS_VACUUM_HISTORY
-    WHERE status != 'Skipped') vi on ti.table_id = vi.table_id and vi.rownum = 1
-WHERE share_type = 'OUTBOUND' and object_type = 'table'
-ORDER BY 2,3,5,4
-)
--- Signal: materialized view shared by a producer is doing a full refresh
-SELECT count(*), 'REC_031'
-FROM data
-WHERE is_mv_incremental_refresh = 'N'
 """,
     ),
     (
@@ -684,11 +615,6 @@ WHERE  attnum > 0
 GROUP  BY attrelid) c ON c.attrelid = t.table_id
 where "schema" not in ('information_schema', 'pg_catalog', 'pg_automv', 'pg_internal') and "database" not in ('sample_data_dev')
 )
--- Signal: tables with wide columns
-SELECT count(*), 'REC_011'
-FROM data
-WHERE max_varchar > 1000
-UNION ALL
 -- Signal: large tables without a sort key
 SELECT count(*), 'REC_007'
 FROM data
@@ -801,7 +727,7 @@ select
 FROM a LEFT JOIN b on a.query_id = b.query_id
 order by execution_time_sec desc
 )
--- Signal: long running queries with missing Table Statistics
+-- Signal: long running queries against tables that have never been analyzed (missing-statistics alert)
 SELECT count(*), 'REC_003'
 FROM data
 WHERE lower(alerts) like '%stat%'
@@ -826,14 +752,6 @@ FROM data
 WHERE lower(alerts) like '%sort%'
 UNION ALL
 -- Signal: high count of queries with large disk spill
-SELECT count(*), 'REC_005'
-FROM data
-WHERE total_disk_spill_mb > 1000000
-UNION ALL
-SELECT count(*), 'REC_011'
-FROM data
-WHERE total_disk_spill_mb > 1000000
-UNION ALL
 SELECT count(*), 'REC_022'
 FROM data
 WHERE total_disk_spill_mb > 1000000
@@ -914,14 +832,6 @@ FROM data
 WHERE pct_wlm_queue_time > 5
 UNION ALL
 -- Signal: high count of spilled to disk
-SELECT count(*), 'REC_005'
-FROM data
-WHERE total_disk_spill_count > 100
-UNION ALL
-SELECT count(*), 'REC_011'
-FROM data
-WHERE total_disk_spill_count > 100
-UNION ALL
 SELECT count(*), 'REC_022'
 FROM data
 WHERE total_disk_spill_count > 100
@@ -986,20 +896,10 @@ LEFT OUTER JOIN (
 WHERE scc.service_class > 4
 ORDER BY 2 ASC
 )
--- Signal: queues do not have total memory = 100
-SELECT count(*), 'REC_016'
-FROM data
-WHERE wlm_mode='manual' and service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select sum(case when cluster_memory_pct = 'auto' then 0 else cluster_memory_pct::decimal end) from data) < 100)
-UNION ALL
--- Signal: queues have total concurrency > 20
-SELECT count(*), 'REC_017'
-FROM data
-WHERE wlm_mode='manual' and service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select sum(case when slots = 'auto' then 0 else slots::int end) from data where service_class_id not in (5,14,15)) > 20)
-UNION ALL
 -- Signal: uses single WLM queue
 SELECT count(*), 'REC_018'
 FROM data
-WHERE service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select count(1) from data where service_class_category = 'Manual WLM') = 1 OR (select count(1) from data where service_class_category = 'Auto WLM') = 1)
+WHERE wlm_mode <> 'manual' and service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select count(1) from data where service_class_category = 'Manual WLM') = 1 OR (select count(1) from data where service_class_category = 'Auto WLM') = 1)
 UNION ALL
 -- Signal: uses manual WLM
 SELECT count(*), 'REC_015'
@@ -1019,7 +919,7 @@ UNION ALL
 -- Signal: all query queues having the same query priority
 SELECT count(*), 'REC_021'
 FROM data
-WHERE service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select count(distinct queue_priority) from data) = 1)
+WHERE wlm_mode <> 'manual' and service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select count(distinct queue_priority) from data) = 1)
 UNION ALL
 -- Signal: no query monitoring rules (QMR) defined
 SELECT count(*), 'REC_022'
