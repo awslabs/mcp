@@ -719,9 +719,12 @@ class TestColspanHandling:
         </tbody></table></body></html>"""
         result = parse_html_tables(html, 'Sec')
         assert result is not None
-        # Should have 2 rows, first with colspan filling both columns
-        rows = result['rows']
-        assert len(rows) == 2 or 'parent_columns' in result
+        # rowspan=2 with colspan=1 on "Action" makes it a parent column
+        assert 'parent_columns' in result
+        assert 'Action' in result['parent_columns']
+        assert len(result['rows']) == 1
+        assert result['rows'][0]['Action'] == 'Run'
+        assert len(result['rows'][0]['rows']) == 2
 
     def test_colspan_row_not_dropped(self):
         """Rows with colspan cells are not dropped due to cell count mismatch."""
@@ -1191,12 +1194,11 @@ class TestRowspanGroupBoundaries:
 class TestMaxRowsCapping:
     """Tests for finding #15: max_rows capping is exercised."""
 
-    def test_max_rows_caps_results(self):
-        """filter_table_rows respects the overall list but search_table_impl caps via slice."""
+    def test_filter_returns_all_matches(self):
+        """filter_table_rows returns all matching rows without capping."""
         rows = [{'Name': f'Quota {i}', 'Value': 'active'} for i in range(25)]
         matches = filter_table_rows(rows, 'active')
         assert len(matches) == 25
-        # The capping happens in search_table_impl (matches[:max_rows]), tested via integration
 
     def test_empty_rows_list(self):
         """Empty rows list returns empty matches."""

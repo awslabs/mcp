@@ -141,7 +141,7 @@ def get_query_id_from_cache(url: str) -> Optional[str]:
         Query ID of URL, or None
 
     """
-    for _, search_response in enumerate(SEARCH_RESULT_CACHE):
+    for search_response in SEARCH_RESULT_CACHE:
         for search_result in search_response.search_results:
             if search_result.url == url:
                 # Sanitization of query_id just in case

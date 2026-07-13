@@ -14,7 +14,8 @@
 """Table parsing and filtering utilities for AWS Documentation MCP Server."""
 
 import re
-from bs4 import BeautifulSoup, NavigableString, Tag
+from bs4 import BeautifulSoup, Tag
+from bs4.element import NavigableString
 from typing import Optional
 
 
@@ -83,7 +84,8 @@ def parse_html_tables(html: str, section_title: Optional[str] = None) -> Optiona
                 tables.append((sibling, last_sub_heading))
             else:
                 for found in sibling.find_all('table'):
-                    tables.append((found, last_sub_heading))
+                    if isinstance(found, Tag):
+                        tables.append((found, last_sub_heading))
 
     if not tables:
         return {
