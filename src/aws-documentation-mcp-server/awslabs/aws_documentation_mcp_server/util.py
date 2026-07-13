@@ -14,6 +14,7 @@
 """Utility functions for AWS Documentation MCP Server."""
 
 import markdownify
+import re
 from awslabs.aws_documentation_mcp_server.models import RecommendationResult
 from typing import Any, Dict, List
 from urllib.parse import quote_plus
@@ -280,15 +281,36 @@ def truncate_large_tables(
     lines = markdown.split('\n')
     result = []
     i = 0
+    in_code_block = False
 
     while i < len(lines):
-        if lines[i].strip().startswith('|'):
+        stripped = lines[i].strip()
+        # Track fenced code blocks — never truncate inside them
+        if stripped.startswith('```') or stripped.startswith('~~~'):
+            in_code_block = not in_code_block
+            result.append(lines[i])
+            i += 1
+            continue
+
+        if in_code_block:
+            result.append(lines[i])
+            i += 1
+            continue
+
+        if stripped.startswith('|'):
             table_lines = []
             while i < len(lines) and lines[i].strip().startswith('|'):
                 table_lines.append(lines[i])
                 i += 1
 
-            if len(table_lines) >= 3:
+            # Validate: must have >=3 lines and line[1] must be a GFM separator
+            is_table = (
+                len(table_lines) >= 3
+                and re.fullmatch(r'\s*\|?[\s|:-]+\|?\s*', table_lines[1])
+                and '-' in table_lines[1]
+            )
+
+            if is_table:
                 header = table_lines[0]
                 separator = table_lines[1]
                 data_rows = table_lines[2:]

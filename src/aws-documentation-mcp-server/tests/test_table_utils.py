@@ -327,6 +327,18 @@ class TestFilterTableRows:
         assert len(matches) == 1  # only on-demand row has all words
         assert 'On-demand' in matches[0]['Name']
 
+    def test_relevance_sorting_ranks_by_first_column(self):
+        """Row with more query words in Name column ranks higher."""
+        rows = [
+            {'Name': 'General quota', 'Description': 'Titan requests per minute limit'},
+            {'Name': 'Titan requests per minute', 'Description': 'General quota limit'},
+        ]
+        matches = filter_table_rows(rows, 'Titan requests')
+        assert len(matches) == 2
+        # Second row has both query words in Name, first row has them in Description
+        assert matches[0]['Name'] == 'Titan requests per minute'
+        assert matches[1]['Name'] == 'General quota'
+
     def test_relevance_sorting_tiebreaker(self):
         """When scores tie, document order is preserved."""
         rows = [
@@ -338,6 +350,88 @@ class TestFilterTableRows:
         # Both score equally, so document order preserved
         assert matches[0]['Name'] == 'Alpha requests per minute'
         assert matches[1]['Name'] == 'Beta requests per minute'
+
+    def test_prefix_match_on_compound_identifiers(self):
+        """A long query (4+ chars) matches as prefix of compound tokens."""
+        rows = [
+            {
+                'Name': '(Automated Reasoning) DeleteAutomatedReasoningPolicy requests per second',
+                'Default': 'Each supported Region: 5',
+            },
+            {
+                'Name': '(Automated Reasoning) DeleteAutomatedReasoningPolicyBuildWorkflow requests per second',
+                'Default': 'Each supported Region: 5',
+            },
+            {
+                'Name': '(Automated Reasoning) DeleteAutomatedReasoningPolicyTestCase requests per second',
+                'Default': 'Each supported Region: 5',
+            },
+            {
+                'Name': '(Automated Reasoning) CreateAutomatedReasoningPolicy requests per second',
+                'Default': 'Each supported Region: 5',
+            },
+        ]
+        matches = filter_table_rows(rows, 'DeleteAutomatedReasoningPolicy')
+        assert len(matches) == 3
+        assert all('Delete' in m['Name'] for m in matches)
+
+    def test_short_words_no_prefix_match(self):
+        """Short words (< 4 chars) require exact token match, no prefix."""
+        rows = [
+            {'Name': 'Quota A', 'Value': '100'},
+            {'Name': 'Quota B', 'Value': '10'},
+            {'Name': 'Quota C', 'Value': '1'},
+        ]
+        matches = filter_table_rows(rows, '10')
+        assert len(matches) == 1
+        assert matches[0]['Value'] == '10'
+
+    def test_thousands_separator_matching(self):
+        """Numbers with thousands separators match plain integers and vice versa."""
+        rows = [
+            {'Name': 'Titan requests', 'Value': '6,000'},
+            {'Name': 'Claude requests', 'Value': '500'},
+            {'Name': 'Large quota', 'Value': '300,000'},
+        ]
+        # Plain integer matches comma-formatted value
+        matches = filter_table_rows(rows, '6000')
+        assert len(matches) == 1
+        assert matches[0]['Name'] == 'Titan requests'
+
+        # Comma-formatted query also matches
+        matches = filter_table_rows(rows, '6,000')
+        assert len(matches) == 1
+        assert matches[0]['Name'] == 'Titan requests'
+
+        matches = filter_table_rows(rows, '300000')
+        assert len(matches) == 1
+        assert matches[0]['Name'] == 'Large quota'
+
+    def test_query_with_punctuation(self):
+        """Query containing punctuation like colons and slashes is tokenized correctly."""
+        rows = [
+            {'Name': 'ec2:RunInstances', 'Description': 'Launch instances'},
+            {'Name': 'ec2:StopInstances', 'Description': 'Stop instances'},
+            {'Name': 's3:GetObject', 'Description': 'Get object'},
+        ]
+        matches = filter_table_rows(rows, 'ec2')
+        assert len(matches) == 2
+
+    def test_query_with_parentheses(self):
+        """Query with parentheses still matches (parens stripped during tokenization)."""
+        rows = [
+            {
+                'Name': '(Automated Reasoning) Policies per account',
+                'Default': 'Each supported Region: 100',
+            },
+            {
+                'Name': '(Data Automation) Max blueprints per account',
+                'Default': 'Each supported Region: 350',
+            },
+        ]
+        matches = filter_table_rows(rows, 'Automated Reasoning')
+        assert len(matches) == 1
+        assert 'Automated Reasoning' in matches[0]['Name']
 
 
 class TestMultiTableParsing:
@@ -850,6 +944,19 @@ class TestSectionBoundary:
         assert result['columns'] == ['X']
         assert result['rows'][0] == {'X': 'val'}
 
+    def test_table_heading_does_not_cross_section_boundary(self):
+        """A table with no sub-heading in its section gets None, not a heading from before."""
+        html = """<html><body>
+        <h3>Unrelated Earlier Subsection</h3>
+        <table><thead><tr><th>Z</th></tr></thead><tbody><tr><td>old</td></tr></tbody></table>
+        <h2>Service quotas</h2>
+        <table><thead><tr><th>Name</th></tr></thead><tbody><tr><td>quota1</td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, 'Service quotas')
+        assert result is not None
+        # table_heading should be None (not "Unrelated Earlier Subsection")
+        assert result.get('table_heading') is None
+
     def test_unparseable_table_in_section(self):
         """Section with a table that has no usable data returns error."""
         html = """<html><body>
@@ -875,3 +982,232 @@ class TestSectionBoundary:
         </body></html>"""
         result = parse_html_tables(html, None)
         assert result is None
+
+
+class TestDuplicateHeaders:
+    """Tests for finding #1: duplicate column-header names."""
+
+    def test_duplicate_headers_deduplicated(self):
+        """Two columns sharing the same name get deduplicated with suffix."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Name</th><th>Value</th><th>Value</th></tr></thead>
+        <tbody>
+            <tr><td>A</td><td>10</td><td>20</td></tr>
+        </tbody></table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        assert 'error' not in result
+        assert result['columns'] == ['Name', 'Value', 'Value_2']
+        assert len(result['rows']) == 1
+        assert result['rows'][0]['Name'] == 'A'
+        assert result['rows'][0]['Value'] == '10'
+        assert result['rows'][0]['Value_2'] == '20'
+
+    def test_triple_duplicate_headers(self):
+        """Three columns with the same name are all deduplicated."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Limit</th><th>Limit</th><th>Limit</th></tr></thead>
+        <tbody>
+            <tr><td>A</td><td>B</td><td>C</td></tr>
+        </tbody></table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        assert result['columns'] == ['Limit', 'Limit_2', 'Limit_3']
+        assert result['rows'][0] == {'Limit': 'A', 'Limit_2': 'B', 'Limit_3': 'C'}
+
+
+class TestSafeSpan:
+    """Tests for finding #7: unguarded int() on colspan/rowspan."""
+
+    def test_empty_colspan_treated_as_1(self):
+        """colspan='' is treated as 1, not a crash."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>A</th><th>B</th></tr></thead>
+        <tbody><tr><td colspan="">val</td><td>other</td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        assert len(result['rows']) == 1
+
+    def test_invalid_colspan_treated_as_1(self):
+        """colspan='auto' is treated as 1, not a crash."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>A</th><th>B</th></tr></thead>
+        <tbody><tr><td colspan="auto">val</td><td>other</td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        assert len(result['rows']) == 1
+
+    def test_zero_colspan_treated_as_1(self):
+        """colspan='0' is clamped to 1, not causing column drop."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th colspan="0">Name</th><th>Value</th></tr></thead>
+        <tbody><tr><td>A</td><td>100</td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        # colspan=0 clamped to 1, so 2 columns
+        assert len(result['columns']) == 2
+
+
+class TestCellToTextProsePreservation:
+    """Tests for finding #4: descriptive prose around nested links is preserved."""
+
+    def test_prose_around_nested_link_preserved(self):
+        """Text surrounding a link inside a child tag is kept."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Description</th></tr></thead>
+        <tbody><tr><td><p>Grants permission to <a href="/api">RunInstances</a> on the account</p></td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        cell_val = result['rows'][0]['Description']
+        assert 'Grants permission to' in cell_val
+        assert '[RunInstances](/api)' in cell_val
+        assert 'on the account' in cell_val
+
+    def test_multiple_links_in_nested_tag(self):
+        """Multiple links inside a <p> with surrounding prose all preserved."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Info</th></tr></thead>
+        <tbody><tr><td><p>See <a href="/a">doc A</a> and <a href="/b">doc B</a> for details</p></td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        cell_val = result['rows'][0]['Info']
+        assert 'See' in cell_val
+        assert '[doc A](/a)' in cell_val
+        assert 'and' in cell_val
+        assert '[doc B](/b)' in cell_val
+        assert 'for details' in cell_val
+
+
+class TestMultiRowTheadWidth:
+    """Tests for finding #8: multi-row thead width from max across rows."""
+
+    def test_wider_second_row(self):
+        """When second thead row is wider than first, all columns are captured."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead>
+            <tr><th rowspan="2">Name</th></tr>
+            <tr><th>A</th><th>B</th></tr>
+        </thead>
+        <tbody>
+            <tr><td>Foo</td><td>1</td><td>2</td></tr>
+        </tbody></table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        assert len(result['columns']) == 3
+
+
+class TestColspanRowspanParentDetection:
+    """Tests for finding #11: colspan+rowspan not treated as parent columns."""
+
+    def test_colspan_rowspan_not_parent(self):
+        """A cell with both colspan and rowspan does not make those columns parents."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>A</th><th>B</th><th>C</th></tr></thead>
+        <tbody>
+            <tr><td>x</td><td colspan="2" rowspan="2">BLOCK</td></tr>
+            <tr><td>y</td></tr>
+            <tr><td>z</td><td>m</td><td>n</td></tr>
+        </tbody></table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        # Should be flat (no parent detection from colspan+rowspan cells)
+        assert 'parent_columns' not in result
+        assert len(result['rows']) == 3
+
+
+class TestTruncateCodeFenceProtection:
+    """Tests for findings #9 and #17: code blocks and separator validation."""
+
+    def test_pipe_lines_inside_code_fence_not_truncated(self):
+        """Pipe-leading lines inside a fenced code block are never truncated."""
+        code_lines = [f'| item{i} | val{i} |' for i in range(30)]
+        md = '```\n' + '\n'.join(code_lines) + '\n```'
+        result = truncate_large_tables(md, max_rows=5)
+        # All lines should be preserved (no truncation inside fence)
+        assert 'Table truncated' not in result
+        assert '| item29 | val29 |' in result
+
+    def test_non_separator_pipe_block_not_truncated(self):
+        """A block of pipe lines where line[1] is not a GFM separator is not truncated."""
+        lines = ['| grammar rule A |', '| grammar rule B |'] + [f'| rule {i} |' for i in range(25)]
+        md = '\n'.join(lines)
+        result = truncate_large_tables(md, max_rows=5)
+        # Not a real table (no separator row), so not truncated
+        assert 'Table truncated' not in result
+        assert '| rule 24 |' in result
+
+
+class TestRowspanGroupBoundaries:
+    """Tests for finding #3: rowspan group boundaries."""
+
+    def test_same_parent_value_distinct_blocks(self):
+        """Two adjacent rowspan blocks with same parent value are separate groups."""
+        html = """<html><body><h2>Actions</h2><table>
+        <thead><tr><th>Action</th><th>Level</th><th>Resource</th></tr></thead>
+        <tbody>
+            <tr><td rowspan="2">Write</td><td rowspan="2">Mutate</td><td>image</td></tr>
+            <tr><td>instance</td></tr>
+            <tr><td rowspan="2">Write</td><td rowspan="2">Mutate</td><td>subnet</td></tr>
+            <tr><td>vpc</td></tr>
+        </tbody></table></body></html>"""
+        result = parse_html_tables(html, 'Actions')
+        assert result is not None
+        assert 'parent_columns' in result
+        # Should be 2 separate groups, not 1 merged group of 4
+        write_groups = [g for g in result['rows'] if g.get('Action') == 'Write']
+        assert len(write_groups) == 2
+        assert len(write_groups[0]['rows']) == 2
+        assert len(write_groups[1]['rows']) == 2
+        assert write_groups[0]['rows'][0]['Resource'] == 'image'
+        assert write_groups[1]['rows'][0]['Resource'] == 'subnet'
+
+    def test_flat_row_between_rowspan_blocks(self):
+        """A flat row in a rowspan table starts its own group."""
+        html = """<html><body><h2>Actions</h2><table>
+        <thead><tr><th>Action</th><th>Level</th><th>Resource</th></tr></thead>
+        <tbody>
+            <tr><td rowspan="2">RunInstances</td><td rowspan="2">Write</td><td>image*</td></tr>
+            <tr><td>instance*</td></tr>
+            <tr><td>DescribeInstances</td><td>Read</td><td>instance*</td></tr>
+            <tr><td rowspan="2">StopInstances</td><td rowspan="2">Write</td><td>instance*</td></tr>
+            <tr><td>network*</td></tr>
+        </tbody></table></body></html>"""
+        result = parse_html_tables(html, 'Actions')
+        assert result is not None
+        assert len(result['rows']) == 3
+        assert result['rows'][0]['Action'] == 'RunInstances'
+        assert len(result['rows'][0]['rows']) == 2
+        assert result['rows'][1]['Action'] == 'DescribeInstances'
+        assert len(result['rows'][1]['rows']) == 1
+        assert result['rows'][2]['Action'] == 'StopInstances'
+        assert len(result['rows'][2]['rows']) == 2
+
+
+class TestMaxRowsCapping:
+    """Tests for finding #15: max_rows capping is exercised."""
+
+    def test_max_rows_caps_results(self):
+        """filter_table_rows respects the overall list but search_table_impl caps via slice."""
+        rows = [{'Name': f'Quota {i}', 'Value': 'active'} for i in range(25)]
+        matches = filter_table_rows(rows, 'active')
+        assert len(matches) == 25
+        # The capping happens in search_table_impl (matches[:max_rows]), tested via integration
+
+    def test_empty_rows_list(self):
+        """Empty rows list returns empty matches."""
+        assert filter_table_rows([], 'anything') == []
+
+    def test_nested_group_with_empty_child_rows(self):
+        """A nested group with empty child rows can still match on parent fields."""
+        rows = [
+            {'Action': 'RunInstances', 'Level': 'Write', 'rows': []},
+            {'Action': 'StopInstances', 'Level': 'Write', 'rows': [{'Resource': 'instance*'}]},
+        ]
+        matches = filter_table_rows(rows, 'RunInstances')
+        assert len(matches) == 1
+        assert matches[0]['Action'] == 'RunInstances'

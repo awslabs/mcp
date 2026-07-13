@@ -288,7 +288,7 @@ async def search_table(
     ),
     max_rows: int = Field(
         default=20,
-        description='Maximum number of matching rows to return',
+        description='Maximum number of matching rows to return per table',
         ge=1,
         le=100,
     ),
@@ -308,7 +308,7 @@ async def search_table(
     - If you know the exact section title, provide it for precision
     - If unsure, omit section_title — the tool will search all tables on the page
     - Use section titles from search_documentation results (TOC) or read_documentation output
-    - If the section title is wrong, the error response will list available sections
+    - If the section title is wrong, the hint field will list available sections
 
     ## URL Requirements
 
@@ -337,21 +337,25 @@ async def search_table(
     Returns a SearchTableResponse with:
     - tables_searched: Number of tables searched
     - tables_with_matches: Number of tables containing matching rows
-    - hint: Suggestion message (only when no matches found)
+    - hint: Guidance message when no matches found, section not found, or no tables on page
+    - error: Error message on HTTP/transport failures only
     - results: Array of table result objects, each with:
         - table_heading: The sub-heading above the table (if any)
         - columns: Column headers for that table
-        - total_rows: Total rows in that table
-        - matched_rows: Number of rows matching the query
-        - showing: Number of rows returned (capped by max_rows)
-        - rows: Array of matching row objects (column name → value)
+        - parent_columns: (optional) For rowspan/nested tables, which columns are group headers
+        - child_columns: (optional) For rowspan/nested tables, which columns are nested under groups
+        - total_rows: Total rows (or groups, for nested tables) in that table
+        - matched_rows: Number of rows/groups matching the query per table
+        - showing: Number of rows/groups returned per table (capped by max_rows per table)
+        - rows: Array of matching row objects. For flat tables: {column → value}.
+          For nested tables: {parent_col → value, ..., "rows": [{child_col → value}, ...]}
 
     Args:
         ctx: MCP context for logging and error handling
         url: AWS documentation page URL (must end with .html)
         section_title: The section heading containing the table (optional — omit to search all tables on the page)
         query: Search term to filter rows (all words must match, case-insensitive)
-        max_rows: Maximum rows to return (default 20)
+        max_rows: Maximum matching rows to return per table (default 20)
 
     Returns:
         SearchTableResponse with matching rows grouped by table

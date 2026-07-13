@@ -234,7 +234,7 @@ async def search_table_impl(
     session_uuid: str,
 ) -> SearchTableResponse:
     """The implementation of the search_table tool."""
-    from awslabs.aws_documentation_mcp_server.table_utils import (
+    from awslabs.aws_documentation_mcp_server.table_utils import (  # noqa: E402
         filter_table_rows,
         parse_html_tables,
     )
@@ -291,6 +291,18 @@ async def search_table_impl(
             )
 
         page_raw = response.text
+        content_type = response.headers.get('content-type', '')
+
+    if not is_html_content(page_raw, content_type):
+        return SearchTableResponse(
+            url=url_str,
+            section_title=section_title or '',
+            query=query,
+            tables_searched=0,
+            tables_with_matches=0,
+            results=[],
+            hint='Page content is not HTML. Use read_documentation to view this page.',
+        )
 
     table_data = parse_html_tables(page_raw, section_title if section_title else None)
 
@@ -335,6 +347,8 @@ async def search_table_impl(
                 TableResult(
                     table_heading=t.get('table_heading'),
                     columns=t['columns'],
+                    parent_columns=t.get('parent_columns'),
+                    child_columns=t.get('child_columns'),
                     total_rows=len(t['rows']),
                     matched_rows=len(matches),
                     showing=min(len(matches), max_rows),

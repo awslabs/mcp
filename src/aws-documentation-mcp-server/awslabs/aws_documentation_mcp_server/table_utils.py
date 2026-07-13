@@ -14,8 +14,17 @@
 """Table parsing and filtering utilities for AWS Documentation MCP Server."""
 
 import re
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup, NavigableString, Tag
 from typing import Optional
+
+
+def _safe_span(cell: Tag, attr: str) -> int:
+    """Safely parse a colspan/rowspan attribute, returning at least 1."""
+    try:
+        val = int(str(cell.get(attr, '1')).strip() or '1')
+    except (ValueError, TypeError):
+        return 1
+    return max(1, val)
 
 
 def parse_html_tables(html: str, section_title: Optional[str] = None) -> Optional[dict]:
@@ -61,17 +70,20 @@ def parse_html_tables(html: str, section_title: Optional[str] = None) -> Optiona
     if not isinstance(section_element, Tag):
         return None
     heading_level = int(section_element.name[1])
-    tables = []
+    # Collect tables paired with the last sub-heading seen before them (within section)
+    tables: list[tuple[Tag, Optional[Tag]]] = []
+    last_sub_heading: Optional[Tag] = None
     for sibling in section_element.find_next_siblings():
         if isinstance(sibling, Tag):
             if sibling.name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
                 if int(sibling.name[1]) <= heading_level:
                     break
+                last_sub_heading = sibling
             if sibling.name == 'table':
-                tables.append(sibling)
+                tables.append((sibling, last_sub_heading))
             else:
                 for found in sibling.find_all('table'):
-                    tables.append(found)
+                    tables.append((found, last_sub_heading))
 
     if not tables:
         return {
@@ -81,12 +93,10 @@ def parse_html_tables(html: str, section_title: Optional[str] = None) -> Optiona
 
     # Parse all tables and merge rows
     parsed_tables = []
-    for table in tables:
+    for table, sub_heading in tables:
         table_data = _extract_table_data(table)
         if table_data and 'rows' in table_data:
-            # Find the nearest sub-heading for this table
-            heading = table.find_previous(['h3', 'h4', 'h5', 'h6'])
-            table_data['table_heading'] = heading.get_text(strip=True) if heading else None
+            table_data['table_heading'] = sub_heading.get_text(strip=True) if sub_heading else None
             parsed_tables.append(table_data)
 
     if not parsed_tables:
@@ -137,48 +147,61 @@ def _parse_multi_row_thead(header_rows: list[Tag]) -> list[str]:
     Handles rowspan (cells that span from an earlier row into the last row)
     and colspan (cells that span multiple columns).
     Uses the last row as the primary source, filling in rowspan cells from above.
+    Dynamically expands the grid to accommodate rowspan reservations.
     """
     num_rows = len(header_rows)
-    # First pass: determine total number of columns from the first row
-    num_cols = 0
-    for cell in header_rows[0].find_all(['th', 'td']):
-        if isinstance(cell, Tag):
-            num_cols += int(str(cell.get('colspan', '1')))
+    # Build grid dynamically — expand as cells are placed
+    grid: list[list[str]] = [[] for _ in range(num_rows)]
 
-    # Build a grid to track which cell occupies each position
-    grid: list[list[str]] = [[''] * num_cols for _ in range(num_rows)]
     for row_idx, tr in enumerate(header_rows):
         col_idx = 0
         for cell in tr.find_all(['th', 'td']):
             if not isinstance(cell, Tag):
                 continue
             # Skip columns already filled by rowspan from above
-            while col_idx < num_cols and grid[row_idx][col_idx]:
+            while col_idx < len(grid[row_idx]) and grid[row_idx][col_idx]:
                 col_idx += 1
-            if col_idx >= num_cols:
-                break
             text = cell.get_text(strip=True)
-            colspan = int(str(cell.get('colspan', '1')))
-            rowspan = int(str(cell.get('rowspan', '1')))
+            colspan = _safe_span(cell, 'colspan')
+            rowspan = _safe_span(cell, 'rowspan')
             for r in range(rowspan):
                 for c in range(colspan):
-                    if row_idx + r < num_rows and col_idx + c < num_cols:
-                        grid[row_idx + r][col_idx + c] = text
+                    target_row = row_idx + r
+                    target_col = col_idx + c
+                    if target_row < num_rows:
+                        while len(grid[target_row]) <= target_col:
+                            grid[target_row].append('')
+                        grid[target_row][target_col] = text
             col_idx += colspan
 
+    num_cols = max((len(row) for row in grid), default=0)
+
     # Flatten: join parent and child names with " - " for each column
-    # If the last row value equals an earlier row value (rowspan cell), use it as-is
     headers: list[str] = []
     for col in range(num_cols):
         parts: list[str] = []
         seen: set[str] = set()
         for row in range(num_rows):
-            val = grid[row][col]
+            val = grid[row][col] if col < len(grid[row]) else ''
             if val and val not in seen:
                 parts.append(val)
                 seen.add(val)
         headers.append(' - '.join(parts))
-    return headers
+    return _deduplicate_headers(headers)
+
+
+def _deduplicate_headers(headers: list[str]) -> list[str]:
+    """De-duplicate header names by appending numeric suffixes to collisions."""
+    seen: dict[str, int] = {}
+    result: list[str] = []
+    for h in headers:
+        if h in seen:
+            seen[h] += 1
+            result.append(f'{h}_{seen[h]}')
+        else:
+            seen[h] = 1
+            result.append(h)
+    return result
 
 
 def _extract_table_data(table: Tag) -> Optional[dict]:
@@ -199,26 +222,30 @@ def _extract_table_data(table: Tag) -> Optional[dict]:
             for th in header_rows[0].find_all(['th', 'td']):
                 if not isinstance(th, Tag):
                     continue
-                colspan = int(str(th.get('colspan', '1')))
+                colspan = _safe_span(th, 'colspan')
                 text = th.get_text(strip=True)
                 for i in range(colspan):
                     headers.append(text if i == 0 else f'{text}_{i + 1}')
+            headers = _deduplicate_headers(headers)
     else:
         first_row = table.find('tr')
         if first_row and isinstance(first_row, Tag):
             for cell in first_row.find_all(['th', 'td']):
                 if not isinstance(cell, Tag):
                     continue
-                colspan = int(str(cell.get('colspan', '1')))
+                colspan = _safe_span(cell, 'colspan')
                 text = cell.get_text(strip=True)
                 for i in range(colspan):
                     headers.append(text if i == 0 else f'{text}_{i + 1}')
+            headers = _deduplicate_headers(headers)
 
     if not headers:
         return None
 
     # Parse all rows, tracking rowspan state
-    active_rowspans: dict[int, tuple[str, int]] = {}
+    # Each active_rowspan entry: (value, remaining_rows, is_parent_eligible)
+    # is_parent_eligible is True only when the original cell had colspan==1
+    active_rowspans: dict[int, tuple[str, int, bool]] = {}
     parsed_rows = []
 
     tbody_elements = [tb for tb in table.find_all('tbody') if isinstance(tb, Tag)]
@@ -235,30 +262,40 @@ def _extract_table_data(table: Tag) -> Optional[dict]:
 
         row: dict[str, object] = {}
         rowspan_cols: set[int] = set()
+        # Track whether this row physically starts a new rowspan block
+        has_fresh_rowspan = False
         cell_idx = 0
 
         col_idx = 0
         while col_idx < len(headers):
             if col_idx in active_rowspans:
-                value, remaining = active_rowspans[col_idx]
+                value, remaining, is_parent = active_rowspans[col_idx]
                 row[headers[col_idx]] = value
-                rowspan_cols.add(col_idx)
+                if is_parent:
+                    rowspan_cols.add(col_idx)
                 if remaining <= 1:
                     del active_rowspans[col_idx]
                 else:
-                    active_rowspans[col_idx] = (value, remaining - 1)
+                    active_rowspans[col_idx] = (value, remaining - 1, is_parent)
                 col_idx += 1
             elif cell_idx < len(cells):
                 cell = cells[cell_idx]
                 value = _cell_to_text(cell)
-                colspan = int(str(cell.get('colspan', '1')))
-                rowspan = int(str(cell.get('rowspan', '1')))
+                colspan = _safe_span(cell, 'colspan')
+                rowspan = _safe_span(cell, 'rowspan')
+                is_parent_eligible = rowspan > 1 and colspan == 1
                 for span in range(colspan):
                     if col_idx + span < len(headers):
                         row[headers[col_idx + span]] = value
                         if rowspan > 1:
-                            active_rowspans[col_idx + span] = (value, rowspan - 1)
+                            active_rowspans[col_idx + span] = (
+                                value,
+                                rowspan - 1,
+                                is_parent_eligible,
+                            )
+                        if is_parent_eligible:
                             rowspan_cols.add(col_idx + span)
+                            has_fresh_rowspan = True
                 col_idx += colspan
                 cell_idx += 1
             else:
@@ -266,6 +303,7 @@ def _extract_table_data(table: Tag) -> Optional[dict]:
 
         if len(row) == len(headers):
             row['_rowspan_cols'] = rowspan_cols
+            row['_starts_new_group'] = has_fresh_rowspan
             parsed_rows.append(row)
 
     if not parsed_rows:
@@ -279,32 +317,33 @@ def _extract_table_data(table: Tag) -> Optional[dict]:
         # Flat table — return simple rows
         for row in parsed_rows:
             row.pop('_rowspan_cols', None)
+            row.pop('_starts_new_group', None)
         return {'columns': headers, 'rows': parsed_rows}
 
     # Nested table — group by parent columns
-    # Parent columns = columns that had rowspan on their first appearance in a group
-    # Detect parent columns from the first row that starts a group
+    # Parent columns = union of rowspan columns across all group-starting rows
     parent_cols: set[int] = set()
     for row in parsed_rows:
-        rowspan_set = row.get('_rowspan_cols')
-        if rowspan_set and isinstance(rowspan_set, set):
-            parent_cols.update(rowspan_set)
-            break
+        if row.get('_starts_new_group'):
+            rowspan_set = row.get('_rowspan_cols')
+            if rowspan_set and isinstance(rowspan_set, set):
+                parent_cols.update(rowspan_set)
 
     parent_headers = [h for i, h in enumerate(headers) if i in parent_cols]
     child_headers = [h for i, h in enumerate(headers) if i not in parent_cols]
 
-    # Group rows: a new group starts when a row has fresh rowspan values
+    # Group rows: a new group starts when a row physically begins a fresh rowspan block,
+    # or when a row has no rowspan at all (a standalone flat row in a rowspan table).
     groups: list[dict[str, object]] = []
     current_group: dict[str, object] | None = None
 
     for row in parsed_rows:
-        # A new group starts when the parent column values change
-        parent_values = tuple(row.get(h, '') for h in parent_headers)
+        rowspan_set = row.get('_rowspan_cols')
+        has_any_rowspan = bool(rowspan_set)
+        starts_new = row.get('_starts_new_group') or not has_any_rowspan
 
-        if current_group is None or current_group.get('_key') != parent_values:
+        if starts_new or current_group is None:
             current_group = {h: row[h] for h in parent_headers}
-            current_group['_key'] = parent_values
             current_group['rows'] = []
             groups.append(current_group)
 
@@ -314,13 +353,10 @@ def _extract_table_data(table: Tag) -> Optional[dict]:
             if isinstance(rows_list, list):
                 rows_list.append(child_row)
 
-    # Clean up internal keys
-    for group in groups:
-        group.pop('_key', None)
-
     # Clean parsed_rows metadata
     for row in parsed_rows:
         row.pop('_rowspan_cols', None)
+        row.pop('_starts_new_group', None)
 
     return {
         'columns': headers,
@@ -334,7 +370,7 @@ def _cell_to_text(cell: Tag) -> str:
     """Convert a table cell to text, preserving links as markdown.
 
     A cell like <td><a href="url">text</a></td> becomes "[text](url)".
-    A cell with mixed content preserves links inline.
+    A cell with mixed content preserves links inline with surrounding prose.
     """
     # Check if cell contains any links
     links = cell.find_all('a')
@@ -343,36 +379,27 @@ def _cell_to_text(cell: Tag) -> str:
 
     # Build text with markdown links
     parts: list[str] = []
-    for child in cell.children:
-        if isinstance(child, Tag) and child.name == 'a':
-            href = str(child.get('href', ''))
-            text = child.get_text(strip=True)
-            if href and text:
-                # Make relative URLs absolute-ish (keep fragment refs as-is)
-                parts.append(f'[{text}]({href})')
-            elif text:
-                parts.append(text)
-        elif isinstance(child, Tag):
-            # Recurse for nested tags that might contain links
-            inner_links = [a for a in child.find_all('a') if isinstance(a, Tag)]
-            if inner_links:
-                for a in inner_links:
-                    href = str(a.get('href', ''))
-                    text = a.get_text(strip=True)
-                    if href and text:
-                        parts.append(f'[{text}]({href})')
-                    elif text:
-                        parts.append(text)
-            else:
-                text = child.get_text(strip=True)
-                if text:
-                    parts.append(text)
-        else:
+    _extract_with_links(cell, parts)
+    return ' '.join(parts).strip()
+
+
+def _extract_with_links(element: Tag, parts: list[str]) -> None:
+    """Recursively extract text from an element, preserving links as markdown."""
+    for child in element.children:
+        if isinstance(child, NavigableString):
             text = str(child).strip()
             if text:
                 parts.append(text)
-
-    return ' '.join(parts).strip()
+        elif isinstance(child, Tag):
+            if child.name == 'a':
+                href = str(child.get('href', ''))
+                text = child.get_text(strip=True)
+                if href and text:
+                    parts.append(f'[{text}]({href})')
+                elif text:
+                    parts.append(text)
+            else:
+                _extract_with_links(child, parts)
 
 
 def filter_table_rows(rows: list[dict], query: str) -> list[dict]:
@@ -381,9 +408,10 @@ def filter_table_rows(rows: list[dict], query: str) -> list[dict]:
     Handles both flat rows (dict of column→value) and nested rows (dict with a 'rows' sub-array).
     For nested rows, searches across parent fields AND all child rows.
 
-    Each query word must match a whole token in the row. Tokens are split on whitespace
-    and common punctuation. This prevents '1' from matching inside '100', while still
-    allowing words to match anywhere across the row (non-contiguous).
+    Each query word must match a whole token in the row (exact match), or for words
+    with 4+ characters, match as a prefix of a row token. This prevents '1' from
+    matching inside '100', while allowing prefix searches on long compound identifiers
+    (e.g., 'DeleteAutomatedReasoningPolicy' matches 'DeleteAutomatedReasoningPolicyBuildWorkflow').
 
     Results are sorted by relevance: rows with more query words in the first column
     (typically the Name field) rank higher.
@@ -395,7 +423,7 @@ def filter_table_rows(rows: list[dict], query: str) -> list[dict]:
     Returns:
         List of matching rows, sorted by relevance
     """
-    words = query.lower().split()
+    words = _tokenize(query.lower())
     if not words:
         return []
 
@@ -413,16 +441,30 @@ def filter_table_rows(rows: list[dict], query: str) -> list[dict]:
             row_text = ' '.join(str(v) for v in row.values()).lower()
 
         row_tokens = set(_tokenize(row_text))
-        if all(word in row_tokens for word in words):
+        if all(_word_matches(word, row_tokens) for word in words):
             matches.append(row)
 
     # Sort by relevance: count query words in the first column value
     def relevance(row):
         first_val = str(list(row.values())[0]).lower()
         first_tokens = set(_tokenize(first_val))
-        return sum(1 for w in words if w in first_tokens)
+        return sum(1 for w in words if _word_matches(w, first_tokens))
 
     return sorted(matches, key=relevance, reverse=True)
+
+
+def _word_matches(word: str, row_tokens: set[str]) -> bool:
+    """Check if a query word matches any token in the row.
+
+    Exact match is always checked. For words with 4+ characters, also checks
+    if the word is a prefix of any row token (enabling compound-identifier matching
+    like 'DeleteAutomatedReasoningPolicy' matching 'DeleteAutomatedReasoningPolicyBuildWorkflow').
+    """
+    if word in row_tokens:
+        return True
+    if len(word) >= 4:
+        return any(token.startswith(word) for token in row_tokens)
+    return False
 
 
 def _tokenize(text: str) -> list[str]:
@@ -431,7 +473,10 @@ def _tokenize(text: str) -> list[str]:
     Splits on whitespace and punctuation boundaries, preserving hyphenated
     terms (e.g., 'us-east-1') and version numbers (e.g., 'v2') as single tokens.
     Also generates sub-tokens from hyphenated/dotted terms so that 'east' matches 'us-east-1'.
+    Normalizes thousands separators so '6,000' and '6000' both match.
     """
+    # Normalize thousands separators (e.g., '6,000' -> '6000')
+    text = re.sub(r'(?<=\d),(?=\d)', '', text)
     tokens = re.findall(r'[a-z0-9]+(?:[-_.][a-z0-9]+)*', text)
     result = list(tokens)
     for token in tokens:

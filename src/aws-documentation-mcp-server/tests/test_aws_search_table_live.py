@@ -56,7 +56,7 @@ async def test_search_table_bedrock_quotas():
 @pytest.mark.live
 async def test_search_table_iam_ec2_actions():
     """Test searching the IAM Service Authorization Reference for EC2 actions."""
-    url = 'https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazonec2.html'
+    url = 'https://docs.aws.amazon.com/service-authorization/latest/reference/list_ec2.html'
     section_title = 'Actions defined by Amazon EC2'
     query = 'RunInstances'
     ctx = MockContext()

@@ -865,3 +865,169 @@ class TestSearchTableImpl:
 
             assert result.tables_searched == 1
             assert result.tables_with_matches == 1
+
+    @pytest.mark.asyncio
+    async def test_non_html_content_returns_hint(self):
+        """Test search_table_impl returns hint when content is not HTML."""
+        from awslabs.aws_documentation_mcp_server.server_utils import search_table_impl
+
+        url = 'https://docs.aws.amazon.com/test.html'
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '{"key": "value"}'
+        mock_response.headers = {'content-type': 'application/json'}
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client_class.return_value = mock_client
+
+            result = await search_table_impl(ctx, url, '', 'query', 20, 'test-uuid')
+
+            assert result.tables_searched == 0
+            assert result.hint is not None
+            assert 'not HTML' in result.hint
+
+    @pytest.mark.asyncio
+    async def test_max_rows_caps_results(self):
+        """Test search_table_impl caps returned rows at max_rows."""
+        from awslabs.aws_documentation_mcp_server.server_utils import search_table_impl
+
+        url = 'https://docs.aws.amazon.com/test.html'
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+
+        # Build a table with 25 matching rows
+        rows_html = ''.join(f'<tr><td>Quota {i}</td><td>active</td></tr>' for i in range(25))
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = f"""<html><body><h2>Quotas</h2><table>
+        <thead><tr><th>Name</th><th>Status</th></tr></thead>
+        <tbody>{rows_html}</tbody></table></body></html>"""
+        mock_response.headers = {'content-type': 'text/html'}
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client_class.return_value = mock_client
+
+            result = await search_table_impl(ctx, url, 'Quotas', 'active', 10, 'test-uuid')
+
+            assert result.results[0].total_rows == 25
+            assert result.results[0].matched_rows == 25
+            assert result.results[0].showing == 10
+            assert len(result.results[0].rows) == 10
+
+    @pytest.mark.asyncio
+    async def test_rowspan_table_returns_nested_structure(self):
+        """Test search_table_impl returns parent/child columns for rowspan tables."""
+        from awslabs.aws_documentation_mcp_server.server_utils import search_table_impl
+
+        url = 'https://docs.aws.amazon.com/test.html'
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """<html><body><h2>Actions</h2><table>
+        <thead><tr><th>Action</th><th>Level</th><th>Resource</th></tr></thead>
+        <tbody>
+            <tr><td rowspan="2">RunInstances</td><td rowspan="2">Write</td><td>image*</td></tr>
+            <tr><td>instance*</td></tr>
+            <tr><td>StopInstances</td><td>Write</td><td>instance*</td></tr>
+        </tbody></table></body></html>"""
+        mock_response.headers = {'content-type': 'text/html'}
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client_class.return_value = mock_client
+
+            result = await search_table_impl(ctx, url, 'Actions', 'RunInstances', 20, 'test-uuid')
+
+            assert result.tables_with_matches == 1
+            table_result = result.results[0]
+            assert table_result.parent_columns == ['Action', 'Level']
+            assert table_result.child_columns == ['Resource']
+            assert table_result.matched_rows == 1
+            assert table_result.rows[0]['Action'] == 'RunInstances'
+            assert len(table_result.rows[0]['rows']) == 2
+
+    @pytest.mark.asyncio
+    async def test_truncation_applied_to_read_documentation(self):
+        """Test that truncate_large_tables is actually invoked by read_documentation_impl."""
+        from awslabs.aws_documentation_mcp_server.server_utils import read_documentation_impl
+
+        url = 'https://docs.aws.amazon.com/test.html'
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+
+        # Build a response with a large table (>20 rows)
+        rows_html = ''.join(f'<tr><td>row{i}</td><td>val{i}</td></tr>' for i in range(30))
+        html = f"""<html><body>
+        <h2>Section</h2>
+        <table><thead><tr><th>Name</th><th>Value</th></tr></thead>
+        <tbody>{rows_html}</tbody></table>
+        </body></html>"""
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = html
+        mock_response.headers = {'content-type': 'text/html'}
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client_class.return_value = mock_client
+
+            result = await read_documentation_impl(ctx, url, 50000, 0, 'test-uuid')
+
+            # The large table should have been truncated
+            assert 'Table truncated' in result
+            assert 'search_table' in result
+
+    @pytest.mark.asyncio
+    async def test_section_title_none_searches_all_tables(self):
+        """Test that section_title=None (not '') searches all tables on the page."""
+        from awslabs.aws_documentation_mcp_server.server_utils import search_table_impl
+
+        url = 'https://docs.aws.amazon.com/test.html'
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """<html><body>
+        <h2>Section A</h2>
+        <table><thead><tr><th>Name</th></tr></thead>
+        <tbody><tr><td>alpha</td></tr></tbody></table>
+        <h2>Section B</h2>
+        <table><thead><tr><th>Name</th></tr></thead>
+        <tbody><tr><td>beta</td></tr></tbody></table>
+        </body></html>"""
+        mock_response.headers = {'content-type': 'text/html'}
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client_class.return_value = mock_client
+
+            result = await search_table_impl(ctx, url, None, 'alpha', 20, 'test-uuid')
+
+            assert result.tables_searched == 2
+            assert result.tables_with_matches == 1
+            assert result.results[0].matched_rows == 1
+            assert result.section_title != ''

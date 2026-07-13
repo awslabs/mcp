@@ -102,10 +102,18 @@ class RecommendationResult(BaseModel):
 
 
 class TableResult(BaseModel):
-    """A single table's filtered results."""
+    """A single table's filtered results.
+
+    For flat tables, each row is a dict of {column_name: value}.
+    For nested/rowspan tables, rows are grouped: each group has parent column
+    values at the top level plus a 'rows' sub-array of child-column dicts.
+    When parent_columns is set, total_rows/matched_rows/showing count groups.
+    """
 
     table_heading: Optional[str] = None
     columns: List[str]
+    parent_columns: Optional[List[str]] = None
+    child_columns: Optional[List[str]] = None
     total_rows: int
     matched_rows: int
     showing: int
