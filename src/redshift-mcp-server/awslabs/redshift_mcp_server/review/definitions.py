@@ -105,7 +105,7 @@ It is a best practice to not encode the first column of a sort key for optimal q
 See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/t_Verifying_data_compression.html
 """,
-    'REC_012': """\
+    'REC_011': """\
 ## To save cost, remove extra compute nodes using elastic or classic resize
 
 You may have more compute than you need. If you can reduce the size of your cluster and maintain your SLAs, you may be able to save money. In addition, enable the concurrency scaling feature and leverage the 1 hour free credit per day on a given WLM queue. Apply the necessary concurrency scaling usage limits. Use of concurrency scaling allows the cluster to handle spiky compute needs and allow for queries in WLM queues in which it is enabled to get consistent performance.
@@ -116,7 +116,7 @@ See also:
 - https://docs.aws.amazon.com/redshift/latest/mgmt/managing-cluster-usage-limits.html
 - https://aws.amazon.com/blogs/big-data/accelerate-resize-and-encryption-of-amazon-redshift-clusters-with-faster-classic-resize/
 """,
-    'REC_013': """\
+    'REC_012': """\
 ## To improve query performance, ensure large tables with a sort key are vacuumed
 
 Tables which contain a sort key but have not been vacuumed will not benefit from the sort key. While Auto Vacuum should optimize most tables, in busy clusters, customers should schedule the VACUUM SORT RECLUSTER operation either as part of the regular data ingestion / transformation workload (especially those that affect a large number of rows) or as part of a recurring maintenance activity (e.g. weekly / monthly) based on the vacuum_sort_benefit column in SVV_TABLE_INFO. Use the DEEP COPY approach if the table does not need to be accessible for writes. A deep copy is much faster than a vacuum. The trade off is that you should not make concurrent updates during a deep copy operation unless you can track it and move the delta updates into the new table after the process has completed.
@@ -125,7 +125,7 @@ See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/r_VACUUM_command.html
 - https://docs.aws.amazon.com/redshift/latest/dg/performing-a-deep-copy.html
 """,
-    'REC_014': """\
+    'REC_013': """\
 ## Replace interleaved sort keys — use an AUTO sort key
 
 For the vast majority of workloads, Amazon Redshift recommends letting it manage the sort key automatically (AUTO) rather than using an interleaved sort key, which gives better performance with far lower maintenance overhead. Interleaved sort keys require periodic, expensive VACUUM REINDEX operations to remain effective, and queries against tables that use them can't run on concurrency scaling clusters. Set the table to manage its sort key automatically: ALTER TABLE [table_name] ALTER SORTKEY AUTO; For tables that genuinely serve several distinct access patterns, you can also consider purpose-built Materialized Views (each can define its own sort and distribution key), weighing their storage and refresh overhead.
@@ -135,7 +135,7 @@ See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/t_Creating_tables.html#ato-enabling
 - https://docs.aws.amazon.com/redshift/latest/dg/materialized-view-overview.html
 """,
-    'REC_015': """\
+    'REC_014': """\
 ## To maximize system throughput and use resources most effectively, set up automatic WLM
 
 With automatic workload management (autoWLM), Amazon Redshift manages query concurrency and memory allocation. Automatic WLM determines the amount of resources that queries need, and adjusts the concurrency based on the workload. When queries requiring large amounts of resources are in the system (for example, hash joins between large tables), the concurrency is lower. When lighter queries (such as inserts, deletes, scans, or simple aggregations) are submitted, concurrency is higher.
@@ -144,7 +144,7 @@ See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/automatic-wlm.html
 - https://aws.amazon.com/blogs/big-data/benchmarking-the-performance-of-the-new-auto-wlm-with-adaptive-concurrency-in-amazon-redshift/
 """,
-    'REC_018': """\
+    'REC_015': """\
 ## To have better visibility on resource usage by workload and optimize resource allocation, create separate query queues for each workload
 
 When you define multiple query queues, you can route queries to the appropriate queues at runtime. For example query queues can be defined for each type of workload: BI / Dashboard workload, ETL / Data Ingestion workload, Data Science workload, Adhoc workload, Application workload.
@@ -152,7 +152,7 @@ When you define multiple query queues, you can route queries to the appropriate 
 See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/cm-c-wlm-queue-assignment-rules.html
 """,
-    'REC_019': """\
+    'REC_016': """\
 ## For additional scalability, enable the concurrency scaling
 
 Use of concurrency scaling allows the cluster to handle spiky compute needs and allow for queries in WLM queues in which it is enabled to get consistent performance. Concurrency scaling is available 1 hour free per day. Additionally usage limits can be applied to manage costs.
@@ -164,7 +164,7 @@ See also:
 - https://aws.amazon.com/blogs/big-data/manage-and-control-your-cost-with-amazon-redshift-concurrency-scaling-and-spectrum/
 - https://www.youtube.com/watch?v=-2yQsI9xJKQ
 """,
-    'REC_020': """\
+    'REC_017': """\
 ## For additional scalability, enable short query acceleration
 
 If you enable SQA, you can reduce or eliminate workload management (WLM) queues that are dedicated to running short queries. Amazon Redshift uses a machine learning algorithm to analyze each eligible query and predict the query's execution time. By default, WLM dynamically assigns a value for the SQA maximum runtime based on analysis of your cluster's workload. Alternatively, you can specify a fixed value of 1 to 20 seconds.
@@ -172,7 +172,7 @@ If you enable SQA, you can reduce or eliminate workload management (WLM) queues 
 See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/wlm-short-query-acceleration.html
 """,
-    'REC_021': """\
+    'REC_018': """\
 ## To ensure queries get resources based on importance, set priorities for each WLM queue
 
 Not all queries are of equal importance, and often performance of one workload or set of users might be more important. When auto WLM is enabled, you can define the relative importance of queries in a workload by setting a priority value. The priority is specified for a queue and inherited by all queries associated with the queue. Amazon Redshift uses the priority when letting queries into the system, and to determine the amount of resources allocated to a query.
@@ -180,7 +180,7 @@ Not all queries are of equal importance, and often performance of one workload o
 See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/query-priority.html
 """,
-    'REC_022': """\
+    'REC_019': """\
 ## To set query performance boundaries on workloads, add QMR rules
 
 Query monitoring rules (QMR) define metrics-based performance boundaries for WLM queues and specify what action to take when a query goes beyond those boundaries. For example, to track poorly designed queries, you might have a rule that logs queries that contain nested loops or execute for more than 2 hours. You can define up to 25 rules for each queue, with a limit of 25 rules for all queues. You can start with Query monitoring rules templates. WLM evaluates metrics every 10 seconds. If more than one rule is triggered during the same period, WLM initiates the most severe action: abort, then hop, then log. The most common metrics where QMR can protect your system include: query_execution_time (identifies sub-optimal table or query design), query_temp_blocks_to_disk (identifies queries using more than available memory which write intermediate results to disk), spectrum_scan_size_mb / spectrum_scan_row_count (a large scan may mean there is no partition pruning applied), and nested_loop_join_row_count (joins without a join condition that result in the Cartesian product of two tables).
@@ -192,7 +192,7 @@ See also:
 
 Review STL_WLM_RULE_ACTION to identify queries that triggered QMR rules and retrieve the offending queries for further analysis.
 """,
-    'REC_023': """\
+    'REC_020': """\
 ## Increase load performance by optimizing COPY operations
 
 Amazon Redshift can automatically load in parallel from multiple compressed data files. This divides the workload among the nodes in your cluster. However, if you use multiple concurrent COPY commands to load one table from multiple files, Amazon Redshift performs a serialized load which is slower than loading them using one operation. Optimal COPY performance can be achieved through a file count that is a multiple of the number of node slices. For optimum parallelism, the ideal file size is 1 to 125 MB after compression.
@@ -202,7 +202,7 @@ See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/c_loading-data-best-practices.html
 - https://aws.amazon.com/blogs/big-data/part-1-introducing-new-features-for-amazon-redshift-copy/
 """,
-    'REC_024': """\
+    'REC_021': """\
 ## To avoid disk spill, review queries and add predicates to filter tables that participate in joins, even if the predicates apply the same filters
 
 Even though a filter may be redundant, the query planner can skip scanning large numbers of disk blocks when performing a join operation. For example, adding a predicate for sales.saletime to the WHERE clause returns the same result set without the filter because a product will always be sold after it is listed, but Amazon Redshift is able to filter the table before the join step.
@@ -210,7 +210,7 @@ Even though a filter may be redundant, the query planner can skip scanning large
 See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/c_designing-queries-best-practices.html
 """,
-    'REC_025': """\
+    'REC_022': """\
 ## For additional scalability, isolate your workloads using data sharing
 
 Amazon Redshift data sharing provides workload isolation by allowing multiple consumers to share data seamlessly without the need to unload and load data. Implementing workload isolation allows for agility, allows sizing of clusters independently, and creates a simple cost charge-back model.
@@ -224,7 +224,7 @@ See also:
 - https://aws.amazon.com/blogs/big-data/security-considerations-for-amazon-redshift-cross-account-data-sharing/
 - https://aws.amazon.com/blogs/big-data/share-data-securely-across-regions-using-amazon-redshift-data-sharing/
 """,
-    'REC_026': """\
+    'REC_023': """\
 ## Increase read performance from Spectrum tables, by optimizing your partitioning strategy
 
 When you partition your data, you can restrict the amount of data that Redshift Spectrum scans by filtering on the partition key. Amazon Redshift Spectrum can take advantage of partition pruning and skip scanning unneeded partitions and files by defining the S3 prefix based on the columns (e.g. transaction_date) frequently used in SQL predicates. A common practice is to partition the data based on time. For example, you might choose to partition by year, month, date, and hour. If you have data coming from multiple sources, you might partition by a data source identifier and date.
@@ -234,7 +234,7 @@ See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/c-spectrum-external-tables.html#c-spectrum-external-tables-partitioning
 - https://aws.amazon.com/blogs/big-data/10-best-practices-for-amazon-redshift-spectrum/
 """,
-    'REC_027': """\
+    'REC_024': """\
 ## Increase load performance by avoiding or minimizing multiple single row insert statements
 
 A data ingestion / loading process that runs a single row insert or multi row insert statement uses only the leader node for each execution and is slow when used to load large amounts of data compared to other data ingestion / loading options like a COPY command which engages compute nodes in parallel. Data compression is also inefficient when you add data only one row or a few rows at a time. Redesign the data ingestion process to replace multiple single row insert statements to either use: COPY command, COPY command with column mapping, ALTER TABLE APPEND, Bulk Insert, or Multi Row Insert.
@@ -248,7 +248,7 @@ See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-bulk-inserts.html
 - https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-multi-row-inserts.html
 """,
-    'REC_028': """\
+    'REC_025': """\
 ## To improve query performance, create a materialized view to use incremental refresh
 
 A materialized view contains a precomputed result set, based on an SQL query over one or more base tables. Materialized views are especially useful for speeding up queries that are predictable and repeated. Instead of performing resource-intensive queries against large tables (such as aggregates or multiple joins), applications can query a materialized view and retrieve a precomputed result set. From the user standpoint, the query results are returned much faster compared to when retrieving the same data from the base tables. To complete refresh of the materialized views with minimal impact to active workloads in your cluster, create a materialized view that can perform an incremental refresh in order to quickly identify the changes to the data in the base tables since the last refresh and update the data in the materialized view.
@@ -258,7 +258,7 @@ See also:
 - https://aws.amazon.com/blogs/big-data/speed-up-your-elt-and-bi-queries-with-amazon-redshift-materialized-views/
 - https://aws.amazon.com/blogs/big-data/optimize-your-analytical-workloads-using-the-automatic-query-rewrite-feature-of-amazon-redshift-materialized-views/
 """,
-    'REC_029': """\
+    'REC_026': """\
 ## To keep the data accurate and up to date, recreate the materialized view
 
 Due to underlying DDL changes on the base tables used in the materialized view, the materialized view can no longer be refreshed.
@@ -266,7 +266,7 @@ Due to underlying DDL changes on the base tables used in the materialized view, 
 See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/r_SVV_MV_INFO.html
 """,
-    'REC_030': """\
+    'REC_027': """\
 ## To save cost, apply the necessary concurrency scaling usage limit
 
 You can define limits to monitor and control your usage and associated cost of some Amazon Redshift features. You can create daily, weekly, and monthly usage limits, and define actions that Amazon Redshift automatically takes if those limits are reached. Actions include logging an event to a system table, raising alerts with Amazon SNS and Amazon CloudWatch to notify an administrator, and disabling further usage to control costs. A concurrency scaling limit specifies the threshold of the total amount of time used by concurrency scaling in 1-minute increments.
@@ -275,7 +275,7 @@ See also:
 - https://docs.aws.amazon.com/redshift/latest/mgmt/managing-cluster-usage-limits.html
 - https://aws.amazon.com/blogs/big-data/manage-and-control-your-cost-with-amazon-redshift-concurrency-scaling-and-spectrum/
 """,
-    'REC_032': """\
+    'REC_028': """\
 ## For better price performance, leverage Redshift serverless
 
 Redshift serverless provides the same or better price performance when compared to on demand especially with intermittent workloads. This is possible because of its ability to auto pause and resume so you only pay for the times the cluster is running.
@@ -286,7 +286,7 @@ See also:
 - https://www.youtube.com/watch?v=XcRJjXudIf8
 - https://www.youtube.com/watch?v=JBPpmMq9OS8
 """,
-    'REC_033': """\
+    'REC_029': """\
 ## Ensure materialized views are not stale for data accuracy and query rewrite
 
 A materialized view contains a pre-computed result set, based on an SQL query over one or more base tables. Materialized views are especially useful for speeding up queries that are predictable and repeated. In addition, materialized views can be useful for accessing data using an alternate distribution or sort key. From the user standpoint, they don't have to re-write their queries; the re-writer will determine and use the appropriate MV and the query results are returned much faster compared to when retrieving the same data from the base tables. A stale MV does not have up-to-date data and will not be used by autorewrite.
@@ -296,7 +296,7 @@ See also:
 - https://aws.amazon.com/blogs/big-data/speed-up-your-elt-and-bi-queries-with-amazon-redshift-materialized-views/
 - https://aws.amazon.com/blogs/big-data/optimize-your-analytical-workloads-using-the-automatic-query-rewrite-feature-of-amazon-redshift-materialized-views/
 """,
-    'REC_034': """\
+    'REC_030': """\
 ## For optimal price-performance on Serverless, tune AI-driven scaling and optimization
 
 Amazon Redshift Serverless can automatically scale compute (RPUs) using AI-driven
@@ -419,12 +419,12 @@ where loaded_rows > 0
 group by 1,2,3,4,5
 )
 -- Signal: files per copy are less than slice count
-SELECT count(*), 'REC_023'
+SELECT count(*), 'REC_020'
 FROM data
 WHERE no_of_copy > 24 AND split_copies = 0 AND (avg_files_per_copy < (SELECT COUNT(1) FROM stv_slices WHERE type='D'))
 UNION ALL
 -- Signal: files with a small size
-SELECT count(*), 'REC_023'
+SELECT count(*), 'REC_020'
 FROM data
 WHERE no_of_copy > 24 AND (avg_file_size_mb < 10)
 """,
@@ -460,7 +460,7 @@ WHERE table_name != '..' and table_name != '' and duration > 0
 group by 1,2,3,4,5,6,7
 )
 -- Signal: high count of long queries not using partition pruning
-SELECT count(*), 'REC_026'
+SELECT count(*), 'REC_023'
 FROM data
 WHERE avg_qualified_partitions > 100 and avg_elapsed_sec > 60 AND (pct_of_query_using_partition_pruning < 95)
 """,
@@ -499,17 +499,17 @@ LEFT JOIN (SELECT database_name, schema_name, mv_name name, user_name refresh_db
 ) USING (database_name, schema_name, name) WHERE SVV_MV_INFO.schema_name <> 'pg_automv'
 )
 -- Signal: materialized view is doing a full refresh
-SELECT count(*), 'REC_028'
+SELECT count(*), 'REC_025'
 FROM data
 WHERE state=0
 UNION ALL
 -- Signal: materialized view cannot be auto refreshed
-SELECT count(*), 'REC_029'
+SELECT count(*), 'REC_026'
 FROM data
 WHERE state > 1 and is_stale = 't' and autorefresh = 't'
 UNION ALL
--- Signal: materialized view is stale (exclude broken MVs already covered by REC_029)
-SELECT count(*), 'REC_033'
+-- Signal: materialized view is stale (exclude broken MVs already covered by REC_026)
+SELECT count(*), 'REC_029'
 FROM data
 WHERE is_stale = 't' AND state IN (0, 1)
 """,
@@ -569,7 +569,7 @@ FROM data
 WHERE storage_utilization_pct > 50 AND node_type IN ('dc2.large', 'dc2.8xlarge', 'ds2.xlarge', 'ds2.8xlarge', 'ra3.large', 'ra3.xlplus', 'ra3.4xlarge', 'ra3.16xlarge')
 UNION ALL
 -- Signal: has under-utilized storage
-SELECT count(*), 'REC_012'
+SELECT count(*), 'REC_011'
 FROM data
 WHERE storage_utilization_pct < 40 AND node_type IN ('dc2.large', 'dc2.8xlarge', 'ds2.xlarge', 'ds2.8xlarge', 'ra3.large', 'ra3.xlplus', 'ra3.4xlarge', 'ra3.16xlarge')
 UNION ALL
@@ -626,12 +626,12 @@ FROM data
 WHERE tbl_rows > 5000000 AND (skew_rows >= 4 and diststyle not like 'AUTO%')
 UNION ALL
 -- Signal: large tables with unsorted data
-SELECT count(*), 'REC_013'
+SELECT count(*), 'REC_012'
 FROM data
 WHERE tbl_rows > 5000000 AND (vacuum_sort_benefit >= 10)
 UNION ALL
 -- Signal: tables with interleaved sort keys
-SELECT count(*), 'REC_014'
+SELECT count(*), 'REC_013'
 FROM data
 WHERE tbl_rows > 5000000 AND (sortkey1 like '%INTERLEAVED%')
 UNION ALL
@@ -737,7 +737,7 @@ SELECT count(*), 'REC_009'
 FROM data
 WHERE lower(alerts) like '%nl%'
 UNION ALL
-SELECT count(*), 'REC_022'
+SELECT count(*), 'REC_019'
 FROM data
 WHERE lower(alerts) like '%nl%'
 UNION ALL
@@ -752,11 +752,11 @@ FROM data
 WHERE lower(alerts) like '%sort%'
 UNION ALL
 -- Signal: high count of queries with large disk spill
-SELECT count(*), 'REC_022'
+SELECT count(*), 'REC_019'
 FROM data
 WHERE total_disk_spill_mb > 1000000
 UNION ALL
-SELECT count(*), 'REC_024'
+SELECT count(*), 'REC_021'
 FROM data
 WHERE total_disk_spill_mb > 1000000
 """,
@@ -809,39 +809,39 @@ where user_id > 1 and service_class_id >= 5
 group by 1,2,3
 )
 -- Signal: high count of COPY command
-SELECT count(*), 'REC_023'
+SELECT count(*), 'REC_020'
 FROM data
 WHERE copy_count > 100
 UNION ALL
 -- Signal: high count of small_insert statements
-SELECT count(*), 'REC_027'
+SELECT count(*), 'REC_024'
 FROM data
 WHERE small_insert_count > 100
 UNION ALL
 -- Signal: high count of WLM queuing
-SELECT count(*), 'REC_019'
+SELECT count(*), 'REC_016'
 FROM data
 WHERE pct_wlm_queue_time > 5
 UNION ALL
-SELECT count(*), 'REC_020'
+SELECT count(*), 'REC_017'
 FROM data
 WHERE pct_wlm_queue_time > 5
 UNION ALL
-SELECT count(*), 'REC_025'
+SELECT count(*), 'REC_022'
 FROM data
 WHERE pct_wlm_queue_time > 5
 UNION ALL
 -- Signal: high count of spilled to disk
-SELECT count(*), 'REC_022'
+SELECT count(*), 'REC_019'
 FROM data
 WHERE total_disk_spill_count > 100
 UNION ALL
-SELECT count(*), 'REC_024'
+SELECT count(*), 'REC_021'
 FROM data
 WHERE total_disk_spill_count > 100
 UNION ALL
 -- Signal: high concurrency scaling usage
-SELECT count(*), 'REC_030'
+SELECT count(*), 'REC_027'
 FROM data
 WHERE burst_secs > 600
 """,
@@ -897,47 +897,47 @@ WHERE scc.service_class > 4
 ORDER BY 2 ASC
 )
 -- Signal: uses single WLM queue
-SELECT count(*), 'REC_018'
+SELECT count(*), 'REC_015'
 FROM data
 WHERE wlm_mode <> 'manual' and service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select count(1) from data where service_class_category = 'Manual WLM') = 1 OR (select count(1) from data where service_class_category = 'Auto WLM') = 1)
 UNION ALL
 -- Signal: uses manual WLM
-SELECT count(*), 'REC_015'
+SELECT count(*), 'REC_014'
 FROM data
 WHERE wlm_mode='manual' and service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select count(1) from data where wlm_mode='manual') > 0)
 UNION ALL
 -- Signal: Concurrency scaling is not enabled
-SELECT count(*), 'REC_019'
+SELECT count(*), 'REC_016'
 FROM data
 WHERE service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select count(1) from data where concurrency_scaling = 'auto') = 0)
 UNION ALL
 -- Signal: short query acceleration (SQA) is not enabled
-SELECT count(*), 'REC_020'
+SELECT count(*), 'REC_017'
 FROM data
 WHERE service_class_id <> 5 and service_class_id <> 15 AND ((select count(1) from data where service_class_category != 'SQA') = (select count(1) from data))
 UNION ALL
 -- Signal: all query queues having the same query priority
-SELECT count(*), 'REC_021'
+SELECT count(*), 'REC_018'
 FROM data
 WHERE wlm_mode <> 'manual' and service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select count(distinct queue_priority) from data) = 1)
 UNION ALL
 -- Signal: no query monitoring rules (QMR) defined
-SELECT count(*), 'REC_022'
+SELECT count(*), 'REC_019'
 FROM data
 WHERE service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select sum(qmr_rule_count) from data) = 0)
 UNION ALL
 -- Signal: no QMR defined for query_execution_time metric
-SELECT count(*), 'REC_022'
+SELECT count(*), 'REC_019'
 FROM data
 WHERE service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select count(1) from data where coalesce(qmr_rule,'') not like '%query_execution_time%') = (select count(1) from data))
 UNION ALL
 -- Signal: no QMR defined for query_temp_blocks_to_disk metric
-SELECT count(*), 'REC_022'
+SELECT count(*), 'REC_019'
 FROM data
 WHERE service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select count(1) from data where coalesce(qmr_rule,'') not like '%query_temp_blocks_to_disk%') = (select count(1) from data))
 UNION ALL
 -- Signal: no QMR defined for spectrum_scan_size_mb or spectrum_scan_row_count metric
-SELECT count(*), 'REC_022'
+SELECT count(*), 'REC_019'
 FROM data
 WHERE service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select count(1) from data where coalesce(qmr_rule,'') not like '%spectrum_scan%') = (select count(1) from data))
 """,
@@ -1011,7 +1011,7 @@ JOIN workload_breakdown b using(workloadtype)
 )
 -- Signal: Evaluate Workload for Serverless. Cluster is busy less than 75% of the time in a day.
 -- Gate: only evaluate if at least 3 active days in history.
-SELECT count(*), 'REC_032'
+SELECT count(*), 'REC_028'
 FROM data
 WHERE total_pct_busy < 75
   AND EXISTS (SELECT 1 FROM precondition WHERE active_days >= 3)
@@ -1036,7 +1036,7 @@ stats AS (
     FROM usage
 )
 -- Signal: variable serverless workload within the AI-scaling supported range
-SELECT count(*), 'REC_034'
+SELECT count(*), 'REC_030'
 FROM stats
 WHERE sample_minutes >= 60
   AND base_rpu BETWEEN 8 AND 512

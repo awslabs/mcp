@@ -546,7 +546,7 @@ class TestReviewClusterTool:
             findings=findings or [],
             recommendations=[
                 ReviewRecommendation(
-                    id='REC_020',
+                    id='REC_017',
                     text='## For additional scalability, enable short query acceleration\n\n...',
                     triggered_by_signals=['WLMConfig'],
                 ),
@@ -571,7 +571,7 @@ class TestReviewClusterTool:
                 signal_name='HighSQAEligibility',
                 section='WLMConfig',
                 affected_row_count=3,
-                recommendation_ids=['REC_020'],
+                recommendation_ids=['REC_017'],
             ),
         ]
         expected = self._make_review_result(findings=findings)
@@ -594,7 +594,7 @@ class TestReviewClusterTool:
         assert result.findings[0].signal_name == 'HighSQAEligibility'
         assert result.findings[0].affected_row_count == 3
         assert len(result.recommendations) == 1
-        assert result.recommendations[0].id == 'REC_020'
+        assert result.recommendations[0].id == 'REC_017'
 
         mock_pipeline.assert_called_once()
         call_kwargs = mock_pipeline.call_args.kwargs
