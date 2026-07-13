@@ -419,6 +419,157 @@ def cli():
     pass
 
 
+@cli.command('pin-dependencies')
+@click.option('--directory', type=click.Path(exists=True, path_type=Path), default=Path.cwd())
+def pin_dependencies(directory: Path) -> int:
+    """Pin ALL dependencies (direct + transitive) to exact versions from uv.lock.
+
+    Reads the uv.lock file in the given directory and:
+    1. Rewrites existing dependencies in pyproject.toml to use == (exact) pins
+    2. Adds all remaining transitive dependencies from uv.lock as new entries
+
+    This ensures that packages published to PyPI install the exact same
+    dependency tree that was tested during development — including every
+    transitive dependency. This is appropriate for tool packages (MCP servers,
+    CLIs) that run in isolated environments via uvx/pipx.
+
+    Only registry (PyPI) packages are pinned; editable/local/path sources are
+    skipped. Extras on dependency specifiers (e.g. mcp[cli]) are preserved.
+    """
+    try:
+        validated_directory = validate_path_security(directory)
+        pyproject_path = validated_directory / 'pyproject.toml'
+        lock_path = validated_directory / 'uv.lock'
+
+        if not pyproject_path.exists():
+            raise ValueError(f'pyproject.toml not found in {validated_directory}')
+        if not lock_path.exists():
+            raise ValueError(f'uv.lock not found in {validated_directory}')
+
+        # Parse uv.lock to build {normalized_name: (original_name, version)} mapping
+        lock_content = secure_file_read(lock_path)
+        try:
+            import tomllib
+        except ModuleNotFoundError:
+            import tomli as tomllib  # Python < 3.11
+        lock_data = tomllib.loads(lock_content)
+        locked_packages: dict[str, tuple[str, str]] = {}
+        for pkg in lock_data.get('package', []):
+            source = pkg.get('source', {})
+            # Only pin registry packages (from PyPI), skip editable/local/path
+            if 'editable' in source or 'directory' in source or 'path' in source:
+                continue
+            name = pkg.get('name', '')
+            version = pkg.get('version', '')
+            if name and version:
+                locked_packages[_normalize_name(name)] = (name, version)
+
+        logging.info(f'Loaded {len(locked_packages)} locked package versions from uv.lock')
+
+        # Read and rewrite pyproject.toml
+        pyproject_content = secure_file_read(pyproject_path)
+        data = tomlkit.parse(pyproject_content)
+        project_section = data.get('project')
+        if not project_section:
+            raise ValueError('No project section in pyproject.toml')
+
+        # Get the project's own name so we don't add it as a dependency
+        project_name = project_section.get('name', '')
+        project_normalized = _normalize_name(str(project_name)) if project_name else ''
+
+        dependencies = project_section.get('dependencies')
+        if dependencies is None:
+            dependencies = tomlkit.array()
+            project_section['dependencies'] = dependencies
+
+        # Track which locked packages are already covered by direct deps
+        covered: set[str] = set()
+        pinned_count = 0
+
+        # Phase 1: Pin existing direct dependencies to their locked versions
+        for i, dep_str in enumerate(dependencies):
+            pkg_name = re.split(r'[><=!~\[;]', str(dep_str).strip())[0].strip()
+            normalized = _normalize_name(pkg_name)
+            covered.add(normalized)
+            pinned = _pin_dependency(str(dep_str), locked_packages)
+            if pinned != str(dep_str):
+                dependencies[i] = pinned
+                pinned_count += 1
+                logging.info(f'Pinned: {dep_str} -> {pinned}')
+
+        # Phase 2: Add all remaining transitive dependencies from uv.lock
+        added_count = 0
+        for normalized, (original_name, version) in sorted(locked_packages.items()):
+            if normalized in covered:
+                continue
+            if normalized == project_normalized:
+                continue
+            dep_entry = f'{original_name}=={version}'
+            dependencies.append(dep_entry)
+            added_count += 1
+            logging.info(f'Added transitive: {dep_entry}')
+
+        if pinned_count == 0 and added_count == 0:
+            click.echo('All dependencies already pinned, no changes needed')
+            return 0
+
+        updated_content = tomlkit.dumps(data)
+        secure_file_write(pyproject_path, updated_content)
+        click.echo(
+            f'Pinned {pinned_count} direct + added {added_count} transitive '
+            f'dependencies in {pyproject_path}'
+        )
+        return 0
+
+    except Exception as e:
+        logging.error(f'Pin dependencies failed: {e}')
+        click.echo(f'Error: {e}', err=True)
+        return 1
+
+
+def _normalize_name(name: str) -> str:
+    """Normalize a Python package name for comparison (PEP 503)."""
+    return re.sub(r'[-_.]+', '-', name).lower()
+
+
+def _pin_dependency(dep_str: str, locked_packages: dict[str, tuple[str, str]]) -> str:
+    """Rewrite a dependency string to use == with the locked version.
+
+    Handles dependency specifiers like:
+      - "boto3>=1.40.5"        -> "boto3==1.42.62"
+      - "mcp[cli]>=1.23.0"    -> "mcp[cli]==1.26.0"
+      - "loguru==0.7.3"       -> "loguru==0.7.3" (unchanged)
+      - "pkg ; python_version<'3.11'" -> preserves markers
+    """
+    # Split off environment markers (e.g. "; python_version < '3.11'")
+    marker_sep = ';'
+    marker_part = ''
+    base = dep_str
+    if marker_sep in dep_str:
+        base, marker_part = dep_str.split(marker_sep, 1)
+        marker_part = marker_sep + marker_part
+
+    # Extract extras (e.g. [cli]) and package name
+    extras = ''
+    name_part = base.strip()
+    if '[' in name_part:
+        bracket_start = name_part.index('[')
+        bracket_end = name_part.index(']') + 1
+        extras = name_part[bracket_start:bracket_end]
+        name_part = name_part[:bracket_start] + name_part[bracket_end:]
+
+    # Extract just the package name (strip version specifiers)
+    pkg_name = re.split(r'[><=!~]', name_part.strip())[0].strip()
+    normalized = _normalize_name(pkg_name)
+
+    if normalized not in locked_packages:
+        logging.warning(f'No locked version found for {pkg_name}, keeping as-is')
+        return dep_str
+
+    _, locked_version = locked_packages[normalized]
+    return f'{pkg_name}{extras}=={locked_version}{marker_part}'
+
+
 @cli.command('bump-package')
 @click.option('--directory', type=click.Path(exists=True, path_type=Path), default=Path.cwd())
 def bump_package(directory: Path) -> int:
