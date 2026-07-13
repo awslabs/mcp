@@ -31,7 +31,7 @@ class TestServerCoverageBoost:
         }
         mock_validate.return_value = True
         mock_server_instance = MagicMock()
-        mock_fastmcp.return_value = mock_server_instance
+        mock_fastmcp.from_openapi.return_value = mock_server_instance
 
         # Create a config with auth_type
         config = Config(
@@ -41,10 +41,10 @@ class TestServerCoverageBoost:
             auth_type='bearer',
         )
 
-        # Mock FastMCP to avoid the validation error
+        # Mock FastMCP.from_openapi (the native construction path)
         with patch('awslabs.openapi_mcp_server.server.FastMCP') as mock_fastmcp_openapi:
             mock_openapi_server = MagicMock()
-            mock_fastmcp_openapi.return_value = mock_openapi_server
+            mock_fastmcp_openapi.from_openapi.return_value = mock_openapi_server
 
             # Call create_mcp_server
             server = create_mcp_server(config)
