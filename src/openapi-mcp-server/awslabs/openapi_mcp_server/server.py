@@ -250,10 +250,13 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
         # This is the supported, documented path and the one users migrating off
         # this wrapper would call directly. Additional specs (below) are still
         # mounted as extra providers, which ``from_openapi`` does not cover.
+        # ``instructions`` is forwarded through ``from_openapi``'s **settings to
+        # FastMCP(); preserve the wrapper's original text for behavior parity.
         primary_server = FastMCP.from_openapi(
             openapi_spec=openapi_spec,
             client=client,
             name=config.api_name or 'OpenAPI MCP Server',
+            instructions='This server acts as a bridge between OpenAPI specifications and LLMs, allowing models to have a better understanding of available API capabilities without requiring manual tool definitions.',
             route_maps=custom_mappings,
             mcp_component_fn=enrich_component,
             validate_output=config.validate_output,
