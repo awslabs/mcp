@@ -22,6 +22,7 @@
       "**/*.cs",
       "**/*.properties",
       "**/*.xml",
+      "**/*.drawio",
       "**/dist/**"
     ],
     "include": [
@@ -78,6 +79,7 @@
       "**/*.template",
       "**/*.properties",
       "**/*.xml",
+      "**/*.drawio",
       "**/dist/**",
       "**/skills/*/scripts",
       "**/skills/*/references",

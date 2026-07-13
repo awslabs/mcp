@@ -56,7 +56,7 @@ This MCP server provides 12 purpose-built tools for AI agents working with Valke
    - **Bedrock** (default): Requires AWS credentials — `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, `AWS_PROFILE`, or an IAM role. Without credentials, semantic search will fail with a `NoCredentialsError`.
    - **OpenAI**: Requires `OPENAI_API_KEY`
    - **Ollama**: Requires a running Ollama instance (no credentials needed)
-5. For Amazon ElastiCache/MemoryDB connection instructions, see [ELASTICACHECONNECT.md](ELASTICACHECONNECT.md).
+5. For Amazon ElastiCache/MemoryDB connection instructions, see [ELASTICACHECONNECT.md](https://github.com/awslabs/mcp/blob/main/src/valkey-mcp-server/ELASTICACHECONNECT.md).
 
 ## Quickstart
 
