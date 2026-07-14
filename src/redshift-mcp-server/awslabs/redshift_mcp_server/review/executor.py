@@ -122,7 +122,25 @@ async def review_cluster(
         if progress_reporter_func:
             await progress_reporter_func(idx + 1, total_queries)
 
-    # Stage 4: Resolve recommendations (deduplicate, preserve first-occurrence order)
+    # Stage 4: Deduplicate findings within a signal. A single signal query can
+    # emit the same recommendation from multiple UNION ALL branches (for example,
+    # several QMR checks all mapping to one WLM recommendation), which would
+    # otherwise over-count distinct issues. Collapse to one finding per
+    # (signal_name, recommendation_ids), preserving first-occurrence order and
+    # retaining the largest affected_row_count.
+    deduplicated_findings: dict[tuple[str, tuple[str, ...]], ReviewFinding] = {}
+    for finding in findings:
+        key = (finding.signal_name, tuple(finding.recommendation_ids))
+        existing = deduplicated_findings.get(key)
+        if existing is None:
+            deduplicated_findings[key] = finding
+        else:
+            existing.affected_row_count = max(
+                existing.affected_row_count, finding.affected_row_count
+            )
+    findings = list(deduplicated_findings.values())
+
+    # Stage 5: Resolve recommendations (deduplicate, preserve first-occurrence order)
     seen: dict[str, list[str]] = {}
     for finding in findings:
         for rec_id in finding.recommendation_ids:

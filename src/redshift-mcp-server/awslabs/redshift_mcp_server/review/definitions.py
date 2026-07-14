@@ -73,7 +73,7 @@ See also:
     'REC_007': """\
 ## To improve query performance, choose the best sort key
 
-For large tables, adding a sort key can speed up queries with predicates. Review commonly filtered fields and add a sort key: ALTER TABLE [table_name] ALTER SORTKEY ([column1], [columnN]). If you're unsure whether a sort key helps — for example on smaller tables or tables with varied access patterns — let Amazon Redshift manage it: ALTER TABLE [table_name] ALTER SORTKEY AUTO; Redshift then adds or removes the sort key based on the table's size and workload.
+A sort key speeds up range-restricted queries on large tables; on small tables a manually chosen sort key usually adds maintenance and storage overhead with little benefit. When you know the commonly filtered columns of a large table, set them explicitly: ALTER TABLE [table_name] ALTER SORTKEY ([column1], [columnN]). Otherwise - for smaller tables, tables with varied access patterns, or when you're unsure - let Amazon Redshift manage it: ALTER TABLE [table_name] ALTER SORTKEY AUTO; Redshift adds a sort key where it helps and removes one that isn't earning its keep.
 
 See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-sort-key.html
@@ -576,7 +576,7 @@ UNION ALL
 -- Signal: has 10% data skew
 SELECT count(*), 'REC_008'
 FROM data
-WHERE storage_used_gb > 0 AND 100*abs(storage_used_gb - (select min(storage_used_gb) from data))/storage_used_gb >= 10
+WHERE storage_used_gb > 0 AND 100*abs(storage_used_gb - (select min(storage_used_gb) from data))/storage_used_gb >= 10 AND storage_used_gb - (select min(storage_used_gb) from data) >= 1
 """,
     ),
     (
@@ -613,7 +613,7 @@ JOIN (SELECT attrelid,
 FROM   pg_attribute
 WHERE  attnum > 0
 GROUP  BY attrelid) c ON c.attrelid = t.table_id
-where "schema" not in ('information_schema', 'pg_catalog', 'pg_automv', 'pg_internal') and "database" not in ('sample_data_dev')
+where "schema" NOT LIKE 'pg!_%' ESCAPE '!' and "schema" <> 'information_schema' and "database" not in ('sample_data_dev')
 )
 -- Signal: large tables without a sort key
 SELECT count(*), 'REC_007'
@@ -653,7 +653,7 @@ UNION ALL
 -- Signal: tables with out of date statistics
 SELECT count(*), 'REC_003'
 FROM data
-WHERE stats_off > 10 or stats_off is null
+WHERE stats_off > 10
 UNION ALL
 -- Signal: large tables with encoded sort keys
 SELECT count(*), 'REC_010'

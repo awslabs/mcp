@@ -150,6 +150,39 @@ class TestSignalTriggered:
 
 
 # ---------------------------------------------------------------------------
+# Finding deduplication
+# ---------------------------------------------------------------------------
+
+
+class TestFindingDeduplication:
+    """Repeated findings within a single signal are collapsed."""
+
+    @pytest.mark.asyncio
+    async def test_duplicate_findings_within_signal_collapsed(self):
+        """Multiple rows emitting the same recommendation in one query yield one finding."""
+        execute_query_func = AsyncMock(
+            side_effect=lambda *a, **kw: _make_response([(3, 'REC_001'), (5, 'REC_001')])
+        )
+
+        result = await review_cluster(
+            cluster_identifier='test-cluster',
+            execute_query_func=execute_query_func,
+            discover_clusters_func=_make_discover_clusters(),
+        )
+
+        # Within each signal, the repeated REC_001 rows collapse to a single finding.
+        for signal_name in {f.signal_name for f in result.findings}:
+            signal_findings = [f for f in result.findings if f.signal_name == signal_name]
+            rec_id_sets = [tuple(f.recommendation_ids) for f in signal_findings]
+            assert len(rec_id_sets) == len(set(rec_id_sets)), (
+                f'{signal_name} has duplicate findings: {rec_id_sets}'
+            )
+
+        # The largest affected_row_count is retained (5, not 3).
+        assert all(f.affected_row_count == 5 for f in result.findings)
+
+
+# ---------------------------------------------------------------------------
 # Error propagation
 # ---------------------------------------------------------------------------
 
