@@ -10,6 +10,8 @@
 
 **Runaway Cardinality**: Since InfluxDB v2 is affected by cardinality. Having many unique tags (1,000,000+) will result in performance degradation. Avoid this. Review tags to make sure tags do not contain unique values for most entries. Consider changing tags with many unique entries to fields.
 
+**Downtime During Patching**: InfluxDB v2 instances and clusters will experience downtime during maintenance windows. We recommend setting the maintenance window to a low-traffic period.
+
 **NOTE**: Monitor resource utilization and consider setting up critical alarms to scale compute if needed. See [influxdb2/troubleshooting.md](troubleshooting.md#monitoring) for more information.
 
 ## Important — Will Cause Confusion
