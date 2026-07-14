@@ -20,14 +20,12 @@ from awslabs.aws_healthomics_mcp_server.consts import (
     ERROR_INVALID_ENGINE,
     ERROR_INVALID_EXPORT_TYPE,
     ERROR_INVALID_STORAGE_TYPE,
-    ERROR_INVALID_WORKFLOW_TYPE,
     ERROR_STATIC_STORAGE_REQUIRES_CAPACITY,
     STORAGE_TYPES,
 )
 from awslabs.aws_healthomics_mcp_server.models.core import (
     AcceleratorType,
     ExportType,
-    GetWorkflowType,
     StorageType,
     WorkflowEngine,
 )
@@ -44,6 +42,7 @@ from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
     validate_path_to_main,
     validate_readme_input,
     validate_repository_path_params,
+    validate_workflow_type,
 )
 from loguru import logger
 from mcp.server.fastmcp import Context
@@ -95,16 +94,7 @@ async def list_workflows(
             workflow_type = getattr(workflow_type, 'default', None)
 
         # Validate workflow_type parameter
-        if workflow_type is not None:
-            try:
-                GetWorkflowType(workflow_type)
-            except ValueError:
-                error_message = ERROR_INVALID_WORKFLOW_TYPE.format(
-                    ', '.join(e.value for e in GetWorkflowType)
-                )
-                logger.error(error_message)
-                await ctx.error(error_message)
-                raise ValueError(error_message)
+        await validate_workflow_type(ctx, workflow_type)
 
         client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
@@ -498,16 +488,7 @@ async def get_workflow(
             export = getattr(export, 'default', None)
 
         # Validate workflow_type parameter
-        if workflow_type is not None:
-            try:
-                GetWorkflowType(workflow_type)
-            except ValueError:
-                error_message = ERROR_INVALID_WORKFLOW_TYPE.format(
-                    ', '.join(e.value for e in GetWorkflowType)
-                )
-                logger.error(error_message)
-                await ctx.error(error_message)
-                raise ValueError(error_message)
+        await validate_workflow_type(ctx, workflow_type)
 
         # Validate export list parameter
         if export is not None:

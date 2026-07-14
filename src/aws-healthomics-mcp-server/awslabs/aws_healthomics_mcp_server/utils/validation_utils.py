@@ -589,6 +589,39 @@ async def validate_provider_type(
     return provider_type
 
 
+async def validate_workflow_type(
+    ctx: Context,
+    workflow_type: Optional[str],
+) -> Optional[str]:
+    """Validate that workflow_type is a supported value.
+
+    Args:
+        ctx: MCP context for error reporting
+        workflow_type: The workflow type to validate (PRIVATE or READY2RUN)
+
+    Returns:
+        The validated workflow type, or None if not provided
+
+    Raises:
+        ValueError: If workflow_type is invalid
+    """
+    from awslabs.aws_healthomics_mcp_server.models.core import GetWorkflowType
+
+    if workflow_type is None:
+        return None
+
+    valid_types = [wt.value for wt in GetWorkflowType]
+    if workflow_type not in valid_types:
+        error_message = (
+            f"Invalid workflow type '{workflow_type}'. Must be one of: {', '.join(valid_types)}"
+        )
+        logger.error(error_message)
+        await ctx.error(error_message)
+        raise ValueError(error_message)
+
+    return workflow_type
+
+
 async def validate_connection_arn(
     ctx: Context,
     connection_arn: str,
