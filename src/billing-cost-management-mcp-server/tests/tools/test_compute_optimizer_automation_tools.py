@@ -1032,3 +1032,92 @@ class TestFilterNamesFromModel:
         with patch('botocore.session.Session.get_service_model', return_value=service_model):
             assert mod._valid_filter_names_by_operation() == {}
         mod._valid_filter_names_by_operation.cache_clear()
+
+
+_OPS_MODULE = (
+    'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_automation_operations'
+)
+
+
+@pytest.mark.asyncio
+class TestSqlOffload:
+    """List handlers offload large responses to SQL to protect the context window."""
+
+    async def test_small_response_returned_inline(self, mock_ctx):
+        """An offload-enabled op still returns inline when below the size threshold."""
+        client = MagicMock()
+        client.list_recommended_actions.return_value = {
+            'recommendedActions': [{'recommendedActionId': 'ra-1', 'resourceType': 'EbsVolume'}]
+        }
+
+        result = await ops.list_recommended_actions(mock_ctx, client)
+
+        # Below the threshold the inline list and count survive; no SQL sentinel.
+        assert result['data']['recommended_actions'][0]['recommended_action_id'] == 'ra-1'
+        assert result['data']['count'] == 1
+        assert 'data_stored' not in result['data']
+
+    async def test_large_response_offloaded_to_sql(self, mock_ctx):
+        """A response over the size threshold is offloaded and the sentinel surfaces."""
+        client = MagicMock()
+        # Many tag-heavy actions push the response past the offload threshold.
+        actions = [
+            {
+                'recommendedActionId': f'ra-{i}',
+                'resourceType': 'EbsVolume',
+                'resourceTags': [{'key': f'k{j}', 'value': 'v' * 200} for j in range(50)],
+            }
+            for i in range(60)
+        ]
+        client.list_recommended_actions.return_value = {'recommendedActions': actions}
+
+        result = await ops.list_recommended_actions(mock_ctx, client)
+
+        assert result['status'] == STATUS_SUCCESS
+        assert result['data']['data_stored'] is True
+        assert result['data']['table_name'].startswith(
+            'compute_optimizer_automation_list_recommended_actions'
+        )
+        # One row per item.
+        assert result['data']['row_count'] == 60
+
+    async def test_offload_preserves_next_token(self, mock_ctx):
+        """When a large response paginates, the next_token survives the offload."""
+        client = MagicMock()
+        actions = [
+            {
+                'recommendedActionId': f'ra-{i}',
+                'resourceTags': [{'key': f'k{j}', 'value': 'v' * 200} for j in range(50)],
+            }
+            for i in range(60)
+        ]
+        client.list_recommended_actions.return_value = {
+            'recommendedActions': actions,
+            'nextToken': 'more-pages',
+        }
+
+        result = await ops.list_recommended_actions(mock_ctx, client, max_pages=1)
+
+        assert result['data']['data_stored'] is True
+        assert result['data']['next_page_token'] == 'more-pages'
+        assert result['data']['has_more'] is True
+
+    @pytest.mark.parametrize('op_name,method,list_key,args', _LIST_HANDLERS)
+    async def test_every_list_handler_routes_through_gate(
+        self, mock_ctx, op_name, method, list_key, args
+    ):
+        """Every list handler routes through the SQL size gate with its operation name."""
+        client = MagicMock()
+        getattr(client, method).return_value = {list_key: []}
+
+        with patch(
+            f'{_OPS_MODULE}.convert_response_if_needed', new_callable=AsyncMock
+        ) as mock_gate:
+            mock_gate.side_effect = lambda ctx, data, name, **kw: data
+
+            await getattr(ops, op_name)(mock_ctx, client, *args)
+
+            _, kwargs = mock_gate.call_args
+            gate_args = mock_gate.call_args.args
+            assert gate_args[2] == f'compute_optimizer_automation_{op_name}'
+            assert kwargs['pagination_token_key'] == 'next_token'

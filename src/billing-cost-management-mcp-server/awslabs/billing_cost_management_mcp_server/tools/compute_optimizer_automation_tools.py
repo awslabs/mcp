@@ -120,6 +120,22 @@ compute_optimizer_automation_server = FastMCP(
 Compute Optimizer Automation lets customers implement Compute Optimizer recommendations,
 either automatically via rules or on demand.
 
+USE THIS TOOL FOR:
+- **Automation enrollment status** (is the account enrolled in Compute Optimizer Automation?)
+- **Automation rules** (list/inspect rules that auto-apply recommendations, their schedules, criteria)
+- **Automation events** (executions of a recommended action, their steps, status, and realized savings)
+- **Recommended actions** already surfaced for automation (what a rule would/did act on)
+- **Rule previews** (dry-run what a rule config would match before creating it)
+
+DO NOT USE FOR:
+- Compute Optimizer's raw per-resource rightsizing recommendations, e.g. "what EBS/EC2
+  changes are recommended?" (use compute-optimizer)
+- Cost savings / idle-resource recommendations across services (use cost-optimization)
+
+Distinction: this tool covers the *automation* layer — rules, events, and the recommended
+actions those rules operate on. It does not generate Compute Optimizer recommendations
+itself; for those use the compute-optimizer tool.
+
 **Note:** Compute Optimizer Automation is a regional service. Specify a `region` to target
 resources in that region. If omitted, defaults to the AWS_REGION env var or us-east-1.
 

@@ -24,6 +24,7 @@ from ..utilities.aws_service_base import (
     handle_aws_error,
     parse_json,
 )
+from ..utilities.sql_utils import convert_response_if_needed
 from ..utilities.time_utils import (
     _SUPPORTED_UTC_DATETIME_FORMATS,
     timestamp_to_utc_iso_string,
@@ -412,14 +413,9 @@ async def list_accounts(
         if not current_token:
             break
 
-    response_data: Dict[str, Any] = {
-        'accounts': all_accounts,
-        'count': len(all_accounts),
-    }
-    if current_token:
-        response_data['next_token'] = current_token
-
-    return format_response('success', response_data)
+    return await _finalize_list_response(
+        ctx, 'list_accounts', 'accounts', all_accounts, current_token
+    )
 
 
 async def list_automation_events(
@@ -481,14 +477,9 @@ async def list_automation_events(
         if not current_token:
             break
 
-    response_data: Dict[str, Any] = {
-        'automation_events': all_events,
-        'count': len(all_events),
-    }
-    if current_token:
-        response_data['next_token'] = current_token
-
-    return format_response('success', response_data)
+    return await _finalize_list_response(
+        ctx, 'list_automation_events', 'automation_events', all_events, current_token
+    )
 
 
 async def list_automation_event_steps(
@@ -537,14 +528,9 @@ async def list_automation_event_steps(
         if not current_token:
             break
 
-    response_data: Dict[str, Any] = {
-        'automation_event_steps': all_steps,
-        'count': len(all_steps),
-    }
-    if current_token:
-        response_data['next_token'] = current_token
-
-    return format_response('success', response_data)
+    return await _finalize_list_response(
+        ctx, 'list_automation_event_steps', 'automation_event_steps', all_steps, current_token
+    )
 
 
 async def list_automation_event_summaries(
@@ -606,14 +592,13 @@ async def list_automation_event_summaries(
         if not current_token:
             break
 
-    response_data: Dict[str, Any] = {
-        'automation_event_summaries': all_summaries,
-        'count': len(all_summaries),
-    }
-    if current_token:
-        response_data['next_token'] = current_token
-
-    return format_response('success', response_data)
+    return await _finalize_list_response(
+        ctx,
+        'list_automation_event_summaries',
+        'automation_event_summaries',
+        all_summaries,
+        current_token,
+    )
 
 
 def _format_event_summary(summary: Dict[str, Any]) -> Dict[str, Any]:
@@ -695,14 +680,9 @@ async def list_automation_rules(
         if not current_token:
             break
 
-    response_data: Dict[str, Any] = {
-        'automation_rules': all_rules,
-        'count': len(all_rules),
-    }
-    if current_token:
-        response_data['next_token'] = current_token
-
-    return format_response('success', response_data)
+    return await _finalize_list_response(
+        ctx, 'list_automation_rules', 'automation_rules', all_rules, current_token
+    )
 
 
 async def list_recommended_actions(
@@ -757,14 +737,9 @@ async def list_recommended_actions(
         if not current_token:
             break
 
-    response_data: Dict[str, Any] = {
-        'recommended_actions': all_actions,
-        'count': len(all_actions),
-    }
-    if current_token:
-        response_data['next_token'] = current_token
-
-    return format_response('success', response_data)
+    return await _finalize_list_response(
+        ctx, 'list_recommended_actions', 'recommended_actions', all_actions, current_token
+    )
 
 
 async def list_recommended_action_summaries(
@@ -817,14 +792,13 @@ async def list_recommended_action_summaries(
         if not current_token:
             break
 
-    response_data: Dict[str, Any] = {
-        'recommended_action_summaries': all_summaries,
-        'count': len(all_summaries),
-    }
-    if current_token:
-        response_data['next_token'] = current_token
-
-    return format_response('success', response_data)
+    return await _finalize_list_response(
+        ctx,
+        'list_recommended_action_summaries',
+        'recommended_action_summaries',
+        all_summaries,
+        current_token,
+    )
 
 
 async def list_automation_rule_preview(
@@ -889,14 +863,9 @@ async def list_automation_rule_preview(
         if not current_token:
             break
 
-    response_data: Dict[str, Any] = {
-        'preview_results': all_results,
-        'count': len(all_results),
-    }
-    if current_token:
-        response_data['next_token'] = current_token
-
-    return format_response('success', response_data)
+    return await _finalize_list_response(
+        ctx, 'list_automation_rule_preview', 'preview_results', all_results, current_token
+    )
 
 
 async def list_automation_rule_preview_summaries(
@@ -961,14 +930,13 @@ async def list_automation_rule_preview_summaries(
         if not current_token:
             break
 
-    response_data: Dict[str, Any] = {
-        'preview_result_summaries': all_summaries,
-        'count': len(all_summaries),
-    }
-    if current_token:
-        response_data['next_token'] = current_token
-
-    return format_response('success', response_data)
+    return await _finalize_list_response(
+        ctx,
+        'list_automation_rule_preview_summaries',
+        'preview_result_summaries',
+        all_summaries,
+        current_token,
+    )
 
 
 async def list_tags_for_resource(
@@ -993,6 +961,46 @@ async def list_tags_for_resource(
 
 
 # ===== Shared helpers =====
+
+
+async def _finalize_list_response(
+    ctx: Context,
+    operation: str,
+    list_key: str,
+    items: List[Dict[str, Any]],
+    next_token: Optional[str],
+) -> Dict[str, Any]:
+    """Build a list response, offloading to SQL when it exceeds the size threshold.
+
+    Every list operation routes through the size gate. The gate only offloads
+    responses above the threshold (default 25KB) to a session SQLite table so the
+    agent's context window isn't overloaded — smaller responses pass through
+    inline unchanged. Gating uniformly (rather than by predicted size) keeps the
+    behavior consistent and covers the less obvious large cases: free-form event
+    descriptions, up to 1000 accounts, and tag-heavy recommended actions.
+
+    Args:
+        ctx: The MCP context object.
+        operation: The tool operation name, used to prefix the SQL table.
+        list_key: The response key holding the list of items (e.g. 'automation_rules').
+        items: The formatted items to return.
+        next_token: Pagination token to surface when more results remain.
+
+    Returns:
+        A format_response dict — either the inline list or the SQL offload sentinel.
+    """
+    response_data: Dict[str, Any] = {list_key: items, 'count': len(items)}
+    if next_token:
+        response_data['next_token'] = next_token
+
+    response_data = await convert_response_if_needed(
+        ctx,
+        response_data,
+        f'compute_optimizer_automation_{operation}',
+        pagination_token_key='next_token',
+    )
+
+    return format_response('success', response_data)
 
 
 def _parse_datetime(value: str, parameter_name: str) -> Any:
