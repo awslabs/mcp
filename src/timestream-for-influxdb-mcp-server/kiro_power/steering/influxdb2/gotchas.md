@@ -10,6 +10,8 @@
 
 **Runaway Cardinality**: Since InfluxDB v2 is affected by cardinality. Having many unique tags (1,000,000+) will result in performance degradation. Avoid this. Review tags to make sure tags do not contain unique values for most entries. Consider changing tags with many unique entries to fields.
 
+**NOTE**: Monitor resource utilization and consider setting up critical alarms to scale compute if needed. See [influxdb2/troubleshooting.md](troubleshooting.md#monitoring) for more information.
+
 ## Important — Will Cause Confusion
 
 **Password Must Be Alphanumeric**: The `--password` parameter for `create-db-instance` and `create-db-cluster` only accepts `[a-zA-Z0-9]+`. Special characters cause a `ValidationException`. If omitted, a password is auto-generated and stored in Secrets Manager.

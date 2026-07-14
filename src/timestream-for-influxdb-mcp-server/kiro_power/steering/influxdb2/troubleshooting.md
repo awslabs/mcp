@@ -96,3 +96,65 @@ chasing auth or query issues:
 ```shell
 curl https://<endpoint>:8086/health
 ```
+
+## Monitoring
+
+We recommend the following CloudWatch alarms configuration:
+
+**Critical Alarms (Immediate Action Required)**:
+
+CPUUtilization:
+- Threshold: > 90% for 5 minutes
+- Action: Implement traffic remediation measures or Compute Scaling
+
+MemoryUtilization:
+- Threshold: > 90% for 5 minutes
+- Action: Implement traffic remediation measures or Compute Scaling
+
+DiskUtilization:
+- Threshold: > 85%
+- Action: Try to free up space by deleting old buckets, updating retention configurations or Storage Scaling
+
+TotalIOpsPerSec:
+- Threshold: > 90% of provisioned for 10 minutes
+- Action: Implement traffic remediation measures or Increase IOPS
+
+SeriesCardinality:
+- Threshold: > 10,000,000
+- Action: Review your Data model, if no changes are possible explore migrate to InfluxDB 3 or shard your data
+
+EngineUptime:
+- Threshold: Unexpected reset (< 300 seconds)
+- Action: Check is it coincides with a maintenance window, if not create a ticket to Timestream support.
+
+**Warning Alarms (Investigation Required)**:
+
+CPUUtilization:
+- Threshold: > 70% for 15 minutes
+- Action: review changes in workload or traffic
+
+MemoryUtilization:
+- Threshold: > 70% for 15 minutes
+- Action: review changes in workload or traffic
+
+DiskUtilization:
+- Threshold: > 70%
+- Action: Review retention policies
+
+TotalIOpsPerSec:
+- Threshold: > 70% of provisioned for 15 minutes
+- Action: review changes in workload or traffic
+
+QueryRequestsTotal (runtime_error):
+- Threshold: > 1% of total queries
+- Action: review changes in workload or traffic
+
+WriteTimeouts:
+- Threshold: > 1% of write operations
+- Action: review changes in workload or traffic
+
+SeriesCardinality:
+- Threshold: > 5,000,000
+- Action: Review data model optimization
+
+See [Monitoring and Configuration Optimization for Timestream for InfluxDB 2 documentation](https://docs.aws.amazon.com/timestream/latest/developerguide/timestream-for-influx-monitoring-configuration-optimization.html) for more information.
