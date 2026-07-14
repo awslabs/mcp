@@ -62,6 +62,10 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 - **Describe cost categories**: Get the full definition of a cost category including rules, split charge rules, and processing status
 - **List cost categories**: List all cost category definitions in the account with summary metadata and filtering by effective date or supported resource types
 
+### AWS Invoicing
+
+- **Invoice summaries**: List invoice-level details (invoice ID, type, billing period, issued/due dates, issuing entity, and amounts with discount/tax/fee breakdowns across base, tax, and payment currencies) for an account or a single invoice, filtered by month or date range
+
 ### Specialized Cost Optimization Prompts
 
 - **Graviton migration analysis**: Guided analysis to identify EC2 instances suitable for AWS Graviton migration
@@ -292,6 +296,9 @@ AWS Billing Conductor:
 - billingconductor:ListCustomLineItemVersions
 - billingconductor:ListResourcesAssociatedToCustomLineItem
 
+AWS Invoicing:
+- invoicing:ListInvoiceSummaries
+
 #### Configuration
 
 The server uses these key environment variables:
@@ -385,3 +392,6 @@ The server currently supports the following AWS services
 11. **Cost Category Definitions**
     - describe_cost_category_definition
     - list_cost_category_definitions
+
+12. **AWS Invoicing**
+    - list_invoice_summaries

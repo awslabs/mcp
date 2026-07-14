@@ -311,7 +311,8 @@ async def search_documentation(
         - url: The documentation page URL
         - title: The page title
         - context: A brief excerpt or summary (if available)
-        - sections: Table of contents (when available) - these section titles can be used with the read_sections tool for targeted content extraction
+        - recommended_sections: A subset of section titles ranked as most relevant to the query, in rank order (when available) - Pass these directly to read_sections for targeted content extraction
+        - sections: All available section titles for this page (when available) - individual titles can be used with the read_sections tool for targeted content extraction
         - metadata: Optional per-result context (when available). May include:
             - additional_urls: Other doc URLs related to the same result `{url, section_title, section_anchor}` - pass `section_title` to read_sections to fetch content; use `url#section_anchor` when citing
     - facets: Available filters (product_types, guide_types) for refining searches
@@ -484,6 +485,19 @@ async def search_documentation(
                         f'Found {len(sections)} sections for {title}: {url}, sections: {sections}'
                     )
 
+                # Surface relevant sections distinctly from full table of contents.
+                recommended_data = metadata.pop('recommended_sections', None)
+                recommended_sections = (
+                    [s for s in recommended_data if isinstance(s, str) and s != '']
+                    if isinstance(recommended_data, list)
+                    else []
+                )
+
+                if recommended_sections:
+                    logger.info(
+                        f'Found {len(recommended_sections)} recommended sections for {title}: {url}'
+                    )
+
                 filtered_result_metadata = {
                     k: metadata[k] for k in SUPPORTED_RESULT_METADATA_KEYS if metadata.get(k)
                 }
@@ -496,6 +510,7 @@ async def search_documentation(
                     title=text_suggestion.get('title', ''),
                     context=context,
                     sections=sections if sections else None,
+                    recommended_sections=recommended_sections if recommended_sections else None,
                     metadata=search_result_metadata,
                 )
 

@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+- **Fixed DNS-rebinding TOCTOU SSRF in spec fetching** ([CWE-350](https://cwe.mitre.org/data/definitions/350.html) / [CWE-367](https://cwe.mitre.org/data/definitions/367.html)): `spec_url` was validated via DNS resolution and then re-fetched via a second, independent resolution, allowing a rebinding host to pass validation with a public IP and be fetched from an internal/metadata IP. Spec URLs are now fetched by connecting only to the IP(s) that passed validation (DNS resolved once; `Host`/SNI preserved), redirects are refused, and response bodies are capped at 10 MiB. The primary spec URL is now validated too (previously unchecked).
+
+### Changed
+- Spec URL loading is DNS-pinned end to end; the previous README note about deploying behind an egress proxy for "full DNS pinning" no longer applies.
+
 ## [1.1.0] - 2026-05-31
 
 ### Added

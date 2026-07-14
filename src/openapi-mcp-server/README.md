@@ -329,17 +329,17 @@ The server validates all URLs in `additional_specs` entries before fetching:
 
 **Credential isolation**: Additional specs never inherit the primary API's credentials. Each entry must declare its own `auth_type`/`auth_token` or defaults to no auth.
 
+**DNS pinning (rebinding protection)**: Spec URLs are validated **and fetched against the same resolved IP** — the loader connects only to the address(es) that passed validation, never re-resolving the hostname at fetch time. This closes the DNS-rebinding TOCTOU window where a hostname could resolve to a public IP during validation and to an internal/metadata IP during the fetch. This applies to both the primary spec URL and every `additional_specs` entry. Redirects are not followed (a `30x` toward an internal host is rejected), and spec bodies are capped at 10 MiB.
+
 **Path traversal protection**: `spec_path` is canonicalized, restricted to spec file extensions (`.json`, `.yaml`, `.yml`), and checked against a best-effort system directory blocklist. For production deployments, use `--allowed-spec-dirs` to explicitly restrict allowed paths.
 
 **Escape hatches** for development/internal use:
 
 | Flag | Env Var | Effect |
 |------|---------|--------|
-| `--allow-insecure-http` | `ALLOW_INSECURE_HTTP=true` | Permits `http://` URLs |
+| `--allow-insecure-http` | `ALLOW_INSECURE_HTTP=true` | Permits `http://` URLs (still DNS-pinned) |
 | `--allow-private-networks` | `ALLOW_PRIVATE_NETWORKS=true` | Permits private/loopback IPs |
 | `--allowed-spec-dirs` | `ALLOWED_SPEC_DIRS=/path1:/path2` | Restricts `spec_path` to listed directories |
-
-> **Note**: DNS validation confirms hostnames resolve to public IPs at check time. For environments requiring full DNS pinning, deploy behind an egress proxy or use `spec_path` with local files.
 
 To report security issues, see the [Contributing Guidelines](https://github.com/awslabs/mcp/blob/main/CONTRIBUTING.md#security-issue-notifications).
 

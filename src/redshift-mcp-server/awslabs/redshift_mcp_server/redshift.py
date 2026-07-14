@@ -24,17 +24,23 @@ from awslabs.redshift_mcp_server.consts import (
     CLIENT_READ_TIMEOUT,
     CLIENT_RETRIES,
     CLIENT_USER_AGENT_NAME,
+    COLUMNS_SQL,
+    DATABASES_SQL,
     QUERY_POLL_INTERVAL,
     QUERY_TIMEOUT,
+    SCHEMAS_SQL,
     SESSION_KEEPALIVE,
-    SVV_ALL_COLUMNS_QUERY,
-    SVV_ALL_SCHEMAS_QUERY,
-    SVV_ALL_TABLES_QUERY,
-    SVV_REDSHIFT_DATABASES_QUERY,
+    TABLES_SQL,
 )
 from awslabs.redshift_mcp_server.sql_guard import assert_executable
 from botocore.config import Config
 from loguru import logger
+from sqlglot import exp
+
+
+def _sql_identifier(value: str) -> str:
+    """Render a value as a Redshift SQL identifier, safely quoted and escaped."""
+    return exp.to_identifier(value, quoted=True).sql(dialect='redshift')
 
 
 class RedshiftClientManager:
@@ -113,8 +119,27 @@ class RedshiftSessionManager:
             app_name: Application name to set in sessions.
         """
         self._sessions = {}  # {cluster:database -> session_info}
+        self._locks: dict[str, asyncio.Lock] = {}  # {cluster:database -> asyncio.Lock}
         self._session_keepalive = session_keepalive
         self._app_name = app_name
+
+    def lock(self, cluster_identifier: str, database_name: str) -> asyncio.Lock:
+        """Get or create the per cluster:database lock that serializes session use.
+
+        Args:
+            cluster_identifier: The cluster identifier to lock on.
+            database_name: The database name to lock on.
+
+        Returns:
+            The asyncio.Lock for the cluster:database, created lazily on first use.
+        """
+        key = f'{cluster_identifier}:{database_name}'
+        # No await between the get and set, so lazy creation is race-free on the event loop.
+        existing = self._locks.get(key)
+        if existing is None:
+            existing = asyncio.Lock()
+            self._locks[key] = existing
+        return existing
 
     async def session(
         self, cluster_identifier: str, database_name: str, cluster_info: dict
@@ -251,37 +276,13 @@ async def _execute_protected_statement(
             f'Cluster {cluster_identifier} not found. Please use list_clusters to get valid cluster identifiers.'
         )
 
-    # Get session (creates if needed, sets app name automatically)
-    session_id = await session_manager.session(cluster_identifier, database_name, cluster_info)
+    # Serialize work on the shared per cluster:database session.
+    async with session_manager.lock(cluster_identifier, database_name):
+        session_id = await session_manager.session(cluster_identifier, database_name, cluster_info)
 
-    if allow_read_write:
-        # Read-write: run the single guarded statement directly (autocommit). No
-        # transaction wrapper, so non-transactional statements (e.g. VACUUM,
-        # CREATE DATABASE, ALTER TABLE APPEND) are not broken. Any error propagates.
-        user_query_id = await _execute_statement(
-            cluster_info=cluster_info,
-            cluster_identifier=cluster_identifier,
-            database_name=database_name,
-            sql=sql,
-            parameters=parameters,
-            session_id=session_id,
-        )
-    else:
-        # Read-only: BEGIN READ ONLY ... ROLLBACK. The engine rejects data writes
-        # the deny-list does not enumerate; ROLLBACK discards anything uncommitted.
-        await _execute_statement(
-            cluster_info=cluster_info,
-            cluster_identifier=cluster_identifier,
-            database_name=database_name,
-            sql='BEGIN READ ONLY;',
-            session_id=session_id,
-        )
-
-        # Execute user SQL with parameters, ensuring the transaction is always closed.
-        user_query_id = None
-        user_sql_error = None
-
-        try:
+        if allow_read_write:
+            # Read-write: run the single guarded statement directly (autocommit). No
+            # transaction wrapper. Any error propagates.
             user_query_id = await _execute_statement(
                 cluster_info=cluster_info,
                 cluster_identifier=cluster_identifier,
@@ -290,35 +291,61 @@ async def _execute_protected_statement(
                 parameters=parameters,
                 session_id=session_id,
             )
-        except Exception as e:
-            user_sql_error = e
-            logger.error(f'User SQL execution failed: {e}')
-
-        # Always close the read-only transaction, discarding everything with ROLLBACK.
-        try:
+        else:
+            # Read-only: BEGIN READ ONLY ... ROLLBACK. The engine rejects data writes
+            # the deny-list does not enumerate; ROLLBACK discards anything uncommitted.
             await _execute_statement(
                 cluster_info=cluster_info,
                 cluster_identifier=cluster_identifier,
                 database_name=database_name,
-                sql='ROLLBACK;',
+                sql='BEGIN READ ONLY;',
                 session_id=session_id,
             )
-        except Exception as close_error:
-            logger.error(f'ROLLBACK statement execution failed: {close_error}')
-            if user_sql_error:
-                # Both failed - raise combined error
-                raise Exception(
-                    f'User SQL failed: {user_sql_error}; ROLLBACK statement failed: {close_error}'
+
+            # Execute user SQL with parameters, ensuring the transaction is always closed.
+            user_query_id = None
+            user_sql_error: Exception | None = None
+
+            try:
+                user_query_id = await _execute_statement(
+                    cluster_info=cluster_info,
+                    cluster_identifier=cluster_identifier,
+                    database_name=database_name,
+                    sql=sql,
+                    parameters=parameters,
+                    session_id=session_id,
                 )
-            else:
-                # Only the close statement failed
-                raise close_error
+            except Exception as e:
+                user_sql_error = e
+                logger.error(f'User SQL execution failed: {e}')
+            finally:
+                # Always close the read-only transaction with ROLLBACK, even on
+                # CancelledError / BaseException.
+                try:
+                    await _execute_statement(
+                        cluster_info=cluster_info,
+                        cluster_identifier=cluster_identifier,
+                        database_name=database_name,
+                        sql='ROLLBACK;',
+                        session_id=session_id,
+                    )
+                except Exception as close_error:
+                    logger.error(f'ROLLBACK statement execution failed: {close_error}')
+                    if user_sql_error is not None:
+                        # Both failed - raise combined error
+                        raise Exception(
+                            f'User SQL failed: {user_sql_error}; '
+                            f'ROLLBACK statement failed: {close_error}'
+                        ) from close_error
+                    raise
 
-        # If user SQL failed but the ROLLBACK succeeded, raise the user SQL error.
-        if user_sql_error:
-            raise user_sql_error
+            # If user SQL failed but the ROLLBACK succeeded, raise the user SQL error.
+            if user_sql_error is not None:
+                raise user_sql_error
 
-    # Get results from user query (shared by both modes)
+    # Get results from user query (shared by both modes); runs outside the lock.
+    # describe_statement / get_statement_result are keyed by query_id, not session-bound,
+    # so the lock is not held during the (potentially unbounded) results wait.
     data_client = client_manager.redshift_data_client()
     assert user_query_id is not None, 'user_query_id should not be None at this point'
 
@@ -522,7 +549,7 @@ async def discover_databases(cluster_identifier: str, database_name: str = 'dev'
         results_response, _ = await _execute_protected_statement(
             cluster_identifier=cluster_identifier,
             database_name=database_name,
-            sql=SVV_REDSHIFT_DATABASES_QUERY,
+            sql=DATABASES_SQL,
         )
 
         databases = []
@@ -567,8 +594,7 @@ async def discover_schemas(cluster_identifier: str, schema_database_name: str) -
         results_response, _ = await _execute_protected_statement(
             cluster_identifier=cluster_identifier,
             database_name=schema_database_name,
-            sql=SVV_ALL_SCHEMAS_QUERY,
-            parameters=[{'name': 'database_name', 'value': schema_database_name}],
+            sql=SCHEMAS_SQL.format(database=_sql_identifier(schema_database_name)),
         )
 
         schemas = []
@@ -621,24 +647,24 @@ async def discover_tables(
         results_response, _ = await _execute_protected_statement(
             cluster_identifier=cluster_identifier,
             database_name=table_database_name,
-            sql=SVV_ALL_TABLES_QUERY,
-            parameters=[
-                {'name': 'database_name', 'value': table_database_name},
-                {'name': 'schema_name', 'value': table_schema_name},
-            ],
+            sql=TABLES_SQL.format(
+                database=_sql_identifier(table_database_name),
+                schema=_sql_identifier(table_schema_name),
+            ),
         )
 
         tables = []
         records = results_response.get('Records', [])
 
         for record in records:
-            # Extract values from the record
+            # Extract values from the record. SHOW TABLES returns table_type
+            # before table_acl.
             table_info = {
                 'database_name': record[0].get('stringValue'),
                 'schema_name': record[1].get('stringValue'),
                 'table_name': record[2].get('stringValue'),
-                'table_acl': record[3].get('stringValue'),
-                'table_type': record[4].get('stringValue'),
+                'table_type': record[3].get('stringValue'),
+                'table_acl': record[4].get('stringValue'),
                 'remarks': record[5].get('stringValue'),
             }
             tables.append(table_info)
@@ -681,12 +707,11 @@ async def discover_columns(
         results_response, _ = await _execute_protected_statement(
             cluster_identifier=cluster_identifier,
             database_name=column_database_name,
-            sql=SVV_ALL_COLUMNS_QUERY,
-            parameters=[
-                {'name': 'database_name', 'value': column_database_name},
-                {'name': 'schema_name', 'value': column_schema_name},
-                {'name': 'table_name', 'value': column_table_name},
-            ],
+            sql=COLUMNS_SQL.format(
+                database=_sql_identifier(column_database_name),
+                schema=_sql_identifier(column_schema_name),
+                table=_sql_identifier(column_table_name),
+            ),
         )
 
         columns = []

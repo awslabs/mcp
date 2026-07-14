@@ -56,40 +56,48 @@ class TestOpenAPIUtils:
 
     def test_no_args(self):
         """Test that the function raises ValueError when no arguments are provided."""
-        with pytest.raises(ValueError, match='Either url or path must be provided'):
+        with pytest.raises(ValueError, match='Either url/validated_url or path must be provided'):
             load_openapi_spec()
 
-    @patch('httpx.get')
-    def test_url_http_error(self, mock_get):
-        """Test HTTP error handling."""
-        # Create mock response that raises HTTPError
-        mock_response = MagicMock()
-        mock_response.raise_for_status.side_effect = httpx.HTTPError('HTTP Error')
-        mock_get.return_value = mock_response
+    @patch('awslabs.openapi_mcp_server.utils.openapi.time.sleep')
+    @patch('awslabs.openapi_mcp_server.utils.openapi._pinned_fetch')
+    @patch(
+        'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
+        return_value=['93.184.216.34'],
+    )
+    def test_url_http_error(self, mock_resolve, mock_fetch, mock_sleep):
+        """Test HTTP error handling on the DNS-pinned fetch path."""
+        # The pinned fetch raises HTTPError; validation resolves to a public IP.
+        mock_fetch.side_effect = httpx.HTTPError('HTTP Error')
 
         # Test the exception is propagated correctly
         with pytest.raises(httpx.HTTPError, match='HTTP Error'):
             load_openapi_spec(url='https://example.com/api.json')
 
-    @patch('httpx.get')
-    def test_url_timeout(self, mock_get):
-        """Test timeout exception handling."""
+    @patch('awslabs.openapi_mcp_server.utils.openapi.time.sleep')
+    @patch('awslabs.openapi_mcp_server.utils.openapi._pinned_fetch')
+    @patch(
+        'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
+        return_value=['93.184.216.34'],
+    )
+    def test_url_timeout(self, mock_resolve, mock_fetch, mock_sleep):
+        """Test timeout exception handling on the DNS-pinned fetch path."""
         # Setup the mock to raise TimeoutException
-        mock_get.side_effect = httpx.TimeoutException('Timeout Error')
+        mock_fetch.side_effect = httpx.TimeoutException('Timeout Error')
 
         # Test the exception is propagated correctly
         with pytest.raises(httpx.TimeoutException, match='Timeout Error'):
             load_openapi_spec(url='https://example.com/api.json')
 
-    @patch('httpx.get')
-    def test_url_invalid_spec(self, mock_get):
+    @patch('awslabs.openapi_mcp_server.utils.openapi._pinned_fetch')
+    @patch(
+        'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
+        return_value=['93.184.216.34'],
+    )
+    def test_url_invalid_spec(self, mock_resolve, mock_fetch):
         """Test invalid OpenAPI spec validation."""
-        # Setup mock response
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.content = b'{"invalid": "spec"}'  # Return bytes content
-        mock_response.json.return_value = {'invalid': 'spec'}
-        mock_get.return_value = mock_response
+        # The fetch returns a well-formed but non-OpenAPI body.
+        mock_fetch.return_value = b'{"invalid": "spec"}'
 
         # Mock the validate_openapi_spec function directly
         with patch(
@@ -133,9 +141,11 @@ class TestOpenAPIUtils:
     @patch('json.loads', return_value={'openapi': '3.0.0'})
     def test_path_invalid_validation(self, mock_json, mock_file, mock_exists):
         """Test invalid OpenAPI spec from file."""
-        # Override the validation function to return False
+        # Override the validation function to return False. Patch the name in the
+        # module where it is used (openapi.py binds it at import time), not where
+        # it is defined, or the mock never takes effect.
         with patch(
-            'awslabs.openapi_mcp_server.utils.openapi_validator.validate_openapi_spec',
+            'awslabs.openapi_mcp_server.utils.openapi.validate_openapi_spec',
             return_value=False,
         ):
             with pytest.raises(ValueError, match='Invalid OpenAPI specification'):

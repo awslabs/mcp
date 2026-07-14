@@ -17,9 +17,7 @@
 import os
 import sys
 from awslabs.redshift_mcp_server.consts import (
-    CLIENT_BEST_PRACTICES,
     DEFAULT_LOG_LEVEL,
-    REDSHIFT_BEST_PRACTICES,
 )
 from awslabs.redshift_mcp_server.models import (
     QueryResult,
@@ -54,7 +52,7 @@ logger.add(
 
 mcp = FastMCP(
     'awslabs.redshift-mcp-server',
-    instructions=f"""
+    instructions="""
 # Amazon Redshift MCP Server.
 
 This MCP server provides comprehensive access to Amazon Redshift clusters and serverless workgroups.
@@ -67,19 +65,19 @@ This tool provides essential information needed to connect to and query your Red
 
 ### list_databases
 Lists all databases in a specified Redshift cluster.
-This tool queries the SVV_REDSHIFT_DATABASES system view to discover available databases.
+This tool runs the SHOW DATABASES command to discover available databases.
 
 ### list_schemas
 Lists all schemas in a specified database within a Redshift cluster.
-This tool queries the SVV_ALL_SCHEMAS system view to discover available schemas.
+This tool runs the SHOW SCHEMAS command to discover available schemas.
 
 ### list_tables
 Lists all tables in a specified schema within a Redshift database.
-This tool queries the SVV_ALL_TABLES system view to discover available tables.
+This tool runs the SHOW TABLES command to discover available tables.
 
 ### list_columns
 Lists all columns in a specified table within a Redshift schema.
-This tool queries the SVV_ALL_COLUMNS system view to discover available columns.
+This tool runs the SHOW COLUMNS command to discover available columns.
 
 ### execute_query
 Executes SQL queries against a Redshift cluster or serverless workgroup.
@@ -96,8 +94,44 @@ Requires superuser (CREATEUSER) privileges.
 2. Use the list_clusters tool to discover available Redshift instances.
 3. Note the cluster identifiers for use with other tools (coming in future milestones).
 
-{CLIENT_BEST_PRACTICES}
-{REDSHIFT_BEST_PRACTICES}
+## Session Management and Concurrency
+
+The server reuses one Redshift Data API session per `cluster:database`:
+- Queries to the same `cluster:database` are serialized (parallel calls queue; a long-running query blocks later ones to that target).
+- Queries to different targets run concurrently on independent sessions.
+- Each read-only query runs isolated in its own transaction.
+
+## AWS Client Best Practices
+
+### Authentication and Configuration
+
+- Default AWS credentials chain (IAM roles, ~/.aws/credentials, etc.).
+- AWS_PROFILE environment variable (if set).
+- Region configuration (in order of precedence):
+  - AWS_REGION environment variable (highest priority)
+  - AWS_DEFAULT_REGION environment variable
+  - Region specified in AWS profile configuration
+
+### Error Handling
+
+- Always print out AWS client errors in full to help diagnose configuration issues.
+- For region-related errors, suggest checking AWS_REGION, AWS_DEFAULT_REGION, or AWS profile configuration.
+- For credential errors, suggest verifying AWS credentials setup and permissions.
+
+## Amazon Redshift Best Practices
+
+### Query Guidelines
+
+- Always specify the database and schema when referencing objects to avoid ambiguity.
+- Leverage distribution in WHERE and JOIN predicates and sort keys in ORDER BY for optimal query performance.
+- Use LIMIT clauses for exploratory queries to avoid large result sets.
+- Analyze table to update table statistics if it is not updated or too off before making a decision on the query structure.
+- Prefer explicitly specifying columns in SELECT over "*" for better performance.
+
+### Connection Guidelines
+
+- We use the Redshift API and Redshift Data API.
+- Leverage IAM authentication when possible instead of secrets (database passwords).
 """,
     dependencies=['boto3', 'loguru', 'pydantic', 'sqlglot'],
 )
@@ -177,12 +211,12 @@ async def list_databases_tool(
     ),
     database_name: str = Field(
         'dev',
-        description='The database to connect to for querying system views. Defaults to "dev".',
+        description='The database to connect to for metadata discovery. Defaults to "dev".',
     ),
 ) -> list[RedshiftDatabase]:
     """List all databases in a specified Amazon Redshift cluster.
 
-    This tool queries the SVV_REDSHIFT_DATABASES system view to discover all databases
+    This tool runs the SHOW DATABASES command to discover all databases
     that the user has access to in the specified cluster, including local databases
     and databases created from datashares.
 
@@ -191,13 +225,13 @@ async def list_databases_tool(
     - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
     - The cluster must be available and accessible.
     - Required IAM permissions: redshift-data:ExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
-    - The user must have access to the specified database to query system views.
+    - The user must have access to the specified database to run the discovery commands.
 
     ## Parameters
 
     - cluster_identifier: The unique identifier of the Redshift cluster to query.
                          IMPORTANT: Use a valid cluster identifier from the list_clusters tool.
-    - database_name: The database to connect to for querying system views (defaults to 'dev').
+    - database_name: The database to connect to for metadata discovery (defaults to 'dev').
 
     ## Response Structure
 
@@ -261,7 +295,7 @@ async def list_schemas_tool(
 ) -> list[RedshiftSchema]:
     """List all schemas in a specified database within a Redshift cluster.
 
-    This tool queries the SVV_ALL_SCHEMAS system view to discover all schemas
+    This tool runs the SHOW SCHEMAS command to discover all schemas
     that the user has access to in the specified database, including local schemas,
     external schemas, and shared schemas from datashares.
 
@@ -270,7 +304,7 @@ async def list_schemas_tool(
     - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
     - The cluster must be available and accessible.
     - Required IAM permissions: redshift-data:ExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
-    - The user must have access to the database to query system views.
+    - The user must have access to the database to run the discovery commands.
 
     ## Parameters
 
@@ -352,7 +386,7 @@ async def list_tables_tool(
 ) -> list[RedshiftTable]:
     """List all tables in a specified schema within a Redshift database.
 
-    This tool queries the SVV_ALL_TABLES system view to discover all tables
+    This tool runs the SHOW TABLES command to discover all tables
     that the user has access to in the specified schema, including base tables,
     views, external tables, and shared tables.
 
@@ -361,7 +395,7 @@ async def list_tables_tool(
     - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
     - The cluster must be available and accessible.
     - Required IAM permissions: redshift-data:ExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
-    - The user must have access to the database to query system views.
+    - The user must have access to the database to run the discovery commands.
 
     ## Parameters
 
@@ -451,7 +485,7 @@ async def list_columns_tool(
 ) -> list[RedshiftColumn]:
     """List all columns in a specified table within a Redshift schema.
 
-    This tool queries the SVV_ALL_COLUMNS system view to discover all columns
+    This tool runs the SHOW COLUMNS command to discover all columns
     that the user has access to in the specified table, including detailed information
     about data types, constraints, and column properties.
 
@@ -460,7 +494,7 @@ async def list_columns_tool(
     - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
     - The cluster must be available and accessible.
     - Required IAM permissions: redshift-data:ExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
-    - The user must have access to the database to query system views.
+    - The user must have access to the database to run the discovery commands.
 
     ## Parameters
 
