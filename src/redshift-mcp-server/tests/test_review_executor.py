@@ -15,6 +15,7 @@
 """Tests for review cluster executor."""
 
 import pytest
+from awslabs.redshift_mcp_server.models import RedshiftCluster
 from awslabs.redshift_mcp_server.review.definitions import (
     RECOMMENDATIONS,
     SIGNAL_EVALUATION_SQL,
@@ -40,9 +41,21 @@ def _make_empty_response() -> dict:
     return {'rows': [], 'columns': ['count', 'rec_id'], 'row_count': 0}
 
 
+def _cluster(identifier='test-cluster', cluster_type='provisioned'):
+    """Build a RedshiftCluster model for discover_clusters mocks."""
+    return RedshiftCluster.model_validate(
+        {
+            'identifier': identifier,
+            'type': cluster_type,
+            'status': 'available',
+            'database_name': 'dev',
+        }
+    )
+
+
 def _make_discover_clusters(cluster_type='provisioned'):
     """Build a mock discover_clusters returning a single cluster."""
-    return AsyncMock(return_value=[{'identifier': 'test-cluster', 'type': cluster_type}])
+    return AsyncMock(return_value=[_cluster(cluster_type=cluster_type)])
 
 
 # ---------------------------------------------------------------------------
@@ -59,7 +72,7 @@ class TestServerlessExclusion:
         execute_query_func = AsyncMock(side_effect=lambda *a, **kw: _make_empty_response())
         discover_clusters_func = AsyncMock(
             return_value=[
-                {'identifier': 'test-cluster', 'type': 'serverless'},
+                _cluster(cluster_type='serverless'),
             ]
         )
 
@@ -79,7 +92,7 @@ class TestServerlessExclusion:
         execute_query_func = AsyncMock(side_effect=lambda *a, **kw: _make_empty_response())
         discover_clusters_func = AsyncMock(
             return_value=[
-                {'identifier': 'test-cluster', 'type': 'provisioned'},
+                _cluster(),
             ]
         )
 
@@ -98,7 +111,7 @@ class TestServerlessExclusion:
         execute_query_func = AsyncMock(side_effect=lambda *a, **kw: _make_empty_response())
         discover_clusters_func = AsyncMock(
             return_value=[
-                {'identifier': 'test-cluster', 'type': 'provisioned'},
+                _cluster(),
             ]
         )
 
@@ -202,7 +215,7 @@ class TestErrorPropagation:
         execute_query_func = AsyncMock()
         discover_clusters_func = AsyncMock(
             return_value=[
-                {'identifier': 'other-cluster', 'type': 'provisioned'},
+                _cluster(identifier='other-cluster'),
             ]
         )
 

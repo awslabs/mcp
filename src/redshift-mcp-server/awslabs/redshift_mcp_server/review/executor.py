@@ -51,7 +51,7 @@ async def review_cluster(
     clusters = await discover_clusters_func()
     cluster_info = None
     for cluster in clusters:
-        if cluster['identifier'] == cluster_identifier:
+        if cluster.identifier == cluster_identifier:
             cluster_info = cluster
             break
 
@@ -60,7 +60,7 @@ async def review_cluster(
             f'Cluster {cluster_identifier} not found. Please use list_clusters to get valid cluster identifiers.'
         )
 
-    is_serverless = cluster_info.get('type') == 'serverless'
+    is_serverless = cluster_info.type == 'serverless'
 
     # Stage 1: Select queries, filtering by cluster type scope
     queries = [

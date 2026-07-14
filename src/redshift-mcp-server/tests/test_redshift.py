@@ -18,6 +18,7 @@ import asyncio
 import pytest
 import sqlglot
 import time
+from awslabs.redshift_mcp_server.models import RedshiftCluster
 from awslabs.redshift_mcp_server.redshift import (
     RedshiftClientManager,
     RedshiftSessionManager,
@@ -35,6 +36,13 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 from sqlglot import exp
 from types import SimpleNamespace
+
+
+def _fake_cluster(identifier='test-cluster', type='provisioned', status='available'):
+    """Build a RedshiftCluster for mocking discover_clusters() return values."""
+    return RedshiftCluster.model_validate(
+        {'identifier': identifier, 'type': type, 'status': status, 'database_name': 'dev'}
+    )
 
 
 class TestRedshiftClientManagerRedshiftClient:
@@ -255,9 +263,7 @@ class TestExecuteProtectedStatement:
         mock_discover_clusters = mocker.patch(
             'awslabs.redshift_mcp_server.redshift.discover_clusters'
         )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-cluster', 'type': 'provisioned', 'status': 'available'}
-        ]
+        mock_discover_clusters.return_value = [_fake_cluster()]
 
         # Mock session manager
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
@@ -299,9 +305,7 @@ class TestExecuteProtectedStatement:
         mock_discover_clusters = mocker.patch(
             'awslabs.redshift_mcp_server.redshift.discover_clusters'
         )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-cluster', 'type': 'provisioned', 'status': 'available'}
-        ]
+        mock_discover_clusters.return_value = [_fake_cluster()]
 
         # Mock session manager
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
@@ -345,9 +349,7 @@ class TestExecuteProtectedStatement:
         mock_discover_clusters = mocker.patch(
             'awslabs.redshift_mcp_server.redshift.discover_clusters'
         )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-cluster', 'type': 'provisioned', 'status': 'available'}
-        ]
+        mock_discover_clusters.return_value = [_fake_cluster()]
 
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
         mock_session_manager.session = mocker.AsyncMock(return_value='test-session-123')
@@ -375,9 +377,7 @@ class TestExecuteProtectedStatement:
         mock_discover_clusters = mocker.patch(
             'awslabs.redshift_mcp_server.redshift.discover_clusters'
         )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-cluster', 'type': 'provisioned', 'status': 'available'}
-        ]
+        mock_discover_clusters.return_value = [_fake_cluster()]
 
         # Mock session manager
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
@@ -420,9 +420,7 @@ class TestExecuteProtectedStatement:
         mock_discover_clusters = mocker.patch(
             'awslabs.redshift_mcp_server.redshift.discover_clusters'
         )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-cluster', 'type': 'provisioned', 'status': 'available'}
-        ]
+        mock_discover_clusters.return_value = [_fake_cluster()]
 
         # Mock session manager
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
@@ -460,9 +458,7 @@ class TestExecuteProtectedStatement:
         mock_discover_clusters = mocker.patch(
             'awslabs.redshift_mcp_server.redshift.discover_clusters'
         )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-cluster', 'type': 'provisioned', 'status': 'available'}
-        ]
+        mock_discover_clusters.return_value = [_fake_cluster()]
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
         mock_session_manager.session = mocker.AsyncMock(return_value='test-session-123')
         mock_session_manager.lock.return_value = asyncio.Lock()
@@ -502,9 +498,7 @@ class TestExecuteProtectedStatement:
         mock_discover_clusters = mocker.patch(
             'awslabs.redshift_mcp_server.redshift.discover_clusters'
         )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-cluster', 'type': 'provisioned', 'status': 'available'}
-        ]
+        mock_discover_clusters.return_value = [_fake_cluster()]
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
         mock_session_manager.session = mocker.AsyncMock(return_value='test-session-123')
         mock_session_manager.lock.return_value = asyncio.Lock()
@@ -545,8 +539,8 @@ class TestExecuteProtectedStatement:
             'awslabs.redshift_mcp_server.redshift.discover_clusters'
         )
         mock_discover_clusters.return_value = [
-            {'identifier': 'other-cluster', 'type': 'provisioned'},
-            {'identifier': 'another-cluster', 'type': 'serverless'},
+            _fake_cluster(identifier='other-cluster'),
+            _fake_cluster(identifier='another-cluster', type='serverless'),
         ]
 
         with pytest.raises(Exception, match='Cluster target-cluster not found'):
@@ -561,9 +555,7 @@ class TestExecuteProtectedStatement:
         mock_discover_clusters = mocker.patch(
             'awslabs.redshift_mcp_server.redshift.discover_clusters'
         )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-cluster', 'type': 'provisioned'}
-        ]
+        mock_discover_clusters.return_value = [_fake_cluster()]
 
         # Mock session manager
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
@@ -605,9 +597,7 @@ class TestExecuteProtectedStatement:
         mock_discover_clusters = mocker.patch(
             'awslabs.redshift_mcp_server.redshift.discover_clusters'
         )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-cluster', 'type': 'provisioned'}
-        ]
+        mock_discover_clusters.return_value = [_fake_cluster()]
 
         # Mock session manager
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
@@ -642,9 +632,7 @@ class TestExecuteProtectedStatement:
         mock_discover_clusters = mocker.patch(
             'awslabs.redshift_mcp_server.redshift.discover_clusters'
         )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-cluster', 'type': 'provisioned'}
-        ]
+        mock_discover_clusters.return_value = [_fake_cluster()]
 
         # Mock session manager
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
@@ -694,7 +682,7 @@ class TestExecuteStatement:
             return_value=mock_client,
         )
 
-        cluster_info = {'type': 'provisioned'}
+        cluster_info = _fake_cluster()
         with pytest.raises(Exception, match='Statement failed: SQL syntax error'):
             await _execute_statement(cluster_info, 'cluster', 'db', 'SELECT 1')
 
@@ -704,9 +692,7 @@ class TestExecuteStatement:
         mock_discover_clusters = mocker.patch(
             'awslabs.redshift_mcp_server.redshift.discover_clusters'
         )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-cluster', 'type': 'provisioned'}
-        ]
+        mock_discover_clusters.return_value = [_fake_cluster()]
 
         mock_client = mocker.Mock()
         mock_client.execute_statement.return_value = {'Id': 'stmt-123'}
@@ -717,7 +703,7 @@ class TestExecuteStatement:
             return_value=mock_client,
         )
 
-        cluster_info = {'type': 'provisioned'}
+        cluster_info = _fake_cluster()
         # Use small timeout and poll interval to trigger timeout quickly
         with pytest.raises(Exception, match='Statement timed out after'):
             await _execute_statement(
@@ -736,15 +722,13 @@ class TestExecuteStatement:
         mock_discover_clusters = mocker.patch(
             'awslabs.redshift_mcp_server.redshift.discover_clusters'
         )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-cluster', 'type': 'unknown-type'}
-        ]
+        mock_discover_clusters.return_value = [_fake_cluster(type='unknown-type')]
 
         mock_client_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.client_manager')
         mock_data_client = mocker.Mock()
         mock_client_manager.redshift_data_client.return_value = mock_data_client
 
-        cluster_info = {'type': 'unknown-type', 'identifier': 'test-cluster'}
+        cluster_info = _fake_cluster(type='unknown-type')
 
         # This should trigger the unknown cluster type error (lines 324, 331)
         with pytest.raises(Exception, match='Unknown cluster type: unknown-type'):
@@ -756,9 +740,7 @@ class TestExecuteStatement:
         mock_discover_clusters = mocker.patch(
             'awslabs.redshift_mcp_server.redshift.discover_clusters'
         )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-cluster', 'type': 'provisioned'}
-        ]
+        mock_discover_clusters.return_value = [_fake_cluster()]
 
         mock_client = mocker.Mock()
         mock_client.execute_statement.return_value = {'Id': 'stmt-123'}
@@ -767,7 +749,7 @@ class TestExecuteStatement:
         mock_client_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.client_manager')
         mock_client_manager.redshift_data_client.return_value = mock_client
 
-        cluster_info = {'type': 'provisioned', 'identifier': 'test-cluster'}
+        cluster_info = _fake_cluster()
         parameters = [{'name': 'param1', 'value': 'value1'}]
 
         # This should cover line 335 (parameters path)
@@ -790,7 +772,7 @@ class TestExecuteStatement:
         mock_client_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.client_manager')
         mock_client_manager.redshift_data_client.return_value = mock_client
 
-        cluster_info = {'type': 'provisioned', 'identifier': 'test-cluster'}
+        cluster_info = _fake_cluster()
 
         # This should cover line 339 (session_id path)
         await _execute_statement(
@@ -813,7 +795,7 @@ class TestRedshiftSessionManager:
     async def test_session_creation_provisioned(self, mocker):
         """Test session creation for provisioned cluster."""
         session_manager = RedshiftSessionManager(session_keepalive=600, app_name='test-app/1.0')
-        cluster_info = {'identifier': 'test-cluster', 'type': 'provisioned', 'status': 'available'}
+        cluster_info = _fake_cluster()
 
         mock_response = {'SessionId': 'test-session-123', 'Id': 'statement-456'}
 
@@ -840,11 +822,7 @@ class TestRedshiftSessionManager:
     async def test_session_creation_serverless(self, mocker):
         """Test session creation for serverless workgroup."""
         session_manager = RedshiftSessionManager(session_keepalive=600, app_name='test-app/1.0')
-        cluster_info = {
-            'identifier': 'test-workgroup',
-            'type': 'serverless',
-            'status': 'available',
-        }
+        cluster_info = _fake_cluster(identifier='test-workgroup', type='serverless')
 
         mock_response = {'SessionId': 'test-session-456', 'Id': 'statement-789'}
 
@@ -869,7 +847,7 @@ class TestRedshiftSessionManager:
     async def test_session_reuse(self, mocker):
         """Test that existing sessions are reused."""
         session_manager = RedshiftSessionManager(session_keepalive=600, app_name='test-app/1.0')
-        cluster_info = {'identifier': 'test-cluster', 'type': 'provisioned', 'status': 'available'}
+        cluster_info = _fake_cluster()
 
         mock_response = {'SessionId': 'test-session-123', 'Id': 'statement-456'}
 
@@ -935,7 +913,7 @@ class TestRedshiftSessionManager:
         }
         mock_client_manager.redshift_data_client.return_value = mock_data_client
 
-        cluster_info = {'type': 'provisioned', 'identifier': 'test-cluster'}
+        cluster_info = _fake_cluster()
 
         # This should clean up the expired session and create a new one
         session_id = await session_manager.session('test-cluster', 'dev', cluster_info)
@@ -1037,27 +1015,27 @@ class TestDiscoverFunctions:
 
         # Verify full cluster (with all fields)
         cluster = result[0]
-        assert cluster['identifier'] == 'test-cluster'
-        assert cluster['type'] == 'provisioned'
-        assert cluster['status'] == 'available'
-        assert cluster['database_name'] == 'dev'
-        assert cluster['endpoint'] == 'test.redshift.amazonaws.com'
-        assert cluster['port'] == 5439
-        assert cluster['node_type'] == 'dc2.large'
-        assert cluster['number_of_nodes'] == 2
-        assert cluster['tags'] == {'env': 'test'}
+        assert cluster.identifier == 'test-cluster'
+        assert cluster.type == 'provisioned'
+        assert cluster.status == 'available'
+        assert cluster.database_name == 'dev'
+        assert cluster.endpoint == 'test.redshift.amazonaws.com'
+        assert cluster.port == 5439
+        assert cluster.node_type == 'dc2.large'
+        assert cluster.number_of_nodes == 2
+        assert cluster.tags == {'env': 'test'}
 
         # Verify minimal cluster (with defaults applied)
         minimal = result[1]
-        assert minimal['identifier'] == 'minimal-cluster'
-        assert minimal['type'] == 'provisioned'
-        assert minimal['status'] == 'available'
-        assert minimal['database_name'] == 'dev'  # Should default to 'dev', not KeyError
-        assert minimal['endpoint'] == 'minimal.redshift.amazonaws.com'
-        assert minimal['port'] == 5439
-        assert minimal['node_type'] == 'ra3.xlplus'
-        assert minimal['number_of_nodes'] == 1
-        assert minimal['tags'] == {}
+        assert minimal.identifier == 'minimal-cluster'
+        assert minimal.type == 'provisioned'
+        assert minimal.status == 'available'
+        assert minimal.database_name == 'dev'  # default to 'dev'
+        assert minimal.endpoint == 'minimal.redshift.amazonaws.com'
+        assert minimal.port == 5439
+        assert minimal.node_type == 'ra3.xlplus'
+        assert minimal.number_of_nodes == 1
+        assert minimal.tags == {}
 
     @pytest.mark.asyncio
     async def test_discover_clusters_provisioned_error(self, mocker):
@@ -1084,12 +1062,15 @@ class TestDiscoverFunctions:
 
     @pytest.mark.asyncio
     async def test_discover_clusters_serverless(self, mocker):
-        """Test discover_clusters function with serverless workgroups."""
+        """Test discover_clusters with serverless workgroups.
+
+        The serverless database_name is always reported as the built-in 'dev';
+        """
         # Mock redshift client (empty response)
         mock_redshift_client = mocker.Mock()
         mock_redshift_client.get_paginator.return_value.paginate.return_value = [{'Clusters': []}]
 
-        # Mock serverless client
+        # Mock serverless client with one workgroup
         mock_serverless_client = mocker.Mock()
         mock_serverless_client.get_paginator.return_value.paginate.return_value = [
             {
@@ -1104,9 +1085,6 @@ class TestDiscoverFunctions:
         ]
         mock_serverless_client.get_workgroup.return_value = {
             'workgroup': {
-                'configParameters': [
-                    {'parameterKey': 'default_database', 'parameterValue': 'analytics'}
-                ],
                 'endpoint': {'address': 'test.serverless.amazonaws.com', 'port': 5439},
                 'subnetIds': ['subnet-123'],
                 'publiclyAccessible': True,
@@ -1127,17 +1105,18 @@ class TestDiscoverFunctions:
         result = await discover_clusters()
 
         assert len(result) == 1
+
         workgroup = result[0]
-        assert workgroup['identifier'] == 'test-workgroup'
-        assert workgroup['type'] == 'serverless'
-        assert workgroup['status'] == 'AVAILABLE'
-        assert workgroup['database_name'] == 'analytics'
-        assert workgroup['endpoint'] == 'test.serverless.amazonaws.com'
-        assert workgroup['port'] == 5439
-        assert workgroup['node_type'] is None
-        assert workgroup['number_of_nodes'] is None
-        assert workgroup['encrypted'] is True
-        assert workgroup['tags'] == {'team': 'data'}
+        assert workgroup.identifier == 'test-workgroup'
+        assert workgroup.type == 'serverless'
+        assert workgroup.status == 'AVAILABLE'
+        assert workgroup.database_name == 'dev'
+        assert workgroup.endpoint == 'test.serverless.amazonaws.com'
+        assert workgroup.port == 5439
+        assert workgroup.node_type is None
+        assert workgroup.number_of_nodes is None
+        assert workgroup.encrypted is True
+        assert workgroup.tags == {'team': 'data'}
 
     @pytest.mark.asyncio
     async def test_discover_clusters_serverless_empty_subnet_ids(self, mocker):
@@ -1177,7 +1156,7 @@ class TestDiscoverFunctions:
         result = await discover_clusters()
 
         assert len(result) == 1
-        assert result[0]['vpc_id'] is None
+        assert result[0].vpc_id is None
 
     @pytest.mark.asyncio
     async def test_discover_clusters_serverless_error(self, mocker):
@@ -1282,8 +1261,8 @@ class TestDiscoverFunctions:
         result = await discover_clusters()
 
         assert len(result) == 1
-        assert result[0]['identifier'] == 'my-workgroup'
-        assert result[0]['type'] == 'serverless'
+        assert result[0].identifier == 'my-workgroup'
+        assert result[0].type == 'serverless'
 
     @pytest.mark.asyncio
     async def test_discover_clusters_serverless_access_denied_provisioned_succeeds(self, mocker):
@@ -1330,8 +1309,8 @@ class TestDiscoverFunctions:
         result = await discover_clusters()
 
         assert len(result) == 1
-        assert result[0]['identifier'] == 'my-cluster'
-        assert result[0]['type'] == 'provisioned'
+        assert result[0].identifier == 'my-cluster'
+        assert result[0].type == 'provisioned'
 
     @pytest.mark.asyncio
     async def test_discover_clusters_non_access_denied_provisioned_bubbles_up(self, mocker):
@@ -1425,18 +1404,27 @@ class TestDiscoverFunctions:
         mock_execute_protected = mocker.patch(
             'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
         )
+        # Verify column order is handled correctly.
         mock_execute_protected.return_value = (
             {
+                'ColumnMetadata': [
+                    {'name': 'database_type'},
+                    {'name': 'database_name'},
+                    {'name': 'database_isolation_level'},
+                    {'name': 'database_owner'},
+                    {'name': 'parameters'},
+                    {'name': 'database_acl'},
+                ],
                 'Records': [
                     [
-                        {'stringValue': 'dev'},
-                        {'longValue': 100},
                         {'stringValue': 'local'},
-                        {'stringValue': 'user=admin'},
-                        {'stringValue': 'encoding=utf8'},
+                        {'stringValue': 'dev'},
                         {'stringValue': 'Snapshot Isolation'},
+                        {'longValue': 100},
+                        {'stringValue': 'encoding=utf8'},
+                        {'stringValue': 'user=admin'},
                     ]
-                ]
+                ],
             },
             'query-123',
         )
@@ -1444,9 +1432,11 @@ class TestDiscoverFunctions:
         result = await discover_databases('test-cluster', 'dev')
 
         assert len(result) == 1
-        assert result[0]['database_name'] == 'dev'
-        assert result[0]['database_owner'] == 100
-        assert result[0]['database_type'] == 'local'
+        assert result[0].database_name == 'dev'
+        assert result[0].database_owner == 100
+        assert result[0].database_type == 'local'
+        assert result[0].parameters == 'encoding=utf8'
+        assert result[0].database_isolation_level == 'Snapshot Isolation'
 
         # SHOW DATABASES takes no bind parameters.
         sql = mock_execute_protected.call_args[1]['sql']
@@ -1473,6 +1463,15 @@ class TestDiscoverFunctions:
         )
         mock_execute_protected.return_value = (
             {
+                'ColumnMetadata': [
+                    {'name': 'database_name'},
+                    {'name': 'schema_name'},
+                    {'name': 'schema_owner'},
+                    {'name': 'schema_type'},
+                    {'name': 'schema_acl'},
+                    {'name': 'source_database'},
+                    {'name': 'schema_option'},
+                ],
                 'Records': [
                     [
                         {'stringValue': 'dev'},
@@ -1483,7 +1482,7 @@ class TestDiscoverFunctions:
                         {'stringValue': None},
                         {'stringValue': None},
                     ]
-                ]
+                ],
             },
             'query-456',
         )
@@ -1491,9 +1490,9 @@ class TestDiscoverFunctions:
         result = await discover_schemas('test-cluster', 'dev')
 
         assert len(result) == 1
-        assert result[0]['database_name'] == 'dev'
-        assert result[0]['schema_name'] == 'public'
-        assert result[0]['schema_owner'] == 100
+        assert result[0].database_name == 'dev'
+        assert result[0].schema_name == 'public'
+        assert result[0].schema_owner == 100
 
         # The database is embedded as a quoted identifier (no bind params).
         mock_execute_protected.assert_called_once()
@@ -1527,10 +1526,16 @@ class TestDiscoverFunctions:
         mock_execute_protected = mocker.patch(
             'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
         )
-        # SHOW TABLES column order: database_name, schema_name, table_name,
-        # table_type, table_acl, remarks (table_type precedes table_acl).
         mock_execute_protected.return_value = (
             {
+                'ColumnMetadata': [
+                    {'name': 'database_name'},
+                    {'name': 'schema_name'},
+                    {'name': 'table_name'},
+                    {'name': 'table_type'},
+                    {'name': 'table_acl'},
+                    {'name': 'remarks'},
+                ],
                 'Records': [
                     [
                         {'stringValue': 'dev'},
@@ -1540,7 +1545,7 @@ class TestDiscoverFunctions:
                         {'stringValue': 'user=admin'},
                         {'stringValue': 'User data table'},
                     ]
-                ]
+                ],
             },
             'query-789',
         )
@@ -1548,13 +1553,13 @@ class TestDiscoverFunctions:
         result = await discover_tables('test-cluster', 'dev', 'public')
 
         assert len(result) == 1
-        assert result[0]['database_name'] == 'dev'
-        assert result[0]['schema_name'] == 'public'
-        assert result[0]['table_name'] == 'users'
-        # Positional remap is correct: type and acl are not swapped.
-        assert result[0]['table_type'] == 'TABLE'
-        assert result[0]['table_acl'] == 'user=admin'
-        assert result[0]['remarks'] == 'User data table'
+        assert result[0].database_name == 'dev'
+        assert result[0].schema_name == 'public'
+        assert result[0].table_name == 'users'
+        # type and acl are mapped by column name, not swapped by position.
+        assert result[0].table_type == 'TABLE'
+        assert result[0].table_acl == 'user=admin'
+        assert result[0].remarks == 'User data table'
 
         # db.schema is embedded as quoted identifiers (no bind params).
         mock_execute_protected.assert_called_once()
@@ -1590,6 +1595,20 @@ class TestDiscoverFunctions:
         )
         mock_execute_protected.return_value = (
             {
+                'ColumnMetadata': [
+                    {'name': 'database_name'},
+                    {'name': 'schema_name'},
+                    {'name': 'table_name'},
+                    {'name': 'column_name'},
+                    {'name': 'ordinal_position'},
+                    {'name': 'column_default'},
+                    {'name': 'is_nullable'},
+                    {'name': 'data_type'},
+                    {'name': 'character_maximum_length'},
+                    {'name': 'numeric_precision'},
+                    {'name': 'numeric_scale'},
+                    {'name': 'remarks'},
+                ],
                 'Records': [
                     [
                         {'stringValue': 'dev'},
@@ -1605,7 +1624,7 @@ class TestDiscoverFunctions:
                         {'longValue': 0},
                         {'stringValue': 'Primary key'},
                     ]
-                ]
+                ],
             },
             'query-101',
         )
@@ -1613,12 +1632,12 @@ class TestDiscoverFunctions:
         result = await discover_columns('test-cluster', 'dev', 'public', 'users')
 
         assert len(result) == 1
-        assert result[0]['database_name'] == 'dev'
-        assert result[0]['schema_name'] == 'public'
-        assert result[0]['table_name'] == 'users'
-        assert result[0]['column_name'] == 'id'
-        assert result[0]['ordinal_position'] == 1
-        assert result[0]['data_type'] == 'integer'
+        assert result[0].database_name == 'dev'
+        assert result[0].schema_name == 'public'
+        assert result[0].table_name == 'users'
+        assert result[0].column_name == 'id'
+        assert result[0].ordinal_position == 1
+        assert result[0].data_type == 'integer'
 
         # db.schema.table is embedded as quoted identifiers (no bind params).
         mock_execute_protected.assert_called_once()
@@ -1680,10 +1699,6 @@ class TestExecuteQuery:
             'query-123',
         )
 
-        # Mock time for execution time calculation
-        mock_time = mocker.patch('time.time')
-        mock_time.side_effect = [1000.0, 1000.123]  # start_time, end_time
-
         result = await execute_query(
             'test-cluster',
             'dev',
@@ -1695,7 +1710,6 @@ class TestExecuteQuery:
             [1, 'Test User', 95.5, True, None, "{'unknownType': 'fallback'}"]
         ]
         assert result['row_count'] == 1
-        assert result['execution_time_ms'] == 123
         assert result['query_id'] == 'query-123'
 
     @pytest.mark.asyncio
@@ -1709,9 +1723,6 @@ class TestExecuteQuery:
             {'Records': [], 'ColumnMetadata': []},
             'set-query-123',
         )
-
-        mock_time = mocker.patch('time.time')
-        mock_time.side_effect = [1000.0, 1000.05]  # start_time, end_time
 
         result = await execute_query(
             'test-cluster',
@@ -1747,11 +1758,7 @@ _CONCURRENCY_CLUSTER_TYPES = pytest.mark.parametrize(
 
 def _cluster_info(cluster_type='provisioned'):
     """Build the cluster_info shared by the concurrency tests."""
-    return {
-        'identifier': 'test-cluster',
-        'type': cluster_type,
-        'status': 'available',
-    }
+    return _fake_cluster(type=cluster_type)
 
 
 def _make_counting_session_fake(prefix='session'):
@@ -2024,9 +2031,7 @@ class TestConcurrency:
 
         mocker.patch(
             'awslabs.redshift_mcp_server.redshift.discover_clusters',
-            return_value=[
-                {'identifier': 'test-cluster', 'type': 'provisioned', 'status': 'available'}
-            ],
+            return_value=[_fake_cluster()],
         )
 
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
@@ -2129,9 +2134,7 @@ class TestConcurrency:
         mock_discover_clusters = mocker.patch(
             'awslabs.redshift_mcp_server.redshift.discover_clusters'
         )
-        mock_discover_clusters.return_value = [
-            {'identifier': 'test-cluster', 'type': 'provisioned', 'status': 'available'}
-        ]
+        mock_discover_clusters.return_value = [_fake_cluster()]
 
         # Real Lock so we can inspect .locked().
         real_lock = asyncio.Lock()

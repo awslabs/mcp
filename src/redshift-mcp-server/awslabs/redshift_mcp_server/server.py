@@ -185,13 +185,7 @@ async def list_clusters_tool(ctx: Context) -> list[RedshiftCluster]:
     """
     try:
         logger.info('Discovering Redshift clusters and serverless workgroups')
-        clusters_data = await discover_clusters()
-
-        # Convert to RedshiftCluster models
-        clusters = []
-        for cluster_data in clusters_data:
-            cluster = RedshiftCluster(**cluster_data)
-            clusters.append(cluster)
+        clusters = await discover_clusters()
 
         logger.info(f'Successfully retrieved {len(clusters)} clusters')
         return clusters
@@ -241,7 +235,7 @@ async def list_databases_tool(
     - database_owner: The database owner user ID.
     - database_type: The type of database (local or shared).
     - database_acl: Access control information (for internal use).
-    - database_options: The properties of the database.
+    - parameters: The properties of the database.
     - database_isolation_level: The isolation level (Snapshot Isolation or Serializable).
 
     ## Usage Tips
@@ -250,6 +244,7 @@ async def list_databases_tool(
     2. Ensure the cluster status is 'available' before querying databases.
     3. Use the default database name unless you know a specific database exists.
     4. Note database types to understand if they are local or shared from datashares.
+    5. Shared (datashare) databases appear only if the connecting principal has been granted access to the consumer database (e.g. GRANT USAGE ON DATABASE <db> TO <principal>); otherwise they are omitted even though the datashare exists.
 
     ## Interpretation Best Practices
 
@@ -260,15 +255,9 @@ async def list_databases_tool(
     """
     try:
         logger.info(f'Discovering databases on cluster: {cluster_identifier}')
-        databases_data = await discover_databases(
+        databases = await discover_databases(
             cluster_identifier=cluster_identifier, database_name=database_name
         )
-
-        # Convert to RedshiftDatabase models
-        databases = []
-        for database_data in databases_data:
-            database = RedshiftDatabase(**database_data)
-            databases.append(database)
 
         logger.info(
             f'Successfully retrieved {len(databases)} databases from cluster {cluster_identifier}'
@@ -332,6 +321,7 @@ async def list_schemas_tool(
     3. Ensure the cluster status is 'available' before querying schemas.
     4. Note schema types to understand if they are local, external, or shared.
     5. External schemas connect to external data sources like S3 or other databases.
+    6. Schemas in a shared (datashare) database appear only if the connecting principal has been granted access to the consumer database (e.g. GRANT USAGE ON DATABASE <db> TO <principal>); otherwise they are omitted even though the datashare exists.
 
     ## Interpretation Best Practices
 
@@ -345,15 +335,9 @@ async def list_schemas_tool(
         logger.info(
             f'Discovering schemas in database {schema_database_name} on cluster {cluster_identifier}'
         )
-        schemas_data = await discover_schemas(
+        schemas = await discover_schemas(
             cluster_identifier=cluster_identifier, schema_database_name=schema_database_name
         )
-
-        # Convert to RedshiftSchema models
-        schemas = []
-        for schema_data in schemas_data:
-            schema = RedshiftSchema(**schema_data)
-            schemas.append(schema)
 
         logger.info(
             f'Successfully retrieved {len(schemas)} schemas from database {schema_database_name} on cluster {cluster_identifier}'
@@ -438,17 +422,11 @@ async def list_tables_tool(
         logger.info(
             f'Discovering tables in schema {table_schema_name} in database {table_database_name} on cluster {cluster_identifier}'
         )
-        tables_data = await discover_tables(
+        tables = await discover_tables(
             cluster_identifier=cluster_identifier,
             table_database_name=table_database_name,
             table_schema_name=table_schema_name,
         )
-
-        # Convert to RedshiftTable models
-        tables = []
-        for table_data in tables_data:
-            table = RedshiftTable(**table_data)
-            tables.append(table)
 
         logger.info(
             f'Successfully retrieved {len(tables)} tables from schema {table_schema_name} in database {table_database_name} on cluster {cluster_identifier}'
@@ -546,18 +524,12 @@ async def list_columns_tool(
         logger.info(
             f'Discovering columns in table {column_table_name} in schema {column_schema_name} in database {column_database_name} on cluster {cluster_identifier}'
         )
-        columns_data = await discover_columns(
+        columns = await discover_columns(
             cluster_identifier=cluster_identifier,
             column_database_name=column_database_name,
             column_schema_name=column_schema_name,
             column_table_name=column_table_name,
         )
-
-        # Convert to RedshiftColumn models
-        columns = []
-        for column_data in columns_data:
-            column = RedshiftColumn(**column_data)
-            columns.append(column)
 
         logger.info(
             f'Successfully retrieved {len(columns)} columns from table {column_table_name} in schema {column_schema_name} in database {column_database_name} on cluster {cluster_identifier}'
@@ -615,7 +587,6 @@ async def execute_query_tool(
     - columns: List of column names in the result set.
     - rows: List of rows, where each row is a list of values.
     - row_count: Number of rows returned.
-    - execution_time_ms: Query execution time in milliseconds.
     - query_id: Unique identifier for the query execution.
 
     ## Usage Tips
@@ -652,7 +623,7 @@ async def execute_query_tool(
         query_result = QueryResult(**query_result_data)
 
         logger.info(
-            f'Successfully executed query on cluster {cluster_identifier}: {query_result.row_count} rows returned in {query_result.execution_time_ms}ms'
+            f'Successfully executed query on cluster {cluster_identifier}: {query_result.row_count} rows returned'
         )
         return query_result
 

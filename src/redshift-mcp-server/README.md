@@ -398,7 +398,7 @@ execute_query(cluster_identifier: str, database_name: str, sql: str) -> QueryRes
 
 - Column names and data types
 - Result rows with proper type conversion
-- Row count and execution time
+- Row count
 - Query ID for reference
 
 ### review_cluster
