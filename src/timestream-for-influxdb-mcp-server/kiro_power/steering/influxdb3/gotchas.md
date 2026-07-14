@@ -2,8 +2,6 @@
 
 ## Critical — Will Cause Outages If Ignored
 
-**Small Batch Writes + Many Writers**: Writing 1 record per request with hundreds of concurrent writers causes replica lag climbing to 200+ seconds. Always batch 5,000+ points per write request.
-
 **Processing Engine on Multi-Node**: Scheduled triggers execute on EVERY node. On small instances (db.influx.xlarge), this causes OOM (Memory Exhausted while HashAggSpill). Use `node_spec` to target specific nodes, or scale up instance type.
 
 ## Important — Will Cause Confusion

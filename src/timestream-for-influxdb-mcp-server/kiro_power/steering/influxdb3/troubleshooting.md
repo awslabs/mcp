@@ -43,8 +43,7 @@ The native v3 write API (`/api/v3/write_lp`) returns these status codes (see the
 - **`422` Unprocessable entity** - Writing the line protocol points would lead to the maximum number of databases, tables, columns, tags, or fields being exceeded.
 - **`503` Service unavailable** — the server is temporarily rejecting writes; retry per
   the `Retry-After` header.
-- **Replica lag / slow writes** — caused by tiny writes from many concurrent
-  writers. Batch **5,000+ points per request** (see [`gotchas.md`](./gotchas.md)).
+- **Replica lag** — Replica lag is only relevant for Timestream for InfluxDB v2 read replica clusters. Timestream for InfluxDB v3 clusters are unaffected by this phenomenon.
 
 ## Querying (SQL / InfluxQL)
 
