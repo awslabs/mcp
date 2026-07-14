@@ -2,7 +2,7 @@
 name: "amazon-aurora-dsql"
 displayName: "Build applications with Aurora DSQL"
 description: "Build applications using a serverless, PostgreSQL-compatible database with scale-to-zero and pay-per-use pricing - built for applications at any scale."
-keywords: ["aurora", "dsql", "postgresql", "serverless", "database", "sql", "aws", "distributed"]
+keywords: ["aurora", "dsql", "postgresql", "serverless", "database", "sql", "aws", "distributed", "migration", "data-loading", "occ-retry", "orm"]
 author: "AWS"
 ---
 
@@ -51,6 +51,9 @@ This power includes the following steering files in [steering](./steering)
 - **access-control**
   - MUST load when creating database roles, granting permissions, setting up schemas, or handling sensitive data
   - Scoped role setup, IAM-to-database role mapping, schema separation for sensitive data, role design patterns
+- **occ-retry-patterns**
+  - MUST load when writing OCC retry code or mitigating commit-time conflicts
+  - DSQL Connectors, manual retry pattern, conflict mitigation, idempotent transaction design
 - **ddl-migrations-overview**
   - MUST load when performing DROP COLUMN, ALTER COLUMN TYPE, or DROP CONSTRAINT
   - Table recreation pattern overview, transaction rules, verify & swap pattern
@@ -67,6 +70,21 @@ This power includes the following steering files in [steering](./steering)
   - Load when translating MySQL DDL operations to DSQL equivalents
 - **mysql-full-example**
   - Load when migrating a complete MySQL table to DSQL
+- **pg-migrations-type-mapping**
+  - MUST load for PostgreSQL → DSQL type questions
+  - C collation rules, NUMERIC precision, JSON/JSONB, types mapped to TEXT by `dsql_lint`
+- **pg-migrations-fk-replacement**
+  - MUST load for foreign-key validation code generation — tenant-scoped `validate_fk_*()` template, cascade handling
+- **pg-migrations-index-conversion**
+  - MUST load for unfixable index diagnostics — GIN/GiST/BRIN → btree, partial and expression indexes, async index status
+- **pg-migrations-schema-objects**
+  - MUST load for ENUM, materialized views, extensions, or multi-schema handling — ENUM → CHECK, views, role/IAM mapping
+- **pg-migrations-multi-region**
+  - Load for multi-region, active-active, or HA questions — architecture, geographic partitioning
+- **orm-guides-overview**
+  - Load when migrating any ORM to DSQL — adapter names and gotchas for Django, Hibernate, Rails, SQLAlchemy
+- **data-loading**
+  - Load when planning or running bulk loads with `aurora-dsql-loader` — fresh-vs-warm partitions, resume/retry, `--on-conflict`, throughput diagnostics
 - **query-plan-interpretation**
   - MUST load when diagnosing slow queries or unexpected plans
   - DSQL node types, duration math, estimation-error bands

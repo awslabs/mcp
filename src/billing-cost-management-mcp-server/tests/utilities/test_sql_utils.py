@@ -90,36 +90,23 @@ class TestShouldConvertToSql:
         # Assert
         assert result is True
 
-    @patch('os.getenv')
-    def test_should_convert_with_force_enabled(self, mock_getenv):
+    def test_should_convert_with_force_enabled(self):
         """Test should_convert_to_sql with FORCE_SQL_CONVERSION enabled."""
         # Setup - Force conversion regardless of size
         small_size = 100  # Very small response
 
-        # Mock the getenv to return 'true' for MCP_FORCE_SQL
-        mock_getenv.side_effect = (
-            lambda key, default=None: 'true' if key == 'MCP_FORCE_SQL' else default
+        # Patch the module-level FORCE_SQL_CONVERSION constant directly instead of
+        # reloading the module. The previous approach (del sys.modules[...] +
+        # reimport) created a divergent module instance — sys.modules was
+        # restored on exit but the parent package's `sql_utils` attribute was
+        # left pointing at the new module, which broke `patch(...string path...)`
+        # in later tests and made the suite flaky under random test ordering.
+        from awslabs.billing_cost_management_mcp_server.utilities import (
+            sql_utils as sql_utils_mod,
         )
 
-        # Reset module constants by reloading the module
-        with patch.dict('sys.modules'):
-            # Clear the module to force reload
-            import sys
-
-            if 'awslabs.billing_cost_management_mcp_server.utilities.sql_utils' in sys.modules:
-                del sys.modules['awslabs.billing_cost_management_mcp_server.utilities.sql_utils']
-
-            # Now reimport with our patched environment
-            from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
-                FORCE_SQL_CONVERSION,
-                should_convert_to_sql,
-            )
-
-            # Verify patched value took effect
-            assert FORCE_SQL_CONVERSION is True
-
-            # Execute
-        result = should_convert_to_sql(small_size)
+        with patch.object(sql_utils_mod, 'FORCE_SQL_CONVERSION', True):
+            result = sql_utils_mod.should_convert_to_sql(small_size)
 
         # Assert
         assert result is True
@@ -141,11 +128,23 @@ class TestGetSessionDbPath:
         mock_dirname.return_value = '/mock/path'
         mock_abspath.return_value = '/mock/path/file'
 
-        path = get_session_db_path()
+        # Reset the module-level singleton so the mocked path computation runs,
+        # and restore it after so later tests don't get a poisoned path that
+        # doesn't exist on disk (causes sqlite3.OperationalError elsewhere).
+        from awslabs.billing_cost_management_mcp_server.utilities import (
+            sql_utils as sql_utils_mod,
+        )
 
-        # Just verify we get a path back
-        assert path is not None
-        assert isinstance(path, str)
+        saved = sql_utils_mod._SESSION_DB_PATH
+        sql_utils_mod._SESSION_DB_PATH = None
+        try:
+            path = get_session_db_path()
+
+            # Just verify we get a path back
+            assert path is not None
+            assert isinstance(path, str)
+        finally:
+            sql_utils_mod._SESSION_DB_PATH = saved
 
 
 class TestGetDbConnection:
@@ -670,13 +669,128 @@ class TestConvertResponseIfNeeded:
 
     @pytest.mark.asyncio
     async def test_convert_response_if_needed_with_small_response(self):
-        """Test convert response if needed with small response."""
+        """Below-threshold response is returned as-is, not wrapped in a size envelope."""
         mock_context = MagicMock(spec=Context)
         response = {'data': ['small']}
 
         result = await convert_response_if_needed(mock_context, response, 'test_api')
 
-        assert 'data' in result
+        assert result is response
+
+
+class TestDerivePaginationEnvelope:
+    """Tests for _derive_pagination_envelope auto-derivation from response shape."""
+
+    def test_from_paginated_wrapper(self):
+        """Response with Pagination sub-dict (paginate_aws_response output) populates the envelope."""
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _derive_pagination_envelope,
+        )
+
+        response = {
+            'ResultsByTime': [{'TimePeriod': {'Start': '2023-01-01'}}],
+            'Pagination': {
+                'next_token': 'page2',
+                'has_more': True,
+                'pages_fetched': 3,
+                'complete_dataset': False,
+            },
+        }
+
+        envelope = _derive_pagination_envelope(response)
+
+        assert envelope == {
+            'next_page_token': 'page2',
+            'has_more': True,
+            'pages_fetched': 3,
+        }
+
+    def test_from_single_page_response_with_token(self):
+        """Single-page boto3 response with NextPageToken populates the envelope."""
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _derive_pagination_envelope,
+        )
+
+        response = {
+            'ResultsByTime': [{'TimePeriod': {'Start': '2023-01-01'}}],
+            'NextPageToken': 'continue-here',
+        }
+
+        envelope = _derive_pagination_envelope(response)
+
+        assert envelope == {
+            'next_page_token': 'continue-here',
+            'has_more': True,
+            'pages_fetched': 1,
+        }
+
+    def test_from_single_page_response_with_null_token(self):
+        """Final-page boto3 response (NextPageToken present but None) marks has_more=False."""
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _derive_pagination_envelope,
+        )
+
+        response = {
+            'ResultsByTime': [{'TimePeriod': {'Start': '2023-01-01'}}],
+            'NextPageToken': None,
+        }
+
+        envelope = _derive_pagination_envelope(response)
+
+        assert envelope == {
+            'next_page_token': None,
+            'has_more': False,
+            'pages_fetched': 1,
+        }
+
+    def test_custom_token_key(self):
+        """token_key override picks up alternative continuation-token field names (e.g. NextToken)."""
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _derive_pagination_envelope,
+        )
+
+        response = {'PriceList': ['{...}'], 'NextToken': 'page2'}
+
+        envelope = _derive_pagination_envelope(response, token_key='NextToken')
+
+        assert envelope == {
+            'next_page_token': 'page2',
+            'has_more': True,
+            'pages_fetched': 1,
+        }
+
+    def test_non_paginated_response_returns_empty(self):
+        """Forecast / pricing responses without pagination markers get an empty envelope so unrelated APIs aren't polluted."""
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _derive_pagination_envelope,
+        )
+
+        response = {'ForecastResultsByTime': [{'MeanValue': '10.0'}]}
+
+        envelope = _derive_pagination_envelope(response)
+
+        assert envelope == {}
+
+    @pytest.mark.asyncio
+    async def test_caller_metadata_overrides_derived_envelope(self):
+        """Explicit kwargs to convert_response_if_needed take precedence over derived values."""
+        mock_context = MagicMock(spec=Context)
+        mock_context.info = AsyncMock()
+        response = {'ResultsByTime': [], 'NextPageToken': 'derived-token'}
+
+        # Force offload so the envelope reaches the offload result
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.should_convert_to_sql',
+            return_value=True,
+        ):
+            result = await convert_response_if_needed(
+                mock_context,
+                response,
+                'cost_explorer_get_cost_and_usage',
+                next_page_token='caller-override',
+            )
+
+        assert result.get('next_page_token') == 'caller-override'
 
 
 @pytest.mark.asyncio
@@ -1249,24 +1363,21 @@ class TestConvertResponseIfNeededErrorHandling:
 
     @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.json.dumps')
     async def test_convert_response_if_needed_json_error(self, mock_json_dumps, mock_context):
-        """Test convert_response_if_needed handles JSON error."""
-        # Setup - Make json.dumps fail on first call but succeed on subsequent calls
-        mock_json_dumps.side_effect = [TypeError('JSON encoding error'), '{"data": "test"}']
+        """Test convert_response_if_needed falls back to the original response on JSON error."""
+        # Make json.dumps fail so size computation throws
+        mock_json_dumps.side_effect = TypeError('JSON encoding error')
         response = {'data': 'test'}
 
-        # Execute
         result = await convert_response_if_needed(mock_context, response, 'test_api')
 
-        # Assert
-        assert result['status'] == 'error'
-        assert 'Error processing response for test_api' in result['message']
-        assert 'JSON encoding error' in result['message']
-        assert result['data'] == response  # Original data should be preserved
+        # Offload is an optimization — failure falls back to the original response,
+        # not an error envelope the caller would have to unwrap.
+        assert result is response
 
     async def test_convert_response_if_needed_conversion_error(self, mock_context):
-        """Test convert_response_if_needed handles conversion error."""
-        # Create a large response that will trigger conversion
-        response = {'data': 'x' * 30000}  # Large enough to exceed threshold
+        """Test convert_response_if_needed falls back to the original response on conversion error."""
+        # Large enough to trigger the offload branch
+        response = {'data': 'x' * 30000}
 
         with patch.object(
             sys.modules['awslabs.billing_cost_management_mcp_server.utilities.sql_utils'],
@@ -1274,14 +1385,9 @@ class TestConvertResponseIfNeededErrorHandling:
         ) as mock_convert:
             mock_convert.side_effect = ValueError('Conversion error')
 
-            # Execute
             result = await convert_response_if_needed(mock_context, response, 'test_api')
 
-            # Assert
-            assert result['status'] == 'error'
-            assert 'Error processing response for test_api' in result['message']
-            assert 'Conversion error' in result['message']
-            assert result['data'] == response  # Original data should be preserved
+            assert result is response
 
 
 class TestInsertDataEdgeCases:

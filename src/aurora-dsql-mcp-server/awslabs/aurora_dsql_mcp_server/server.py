@@ -42,6 +42,7 @@ from awslabs.aurora_dsql_mcp_server.consts import (
     ERROR_GET_SCHEMA,
     ERROR_QUERY_INJECTION_RISK,
     ERROR_READONLY_QUERY,
+    ERROR_RESET_SESSION_STATE,
     ERROR_ROLLBACK_TRANSACTION,
     ERROR_TRANSACT,
     ERROR_TRANSACTION_BYPASS_ATTEMPT,
@@ -50,6 +51,7 @@ from awslabs.aurora_dsql_mcp_server.consts import (
     GET_SCHEMA_SQL,
     INTERNAL_ERROR,
     READ_ONLY_QUERY_WRITE_ERROR,
+    RESET_SESSION_STATE_SQL,
     ROLLBACK_TRANSACTION_SQL,
 )
 from awslabs.aurora_dsql_mcp_server.mutable_sql_detector import (
@@ -207,7 +209,13 @@ async def readonly_query(
         await ctx.error(f'{ERROR_QUERY_INJECTION_RISK}: {injection_issues}')
         raise Exception(f'{ERROR_QUERY_INJECTION_RISK}: {injection_issues}')
 
-    # Check for transaction bypass attempts (the main vulnerability)
+    # Check for transaction bypass attempts (stacked statements / COMMIT-then-more).
+    # NOTE: `BEGIN TRANSACTION READ ONLY` alone does NOT make this tool read-only.
+    # Postgres read-only transactions block writes to TABLES but still permit
+    # session/GUC mutation (SET, set_config()). Read-only enforcement therefore
+    # depends on the detectors above (including SESSION_MUTATION) PLUS resetting
+    # session state after each query (see RESET_SESSION_STATE_SQL below) — not on
+    # this bypass check alone.
     if detect_transaction_bypass_attempt(sql):
         logger.warning(f'readonly_query rejected due to transaction bypass attempt, SQL: {sql}')
         await ctx.error(ERROR_TRANSACTION_BYPASS_ATTEMPT)
@@ -237,6 +245,10 @@ async def readonly_query(
                 await execute_query(ctx, conn, ROLLBACK_TRANSACTION_SQL)
             except Exception as e:
                 logger.error(f'{ERROR_ROLLBACK_TRANSACTION}: {str(e)}')
+            # Scrub any session/GUC state that a SET / set_config() may have
+            # mutated so it does not persist on the pooled connection. Runs
+            # after ROLLBACK, outside the transaction, on the autocommit conn.
+            await reset_session_state(ctx, conn)
 
     except Exception as e:
         await ctx.error(f'{ERROR_READONLY_QUERY}: {str(e)}')
@@ -394,6 +406,13 @@ async def transact(
             await execute_query(ctx, conn, COMMIT_TRANSACTION_SQL)
             return rows
         except psycopg.errors.ReadOnlySqlTransaction:
+            # ROLLBACK before re-raising: the transaction is aborted, and without
+            # this the finally-block session scrub (and the next request) would run
+            # against an aborted transaction where Postgres ignores every command.
+            try:
+                await execute_query(ctx, conn, ROLLBACK_TRANSACTION_SQL)
+            except Exception as re:
+                logger.error(f'{ERROR_ROLLBACK_TRANSACTION}: {str(re)}')
             await ctx.error(READ_ONLY_QUERY_WRITE_ERROR)
             raise Exception(READ_ONLY_QUERY_WRITE_ERROR)
         except Exception as e:
@@ -402,6 +421,13 @@ async def transact(
             except Exception as re:
                 logger.error(f'{ERROR_ROLLBACK_TRANSACTION}: {str(re)}')
             raise e
+        finally:
+            # In read-only mode, scrub any session/GUC state that a SET /
+            # set_config() may have mutated so it does not persist on the
+            # pooled connection into the next request. In read-write mode the
+            # caller intentionally has full session control, so leave it alone.
+            if read_only:
+                await reset_session_state(ctx, conn)
 
     except Exception as e:
         await ctx.error(f'{ERROR_TRANSACT}: {str(e)}')
@@ -836,6 +862,55 @@ async def execute_query(ctx, conn_to_use, query: str, params=None) -> List[dict]
         logger.error(f'{ERROR_EXECUTE_QUERY} : {e}')
         await ctx.error(f'{ERROR_EXECUTE_QUERY} : {e}')
         raise e
+
+
+async def reset_session_state(ctx, conn) -> None:
+    """Reset session-level configuration on a pooled connection (best effort).
+
+    The connection returned by get_connection is persistent and reused across
+    requests. A `SET`/`set_config()` change with session (not transaction-local)
+    scope survives COMMIT and would otherwise leak onto the next request's query
+    on the same connection (e.g. a mutated search_path or timezone). Running the
+    RESET_SESSION_STATE_SQL statements after each read-only query scrubs that
+    state so read-only enforcement cannot be defeated by persisting mutated
+    session config. Both RESET ALL and RESET ROLE are issued because `role` is
+    not covered by RESET ALL and DISCARD ALL is unsupported on Aurora DSQL.
+
+    This is best effort: each statement is attempted independently and a failure
+    is logged but never propagated, so a reset problem cannot mask the query's
+    own result or error, and one failing RESET does not skip the others.
+
+    If any statement fails, the pooled connection is discarded (closed and
+    cleared) so the NEXT request establishes a fresh connection with clean
+    session state. Without this, a scrub that is refused (e.g. because the
+    connection is wedged in an aborted transaction) would leave the mutated
+    connection pooled and the state-scrub control would silently no-op for the
+    rest of the process lifetime.
+
+    Args:
+        ctx: MCP context for logging and state management
+        conn: Database connection whose session state should be reset
+    """
+    global persistent_connection
+    reset_failed = False
+    for stmt in RESET_SESSION_STATE_SQL:
+        try:
+            await execute_query(ctx, conn, stmt)
+        except Exception as e:
+            reset_failed = True
+            logger.error(f'{ERROR_RESET_SESSION_STATE} ({stmt}): {str(e)}')
+
+    # Discard the connection if the scrub did not fully succeed, so the next
+    # request cannot inherit unscrubbed session state on this pooled connection.
+    if reset_failed:
+        try:
+            if persistent_connection is not None:
+                await persistent_connection.close()
+        except Exception as close_error:
+            # The connection is already broken; closing is best effort. Log at
+            # debug so the discard is observable without adding error noise.
+            logger.debug(f'Ignoring error while closing reset-failed connection: {close_error}')
+        persistent_connection = None
 
 
 def main():
