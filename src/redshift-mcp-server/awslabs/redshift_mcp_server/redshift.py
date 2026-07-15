@@ -43,8 +43,10 @@ def _sql_identifier(value: str) -> str:
     """Render a value as a Redshift SQL identifier, safely quoted and escaped."""
     return exp.to_identifier(value, quoted=True).sql(dialect='redshift')
 
+
 # ClientError codes that indicate missing IAM permissions.
 _ACCESS_DENIED = {'AccessDeniedException', 'UnauthorizedAccess', 'AccessDenied'}
+
 
 class RedshiftClientManager:
     """Manages AWS clients for Redshift operations."""
@@ -528,10 +530,7 @@ async def discover_clusters() -> list[dict]:
                     'master_username': None,  # Serverless uses IAM
                     'publicly_accessible': workgroup_detail.get('publiclyAccessible'),
                     'encrypted': True,  # Serverless is always encrypted
-                    'tags': {
-                        tag['key']: tag['value']
-                        for tag in workgroup_detail.get('tags', [])
-                    },
+                    'tags': {tag['key']: tag['value'] for tag in workgroup_detail.get('tags', [])},
                 }
                 clusters.append(cluster_info)
 

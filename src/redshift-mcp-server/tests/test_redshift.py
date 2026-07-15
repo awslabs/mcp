@@ -32,8 +32,8 @@ from awslabs.redshift_mcp_server.redshift import (
     execute_query,
 )
 from botocore.config import Config
-from sqlglot import exp
 from botocore.exceptions import ClientError
+from sqlglot import exp
 from types import SimpleNamespace
 
 
@@ -1190,7 +1190,9 @@ class TestDiscoverFunctions:
             return_value=mock_serverless_client,
         )
 
-        with pytest.raises(PermissionError, match='IAM lacks both redshift and redshift-serverless'):
+        with pytest.raises(
+            PermissionError, match='IAM lacks both redshift and redshift-serverless'
+        ):
             await discover_clusters()
 
     @pytest.mark.asyncio
