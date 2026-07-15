@@ -82,9 +82,7 @@ class TestBasicAuthProvider:
         hash_method = BasicAuthProvider._hash_credentials
 
         # Test that the same credentials produce the same hash
-        # Note: With bcrypt, the hash will be different each time due to the random salt
-        # So we need to verify differently - we'll check that the hash is not empty
-        # and that it's a valid hex string
+        # SHA-256 is deterministic, so same input always yields the same output
         hash1 = hash_method('testuser', 'testpass')
         assert hash1 is not None
         assert len(hash1) > 0

@@ -13,7 +13,7 @@
 # limitations under the License.
 """API Key authentication provider."""
 
-import bcrypt
+import hashlib
 from awslabs.openapi_mcp_server import logger
 from awslabs.openapi_mcp_server.api.config import Config
 from awslabs.openapi_mcp_server.auth.auth_cache import cached_auth_data
@@ -114,8 +114,12 @@ class ApiKeyAuthProvider(BaseAuthProvider):
             str: Hash of the API key
 
         """
-        # Create a hash of the API key to use as a cache key
-        return bcrypt.hashpw(api_key.encode('utf-8'), bcrypt.gensalt(rounds=10)).hex()
+        # Create a hash of the API key to use as a cache key.
+        # Use SHA-256 instead of bcrypt: bcrypt raises ValueError for
+        # inputs longer than 72 bytes, which is common with bearer
+        # tokens, ProxMox tickets, and LDAP tokens.  SHA-256 is
+        # collision-resistant enough for a cache key (not a password).
+        return hashlib.sha256(api_key.encode('utf-8')).hexdigest()
 
     @cached_auth_data(ttl=3600)  # Cache for 1 hour by default
     def _generate_auth_headers(self, api_key_hash: str, api_key_name: str) -> Dict[str, str]:
