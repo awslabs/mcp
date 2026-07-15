@@ -40,7 +40,6 @@ dependencies = [
     "prance>=25.4.8.0,<26",
     "pyyaml>=6.0.3,<7",
     "openapi-spec-validator>=0.7.2,<1",
-    "bcrypt>=4.3.0,<6",
 ]
 
 
