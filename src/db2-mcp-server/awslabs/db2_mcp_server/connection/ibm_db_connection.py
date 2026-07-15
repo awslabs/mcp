@@ -128,12 +128,18 @@ class IbmDbConnection(AbstractDBConnection):
             # other delimiters are treated literally. A literal '}' cannot be
             # represented, so reject it rather than emit a corrupt/injectable DSN.
             if '}' in v:
-                raise ValueError('Credential contains an unsupported character: }')
+                raise ValueError('Value contains an unsupported character: }')
             return '{' + v + '}'
 
+        # database/host originate from MCP tool parameters (agent-supplied), not just
+        # operator config, so they get the same brace-escaping as the credentials.
+        # Without it, a value like database="DB2DB;SECURITY=NONE" or
+        # host="h;SSLClientHostnameValidation=OFF" would inject an attribute ahead of
+        # this method's own SECURITY=SSL / SSLClientHostnameValidation, silently
+        # downgrading TLS or disabling hostname validation (first-occurrence-wins).
         parts = [
-            f'DATABASE={self.database}',
-            f'HOSTNAME={self.host}',
+            f'DATABASE={_q(self.database)}',
+            f'HOSTNAME={_q(self.host)}',
             f'PORT={self.port}',
             'PROTOCOL=TCPIP',
             f'UID={_q(user)}',

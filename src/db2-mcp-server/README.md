@@ -36,6 +36,9 @@ read-only:
   conscious safety-over-convenience choice; open an issue if it blocks a real workflow.
 - Stacked queries, `CALL ... ADMIN_CMD`, `SYSPROC.*`, and authorization-catalog views
   (`SYSCAT.DBAUTH`, etc.) are also rejected.
+- **`SET`** statements (including `SET CURRENT ...` session-state changes) are treated as
+  mutating and rejected in read-only mode, since they can alter session behavior
+  (e.g. `SET CURRENT SCHEMA`, `SET CURRENT QUERY OPTIMIZATION`).
 
 ## Connectivity & SSL
 

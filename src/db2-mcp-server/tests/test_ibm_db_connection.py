@@ -431,3 +431,31 @@ def test_conn_string_emits_hostname_validation_explicitly():
 
     c_off = _conn(ssl_encryption='require', ssl_hostname_validation=False)
     assert 'SSLClientHostnameValidation=OFF' in c_off._build_conn_string('u', 'p')
+
+
+def test_conn_string_escapes_database_and_host_attribute_injection():
+    """database/host (agent-supplied MCP params) are brace-escaped like credentials.
+
+    Without escaping, a value such as database="DB2DB;SECURITY=NONE" or
+    host="h;SSLClientHostnameValidation=OFF" would inject a DSN attribute ahead of
+    this method's own SECURITY=SSL / SSLClientHostnameValidation, silently downgrading
+    TLS or disabling hostname validation (first-occurrence-wins in the Db2 CLI DSN).
+    """
+    c = _conn(database='DB2DB;SECURITY=NONE', host='h;SSLClientHostnameValidation=OFF')
+    conn_str = c._build_conn_string('admin', 'pw')
+    assert 'DATABASE={DB2DB;SECURITY=NONE}' in conn_str
+    assert 'HOSTNAME={h;SSLClientHostnameValidation=OFF}' in conn_str
+    # The injected attributes never appear unescaped/standalone.
+    assert ';SECURITY=NONE;' not in conn_str
+    assert ';SSLClientHostnameValidation=OFF;HOSTNAME' not in conn_str
+    # The server's own SSL posture still wins.
+    assert 'SECURITY=SSL' in conn_str
+    assert 'SSLClientHostnameValidation=BASIC' in conn_str
+
+
+def test_conn_string_rejects_closing_brace_in_database_or_host():
+    """A database/host value containing '}' cannot be represented and is rejected."""
+    with pytest.raises(ValueError, match='unsupported character'):
+        _conn(database='DB2DB}x')._build_conn_string('admin', 'pw')
+    with pytest.raises(ValueError, match='unsupported character'):
+        _conn(host='h}x')._build_conn_string('admin', 'pw')
