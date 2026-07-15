@@ -69,7 +69,7 @@ except ImportError:
 
 # Try to import prance, but don't fail if it's not installed
 try:
-    from prance import ResolvingParser
+    from prance import 
 
     PRANCE_AVAILABLE = True
 except ImportError:
@@ -230,7 +230,7 @@ def _parse_spec_bytes(content: bytes) -> Dict[str, Any]:
             temp_path = temp_file.name
             temp_file.write(content)
         try:
-            parser = ResolvingParser(temp_path)
+            parser = ResolvingParser(temp_path, resolve_types=prance.RESOLVE_INTERNAL)
             spec = parser.specification
             Path(temp_path).unlink(missing_ok=True)
             return spec
@@ -348,7 +348,7 @@ def load_openapi_spec(
                 logger.info('Using prance for reference resolution')
                 # Use prance for reference resolution if available
                 try:
-                    parser = ResolvingParser(path)
+                    parser = ResolvingParser(path, resolve_types=prance.RESOLVE_INTERNAL)
                     spec = parser.specification
                 except Exception as e:
                     logger.warning(
