@@ -71,17 +71,28 @@ See also:
 - https://aws.amazon.com/blogs/big-data/working-with-nested-data-types-using-amazon-redshift-spectrum/
 """,
     'REC_007': """\
-## To improve query performance, choose the best sort key
+## Choose the right sort key for each table
 
-A sort key speeds up range-restricted queries on large tables; on small tables a manually chosen sort key usually adds maintenance and storage overhead with little benefit. When you know the commonly filtered columns of a large table, set them explicitly: ALTER TABLE [table_name] ALTER SORTKEY ([column1], [columnN]). Otherwise - for smaller tables, tables with varied access patterns, or when you're unsure - let Amazon Redshift manage it: ALTER TABLE [table_name] ALTER SORTKEY AUTO; Redshift adds a sort key where it helps and removes one that isn't earning its keep.
+Match the action to the finding:
+- Large, range-filtered tables missing a sort key ("large tables without a sort key", or "Sort" alerts on long-running queries): set an explicit sort key on the commonly filtered columns - ALTER TABLE [table_name] ALTER SORTKEY ([column1], [columnN]).
+- Small tables that carry a manual sort key ("small tables with a sort key"): the key usually adds maintenance and storage overhead with little benefit - switch to ALTER TABLE [table_name] ALTER SORTKEY AUTO, which removes a sort key that isn't earning its keep.
+- When Automatic Table Optimization or Advisor suggests a sort key change that hasn't been applied ("... not set to auto" / "... not automatically applied"): adopt it, or set ALTER TABLE [table_name] ALTER SORTKEY AUTO and let Redshift manage it.
+
+In short: explicit for large, range-filtered tables; AUTO for small, varied, or uncertain cases.
 
 See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-sort-key.html
 """,
     'REC_008': """\
-## To improve query performance, choose the best distribution style
+## Choose the right distribution style for each table
 
-Heavy skew (where the ratio of the number of rows on a slice is more than 4x of another slice) can cause queries to perform slower as they are waiting on the compute node with the most data to complete before returning the result set. If the first node is skewed, this may be due to using a distribution key containing nulls. To change the column used as a distribution key: ALTER TABLE [table_name] ALTER DISTSTYLE KEY DISTKEY [column_name]; If you're unsure of the best distribution style — for example on smaller reference or dimension tables frequently used in JOINs — let Amazon Redshift manage it: ALTER TABLE [table_name] ALTER DISTSTYLE AUTO; Amazon Redshift initially assigns ALL distribution to a small table, then changes to EVEN distribution when the table grows larger. A low skew value indicates that table data is properly distributed. If a table has a skew value of 4.00 or higher, consider modifying its data distribution style.
+Match the action to the finding:
+- Large tables with heavy skew ("large tables with skew" / "10% data skew"): a slice holding more than 4x the rows of another makes queries wait on the busiest node, often due to a distribution key containing NULLs. Pick a better key - ALTER TABLE [table_name] ALTER DISTSTYLE KEY DISTKEY [column_name].
+- Large tables distributed by a date/datetime column ("large tables distributed by date or datetime"): time-based keys tend to skew as data grows - reconsider the key or move to DISTSTYLE AUTO.
+- Small reference/dimension tables not using ALL ("small tables without an ALL distribution"): let Redshift manage it - ALTER TABLE [table_name] ALTER DISTSTYLE AUTO (Redshift starts small tables as ALL, then switches to EVEN as they grow). This finding does not imply skew.
+- When ATO or Advisor suggests a distribution change that hasn't been applied ("... not set to auto" / "... not automatically applied"): adopt it, or set DISTSTYLE AUTO.
+
+A skew value of 4.00 or higher on a large table is the signal to change its distribution; small tables typically just need ALL/AUTO.
 
 See also:
 - https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-best-dist-key.html
