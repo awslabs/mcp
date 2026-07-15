@@ -75,7 +75,11 @@ async def review_cluster(
     findings: list[ReviewFinding] = []
     queries_executed: list[str] = []
 
-    # Stage 2 & 3: Execute and collect findings
+    # Stage 2 & 3: Execute each query and collect one finding per triggered branch.
+    # Findings are kept per branch (not collapsed): each branch carries its own
+    # -- Signal: label in signal_name, so branches that share a recommendation
+    # (for example, several QMR checks all mapping to REC_019) stay distinct with
+    # their own affected_row_count. Recommendation-level dedup happens in Stage 4.
     for idx, (query_name, sql) in enumerate(queries):
         logger.debug('Executing review query: {} ({}/{})', query_name, idx + 1, total_queries)
 
@@ -103,11 +107,14 @@ async def review_cluster(
         for row in rows:
             count = row[0]
             rec_id = row[1]
+            # The 3rd column is the branch's own -- Signal: label. Fall back to the
+            # query name if a query ever returns only (count, rec_id).
+            signal_label = row[2] if len(row) > 2 else query_name
             if count > 0 and rec_id:
                 query_findings += 1
                 findings.append(
                     ReviewFinding(
-                        signal_name=query_name,
+                        signal_name=signal_label,
                         section=query_name,
                         affected_row_count=count,
                         unit=unit,
@@ -125,25 +132,7 @@ async def review_cluster(
         if progress_reporter_func:
             await progress_reporter_func(idx + 1, total_queries)
 
-    # Stage 4: Deduplicate findings within a signal. A single signal query can
-    # emit the same recommendation from multiple UNION ALL branches (for example,
-    # several QMR checks all mapping to one WLM recommendation), which would
-    # otherwise over-count distinct issues. Collapse to one finding per
-    # (signal_name, recommendation_ids), preserving first-occurrence order and
-    # retaining the largest affected_row_count.
-    deduplicated_findings: dict[tuple[str, tuple[str, ...]], ReviewFinding] = {}
-    for finding in findings:
-        key = (finding.signal_name, tuple(finding.recommendation_ids))
-        existing = deduplicated_findings.get(key)
-        if existing is None:
-            deduplicated_findings[key] = finding
-        else:
-            existing.affected_row_count = max(
-                existing.affected_row_count, finding.affected_row_count
-            )
-    findings = list(deduplicated_findings.values())
-
-    # Stage 5: Resolve recommendations (deduplicate, preserve first-occurrence order)
+    # Stage 4: Resolve recommendations (deduplicate, preserve first-occurrence order)
     seen: dict[str, list[str]] = {}
     for finding in findings:
         for rec_id in finding.recommendation_ids:

@@ -699,10 +699,15 @@ async def review_cluster_tool(
     Returns a ReviewResult object with the following structure:
 
     - signals_evaluated: Total number of diagnostic signals evaluated.
-    - findings: List of triggered findings, each containing:
-        - signal_name: Name of the signal that was triggered.
+    - findings: List of triggered findings (one per triggered signal branch). The
+      number of findings is len(findings) - do NOT derive it from affected_row_count.
+      Each finding contains:
+        - signal_name: The specific signal (condition) that was triggered.
         - section: The diagnostic query section this finding belongs to.
-        - affected_row_count: Number of rows matching the signal criteria.
+        - affected_row_count: How many objects match the signal, counted in `unit`
+          (for example, 7 tables). This is the number of affected objects, NOT a
+          count of findings, and values are NOT comparable across different units.
+        - unit: Unit of affected_row_count (e.g. tables, nodes, queues, queries).
         - recommendation_ids: List of recommendation IDs associated with this finding.
     - recommendations: Deduplicated list of recommendations ordered by effort, each containing:
         - id: Unique identifier for the recommendation.
@@ -720,7 +725,10 @@ async def review_cluster_tool(
 
     ## Interpretation Best Practices
 
-    1. Focus on findings with the highest affected_row_count first.
+    1. When counting findings, use the number of entries in `findings` (for example,
+       two findings each affecting 7 tables = "2 findings across 7 tables", not 14).
+       Rank by affected_row_count only within the same unit; counts in different
+       units (tables vs nodes vs queues) are not comparable.
     2. Each recommendation includes documentation links — always follow these links for detailed guidance.
     3. Use triggered_by_signals to understand which diagnostics surfaced each recommendation.
     4. A review with zero findings indicates the cluster is healthy across all evaluated signals.

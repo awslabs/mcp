@@ -24,12 +24,14 @@ from awslabs.redshift_mcp_server.review.executor import review_cluster
 from unittest.mock import AsyncMock
 
 
-def _make_response(rows: list[tuple[int, str]]) -> dict:
-    """Build a mock execute_query response with (count, rec_id) rows."""
+def _make_response(rows: list[tuple]) -> dict:
+    """Build a mock execute_query response with (count, rec_id[, signal]) rows."""
+    built = [list(r) for r in rows]
+    has_label = any(len(r) > 2 for r in built)
     return {
-        'rows': [[count, rec_id] for count, rec_id in rows],
-        'columns': ['count', 'rec_id'],
-        'row_count': len(rows),
+        'rows': built,
+        'columns': ['count', 'rec_id'] + (['signal'] if has_label else []),
+        'row_count': len(built),
     }
 
 
@@ -157,14 +159,16 @@ class TestSignalTriggered:
 # ---------------------------------------------------------------------------
 
 
-class TestFindingDeduplication:
-    """Repeated findings within a single signal are collapsed."""
+class TestPerBranchFindings:
+    """Branches that share a recommendation stay as distinct findings."""
 
     @pytest.mark.asyncio
-    async def test_duplicate_findings_within_signal_collapsed(self):
-        """Multiple rows emitting the same recommendation in one query yield one finding."""
+    async def test_distinct_branch_labels_are_not_collapsed(self):
+        """Same rec from two different -- Signal branches yields two findings, one rec."""
         execute_query_func = AsyncMock(
-            side_effect=lambda *a, **kw: _make_response([(3, 'REC_001'), (5, 'REC_001')])
+            side_effect=lambda *a, **kw: _make_response(
+                [(3, 'REC_001', 'signal A'), (5, 'REC_001', 'signal B')]
+            )
         )
 
         result = await review_cluster(
@@ -173,16 +177,15 @@ class TestFindingDeduplication:
             discover_clusters_func=_make_discover_clusters(),
         )
 
-        # Within each signal, the repeated REC_001 rows collapse to a single finding.
-        for signal_name in {f.signal_name for f in result.findings}:
-            signal_findings = [f for f in result.findings if f.signal_name == signal_name]
-            rec_id_sets = [tuple(f.recommendation_ids) for f in signal_findings]
-            assert len(rec_id_sets) == len(set(rec_id_sets)), (
-                f'{signal_name} has duplicate findings: {rec_id_sets}'
-            )
-
-        # The largest affected_row_count is retained (5, not 3).
-        assert all(f.affected_row_count == 5 for f in result.findings)
+        rec1 = [f for f in result.findings if f.recommendation_ids == ['REC_001']]
+        # Both branch labels are retained (not collapsed into one finding).
+        assert {'signal A', 'signal B'} <= {f.signal_name for f in rec1}
+        # Per-branch counts are preserved (no max-collapse): both 3 and 5 present.
+        assert {3, 5} <= {f.affected_row_count for f in rec1}
+        # signal_name is the branch label, distinct from the section (query name).
+        assert all(f.signal_name != f.section for f in rec1)
+        # The recommendation is still deduplicated to a single REC_001.
+        assert [r.id for r in result.recommendations] == ['REC_001']
 
 
 # ---------------------------------------------------------------------------
@@ -377,6 +380,25 @@ class TestReviewQueriesConstants:
         """Every query in SIGNAL_EVALUATION_SQL maps to a non-empty unit."""
         for name, _cluster_type, _sql in SIGNAL_EVALUATION_SQL:
             assert SIGNAL_UNITS.get(name), f'{name} is missing a unit in SIGNAL_UNITS'
+
+    def test_every_branch_emits_a_signal_label(self):
+        """Every rec branch selects a 3rd literal (its -- Signal label)."""
+        import re
+
+        no_label = re.compile(r"SELECT count\(\*\),\s*'REC_\d+'(?!\s*,)")
+        for name, _ct, sql in SIGNAL_EVALUATION_SQL:
+            assert not no_label.findall(sql), f'{name} has a branch without a label column'
+
+    def test_branch_rec_label_pairs_unique_per_query(self):
+        """Within a query, no two branches share the same (rec_id, label)."""
+        import re
+
+        pair = re.compile(r"SELECT count\(\*\),\s*'(REC_\d+)',\s*'((?:[^']|'')*)'")
+        for name, _ct, sql in SIGNAL_EVALUATION_SQL:
+            pairs = pair.findall(sql)
+            assert len(pairs) == len(set(pairs)), (
+                f'{name} has duplicate (rec, label) branches: {pairs}'
+            )
 
     def test_recommendations_not_empty(self):
         """RECOMMENDATIONS dict is not empty."""

@@ -357,17 +357,17 @@ FROM (SELECT
 ) ato where rownum = 1
 )
 -- Signal: column encoding on table is not set to auto
-SELECT count(*), 'REC_004'
+SELECT count(*), 'REC_004', 'column encoding on table is not set to auto'
 FROM data
 WHERE trim(status) != 'Abort:This table is already the recommended style.' and trim(status) != 'Complete: 100%' AND (alter_table_type='encode')
 UNION ALL
 -- Signal: distribution style on table is not set to auto
-SELECT count(*), 'REC_008'
+SELECT count(*), 'REC_008', 'distribution style on table is not set to auto'
 FROM data
 WHERE trim(status) != 'Abort:This table is already the recommended style.' and trim(status) != 'Complete: 100%' AND (alter_table_type='distkey')
 UNION ALL
 -- Signal: sort key on table is not set to auto
-SELECT count(*), 'REC_007'
+SELECT count(*), 'REC_007', 'sort key on table is not set to auto'
 FROM data
 WHERE trim(status) != 'Abort:This table is already the recommended style.' and trim(status) != 'Complete: 100%' AND (alter_table_type='sortkey')
 """,
@@ -388,17 +388,17 @@ FROM SVV_ALTER_TABLE_RECOMMENDATIONS
 JOIN SVV_TABLE_INFO using(table_id, database)
 )
 -- Signal: column encoding recommendation on table is not automatically applied
-SELECT count(*), 'REC_004'
+SELECT count(*), 'REC_004', 'column encoding recommendation on table is not automatically applied'
 FROM data
 WHERE type='encode' and auto_eligible='f'
 UNION ALL
 -- Signal: sort key recommendation on table is not automatically applied
-SELECT count(*), 'REC_007'
+SELECT count(*), 'REC_007', 'sort key recommendation on table is not automatically applied'
 FROM data
 WHERE type='sortkey' and auto_eligible='f'
 UNION ALL
 -- Signal: dist key recommendation on table is not automatically applied
-SELECT count(*), 'REC_008'
+SELECT count(*), 'REC_008', 'dist key recommendation on table is not automatically applied'
 FROM data
 WHERE type='diststyle' and auto_eligible='f'
 """,
@@ -437,12 +437,12 @@ where loaded_rows > 0
 group by 1,2,3,4,5
 )
 -- Signal: files per copy are less than slice count
-SELECT count(*), 'REC_020'
+SELECT count(*), 'REC_020', 'files per copy are less than slice count'
 FROM data
 WHERE no_of_copy > 24 AND split_copies = 0 AND (avg_files_per_copy < (SELECT COUNT(1) FROM stv_slices WHERE type='D'))
 UNION ALL
 -- Signal: files with a small size
-SELECT count(*), 'REC_020'
+SELECT count(*), 'REC_020', 'files with a small size'
 FROM data
 WHERE no_of_copy > 24 AND (avg_file_size_mb < 10)
 """,
@@ -478,7 +478,7 @@ WHERE table_name != '..' and table_name != '' and duration > 0
 group by 1,2,3,4,5,6,7
 )
 -- Signal: high count of long queries not using partition pruning
-SELECT count(*), 'REC_023'
+SELECT count(*), 'REC_023', 'high count of long queries not using partition pruning'
 FROM data
 WHERE avg_qualified_partitions > 100 and avg_elapsed_sec > 60 AND (pct_of_query_using_partition_pruning < 95)
 """,
@@ -517,17 +517,17 @@ LEFT JOIN (SELECT database_name, schema_name, mv_name name, user_name refresh_db
 ) USING (database_name, schema_name, name) WHERE SVV_MV_INFO.schema_name <> 'pg_automv'
 )
 -- Signal: materialized view is doing a full refresh
-SELECT count(*), 'REC_025'
+SELECT count(*), 'REC_025', 'materialized view is doing a full refresh'
 FROM data
 WHERE state=0
 UNION ALL
 -- Signal: materialized view cannot be auto refreshed
-SELECT count(*), 'REC_026'
+SELECT count(*), 'REC_026', 'materialized view cannot be auto refreshed'
 FROM data
 WHERE state > 1 and is_stale = 't' and autorefresh = 't'
 UNION ALL
 -- Signal: materialized view is stale (exclude broken MVs already covered by REC_026)
-SELECT count(*), 'REC_029'
+SELECT count(*), 'REC_029', 'materialized view is stale (exclude broken MVs already covered by REC_026)'
 FROM data
 WHERE is_stale = 't' AND state IN (0, 1)
 """,
@@ -565,34 +565,35 @@ INNER JOIN (SELECT node,
 ORDER by 2
 )
 -- Signal: should consider migrating to RG instances
-SELECT count(*), 'REC_001'
+SELECT count(*), 'REC_001', 'should consider migrating to RG instances'
 FROM data
 WHERE node_type IN ('dc2.large', 'dc2.8xlarge', 'ds2.xlarge', 'ds2.8xlarge', 'ra3.large', 'ra3.xlplus', 'ra3.4xlarge', 'ra3.16xlarge')
 UNION ALL
 -- Signal: exceeds the recommended storage threshold of 70%
-SELECT count(*), 'REC_002'
+SELECT count(*), 'REC_002', 'exceeds the recommended storage threshold of 70%'
 FROM data
 WHERE storage_utilization_pct > 70 AND node_type IN ('dc2.large', 'dc2.8xlarge', 'ds2.xlarge', 'ds2.8xlarge', 'ra3.large', 'ra3.xlplus', 'ra3.4xlarge', 'ra3.16xlarge')
 UNION ALL
-SELECT count(*), 'REC_004'
+SELECT count(*), 'REC_004', 'exceeds the recommended storage threshold of 70%'
 FROM data
 WHERE storage_utilization_pct > 70 AND node_type IN ('dc2.large', 'dc2.8xlarge', 'ds2.xlarge', 'ds2.8xlarge', 'ra3.large', 'ra3.xlplus', 'ra3.4xlarge', 'ra3.16xlarge')
 UNION ALL
-SELECT count(*), 'REC_005'
+SELECT count(*), 'REC_005', 'exceeds the recommended storage threshold of 70%'
 FROM data
 WHERE storage_utilization_pct > 70 AND node_type IN ('dc2.large', 'dc2.8xlarge', 'ds2.xlarge', 'ds2.8xlarge', 'ra3.large', 'ra3.xlplus', 'ra3.4xlarge', 'ra3.16xlarge')
 UNION ALL
-SELECT count(*), 'REC_006'
+-- Signal: exceeds the storage threshold of 50%
+SELECT count(*), 'REC_006', 'exceeds the storage threshold of 50%'
 FROM data
 WHERE storage_utilization_pct > 50 AND node_type IN ('dc2.large', 'dc2.8xlarge', 'ds2.xlarge', 'ds2.8xlarge', 'ra3.large', 'ra3.xlplus', 'ra3.4xlarge', 'ra3.16xlarge')
 UNION ALL
 -- Signal: has under-utilized storage
-SELECT count(*), 'REC_011'
+SELECT count(*), 'REC_011', 'has under-utilized storage'
 FROM data
 WHERE storage_utilization_pct < 40 AND node_type IN ('dc2.large', 'dc2.8xlarge', 'ds2.xlarge', 'ds2.8xlarge', 'ra3.large', 'ra3.xlplus', 'ra3.4xlarge', 'ra3.16xlarge')
 UNION ALL
 -- Signal: has 10% data skew
-SELECT count(*), 'REC_008'
+SELECT count(*), 'REC_008', 'has 10% data skew'
 FROM data
 WHERE storage_used_gb > 0 AND 100*abs(storage_used_gb - (select min(storage_used_gb) from data))/storage_used_gb >= 10 AND storage_used_gb - (select min(storage_used_gb) from data) >= 1
 """,
@@ -634,57 +635,57 @@ GROUP  BY attrelid) c ON c.attrelid = t.table_id
 where "schema" NOT LIKE 'pg!_%' ESCAPE '!' and "schema" <> 'information_schema' and "database" not in ('sample_data_dev')
 )
 -- Signal: large tables without a sort key
-SELECT count(*), 'REC_007'
+SELECT count(*), 'REC_007', 'large tables without a sort key'
 FROM data
 WHERE tbl_rows > 5000000 and sortkey1 NOT LIKE 'AUTO(SORTKEY%' AND (sortkey1 = '')
 UNION ALL
 -- Signal: large tables with skew
-SELECT count(*), 'REC_008'
+SELECT count(*), 'REC_008', 'large tables with skew'
 FROM data
 WHERE tbl_rows > 5000000 AND (skew_rows >= 4 and diststyle not like 'AUTO%')
 UNION ALL
 -- Signal: large tables with unsorted data
-SELECT count(*), 'REC_012'
+SELECT count(*), 'REC_012', 'large tables with unsorted data'
 FROM data
 WHERE tbl_rows > 5000000 AND (vacuum_sort_benefit >= 10)
 UNION ALL
 -- Signal: tables with interleaved sort keys
-SELECT count(*), 'REC_013'
+SELECT count(*), 'REC_013', 'tables with interleaved sort keys'
 FROM data
 WHERE tbl_rows > 5000000 AND (sortkey1 like '%INTERLEAVED%')
 UNION ALL
 -- Signal: small tables without an ALL distribution
-SELECT count(*), 'REC_008'
+SELECT count(*), 'REC_008', 'small tables without an ALL distribution'
 FROM data
 WHERE tbl_rows <= 5000000 and diststyle not like 'AUTO%' AND (diststyle not like '%ALL%')
 UNION ALL
 -- Signal: small tables with a sort key
-SELECT count(*), 'REC_007'
+SELECT count(*), 'REC_007', 'small tables with a sort key'
 FROM data
 WHERE tbl_rows <= 5000000 and sortkey1 not like 'AUTO(SORTKEY%' AND (sortkey1 != '')
 UNION ALL
 -- Signal: large tables needing a vacuum delete
-SELECT count(*), 'REC_002'
+SELECT count(*), 'REC_002', 'large tables needing a vacuum delete'
 FROM data
 WHERE tbl_rows > 5000000 AND (pct_rows_marked_for_deletion > 10)
 UNION ALL
 -- Signal: tables with out of date statistics
-SELECT count(*), 'REC_003'
+SELECT count(*), 'REC_003', 'tables with out of date statistics'
 FROM data
 WHERE stats_off > 10
 UNION ALL
 -- Signal: large tables with encoded sort keys
-SELECT count(*), 'REC_010'
+SELECT count(*), 'REC_010', 'large tables with encoded sort keys'
 FROM data
 WHERE tbl_rows > 5000000 and not sortkey1 like 'AUTO(SORTKEY%' AND (sortkey1_enc != 'none' and sortkey1_enc != '')
 UNION ALL
 -- Signal: tables with low column compression
-SELECT count(*), 'REC_004'
+SELECT count(*), 'REC_004', 'tables with low column compression'
 FROM data
 WHERE ((column_count - encoded_column_count) - (case when sortkey1_enc = 'none' or sortkey1_enc = '' then 1 else 0 end)) AND tbl_rows > 5000000 AND (encoded_column_pct < 80)
 UNION ALL
 -- Signal: large tables distributed by date or datetime
-SELECT count(*), 'REC_008'
+SELECT count(*), 'REC_008', 'large tables distributed by date or datetime'
 FROM data
 WHERE tbl_rows > 5000000 AND (diststyle like '%KEY%date%' or diststyle like '%KEY%dt%' or diststyle like '%KEY%timestamp%' or diststyle like '%KEY%datetime%')
 """,
@@ -746,35 +747,35 @@ FROM a LEFT JOIN b on a.query_id = b.query_id
 order by execution_time_sec desc
 )
 -- Signal: long running queries against tables that have never been analyzed (missing-statistics alert)
-SELECT count(*), 'REC_003'
+SELECT count(*), 'REC_003', 'long running queries against tables that have never been analyzed (missing-statistics alert)'
 FROM data
 WHERE lower(alerts) like '%stat%'
 UNION ALL
 -- Signal: long running queries using Nested Loop Joins
-SELECT count(*), 'REC_009'
+SELECT count(*), 'REC_009', 'long running queries using Nested Loop Joins'
 FROM data
 WHERE lower(alerts) like '%nl%'
 UNION ALL
-SELECT count(*), 'REC_019'
+SELECT count(*), 'REC_019', 'long running queries using Nested Loop Joins'
 FROM data
 WHERE lower(alerts) like '%nl%'
 UNION ALL
 -- Signal: long running queries with Dist or Broadcast alerts
-SELECT count(*), 'REC_008'
+SELECT count(*), 'REC_008', 'long running queries with Dist or Broadcast alerts'
 FROM data
 WHERE lower(alerts) like '%dist%' or lower(alerts) like '%broadcast%'
 UNION ALL
 -- Signal: long running queries with Sort alerts
-SELECT count(*), 'REC_007'
+SELECT count(*), 'REC_007', 'long running queries with Sort alerts'
 FROM data
 WHERE lower(alerts) like '%sort%'
 UNION ALL
 -- Signal: high count of queries with large disk spill
-SELECT count(*), 'REC_019'
+SELECT count(*), 'REC_019', 'high count of queries with large disk spill'
 FROM data
 WHERE total_disk_spill_mb > 1000000
 UNION ALL
-SELECT count(*), 'REC_021'
+SELECT count(*), 'REC_021', 'high count of queries with large disk spill'
 FROM data
 WHERE total_disk_spill_mb > 1000000
 """,
@@ -827,39 +828,39 @@ where user_id > 1 and service_class_id >= 5
 group by 1,2,3
 )
 -- Signal: high count of COPY command
-SELECT count(*), 'REC_020'
+SELECT count(*), 'REC_020', 'high count of COPY command'
 FROM data
 WHERE copy_count > 100
 UNION ALL
 -- Signal: high count of small_insert statements
-SELECT count(*), 'REC_024'
+SELECT count(*), 'REC_024', 'high count of small_insert statements'
 FROM data
 WHERE small_insert_count > 100
 UNION ALL
 -- Signal: high count of WLM queuing
-SELECT count(*), 'REC_016'
+SELECT count(*), 'REC_016', 'high count of WLM queuing'
 FROM data
 WHERE pct_wlm_queue_time > 5
 UNION ALL
-SELECT count(*), 'REC_017'
+SELECT count(*), 'REC_017', 'high count of WLM queuing'
 FROM data
 WHERE pct_wlm_queue_time > 5
 UNION ALL
-SELECT count(*), 'REC_022'
+SELECT count(*), 'REC_022', 'high count of WLM queuing'
 FROM data
 WHERE pct_wlm_queue_time > 5
 UNION ALL
 -- Signal: high count of spilled to disk
-SELECT count(*), 'REC_019'
+SELECT count(*), 'REC_019', 'high count of spilled to disk'
 FROM data
 WHERE total_disk_spill_count > 100
 UNION ALL
-SELECT count(*), 'REC_021'
+SELECT count(*), 'REC_021', 'high count of spilled to disk'
 FROM data
 WHERE total_disk_spill_count > 100
 UNION ALL
 -- Signal: high concurrency scaling usage
-SELECT count(*), 'REC_027'
+SELECT count(*), 'REC_027', 'high concurrency scaling usage'
 FROM data
 WHERE burst_secs > 600
 """,
@@ -915,47 +916,47 @@ WHERE scc.service_class > 4
 ORDER BY 2 ASC
 )
 -- Signal: uses single WLM queue
-SELECT count(*), 'REC_015'
+SELECT count(*), 'REC_015', 'uses single WLM queue'
 FROM data
 WHERE wlm_mode <> 'manual' and service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select count(1) from data where service_class_category = 'Manual WLM') = 1 OR (select count(1) from data where service_class_category = 'Auto WLM') = 1)
 UNION ALL
 -- Signal: uses manual WLM
-SELECT count(*), 'REC_014'
+SELECT count(*), 'REC_014', 'uses manual WLM'
 FROM data
 WHERE wlm_mode='manual' and service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select count(1) from data where wlm_mode='manual') > 0)
 UNION ALL
 -- Signal: Concurrency scaling is not enabled
-SELECT count(*), 'REC_016'
+SELECT count(*), 'REC_016', 'Concurrency scaling is not enabled'
 FROM data
 WHERE service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select count(1) from data where concurrency_scaling = 'auto') = 0)
 UNION ALL
 -- Signal: short query acceleration (SQA) is not enabled
-SELECT count(*), 'REC_017'
+SELECT count(*), 'REC_017', 'short query acceleration (SQA) is not enabled'
 FROM data
 WHERE service_class_id <> 5 and service_class_id <> 15 AND ((select count(1) from data where service_class_category != 'SQA') = (select count(1) from data))
 UNION ALL
 -- Signal: all query queues having the same query priority
-SELECT count(*), 'REC_018'
+SELECT count(*), 'REC_018', 'all query queues having the same query priority'
 FROM data
 WHERE wlm_mode <> 'manual' and service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select count(distinct queue_priority) from data) = 1)
 UNION ALL
 -- Signal: no query monitoring rules (QMR) defined
-SELECT count(*), 'REC_019'
+SELECT count(*), 'REC_019', 'no query monitoring rules (QMR) defined'
 FROM data
 WHERE service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select sum(qmr_rule_count) from data) = 0)
 UNION ALL
 -- Signal: no QMR defined for query_execution_time metric
-SELECT count(*), 'REC_019'
+SELECT count(*), 'REC_019', 'no QMR defined for query_execution_time metric'
 FROM data
 WHERE service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select count(1) from data where coalesce(qmr_rule,'') not like '%query_execution_time%') = (select count(1) from data))
 UNION ALL
 -- Signal: no QMR defined for query_temp_blocks_to_disk metric
-SELECT count(*), 'REC_019'
+SELECT count(*), 'REC_019', 'no QMR defined for query_temp_blocks_to_disk metric'
 FROM data
 WHERE service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select count(1) from data where coalesce(qmr_rule,'') not like '%query_temp_blocks_to_disk%') = (select count(1) from data))
 UNION ALL
 -- Signal: no QMR defined for spectrum_scan_size_mb or spectrum_scan_row_count metric
-SELECT count(*), 'REC_019'
+SELECT count(*), 'REC_019', 'no QMR defined for spectrum_scan_size_mb or spectrum_scan_row_count metric'
 FROM data
 WHERE service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select count(1) from data where coalesce(qmr_rule,'') not like '%spectrum_scan%') = (select count(1) from data))
 """,
@@ -1029,7 +1030,7 @@ JOIN workload_breakdown b using(workloadtype)
 )
 -- Signal: Evaluate Workload for Serverless. Cluster is busy less than 75% of the time in a day.
 -- Gate: only evaluate if at least 3 active days in history.
-SELECT count(*), 'REC_028'
+SELECT count(*), 'REC_028', 'Evaluate Workload for Serverless. Cluster is busy less than 75% of the time in a day.'
 FROM data
 WHERE total_pct_busy < 75
   AND EXISTS (SELECT 1 FROM precondition WHERE active_days >= 3)
@@ -1054,7 +1055,7 @@ stats AS (
     FROM usage
 )
 -- Signal: variable serverless workload within the AI-scaling supported range
-SELECT count(*), 'REC_030'
+SELECT count(*), 'REC_030', 'variable serverless workload within the AI-scaling supported range'
 FROM stats
 WHERE sample_minutes >= 60
   AND base_rpu BETWEEN 8 AND 512
