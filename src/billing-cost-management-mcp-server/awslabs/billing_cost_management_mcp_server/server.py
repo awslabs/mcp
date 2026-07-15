@@ -61,6 +61,7 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_optimization_hub_tool
 from awslabs.billing_cost_management_mcp_server.tools.free_tier_usage_tools import (
     free_tier_usage_server,
 )
+from awslabs.billing_cost_management_mcp_server.tools.invoicing_tools import invoicing_server
 from awslabs.billing_cost_management_mcp_server.tools.recommendation_details_tools import (
     recommendation_details_server,
 )
@@ -152,6 +153,7 @@ TOOLS:
 - billing-view: AWS Billing View tools for managing and querying billing views (get-billing-view, list-billing-views, list-source-views-for-billing-view, get-resource-policy)
 - cost-allocation-tags: List cost allocation tags and backfill history (list-cost-allocation-tags, list-cost-allocation-tag-backfill-history)
 - cost-category: Describe and list cost category definitions (describe-cost-category-definition, list-cost-category-definitions)
+- invoicing: AWS Invoicing data — invoice summaries with amounts, tax, discounts/fees, currency/FX, due dates, PO numbers, and credit memos (operation: list_invoice_summaries)
 
 PROMPTS:
 - savings_plans: Analyzes AWS usage and identifies opportunities for Savings Plans purchases
@@ -211,6 +213,7 @@ async def setup():
     await mcp.import_server(bvs_server)
     await mcp.import_server(cost_allocation_tags_server)
     await mcp.import_server(cost_category_server)
+    await mcp.import_server(invoicing_server)
 
     await register_prompts()
 
@@ -251,6 +254,7 @@ async def setup():
         'list-cost-allocation-tag-backfill-history',
         'describe-cost-category-definition',
         'list-cost-category-definitions',
+        'invoicing',
     ]
     for tool in tools:
         logger.info(f'- {tool}')
