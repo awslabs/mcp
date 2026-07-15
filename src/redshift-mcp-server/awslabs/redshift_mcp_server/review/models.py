@@ -23,6 +23,11 @@ class ReviewFinding(BaseModel):
     signal_name: str = Field(..., description='Name of the signal that was triggered')
     section: str = Field(..., description='The diagnostic query section this finding belongs to')
     affected_row_count: int = Field(..., description='Number of rows matching the signal criteria')
+    unit: str = Field(
+        ...,
+        description='Unit of affected_row_count (e.g. tables, nodes, queues, queries). '
+        'Counts are not comparable across different units.',
+    )
     recommendation_ids: list[str] = Field(
         ..., description='List of recommendation IDs associated with this finding'
     )

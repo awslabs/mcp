@@ -18,6 +18,7 @@ import pytest
 from awslabs.redshift_mcp_server.review.definitions import (
     RECOMMENDATIONS,
     SIGNAL_EVALUATION_SQL,
+    SIGNAL_UNITS,
 )
 from awslabs.redshift_mcp_server.review.executor import review_cluster
 from unittest.mock import AsyncMock
@@ -132,6 +133,8 @@ class TestSignalTriggered:
         assert len(result.findings) > 0
         rec_ids = [f.recommendation_ids[0] for f in result.findings]
         assert 'REC_001' in rec_ids
+        # Every finding carries a non-empty unit for its affected_row_count.
+        assert all(f.unit for f in result.findings)
 
     @pytest.mark.asyncio
     async def test_no_findings_when_all_counts_zero(self):
@@ -369,6 +372,11 @@ class TestReviewQueriesConstants:
         """Every entry in SIGNAL_EVALUATION_SQL has non-empty SQL."""
         for name, cluster_type, sql in SIGNAL_EVALUATION_SQL:
             assert sql.strip(), f'{name} has empty SQL'
+
+    def test_every_query_has_a_unit(self):
+        """Every query in SIGNAL_EVALUATION_SQL maps to a non-empty unit."""
+        for name, _cluster_type, _sql in SIGNAL_EVALUATION_SQL:
+            assert SIGNAL_UNITS.get(name), f'{name} is missing a unit in SIGNAL_UNITS'
 
     def test_recommendations_not_empty(self):
         """RECOMMENDATIONS dict is not empty."""

@@ -17,6 +17,7 @@
 from awslabs.redshift_mcp_server.review.definitions import (
     RECOMMENDATIONS,
     SIGNAL_EVALUATION_SQL,
+    SIGNAL_UNITS,
 )
 from awslabs.redshift_mcp_server.review.models import (
     ReviewFinding,
@@ -97,6 +98,7 @@ async def review_cluster(
         queries_executed.append(query_name)
 
         rows = result.get('rows', [])
+        unit = SIGNAL_UNITS.get(query_name, 'items')
         query_findings = 0
         for row in rows:
             count = row[0]
@@ -108,6 +110,7 @@ async def review_cluster(
                         signal_name=query_name,
                         section=query_name,
                         affected_row_count=count,
+                        unit=unit,
                         recommendation_ids=[rec_id],
                     )
                 )

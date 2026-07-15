@@ -571,6 +571,7 @@ class TestReviewClusterTool:
                 signal_name='HighSQAEligibility',
                 section='WLMConfig',
                 affected_row_count=3,
+                unit='queues',
                 recommendation_ids=['REC_017'],
             ),
         ]

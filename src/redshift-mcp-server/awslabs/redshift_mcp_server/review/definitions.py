@@ -322,6 +322,24 @@ See also:
 }
 
 
+# Unit of the affected_row_count each query produces (what its count(*) counts).
+# Counts are NOT comparable across different units, so every finding carries its unit.
+SIGNAL_UNITS: dict[str, str] = {
+    'ATOWorkerActions': 'table optimizations',
+    'AlterTableRecommendations': 'table recommendations',
+    'CopyPerformance': 'COPY workloads',
+    'ExtQueryPerformance': 'external queries',
+    'MaterializedView': 'materialized views',
+    'NodeDetails': 'nodes',
+    'TableInfo': 'tables',
+    'Top50QueriesByRunTime': 'queries',
+    'UsagePattern': 'queue-hours',
+    'WLMConfig': 'queues',
+    'WorkloadEvaluation': 'workload types',
+    'ServerlessScaling': 'cluster',
+}
+
+
 SIGNAL_EVALUATION_SQL: list[tuple[str, str, str]] = [
     (
         'ATOWorkerActions',
