@@ -16,12 +16,14 @@
 
 import asyncio
 import pytest
+import sqlglot
 import time
 from awslabs.redshift_mcp_server.redshift import (
     RedshiftClientManager,
     RedshiftSessionManager,
     _execute_protected_statement,
     _execute_statement,
+    _sql_identifier,
     discover_clusters,
     discover_columns,
     discover_databases,
@@ -30,6 +32,7 @@ from awslabs.redshift_mcp_server.redshift import (
     execute_query,
 )
 from botocore.config import Config
+from sqlglot import exp
 from types import SimpleNamespace
 
 
@@ -1188,6 +1191,11 @@ class TestDiscoverFunctions:
         assert result[0]['database_owner'] == 100
         assert result[0]['database_type'] == 'local'
 
+        # SHOW DATABASES takes no bind parameters.
+        sql = mock_execute_protected.call_args[1]['sql']
+        assert 'SHOW DATABASES' in sql
+        assert mock_execute_protected.call_args[1].get('parameters') is None
+
     @pytest.mark.asyncio
     async def test_discover_databases_error(self, mocker):
         """Test error handling in discover_databases."""
@@ -1230,10 +1238,19 @@ class TestDiscoverFunctions:
         assert result[0]['schema_name'] == 'public'
         assert result[0]['schema_owner'] == 100
 
-        # Verify parameters were passed correctly
+        # The database is embedded as a quoted identifier (no bind params).
         mock_execute_protected.assert_called_once()
         call_args = mock_execute_protected.call_args
-        assert call_args[1]['parameters'] == [{'name': 'database_name', 'value': 'dev'}]
+        sql = call_args[1]['sql']
+        assert 'SHOW SCHEMAS FROM DATABASE' in sql
+        assert '"dev"' in sql
+        assert call_args[1].get('parameters') is None
+
+        # A double quote in the database name is doubled so the value cannot
+        # break out of the identifier (injection-safe).
+        mock_execute_protected.return_value = ({'Records': []}, 'query-457')
+        await discover_schemas('test-cluster', 'd"b')
+        assert '"d""b"' in mock_execute_protected.call_args[1]['sql']
 
     @pytest.mark.asyncio
     async def test_discover_schemas_error(self, mocker):
@@ -1253,6 +1270,8 @@ class TestDiscoverFunctions:
         mock_execute_protected = mocker.patch(
             'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
         )
+        # SHOW TABLES column order: database_name, schema_name, table_name,
+        # table_type, table_acl, remarks (table_type precedes table_acl).
         mock_execute_protected.return_value = (
             {
                 'Records': [
@@ -1260,8 +1279,8 @@ class TestDiscoverFunctions:
                         {'stringValue': 'dev'},
                         {'stringValue': 'public'},
                         {'stringValue': 'users'},
-                        {'stringValue': 'user=admin'},
                         {'stringValue': 'TABLE'},
+                        {'stringValue': 'user=admin'},
                         {'stringValue': 'User data table'},
                     ]
                 ]
@@ -1275,16 +1294,24 @@ class TestDiscoverFunctions:
         assert result[0]['database_name'] == 'dev'
         assert result[0]['schema_name'] == 'public'
         assert result[0]['table_name'] == 'users'
+        # Positional remap is correct: type and acl are not swapped.
         assert result[0]['table_type'] == 'TABLE'
+        assert result[0]['table_acl'] == 'user=admin'
+        assert result[0]['remarks'] == 'User data table'
 
-        # Verify parameters were passed correctly
+        # db.schema is embedded as quoted identifiers (no bind params).
         mock_execute_protected.assert_called_once()
         call_args = mock_execute_protected.call_args
-        expected_params = [
-            {'name': 'database_name', 'value': 'dev'},
-            {'name': 'schema_name', 'value': 'public'},
-        ]
-        assert call_args[1]['parameters'] == expected_params
+        sql = call_args[1]['sql']
+        assert 'SHOW TABLES FROM SCHEMA' in sql
+        assert '"dev"."public"' in sql
+        assert call_args[1].get('parameters') is None
+
+        # Double quotes in the identifiers are doubled so the values cannot
+        # break out of them (injection-safe).
+        mock_execute_protected.return_value = ({'Records': []}, 'query-790')
+        await discover_tables('test-cluster', 'd"b', 's"c')
+        assert '"d""b"."s""c"' in mock_execute_protected.call_args[1]['sql']
 
     @pytest.mark.asyncio
     async def test_discover_tables_error(self, mocker):
@@ -1336,15 +1363,19 @@ class TestDiscoverFunctions:
         assert result[0]['ordinal_position'] == 1
         assert result[0]['data_type'] == 'integer'
 
-        # Verify parameters were passed correctly
+        # db.schema.table is embedded as quoted identifiers (no bind params).
         mock_execute_protected.assert_called_once()
         call_args = mock_execute_protected.call_args
-        expected_params = [
-            {'name': 'database_name', 'value': 'dev'},
-            {'name': 'schema_name', 'value': 'public'},
-            {'name': 'table_name', 'value': 'users'},
-        ]
-        assert call_args[1]['parameters'] == expected_params
+        sql = call_args[1]['sql']
+        assert 'SHOW COLUMNS FROM TABLE' in sql
+        assert '"dev"."public"."users"' in sql
+        assert call_args[1].get('parameters') is None
+
+        # Double quotes in the identifiers are doubled so the values cannot
+        # break out of them (injection-safe).
+        mock_execute_protected.return_value = ({'Records': []}, 'query-102')
+        await discover_columns('test-cluster', 'd"b', 's"c', 't"l')
+        assert '"d""b"."s""c"."t""l"' in mock_execute_protected.call_args[1]['sql']
 
     @pytest.mark.asyncio
     async def test_discover_columns_error(self, mocker):
@@ -1948,3 +1979,34 @@ class TestConcurrency:
         assert manager._sessions[session_key]['session_id'] == 'fresh-session-1', (
             f'Expected fresh session in cache, got {manager._sessions[session_key]["session_id"]}'
         )
+
+
+class TestSqlIdentifier:
+    """`_sql_identifier` renders a value as one safely-quoted identifier that round-trips unchanged."""
+
+    @pytest.mark.parametrize(
+        'value',
+        [
+            'dev',
+            'sample_data_dev',
+            'MixedCase',  # case is preserved because the identifier is quoted
+            'weird name',  # spaces require quoting
+            'd"b',  # embedded double quote must be doubled
+            'a""b',  # an already-doubled sequence still round-trips
+            'a\\',  # trailing backslash must not escape the closing quote
+            '"; DROP TABLE users; --',  # injection attempt via a double quote
+            "'; DROP TABLE users; --",  # single quotes are not special in an identifier
+        ],
+    )
+    def test_value_round_trips_as_a_single_identifier(self, value):
+        """Parsing the rendered identifier yields exactly one identifier equal to the input."""
+        statement = 'SELECT * FROM ' + _sql_identifier(value)
+
+        # Exactly one statement -- the value cannot introduce extra statements.
+        statements = sqlglot.parse(statement, read='redshift')
+        assert len(statements) == 1
+
+        # The parsed identifier's name equals the original input.
+        identifier = sqlglot.parse_one(statement, read='redshift').find(exp.Identifier)
+        assert identifier is not None
+        assert identifier.name == value

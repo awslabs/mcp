@@ -97,7 +97,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-document-loader-mcp-server"
-version = "1.0.16"
+version = "1.0.17"
 source = { editable = "." }
 dependencies = [
     { name = "fastmcp" },

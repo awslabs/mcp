@@ -24,17 +24,23 @@ from awslabs.redshift_mcp_server.consts import (
     CLIENT_READ_TIMEOUT,
     CLIENT_RETRIES,
     CLIENT_USER_AGENT_NAME,
+    COLUMNS_SQL,
+    DATABASES_SQL,
     QUERY_POLL_INTERVAL,
     QUERY_TIMEOUT,
+    SCHEMAS_SQL,
     SESSION_KEEPALIVE,
-    SVV_ALL_COLUMNS_QUERY,
-    SVV_ALL_SCHEMAS_QUERY,
-    SVV_ALL_TABLES_QUERY,
-    SVV_REDSHIFT_DATABASES_QUERY,
+    TABLES_SQL,
 )
 from awslabs.redshift_mcp_server.sql_guard import assert_executable
 from botocore.config import Config
 from loguru import logger
+from sqlglot import exp
+
+
+def _sql_identifier(value: str) -> str:
+    """Render a value as a Redshift SQL identifier, safely quoted and escaped."""
+    return exp.to_identifier(value, quoted=True).sql(dialect='redshift')
 
 
 class RedshiftClientManager:
@@ -538,7 +544,7 @@ async def discover_databases(cluster_identifier: str, database_name: str = 'dev'
         results_response, _ = await _execute_protected_statement(
             cluster_identifier=cluster_identifier,
             database_name=database_name,
-            sql=SVV_REDSHIFT_DATABASES_QUERY,
+            sql=DATABASES_SQL,
         )
 
         databases = []
@@ -583,8 +589,7 @@ async def discover_schemas(cluster_identifier: str, schema_database_name: str) -
         results_response, _ = await _execute_protected_statement(
             cluster_identifier=cluster_identifier,
             database_name=schema_database_name,
-            sql=SVV_ALL_SCHEMAS_QUERY,
-            parameters=[{'name': 'database_name', 'value': schema_database_name}],
+            sql=SCHEMAS_SQL.format(database=_sql_identifier(schema_database_name)),
         )
 
         schemas = []
@@ -637,24 +642,24 @@ async def discover_tables(
         results_response, _ = await _execute_protected_statement(
             cluster_identifier=cluster_identifier,
             database_name=table_database_name,
-            sql=SVV_ALL_TABLES_QUERY,
-            parameters=[
-                {'name': 'database_name', 'value': table_database_name},
-                {'name': 'schema_name', 'value': table_schema_name},
-            ],
+            sql=TABLES_SQL.format(
+                database=_sql_identifier(table_database_name),
+                schema=_sql_identifier(table_schema_name),
+            ),
         )
 
         tables = []
         records = results_response.get('Records', [])
 
         for record in records:
-            # Extract values from the record
+            # Extract values from the record. SHOW TABLES returns table_type
+            # before table_acl.
             table_info = {
                 'database_name': record[0].get('stringValue'),
                 'schema_name': record[1].get('stringValue'),
                 'table_name': record[2].get('stringValue'),
-                'table_acl': record[3].get('stringValue'),
-                'table_type': record[4].get('stringValue'),
+                'table_type': record[3].get('stringValue'),
+                'table_acl': record[4].get('stringValue'),
                 'remarks': record[5].get('stringValue'),
             }
             tables.append(table_info)
@@ -697,12 +702,11 @@ async def discover_columns(
         results_response, _ = await _execute_protected_statement(
             cluster_identifier=cluster_identifier,
             database_name=column_database_name,
-            sql=SVV_ALL_COLUMNS_QUERY,
-            parameters=[
-                {'name': 'database_name', 'value': column_database_name},
-                {'name': 'schema_name', 'value': column_schema_name},
-                {'name': 'table_name', 'value': column_table_name},
-            ],
+            sql=COLUMNS_SQL.format(
+                database=_sql_identifier(column_database_name),
+                schema=_sql_identifier(column_schema_name),
+                table=_sql_identifier(column_table_name),
+            ),
         )
 
         columns = []

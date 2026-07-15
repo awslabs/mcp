@@ -92,7 +92,17 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
         logger.debug(
             f'Loading OpenAPI spec from URL: {config.api_spec_url} or path: {config.api_spec_path}'
         )
-        openapi_spec = load_openapi_spec(url=config.api_spec_url, path=config.api_spec_path)
+
+        # For a URL, load_openapi_spec validates + DNS-pins internally: it
+        # resolves once and fetches by connecting only to that pinned IP, so
+        # there is no un-pinned fetch path for the primary spec either. Pass the
+        # SSRF flags through so the operator's --allow-* opt-ins are honored.
+        openapi_spec = load_openapi_spec(
+            url=config.api_spec_url,
+            path=config.api_spec_path,
+            allow_http=config.allow_insecure_http,
+            allow_private_networks=config.allow_private_networks,
+        )
 
         # Validate the OpenAPI spec
         if not validate_openapi_spec(openapi_spec):
@@ -300,9 +310,12 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
                     spec_url = entry.get('spec_url', '')
                     spec_path = entry.get('spec_path', '')
 
+                    # Capture the validated result so the fetch connects to the
+                    # pinned IP(s) — never re-resolving the hostname at fetch time.
+                    spec_validated_url = None
                     if spec_url:
                         try:
-                            await validate_url_for_spec(
+                            spec_validated_url = await validate_url_for_spec(
                                 spec_url,
                                 allow_http=config.allow_insecure_http,
                                 allow_private_networks=config.allow_private_networks,
@@ -326,7 +339,13 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
 
                     logger.info(f'Loading additional spec: {extra_name}')
                     try:
-                        extra_spec = load_openapi_spec(url=spec_url, path=spec_path)
+                        # Load using the pinned IPs from validation (no re-resolution).
+                        extra_spec = load_openapi_spec(
+                            validated_url=spec_validated_url,
+                            path=spec_path,
+                            allow_http=config.allow_insecure_http,
+                            allow_private_networks=config.allow_private_networks,
+                        )
                     except Exception as e:
                         logger.warning(f'Failed to load additional spec {extra_name}: {e}')
                         continue
