@@ -69,7 +69,7 @@ except ImportError:
 
 # Try to import prance, but don't fail if it's not installed
 try:
-    from prance import 
+    from prance import ResolvingParser, RESOLVE_INTERNAL
 
     PRANCE_AVAILABLE = True
 except ImportError:
