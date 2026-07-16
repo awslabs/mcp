@@ -328,6 +328,11 @@ def _parse_spec_bytes(content: bytes) -> Dict[str, Any]:
             spec = parser.specification
             Path(temp_path).unlink(missing_ok=True)
             return spec
+        except (MemoryError, RecursionError):
+            # Resource-exhaustion failures are non-recoverable; clean up the temp
+            # file and propagate rather than silently falling back to basic parsing.
+            Path(temp_path).unlink(missing_ok=True)
+            raise
         except Exception as e:
             logger.warning(f'Failed to parse with prance: {e}. Falling back to basic parsing.')
             Path(temp_path).unlink(missing_ok=True)
@@ -459,6 +464,10 @@ def load_openapi_spec(
                 try:
                     parser = ResolvingParser(path, resolve_types=RESOLVE_INTERNAL)
                     spec = parser.specification
+                except (MemoryError, RecursionError):
+                    # Resource-exhaustion failures are non-recoverable; propagate
+                    # rather than silently falling back to basic parsing.
+                    raise
                 except Exception as e:
                     logger.warning(
                         f'Failed to parse with prance: {e}. Falling back to basic parsing.'

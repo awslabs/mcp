@@ -1300,6 +1300,21 @@ def test_load_openapi_spec_file_reraises_memory_error(tmp_path):
             load_openapi_spec(path=str(spec_file))
 
 
+def test_load_openapi_spec_file_reraises_memory_error_from_prance(tmp_path):
+    """A MemoryError from prance on the file path propagates, not masked by fallback."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    spec_file = tmp_path / 'spec.json'
+    spec_file.write_text(json.dumps(_spec_with_ref('#/components/schemas/Pet')))
+
+    with (
+        patch.object(openapi_mod, 'PRANCE_AVAILABLE', True),
+        patch.object(openapi_mod, 'ResolvingParser', side_effect=MemoryError('oom')),
+    ):
+        with pytest.raises(MemoryError):
+            load_openapi_spec(path=str(spec_file))
+
+
 def test_parse_spec_bytes_basic_parse_yaml_without_prance():
     """_basic_parse handles YAML; external-ref check still applies."""
     from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
@@ -1401,6 +1416,19 @@ def test_parse_spec_bytes_reraises_memory_error():
     with patch.object(openapi_mod, '_basic_parse', side_effect=MemoryError('oom')):
         with pytest.raises(MemoryError):
             openapi_mod._parse_spec_bytes(b'{"openapi": "3.0.0"}')
+
+
+def test_parse_spec_bytes_reraises_memory_error_from_prance():
+    """A MemoryError raised by prance propagates instead of falling back to basic parse."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    spec = json.dumps(_spec_with_ref('#/components/schemas/Pet')).encode()
+    with (
+        patch.object(openapi_mod, 'PRANCE_AVAILABLE', True),
+        patch.object(openapi_mod, 'ResolvingParser', side_effect=MemoryError('oom')),
+    ):
+        with pytest.raises(MemoryError):
+            openapi_mod._parse_spec_bytes(spec)
 
 
 def test_parse_spec_bytes_unparseable_defers_to_prance():
