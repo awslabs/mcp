@@ -8,10 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Security
+- **Fixed SSRF/LFI via external `$ref` resolution in OpenAPI specs** ([CWE-918](https://cwe.mitre.org/data/definitions/918.html) / [CWE-610](https://cwe.mitre.org/data/definitions/610.html)): the DNS-pinned fetch only guarded the root spec document; the parsed spec was then handed to `prance` for `$ref` resolution with its default settings, whose resolver (and validation backend) dereferenced `$ref` targets using its own fetcher — bypassing the SSRF validation, DNS pinning, redirect rejection, and size cap applied to the root fetch. A spec served from a validation-passing host could therefore embed a static `$ref` to an internal/metadata endpoint (`http://169.254.169.254/...`, SSRF) or a local file (`file:///proc/self/environ`, LFI) and have the resolved content returned to the caller (non-blind exfiltration). External references are now refused before parsing at both the URL and file-path load paths, and `prance` is constrained to internal (`#/...`) references only, so `$ref` resolution triggers no outbound network or filesystem access. Reported via the AWS Vulnerability Disclosure Program.
 - **Fixed DNS-rebinding TOCTOU SSRF in spec fetching** ([CWE-350](https://cwe.mitre.org/data/definitions/350.html) / [CWE-367](https://cwe.mitre.org/data/definitions/367.html)): `spec_url` was validated via DNS resolution and then re-fetched via a second, independent resolution, allowing a rebinding host to pass validation with a public IP and be fetched from an internal/metadata IP. Spec URLs are now fetched by connecting only to the IP(s) that passed validation (DNS resolved once; `Host`/SNI preserved), redirects are refused, and response bodies are capped at 10 MiB. The primary spec URL is now validated too (previously unchecked).
 
 ### Changed
 - Spec URL loading is DNS-pinned end to end; the previous README note about deploying behind an egress proxy for "full DNS pinning" no longer applies.
+- **BREAKING (edge case)**: OpenAPI specs containing external `$ref`s — remote `http(s)://`/`file://` references, or relative multi-file references like `schemas.yaml#/Pet` — are now refused. Specs using only internal (`#/components/...`) references are unaffected. Bundle multi-file specs into a single document before loading.
 
 ## [1.1.0] - 2026-05-31
 

@@ -44,7 +44,17 @@ const config: Config = {
   // may want to replace "en" with "zh-Hans".
   i18n: {
     defaultLocale: 'en',
-    locales: ['en'],
+    locales: ['en', 'ja'],
+    localeConfigs: {
+      en: {
+        label: 'English',
+        htmlLang: 'en',
+      },
+      ja: {
+        label: '日本語',
+        htmlLang: 'ja',
+      },
+    },
   },
 
   presets: [
@@ -80,6 +90,10 @@ const config: Config = {
         src: 'img/aws-logo.svg',
       },
       items: [
+        {
+          type: 'localeDropdown',
+          position: 'right',
+        },
         {
           href: 'https://github.com/awslabs/mcp',
           label: 'GitHub',

@@ -331,6 +331,8 @@ The server validates all URLs in `additional_specs` entries before fetching:
 
 **DNS pinning (rebinding protection)**: Spec URLs are validated **and fetched against the same resolved IP** — the loader connects only to the address(es) that passed validation, never re-resolving the hostname at fetch time. This closes the DNS-rebinding TOCTOU window where a hostname could resolve to a public IP during validation and to an internal/metadata IP during the fetch. This applies to both the primary spec URL and every `additional_specs` entry. Redirects are not followed (a `30x` toward an internal host is rejected), and spec bodies are capped at 10 MiB.
 
+**Reference (`$ref`) resolution**: Only internal, in-document references (`#/components/...`) are resolved. External references — remote `http(s)://`/`file://` targets, or relative multi-file references such as `schemas.yaml#/Pet` — are refused before parsing, so a hostile spec cannot use a `$ref` to reach internal services, cloud metadata, or local files (SSRF/LFI). Split multi-file specs must be bundled into a single document before loading.
+
 **Path traversal protection**: `spec_path` is canonicalized, restricted to spec file extensions (`.json`, `.yaml`, `.yml`), and checked against a best-effort system directory blocklist. For production deployments, use `--allowed-spec-dirs` to explicitly restrict allowed paths.
 
 **Escape hatches** for development/internal use:
