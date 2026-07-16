@@ -184,9 +184,7 @@ def check_cloudformation_template_compliance(
     - Use inline comments to explain each fix
     - Focus on what changed, not the entire resource definition
 
-    Validates against the server's bundled security rules. Operators can point
-    the server at their own rules directory with the AWS_IAC_MCP_RULES_DIR
-    environment variable.
+    Validates against the server's bundled security rules.
 
     Args:
         template_content: CloudFormation template as YAML or JSON string

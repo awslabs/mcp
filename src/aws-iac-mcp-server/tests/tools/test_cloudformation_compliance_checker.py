@@ -15,16 +15,15 @@
 """Tests for compliance_checker module."""
 
 import json
-import os
 import pytest
 from awslabs.aws_iac_mcp_server.tools.cloudformation_compliance_checker import (
+    _allowed_rule_roots,
     _extract_remediation_from_rules,
     _parse_template_resources,
     _safe_rules_path,
     check_compliance,
     initialize_guard_rules,
 )
-from pathlib import Path
 from unittest.mock import mock_open, patch
 
 
@@ -37,15 +36,6 @@ class TestInitializeGuardRules:
 
         assert result is True, 'Default rules file should load successfully'
 
-    @patch('builtins.open', new_callable=mock_open, read_data='rule test_rule { }')
-    def test_initialize_with_custom_rules(self, mock_file):
-        """Test initialization with a custom rules file inside an allowed directory."""
-        with patch.dict(os.environ, {'AWS_IAC_MCP_RULES_DIR': '/custom/path'}):
-            result = initialize_guard_rules('/custom/path/rules.guard')
-
-        assert result is True
-        mock_file.assert_called_once_with(Path('/custom/path/rules.guard'), 'r')
-
     def test_initialize_rejects_path_outside_allowed_roots(self):
         """Test that a path outside the allowed directories is rejected without reading."""
         with patch('builtins.open', new_callable=mock_open) as mock_file:
@@ -55,10 +45,9 @@ class TestInitializeGuardRules:
         mock_file.assert_not_called()
 
     def test_initialize_rejects_path_traversal(self):
-        """Test that traversal escaping an allowed directory is rejected."""
-        with patch.dict(os.environ, {'AWS_IAC_MCP_RULES_DIR': '/custom/path'}):
-            with patch('builtins.open', new_callable=mock_open) as mock_file:
-                result = initialize_guard_rules('/custom/path/../../etc/passwd')
+        """Test that traversal escaping the allowed directory is rejected."""
+        with patch('builtins.open', new_callable=mock_open) as mock_file:
+            result = initialize_guard_rules('/etc/../etc/passwd')
 
         assert result is False
         mock_file.assert_not_called()
@@ -215,14 +204,6 @@ class TestInitializeGuardRulesDetailed:
         mock_join.return_value = '/fake/path/default_guard_rules.guard'
 
         result = initialize_guard_rules()
-
-        assert result is True
-
-    @patch('builtins.open', new_callable=mock_open, read_data='rule test_rule { true }')
-    def test_initialize_with_custom_rules(self, mock_file):
-        """Test initialization with a custom rules file inside an allowed directory."""
-        with patch.dict(os.environ, {'AWS_IAC_MCP_RULES_DIR': '/custom'}):
-            result = initialize_guard_rules('/custom/rules.guard')
 
         assert result is True
 
@@ -674,23 +655,17 @@ class TestSafeRulesPath:
             _safe_rules_path('/etc/passwd')
 
     def test_rejects_traversal_outside_roots(self):
-        """A traversal sequence escaping allowed roots is rejected."""
-        with patch.dict(os.environ, {'AWS_IAC_MCP_RULES_DIR': '/custom/path'}):
-            with pytest.raises(ValueError):
-                _safe_rules_path('/custom/path/../../etc/passwd')
-
-    def test_allows_path_inside_env_configured_root(self):
-        """A path inside the operator-configured directory is allowed."""
-        with patch.dict(os.environ, {'AWS_IAC_MCP_RULES_DIR': '/custom/path'}):
-            result = _safe_rules_path('/custom/path/rules.guard')
-
-        assert result == Path('/custom/path/rules.guard')
+        """A traversal sequence escaping the bundled root is rejected."""
+        bundled_root = _allowed_rule_roots()[0]
+        with pytest.raises(ValueError):
+            _safe_rules_path(str(bundled_root / '..' / '..' / 'etc' / 'passwd'))
 
     def test_rejects_prefix_collision_sibling_dir(self):
         """A sibling directory sharing a name prefix is not treated as allowed."""
-        with patch.dict(os.environ, {'AWS_IAC_MCP_RULES_DIR': '/custom/path'}):
-            with pytest.raises(ValueError):
-                _safe_rules_path('/custom/path-evil/rules.guard')
+        bundled_root = _allowed_rule_roots()[0]
+        sibling = bundled_root.parent / (bundled_root.name + '-evil')
+        with pytest.raises(ValueError):
+            _safe_rules_path(str(sibling / 'rules.guard'))
 
     def test_allows_bundled_file_when_install_path_is_symlinked(self, tmp_path):
         """A legitimate file under data/ is accepted even on a symlinked install path.

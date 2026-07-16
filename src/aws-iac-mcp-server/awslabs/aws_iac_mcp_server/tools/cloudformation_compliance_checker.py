@@ -32,20 +32,15 @@ _TEMPLATE_RESOURCES = {}
 def _allowed_rule_roots() -> list[Path]:
     """Return the directories a rules file is allowed to be read from.
 
-    The package's bundled ``data`` directory is always allowed. An operator
-    may allow one additional directory by setting the ``AWS_IAC_MCP_RULES_DIR``
-    environment variable.
+    Only the package's bundled ``data`` directory is allowed.
     """
     import awslabs.aws_iac_mcp_server
 
     package_dir = os.path.dirname(awslabs.aws_iac_mcp_server.__file__)
-    # Resolve every root so comparisons against the resolved candidate are
+    # Resolve the root so comparisons against the resolved candidate are
     # symmetric; otherwise a symlinked install path would wrongly reject a
     # legitimate file under the bundled data directory.
-    roots = [(Path(package_dir) / 'data').resolve()]
-    if 'AWS_IAC_MCP_RULES_DIR' in os.environ:
-        roots.append(Path(os.environ['AWS_IAC_MCP_RULES_DIR']).resolve())
-    return roots
+    return [(Path(package_dir) / 'data').resolve()]
 
 
 def _safe_rules_path(user_path: str) -> Path:
