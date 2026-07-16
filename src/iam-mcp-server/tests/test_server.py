@@ -1643,6 +1643,31 @@ async def test_attach_user_policy_allows_non_denied_managed_policy():
 
 
 @pytest.mark.asyncio
+async def test_attach_user_policy_allows_arn_without_policy_segment():
+    """An ARN with no ':policy/' segment is not a managed policy and must pass the denylist.
+
+    Exercises the branch where the denylist name-extraction is skipped entirely, so an ARN
+    whose path happens to contain a denied word (e.g. a role named 'AdministratorAccess')
+    is not spuriously rejected.
+    """
+    from awslabs.iam_mcp_server.server import attach_user_policy
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_client.attach_user_policy.return_value = {}
+        mock_get_client.return_value = mock_client
+
+        result = await attach_user_policy(
+            user_name='test-user',
+            policy_arn='arn:aws:iam::123456789012:role/AdministratorAccess',
+            confirmed=True,
+        )
+        assert 'Successfully attached policy' in result['Message']
+
+
+@pytest.mark.asyncio
 async def test_put_user_policy_rejects_service_wildcard():
     """Action 'iam:*' (or any service:*) with a broad Resource must be rejected.
 
