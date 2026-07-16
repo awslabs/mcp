@@ -291,13 +291,27 @@ def _pinned_fetch(
     raise SSRFFetchError(f'No resolved IPs available for {validated_url.original_url}')
 
 
+def _require_mapping(spec: Any) -> Dict[str, Any]:
+    """Return ``spec`` if it is a mapping, else raise a clear ``ValueError``.
+
+    JSON/YAML may legally parse to a list, scalar, or ``None``. Returning such a
+    value would make downstream validation (``'openapi' in spec``) raise an
+    opaque ``TypeError`` on non-iterable roots; enforcing a mapping here converts
+    malformed input into a clear error instead of an unhandled exception.
+    """
+    if not isinstance(spec, dict):
+        raise ValueError(f'OpenAPI spec must be a mapping at its root, got {type(spec).__name__}')
+    return spec
+
+
 def _parse_spec_bytes(content: bytes) -> Dict[str, Any]:
     """Parse fetched spec bytes into a dict.
 
     Any external ``$ref`` is refused before prance sees the spec (see
     ``_reject_external_refs``), then prance resolves internal references only.
     Falls back to basic JSON (then YAML) parsing when prance is unavailable or
-    fails on a spec that has already passed the external-ref check.
+    fails on a spec that has already passed the external-ref check. The returned
+    root is always a mapping; a non-mapping document raises ``ValueError``.
     """
     # Refuse external references before any resolver/validator can dereference
     # them. Parse once (best effort) purely for this safety check: if the bytes
@@ -327,7 +341,7 @@ def _parse_spec_bytes(content: bytes) -> Dict[str, Any]:
             parser = ResolvingParser(temp_path, resolve_types=RESOLVE_INTERNAL)
             spec = parser.specification
             Path(temp_path).unlink(missing_ok=True)
-            return spec
+            return _require_mapping(spec)
         except (MemoryError, RecursionError):
             # Resource-exhaustion failures are non-recoverable; clean up the temp
             # file and propagate rather than silently falling back to basic parsing.
@@ -338,7 +352,7 @@ def _parse_spec_bytes(content: bytes) -> Dict[str, Any]:
             Path(temp_path).unlink(missing_ok=True)
 
     # Basic parsing (references already validated as internal-only above).
-    return basic if basic is not None else _basic_parse(content)
+    return _require_mapping(basic if basic is not None else _basic_parse(content))
 
 
 @cached(ttl_seconds=3600)  # Cache OpenAPI specs for 1 hour
@@ -511,6 +525,10 @@ def load_openapi_spec(
                         except Exception as yaml_err:
                             logger.error(f'Failed to parse YAML: {yaml_err}')
                             raise ValueError(f'Invalid YAML: {yaml_err}') from yaml_err
+
+            # Enforce a mapping root so validation gets a clear error rather than
+            # an opaque TypeError on a non-dict (list/scalar/None) document.
+            spec = _require_mapping(spec)
 
             # Validate the spec
             if validate_openapi_spec(spec):

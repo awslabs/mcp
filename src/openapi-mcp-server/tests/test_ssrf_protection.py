@@ -1418,6 +1418,19 @@ def test_parse_spec_bytes_reraises_memory_error():
             openapi_mod._parse_spec_bytes(b'{"openapi": "3.0.0"}')
 
 
+def test_parse_spec_bytes_rejects_non_mapping_root():
+    """A JSON/YAML doc that parses to a non-mapping root raises a clear ValueError.
+
+    Without this, a scalar/None root would later make validate_openapi_spec raise
+    an opaque TypeError on `'openapi' in spec`.
+    """
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    for body in (b'null', b'42', b'[1, 2, 3]', b'"just a string"'):
+        with pytest.raises(ValueError, match='must be a mapping'):
+            openapi_mod._parse_spec_bytes(body)
+
+
 def test_parse_spec_bytes_reraises_memory_error_from_prance():
     """A MemoryError raised by prance propagates instead of falling back to basic parse."""
     from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
