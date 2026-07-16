@@ -777,12 +777,24 @@ async def convert_api_response_to_table(
             items = _extract_record_list(response)
             columns = _record_columns(items)
 
-            schema = [f'{col} TEXT' for col in columns]
+            # Double-quote every identifier so column names that are SQL reserved
+            # words (e.g. 'order', 'group') are always valid. Names are already
+            # validated as safe identifiers by _record_columns, so quoting them
+            # cannot introduce injection.
+            quoted_columns = [f'"{col}"' for col in columns]
+
+            schema = [f'{col} TEXT' for col in quoted_columns]
             sql = create_safe_sql_statement('CREATE', table_name, *schema)
             cursor.execute(sql)
 
-            column_list = ', '.join(columns)
+            # Table name, column list, and INSERT statement are constant across
+            # rows, so build them once rather than per iteration.
+            validate_table_name(table_name)
+            column_list = ', '.join(quoted_columns)
             placeholders = ', '.join('?' for _ in columns)
+            insert_sql = create_safe_sql_statement(
+                'INSERT', table_name, f'({column_list}) VALUES ({placeholders})'
+            )
             for item in items:
                 # Non-dict items (fallback 'value' column) store the scalar directly.
                 row = item if isinstance(item, dict) else {'value': item}
@@ -790,10 +802,6 @@ async def convert_api_response_to_table(
                 for col in columns:
                     raw = row.get(col)
                     values.append(json.dumps(raw) if isinstance(raw, (dict, list)) else raw)
-                validate_table_name(table_name)
-                insert_sql = create_safe_sql_statement(
-                    'INSERT', table_name, f'({column_list}) VALUES ({placeholders})'
-                )
                 cursor.execute(insert_sql, values)
                 rows_inserted += 1
 

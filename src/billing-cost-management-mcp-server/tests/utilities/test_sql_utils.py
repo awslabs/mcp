@@ -697,6 +697,38 @@ class TestConvertApiResponseToTableAdditional:
         assert 'env' in preview[0]['tags']
         assert preview[1]['tags'] is None
 
+    @pytest.mark.asyncio
+    async def test_records_converter_handles_reserved_keyword_columns(self):
+        """Columns that are SQL reserved words are quoted, so they round-trip."""
+        mock_context = MagicMock(spec=Context)
+        conn = sqlite3.connect(':memory:')
+        conn.execute(
+            'CREATE TABLE IF NOT EXISTS schema_info '
+            '(table_name TEXT PRIMARY KEY, created_at TEXT, operation TEXT, '
+            'query TEXT, row_count INTEGER)'
+        )
+
+        # 'order' and 'group' are SQL reserved words; without quoting the
+        # CREATE/INSERT would raise a syntax error.
+        response = {
+            'automation_rules': [{'order': 1, 'group': 'g-1', 'name': 'RULE-A'}],
+            'count': 1,
+        }
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_db_connection'
+        ) as mock_conn:
+            mock_conn.return_value = (conn, conn.cursor())
+
+            result = await convert_api_response_to_table(
+                mock_context, response, 'compute_optimizer_automation_list_automation_rules'
+            )
+
+        assert result['data_stored'] is True
+        assert result['schema'] == ['order', 'group', 'name']
+        assert result['row_count'] == 1
+        assert result['preview'][0]['group'] == 'g-1'
+
     def test_specialized_converter_routes_automation_ops_to_records(self):
         """Compute Optimizer Automation operations map to the 'records' converter."""
         from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
