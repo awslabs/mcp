@@ -676,10 +676,8 @@ async def test_calculate_route(mock_boto3_client, mock_context):
         'Routes': [
             {
                 'Summary': {
-                    'Overview': {
-                        'Distance': 100.0,
-                        'Duration': 300,
-                    },
+                    'Distance': 100.0,
+                    'Duration': 300,
                 },
                 'Legs': [
                     {
@@ -805,7 +803,7 @@ async def test_calculate_route_raw_mode(mock_boto3_client, mock_context):
     # function processes the response correctly.
 
     # Create a mock response with the expected structure
-    mock_response = {'Routes': [{'Summary': {'Overview': {'Distance': 100.0, 'Duration': 300}}}]}
+    mock_response = {'Routes': [{'Summary': {'Distance': 100.0, 'Duration': 300}}]}
 
     # Create a mock for the calculate_route function
     with patch('awslabs.aws_location_server.server.GeoRoutesClient') as mock_geo_client:
@@ -972,10 +970,8 @@ async def test_calculate_route_with_leg_geometry(mock_boto3_client, mock_context
         'Routes': [
             {
                 'Summary': {
-                    'Overview': {
-                        'Distance': 100.0,
-                        'Duration': 300,
-                    },
+                    'Distance': 100.0,
+                    'Duration': 300,
                 },
                 'Legs': [
                     {

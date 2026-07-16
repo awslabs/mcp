@@ -737,9 +737,9 @@ async def calculate_route(
         if not routes:
             return {'error': 'No route found'}
         route = routes[0]
-        summary_overview = route.get('Summary', {}).get('Overview', {})
-        distance_meters = summary_overview.get('Distance', None)
-        duration_seconds = summary_overview.get('Duration', None)
+        summary = route.get('Summary', {})
+        distance_meters = summary.get('Distance', None)
+        duration_seconds = summary.get('Duration', None)
         turn_by_turn = []
         for leg in route.get('Legs', []):
             vehicle_leg_details = leg.get('VehicleLegDetails', {})
