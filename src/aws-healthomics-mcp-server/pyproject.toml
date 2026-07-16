@@ -135,7 +135,8 @@ testpaths = [ "tests"]
 asyncio_mode = "auto"
 markers = [
     "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
-    "asyncio: marks tests that use asyncio"
+    "asyncio: marks tests that use asyncio",
+    "integration: marks opt-in remote-deployment integration tests under integration/ (deselect with '-m \"not integration\"')"
 ]
 
 [tool.coverage.report]
