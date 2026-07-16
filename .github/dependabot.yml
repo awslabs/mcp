@@ -31,8 +31,7 @@ updates:
       uv-version-updates:
         # Collapse this dependency's bump across every matched directory into a
         # single PR. Without this, `directories: ["**/*"]` groups only WITHIN
-        # each directory, so a monorepo with ~55 `uv` packages produced ~55 PRs
-        # per upstream release. See #4258 (a single mcp bump → 57 PRs).
+        # each directory.
         group-by: dependency-name
         patterns:
           - "*"
