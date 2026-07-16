@@ -114,8 +114,12 @@ def _reject_external_refs(node: Any) -> None:
             _reject_external_refs(item)
 
 
-def _basic_parse(content: bytes) -> Dict[str, Any]:
+def _basic_parse(content: bytes) -> Any:
     """Parse spec bytes as JSON, then YAML, without resolving any references.
+
+    Returns whatever the parser produces — normally a ``dict`` for an OpenAPI
+    document, but JSON/YAML may legally yield a list, scalar, or ``None``; the
+    caller (``_reject_external_refs``) handles any node type.
 
     YAML is parsed with PyYAML when installed, otherwise with ``ruamel-yaml``
     (a ``prance`` dependency). The fallback matters for the external-``$ref``
