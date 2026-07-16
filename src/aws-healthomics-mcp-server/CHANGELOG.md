@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
+  - **Remote-Deployment Integration Test Harness**: Added an opt-in `integration/` harness that provisions live AWS infrastructure to verify the server's `streamable-http` transport and multi-tenant credential resolution end-to-end behind real fronting layers, then tears it down
+    - Zero-setup **AgentCore Runtime** deployment that auto-provisions the tenant IAM roles, the execution role, a Cognito identity provider (minting caller tokens), the DynamoDB role registry, the ECR image, and the AgentCore Runtime, with a one-shot `e2e` CLI that provisions, runs the tests, and tears everything down; plus an **API Gateway** deployment
+    - `--inbound explicit` workaround to run the suite end-to-end in accounts whose SCPs deny `sts:TagSession`
+    - Fully offline-testable (constructs no AWS client and opens no network connection when the opt-in signal is absent), including a boto-model smoke test that validates the AgentCore request shapes against the botocore service model
+  - **Multi-tenant pricing-client isolation fix**: The AWS Pricing client is now built per request instead of cached on the class, so multi-tenant cost analysis no longer reuses the first caller's credentials across requests (the public price values remain cached)
+
+### Added
+- v0.0.41
   - **Remote Transport & Multi-Tenant Credential Resolution**: Added network transport selection and request-scoped, multi-tenant credential resolution
     - **Phase 1 (transport + credential seam)**: Selectable transport (`stdio`, `streamable-http`, `sse`) via `--transport` / `MCP_TRANSPORT`, with network bind configuration (`--host`/`--port`/`--path` and `MCP_HOST`/`MCP_PORT`/`MCP_PATH`); secure-by-default loopback binding with a startup warning (and no inbound auth) for non-loopback exposure; and an internal `CredentialResolver` seam in `utils/aws_utils.py` routing every tool's `boto3.Session` through a single choke point with no behavior change by default
     - **Phase 2 (multi-tenant)**: Opt-in multi-tenant mode via `--multi-tenant` / `MCP_MULTI_TENANT` (network transport only), selecting inbound identity mechanisms with `--inbound-auth` / `MCP_INBOUND_AUTH`. Three mechanisms with deterministic precedence (`sigv4` > `jwt` > `explicit`): forwarded-SigV4, JWT-to-STS exchange with ABAC session tags (`MCP_JWT_ROLE_ARN`), and explicit-credential headers. Credentials are derived fresh per request via an ASGI `IdentityMiddleware`, `aws_profile` is non-authoritative, partition caching is keyed and bounded per caller identity, and credential material is never logged
@@ -15,8 +23,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - **ListAHOConfigurations**: List available configurations with pagination support
     - **DeleteAHOConfiguration**: Delete a configuration
   - **Start Run VPC Networking Support**: Added `networking_mode` and `configuration_name` parameters to **StartAHORun** for launching workflow runs with VPC connectivity using a named configuration
-
-### Added
 - v0.0.30
   - **File Path & S3 URI Content Resolution**: Added shared content resolution utility enabling MCP tools to accept local file paths and S3 URIs as alternatives to inline content
     - New `content_resolver.py` utility with automatic detection of input type (local file, S3 URI, or inline content)
