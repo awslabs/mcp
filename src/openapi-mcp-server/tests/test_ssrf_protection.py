@@ -1169,7 +1169,11 @@ class _loopback_canary:
         return self._handler.hits
 
     def __exit__(self, *exc):
+        # Stop serving, close the listening socket, and join the thread so the
+        # port is fully released before the next test (avoids flaky port reuse).
         self._server.shutdown()
+        self._server.server_close()
+        self._thread.join(timeout=5)
 
 
 def _spec_with_ref(ref: str) -> dict:
@@ -1311,24 +1315,49 @@ def test_reject_external_refs_allows_internal_ref_in_list():
     openapi_mod._reject_external_refs(node)  # should not raise
 
 
-def test_basic_parse_reraises_json_error_when_yaml_unavailable():
-    """When pyyaml is absent, non-JSON content re-raises the JSON error."""
+def test_basic_parse_falls_back_to_ruamel_when_pyyaml_absent():
+    """When PyYAML is absent, YAML is parsed via ruamel (prance's own parser).
+
+    This closes the prescan gap where a YAML spec would be unparseable here yet
+    parsed and $ref-resolved by prance.
+    """
     from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
 
+    yaml_body = b'openapi: "3.0.0"\ninfo:\n  title: Ruamel\n  version: "1"\n'
     with patch.object(openapi_mod, 'yaml', None):
+        result = openapi_mod._basic_parse(yaml_body)
+    assert result['info']['title'] == 'Ruamel'
+
+
+def test_basic_parse_reraises_json_error_when_no_yaml_parser():
+    """With neither PyYAML nor ruamel available, non-JSON re-raises the JSON error."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    with (
+        patch.object(openapi_mod, 'yaml', None),
+        patch.dict('sys.modules', {'ruamel.yaml': None}),
+    ):
         with pytest.raises(json.JSONDecodeError):
             openapi_mod._basic_parse(b'not: [valid json')
 
 
-def test_parse_spec_bytes_unparseable_defers_to_prance():
-    """Unparseable bytes skip the ref check and let prance produce the error."""
+def test_parse_spec_bytes_yaml_ref_blocked_without_pyyaml():
+    """Regression: a YAML spec's external $ref is refused even when PyYAML is absent.
+
+    Without the ruamel fallback in _basic_parse, the prescan would set basic=None
+    and prance (which parses YAML via ruamel) would resolve the external $ref.
+    """
     from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
 
-    # yaml=None so _basic_parse raises -> best-effort branch sets basic=None;
-    # PRANCE_AVAILABLE=False -> final line re-runs _basic_parse, which raises.
-    with (
-        patch.object(openapi_mod, 'yaml', None),
-        patch.object(openapi_mod, 'PRANCE_AVAILABLE', False),
-    ):
-        with pytest.raises(json.JSONDecodeError):
-            openapi_mod._parse_spec_bytes(b'not: [valid json')
+    with _loopback_canary() as canary:
+        yaml_spec = (
+            b"openapi: '3.0.0'\n"
+            b'info:\n  title: y\n  version: "1"\n'
+            b'paths:\n  /x:\n    get:\n      responses:\n        "200":\n'
+            b'          description: ok\n          content:\n            application/json:\n'
+            b'              schema:\n                $ref: "' + canary.url.encode() + b'"\n'
+        )
+        with patch.object(openapi_mod, 'yaml', None):
+            with pytest.raises(SSRFError, match='external \\$ref'):
+                openapi_mod._parse_spec_bytes(yaml_spec)
+        assert canary.hits == []

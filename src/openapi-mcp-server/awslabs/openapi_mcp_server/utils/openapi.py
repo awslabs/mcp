@@ -115,13 +115,28 @@ def _reject_external_refs(node: Any) -> None:
 
 
 def _basic_parse(content: bytes) -> Dict[str, Any]:
-    """Parse spec bytes as JSON, then YAML, without resolving any references."""
+    """Parse spec bytes as JSON, then YAML, without resolving any references.
+
+    YAML is parsed with PyYAML when installed, otherwise with ``ruamel-yaml``
+    (a ``prance`` dependency). The fallback matters for the external-``$ref``
+    prescan: ``prance`` parses YAML via ``ruamel-yaml``, so without this fallback
+    a YAML spec could be unparseable here (when PyYAML is absent) yet parsed and
+    ``$ref``-resolved by ``prance`` — silently re-opening the SSRF/LFI bypass.
+    """
     try:
         return json.loads(content)
-    except json.JSONDecodeError:
-        if yaml is None:
-            raise
-        return yaml.safe_load(content)
+    except json.JSONDecodeError as json_err:
+        if yaml is not None:
+            return yaml.safe_load(content)
+        # PyYAML absent: fall back to ruamel-yaml so the prescan parses the same
+        # content prance would. If ruamel is also unavailable, surface the
+        # original JSON parse error (no YAML parser to try).
+        try:
+            import io
+            from ruamel.yaml import YAML
+        except ImportError:
+            raise json_err
+        return YAML(typ='safe').load(io.BytesIO(content))
 
 
 def _validate_url_sync(
