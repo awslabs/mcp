@@ -20,7 +20,7 @@ import os
 import re
 import yaml
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 
 # Global cache for remediation mappings
@@ -29,69 +29,27 @@ _RULES_CONTENT_CACHE = None
 _TEMPLATE_RESOURCES = {}
 
 
-def _allowed_rule_roots() -> list[Path]:
-    """Return the directories a rules file is allowed to be read from.
-
-    Only the package's bundled ``data`` directory is allowed.
-    """
+def _bundled_rules_path() -> Path:
+    """Return the path to the package's bundled default guard rules file."""
     import awslabs.aws_iac_mcp_server
 
     package_dir = os.path.dirname(awslabs.aws_iac_mcp_server.__file__)
-    # Resolve the root so comparisons against the resolved candidate are
-    # symmetric; otherwise a symlinked install path would wrongly reject a
-    # legitimate file under the bundled data directory.
-    return [(Path(package_dir) / 'data').resolve()]
+    return Path(package_dir) / 'data' / 'default_guard_rules.guard'
 
 
-def _safe_rules_path(user_path: str) -> Path:
-    """Resolve a user-supplied rules path, rejecting anything outside allowed roots.
-
-    Args:
-        user_path: Path supplied by the caller for the guard rules file.
-
-    Returns:
-        A resolved path guaranteed to live inside an allowed rules directory.
-
-    Raises:
-        ValueError: If the resolved path is not inside an allowed rules directory.
-    """
-    allowed_roots = _allowed_rule_roots()
-
-    if user_path == 'default_guard_rules.guard':
-        return allowed_roots[0] / 'default_guard_rules.guard'
-
-    # Resolve symlinks BEFORE the prefix check.
-    candidate = Path(user_path).resolve()
-    if not any(
-        candidate == root or str(candidate).startswith(str(root) + os.sep)
-        for root in allowed_roots
-    ):
-        raise ValueError(
-            f'rules_file_path must be inside an allowed rules directory; got {user_path!r}'
-        )
-    return candidate
-
-
-def initialize_guard_rules(rules_file_path: Optional[str] = None) -> bool:
+def initialize_guard_rules() -> bool:
     """Initialize guard rules and cache remediation mappings on server startup.
 
-    Args:
-        rules_file_path: Path to guard rules file
+    Loads the package's bundled security rules. Custom rules are not supported;
+    the compliance tool always validates against the bundled rule set.
 
     Returns:
         True if initialization successful, False otherwise
     """
     global _REMEDIATION_CACHE, _RULES_CONTENT_CACHE
 
-    # Treat "no path" the same as the default rules file.
-    if rules_file_path is None:
-        rules_file_path = 'default_guard_rules.guard'
-
     try:
-        # Reject any path outside the allowed rules directories before reading.
-        safe_path = _safe_rules_path(rules_file_path)
-
-        with open(safe_path, 'r') as f:
+        with open(_bundled_rules_path(), 'r') as f:
             rules_content = f.read()
 
         # Cache the rules content
@@ -102,9 +60,6 @@ def initialize_guard_rules(rules_file_path: Optional[str] = None) -> bool:
 
         return True
 
-    except ValueError:
-        # rules_file_path was rejected as outside the allowed directories.
-        return False
     except FileNotFoundError:
         return False
     except Exception:
@@ -191,7 +146,6 @@ def _extract_resource_info(node: dict, template_resources: dict) -> tuple[str, s
 
 def check_compliance(
     template_content: str,
-    rules_file_path: Optional[str] = None,
 ) -> dict[str, Any]:
     """Validate CloudFormation template against cfn-guard rules using guardpycfn."""
     global _REMEDIATION_CACHE, _RULES_CONTENT_CACHE
@@ -212,7 +166,7 @@ def check_compliance(
     if not template_content or not template_content.strip():
         return error_result('Template content cannot be empty')
 
-    if _RULES_CONTENT_CACHE is None and not initialize_guard_rules(rules_file_path):
+    if _RULES_CONTENT_CACHE is None and not initialize_guard_rules():
         return error_result('Failed to initialize guard rules')
 
     # Parse template resources for fallback resource identification
