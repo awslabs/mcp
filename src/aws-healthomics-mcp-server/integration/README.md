@@ -8,8 +8,9 @@ multi-tenant credential-resolution path works when backed by a real DynamoDB rol
 It delivers two deployments:
 
 - **`agentcore`** — the server is hosted on Amazon Bedrock AgentCore Runtime
-  (`server_protocol: MCP`, `streamable-http` on container port `8080`). AgentCore is the sole
-  ingress and terminates inbound authentication at its boundary.
+  (`server_protocol: MCP`, `streamable-http` on container port `8000`, the fixed port AgentCore
+  routes MCP traffic to). AgentCore is the sole ingress and terminates inbound authentication at
+  its boundary.
 - **`apigateway`** — Amazon API Gateway fronts the server. The server binds to `127.0.0.1`;
   the gateway authenticates callers and forwards only authenticated requests through a private
   (VPC-link) integration.
@@ -122,7 +123,7 @@ your run uses; the harness's default names are `aho-mcp-itest-registry` (registr
 | `iam:CreateRole`, `iam:PutRolePolicy`, `iam:GetRole`, `iam:ListRolePolicies`, `iam:DeleteRolePolicy`, `iam:DeleteRole` | The role ARNs `arn:aws:iam::<ACCOUNT_ID>:role/aho-mcp-itest-*` | Auto-create and delete the two Tenant_Roles and the AgentCore execution role (**agentcore** only) |
 | `iam:PassRole` | The auto-created execution role ARN `arn:aws:iam::<ACCOUNT_ID>:role/aho-mcp-itest-exec` | Pass the execution role to AgentCore Runtime at create time (**agentcore** only) |
 | `cognito-idp:CreateUserPool`, `cognito-idp:CreateUserPoolClient`, `cognito-idp:AdminCreateUser`, `cognito-idp:AdminSetUserPassword`, `cognito-idp:AdminGetUser`, `cognito-idp:AdminInitiateAuth`, `cognito-idp:DeleteUserPool` | `*` (Cognito user pool ARNs are only known after creation) | Auto-create the identity provider, mint the per-tenant bearer tokens, and delete the pool on teardown (**agentcore** only) |
-| `sts:AssumeRole` | Each auto-created Tenant_Role ARN (`arn:aws:iam::<ACCOUNT_ID>:role/aho-mcp-itest-tenant-a`, `...-tenant-b`) | The deployed server assumes each tenant's mapped role (with that tenant's `ExternalId`) to run that tenant's tool calls |
+| `sts:AssumeRole` (and `sts:TagSession` in `jwt` mode) | Each auto-created Tenant_Role ARN (`arn:aws:iam::<ACCOUNT_ID>:role/aho-mcp-itest-tenant-a`, `...-tenant-b`) | In `jwt` mode the deployed server assumes each tenant's mapped role (tagged, with that tenant's `ExternalId`); in `--inbound explicit` mode the harness/operator assumes each Tenant_Role **untagged** to mint the forwarded credentials |
 | `sts:GetCallerIdentity` | `*` | Resolve the deployment account id at provision time and report the assumed-role identity in the `WhoAmI` isolation tool |
 
 For the **agentcore** deployment the Tenant_Roles, their trust and permission policies, and the
@@ -212,8 +213,19 @@ freshly provisioned resources and minted tokens, so you only set them by hand wh
 **Server-facing variables (injected into the deployed server by the harness — you do not set these)**
 
 `MCP_TRANSPORT=streamable-http`, `MCP_HOST` (`0.0.0.0` for AgentCore's container / `127.0.0.1`
-for API Gateway), `MCP_PORT` (`8080` for AgentCore), `MCP_PATH=/mcp`, `MCP_MULTI_TENANT=true`,
-`MCP_INBOUND_AUTH=jwt`, and `MCP_JWT_ROLE_REGISTRY=dynamodb://<TABLE_NAME>`.
+for API Gateway), `MCP_PORT` (`8000` for AgentCore — the fixed MCP container port), `MCP_PATH=/mcp`,
+`MCP_MULTI_TENANT=true`, `MCP_INBOUND_AUTH` (`jwt` by default, or `explicit` with
+`--inbound explicit`), `MCP_JWT_ROLE_REGISTRY=dynamodb://<TABLE_NAME>`, and `AWS_REGION` /
+`AWS_DEFAULT_REGION` (so the server's role-registry DynamoDB client resolves a region inside the
+container).
+
+For the **agentcore** deployment the harness's container entrypoint additionally adapts the
+*unmodified* server for AgentCore Runtime (no server-package changes): it runs the server
+stateless (`stateless_http`), relaxes the SDK's loopback-only DNS-rebinding Host allow-list
+(AgentCore is the sole, authenticated ingress and forwards a non-loopback `Host`), and — because
+AgentCore strips the reserved `Authorization` header — forwards the caller's token via an
+allow-listed non-reserved header (`jwt` mode) or the `X-Aws-*` credential headers (`explicit`
+mode), mapping them back for the server.
 
 ---
 
@@ -266,7 +278,7 @@ tenant roles, identity provider, or bearer tokens need to be prepared by hand. P
    trusts; each user's `sub` becomes that tenant's registry identity.
 4. Creates the **DynamoDB role registry** mapping each `sub` to its Tenant_Role.
 5. Builds/pushes the container image (`integration/deploy/image/Dockerfile`, `streamable-http`
-   on port `8080`) and creates the **AgentCore Runtime**, wired with the execution role and a
+   on port `8000`) and creates the **AgentCore Runtime**, wired with the execution role and a
    `customJWTAuthorizer` pinned to the Cognito discovery URL + app-client id.
 
 Provisioning reports **complete** once the AgentCore endpoint reference is emitted.
