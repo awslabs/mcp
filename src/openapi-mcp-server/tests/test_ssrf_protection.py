@@ -1230,9 +1230,9 @@ def test_parse_spec_bytes_refuses_file_ref_lfi(tmp_path):
     """A spec with a file:// $ref is refused (no local file disclosure)."""
     from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
 
-    secret = tmp_path / 'secret.json'
-    secret.write_text('{"type": "string", "x-secret": "LEAKED"}')
-    content = json.dumps(_spec_with_ref(f'file://{secret}')).encode()
+    local_file = tmp_path / 'local.json'
+    local_file.write_text('{"type": "string", "x-marker": "LOCAL-FILE-CONTENTS"}')
+    content = json.dumps(_spec_with_ref(f'file://{local_file}')).encode()
 
     with pytest.raises(SSRFError, match='external \\$ref'):
         openapi_mod._parse_spec_bytes(content)
