@@ -1341,6 +1341,24 @@ def test_basic_parse_reraises_json_error_when_no_yaml_parser():
             openapi_mod._basic_parse(b'not: [valid json')
 
 
+def test_parse_spec_bytes_unparseable_defers_to_prance():
+    """Unparseable bytes skip the ref check (basic=None) and defer the error.
+
+    Exercises the best-effort branch: _basic_parse raises (no JSON/YAML parser
+    can read the bytes), so basic is set to None and the ref check is skipped;
+    with prance unavailable the final line re-runs _basic_parse, which raises.
+    """
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    with (
+        patch.object(openapi_mod, 'yaml', None),
+        patch.dict('sys.modules', {'ruamel.yaml': None}),
+        patch.object(openapi_mod, 'PRANCE_AVAILABLE', False),
+    ):
+        with pytest.raises(json.JSONDecodeError):
+            openapi_mod._parse_spec_bytes(b'not: [valid json')
+
+
 def test_parse_spec_bytes_yaml_ref_blocked_without_pyyaml():
     """Regression: a YAML spec's external $ref is refused even when PyYAML is absent.
 
