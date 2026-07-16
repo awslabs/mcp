@@ -1329,6 +1329,43 @@ def test_basic_parse_falls_back_to_ruamel_when_pyyaml_absent():
     assert result['info']['title'] == 'Ruamel'
 
 
+def test_basic_parse_falls_back_to_ruamel_when_pyyaml_rejects():
+    """When PyYAML *rejects* a doc it still falls back to ruamel (prance's parser).
+
+    A tab after a mapping key is rejected by PyYAML but accepted by ruamel/prance.
+    Without falling back on PyYAML failure, the prescan would parse less than
+    prance and miss a $ref it would resolve.
+    """
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    # Tab between the key and value — PyYAML raises ScannerError, ruamel accepts.
+    yaml_body = b'openapi: "3.0.0"\ninfo:\n  title:\tTabbed\n  version: "1"\n'
+    result = openapi_mod._basic_parse(yaml_body)
+    assert result['info']['title'] == 'Tabbed'
+
+
+def test_parse_spec_bytes_yaml_ref_blocked_when_pyyaml_rejects():
+    """Regression: a PyYAML-rejected-but-prance-parseable YAML $ref is still refused.
+
+    A tab after the `$ref` key makes PyYAML reject the document; prance parses it
+    via ruamel and would resolve the external $ref. The prescan must parse it too
+    (via the ruamel fallback) so the external ref is refused with no outbound call.
+    """
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    with _loopback_canary() as canary:
+        yaml_spec = (
+            b'openapi: "3.0.0"\n'
+            b'info:\n  title: y\n  version: "1"\n'
+            b'paths:\n  /x:\n    get:\n      responses:\n        "200":\n'
+            b'          description: ok\n          content:\n            application/json:\n'
+            b'              schema:\n                $ref:\t"' + canary.url.encode() + b'"\n'
+        )
+        with pytest.raises(SSRFError, match='external \\$ref'):
+            openapi_mod._parse_spec_bytes(yaml_spec)
+        assert canary.hits == []
+
+
 def test_basic_parse_reraises_json_error_when_no_yaml_parser():
     """With neither PyYAML nor ruamel available, non-JSON re-raises the JSON error."""
     from awslabs.openapi_mcp_server.utils import openapi as openapi_mod

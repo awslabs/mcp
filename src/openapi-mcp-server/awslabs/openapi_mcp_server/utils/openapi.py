@@ -121,20 +121,27 @@ def _basic_parse(content: bytes) -> Any:
     document, but JSON/YAML may legally yield a list, scalar, or ``None``; the
     caller (``_reject_external_refs``) handles any node type.
 
-    YAML is parsed with PyYAML when installed, otherwise with ``ruamel-yaml``
-    (a ``prance`` dependency). The fallback matters for the external-``$ref``
-    prescan: ``prance`` parses YAML via ``ruamel-yaml``, so without this fallback
-    a YAML spec could be unparseable here (when PyYAML is absent) yet parsed and
-    ``$ref``-resolved by ``prance`` — silently re-opening the SSRF/LFI bypass.
+    YAML is parsed with PyYAML when installed, then with ``ruamel-yaml`` (a
+    ``prance`` dependency) as a fallback. The ruamel fallback matters for the
+    external-``$ref`` prescan: ``prance`` parses YAML via ``ruamel-yaml``, which
+    accepts inputs PyYAML rejects (e.g. a tab after a mapping key). Without also
+    trying ruamel when PyYAML *fails*, such a document would be treated as
+    unparseable here, skip ``_reject_external_refs``, yet still be parsed and
+    ``$ref``-resolved by ``prance`` — silently re-opening the SSRF/LFI bypass. So
+    the prescan must never parse *less* than prance would.
     """
     try:
         return json.loads(content)
     except json.JSONDecodeError as json_err:
+        # Try PyYAML first when present, but fall back to ruamel-yaml if PyYAML
+        # is absent OR rejects the document, so the prescan parses whatever
+        # prance (which uses ruamel) would. Only surface a parse error when no
+        # available YAML parser can read the content.
         if yaml is not None:
-            return yaml.safe_load(content)
-        # PyYAML absent: fall back to ruamel-yaml so the prescan parses the same
-        # content prance would. If ruamel is also unavailable, surface the
-        # original JSON parse error (no YAML parser to try).
+            try:
+                return yaml.safe_load(content)
+            except yaml.YAMLError:
+                pass
         try:
             import io
             from ruamel.yaml import YAML
