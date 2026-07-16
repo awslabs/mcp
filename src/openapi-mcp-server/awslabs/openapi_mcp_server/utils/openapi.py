@@ -306,6 +306,10 @@ def _parse_spec_bytes(content: bytes) -> Dict[str, Any]:
     # from the ref check propagates and is never swallowed by the fallback.
     try:
         basic = _basic_parse(content)
+    except (MemoryError, RecursionError):
+        # Resource-exhaustion failures are not "unparseable content" — let them
+        # propagate rather than masking them as a silent prescan skip.
+        raise
     except Exception:
         basic = None
     if basic is not None:
@@ -438,6 +442,10 @@ def load_openapi_spec(
             with open(spec_path, 'rb') as f:
                 try:
                     prescan_spec = _basic_parse(f.read())
+                except (MemoryError, RecursionError):
+                    # Resource-exhaustion failures are not "unparseable content" —
+                    # let them propagate rather than masking them as a prescan skip.
+                    raise
                 except Exception:
                     prescan_spec = None
             if prescan_spec is not None:

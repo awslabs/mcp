@@ -1288,6 +1288,18 @@ def test_load_openapi_spec_file_resolves_internal_refs(tmp_path):
     assert resolved.get('x-legit') == 'INTERNAL-OK'
 
 
+def test_load_openapi_spec_file_reraises_memory_error(tmp_path):
+    """A MemoryError during the file-path prescan propagates, not masked as unparseable."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    spec_file = tmp_path / 'spec.json'
+    spec_file.write_text(json.dumps(_spec_with_ref('#/components/schemas/Pet')))
+
+    with patch.object(openapi_mod, '_basic_parse', side_effect=MemoryError('oom')):
+        with pytest.raises(MemoryError):
+            load_openapi_spec(path=str(spec_file))
+
+
 def test_parse_spec_bytes_basic_parse_yaml_without_prance():
     """_basic_parse handles YAML; external-ref check still applies."""
     from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
@@ -1376,6 +1388,19 @@ def test_basic_parse_reraises_json_error_when_no_yaml_parser():
     ):
         with pytest.raises(json.JSONDecodeError):
             openapi_mod._basic_parse(b'not: [valid json')
+
+
+def test_parse_spec_bytes_reraises_memory_error():
+    """A MemoryError from parsing propagates rather than being masked as unparseable.
+
+    The best-effort prescan catches parse failures, but resource-exhaustion
+    errors must not be swallowed and treated as "no refs to check".
+    """
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    with patch.object(openapi_mod, '_basic_parse', side_effect=MemoryError('oom')):
+        with pytest.raises(MemoryError):
+            openapi_mod._parse_spec_bytes(b'{"openapi": "3.0.0"}')
 
 
 def test_parse_spec_bytes_unparseable_defers_to_prance():
