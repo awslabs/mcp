@@ -63,19 +63,19 @@ This tool provides essential information needed to connect to and query your Red
 
 ### list_databases
 Lists all databases in a specified Redshift cluster.
-This tool queries the SVV_REDSHIFT_DATABASES system view to discover available databases.
+This tool runs the SHOW DATABASES command to discover available databases.
 
 ### list_schemas
 Lists all schemas in a specified database within a Redshift cluster.
-This tool queries the SVV_ALL_SCHEMAS system view to discover available schemas.
+This tool runs the SHOW SCHEMAS command to discover available schemas.
 
 ### list_tables
 Lists all tables in a specified schema within a Redshift database.
-This tool queries the SVV_ALL_TABLES system view to discover available tables.
+This tool runs the SHOW TABLES command to discover available tables.
 
 ### list_columns
 Lists all columns in a specified table within a Redshift schema.
-This tool queries the SVV_ALL_COLUMNS system view to discover available columns.
+This tool runs the SHOW COLUMNS command to discover available columns.
 
 ### execute_query
 Executes SQL queries against a Redshift cluster or serverless workgroup.
@@ -204,12 +204,12 @@ async def list_databases_tool(
     ),
     database_name: str = Field(
         'dev',
-        description='The database to connect to for querying system views. Defaults to "dev".',
+        description='The database to connect to for metadata discovery. Defaults to "dev".',
     ),
 ) -> list[RedshiftDatabase]:
     """List all databases in a specified Amazon Redshift cluster.
 
-    This tool queries the SVV_REDSHIFT_DATABASES system view to discover all databases
+    This tool runs the SHOW DATABASES command to discover all databases
     that the user has access to in the specified cluster, including local databases
     and databases created from datashares.
 
@@ -218,13 +218,13 @@ async def list_databases_tool(
     - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
     - The cluster must be available and accessible.
     - Required IAM permissions: redshift-data:ExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
-    - The user must have access to the specified database to query system views.
+    - The user must have access to the specified database to run the discovery commands.
 
     ## Parameters
 
     - cluster_identifier: The unique identifier of the Redshift cluster to query.
                          IMPORTANT: Use a valid cluster identifier from the list_clusters tool.
-    - database_name: The database to connect to for querying system views (defaults to 'dev').
+    - database_name: The database to connect to for metadata discovery (defaults to 'dev').
 
     ## Response Structure
 
@@ -288,7 +288,7 @@ async def list_schemas_tool(
 ) -> list[RedshiftSchema]:
     """List all schemas in a specified database within a Redshift cluster.
 
-    This tool queries the SVV_ALL_SCHEMAS system view to discover all schemas
+    This tool runs the SHOW SCHEMAS command to discover all schemas
     that the user has access to in the specified database, including local schemas,
     external schemas, and shared schemas from datashares.
 
@@ -297,7 +297,7 @@ async def list_schemas_tool(
     - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
     - The cluster must be available and accessible.
     - Required IAM permissions: redshift-data:ExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
-    - The user must have access to the database to query system views.
+    - The user must have access to the database to run the discovery commands.
 
     ## Parameters
 
@@ -379,7 +379,7 @@ async def list_tables_tool(
 ) -> list[RedshiftTable]:
     """List all tables in a specified schema within a Redshift database.
 
-    This tool queries the SVV_ALL_TABLES system view to discover all tables
+    This tool runs the SHOW TABLES command to discover all tables
     that the user has access to in the specified schema, including base tables,
     views, external tables, and shared tables.
 
@@ -388,7 +388,7 @@ async def list_tables_tool(
     - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
     - The cluster must be available and accessible.
     - Required IAM permissions: redshift-data:ExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
-    - The user must have access to the database to query system views.
+    - The user must have access to the database to run the discovery commands.
 
     ## Parameters
 
@@ -478,7 +478,7 @@ async def list_columns_tool(
 ) -> list[RedshiftColumn]:
     """List all columns in a specified table within a Redshift schema.
 
-    This tool queries the SVV_ALL_COLUMNS system view to discover all columns
+    This tool runs the SHOW COLUMNS command to discover all columns
     that the user has access to in the specified table, including detailed information
     about data types, constraints, and column properties.
 
@@ -487,7 +487,7 @@ async def list_columns_tool(
     - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
     - The cluster must be available and accessible.
     - Required IAM permissions: redshift-data:ExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
-    - The user must have access to the database to query system views.
+    - The user must have access to the database to run the discovery commands.
 
     ## Parameters
 

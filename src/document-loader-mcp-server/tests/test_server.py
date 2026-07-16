@@ -43,7 +43,7 @@ async def test_server():
 
     # Test getting tools
     try:
-        tools = await mcp.get_tools()
+        tools = await mcp.list_tools()
         print(f'\nAvailable tools ({len(tools)}):')
 
         tool_names = []
@@ -78,7 +78,7 @@ async def test_server():
 async def call_mcp_tool(tool_name: str, file_path: str, file_type: str = None):
     """Helper function to call MCP tools through the server."""
     # Get the tool from the server
-    tools = await mcp.get_tools()
+    tools = {t.name: t for t in await mcp.list_tools()}
 
     if tool_name not in tools:
         raise ValueError(f'Tool {tool_name} not found. Available tools: {list(tools.keys())}')
@@ -904,7 +904,7 @@ async def call_mcp_tool_slides(
     file_path: str, output_dir: str, dpi: int = 200, timeout: int = 120
 ):
     """Helper function to call extract_slides_as_images MCP tool."""
-    tools = await mcp.get_tools()
+    tools = {t.name: t for t in await mcp.list_tools()}
 
     if 'extract_slides_as_images' not in tools:
         raise ValueError('Tool extract_slides_as_images not found')

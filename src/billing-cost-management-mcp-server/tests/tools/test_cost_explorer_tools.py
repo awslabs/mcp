@@ -36,9 +36,6 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_operations i
     get_usage_forecast,
 )
 from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_tools import (
-    cost_explorer as ce_tool,
-)
-from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_tools import (
     cost_explorer_server,
 )
 from datetime import datetime
@@ -744,10 +741,11 @@ async def test_cost_explorer_main_function():
         'Tools for working with AWS Cost Explorer API' in instructions if instructions else False
     ), 'Server instructions should mention AWS Cost Explorer API'
 
-    # Check that the cost_explorer tool was imported correctly
-    assert hasattr(ce_tool, 'name'), 'The imported cost_explorer tool should have a name attribute'
-    assert ce_tool.name == 'cost-explorer', (
-        'The imported cost_explorer tool should have the right name'
+    # Check that the cost_explorer tool was registered correctly
+    tool = await cost_explorer_server.get_tool('cost-explorer')
+    assert tool is not None, 'The cost_explorer tool should be registered with the server'
+    assert tool.name == 'cost-explorer', (
+        'The registered cost_explorer tool should have the right name'
     )
 
     # Check server has expected methods and properties

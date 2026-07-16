@@ -55,11 +55,17 @@ class ServerConfig:
     """Server-wide configuration."""
 
     readonly_query: bool = True
-    default_secret_arn: Optional[str] = None
+    configured_secret_arns: Dict[str, str] = None  # type: ignore[assignment]
+    configured_default_secret_arn: Optional[str] = None
     ssl_encryption_mode: str = 'require'
     configured_port: int = 1521
     max_rows: int = 1000
     call_timeout_ms: int = 30000
+
+    def __post_init__(self):
+        """Initialize mutable defaults."""
+        if self.configured_secret_arns is None:
+            self.configured_secret_arns = {}
 
 
 server_config = ServerConfig()
@@ -292,12 +298,6 @@ async def connect_to_database(
         Optional[str],
         Field(description='Oracle SID (legacy, mutually exclusive with service_name)'),
     ] = None,
-    secret_arn: Annotated[
-        Optional[str],
-        Field(
-            description='Secrets Manager ARN for database credentials (overrides the RDS master secret)'
-        ),
-    ] = None,
 ) -> str | dict:
     """Connect to an Oracle RDS instance and save the connection internally."""
     instance_identifier = instance_identifier or db_endpoint
@@ -317,7 +317,6 @@ async def connect_to_database(
             database=database,
             service_name=service_name,
             sid=sid,
-            secret_arn=secret_arn,
             ssl_encryption=server_config.ssl_encryption_mode,
         )
 
@@ -338,7 +337,7 @@ async def connect_to_database(
                 return {'status': 'Failed', 'error': str(pool_err)}
 
         return llm_response
-    except (ValueError, ClientError) as e:
+    except Exception as e:
         logger.exception(f'connect_to_database failed: {e}')
         return {'status': 'Failed', 'error': str(e)}
 
@@ -387,14 +386,13 @@ def internal_create_connection(
     database: str,
     service_name: Optional[str] = None,
     sid: Optional[str] = None,
-    secret_arn: Optional[str] = None,
     ssl_encryption: str = 'require',
 ) -> Tuple:
     """Create or retrieve a cached Oracle database connection.
 
     Returns a 3-tuple: (db_connection, llm_response, replaced_connection).
     replaced_connection is the old connection that was evicted from the cache
-    because the secret_arn changed, or None if no replacement occurred.
+    because the resolved secret_arn changed, or None if no replacement occurred.
     The caller is responsible for closing it (async).
     """
     logger.info(
@@ -410,12 +408,22 @@ def internal_create_connection(
     if not db_endpoint:
         raise ValueError("db_endpoint can't be none or empty")
 
-    # Resolve secret_arn through fallback chain for password auth:
-    # explicit secret_arn → default_secret_arn → (defer to RDS MasterUserSecret)
-    if connection_method == ConnectionMethod.ORACLE_PASSWORD and not secret_arn:
-        if server_config.default_secret_arn:
-            secret_arn = server_config.default_secret_arn
-            logger.info(f'Using default secret_arn from startup configuration: {secret_arn}')
+    # For ORACLE_PASSWORD, resolve the secret ARN from operator config.
+    # Per-target override wins, then the bare default. If neither is set,
+    # the RDS MasterUserSecret metadata is used as a final fallback
+    # (resolved later via describe_db_instances).
+    # The LLM chooses only the instance_identifier target key; it cannot supply
+    # ARN values — those come exclusively from operator --secret_arn flags.
+    secret_arn: str = ''
+    if connection_method == ConnectionMethod.ORACLE_PASSWORD:
+        target_key = instance_identifier
+        per_target_secret_arn = server_config.configured_secret_arns.get(target_key, '')
+        if per_target_secret_arn:
+            secret_arn = per_target_secret_arn
+            logger.info(f'Using per-target secret_arn for instance {target_key}')
+        elif server_config.configured_default_secret_arn:
+            secret_arn = server_config.configured_default_secret_arn
+            logger.info('Using default secret_arn from startup configuration')
 
     # Check for existing connection
     replaced_conn = None
@@ -487,14 +495,17 @@ def internal_create_connection(
                 )
 
     logger.info(
-        f'Instance props: masteruser:{masteruser}, secret_arn:{secret_arn}, '
+        f'Instance props: masteruser:{masteruser}, secret_arn_resolved:{bool(secret_arn)}, '
         f'endpoint:{db_endpoint}, port:{port}'
     )
 
     if not secret_arn:
         raise ValueError(
-            'No secret_arn resolved. Enable RDS-managed master credentials, '
-            'pass --secret_arn, or set a default_secret_arn.'
+            f"No secret resolved for instance '{instance_identifier}': "
+            f'no per-target --secret_arn matched this instance, no bare default '
+            f'--secret_arn was configured, and the instance has no managed '
+            f'MasterUserSecret. Supply --secret_arn <arn> (bare default) or '
+            f'--secret_arn {instance_identifier}=<arn> (per-target).'
         )
 
     db_connection = OracledbPoolConnection(
@@ -635,7 +646,29 @@ def main():
     parser.add_argument(
         '--sid', help='Oracle SID (legacy, mutually exclusive with --service_name)'
     )
-    parser.add_argument('--secret_arn', help='AWS Secrets Manager ARN for database credentials')
+    parser.add_argument(
+        '--secret_arn',
+        required=False,
+        action='append',
+        default=None,
+        help=(
+            'Optional Secrets Manager ARN override. May be repeated. Each '
+            'value is either:\n'
+            '  - "<instance_identifier>=<arn>" — bind the ARN to a specific '
+            'RDS instance (matched against the instance_identifier parameter '
+            'from the connect_to_database tool).\n'
+            '  - "<arn>" without "=" — bare ARN used as the default for any '
+            'target the operator did not pin explicitly (at most one allowed).\n'
+            'Resolution order: per-target ARN > bare default ARN > RDS '
+            'MasterUserSecret metadata. A bare default takes precedence over '
+            'the instance MasterUserSecret for all unpinned instances. '
+            'The RDS MasterUserSecret is consulted for a given instance only '
+            'when that instance has no per-target ARN and no bare default is '
+            'configured. '
+            'The LLM cannot supply a secret ARN value — it only chooses which '
+            'instance to target; ARNs come exclusively from the operator here.'
+        ),
+    )
     parser.add_argument(
         '--ssl_encryption',
         default='require',
@@ -668,6 +701,45 @@ def main():
             logger.error('--region is required when --db_endpoint is provided')
             sys.exit(1)
 
+    # Parse --secret_arn entries into the per-target map and the optional
+    # default. Each --secret_arn value is either "key=arn" (per-target)
+    # or a bare ARN (default).
+    secret_arn_map: Dict[str, str] = {}
+    default_secret_arn: Optional[str] = None
+    for raw in args.secret_arn or []:
+        if '=' in raw:
+            key, _, arn = raw.partition('=')
+            key = key.strip()
+            arn = arn.strip()
+            if not key or not arn:
+                logger.error(
+                    f'Invalid --secret_arn value {raw!r}: both key and ARN '
+                    'must be non-empty when using key=arn syntax.'
+                )
+                sys.exit(2)
+            if key in secret_arn_map:
+                logger.error(
+                    f'Duplicate --secret_arn key {key!r} (already mapped to '
+                    f'{secret_arn_map[key]!r}).'
+                )
+                sys.exit(2)
+            secret_arn_map[key] = arn
+        else:
+            arn = raw.strip()
+            if not arn:
+                logger.error(
+                    'Empty --secret_arn value. If using a shell variable, '
+                    'ensure it is set and non-empty.'
+                )
+                sys.exit(2)
+            if default_secret_arn is not None:
+                logger.error(
+                    'At most one bare --secret_arn (no "=" separator) is '
+                    'allowed; got at least two default ARNs.'
+                )
+                sys.exit(2)
+            default_secret_arn = arn
+
     logger.info(
         f'MCP configuration:\n'
         f'connection_method:{args.connection_method}\n'
@@ -682,6 +754,8 @@ def main():
         f'ssl_encryption:{args.ssl_encryption}\n'
         f'max_rows:{args.max_rows}\n'
         f'call_timeout_ms:{args.call_timeout_ms}\n'
+        f'secret_arn entries: {len(secret_arn_map)} per-target, '
+        f'default={"set" if default_secret_arn else "unset"}\n'
     )
 
     server_config.readonly_query = not args.allow_write_query
@@ -689,9 +763,8 @@ def main():
     server_config.configured_port = args.port
     server_config.max_rows = args.max_rows
     server_config.call_timeout_ms = args.call_timeout_ms
-
-    if args.secret_arn:
-        server_config.default_secret_arn = args.secret_arn
+    server_config.configured_secret_arns = secret_arn_map
+    server_config.configured_default_secret_arn = default_secret_arn
 
     if server_config.readonly_query:
         readonly_notice = (
