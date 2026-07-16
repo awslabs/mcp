@@ -1,0 +1,81 @@
+{
+  "attributes": {
+    "aws.service_events.deployment.id": "local-1775673784",
+    "aws.service_events.incident.count": 2,
+    "aws.service_events.operation": "POST /investigation/trigger_error",
+    "aws.service_events.request.count": 10,
+    "aws.service_events.request.errors": 0,
+    "aws.service_events.request.faults": 10,
+    "event.name": "aws.service_events.endpoint_summary",
+    "http.request.method": "POST",
+    "url.route": "/investigation/trigger_error",
+    "vcs.ref.head.revision": "abababababababababababababababababab0001",
+    "vcs.repository.url.full": "https://github.com/example/my-api-demo"
+  },
+  "body": {
+    "duration": {
+      "Count": 10,
+      "Counts": [
+        2,
+        5,
+        1,
+        1,
+        1
+      ],
+      "Max": 33957.667,
+      "Min": 18009.75,
+      "Sum": 228652.878,
+      "Values": [
+        18382.99,
+        20221.29,
+        26914.54,
+        29605.99,
+        32566.59
+      ]
+    },
+    "exception_breakdown": [
+      {
+        "count": 5,
+        "exceptions": [
+          {
+            "exception_type": "TypeError",
+            "function_name": "server_automatic_s3client.async_check_permissions"
+          }
+        ],
+        "failure_type": "500"
+      },
+      {
+        "count": 5,
+        "exceptions": [
+          {
+            "exception_type": "RuntimeError",
+            "function_name": "server_automatic_s3client.async_check_permissions"
+          }
+        ],
+        "failure_type": "500"
+      }
+    ],
+    "incidents_exemplar": [
+      {
+        "snapshot_id": "snap_ef2a0868-3fdf-4dc1-bb7f-54f924c1254f",
+        "timestamp": 1775673990638,
+        "trigger_type": "exception"
+      },
+      {
+        "snapshot_id": "snap_311f71a8-bef0-4d39-a501-614a4fad7b9e",
+        "timestamp": 1775673990744,
+        "trigger_type": "exception"
+      }
+    ]
+  },
+  "eventName": "aws.service_events.endpoint_summary",
+  "resource": {
+    "deployment.environment": "prod",
+    "host.id": "i-056ab17f2c055ee75",
+    "process.pid": 80714,
+    "service.name": "shoppingcart",
+    "telemetry.sdk.language": "python",
+    "telemetry.sdk.version": "1.40.0"
+  },
+  "timeUnixNano": 1744137998948862000
+}

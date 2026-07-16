@@ -66,7 +66,7 @@ USE THIS TOOL FOR:
 
 2. getCostAndUsageWithResources - Resource-level cost data (limited to last 14 days)
    Required: operation="getCostAndUsageWithResources", filter, granularity, start_date, end_date
-   Optional: metrics, group_by, billing_view_arn
+   Optional: metrics, group_by, next_token, max_pages, billing_view_arn
    Notes: RESOURCE_ID must be included in either filter OR group_by parameters. This operation is limited to past 14 days of data from current date. Hourly granularity is only available for EC2-Instances resource-level data. All other resource-level data is available at daily granularity.
    Example: {"operation": "getCostAndUsageWithResources", "start_date": "2025-08-07", "end_date": "2025-08-21", "granularity": "DAILY", "filter": "{\"Dimensions\": {\"Key\": \"SERVICE\", \"Values\": [\"Amazon Elastic Compute Cloud - Compute\"]}}", "group_by": "[{\"Type\": \"DIMENSION\", \"Key\": \"RESOURCE_ID\"}]"}
    Returns: Cost data with resource-level granularity
@@ -100,11 +100,12 @@ USE THIS TOOL FOR:
    Example 2: {"operation": "getTagsOrValues", "tag_key": "Environment"}
    Returns: List of available cost allocation tags with automatic pagination. If tag values for a particular key are needed, pass the tag key as a parameter.
 
-7. getCostCategories - Available cost categories
+7. getCostCategories - Available cost categories or values inside a category
    Required: operation="getCostCategories", start_date, end_date
-   Optional: search_string, next_token, max_pages, billing_view_arn
-   Example: {"operation": "getCostCategories", "start_date": "2024-01-01", "end_date": "2024-08-01"}
-   Returns: List of available cost categories with automatic pagination
+   Optional: cost_category_name, search_string, next_token, max_pages, billing_view_arn
+   Example 1 (list category names): {"operation": "getCostCategories", "start_date": "2024-01-01", "end_date": "2024-08-01"}
+   Example 2 (list values inside a category): {"operation": "getCostCategories", "cost_category_name": "CostCenters", "start_date": "2024-01-01", "end_date": "2024-08-01"}
+   Notes: Without cost_category_name the response contains CostCategoryNames. With cost_category_name set the response contains CostCategoryValues for that category. Pagination is automatic.
 
 8. getSavingsPlansUtilization - Savings Plans utilization data
    Required: operation="getSavingsPlansUtilization", start_date, end_date
@@ -243,6 +244,8 @@ async def cost_explorer(
                 metrics,
                 group_by,
                 filter,
+                next_token,
+                max_pages,
                 billing_view_arn,
             )
 
@@ -315,14 +318,17 @@ async def cost_explorer(
                 billing_view_arn,
             )
 
-        elif operation == 'getCostCategories' or operation == 'getCostCategoryValues':
+        elif operation == 'getCostCategories':
+            # When `cost_category_name` is provided, the same AWS API
+            # (GetCostCategories) returns the values inside that category
+            # instead of the list of category names.
             return await get_cost_categories(
                 ctx,
                 ce_client,
                 start_date,
                 end_date,
                 search_string,
-                cost_category_name if operation == 'getCostCategoryValues' else None,
+                cost_category_name,
                 next_token,
                 max_pages,
                 billing_view_arn,

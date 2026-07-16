@@ -67,16 +67,10 @@ class SecurityAgentClient:
         self,
         agent_space_id: str,
         name: str,
-        iam_roles: Optional[list[str]] = None,
-        s3_buckets: Optional[list[str]] = None,
+        aws_resources: Optional[dict] = None,
     ) -> dict:
-        """Update an agent space with roles and buckets."""
+        """Update an agent space, replacing its awsResources with the provided dict."""
         kwargs: dict[str, Any] = {'agentSpaceId': agent_space_id, 'name': name}
-        aws_resources: dict[str, Any] = {}
-        if iam_roles:
-            aws_resources['iamRoles'] = iam_roles
-        if s3_buckets:
-            aws_resources['s3Buckets'] = s3_buckets
         if aws_resources:
             kwargs['awsResources'] = aws_resources
         return self._client().update_agent_space(**kwargs)
@@ -116,6 +110,19 @@ class SecurityAgentClient:
             codeReviewId=code_review_id,
         )
 
+    def start_code_review_job_with_diff(
+        self,
+        agent_space_id: str,
+        code_review_id: str,
+        diff_s3_uri: str,
+    ) -> dict:
+        """Start a diff scan job with diffSource."""
+        return self._client().start_code_review_job(
+            agentSpaceId=agent_space_id,
+            codeReviewId=code_review_id,
+            diffSource={'s3Uri': diff_s3_uri},
+        )
+
     def batch_get_code_review_jobs(self, agent_space_id: str, job_ids: list[str]) -> dict:
         """Get status of code review jobs."""
         return self._client().batch_get_code_review_jobs(
@@ -152,6 +159,62 @@ class SecurityAgentClient:
         return self._client().batch_get_findings(
             agentSpaceId=agent_space_id,
             findingIds=finding_ids,
+        )
+
+    # --- Threat model operations ---
+
+    def create_threat_model(
+        self,
+        agent_space_id: str,
+        title: str,
+        service_role: str,
+        assets: dict,
+        scope_docs: Optional[list[dict]] = None,
+    ) -> dict:
+        """Create a threat model resource with source assets and scope documents."""
+        kwargs: dict[str, Any] = {
+            'agentSpaceId': agent_space_id,
+            'title': title,
+            'serviceRole': service_role,
+            'assets': assets,
+        }
+        if scope_docs:
+            kwargs['scopeDocs'] = scope_docs
+        return self._client().create_threat_model(**kwargs)
+
+    def start_threat_model_job(self, agent_space_id: str, threat_model_id: str) -> dict:
+        """Start a threat model job."""
+        return self._client().start_threat_model_job(
+            agentSpaceId=agent_space_id,
+            threatModelId=threat_model_id,
+        )
+
+    def batch_get_threat_model_jobs(self, agent_space_id: str, job_ids: list[str]) -> dict:
+        """Get status of threat model jobs."""
+        return self._client().batch_get_threat_model_jobs(
+            agentSpaceId=agent_space_id,
+            threatModelJobIds=job_ids,
+        )
+
+    def list_threats(self, agent_space_id: str, threat_job_id: str) -> dict:
+        """List all threats for a threat model job, handling pagination."""
+        client = self._client()
+        all_threats: list[dict] = []
+        kwargs: dict[str, Any] = {'agentSpaceId': agent_space_id, 'threatJobId': threat_job_id}
+        while True:
+            result = client.list_threats(**kwargs)
+            all_threats.extend(result.get('threats', []))
+            next_token = result.get('nextToken')
+            if not next_token:
+                break
+            kwargs['nextToken'] = next_token
+        return {'threats': all_threats}
+
+    def batch_get_threats(self, agent_space_id: str, threat_ids: list[str]) -> dict:
+        """Get detailed threats by ID."""
+        return self._client().batch_get_threats(
+            agentSpaceId=agent_space_id,
+            threatIds=threat_ids,
         )
 
     # --- Non-SecurityAgent helpers (S3, IAM, STS) ---
@@ -252,6 +315,8 @@ class SecurityAgentClient:
                         'Resource': [
                             f'arn:aws:s3:::security-agent-scans-{account_id}-{self.region}',
                             f'arn:aws:s3:::security-agent-scans-{account_id}-{self.region}/*',
+                            f'arn:aws:s3:::security-agent-threat-model-{account_id}-{self.region}',
+                            f'arn:aws:s3:::security-agent-threat-model-{account_id}-{self.region}/*',
                         ],
                     },
                     {
