@@ -687,6 +687,10 @@ async def review_cluster_tool(
     - The cluster must be available and accessible.
     - Required IAM permissions: redshift-data:ExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
     - The connected user must have superuser (CREATEUSER) privileges to access the required system views.
+      If it does not, the review fails fast with "Review requires superuser (CREATEUSER) privileges"
+      (for example "permission denied for relation sys_auto_table_optimization"). This is by design -
+      an expected signal, not a tool defect - so the review never returns partial or misleading
+      results. Run the review as a superuser to get a complete assessment.
 
     ## Parameters
 
@@ -707,6 +711,9 @@ async def review_cluster_tool(
         - affected_row_count: How many objects match the signal, counted in `unit`
           (for example, 7 tables). This is the number of affected objects, NOT a
           count of findings, and values are NOT comparable across different units.
+          Each signal is an independent count(*); the same object (a table, node, ...)
+          may match several signals, so do NOT sum affected_row_count across findings
+          or recommendations - the totals overlap and would over-count distinct objects.
         - unit: Unit of affected_row_count (e.g. tables, nodes, queues, queries).
         - recommendation_ids: List of recommendation IDs associated with this finding.
     - recommendations: Deduplicated list of recommendations ordered by effort, each containing:
@@ -732,6 +739,13 @@ async def review_cluster_tool(
     2. Each recommendation includes documentation links — always follow these links for detailed guidance.
     3. Use triggered_by_signals to understand which diagnostics surfaced each recommendation.
     4. A review with zero findings indicates the cluster is healthy across all evaluated signals.
+    5. Findings are independent per-signal diagnostics; do NOT sum affected_row_count
+       across findings or recommendations. The same object can match several signals,
+       so the counts overlap and are not additive.
+    6. Close with a call to action: when there are findings, end the response by
+       offering to help act on them - suggest starting with the lowest-effort,
+       highest-impact items and ask whether to proceed.
+       When there are no findings, state that the cluster is healthy across the evaluated signals.
     """
     try:
         logger.info(f'Running review on cluster {cluster_identifier}, database {database_name}')
