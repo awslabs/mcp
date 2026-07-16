@@ -1114,3 +1114,221 @@ def test_pinned_fetch_http_opt_in_uses_no_sni():
     assert req['headers']['Host'] == 'spec.example.com'
     # No SNI extension for plaintext http.
     assert req['extensions'] == {}
+
+
+# --- External $ref resolution (prance) SSRF/LFI tests ---
+#
+# The DNS-pinned fetch only guards the root document; prance's default resolver
+# (and its validation backend) would otherwise dereference external $ref targets
+# with its own fetcher, bypassing SSRF validation. These tests assert that any
+# external $ref is refused before prance runs, and — critically — that NO
+# outbound request is made (a "content not embedded" check alone would miss the
+# blind-SSRF that prance's validation backend performs).
+
+
+import threading  # noqa: E402
+from http.server import BaseHTTPRequestHandler, HTTPServer  # noqa: E402
+
+
+class _RefCanaryHandler(BaseHTTPRequestHandler):
+    """Records every GET path so a test can assert the server was never hit."""
+
+    hits: list = []
+
+    def do_GET(self):  # noqa: N802
+        type(self).hits.append(self.path)
+        body = b'{"type": "string", "x-canary": "SSRF-REACHED"}'
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args):  # silence per-request logging
+        pass
+
+
+class _loopback_canary:
+    """Context manager: a loopback HTTP server that records hits on an ephemeral port."""
+
+    def __enter__(self):
+        handler = type('_H', (_RefCanaryHandler,), {'hits': []})
+        self._handler = handler
+        self._server = HTTPServer(('127.0.0.1', 0), handler)
+        self._port = self._server.server_address[1]
+        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
+        self._thread.start()
+        return self
+
+    @property
+    def url(self):
+        return f'http://127.0.0.1:{self._port}/ssrf-canary'
+
+    @property
+    def hits(self):
+        return self._handler.hits
+
+    def __exit__(self, *exc):
+        self._server.shutdown()
+
+
+def _spec_with_ref(ref: str) -> dict:
+    """Build a minimal, otherwise-valid spec whose schema carries a single $ref."""
+    return {
+        'openapi': '3.0.0',
+        'info': {'title': 'RefSpec', 'version': '1.0.0'},
+        'paths': {
+            '/x': {
+                'get': {
+                    'responses': {
+                        '200': {
+                            'description': 'ok',
+                            'content': {'application/json': {'schema': {'$ref': ref}}},
+                        }
+                    }
+                }
+            }
+        },
+    }
+
+
+def test_reject_external_refs_blocks_http_file_and_relative():
+    """_reject_external_refs raises SSRFError for any non-internal $ref."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    for ref in (
+        'http://169.254.169.254/latest/meta-data/',
+        'https://evil.example.com/schema.json',
+        'file:///etc/passwd',
+        'schemas.yaml#/Pet',  # relative external file
+    ):
+        with pytest.raises(SSRFError, match='external \\$ref'):
+            openapi_mod._reject_external_refs(_spec_with_ref(ref))
+
+
+def test_reject_external_refs_allows_internal_refs():
+    """Internal (#/...) references are permitted and do not raise."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    # Should not raise.
+    openapi_mod._reject_external_refs(_spec_with_ref('#/components/schemas/Pet'))
+
+
+def test_parse_spec_bytes_refuses_http_ref_without_making_request():
+    """A spec with an http:// $ref is refused AND the target is never contacted."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    with _loopback_canary() as canary:
+        content = json.dumps(_spec_with_ref(canary.url)).encode()
+        with pytest.raises(SSRFError, match='external \\$ref'):
+            openapi_mod._parse_spec_bytes(content)
+        # The key assertion: prance never issued the outbound request.
+        assert canary.hits == []
+
+
+def test_parse_spec_bytes_refuses_file_ref_lfi(tmp_path):
+    """A spec with a file:// $ref is refused (no local file disclosure)."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    secret = tmp_path / 'secret.json'
+    secret.write_text('{"type": "string", "x-secret": "LEAKED"}')
+    content = json.dumps(_spec_with_ref(f'file://{secret}')).encode()
+
+    with pytest.raises(SSRFError, match='external \\$ref'):
+        openapi_mod._parse_spec_bytes(content)
+
+
+def test_parse_spec_bytes_resolves_internal_refs():
+    """Positive control: internal #/components refs still resolve and inline."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    spec = _spec_with_ref('#/components/schemas/Pet')
+    spec['components'] = {'schemas': {'Pet': {'type': 'object', 'x-legit': 'INTERNAL-OK'}}}
+    result = openapi_mod._parse_spec_bytes(json.dumps(spec).encode())
+
+    resolved = result['paths']['/x']['get']['responses']['200']['content']['application/json'][
+        'schema'
+    ]
+    assert resolved.get('x-legit') == 'INTERNAL-OK'
+
+
+def test_load_openapi_spec_file_refuses_http_ref_without_request(tmp_path):
+    """The file-path sink also refuses external $refs and makes no request."""
+    with _loopback_canary() as canary:
+        spec_file = tmp_path / 'spec.json'
+        spec_file.write_text(json.dumps(_spec_with_ref(canary.url)))
+        with pytest.raises(SSRFError, match='external \\$ref'):
+            load_openapi_spec(path=str(spec_file))
+        assert canary.hits == []
+
+
+def test_load_openapi_spec_file_refuses_relative_ref(tmp_path):
+    """A multi-file split (relative $ref) is refused rather than silently fetched."""
+    spec_file = tmp_path / 'spec.json'
+    spec_file.write_text(json.dumps(_spec_with_ref('schemas.yaml#/Pet')))
+    with pytest.raises(SSRFError, match='external \\$ref'):
+        load_openapi_spec(path=str(spec_file))
+
+
+def test_load_openapi_spec_file_resolves_internal_refs(tmp_path):
+    """Positive control: a file spec using only internal refs still loads."""
+    spec = _spec_with_ref('#/components/schemas/Pet')
+    spec['components'] = {'schemas': {'Pet': {'type': 'object', 'x-legit': 'INTERNAL-OK'}}}
+    spec_file = tmp_path / 'spec.json'
+    spec_file.write_text(json.dumps(spec))
+
+    result = load_openapi_spec(path=str(spec_file))
+    resolved = result['paths']['/x']['get']['responses']['200']['content']['application/json'][
+        'schema'
+    ]
+    assert resolved.get('x-legit') == 'INTERNAL-OK'
+
+
+def test_parse_spec_bytes_basic_parse_yaml_without_prance():
+    """_basic_parse handles YAML; external-ref check still applies."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    yaml_body = b'openapi: "3.0.0"\ninfo:\n  title: YAML\n  version: "1"\n'
+    with patch.object(openapi_mod, 'PRANCE_AVAILABLE', False):
+        result = openapi_mod._parse_spec_bytes(yaml_body)
+    assert result['info']['title'] == 'YAML'
+
+
+def test_reject_external_refs_walks_lists():
+    """External $refs nested inside list values (e.g. allOf) are also rejected."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    node = {'allOf': [{'type': 'object'}, {'$ref': 'https://evil.example.com/s.json'}]}
+    with pytest.raises(SSRFError, match='external \\$ref'):
+        openapi_mod._reject_external_refs(node)
+
+
+def test_reject_external_refs_allows_internal_ref_in_list():
+    """Internal $refs nested inside lists do not raise."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    node = {'allOf': [{'type': 'object'}, {'$ref': '#/components/schemas/Base'}]}
+    openapi_mod._reject_external_refs(node)  # should not raise
+
+
+def test_basic_parse_reraises_json_error_when_yaml_unavailable():
+    """When pyyaml is absent, non-JSON content re-raises the JSON error."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    with patch.object(openapi_mod, 'yaml', None):
+        with pytest.raises(json.JSONDecodeError):
+            openapi_mod._basic_parse(b'not: [valid json')
+
+
+def test_parse_spec_bytes_unparseable_defers_to_prance():
+    """Unparseable bytes skip the ref check and let prance produce the error."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    # yaml=None so _basic_parse raises -> best-effort branch sets basic=None;
+    # PRANCE_AVAILABLE=False -> final line re-runs _basic_parse, which raises.
+    with (
+        patch.object(openapi_mod, 'yaml', None),
+        patch.object(openapi_mod, 'PRANCE_AVAILABLE', False),
+    ):
+        with pytest.raises(json.JSONDecodeError):
+            openapi_mod._parse_spec_bytes(b'not: [valid json')

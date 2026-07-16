@@ -70,11 +70,58 @@ except ImportError:
 # Try to import prance, but don't fail if it's not installed
 try:
     from prance import ResolvingParser
+    from prance.util.resolver import RESOLVE_INTERNAL
 
     PRANCE_AVAILABLE = True
 except ImportError:
     PRANCE_AVAILABLE = False
     logger.warning('Prance library not found. Reference resolution will be limited.')
+
+
+def _reject_external_refs(node: Any) -> None:
+    """Reject any non-internal ``$ref`` before the spec reaches prance.
+
+    prance's default resolver (and its validation backend) dereferences
+    ``http(s)://`` and ``file://`` ``$ref`` targets using its own fetcher, which
+    bypasses the DNS-pinned, SSRF-validated fetch used for the root document.
+    A hostile spec served from a validation-passing host could therefore embed a
+    ``$ref`` pointing at internal services or cloud metadata (SSRF) or a local
+    file (LFI) and exfiltrate the resolved content. We refuse to resolve any
+    reference that is not a local, in-document reference (i.e. one that does not
+    start with ``#``), so no external network or filesystem access is ever
+    triggered by reference resolution.
+
+    Args:
+        node: A parsed spec fragment (dict, list, or scalar) to walk recursively.
+
+    Raises:
+        SSRFError: If an external (non-``#``) ``$ref`` is present anywhere.
+
+    """
+    if isinstance(node, dict):
+        ref = node.get('$ref')
+        if isinstance(ref, str) and not ref.startswith('#'):
+            raise SSRFError(
+                f'Refusing to resolve external $ref {ref!r} in OpenAPI spec; only '
+                'internal references (starting with "#") are allowed. External '
+                'http(s)://, file://, and relative-path references are blocked to '
+                'prevent SSRF and local file disclosure.'
+            )
+        for value in node.values():
+            _reject_external_refs(value)
+    elif isinstance(node, list):
+        for item in node:
+            _reject_external_refs(item)
+
+
+def _basic_parse(content: bytes) -> Dict[str, Any]:
+    """Parse spec bytes as JSON, then YAML, without resolving any references."""
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        if yaml is None:
+            raise
+        return yaml.safe_load(content)
 
 
 def _validate_url_sync(
@@ -221,16 +268,33 @@ def _pinned_fetch(
 def _parse_spec_bytes(content: bytes) -> Dict[str, Any]:
     """Parse fetched spec bytes into a dict.
 
-    Uses prance for ``$ref`` resolution when available, falling back to basic
-    JSON (then YAML) parsing.
+    Any external ``$ref`` is refused before prance sees the spec (see
+    ``_reject_external_refs``), then prance resolves internal references only.
+    Falls back to basic JSON (then YAML) parsing when prance is unavailable or
+    fails on a spec that has already passed the external-ref check.
     """
+    # Refuse external references before any resolver/validator can dereference
+    # them. Parse once (best effort) purely for this safety check: if the bytes
+    # are not parseable as JSON/YAML there are no references to resolve, so we
+    # defer the parse error to prance / the basic fallback below. An SSRFError
+    # from the ref check propagates and is never swallowed by the fallback.
+    try:
+        basic = _basic_parse(content)
+    except Exception:
+        basic = None
+    if basic is not None:
+        _reject_external_refs(basic)
+
     if PRANCE_AVAILABLE:
         logger.info('Using prance for reference resolution')
         with tempfile.NamedTemporaryFile(suffix='.yaml', delete=False) as temp_file:
             temp_path = temp_file.name
             temp_file.write(content)
         try:
-            parser = ResolvingParser(temp_path)
+            # RESOLVE_INTERNAL restricts prance to in-document references; combined
+            # with the external-ref rejection above, no http(s)://, file://, or
+            # relative-path reference is ever fetched.
+            parser = ResolvingParser(temp_path, resolve_types=RESOLVE_INTERNAL)
             spec = parser.specification
             Path(temp_path).unlink(missing_ok=True)
             return spec
@@ -238,13 +302,8 @@ def _parse_spec_bytes(content: bytes) -> Dict[str, Any]:
             logger.warning(f'Failed to parse with prance: {e}. Falling back to basic parsing.')
             Path(temp_path).unlink(missing_ok=True)
 
-    # Basic parsing without reference resolution: JSON first, then YAML.
-    try:
-        return json.loads(content)
-    except json.JSONDecodeError:
-        if yaml is None:
-            raise
-        return yaml.safe_load(content)
+    # Basic parsing (references already validated as internal-only above).
+    return basic if basic is not None else _basic_parse(content)
 
 
 @cached(ttl_seconds=3600)  # Cache OpenAPI specs for 1 hour
@@ -344,11 +403,27 @@ def load_openapi_spec(
 
         logger.info(f'Loading OpenAPI spec from file: {path}')
         try:
+            # Refuse external references before prance can dereference them. This
+            # runs outside the prance try/except below so the SSRFError is never
+            # swallowed by the fallback-to-basic-parsing path. The parse here is
+            # best effort purely for the safety check: an unparseable file has no
+            # references to resolve, so its parse error is left to the existing
+            # handling below.
+            with open(spec_path, 'rb') as f:
+                try:
+                    prescan_spec = _basic_parse(f.read())
+                except Exception:
+                    prescan_spec = None
+            if prescan_spec is not None:
+                _reject_external_refs(prescan_spec)
+
             if PRANCE_AVAILABLE:
                 logger.info('Using prance for reference resolution')
-                # Use prance for reference resolution if available
+                # Use prance for reference resolution if available. RESOLVE_INTERNAL
+                # restricts prance to in-document references; combined with the
+                # external-ref rejection above, no external file/URL is fetched.
                 try:
-                    parser = ResolvingParser(path)
+                    parser = ResolvingParser(path, resolve_types=RESOLVE_INTERNAL)
                     spec = parser.specification
                 except Exception as e:
                     logger.warning(
