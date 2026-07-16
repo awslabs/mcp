@@ -84,7 +84,8 @@ Validates CloudFormation templates against security and compliance rules using c
 
 **Parameters:**
 - `template_content` (required): CloudFormation template as string
-- `custom_rules` (optional): Custom cfn-guard rules to apply
+
+Validates against the server's bundled cfn-guard security rules. To use your own rules, set the `AWS_IAC_MCP_RULES_DIR` environment variable to your rules directory before starting the server.
 
 #### troubleshoot_cloudformation_deployment
 Analyzes failed CloudFormation stacks and provides resolution guidance.

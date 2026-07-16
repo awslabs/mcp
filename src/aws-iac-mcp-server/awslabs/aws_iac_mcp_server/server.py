@@ -143,7 +143,7 @@ def validate_cloudformation_template(
 
 @mcp.tool()
 def check_cloudformation_template_compliance(
-    template_content: str, rules_file_path: str = 'default_guard_rules.guard'
+    template_content: str,
 ) -> str:
     """Validate CloudFormation template against security and compliance rules using cfn-guard.
 
@@ -184,16 +184,15 @@ def check_cloudformation_template_compliance(
     - Use inline comments to explain each fix
     - Focus on what changed, not the entire resource definition
 
+    Validates against the server's bundled security rules. Operators can point
+    the server at their own rules directory with the AWS_IAC_MCP_RULES_DIR
+    environment variable.
+
     Args:
         template_content: CloudFormation template as YAML or JSON string
-        rules_file_path: Path to guard rules file (default: default_guard_rules.guard).
-            For security, only files inside the bundled rules directory (or a directory
-            configured via the AWS_IAC_MCP_RULES_DIR environment variable) are read;
-            paths outside these allowed directories are rejected.
     """
     result = check_compliance(
         template_content=template_content,
-        rules_file_path=rules_file_path,
     )
     response_text = json.dumps(result, indent=2)
     return sanitize_tool_response(response_text)
