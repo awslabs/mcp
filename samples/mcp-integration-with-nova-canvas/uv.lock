@@ -766,7 +766,7 @@ requires-dist = [
     { name = "langchain-mcp-adapters", specifier = ">=0.0.7" },
     { name = "mcp", specifier = ">=1.23.0" },
     { name = "pillow", specifier = ">=10.0.0" },
-    { name = "streamlit", specifier = ">=1.44.1" },
+    { name = "streamlit", specifier = ">=1.54.0" },
     { name = "uvicorn", specifier = ">=0.34.0" },
 ]
 
@@ -1549,7 +1549,7 @@ wheels = [
 
 [[package]]
 name = "streamlit"
-version = "1.52.2"
+version = "1.54.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "altair" },
@@ -1571,9 +1571,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "watchdog", marker = "sys_platform != 'darwin'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/43/20/434aaceccc6e1912671d869926103051330437adba72d538d787a07727ef/streamlit-1.52.2.tar.gz", hash = "sha256:64a4dda8bc5cdd37bfd490e93bb53da35aaef946fcfc283a7980dacdf165108b", size = 8584178, upload-time = "2025-12-17T17:07:59.642Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/be/66/d887ee80ea85f035baee607c60af024994e17ae9b921277fca9675e76ecf/streamlit-1.54.0.tar.gz", hash = "sha256:09965e6ae7eb0357091725de1ce2a3f7e4be155c2464c505c40a3da77ab69dd8", size = 8662292, upload-time = "2026-02-04T16:37:54.734Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c0/95/6b7873f0267973ebd55ba9cd33a690b35a116f2779901ef6185a0e21864d/streamlit-1.52.2-py3-none-any.whl", hash = "sha256:a16bb4fbc9781e173ce9dfbd8ffb189c174f148f9ca4fb8fa56423e84e193fc8", size = 9025937, upload-time = "2025-12-17T17:07:57.67Z" },
+    { url = "https://files.pythonhosted.org/packages/48/1d/40de1819374b4f0507411a60f4d2de0d620a9b10c817de5925799132b6c9/streamlit-1.54.0-py3-none-any.whl", hash = "sha256:a7b67d6293a9f5f6b4d4c7acdbc4980d7d9f049e78e404125022ecb1712f79fc", size = 9119730, upload-time = "2026-02-04T16:37:52.199Z" },
 ]
 
 [[package]]

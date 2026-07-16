@@ -10,7 +10,7 @@ dependencies = [
     "langchain-mcp-adapters>=0.0.7",
     "mcp>=1.23.0",
     "pillow>=10.0.0",
-    "streamlit>=1.44.1",
+    "streamlit>=1.54.0",
     "uvicorn>=0.34.0",
 ]
 
