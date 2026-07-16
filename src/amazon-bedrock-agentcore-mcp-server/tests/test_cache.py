@@ -16,6 +16,7 @@
 
 from awslabs.amazon_bedrock_agentcore_mcp_server.utils import cache, doc_fetcher, indexer
 from unittest.mock import Mock, patch
+from urllib.error import HTTPError
 
 
 class TestCache:
@@ -175,3 +176,76 @@ class TestCache:
 
         # Assert
         assert result == test_titles
+
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.doc_fetcher.parse_llms_txt')
+    def test_load_links_only_handles_http_error(self, mock_parse_llms):
+        """Test load_links_only handles HTTP errors gracefully without crashing."""
+        # Arrange
+        mock_parse_llms.side_effect = HTTPError(
+            url='https://example.com/llms.txt',
+            code=404,
+            msg='Not Found',
+            hdrs={},
+            fp=None,
+        )
+
+        # Act — should not raise
+        cache.load_links_only()
+
+        # Assert — server can still start, index is empty but initialized
+        assert cache._LINKS_LOADED is True
+        assert cache._INDEX is not None
+        assert len(cache._URL_TITLES) == 0
+        assert len(cache._URL_CACHE) == 0
+
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.doc_fetcher.parse_llms_txt')
+    def test_load_links_only_handles_network_error(self, mock_parse_llms):
+        """Test load_links_only handles generic network errors gracefully."""
+        # Arrange
+        mock_parse_llms.side_effect = OSError('Network is unreachable')
+
+        # Act — should not raise
+        cache.load_links_only()
+
+        # Assert
+        assert cache._LINKS_LOADED is True
+        assert cache._INDEX is not None
+        assert len(cache._URL_TITLES) == 0
+
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.doc_fetcher.parse_llms_txt')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.text_processor.normalize')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.text_processor.index_title_variants')
+    def test_load_links_only_partial_failure(
+        self, mock_index_variants, mock_normalize, mock_parse_llms
+    ):
+        """Test load_links_only continues with remaining sources after one fails."""
+        # Arrange — first source fails, second succeeds
+        mock_parse_llms.side_effect = [
+            HTTPError(
+                url='https://bad.example.com/llms.txt',
+                code=404,
+                msg='Not Found',
+                hdrs={},
+                fp=None,
+            ),
+            [('Working Doc', 'https://good.example.com/doc')],
+        ]
+        mock_normalize.side_effect = lambda x: x
+        mock_index_variants.return_value = 'variants'
+
+        # Patch config to have two sources
+        with patch(
+            'awslabs.amazon_bedrock_agentcore_mcp_server.utils.cache.doc_config'
+        ) as mock_config:
+            mock_config.llm_texts_url = [
+                'https://bad.example.com/llms.txt',
+                'https://good.example.com/llms.txt',
+            ]
+
+            # Act
+            cache.load_links_only()
+
+        # Assert — only the working source's docs are indexed
+        assert cache._LINKS_LOADED is True
+        assert len(cache._URL_TITLES) == 1
+        assert cache._URL_TITLES['https://good.example.com/doc'] == 'Working Doc'
