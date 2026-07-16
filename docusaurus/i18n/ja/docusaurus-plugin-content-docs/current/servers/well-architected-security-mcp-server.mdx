@@ -1,0 +1,242 @@
+---
+title: "AWS Well-Architected セキュリティ評価ツール MCPサーバー"
+---
+
+[![PyPI version](https://img.shields.io/pypi/v/awslabs.well-architected-security-mcp-server.svg)](https://pypi.org/project/awslabs.well-architected-security-mcp-server/)
+
+AWS Well-Architected Framework のセキュリティの柱に照らして AWS 環境を監視・評価するための運用ツールを提供する Model Context Protocol (MCP) サーバーです。このサーバーにより、AI アシスタントは運用チームを支援し、Well-Architected Framework に沿った運用上の優秀性を維持しながら、セキュリティ態勢の評価、コンプライアンス状況の監視、セキュリティコストの最適化を行うことができます。
+
+## 機能 {#features}
+
+- **運用セキュリティモニタリング**: インフラストラクチャ全体にわたる AWS セキュリティサービス（GuardDuty、Security Hub、Inspector、IAM Access Analyzer）のステータスを監視します
+- **セキュリティ運用ダッシュボード**: 運用上の可視性のために AWS サービスからセキュリティ検出結果を取得・分析します
+- **コンプライアンス運用**: 運用コンプライアンスのために Well-Architected Framework に照らしてセキュリティ態勢を継続的に評価します
+- **リソース運用**: セキュリティ運用のために複数のサービスとリージョンにわたる AWS リソースを検出・監視します
+- **コスト効率の高いデータ保護**: セキュリティコストを最適化しながら、暗号化コンプライアンスのためにストレージ設定を監視します
+- **ネットワーク運用セキュリティ**: 運用環境における暗号化コンプライアンスのためにネットワーク設定を検証します
+- **コンプライアンスモニタリング**: 運用レポートのために、セキュリティ標準に照らした AWS リソースのコンプライアンス状況を監視します
+- **セキュリティ運用コンテキスト**: 運用分析とトレンド把握のために保存されたセキュリティコンテキストデータにアクセスします
+
+運用チームは `CheckSecurityServices` ツールを使用して、重要な AWS セキュリティサービスがインフラストラクチャ全体で稼働しているかを監視できます。`GetSecurityFindings` ツールはセキュリティ検出結果に対する運用上の可視性を提供し、`AnalyzeSecurityPosture` は Well-Architected Framework に照らした包括的なセキュリティ運用レポートを提供します。`ExploreAwsResources` ツールは、AWS 環境の完全な運用可視性とコスト最適化を確保するために、サービスとリージョンをまたいだ運用インベントリ機能を提供します。
+
+## インストール {#installation}
+
+```bash
+# Install using uv
+uv pip install awslabs.well-architected-security-mcp-server
+
+# Or install using pip
+pip install awslabs.well-architected-security-mcp-server
+```
+
+GitHub リポジトリのローカルクローンから MCP サーバーを直接実行することもできます。
+
+```bash
+# Clone the awslabs repository
+git clone https://github.com/awslabs/mcp.git
+
+# Run the server directly using uv
+uv --directory /path/to/well-architected-security-mcp-server/src/well-architected-security-mcp-server/awslabs/well_architected_security_mcp_server run server.py
+```
+
+## 利用環境 {#usage-environments}
+
+AWS Well-Architected セキュリティ評価ツール MCPサーバーは、以下の環境での運用を想定して設計されています。
+
+- **本番運用**: 運用上の優秀性のために、本番環境におけるセキュリティ態勢とコンプライアンス状況を監視します。
+- **コンプライアンス運用**: 規制要件および社内要件のために、継続的なコンプライアンス監視とレポートを実施します。
+- **セキュリティオペレーションセンター (SOC)**: 継続的なセキュリティ監視とインシデント対応のために SOC ワークフローと統合します。
+- **コスト最適化**: コンプライアンスを維持しながら、セキュリティサービスのコストを監視し、セキュリティ支出を最適化します。
+- **運用レポート**: ステークホルダーや経営層向けのセキュリティ運用レポートとダッシュボードを生成します。
+
+**運用上の考慮事項**:
+- **自動修復**: このツールは運用上の可視性を提供しますが、自動修復は別個の運用ワークフローとして実装する必要があります。
+- **モニタリング統合**: 包括的な運用カバレッジのために、既存の監視・アラートシステムとの統合を想定して設計されています。
+
+**セキュリティデータに関する重要な注意**: どの環境に接続する場合でも、特に本番環境では、機密性の高いセキュリティ情報の偶発的な漏えいを常に防止してください。
+
+## 運用デプロイに関する考慮事項 {#operational-deployment-considerations}
+
+AWS Well-Architected セキュリティ評価ツール MCPサーバーは、適切な運用管理策のもとで、さまざまな環境への運用デプロイを想定して設計されています。
+
+### 運用ユースケース {#operational-use-cases}
+
+このツールは、以下のシナリオでの運用デプロイに適しています。
+
+1. **セキュリティ運用モニタリング**: セキュリティ態勢とコンプライアンス状況の継続的な監視
+2. **運用コンプライアンスレポート**: 定期的なコンプライアンス検証とレポートのワークフロー
+3. **コスト運用**: セキュリティサービスのコスト監視とセキュリティ支出の最適化
+4. **運用ダッシュボード**: 運用ダッシュボードや監視システムとの統合
+
+### 運用ベストプラクティス {#operational-best-practices}
+
+最適な運用デプロイのために、以下を実施してください。
+
+1. **レート制限**: AWS API の制限に影響を与えないよう、適切なレート制限を実装します
+2. **モニタリング統合**: 既存の運用監視・アラートシステムと統合します
+3. **アクセス制御**: 適切な IAM 制御と運用アクセスパターンを実装します
+4. **コストモニタリング**: API コストを監視し、コスト効率のためにクエリパターンを最適化します
+
+## 設定 {#configuration}
+
+
+| Kiro | Cursor | VS Code |
+|:----:|:------:|:-------:|
+| [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=awslabs.well-architected-security-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.well-architected-security-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%7D) | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.well-architected-security-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMud2VsbC1hcmNoaXRlY3RlZC1zZWN1cml0eS1tY3Atc2VydmVyQGxhdGVzdCIsImVudiI6eyJBV1NfUFJPRklMRSI6InlvdXItYXdzLXByb2ZpbGUiLCJBV1NfUkVHSU9OIjoidXMtZWFzdC0xIiwiRkFTVE1DUF9MT0dfTEVWRUwiOiJFUlJPUiJ9LCJkaXNhYmxlZCI6ZmFsc2UsImF1dG9BcHByb3ZlIjpbXX0K) | [![Install on VS Code](https://img.shields.io/badge/Install-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=AWS%20Well-Architected%20Security%20Assessment%20Tool%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.well-architected-security-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22your-aws-profile%22%2C%22AWS_REGION%22%3A%22us-east-1%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
+
+AWS Well-Architected セキュリティ評価ツール MCPサーバーを MCP クライアントの設定に追加します。
+
+```json
+{
+  "mcpServers": {
+    "well-architected-security-mcp-server": {
+      "command": "uvx",
+      "args": ["--from", "awslabs.well-architected-security-mcp-server", "well-architected-security-mcp-server"],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile", // Optional - uses your local AWS configuration if not specified
+        "AWS_REGION": "your-aws-region", // Optional - uses your local AWS configuration if not specified
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
+```
+
+ローカルリポジトリから実行する場合は、MCP クライアントを次のように設定します。
+
+```json
+{
+  "mcpServers": {
+    "well-architected-security-mcp-server": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/path/to/well-architected-security-mcp-server/src/well-architected-security-mcp-server/awslabs/well_architected_security_mcp_server",
+        "run",
+        "server.py"
+      ],
+      "env": {
+        "AWS_PROFILE": "your-aws-profile",
+        "AWS_REGION": "your-aws-region",
+        "FASTMCP_LOG_LEVEL": "DEBUG"
+      }
+    }
+  }
+}
+```
+
+## セキュリティ管理策 {#security-controls}
+
+AWS Well-Architected セキュリティ評価ツール MCPサーバーでは、機密データへのアクセスを制限するために、MCP クライアント設定にセキュリティ管理策を組み込みます。
+
+### IAM ベストプラクティス {#iam-best-practices}
+
+AWS Well-Architected セキュリティ評価ツール MCPサーバーを使用する際は、最小権限のアクセス許可を持つ専用の IAM ロールを作成することを強く推奨します。
+
+1. セキュリティ評価の運用専用に、**専用の IAM ロールを作成する**
+2. 必要な読み取り専用ポリシーのみをアタッチして、**最小権限のアクセス許可を適用する**
+3. 可能な限り、**スコープを絞り込んだリソースポリシーを使用する**
+4. 最大権限を制限するために、**アクセス許可の境界を適用する**
+
+セキュリティ評価のユースケースに合わせた詳細な IAM ポリシーの例については、分析対象となる各セキュリティサービスの AWS ドキュメントを参照してください。
+
+## MCP ツール {#mcp-tools}
+
+### セキュリティ運用ツール {#security-operations-tools}
+
+これらの運用ツールは、Well-Architected Framework のセキュリティの柱に照らして AWS のセキュリティ態勢を監視・管理するのに役立ちます。
+
+- **CheckSecurityServices**: AWS セキュリティサービスの稼働状況の監視
+  - GuardDuty、Security Hub、Inspector、IAM Access Analyzer の稼働状況を監視します
+  - 運用上の可視性のために、リージョンをまたいだサービスの利用可否を特定します
+  - セキュリティサービスのカバレッジを維持するための運用上の推奨事項を提供します
+
+- **GetSecurityFindings**: 運用向けセキュリティ検出結果の取得
+  - Security Hub、GuardDuty、Inspector から運用向けのセキュリティ検出結果を収集します
+  - 運用上の優先順位付けのために、重要度、リソースタイプ、サービスで検出結果をフィルタリングします
+  - 運用コンテキストとコスト効率の高い修復ガイダンスを提供します
+
+- **GetResourceComplianceStatus**: 運用コンプライアンスの監視
+  - 運用コンプライアンスのために、セキュリティ標準に照らしてリソースを監視します
+  - 運用上の修復ワークフローのために、非準拠のリソースを特定します
+  - コンプライアンスメトリクスと運用改善の推奨事項を提供します
+
+- **GetStoredSecurityContext**: セキュリティ運用の履歴データ
+  - トレンド分析のためにセキュリティ運用の履歴データを取得します
+  - セキュリティ態勢の経時的な運用比較を可能にします
+  - セキュリティ検出結果とコスト最適化のための運用コンテキストを提供します
+
+- **ExploreAwsResources**: 運用リソースインベントリ
+  - 運用上の可視性のために、AWS サービス全体のリソースを検出します
+  - 運用上のセキュリティコンテキストのために、リソース間の関係をマッピングします
+  - 運用面でセキュリティ対応が必要なリソースを特定します
+
+- **AnalyzeSecurityPosture**: 包括的なセキュリティ運用分析
+  - Well-Architected Framework に照らして運用上のセキュリティ態勢を評価します
+  - セキュリティ改善とコスト最適化のための運用上の推奨事項を提供します
+  - 運用セキュリティメトリクスと優先順位付けされたアクション項目を生成します
+
+## プロンプト例 {#example-prompts}
+
+### セキュリティ運用モニタリング {#security-operations-monitoring}
+
+- 「アカウント全体の AWS セキュリティサービスの稼働状況を監視して」
+- 「Well-Architected のセキュリティの柱に照らした運用セキュリティレポートを生成して」
+- 「運用上の対応が必要な現在のセキュリティ検出結果を表示して」
+- 「運用レポートのために S3 バケット全体の暗号化コンプライアンスを監視して」
+- 「運用セキュリティ標準に照らしてネットワーク暗号化コンプライアンスを検証して」
+
+### 運用リソース管理 {#operational-resource-management}
+
+- 「AWS アカウント内のすべてのリソースの運用インベントリを提供して」
+- 「運用上の対応が必要なセキュリティ問題を持つリソースを特定して」
+- 「セキュリティ運用レビューのために全リージョンの EC2 インスタンスを一覧表示して」
+- 「運用セキュリティ標準に準拠していないリソースを監視して」
+
+### セキュリティ運用分析 {#security-operations-analysis}
+
+- 「Well-Architected のベストプラクティスに照らして運用セキュリティ態勢を分析して」
+- 「コスト最適化のために運用チームが優先すべきセキュリティ改善は何ですか？」
+- 「現在のセキュリティ運用メトリクスを先月の運用ベースラインと比較して」
+- 「経営層向けレポートのための運用セキュリティダッシュボードを生成して」
+- 「セキュリティサービスのコストを監視し、最適化の機会を提案して」
+
+## 要件 {#requirements}
+
+- Python 3.10 以上
+- セキュリティサービスに対する読み取り専用権限を持つ AWS 認証情報
+- 適切なプロファイルで設定された AWS CLI（オプション）
+
+## テスト {#testing}
+
+AWS Well-Architected セキュリティ評価ツール MCPサーバーには、機能性と信頼性を確保するための包括的なテストスイートが含まれています。テストはモジュールごとに整理されており、実際の AWS API 呼び出しを避けるためにモックを使用した pytest で実行されます。
+
+### テスト構成 {#test-structure}
+
+- `test_prompt_utils.py`: プロンプトテンプレートユーティリティのテスト
+- `test_resource_utils.py`: AWS リソース操作のテスト
+- `test_storage_security.py`: ストレージ暗号化チェックのテスト
+- `test_network_security.py`: ネットワークセキュリティチェックのテスト
+- `test_security_services.py`: AWS セキュリティサービスのテスト
+
+### テストの実行 {#running-tests}
+
+すべてのテストを実行する最も簡単な方法は、付属のスクリプトを使用することです。
+
+```bash
+# Make the script executable if needed
+chmod +x run_tests.sh
+
+# Run the tests
+./run_tests.sh
+```
+
+このスクリプトは以下を実行します。
+1. 必要な依存関係のインストール（pytest、pytest-asyncio、pytest-cov）
+2. カバレッジレポート付きでのすべてのテストの実行
+
+テストの詳細については、プロジェクトリポジトリ内の tests/README.md ファイルを参照してください。
+
+## ライセンス {#license}
+
+このプロジェクトは Apache License, Version 2.0 の下でライセンスされています。

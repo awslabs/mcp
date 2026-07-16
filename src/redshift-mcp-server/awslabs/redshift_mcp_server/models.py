@@ -41,10 +41,7 @@ class RedshiftCluster(BaseModel):
 
 
 class RedshiftDatabase(BaseModel):
-    """Information about a database in a Redshift cluster.
-
-    Based on the SVV_REDSHIFT_DATABASES system view.
-    """
+    """Information about a database in a Redshift cluster."""
 
     database_name: str = Field(..., description='The name of the database')
     database_owner: Optional[int] = Field(None, description='The database owner user ID')
@@ -62,10 +59,7 @@ class RedshiftDatabase(BaseModel):
 
 
 class RedshiftSchema(BaseModel):
-    """Information about a schema in a Redshift database.
-
-    Based on the SVV_ALL_SCHEMAS system view.
-    """
+    """Information about a schema in a Redshift database."""
 
     database_name: str = Field(..., description='The name of the database where the schema exists')
     schema_name: str = Field(..., description='The name of the schema')
@@ -85,10 +79,7 @@ class RedshiftSchema(BaseModel):
 
 
 class RedshiftTable(BaseModel):
-    """Information about a table in a Redshift database.
-
-    Based on the SVV_ALL_TABLES system view.
-    """
+    """Information about a table in a Redshift database."""
 
     database_name: str = Field(..., description='The name of the database where the table exists')
     schema_name: str = Field(..., description='The schema name for the table')
@@ -104,10 +95,7 @@ class RedshiftTable(BaseModel):
 
 
 class RedshiftColumn(BaseModel):
-    """Information about a column in a Redshift table.
-
-    Based on the SVV_ALL_COLUMNS system view.
-    """
+    """Information about a column in a Redshift table."""
 
     database_name: str = Field(..., description='The name of the database')
     schema_name: str = Field(..., description='The name of the schema')

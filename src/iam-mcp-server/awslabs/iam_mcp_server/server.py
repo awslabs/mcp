@@ -43,20 +43,27 @@ from pydantic import Field
 from typing import Any, Dict, List, Optional, Union
 
 
-# Policy ARNs that are too dangerous to attach via MCP
+# Policy ARNs that are too dangerous to attach via MCP.
+# Stored lowercased because IAM resolves managed-policy ARNs case-insensitively,
+# so the denylist check must be case-insensitive too (see _check_denied_policy_arn).
 DENIED_POLICY_ARNS = {
-    'arn:aws:iam::aws:policy/AdministratorAccess',
-    'arn:aws:iam::aws:policy/IAMFullAccess',
-    'arn:aws:iam::aws:policy/PowerUserAccess',
+    'arn:aws:iam::aws:policy/administratoraccess',
+    'arn:aws:iam::aws:policy/iamfullaccess',
+    'arn:aws:iam::aws:policy/poweruseraccess',
 }
 
 
 def _check_denied_policy_arn(policy_arn: str) -> None:
-    """Reject policy ARNs on the denylist."""
-    normalized = policy_arn.strip()
+    """Reject policy ARNs on the denylist.
+
+    The comparison is case-insensitive: IAM resolves managed-policy ARNs without
+    regard to case, so a case variant such as 'arn:aws:iam::aws:policy/administratoraccess'
+    would otherwise bypass the denylist and still attach the canonical policy.
+    """
+    normalized = policy_arn.strip().lower()
     if normalized in DENIED_POLICY_ARNS:
         raise IamValidationError(
-            f'Policy {normalized} is on the denylist and cannot be attached via MCP. '
+            f'Policy {policy_arn.strip()} is on the denylist and cannot be attached via MCP. '
             'Use the AWS Console for high-privilege policy changes.'
         )
 
