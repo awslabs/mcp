@@ -184,6 +184,25 @@ class TestApiKeyAuthProvider:
         hash2 = hash_method('different_key')
         assert hash1 != hash2
 
+    def test_hash_api_key_long_token(self):
+        """Test that API keys longer than 72 bytes are hashed without error.
+
+        This is a regression test for the bcrypt 72-byte limit bug.
+        ProxMox tickets and LDAP bearer tokens routinely exceed 72 bytes.
+        """
+        # 74-byte token (simulates a ProxMox-style ticket)
+        long_key = 'PVE:tickets:' + 'a' * 62  # 74 bytes total
+        assert len(long_key.encode('utf-8')) == 74
+
+        # Should not raise ValueError (which bcrypt did for >72 bytes)
+        hash1 = ApiKeyAuthProvider._hash_api_key(long_key)
+        assert hash1 is not None
+        assert len(hash1) == 64  # SHA-256 hex digest length
+
+        # Deterministic: same input always yields the same output
+        hash2 = ApiKeyAuthProvider._hash_api_key(long_key)
+        assert hash1 == hash2
+
     @patch('awslabs.openapi_mcp_server.auth.api_key_auth.cached_auth_data')
     def test_cached_auth_data(self, mock_cached_auth_data):
         """Test that auth data is cached."""
