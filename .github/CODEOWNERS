@@ -77,7 +77,7 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/sagemaker-unified-studio-spark-troubleshooting-mcp-server @awslabs/mcp-admins @awslabs/mcp-maintainers  @naikvaib @LiyuanLD @ckha2000 @raghav1397 @chappidim @yuxiaorun
 /src/security-agent-mcp-server                                 @awslabs/mcp-admins @awslabs/mcp-maintainers  @ljainiaz @jigar-lab
 /src/stepfunctions-tool-mcp-server                             @awslabs/mcp-admins @awslabs/mcp-maintainers  @mmouniro
-/src/timestream-for-influxdb-mcp-server                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @lokendrp-aws
+/src/timestream-for-influxdb-mcp-server                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @lokendrp-aws @mhchengaws @sandeep94pr
 /src/valkey-mcp-server                                         @awslabs/mcp-admins @awslabs/mcp-maintainers  @swarnaprakash @madolson @allenss-amazon @kevinmcgehee
 /src/well-architected-security-mcp-server                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @juntinyeh
 
