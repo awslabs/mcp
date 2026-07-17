@@ -508,7 +508,7 @@ async def discover_clusters() -> list[dict]:
                     ),
                     'endpoint': workgroup_detail.get('endpoint', {}).get('address'),
                     'port': workgroup_detail.get('endpoint', {}).get('port'),
-                    'vpc_id': workgroup_detail.get('subnetIds', [None])[
+                    'vpc_id': (workgroup_detail.get('subnetIds') or [None])[
                         0
                     ],  # Approximate VPC from subnet
                     'node_type': None,  # Not applicable for serverless
