@@ -52,11 +52,11 @@ class TestConnString:
     """Tests for connection-string construction."""
 
     def test_ssl_with_cert(self):
-        """SSL mode adds SECURITY=SSL and the certificate path."""
+        """SSL mode adds SECURITY=SSL and the brace-escaped certificate path."""
         c = _conn(ssl_encryption='require', ssl_server_certificate='/tmp/rds.pem')
         s = c._build_conn_string('admin', 'pw')
         assert 'SECURITY=SSL' in s
-        assert 'SSLServerCertificate=/tmp/rds.pem' in s
+        assert 'SSLServerCertificate={/tmp/rds.pem}' in s
         assert 'PORT=50443' in s
 
     def test_plain_tcp(self):
@@ -174,6 +174,10 @@ def _fake_ibm_db(mocker, *, rows, active=False, prepare_ok=True, execute_ok=True
     fake.fetch_assoc.side_effect = list(rows) + [None]
     fake.conn_errormsg.return_value = 'conn err'
     fake.stmt_errormsg.return_value = 'stmt err'
+    fake.stmt_error.return_value = '02000'  # legitimate end-of-data by default
+    fake.rollback.return_value = True
+    fake.commit.return_value = True
+    fake.close.return_value = True
     mocker.patch('awslabs.db2_mcp_server.connection.ibm_db_connection.ibm_db', fake)
     return fake
 
@@ -405,6 +409,82 @@ async def test_timeout_set_option_falsy_return_refuses_query(mocker):
     c = _conn(readonly=True, query_timeout_s=30)
     with pytest.raises(ValueError, match='timeout'):
         await c.execute_query('SELECT A FROM T')
+
+
+async def test_rollback_falsy_return_raises(mocker):
+    """A falsy rollback() return must raise, not be treated as a successful rollback.
+
+    ibm_db.rollback signals failure via a falsy return as well as by raising (the
+    same convention already checked for prepare/execute/set_option). If this were
+    silently ignored, a read-only query could return its rows as success while
+    leaving an open, uncommitted transaction on the shared connection -- the exact
+    "nothing is ever persisted" guarantee the read-only mode promises.
+    """
+    fake = _fake_ibm_db(mocker, rows=[{'A': 1}])
+    fake.rollback.return_value = False
+    c = _conn(readonly=True)
+    with pytest.raises(ValueError, match='rollback'):
+        await c.execute_query('SELECT A FROM T')
+
+
+async def test_commit_falsy_return_raises(mocker):
+    """A falsy commit() return must raise, not be treated as a successful commit."""
+    fake = _fake_ibm_db(mocker, rows=[])
+    fake.commit.return_value = False
+    c = _conn(readonly=False)
+    with pytest.raises(ValueError, match='commit'):
+        await c.execute_query('SELECT 1 FROM SYSIBM.SYSDUMMY1')
+
+
+async def test_fetch_assoc_midstream_error_raises_not_truncates(mocker):
+    """A fetch_assoc failure mid-stream (non-'02000' SQLSTATE) raises, not truncates.
+
+    fetch_assoc returns falsy at both legitimate end-of-data and on a mid-stream
+    error (e.g. a network drop or LOB conversion failure); the driver conflates the
+    two. A real error must not be silently treated as "the query legitimately
+    returned exactly these rows".
+    """
+    fake = _fake_ibm_db(mocker, rows=[{'A': 1}])
+    fake.stmt_error.return_value = '08001'  # non-end-of-data SQLSTATE
+    c = _conn(readonly=True)
+    with pytest.raises(ValueError, match='mid-stream'):
+        await c.execute_query('SELECT A FROM T')
+
+
+async def test_fetch_assoc_clean_eof_does_not_raise(mocker):
+    """A clean end-of-data ('02000' SQLSTATE) is not mistaken for a fetch error."""
+    fake = _fake_ibm_db(mocker, rows=[{'A': 1}])
+    fake.stmt_error.return_value = '02000'  # legitimate end-of-data
+    c = _conn(readonly=True)
+    out = await c.execute_query('SELECT A FROM T')
+    assert out == [{'A': 1}]
+
+
+async def test_fetch_assoc_error_not_checked_on_max_rows_truncation(mocker):
+    """A max_rows-triggered break does not spuriously check for a fetch error.
+
+    When the loop stops early because max_rows was reached, the last fetched row is
+    truthy (not the falsy end/error sentinel), so stmt_error must not be consulted.
+    """
+    fake = _fake_ibm_db(mocker, rows=[{'A': 1}, {'A': 2}, {'A': 3}])
+    c = _conn(readonly=True)
+    out = await c.execute_query('SELECT A FROM T', max_rows=1)
+    assert out == [{'A': 1}, {'A': 2}]
+    fake.stmt_error.assert_not_called()
+
+
+async def test_close_logs_warning_on_failure(mocker):
+    """A failing ibm_db.close is logged, not silently swallowed."""
+    fake = _fake_ibm_db(mocker, rows=[{'A': 1}])
+    c = _conn(readonly=True)
+    await c.execute_query('SELECT A FROM T')  # establishes _conn
+    fake.close.side_effect = RuntimeError('close failed')
+    log_warning = mocker.patch(
+        'awslabs.db2_mcp_server.connection.ibm_db_connection.logger.warning'
+    )
+    await c.close()
+    log_warning.assert_called_once()
+    assert c._conn is None
 
 
 def test_conn_string_escapes_credentials_with_braces():

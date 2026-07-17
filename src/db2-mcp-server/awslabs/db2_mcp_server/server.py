@@ -15,6 +15,7 @@
 """awslabs Amazon RDS for Db2 MCP Server implementation."""
 
 import argparse
+import asyncio
 import boto3
 import json
 import secrets
@@ -237,6 +238,23 @@ async def get_table_schema(
         raise McpError(
             ErrorData(code=INVALID_PARAMS, message=f"Invalid schema name: '{schema_name}'.")
         )
+    # validate_identifier() accepts a schema-qualified "SCHEMA.TABLE" (it allows up
+    # to MAX_PARTS parts), but the query below always binds the whole string as
+    # TABNAME -- a dotted table_name would then match no catalog row and return an
+    # empty (not erroring) result, which is a confusing silent no-op. Reject it and
+    # point the caller at schema_name instead.
+    table_name_parts = _parse_identifier_parts(table_name)
+    if table_name_parts is not None and len(table_name_parts) > 1:
+        raise McpError(
+            ErrorData(
+                code=INVALID_PARAMS,
+                message=(
+                    f"table_name must not be schema-qualified: '{table_name}'. "
+                    "Pass the schema separately via schema_name (e.g. table_name='EMPLOYEE', "
+                    "schema_name='HR')."
+                ),
+            )
+        )
 
     catalog_table = _catalog_form(table_name)
 
@@ -289,7 +307,13 @@ async def connect_to_database(
     instance_identifier = instance_identifier or db_endpoint
     resolved_port = _resolve_port(port)
     try:
-        _, llm_response = internal_create_connection(
+        # internal_create_connection does synchronous boto3 calls and a full
+        # TCP/TLS connect + validation probe; offload to a worker thread so a
+        # slow/unreachable endpoint cannot freeze the event loop (execute_query
+        # already does this for the same reason -- see the module docstring in
+        # ibm_db_connection.py).
+        _, llm_response = await asyncio.to_thread(
+            internal_create_connection,
             region=region,
             instance_identifier=instance_identifier,
             db_endpoint=db_endpoint,
@@ -306,7 +330,15 @@ async def connect_to_database(
         return {'status': 'Failed', 'error': str(e)}
 
 
-@mcp.tool(name='is_database_connected', description='Check if a connection has been established')
+@mcp.tool(
+    name='is_database_connected',
+    description=(
+        'Check if a connection is present in the cache for this endpoint/database. '
+        'This reports cache presence, not live health: a cached connection to an '
+        'endpoint that has since gone unreachable still reports True here (run_query '
+        'independently re-checks liveness and reconnects as needed).'
+    ),
+)
 def is_database_connected(
     db_endpoint: Annotated[str, Field(description='database endpoint')],
     instance_identifier: Annotated[
@@ -316,7 +348,7 @@ def is_database_connected(
     database: Annotated[str, Field(description='database name')] = 'DB2DB',
     port: Annotated[Optional[int], Field(description='Db2 port')] = None,
 ) -> bool:
-    """Check if a connection has been established."""
+    """Check whether a connection is present in the cache (not a live health check)."""
     instance_identifier = instance_identifier or db_endpoint
     return bool(
         db_connection_map.get(

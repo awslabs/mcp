@@ -177,6 +177,16 @@ class TestGetTableSchema:
         with pytest.raises(McpError):
             await server.get_table_schema('host', 'DB2DB', 'T', FakeCtx(), schema_name='1bad')
 
+    async def test_schema_qualified_table_name_rejected(self):
+        """A dotted 'SCHEMA.TABLE' table_name is rejected rather than silently returning empty.
+
+        validate_identifier() allows up to two parts, but the catalog query always
+        binds the whole string as TABNAME -- a dotted name would match no catalog row
+        and return an empty result with no error. Reject it and point to schema_name.
+        """
+        with pytest.raises(McpError, match='schema-qualified'):
+            await server.get_table_schema('host', 'DB2DB', 'HR.EMPLOYEE', FakeCtx())
+
     async def test_with_schema(self, mocker):
         """With a schema, the catalog query filters on TABSCHEMA and uppercases names."""
         rq = mocker.patch.object(server, 'run_query', new=AsyncMock(return_value='ok'))
@@ -233,6 +243,26 @@ class TestConnectTool:
             server.db_connection_map, 'get_keys', return_value=[{'db_endpoint': 'h'}]
         )
         assert server.get_database_connection_info() == [{'db_endpoint': 'h'}]
+
+    async def test_connect_offloads_to_thread(self, mocker):
+        """connect_to_database runs internal_create_connection via asyncio.to_thread.
+
+        internal_create_connection does synchronous boto3 calls plus a full TCP/TLS
+        connect and validation probe; it must not run directly on the event loop
+        (a slow/unreachable endpoint would otherwise freeze all other tools).
+        """
+        mocker.patch.object(
+            server, 'internal_create_connection', return_value=(object(), {'status': 'Connected'})
+        )
+        to_thread_spy = mocker.patch.object(
+            server.asyncio,
+            'to_thread',
+            new=AsyncMock(return_value=(object(), {'status': 'Connected'})),
+        )
+        out = await server.connect_to_database('us-east-1', 'host')
+        to_thread_spy.assert_called_once()
+        assert to_thread_spy.call_args.args[0] is server.internal_create_connection
+        assert out['status'] == 'Connected'
 
 
 # --------------------------------------------------------------------------- #

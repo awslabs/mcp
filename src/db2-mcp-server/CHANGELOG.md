@@ -34,6 +34,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Connect-time validation**: `connect_to_database` now validates connectivity (SSL handshake, auth, network) immediately and reports real failures ("unreachable endpoint", "bad secret") at connect time instead of returning "Connected" and only surfacing errors on the first query. Broken connections are evicted from the cache on validation failure.
 - Startup instance-identifier derivation guards dotless/IP (tunnel) endpoints and gives an actionable error asking for `--instance_identifier` / `--secret_arn` instead of a misleading "instance not found".
 - `_to_positional` handles an explicit `{'isNull': False}` marker instead of raising an "unrecognized format" error.
+- **Rollback/commit failure detection**: `ibm_db.rollback`/`commit` signal failure via a falsy return as well as by raising (the same convention already checked for `prepare`/`execute`/`set_option`); both are now checked so a silently-failed rollback can never masquerade as the read-only "nothing is ever persisted" guarantee holding.
+- **Truncated result-set detection**: `ibm_db.fetch_assoc` returns falsy at both legitimate end-of-data and on a mid-stream fetch error (network drop, LOB/conversion failure); the SQLSTATE is now checked so a real error raises instead of silently returning a truncated result set as if it were complete.
+- `_close_sync` now logs a warning on a failed `ibm_db.close` instead of swallowing it silently, matching the other connection-close paths.
+- `connect_to_database` now offloads the synchronous connect/validate work (boto3 calls plus a full TCP/TLS handshake) to a worker thread via `asyncio.to_thread`, so a slow or unreachable endpoint no longer freezes the event loop for other tools.
+- `SSLServerCertificate` (the certificate bundle path) is now brace-escaped for consistency/defense-in-depth with the other DSN attributes.
+- `get_table_schema` now rejects a schema-qualified `table_name` (e.g. `'HR.EMPLOYEE'`) instead of silently returning an empty result; pass the schema via `schema_name` instead.
+- `is_database_connected`'s description now clarifies it reports cache presence, not live connection health.
 
 ### Documented
 

@@ -148,7 +148,10 @@ class IbmDbConnection(AbstractDBConnection):
         if self.ssl_encryption == 'require':
             parts.append('SECURITY=SSL')
             if self.ssl_server_certificate:
-                parts.append(f'SSLServerCertificate={self.ssl_server_certificate}')
+                # Operator-controlled (not an MCP-tool-supplied injection vector), but
+                # a ';' in the path would still corrupt the DSN -- brace-escape for
+                # consistency/defense-in-depth with the other attributes above.
+                parts.append(f'SSLServerCertificate={_q(self.ssl_server_certificate)}')
             # Emit the hostname-validation mode explicitly rather than relying on the
             # client default: BASIC in production, OFF only for tunnel/port-forward
             # testing where the local hostname cannot match the certificate CN.
@@ -299,12 +302,33 @@ class IbmDbConnection(AbstractDBConnection):
                 if limit is not None and len(results) >= limit:
                     break
                 row = cast(Any, ibm_db.fetch_assoc(stmt))
+            if not row:
+                # The loop above only reaches here with a falsy `row` when the result
+                # set was actually exhausted (a `limit`-triggered break leaves `row`
+                # holding the last fetched, truthy row). fetch_assoc signals both
+                # legitimate end-of-data and a mid-stream fetch error (network drop,
+                # LOB/conversion failure) with the same falsy return; the driver
+                # conflates the two. Distinguish via SQLSTATE: '02000' is end-of-data,
+                # anything else means the result set was truncated and must not be
+                # returned as if it were complete.
+                sqlstate = ibm_db.stmt_error(stmt)
+                if sqlstate and sqlstate != '02000':
+                    raise ValueError(
+                        f'ibm_db.fetch_assoc failed mid-stream (SQLSTATE {sqlstate}): '
+                        f'{ibm_db.stmt_errormsg()}'
+                    )
 
-            # Read-only: roll back so nothing is ever persisted.
+            # Read-only: roll back so nothing is ever persisted. ibm_db.rollback/commit
+            # signal failure via a falsy return as well as by raising (the same
+            # convention checked above for prepare/execute/set_option) -- check it so a
+            # silently-failed rollback can never masquerade as the read-only guarantee
+            # holding.
             if self.readonly_query:
-                ibm_db.rollback(conn)
+                if not ibm_db.rollback(conn):
+                    raise ValueError(f'ibm_db.rollback failed: {ibm_db.conn_errormsg()}')
             else:
-                ibm_db.commit(conn)
+                if not ibm_db.commit(conn):
+                    raise ValueError(f'ibm_db.commit failed: {ibm_db.conn_errormsg()}')
             return results
 
     async def execute_query(
@@ -337,6 +361,11 @@ class IbmDbConnection(AbstractDBConnection):
             if self._conn is not None:
                 try:
                     ibm_db.close(self._conn)
+                except Exception as e:
+                    # Best-effort close: log so an operator debugging a server-side
+                    # session/connection leak on RDS Db2 has a local trace, matching
+                    # the sibling close paths in db_connection_map.py.
+                    logger.warning(f'Failed to close ibm_db connection: {e}')
                 finally:
                     self._conn = None
 
