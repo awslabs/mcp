@@ -14,6 +14,7 @@
 
 """Tests for the cache utility module."""
 
+import urllib.error
 from awslabs.amazon_bedrock_agentcore_mcp_server.utils import cache, doc_fetcher, indexer
 from unittest.mock import Mock, patch
 
@@ -77,6 +78,65 @@ class TestCache:
 
             # Assert
             mock_load.assert_not_called()
+
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.doc_fetcher.parse_llms_txt')
+    def test_load_links_only_survives_source_fetch_failure(self, mock_parse_llms):
+        """A failing llms.txt source must not crash startup (issue #4138).
+
+        The configured docs index URL can return HTTP 404 (the site was
+        deprecated). Before the fix the HTTPError escaped load_links_only ->
+        ensure_ready -> main and the whole server exited on startup.
+        """
+        # Arrange: every source fetch fails with a 404.
+        mock_parse_llms.side_effect = urllib.error.HTTPError(
+            url='https://example.com/llms.txt', code=404, msg='Not Found', hdrs=None, fp=None
+        )
+
+        # Act: must NOT raise.
+        cache.load_links_only()
+
+        # Assert: startup completes with an initialized (empty) index.
+        assert cache._LINKS_LOADED is True
+        assert cache._INDEX is not None
+        assert len(cache._URL_TITLES) == 0
+
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.doc_fetcher.parse_llms_txt')
+    def test_ensure_ready_survives_source_fetch_failure(self, mock_parse_llms):
+        """ensure_ready must swallow a docs-fetch failure so main() keeps running (issue #4138)."""
+        # Arrange: network failure on the docs index fetch.
+        mock_parse_llms.side_effect = urllib.error.URLError('connection refused')
+
+        # Act: must NOT raise (this is what main() calls at startup).
+        cache.ensure_ready()
+
+        # Assert.
+        assert cache._LINKS_LOADED is True
+
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.text_processor.index_title_variants')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.text_processor.normalize')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.doc_fetcher.parse_llms_txt')
+    def test_load_links_only_isolates_failing_source(
+        self, mock_parse_llms, mock_normalize, mock_index_variants
+    ):
+        """One failing source must not prevent a sibling source from indexing (issue #4138)."""
+        # Arrange: first source 404s, second returns a valid entry.
+        mock_normalize.side_effect = lambda x: x
+        mock_index_variants.return_value = 'searchable title variants'
+
+        def _side_effect(src):
+            if 'bad' in src:
+                raise urllib.error.HTTPError(url=src, code=404, msg='Not Found', hdrs=None, fp=None)
+            return [('Good Doc', 'https://example.com/good')]
+
+        mock_parse_llms.side_effect = _side_effect
+
+        with patch.object(cache.doc_config, 'llm_texts_url', ['https://bad/llms.txt', 'https://good/llms.txt']):
+            # Act: must NOT raise.
+            cache.load_links_only()
+
+        # Assert: the healthy source is indexed despite the failing sibling.
+        assert cache._LINKS_LOADED is True
+        assert cache._URL_TITLES == {'https://example.com/good': 'Good Doc'}
 
     @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.doc_fetcher.fetch_and_clean')
     @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.text_processor.format_display_title')
