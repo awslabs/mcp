@@ -59,10 +59,26 @@ BLOCKED_READ_DIRS: tuple[str, ...] = (
     '/etc/passwd',
 )
 
-# Allowed base directory for write operations. All writes must resolve under
-# the current working directory at import time. This prevents LLM-controlled
-# savePath from writing to arbitrary filesystem locations.
-_ALLOWED_WRITE_BASE: str = os.path.realpath(os.getcwd())
+# Environment variable an operator may set to pin the write base explicitly.
+WRITE_BASE_ENV_VAR = 'AWS_TRANSFORM_MCP_WRITE_DIR'
+
+
+def _resolve_write_base() -> str:
+    """Resolve the allowed base directory for write operations.
+
+    All writes must resolve under this base, which prevents an LLM-controlled
+    savePath from writing to arbitrary filesystem locations. The base is taken
+    from AWS_TRANSFORM_MCP_WRITE_DIR if set, otherwise the current working
+    directory at import time.
+    """
+    configured = os.environ.get(WRITE_BASE_ENV_VAR)
+    if configured:
+        return os.path.realpath(os.path.expanduser(configured))
+    return os.path.realpath(os.getcwd())
+
+
+# Allowed base directory for write operations.
+_ALLOWED_WRITE_BASE: str = _resolve_write_base()
 
 
 def _is_blocked_name(path: str) -> bool:
@@ -106,6 +122,16 @@ def validate_write_path(save_path: str, file_name: Optional[str] = None) -> str:
     Returns the resolved absolute write path.
     Raises ValueError on any policy violation.
     """
+    # Refuse to write when the base is the filesystem root. Confining to '/'
+    # would place no bound on writes, so require an explicit base instead.
+    if _ALLOWED_WRITE_BASE == os.sep:
+        logger.warning('[security] Blocked write: allowed base is the filesystem root')
+        raise ValueError(
+            f'Cannot determine a safe save location: the server was started with the '
+            f'filesystem root as its working directory. Set the {WRITE_BASE_ENV_VAR} '
+            f'environment variable to the directory downloads should be written to.'
+        )
+
     resolved_dir = os.path.realpath(os.path.expanduser(save_path))
 
     # Confine writes to the allowed base directory.

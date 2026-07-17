@@ -269,6 +269,7 @@ async def download_s3_content(
                 full_path = validate_write_path(
                     os.path.dirname(save_path), os.path.basename(save_path)
                 )
+            os.makedirs(os.path.dirname(full_path), exist_ok=True)
             with open(full_path, 'wb') as fh:
                 fh.write(response.content)
             return {'savedTo': full_path, 'sizeBytes': len(response.content)}
