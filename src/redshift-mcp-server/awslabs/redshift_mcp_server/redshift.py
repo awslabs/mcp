@@ -34,6 +34,7 @@ from awslabs.redshift_mcp_server.consts import (
 )
 from awslabs.redshift_mcp_server.sql_guard import assert_executable
 from botocore.config import Config
+from botocore.exceptions import ClientError
 from loguru import logger
 from sqlglot import exp
 
@@ -41,6 +42,10 @@ from sqlglot import exp
 def _sql_identifier(value: str) -> str:
     """Render a value as a Redshift SQL identifier, safely quoted and escaped."""
     return exp.to_identifier(value, quoted=True).sql(dialect='redshift')
+
+
+# ClientError codes that indicate missing IAM permissions.
+_ACCESS_DENIED = {'AccessDeniedException', 'UnauthorizedAccess', 'AccessDenied'}
 
 
 class RedshiftClientManager:
@@ -444,11 +449,21 @@ async def _execute_statement(
 async def discover_clusters() -> list[dict]:
     """Discover all Redshift clusters and serverless workgroups.
 
+    Discovery is best-effort for each type: if either provisioned or serverless
+    discovery succeeds, the function returns whatever was found. It only raises
+    if both fail (i.e., no clusters could be discovered at all).
+
     Returns:
         List of cluster information dictionaries.
+
+    Raises:
+        Exception: If both provisioned and serverless discovery fail.
     """
     clusters = []
+    provisioned_error = None
+    serverless_error = None
 
+    # Attempt provisioned cluster discovery
     try:
         # Get provisioned clusters
         logger.debug('Discovering provisioned Redshift clusters')
@@ -477,10 +492,13 @@ async def discover_clusters() -> list[dict]:
 
         logger.info(f'Found {len(clusters)} provisioned clusters')
 
-    except Exception as e:
-        logger.error(f'Error discovering provisioned clusters: {str(e)}')
-        raise
+    except ClientError as e:
+        if e.response.get('Error', {}).get('Code') not in _ACCESS_DENIED:
+            raise
+        provisioned_error = e
+        logger.warning(f'Skipping provisioned; IAM lacks permission: {e}')
 
+    # Attempt serverless workgroup discovery
     try:
         # Get serverless workgroups
         logger.debug('Discovering Redshift Serverless workgroups')
@@ -519,9 +537,21 @@ async def discover_clusters() -> list[dict]:
         serverless_count = len([c for c in clusters if c['type'] == 'serverless'])
         logger.info(f'Found {serverless_count} serverless workgroups')
 
-    except Exception as e:
-        logger.error(f'Error discovering serverless workgroups: {str(e)}')
-        raise
+    except ClientError as e:
+        if e.response.get('Error', {}).get('Code') not in _ACCESS_DENIED:
+            raise
+        serverless_error = e
+        logger.warning(f'Skipping serverless; IAM lacks permission: {e}')
+
+    # If both discovery methods failed, raise an error
+    if provisioned_error and serverless_error:
+        msg = (
+            'Unable to discover any Redshift clusters: IAM lacks both redshift and '
+            f'redshift-serverless permissions. Provisioned: {provisioned_error}; '
+            f'Serverless: {serverless_error}'
+        )
+        logger.error(msg)
+        raise PermissionError(msg)
 
     logger.info(f'Total clusters discovered: {len(clusters)}')
     return clusters
