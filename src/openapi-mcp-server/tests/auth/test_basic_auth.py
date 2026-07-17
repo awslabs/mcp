@@ -99,6 +99,24 @@ class TestBasicAuthProvider:
         assert hash1 != hash3
         assert hash2 != hash3
 
+    def test_hash_credentials_long_password(self):
+        """Test that credentials with passwords longer than 72 bytes are hashed without error.
+
+        This is a regression test for the bcrypt 72-byte limit bug.
+        """
+        # Create a password that makes the combined credential >72 bytes
+        long_password = 'x' * 80
+        assert len(f'longuser:{long_password}'.encode('utf-8')) > 72
+
+        # Should not raise ValueError
+        hash1 = BasicAuthProvider._hash_credentials('longuser', long_password)
+        assert hash1 is not None
+        assert len(hash1) == 64  # SHA-256 hex digest length
+
+        # Deterministic
+        hash2 = BasicAuthProvider._hash_credentials('longuser', long_password)
+        assert hash1 == hash2
+
     @patch('awslabs.openapi_mcp_server.auth.basic_auth.cached_auth_data')
     def test_cached_auth_data(self, mock_cached_auth_data):
         """Test that auth data is cached."""
