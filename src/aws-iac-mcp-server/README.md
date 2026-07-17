@@ -84,7 +84,8 @@ Validates CloudFormation templates against security and compliance rules using c
 
 **Parameters:**
 - `template_content` (required): CloudFormation template as string
-- `custom_rules` (optional): Custom cfn-guard rules to apply
+
+Validates against the server's bundled cfn-guard security rules.
 
 #### troubleshoot_cloudformation_deployment
 Analyzes failed CloudFormation stacks and provides resolution guidance.
