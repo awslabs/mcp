@@ -257,6 +257,7 @@ Compute Optimizer Automation:
 - aco-automation:ListAutomationRulePreview
 - aco-automation:ListAutomationRulePreviewSummaries
 - aco-automation:ListTagsForResource
+- ec2:DescribeVolumes (required by ListRecommendedActions and ListAutomationRulePreview)
 
 AWS Budgets:
 - budgets:ViewBudget
