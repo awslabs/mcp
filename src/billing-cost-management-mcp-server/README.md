@@ -244,19 +244,19 @@ Compute Optimizer:
 - compute-optimizer:GetIdleRecommendations
 
 Compute Optimizer Automation:
-- compute-optimizer-automation:GetAutomationEvent
-- compute-optimizer-automation:GetAutomationRule
-- compute-optimizer-automation:GetEnrollmentConfiguration
-- compute-optimizer-automation:ListAccounts
-- compute-optimizer-automation:ListAutomationEvents
-- compute-optimizer-automation:ListAutomationEventSteps
-- compute-optimizer-automation:ListAutomationEventSummaries
-- compute-optimizer-automation:ListAutomationRules
-- compute-optimizer-automation:ListRecommendedActions
-- compute-optimizer-automation:ListRecommendedActionSummaries
-- compute-optimizer-automation:ListAutomationRulePreview
-- compute-optimizer-automation:ListAutomationRulePreviewSummaries
-- compute-optimizer-automation:ListTagsForResource
+- aco-automation:GetAutomationEvent
+- aco-automation:GetAutomationRule
+- aco-automation:GetEnrollmentConfiguration
+- aco-automation:ListAccounts
+- aco-automation:ListAutomationEvents
+- aco-automation:ListAutomationEventSteps
+- aco-automation:ListAutomationEventSummaries
+- aco-automation:ListAutomationRules
+- aco-automation:ListRecommendedActions
+- aco-automation:ListRecommendedActionSummaries
+- aco-automation:ListAutomationRulePreview
+- aco-automation:ListAutomationRulePreviewSummaries
+- aco-automation:ListTagsForResource
 
 AWS Budgets:
 - budgets:ViewBudget
