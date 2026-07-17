@@ -248,6 +248,32 @@ class TestDownloadS3Content:
                 assert fh.read() == b'binary data here'
 
     @pytest.mark.asyncio
+    async def test_creates_missing_save_directory(self, tmp_path):
+        """A save_path whose directory does not yet exist is created."""
+        mock_response = AsyncMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.content = b'binary data here'
+        mock_response.raise_for_status = lambda: None
+
+        with patch('awslabs.aws_transform_mcp_server.tool_utils.httpx.AsyncClient') as MockClient:
+            instance = AsyncMock()
+            instance.get.return_value = mock_response
+            instance.__aenter__ = AsyncMock(return_value=instance)
+            instance.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = instance
+
+            save_dir = os.path.join(str(tmp_path), 'new', 'nested') + '/'
+            assert not os.path.exists(save_dir)
+            result = await download_s3_content(
+                'https://s3.example.com/data.bin',
+                save_path=save_dir,
+                file_name='output.bin',
+            )
+            assert result['savedTo'] == os.path.join(str(tmp_path), 'new', 'nested', 'output.bin')
+            with open(result['savedTo'], 'rb') as fh:
+                assert fh.read() == b'binary data here'
+
+    @pytest.mark.asyncio
     async def test_uses_default_name(self, tmp_path):
         mock_response = AsyncMock(spec=httpx.Response)
         mock_response.status_code = 200
