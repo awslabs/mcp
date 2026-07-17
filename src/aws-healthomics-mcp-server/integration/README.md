@@ -236,6 +236,21 @@ master switch that lets the integration tests under `integration/tests/` run aga
 With it absent, every integration test is skipped at collection time with a reason naming this
 variable, and no AWS client is ever built.
 
+The same signal also **authorizes the deploy CLI** (`provision`, `teardown`, and `e2e`): those
+commands create, delete, and build/push real AWS resources, so as a fail-closed safeguard they
+refuse to run unless `RUN_REMOTE_INTEGRATION_TESTS` is truthy. Export it in your shell before
+invoking the CLI (the `e2e` command below assumes it is set). This ensures the provisioning
+capability can never be triggered incidentally by an automated or compromised context that
+merely imports the module.
+
+> **Isolation note.** The provisioning code (which shells out via `subprocess` and creates AWS
+> infrastructure) is test-only and is deliberately kept out of every deployable artifact: it is
+> excluded from the published wheel (`packages = ["awslabs"]`), it never reaches the production
+> container image (`./Dockerfile`'s final stage ships only the installed venv), and the harness's
+> own AgentCore image copies **only** the runtime entrypoint and shared header constants — not the
+> `deploy/` provisioning modules. So a compromise of a running server cannot reach these
+> infra-provisioning primitives.
+
 **Enable** the integration suite:
 
 ```bash
@@ -290,6 +305,8 @@ tokens and expected ARNs into the environment, runs the AgentCore integration te
 (with `--teardown`) deletes everything afterwards — all in one process:
 
 ```bash
+export RUN_REMOTE_INTEGRATION_TESTS=true   # authorizes the deploy CLI (see Opt-In Signal)
+
 python -m integration.deploy.cli e2e \
   --deployment agentcore \
   --region <REGION> \

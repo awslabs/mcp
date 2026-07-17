@@ -47,6 +47,7 @@ import sys
 from collections.abc import Sequence
 from integration.deploy import agentcore, apigateway
 from integration.deploy.common import ProvisionResult, ProvisionStatus, TeardownResult
+from integration.harness.opt_in import OPT_IN_ENV, is_opt_in_enabled
 from integration.harness.tenants import TenantSpec, build_tenant_records
 from pathlib import Path
 from typing import Callable, Optional
@@ -73,8 +74,8 @@ DEFAULT_AGENTCORE_TESTS = (
     'integration/tests/test_cross_tenant_isolation.py',
 )
 
-# The Opt_In_Signal that activates the integration suite; ``e2e`` sets it for the test run.
-OPT_IN_ENV = 'RUN_REMOTE_INTEGRATION_TESTS'
+# ``OPT_IN_ENV`` (the Opt_In_Signal) is imported from ``integration.harness.opt_in`` as the
+# single source of truth; the ``e2e`` command sets it for the test run and ``main`` requires it.
 
 
 def _repo_root() -> Path:
@@ -411,6 +412,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     """
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    # Fail-closed opt-in guard (defense in depth). Every subcommand performs live AWS
+    # actions (create/delete infrastructure, build/push images via subprocess), so the
+    # CLI refuses to run unless the operator has explicitly set the opt-in signal. This
+    # ensures the provisioning capability cannot be triggered incidentally -- for example
+    # from an automated or compromised context that merely imports and invokes this
+    # module -- without a deliberate, out-of-band operator action.
+    if not is_opt_in_enabled(os.environ):
+        parser.error(
+            f'Refusing to run: live AWS provisioning/teardown is gated behind an explicit '
+            f'operator opt-in. Set {OPT_IN_ENV} to a truthy value (e.g. "true") to authorize '
+            f'this command.'
+        )
+
     handler: Callable[[argparse.Namespace], int] = args.handler
     try:
         return handler(args)

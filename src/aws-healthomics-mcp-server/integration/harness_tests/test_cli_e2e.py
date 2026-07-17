@@ -22,9 +22,21 @@ config's ``AHO_ITEST_*`` values into the test run, and tears down when asked.
 Validates: Requirements Documentation and reproducibility, Provisioning and teardown lifecycle.
 """
 
+import pytest
 from integration.deploy import agentcore, cli
 from integration.deploy.common import ProvisionResult, ProvisionStatus, TeardownResult
+from integration.harness.opt_in import OPT_IN_ENV
 from pathlib import Path
+
+
+@pytest.fixture(autouse=True)
+def _authorize_provisioning(monkeypatch):
+    """Set the opt-in signal so the CLI's fail-closed provisioning guard is satisfied.
+
+    Every ``cli.main`` invocation below exercises the post-guard command logic; a
+    dedicated test removes the signal to verify the guard itself.
+    """
+    monkeypatch.setenv(OPT_IN_ENV, 'true')
 
 
 def _complete_outcome(tmp_path) -> agentcore.AgentCoreProvisionOutcome:
@@ -53,6 +65,13 @@ class TestParser:
 
     Validates: Requirements Documentation and reproducibility.
     """
+
+    def test_provisioning_blocked_without_opt_in(self, monkeypatch) -> None:
+        """The CLI fails closed (does not run any command) when the opt-in is absent."""
+        monkeypatch.delenv(OPT_IN_ENV, raising=False)
+        # argparse's error() raises SystemExit; the command handler never runs.
+        with pytest.raises(SystemExit):
+            cli.main(['e2e', '--deployment', 'agentcore', '--region', 'us-east-1'])
 
     def test_e2e_command_parses(self) -> None:
         """The e2e subcommand and its --teardown flag parse successfully."""

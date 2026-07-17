@@ -115,10 +115,21 @@ RUN dnf install -y shadow-utils procps && \
 COPY --from=uv --chown=app:app /root/.local /root/.local
 COPY --from=uv --chown=app:app /app/.venv /app/.venv
 
-# Copy the harness `integration` package into the final image. The root image
-# installs only the server package into the venv; the harness entrypoint and its
-# package tree are not installed, so they must be present on PYTHONPATH here.
-COPY --chown=app:app integration /app/integration
+# Copy ONLY the container-runtime glue the entrypoint needs onto PYTHONPATH — never
+# the provisioning code. The deploy/provisioning modules (agentcore, apigateway, cli,
+# iam, cognito, registry, common) shell out via subprocess and create/delete real AWS
+# infrastructure; the test suites and the rest of the harness are equally irrelevant
+# at runtime. Excluding them keeps that capability out of the deployed container so a
+# compromise of the running server cannot reach infra-provisioning primitives. The
+# entrypoint imports only the server package (from the venv) plus
+# integration.harness.headers, so those two files and their package markers are all
+# that is required here.
+COPY --chown=app:app integration/__init__.py /app/integration/__init__.py
+COPY --chown=app:app integration/deploy/__init__.py /app/integration/deploy/__init__.py
+COPY --chown=app:app integration/deploy/image/__init__.py /app/integration/deploy/image/__init__.py
+COPY --chown=app:app integration/deploy/image/entrypoint.py /app/integration/deploy/image/entrypoint.py
+COPY --chown=app:app integration/harness/__init__.py /app/integration/harness/__init__.py
+COPY --chown=app:app integration/harness/headers.py /app/integration/harness/headers.py
 
 # Harness entrypoint transport configuration (Req 2.1).
 # Start the server over streamable-http at the AgentCore MCP container address. AgentCore
