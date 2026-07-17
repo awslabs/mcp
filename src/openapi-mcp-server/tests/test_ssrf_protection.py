@@ -1114,3 +1114,371 @@ def test_pinned_fetch_http_opt_in_uses_no_sni():
     assert req['headers']['Host'] == 'spec.example.com'
     # No SNI extension for plaintext http.
     assert req['extensions'] == {}
+
+
+# --- External $ref resolution (prance) SSRF/LFI tests ---
+#
+# The DNS-pinned fetch only guards the root document; prance's default resolver
+# (and its validation backend) would otherwise dereference external $ref targets
+# with its own fetcher, bypassing SSRF validation. These tests assert that any
+# external $ref is refused before prance runs, and — critically — that NO
+# outbound request is made (a "content not embedded" check alone would miss the
+# blind-SSRF that prance's validation backend performs).
+
+
+import threading  # noqa: E402
+from http.server import BaseHTTPRequestHandler, HTTPServer  # noqa: E402
+
+
+class _RefCanaryHandler(BaseHTTPRequestHandler):
+    """Records every GET path so a test can assert the server was never hit."""
+
+    hits: list = []
+
+    def do_GET(self):  # noqa: N802
+        type(self).hits.append(self.path)
+        body = b'{"type": "string", "x-canary": "SSRF-REACHED"}'
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args):  # silence per-request logging
+        pass
+
+
+class _loopback_canary:
+    """Context manager: a loopback HTTP server that records hits on an ephemeral port."""
+
+    def __enter__(self):
+        handler = type('_H', (_RefCanaryHandler,), {'hits': []})
+        self._handler = handler
+        self._server = HTTPServer(('127.0.0.1', 0), handler)
+        self._port = self._server.server_address[1]
+        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
+        self._thread.start()
+        return self
+
+    @property
+    def url(self):
+        return f'http://127.0.0.1:{self._port}/ssrf-canary'
+
+    @property
+    def hits(self):
+        return self._handler.hits
+
+    def __exit__(self, *exc):
+        # Stop serving, close the listening socket, and join the thread so the
+        # port is fully released before the next test (avoids flaky port reuse).
+        self._server.shutdown()
+        self._server.server_close()
+        self._thread.join(timeout=5)
+
+
+def _spec_with_ref(ref: str) -> dict:
+    """Build a minimal, otherwise-valid spec whose schema carries a single $ref."""
+    return {
+        'openapi': '3.0.0',
+        'info': {'title': 'RefSpec', 'version': '1.0.0'},
+        'paths': {
+            '/x': {
+                'get': {
+                    'responses': {
+                        '200': {
+                            'description': 'ok',
+                            'content': {'application/json': {'schema': {'$ref': ref}}},
+                        }
+                    }
+                }
+            }
+        },
+    }
+
+
+def test_reject_external_refs_blocks_http_file_and_relative():
+    """_reject_external_refs raises SSRFError for any non-internal $ref."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    for ref in (
+        'http://169.254.169.254/latest/meta-data/',
+        'https://evil.example.com/schema.json',
+        'file:///etc/passwd',
+        'schemas.yaml#/Pet',  # relative external file
+    ):
+        with pytest.raises(SSRFError, match='external \\$ref'):
+            openapi_mod._reject_external_refs(_spec_with_ref(ref))
+
+
+def test_reject_external_refs_allows_internal_refs():
+    """Internal (#/...) references are permitted and do not raise."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    # Should not raise.
+    openapi_mod._reject_external_refs(_spec_with_ref('#/components/schemas/Pet'))
+
+
+def test_parse_spec_bytes_refuses_http_ref_without_making_request():
+    """A spec with an http:// $ref is refused AND the target is never contacted."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    with _loopback_canary() as canary:
+        content = json.dumps(_spec_with_ref(canary.url)).encode()
+        with pytest.raises(SSRFError, match='external \\$ref'):
+            openapi_mod._parse_spec_bytes(content)
+        # The key assertion: prance never issued the outbound request.
+        assert canary.hits == []
+
+
+def test_parse_spec_bytes_refuses_file_ref_lfi(tmp_path):
+    """A spec with a file:// $ref is refused (no local file disclosure)."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    local_file = tmp_path / 'local.json'
+    local_file.write_text('{"type": "string", "x-marker": "LOCAL-FILE-CONTENTS"}')
+    content = json.dumps(_spec_with_ref(f'file://{local_file}')).encode()
+
+    with pytest.raises(SSRFError, match='external \\$ref'):
+        openapi_mod._parse_spec_bytes(content)
+
+
+def test_parse_spec_bytes_resolves_internal_refs():
+    """Positive control: internal #/components refs still resolve and inline."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    spec = _spec_with_ref('#/components/schemas/Pet')
+    spec['components'] = {'schemas': {'Pet': {'type': 'object', 'x-legit': 'INTERNAL-OK'}}}
+    result = openapi_mod._parse_spec_bytes(json.dumps(spec).encode())
+
+    resolved = result['paths']['/x']['get']['responses']['200']['content']['application/json'][
+        'schema'
+    ]
+    assert resolved.get('x-legit') == 'INTERNAL-OK'
+
+
+def test_load_openapi_spec_file_refuses_http_ref_without_request(tmp_path):
+    """The file-path sink also refuses external $refs and makes no request."""
+    with _loopback_canary() as canary:
+        spec_file = tmp_path / 'spec.json'
+        spec_file.write_text(json.dumps(_spec_with_ref(canary.url)))
+        with pytest.raises(SSRFError, match='external \\$ref'):
+            load_openapi_spec(path=str(spec_file))
+        assert canary.hits == []
+
+
+def test_load_openapi_spec_file_refuses_relative_ref(tmp_path):
+    """A multi-file split (relative $ref) is refused rather than silently fetched."""
+    spec_file = tmp_path / 'spec.json'
+    spec_file.write_text(json.dumps(_spec_with_ref('schemas.yaml#/Pet')))
+    with pytest.raises(SSRFError, match='external \\$ref'):
+        load_openapi_spec(path=str(spec_file))
+
+
+def test_load_openapi_spec_file_resolves_internal_refs(tmp_path):
+    """Positive control: a file spec using only internal refs still loads."""
+    spec = _spec_with_ref('#/components/schemas/Pet')
+    spec['components'] = {'schemas': {'Pet': {'type': 'object', 'x-legit': 'INTERNAL-OK'}}}
+    spec_file = tmp_path / 'spec.json'
+    spec_file.write_text(json.dumps(spec))
+
+    result = load_openapi_spec(path=str(spec_file))
+    resolved = result['paths']['/x']['get']['responses']['200']['content']['application/json'][
+        'schema'
+    ]
+    assert resolved.get('x-legit') == 'INTERNAL-OK'
+
+
+def test_load_openapi_spec_file_reraises_memory_error(tmp_path):
+    """A MemoryError during the file-path prescan propagates, not masked as unparseable."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    spec_file = tmp_path / 'spec.json'
+    spec_file.write_text(json.dumps(_spec_with_ref('#/components/schemas/Pet')))
+
+    with patch.object(openapi_mod, '_basic_parse', side_effect=MemoryError('oom')):
+        with pytest.raises(MemoryError):
+            load_openapi_spec(path=str(spec_file))
+
+
+def test_load_openapi_spec_file_reraises_memory_error_from_prance(tmp_path):
+    """A MemoryError from prance on the file path propagates, not masked by fallback."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    spec_file = tmp_path / 'spec.json'
+    spec_file.write_text(json.dumps(_spec_with_ref('#/components/schemas/Pet')))
+
+    with (
+        patch.object(openapi_mod, 'PRANCE_AVAILABLE', True),
+        patch.object(openapi_mod, 'ResolvingParser', side_effect=MemoryError('oom')),
+    ):
+        with pytest.raises(MemoryError):
+            load_openapi_spec(path=str(spec_file))
+
+
+def test_parse_spec_bytes_basic_parse_yaml_without_prance():
+    """_basic_parse handles YAML; external-ref check still applies."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    yaml_body = b'openapi: "3.0.0"\ninfo:\n  title: YAML\n  version: "1"\n'
+    with patch.object(openapi_mod, 'PRANCE_AVAILABLE', False):
+        result = openapi_mod._parse_spec_bytes(yaml_body)
+    assert result['info']['title'] == 'YAML'
+
+
+def test_reject_external_refs_walks_lists():
+    """External $refs nested inside list values (e.g. allOf) are also rejected."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    node = {'allOf': [{'type': 'object'}, {'$ref': 'https://evil.example.com/s.json'}]}
+    with pytest.raises(SSRFError, match='external \\$ref'):
+        openapi_mod._reject_external_refs(node)
+
+
+def test_reject_external_refs_allows_internal_ref_in_list():
+    """Internal $refs nested inside lists do not raise."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    node = {'allOf': [{'type': 'object'}, {'$ref': '#/components/schemas/Base'}]}
+    openapi_mod._reject_external_refs(node)  # should not raise
+
+
+def test_basic_parse_falls_back_to_ruamel_when_pyyaml_absent():
+    """When PyYAML is absent, YAML is parsed via ruamel (prance's own parser).
+
+    This closes the prescan gap where a YAML spec would be unparseable here yet
+    parsed and $ref-resolved by prance.
+    """
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    yaml_body = b'openapi: "3.0.0"\ninfo:\n  title: Ruamel\n  version: "1"\n'
+    with patch.object(openapi_mod, 'yaml', None):
+        result = openapi_mod._basic_parse(yaml_body)
+    assert result['info']['title'] == 'Ruamel'
+
+
+def test_basic_parse_falls_back_to_ruamel_when_pyyaml_rejects():
+    """When PyYAML *rejects* a doc it still falls back to ruamel (prance's parser).
+
+    A tab after a mapping key is rejected by PyYAML but accepted by ruamel/prance.
+    Without falling back on PyYAML failure, the prescan would parse less than
+    prance and miss a $ref it would resolve.
+    """
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    # Tab between the key and value — PyYAML raises ScannerError, ruamel accepts.
+    yaml_body = b'openapi: "3.0.0"\ninfo:\n  title:\tTabbed\n  version: "1"\n'
+    result = openapi_mod._basic_parse(yaml_body)
+    assert result['info']['title'] == 'Tabbed'
+
+
+def test_parse_spec_bytes_yaml_ref_blocked_when_pyyaml_rejects():
+    """Regression: a PyYAML-rejected-but-prance-parseable YAML $ref is still refused.
+
+    A tab after the `$ref` key makes PyYAML reject the document; prance parses it
+    via ruamel and would resolve the external $ref. The prescan must parse it too
+    (via the ruamel fallback) so the external ref is refused with no outbound call.
+    """
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    with _loopback_canary() as canary:
+        yaml_spec = (
+            b'openapi: "3.0.0"\n'
+            b'info:\n  title: y\n  version: "1"\n'
+            b'paths:\n  /x:\n    get:\n      responses:\n        "200":\n'
+            b'          description: ok\n          content:\n            application/json:\n'
+            b'              schema:\n                $ref:\t"' + canary.url.encode() + b'"\n'
+        )
+        with pytest.raises(SSRFError, match='external \\$ref'):
+            openapi_mod._parse_spec_bytes(yaml_spec)
+        assert canary.hits == []
+
+
+def test_basic_parse_reraises_json_error_when_no_yaml_parser():
+    """With neither PyYAML nor ruamel available, non-JSON re-raises the JSON error."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    with (
+        patch.object(openapi_mod, 'yaml', None),
+        patch.dict('sys.modules', {'ruamel.yaml': None}),
+    ):
+        with pytest.raises(json.JSONDecodeError):
+            openapi_mod._basic_parse(b'not: [valid json')
+
+
+def test_parse_spec_bytes_reraises_memory_error():
+    """A MemoryError from parsing propagates rather than being masked as unparseable.
+
+    The best-effort prescan catches parse failures, but resource-exhaustion
+    errors must not be swallowed and treated as "no refs to check".
+    """
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    with patch.object(openapi_mod, '_basic_parse', side_effect=MemoryError('oom')):
+        with pytest.raises(MemoryError):
+            openapi_mod._parse_spec_bytes(b'{"openapi": "3.0.0"}')
+
+
+def test_parse_spec_bytes_rejects_non_mapping_root():
+    """A JSON/YAML doc that parses to a non-mapping root raises a clear ValueError.
+
+    Without this, a scalar/None root would later make validate_openapi_spec raise
+    an opaque TypeError on `'openapi' in spec`.
+    """
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    for body in (b'null', b'42', b'[1, 2, 3]', b'"just a string"'):
+        with pytest.raises(ValueError, match='must be a mapping'):
+            openapi_mod._parse_spec_bytes(body)
+
+
+def test_parse_spec_bytes_reraises_memory_error_from_prance():
+    """A MemoryError raised by prance propagates instead of falling back to basic parse."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    spec = json.dumps(_spec_with_ref('#/components/schemas/Pet')).encode()
+    with (
+        patch.object(openapi_mod, 'PRANCE_AVAILABLE', True),
+        patch.object(openapi_mod, 'ResolvingParser', side_effect=MemoryError('oom')),
+    ):
+        with pytest.raises(MemoryError):
+            openapi_mod._parse_spec_bytes(spec)
+
+
+def test_parse_spec_bytes_unparseable_defers_to_prance():
+    """Unparseable bytes skip the ref check (basic=None) and defer the error.
+
+    Exercises the best-effort branch: _basic_parse raises (no JSON/YAML parser
+    can read the bytes), so basic is set to None and the ref check is skipped;
+    with prance unavailable the final line re-runs _basic_parse, which raises.
+    """
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    with (
+        patch.object(openapi_mod, 'yaml', None),
+        patch.dict('sys.modules', {'ruamel.yaml': None}),
+        patch.object(openapi_mod, 'PRANCE_AVAILABLE', False),
+    ):
+        with pytest.raises(json.JSONDecodeError):
+            openapi_mod._parse_spec_bytes(b'not: [valid json')
+
+
+def test_parse_spec_bytes_yaml_ref_blocked_without_pyyaml():
+    """Regression: a YAML spec's external $ref is refused even when PyYAML is absent.
+
+    Without the ruamel fallback in _basic_parse, the prescan would set basic=None
+    and prance (which parses YAML via ruamel) would resolve the external $ref.
+    """
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    with _loopback_canary() as canary:
+        yaml_spec = (
+            b"openapi: '3.0.0'\n"
+            b'info:\n  title: y\n  version: "1"\n'
+            b'paths:\n  /x:\n    get:\n      responses:\n        "200":\n'
+            b'          description: ok\n          content:\n            application/json:\n'
+            b'              schema:\n                $ref: "' + canary.url.encode() + b'"\n'
+        )
+        with patch.object(openapi_mod, 'yaml', None):
+            with pytest.raises(SSRFError, match='external \\$ref'):
+                openapi_mod._parse_spec_bytes(yaml_spec)
+        assert canary.hits == []

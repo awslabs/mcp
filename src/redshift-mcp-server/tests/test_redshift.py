@@ -32,6 +32,7 @@ from awslabs.redshift_mcp_server.redshift import (
     execute_query,
 )
 from botocore.config import Config
+from botocore.exceptions import ClientError
 from sqlglot import exp
 from types import SimpleNamespace
 
@@ -1159,6 +1160,220 @@ class TestDiscoverFunctions:
         )
 
         with pytest.raises(Exception, match='Serverless API Error'):
+            await discover_clusters()
+
+    @pytest.mark.asyncio
+    async def test_discover_clusters_both_access_denied_raises_permission_error(self, mocker):
+        """Test that PermissionError is raised when both clients get access-denied."""
+        mock_redshift_client = mocker.Mock()
+        mock_paginator = mocker.Mock()
+        mock_paginator.paginate.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Not authorized'}},
+            'DescribeClusters',
+        )
+        mock_redshift_client.get_paginator.return_value = mock_paginator
+
+        mock_serverless_client = mocker.Mock()
+        mock_serverless_paginator = mocker.Mock()
+        mock_serverless_paginator.paginate.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDeniedException', 'Message': 'Not authorized'}},
+            'ListWorkgroups',
+        )
+        mock_serverless_client.get_paginator.return_value = mock_serverless_paginator
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_client',
+            return_value=mock_redshift_client,
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_serverless_client',
+            return_value=mock_serverless_client,
+        )
+
+        with pytest.raises(
+            PermissionError, match='IAM lacks both redshift and redshift-serverless'
+        ):
+            await discover_clusters()
+
+    @pytest.mark.asyncio
+    async def test_discover_clusters_provisioned_access_denied_serverless_succeeds(self, mocker):
+        """Test partial results when provisioned gets access-denied but serverless succeeds."""
+        mock_redshift_client = mocker.Mock()
+        mock_paginator = mocker.Mock()
+        mock_paginator.paginate.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Not authorized'}},
+            'DescribeClusters',
+        )
+        mock_redshift_client.get_paginator.return_value = mock_paginator
+
+        mock_serverless_client = mocker.Mock()
+        mock_serverless_client.get_paginator.return_value.paginate.return_value = [
+            {
+                'workgroups': [
+                    {
+                        'workgroupName': 'my-workgroup',
+                        'status': 'AVAILABLE',
+                        'creationDate': '2024-01-01T00:00:00Z',
+                    }
+                ]
+            }
+        ]
+        mock_serverless_client.get_workgroup.return_value = {
+            'workgroup': {
+                'configParameters': [{'parameterValue': 'dev'}],
+                'endpoint': {'address': 'wg.serverless.amazonaws.com', 'port': 5439},
+                'subnetIds': ['subnet-abc'],
+                'publiclyAccessible': False,
+                'tags': [],
+            }
+        }
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_client',
+            return_value=mock_redshift_client,
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_serverless_client',
+            return_value=mock_serverless_client,
+        )
+
+        result = await discover_clusters()
+
+        assert len(result) == 1
+        assert result[0]['identifier'] == 'my-workgroup'
+        assert result[0]['type'] == 'serverless'
+
+    @pytest.mark.asyncio
+    async def test_discover_clusters_serverless_access_denied_provisioned_succeeds(self, mocker):
+        """Test partial results when serverless gets access-denied but provisioned succeeds."""
+        mock_redshift_client = mocker.Mock()
+        mock_redshift_client.get_paginator.return_value.paginate.return_value = [
+            {
+                'Clusters': [
+                    {
+                        'ClusterIdentifier': 'my-cluster',
+                        'ClusterStatus': 'available',
+                        'DBName': 'dev',
+                        'Endpoint': {'Address': 'cluster.redshift.amazonaws.com', 'Port': 5439},
+                        'VpcId': 'vpc-123',
+                        'NodeType': 'dc2.large',
+                        'NumberOfNodes': 2,
+                        'ClusterCreateTime': '2024-01-01T00:00:00Z',
+                        'MasterUsername': 'admin',
+                        'PubliclyAccessible': False,
+                        'Encrypted': True,
+                        'Tags': [],
+                    }
+                ]
+            }
+        ]
+
+        mock_serverless_client = mocker.Mock()
+        mock_serverless_paginator = mocker.Mock()
+        mock_serverless_paginator.paginate.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDeniedException', 'Message': 'Not authorized'}},
+            'ListWorkgroups',
+        )
+        mock_serverless_client.get_paginator.return_value = mock_serverless_paginator
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_client',
+            return_value=mock_redshift_client,
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_serverless_client',
+            return_value=mock_serverless_client,
+        )
+
+        result = await discover_clusters()
+
+        assert len(result) == 1
+        assert result[0]['identifier'] == 'my-cluster'
+        assert result[0]['type'] == 'provisioned'
+
+    @pytest.mark.asyncio
+    async def test_discover_clusters_non_access_denied_provisioned_bubbles_up(self, mocker):
+        """Test that non-access-denied ClientError from provisioned discovery re-raises immediately."""
+        mock_redshift_client = mocker.Mock()
+        mock_paginator = mocker.Mock()
+        mock_paginator.paginate.side_effect = ClientError(
+            {'Error': {'Code': 'InternalServerError', 'Message': 'Something broke'}},
+            'DescribeClusters',
+        )
+        mock_redshift_client.get_paginator.return_value = mock_paginator
+
+        mock_serverless_client = mocker.Mock()
+        mock_serverless_client.get_paginator.return_value.paginate.return_value = [
+            {'workgroups': []}
+        ]
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_client',
+            return_value=mock_redshift_client,
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_serverless_client',
+            return_value=mock_serverless_client,
+        )
+
+        with pytest.raises(ClientError):
+            await discover_clusters()
+
+    @pytest.mark.asyncio
+    async def test_discover_clusters_non_access_denied_serverless_bubbles_up(self, mocker):
+        """Test that non-access-denied ClientError from serverless discovery re-raises immediately."""
+        mock_redshift_client = mocker.Mock()
+        mock_redshift_client.get_paginator.return_value.paginate.return_value = [{'Clusters': []}]
+
+        mock_serverless_client = mocker.Mock()
+        mock_serverless_paginator = mocker.Mock()
+        mock_serverless_paginator.paginate.side_effect = ClientError(
+            {'Error': {'Code': 'ThrottlingException', 'Message': 'Rate exceeded'}},
+            'ListWorkgroups',
+        )
+        mock_serverless_client.get_paginator.return_value = mock_serverless_paginator
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_client',
+            return_value=mock_redshift_client,
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_serverless_client',
+            return_value=mock_serverless_client,
+        )
+
+        with pytest.raises(ClientError):
+            await discover_clusters()
+
+    @pytest.mark.asyncio
+    async def test_discover_clusters_both_non_access_denied_first_bubbles_up(self, mocker):
+        """Test that when both clients raise non-access-denied ClientError, the first one (provisioned) re-raises."""
+        mock_redshift_client = mocker.Mock()
+        mock_paginator = mocker.Mock()
+        mock_paginator.paginate.side_effect = ClientError(
+            {'Error': {'Code': 'InternalServerError', 'Message': 'Provisioned broke'}},
+            'DescribeClusters',
+        )
+        mock_redshift_client.get_paginator.return_value = mock_paginator
+
+        mock_serverless_client = mocker.Mock()
+        mock_serverless_paginator = mocker.Mock()
+        mock_serverless_paginator.paginate.side_effect = ClientError(
+            {'Error': {'Code': 'ThrottlingException', 'Message': 'Rate exceeded'}},
+            'ListWorkgroups',
+        )
+        mock_serverless_client.get_paginator.return_value = mock_serverless_paginator
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_client',
+            return_value=mock_redshift_client,
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_serverless_client',
+            return_value=mock_serverless_client,
+        )
+
+        with pytest.raises(ClientError, match='Provisioned broke'):
             await discover_clusters()
 
     @pytest.mark.asyncio
