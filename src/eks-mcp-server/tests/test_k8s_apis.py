@@ -169,6 +169,24 @@ class TestK8sApisInitialization:
             assert connection_pool.ca_certs == apis.api_client.configuration.ssl_ca_cert
             assert connection_pool.conn_kw['ssl_context'] is strict_context
 
+    def test_init_accepts_ssl_context_without_verify_flags(self):
+        """Test compatibility with urllib3 contexts without verify_flags."""
+        context = object()
+
+        with (
+            patch('kubernetes.dynamic.DynamicClient'),
+            patch(
+                'awslabs.eks_mcp_server.k8s_apis.create_urllib3_context',
+                return_value=context,
+            ),
+        ):
+            ca_data = base64.b64encode(b'test-ca-data').decode('utf-8')
+
+            apis = K8sApis('https://test-endpoint', 'test-token', ca_data)
+
+            pool_kwargs = apis.api_client.rest_client.pool_manager.connection_pool_kw
+            assert pool_kwargs['ssl_context'] is context
+
     @pytest.mark.parametrize(
         'mock_version,expected_api_key,expected_prefix',
         [
