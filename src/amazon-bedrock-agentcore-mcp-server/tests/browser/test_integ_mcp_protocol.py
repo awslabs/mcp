@@ -787,12 +787,19 @@ class TestToolInvocation:
                 assert '2 session' in first.text
 
     async def test_docs_tool_invocation(self):
-        """search_agentcore_docs can be called through protocol."""
+        """search_agentcore_docs can be called through protocol.
+
+        The tool must stay callable (and not crash the server) even when the
+        upstream llms.txt docs index is unreachable — it returns an empty
+        result set in that case. See awslabs/mcp#4138.
+        """
         server = _build_server()
         async with create_connected_server_and_client_session(server) as client:
             result = await client.call_tool('search_agentcore_docs', {'query': 'browser'})
 
-            assert len(result.content) > 0
+            assert result.isError is False
+            assert result.structuredContent is not None
+            assert 'result' in result.structuredContent
 
     async def test_calling_nonexistent_tool_raises(self):
         """Calling a nonexistent tool raises an error."""

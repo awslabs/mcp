@@ -54,6 +54,33 @@ class TestCache:
         assert cache._URL_CACHE['https://example.com/overview'] is None
         assert cache._URL_CACHE['https://example.com/getting-started'] is None
 
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.doc_fetcher.parse_llms_txt')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.text_processor.normalize')
+    @patch('awslabs.amazon_bedrock_agentcore_mcp_server.utils.text_processor.index_title_variants')
+    def test_load_links_only_skips_unreachable_source(
+        self, mock_index_variants, mock_normalize, mock_parse_llms
+    ):
+        """load_links_only logs and skips an llms.txt source that fails to fetch."""
+        import http.client
+        import urllib.error
+
+        mock_parse_llms.side_effect = urllib.error.HTTPError(
+            url='https://example.com/llms.txt',
+            code=404,
+            msg='Not Found',
+            hdrs=http.client.HTTPMessage(),
+            fp=None,
+        )
+
+        # Act — must not raise
+        cache.load_links_only()
+
+        # Assert — index still marked loaded (so ensure_ready won't keep retrying),
+        # no titles cached, and the index object exists.
+        assert cache._LINKS_LOADED is True
+        assert cache._INDEX is not None
+        assert cache._URL_TITLES == {}
+
     def test_ensure_ready_calls_load_links_only(self):
         """Test ensure_ready calls load_links_only when not loaded."""
         # Arrange
