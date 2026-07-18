@@ -14,6 +14,7 @@
 
 from ..config import doc_config
 from . import doc_fetcher, indexer, text_processor
+from loguru import logger
 from typing import Dict
 
 
@@ -39,13 +40,28 @@ def load_links_only() -> None:
         - Populates _URL_TITLES with curated titles
         - Sets placeholder entries in _URL_CACHE
         - Sets _LINKS_LOADED to True
+
+    A transient or permanent failure to fetch a configured llms.txt source
+    (e.g. HTTP 404 because the upstream docs site moved) is logged and
+    skipped rather than propagated, so an unreachable docs index does not
+    prevent the server (and its non-docs tools) from starting.
     """
     global _INDEX, _LINKS_LOADED, _URL_TITLES, _URL_CACHE
     if _INDEX is None:
         _INDEX = indexer.IndexSearch()
 
     for src in doc_config.llm_texts_url:
-        for title, url in doc_fetcher.parse_llms_txt(src):
+        try:
+            links = doc_fetcher.parse_llms_txt(src)
+        except Exception as exc:
+            logger.warning(
+                'Failed to load documentation index from {}: {}; '
+                'documentation tools will have no indexed content.',
+                src,
+                exc,
+            )
+            continue
+        for title, url in links:
             # Record curated display title and placeholder cache
             _URL_TITLES[url] = title
             _URL_CACHE.setdefault(url, None)
