@@ -64,7 +64,32 @@ class TestFindIpAddress:
         assert result == sample_eni_response
         mock_get_client.assert_called_once_with('ec2', 'us-east-1', None)
         mock_ec2_client.describe_network_interfaces.assert_called_once_with(
-            Filters=[{'Name': 'private-ip-address', 'Values': ['10.0.1.100']}]
+            Filters=[{'Name': 'addresses.private-ip-address', 'Values': ['10.0.1.100']}]
+        )
+
+    @patch.object(find_ip_module, 'get_aws_client')
+    async def test_find_secondary_private_ip_single_region_success(
+        self, mock_get_client, mock_ec2_client, sample_eni_response
+    ):
+        """Test that a secondary private IP is matched via the addresses.private-ip-address filter.
+
+        Regression for the bug where the tool only matched the ENI's primary private IP because
+        it used the 'private-ip-address' filter, which EC2 scopes to the primary address. The
+        'addresses.private-ip-address' filter walks every assigned private address on the ENI,
+        so secondary IPs are located as well.
+        """
+        mock_get_client.return_value = mock_ec2_client
+        mock_ec2_client.describe_network_interfaces.return_value = {
+            'NetworkInterfaces': [sample_eni_response]
+        }
+
+        result = await find_ip_module.find_ip_address(
+            ip_address='10.0.1.105', region='us-east-1', all_regions=False
+        )
+
+        assert result == sample_eni_response
+        mock_ec2_client.describe_network_interfaces.assert_called_once_with(
+            Filters=[{'Name': 'addresses.private-ip-address', 'Values': ['10.0.1.105']}]
         )
 
     @patch.object(find_ip_module, 'get_aws_client')
