@@ -22,6 +22,7 @@ from awslabs.aws_documentation_mcp_server.server_aws import (
     read_sections,
     recommend,
     search_documentation,
+    search_table,
 )
 from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.parse import parse_qs, unquote, urlparse
@@ -819,6 +820,263 @@ class TestSearchDocumentation:
 
             mock_post.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_search_documentation_with_recommended_sections(self):
+        """recommended_sections is lifted to a top-level field, parallel to sections."""
+        search_phrase = 'S3 object lock'
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'queryId': 'test-query-recommended',
+            'suggestions': [
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/s3/latest/userguide/object-lock-managing.html',
+                        'title': 'S3 Object Lock',
+                        'metadata': {
+                            'seo_abstract': 'Managing S3 Object Lock',
+                            'sections': ['Permissions', 'Bypassing governance mode'],
+                            'recommended_sections': [
+                                'Managing S3 Lifecycle policies with Object Lock',
+                                'Uploading objects to an Object Lock enabled bucket',
+                            ],
+                        },
+                    }
+                },
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/s3/latest/userguide/basic.html',
+                        'title': 'Basic',
+                        'summary': 'No recommended sections here',
+                        'metadata': {},
+                    }
+                },
+            ],
+        }
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
+
+            results = await search_documentation(
+                ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
+            )
+
+            first_result = results.search_results[0]
+            # Both fields surface independently at the top level
+            assert first_result.sections == ['Permissions', 'Bypassing governance mode']
+            assert first_result.recommended_sections == [
+                'Managing S3 Lifecycle policies with Object Lock',
+                'Uploading objects to an Object Lock enabled bucket',
+            ]
+
+            # No error on absent recommended_sections
+            second_result = results.search_results[1]
+            assert second_result.recommended_sections is None
+
+            mock_post.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_search_documentation_recommended_sections_filters_and_ignores_non_list(self):
+        """Empty/non-string entries are dropped; a non-list value yields None."""
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'queryId': 'test-query-rec-edge',
+            'suggestions': [
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/s3/latest/userguide/a.html',
+                        'title': 'A',
+                        'metadata': {
+                            # falsy and non-string entries are filtered out
+                            'recommended_sections': ['Keep me', '', None, 42, 'Also keep'],
+                        },
+                    }
+                },
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/s3/latest/userguide/b.html',
+                        'title': 'B',
+                        'metadata': {
+                            # non-list value is ignored entirely
+                            'recommended_sections': 'not-a-list',
+                        },
+                    }
+                },
+            ],
+        }
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
+
+            results = await search_documentation(
+                ctx, search_phrase='test', limit=10, product_types=None, guide_types=None
+            )
+
+            assert results.search_results[0].recommended_sections == ['Keep me', 'Also keep']
+            assert results.search_results[1].recommended_sections is None
+
+            mock_post.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_search_documentation_surfaces_known_response_metadata_fields(self):
+        """Known response-level metadata fields are surfaced; unknown fields are dropped."""
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'queryId': 'qid',
+            'suggestions': [
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/x',
+                        'title': 'X',
+                        'suggestionBody': 'desc',
+                    }
+                }
+            ],
+            'metadata': {
+                'discovered_services': [{'name': 'Amazon S3'}],
+                'related_tasks': [
+                    {
+                        'name': 'enable Object Lock',
+                        'description': '...',
+                        'urls': [
+                            {
+                                'url_name': '/AmazonS3/latest/userguide/lock.html',
+                                'url_description': 'Object Lock overview',
+                            }
+                        ],
+                    }
+                ],
+                'unknown_field_a': 'should-not-appear',
+                'unknown_field_b': {'foo': 'bar'},
+            },
+        }
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
+
+            response = await search_documentation(
+                ctx, search_phrase='test', limit=10, product_types=None, guide_types=None
+            )
+
+            assert response.metadata is not None
+            assert response.metadata.discovered_services is not None
+            assert response.metadata.discovered_services[0].name == 'Amazon S3'
+            assert response.metadata.related_tasks is not None
+            assert response.metadata.related_tasks[0].name == 'enable Object Lock'
+            metadata_dump = response.metadata.model_dump(exclude_none=True)
+            assert 'unknown_field_a' not in metadata_dump
+            assert 'unknown_field_b' not in metadata_dump
+
+    @pytest.mark.asyncio
+    async def test_search_documentation_no_metadata_when_proxy_omits_it(self):
+        """Responses without a metadata block leave SearchResponse.metadata as None."""
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'queryId': 'qid',
+            'suggestions': [
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/x',
+                        'title': 'X',
+                        'suggestionBody': 'desc',
+                    }
+                }
+            ],
+        }
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
+
+            response = await search_documentation(
+                ctx, search_phrase='test', limit=10, product_types=None, guide_types=None
+            )
+
+            assert response.metadata is None
+
+    @pytest.mark.asyncio
+    async def test_search_documentation_drops_malformed_response_metadata(self):
+        """A malformed response-level metadata block is dropped, not raised."""
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'queryId': 'qid',
+            'suggestions': [
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/x',
+                        'title': 'X',
+                        'suggestionBody': 'desc',
+                    }
+                }
+            ],
+            # discovered_services items require a string `name`; a non-dict entry
+            # makes model_validate raise (ValidationError) unless guarded.
+            'metadata': {'discovered_services': ['not-a-dict']},
+        }
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
+
+            response = await search_documentation(
+                ctx, search_phrase='test', limit=10, product_types=None, guide_types=None
+            )
+
+            # Search succeeded; bad metadata was dropped rather than raised.
+            assert len(response.search_results) == 1
+            assert response.search_results[0].url == 'https://docs.aws.amazon.com/x'
+            assert response.metadata is None
+
+    @pytest.mark.asyncio
+    async def test_search_documentation_drops_malformed_result_metadata(self):
+        """A malformed per-result metadata block is dropped, not raised."""
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'queryId': 'qid',
+            'suggestions': [
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/x',
+                        'title': 'X',
+                        'suggestionBody': 'desc',
+                        'metadata': {
+                            'sections': ['Overview'],
+                            # additional_urls entries require a string `url`; a bare
+                            # string entry makes model_validate raise unless guarded.
+                            'additional_urls': ['not-a-dict'],
+                        },
+                    }
+                }
+            ],
+        }
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
+
+            response = await search_documentation(
+                ctx, search_phrase='test', limit=10, product_types=None, guide_types=None
+            )
+
+            result = response.search_results[0]
+            assert result.url == 'https://docs.aws.amazon.com/x'
+            assert result.sections == ['Overview']
+            assert result.metadata is None
+
 
 class TestRecommend:
     """Tests for the recommend function."""
@@ -927,6 +1185,154 @@ class TestRecommend:
             assert results[0].url == ''
             assert 'Error parsing recommendations:' in results[0].title
             assert results[0].context is None
+
+
+class TestSearchTable:
+    """Tests for the search_table function."""
+
+    @pytest.mark.asyncio
+    async def test_search_table_success(self):
+        """Test successful table search."""
+        url = 'https://docs.aws.amazon.com/general/latest/gr/test.html'
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """<html><body>
+            <h2>Service quotas</h2>
+            <table><thead><tr><th>Name</th><th>Value</th></tr></thead>
+            <tbody><tr><td>Foo quota</td><td>100</td></tr>
+            <tr><td>Bar quota</td><td>200</td></tr></tbody></table>
+        </body></html>"""
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            result = await search_table(
+                ctx, url=url, section_title='Service quotas', query='Foo', max_rows=20
+            )
+
+            assert result.tables_with_matches == 1
+            assert result.results[0].matched_rows == 1
+            assert result.results[0].rows[0]['Name'] == 'Foo quota'
+
+    @pytest.mark.asyncio
+    async def test_search_table_invalid_url(self):
+        """Test that invalid URLs are rejected."""
+        ctx = MockContext()
+
+        with pytest.raises(ValueError, match='URL must be from list of supported domains'):
+            await search_table(
+                ctx,
+                url='https://example.com/page.html',
+                section_title='Test',
+                query='foo',
+                max_rows=20,
+            )
+
+    @pytest.mark.asyncio
+    async def test_search_table_url_must_end_with_html(self):
+        """Test that URLs must end with .html."""
+        ctx = MockContext()
+
+        with pytest.raises(ValueError, match='URL must end with .html'):
+            await search_table(
+                ctx,
+                url='https://docs.aws.amazon.com/test.json',
+                section_title='Test',
+                query='foo',
+                max_rows=20,
+            )
+
+    @pytest.mark.asyncio
+    async def test_search_table_empty_query(self):
+        """Test that empty query is rejected."""
+        ctx = MockContext()
+
+        with pytest.raises(ValueError, match='query parameter cannot be empty'):
+            await search_table(
+                ctx,
+                url='https://docs.aws.amazon.com/test.html',
+                section_title='Test',
+                query='',
+                max_rows=20,
+            )
+
+    @pytest.mark.asyncio
+    async def test_search_table_no_matches_returns_hint(self):
+        """Test that zero matches includes a hint."""
+        url = 'https://docs.aws.amazon.com/general/latest/gr/test.html'
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """<html><body>
+            <h2>Quotas</h2>
+            <table><thead><tr><th>Name</th></tr></thead>
+            <tbody><tr><td>Something</td></tr></tbody></table>
+        </body></html>"""
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            result = await search_table(
+                ctx, url=url, section_title='Quotas', query='nonexistent', max_rows=20
+            )
+
+            assert result.tables_with_matches == 0
+            assert result.results == []
+            assert result.hint is not None
+
+    @pytest.mark.asyncio
+    async def test_search_table_section_not_found_returns_available(self):
+        """Test that wrong section title returns available sections."""
+        url = 'https://docs.aws.amazon.com/general/latest/gr/test.html'
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """<html><body>
+            <h2>Real Section</h2>
+            <table><thead><tr><th>A</th></tr></thead>
+            <tbody><tr><td>1</td></tr></tbody></table>
+        </body></html>"""
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            result = await search_table(
+                ctx, url=url, section_title='Wrong Section', query='foo', max_rows=20
+            )
+
+            assert result.hint is not None
+            assert 'Real Section' in result.hint
+
+    @pytest.mark.asyncio
+    async def test_search_table_optional_section_title(self):
+        """Test that section_title can be omitted to search all tables."""
+        url = 'https://docs.aws.amazon.com/general/latest/gr/test.html'
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """<html><body>
+            <h2>Section A</h2>
+            <table><thead><tr><th>Name</th></tr></thead>
+            <tbody><tr><td>Alpha</td></tr></tbody></table>
+            <h2>Section B</h2>
+            <table><thead><tr><th>Name</th></tr></thead>
+            <tbody><tr><td>Beta</td></tr></tbody></table>
+        </body></html>"""
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            result = await search_table(
+                ctx, url=url, section_title=None, query='Beta', max_rows=20
+            )
+
+            assert result.tables_with_matches == 1
+            assert 'Beta' in str(result.results[0].rows)
 
 
 class TestMain:

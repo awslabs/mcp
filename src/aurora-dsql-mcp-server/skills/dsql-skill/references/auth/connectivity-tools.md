@@ -6,7 +6,7 @@ Part of [DSQL Development Guide](../development-guide.md).
 
 ## Database Connectivity Tools
 
-DSQL has many tools for connecting including 10 database drivers, 4, ORM libraries, and 3 specialized adapters
+DSQL has many tools for connecting including 12 database drivers, 4 ORM libraries, and 4 specialized adapters
 across various languages as listed in the [programming guide](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/aws-sdks.html). PREFER using connectors, drivers, ORM libraries, and adapters.
 
 ### Database Drivers
@@ -43,11 +43,12 @@ Standalone libraries that provide object-relational mapping functionality:
 
 Specific extensions that make existing ORMs work with Aurora DSQL:
 
-| Programming Language | ORM/Framework | Repository                                                                           |
-| -------------------- | ------------- | ------------------------------------------------------------------------------------ |
-| **Java**             | Hibernate     | [Aurora DSQL Hibernate Adapter](https://github.com/awslabs/aurora-dsql-hibernate/)   |
-| **Python**           | Django        | [Aurora DSQL Django Adapter](https://github.com/awslabs/aurora-dsql-django/)         |
-| **Python**           | SQLAlchemy    | [Aurora DSQL SQLAlchemy Adapter](https://github.com/awslabs/aurora-dsql-sqlalchemy/) |
+| Programming Language | ORM/Framework | Repository                                                                                          |
+| -------------------- | ------------- | --------------------------------------------------------------------------------------------------- |
+| **C# (.NET)**        | EF Core       | [Aurora DSQL EF Core Adapter](https://github.com/awslabs/aurora-dsql-orms/tree/main/dotnet/ef-core) |
+| **Java**             | Hibernate     | [Aurora DSQL Hibernate Adapter](https://github.com/awslabs/aurora-dsql-hibernate/)                  |
+| **Python**           | Django        | [Aurora DSQL Django Adapter](https://github.com/awslabs/aurora-dsql-django/)                        |
+| **Python**           | SQLAlchemy    | [Aurora DSQL SQLAlchemy Adapter](https://github.com/awslabs/aurora-dsql-sqlalchemy/)                |
 
 ---
 

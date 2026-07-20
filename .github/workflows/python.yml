@@ -17,7 +17,7 @@ jobs:
       changed-directories: ${{ steps.find-changed-directories.outputs.changed-directories }}
       changed-files: ${{ steps.find-changed-directories.outputs.changed-files }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
       - name: Fetch base branch
@@ -75,19 +75,19 @@ jobs:
       security-events: write
       actions: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
 
       - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: "src/${{ matrix.package }}/.python-version"
           # cache: uv (not supported)
 
       - name: Cache GraphViz
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 #v5.0.3
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 #v6.1.0
         id: cache-graphviz
         with:
           path: "~/graphviz"
@@ -115,7 +115,7 @@ jobs:
         run: bandit -r --severity-level medium --confidence-level medium -f html -o bandit-report-${{ matrix.package }}.html -c "pyproject.toml" . || echo "status=failure" >> $GITHUB_OUTPUT
 
       - name: Store Bandit as Artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: bandit-report-${{ matrix.package }}.html
           path: src/${{ matrix.package }}/bandit-report-${{ matrix.package }}.html
@@ -145,7 +145,7 @@ jobs:
 
       - name: Upload coverage reports to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de #v5.5.2
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f #v7.0.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ${{ matrix.package }}-coverage.xml
@@ -154,7 +154,7 @@ jobs:
 
       - name: Upload test reports to Codecov
         if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de #v5.5.2
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f #v7.0.0
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ${{ matrix.package }}-junit.xml
@@ -178,7 +178,7 @@ jobs:
         run: uv build
 
       - name: Upload distribution
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: dist-${{ matrix.package }}
           path: src/${{ matrix.package }}/dist/
@@ -291,7 +291,7 @@ jobs:
            python -
 
       - name: Upload Software Bill of Materials
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: sbom-${{ matrix.package }}
           path: src/${{ matrix.package }}/sbom.json
