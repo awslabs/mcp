@@ -339,14 +339,16 @@ def _get_specialized_converter(operation_name: str) -> Optional[str]:
     """Get specific converter function for API.
 
     Args:
-        operation_name: Name of the API operation
+        operation_name: Name of the API operation. MUST match the string the
+            caller passes to ``convert_api_response_to_table`` /
+            ``convert_response_if_needed`` (e.g. ``cost_explorer_get_cost_and_usage``).
 
     Returns:
         Optional[str]: Type of specialized converter to use, or None for generic
     """
-    # Map of operation names to specialized converter types
+    # Keys must match operation_name strings the callers pass; mismatches
+    # silently fall through to the generic (key, value) flatten branch.
     converters = {
-        'aws_pricing_get_products': 'pricing_products',
         'cost_explorer_get_cost_and_usage': 'cost_and_usage',
         'cost_explorer_get_cost_and_usage_with_resources': 'cost_and_usage',
         'cost_explorer_get_dimension_values': 'dimension_values',
@@ -354,54 +356,116 @@ def _get_specialized_converter(operation_name: str) -> Optional[str]:
         'cost_explorer_get_usage_forecast': 'forecast',
         'cost_explorer_get_tags': 'tags',
         'cost_explorer_get_cost_categories': 'cost_categories',
+        'aws_pricing_get_products': 'pricing_products',
     }
 
     return converters.get(operation_name)
 
 
-async def convert_response_if_needed(
-    ctx: Context, response: Dict[str, Any], api_name: str, **metadata
+def _derive_pagination_envelope(
+    response: Dict[str, Any], token_key: str = 'NextPageToken'
 ) -> Dict[str, Any]:
-    """Convert API response to SQL if it exceeds size threshold.
+    """Extract pagination metadata from a response so it survives SQL offload.
+
+    Recognizes two shapes produced upstream:
+
+    - Multi-page wrapper built by callers after `paginate_aws_response`:
+      ``{'<ResultsKey>': [...], 'Pagination': {next_token, has_more, pages_fetched, ...}}``
+    - Single-page raw boto3 response with a continuation-token field (e.g.
+      ``NextPageToken``).
+
+    Args:
+        response: The API response (or paginated wrapper) being offloaded.
+        token_key: Name of the continuation-token field in the single-page
+            boto3 response. Defaults to ``NextPageToken`` (used by Cost
+            Explorer ops); pass e.g. ``NextToken`` for AWS Pricing.
+
+    Returns:
+        Dict with ``next_page_token``, ``has_more``, ``pages_fetched`` keys.
+        Empty dict if the response carries no pagination markers (e.g. a
+        forecast response), so unrelated APIs aren't polluted with bogus
+        pagination metadata.
+    """
+    if 'Pagination' in response and isinstance(response['Pagination'], dict):
+        pag_meta = response['Pagination']
+        return {
+            'next_page_token': pag_meta.get('next_token'),
+            'has_more': pag_meta.get('has_more', False),
+            'pages_fetched': pag_meta.get('pages_fetched'),
+        }
+    if token_key in response:
+        token = response.get(token_key)
+        return {
+            'next_page_token': token,
+            'has_more': bool(token),
+            'pages_fetched': 1,
+        }
+    return {}
+
+
+async def convert_response_if_needed(
+    ctx: Context,
+    response: Dict[str, Any],
+    api_name: str,
+    pagination_token_key: str = 'NextPageToken',
+    **metadata,
+) -> Dict[str, Any]:
+    """Offload an API response to SQL if it exceeds the size threshold.
+
+    Auto-derives pagination metadata (`next_page_token`, `has_more`,
+    `pages_fetched`) from the response shape so callers don't have to
+    pass it explicitly. Explicit kwargs in `metadata` override the
+    derived values.
+
+    Return contract — always returns something the caller can pass
+    straight through to `format_response`:
+    - Offload happened: the offload sentinel dict (with `data_stored=True`,
+      `table_name`, sample queries, etc.).
+    - No offload (size below threshold): the original `response`.
+    - Conversion errored: log + return the original `response`.
+
+    The original response is returned on no-offload and on error so
+    callers don't need to unwrap a size-meta or error envelope.
 
     Args:
         ctx: MCP context
         response: API response data
-        api_name: Name of the API operation (e.g., 'aws_pricing_get_products')
-        **metadata: Additional metadata to include in response
+        api_name: Name of the API operation (e.g. 'aws_pricing_get_products')
+        pagination_token_key: Name of the continuation-token field in
+            single-page boto3 responses. Defaults to 'NextPageToken'.
+        **metadata: Additional metadata to include in the offload sentinel.
 
     Returns:
-        Either SQL table info or formatted response
+        Either the offload sentinel dict or the original response.
     """
     # Get context logger for consistent logging
     ctx_logger = get_context_logger(ctx, __name__)
 
+    # Pull pagination markers out of the response so they survive offload —
+    # caller-provided metadata still wins on key conflict.
+    metadata = {**_derive_pagination_envelope(response, pagination_token_key), **metadata}
+
     try:
-        # Calculate response size
         response_size = len(json.dumps(response).encode('utf-8'))
 
-        if should_convert_to_sql(response_size):
-            # Convert large response to SQL
-            await ctx_logger.info(
-                f'Response size {response_size / 1024:.2f}KB exceeds threshold, converting to SQL'
-            )
-            return await convert_api_response_to_table(ctx, response, api_name, **metadata)
-        else:
-            # Return original response with size info
+        if not should_convert_to_sql(response_size):
             await ctx_logger.debug(
                 f'Response size {response_size / 1024:.2f}KB below threshold, returning directly'
             )
-            return {'status': 'success', 'data': response, 'response_size_bytes': response_size}
+            return response
+
+        await ctx_logger.info(
+            f'Response size {response_size / 1024:.2f}KB exceeds threshold, converting to SQL'
+        )
+        return await convert_api_response_to_table(ctx, response, api_name, **metadata)
     except Exception as e:
-        error_message = f'Error processing response for {api_name}: {str(e)}'
-        await ctx_logger.error(error_message, exc_info=True)
-        # Return error response with original data to ensure no data loss
-        return {
-            'status': 'error',
-            'message': error_message,
-            'data': response,
-            'response_size_bytes': len(json.dumps(response).encode('utf-8')),
-        }
+        # Offload is an optimization — if it fails, fall back to the original
+        # response rather than propagating an error envelope the caller would
+        # have to unwrap anyway.
+        await ctx_logger.error(
+            f'Error processing response for {api_name}: {str(e)}', exc_info=True
+        )
+        return response
 
 
 async def convert_api_response_to_table(
@@ -847,6 +911,35 @@ async def convert_api_response_to_table(
                     'name': 'Common tags',
                     'description': 'Finds common tags like environment, project, or name',
                     'sql': tags_query,
+                }
+            )
+
+        elif converter_type == 'cost_categories':
+            # Cost Categories queries
+
+            # Category names only
+            names_query = (
+                create_safe_sql_statement('SELECT', table_name, 'category_value')
+                + " WHERE category_type = 'name' ORDER BY category_value"
+            )
+            sample_queries.append(
+                {
+                    'name': 'Cost category names',
+                    'description': 'Lists all cost category names alphabetically',
+                    'sql': names_query,
+                }
+            )
+
+            # Category values only
+            values_query = (
+                create_safe_sql_statement('SELECT', table_name, 'category_value')
+                + " WHERE category_type = 'value' ORDER BY category_value"
+            )
+            sample_queries.append(
+                {
+                    'name': 'Cost category values',
+                    'description': 'Lists all cost category values alphabetically',
+                    'sql': values_query,
                 }
             )
 

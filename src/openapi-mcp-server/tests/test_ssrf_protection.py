@@ -13,15 +13,17 @@
 # limitations under the License.
 """Tests for SSRF protection in multi-spec configuration."""
 
+import httpx
 import json
 import pytest
 from awslabs.openapi_mcp_server.api.config import Config
 from awslabs.openapi_mcp_server.server import create_mcp_server_async
+from awslabs.openapi_mcp_server.utils.openapi import _pinned_fetch, load_openapi_spec
 from awslabs.openapi_mcp_server.utils.url_validator import (
     validate_spec_path,
     validate_url_for_spec,
 )
-from fastmcp.server.auth.ssrf import SSRFError
+from fastmcp.server.auth.ssrf import SSRFError, SSRFFetchError, ValidatedURL
 from unittest.mock import MagicMock, patch
 
 
@@ -286,7 +288,8 @@ async def test_additional_specs_do_not_inherit_primary_auth():
         ),
     ):
 
-        def load_side_effect(url='', path=''):
+        def load_side_effect(url='', path='', validated_url=None, **kwargs):
+            url = url or (validated_url.original_url if validated_url else '')
             if 'partner' in url:
                 return EXTRA_SPEC
             return PETSTORE_SPEC
@@ -337,7 +340,8 @@ async def test_additional_specs_per_entry_auth():
         patch('awslabs.openapi_mcp_server.auth.register.register_provider_by_type'),
     ):
 
-        def load_side_effect(url='', path=''):
+        def load_side_effect(url='', path='', validated_url=None, **kwargs):
+            url = url or (validated_url.original_url if validated_url else '')
             if 'partner' in url:
                 return EXTRA_SPEC
             return PETSTORE_SPEC
@@ -520,7 +524,8 @@ async def test_additional_spec_load_failure_is_skipped():
         ),
     ):
 
-        def load_side_effect(url='', path=''):
+        def load_side_effect(url='', path='', validated_url=None, **kwargs):
+            url = url or (validated_url.original_url if validated_url else '')
             if 'broken' in url:
                 raise RuntimeError('Connection refused')
             return PETSTORE_SPEC
@@ -600,7 +605,8 @@ async def test_additional_spec_api_key_query_warns():
         ),
     ):
 
-        def load_side_effect(url='', path=''):
+        def load_side_effect(url='', path='', validated_url=None, **kwargs):
+            url = url or (validated_url.original_url if validated_url else '')
             if 'partner' in url:
                 return EXTRA_SPEC
             return PETSTORE_SPEC
@@ -644,7 +650,8 @@ async def test_additional_spec_api_key_cookie_is_passed():
         ),
     ):
 
-        def load_side_effect(url='', path=''):
+        def load_side_effect(url='', path='', validated_url=None, **kwargs):
+            url = url or (validated_url.original_url if validated_url else '')
             if 'partner' in url:
                 return EXTRA_SPEC
             return PETSTORE_SPEC
@@ -686,7 +693,8 @@ async def test_additional_spec_basic_auth():
         ),
     ):
 
-        def load_side_effect(url='', path=''):
+        def load_side_effect(url='', path='', validated_url=None, **kwargs):
+            url = url or (validated_url.original_url if validated_url else '')
             if 'partner' in url:
                 return EXTRA_SPEC
             return PETSTORE_SPEC
@@ -728,7 +736,8 @@ async def test_additional_spec_unrecognized_auth_type_warns():
         ),
     ):
 
-        def load_side_effect(url='', path=''):
+        def load_side_effect(url='', path='', validated_url=None, **kwargs):
+            url = url or (validated_url.original_url if validated_url else '')
             if 'partner' in url:
                 return EXTRA_SPEC
             return PETSTORE_SPEC
@@ -746,3 +755,730 @@ async def test_additional_spec_unrecognized_auth_type_warns():
         extra_kwargs = extra_call.kwargs if extra_call.kwargs else {}
         assert extra_kwargs.get('auth') is None
         assert not (extra_kwargs.get('headers') or {})
+
+
+# --- DNS-pinned fetch: rebinding / redirect / size cap ---
+#
+# These directly exercise the TOCTOU SSRF fix: the spec is fetched by connecting
+# ONLY to the IP(s) validation pinned, so a hostname that rebinds between the
+# validation lookup and the fetch can never steer the connection.
+
+
+class _FakeStreamResponse:
+    """Minimal stand-in for an httpx streaming response."""
+
+    def __init__(self, status_code=200, headers=None, chunks=(b'{}',)):
+        self.status_code = status_code
+        self.headers = headers or {}
+        self._chunks = chunks
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise httpx.HTTPStatusError('error', request=None, response=None)
+
+    def iter_bytes(self):
+        yield from self._chunks
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+
+def _make_fake_client(capture, response):
+    """Build a fake httpx.Client class that records the URL it was asked to dial."""
+
+    class _FakeClient:
+        def __init__(self, *args, **kwargs):
+            capture['client_kwargs'] = kwargs
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def stream(self, method, url, headers=None, extensions=None):
+            capture.setdefault('requests', []).append(
+                {'method': method, 'url': url, 'headers': headers, 'extensions': extensions}
+            )
+            return response
+
+    return _FakeClient
+
+
+def _validated(**overrides):
+    defaults = {
+        'original_url': 'https://spec.example.com/openapi.json',
+        'hostname': 'spec.example.com',
+        'port': 443,
+        'path': '/openapi.json',
+        'resolved_ips': ['93.184.216.34'],
+    }
+    defaults.update(overrides)
+    return ValidatedURL(**defaults)
+
+
+def test_pinned_fetch_connects_to_pinned_ip_with_host_and_sni():
+    """The fetch dials the pinned IP literal, keeping Host + SNI = validated host."""
+    capture = {}
+    response = _FakeStreamResponse(chunks=(b'{"ok": true}',))
+    with patch('httpx.Client', _make_fake_client(capture, response)):
+        body = _pinned_fetch(_validated(), allow_http=False)
+
+    assert body == b'{"ok": true}'
+    req = capture['requests'][0]
+    # Connection target is the pinned IP literal, not the hostname.
+    assert req['url'] == 'https://93.184.216.34:443/openapi.json'
+    assert req['headers']['Host'] == 'spec.example.com'
+    assert req['extensions']['sni_hostname'] == 'spec.example.com'
+    # Redirects are disabled on the client.
+    assert capture['client_kwargs'].get('follow_redirects') is False
+
+
+def test_pinned_fetch_refuses_redirect_to_metadata():
+    """A 302 toward the metadata IP is rejected, not followed (redirect bypass)."""
+    capture = {}
+    response = _FakeStreamResponse(
+        status_code=302, headers={'location': 'http://169.254.169.254/latest/meta-data/'}
+    )
+    with patch('httpx.Client', _make_fake_client(capture, response)):
+        with pytest.raises(SSRFFetchError, match='redirect'):
+            _pinned_fetch(_validated(), allow_http=False)
+
+    # We only ever dialed the pinned public IP; the redirect target was never used.
+    assert capture['requests'][0]['url'] == 'https://93.184.216.34:443/openapi.json'
+
+
+def test_pinned_fetch_rejects_oversized_body_streaming():
+    """A body exceeding the size cap is rejected while streaming."""
+    capture = {}
+    response = _FakeStreamResponse(chunks=(b'x' * 50, b'y' * 50))
+    with patch('httpx.Client', _make_fake_client(capture, response)):
+        with pytest.raises(SSRFFetchError, match='too large'):
+            _pinned_fetch(_validated(), allow_http=False, max_size=10)
+
+
+def test_pinned_fetch_rejects_oversized_body_content_length():
+    """A body advertising an oversized Content-Length is rejected up front."""
+    capture = {}
+    response = _FakeStreamResponse(headers={'content-length': '999999'}, chunks=(b'{}',))
+    with patch('httpx.Client', _make_fake_client(capture, response)):
+        with pytest.raises(SSRFFetchError, match='too large'):
+            _pinned_fetch(_validated(), allow_http=False, max_size=10)
+
+
+def test_pinned_fetch_http_requires_opt_in():
+    """An http:// pinned URL is refused unless allow_http is set."""
+    vurl = _validated(original_url='http://spec.example.com/openapi.json', port=80)
+    with pytest.raises(SSRFError, match='allow_insecure_http'):
+        _pinned_fetch(vurl, allow_http=False)
+
+
+@pytest.mark.asyncio
+async def test_validate_url_rejects_mixed_public_and_private_ips():
+    """A hostname resolving to a mix of public + private IPs is rejected at validation."""
+    with patch(
+        'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
+        return_value=['93.184.216.34', '169.254.169.254'],
+    ):
+        with pytest.raises(SSRFError, match='blocked IP'):
+            await validate_url_for_spec('https://rebind.example.com/spec.json')
+
+
+def test_load_openapi_spec_rebinding_never_hits_metadata_ip():
+    """Rebinding PoC: validation resolves once to a public IP; the fetch is pinned to it.
+
+    Simulates an authoritative DNS that would answer 93.184.216.34 first (passing
+    the SSRF check) and 169.254.169.254 on any later lookup. Because the fetch
+    connects to the IP validation pinned — and never re-resolves — the metadata
+    IP is unreachable, and DNS is queried exactly once.
+    """
+    resolve_calls = {'n': 0}
+
+    def rebinding_resolve(hostname, port=443):
+        resolve_calls['n'] += 1
+        # First answer public (passes), any subsequent answer is the metadata IP.
+        return ['93.184.216.34'] if resolve_calls['n'] == 1 else ['169.254.169.254']
+
+    capture = {}
+    response = _FakeStreamResponse(chunks=(b'{"openapi": "3.0.0"}',))
+
+    with (
+        patch(
+            'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
+            side_effect=rebinding_resolve,
+        ),
+        patch('httpx.Client', _make_fake_client(capture, response)),
+        patch(
+            'awslabs.openapi_mcp_server.utils.openapi._parse_spec_bytes',
+            return_value=PETSTORE_SPEC,
+        ),
+        patch(
+            'awslabs.openapi_mcp_server.utils.openapi.validate_openapi_spec',
+            return_value=True,
+        ),
+    ):
+        # Unique host avoids the 1-hour spec cache colliding with other tests.
+        spec = load_openapi_spec(url='https://rebind-poc.example.com/openapi.json')
+
+    assert spec == PETSTORE_SPEC
+    # DNS was resolved exactly once — the single source of truth for the target.
+    assert resolve_calls['n'] == 1
+    # Every connection went to the pinned public IP; the metadata IP was never dialed.
+    dialed = [r['url'] for r in capture['requests']]
+    assert dialed == ['https://93.184.216.34:443/openapi.json']
+    assert all('169.254.169.254' not in url for url in dialed)
+
+
+def test_load_openapi_spec_bare_url_is_validated_and_blocks_private():
+    """The primary-spec path (bare url) is now validated: a private IP is blocked."""
+    with patch(
+        'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
+        return_value=['10.0.0.5'],
+    ):
+        with pytest.raises(SSRFError, match='blocked IP'):
+            load_openapi_spec(url='https://internal-primary.example.com/openapi.json')
+
+
+def test_pinned_fetch_rejects_disallowed_scheme():
+    """A non-http(s) scheme on the validated URL is rejected."""
+    vurl = _validated(original_url='ftp://spec.example.com/openapi.json')
+    with pytest.raises(SSRFError, match='not allowed'):
+        _pinned_fetch(vurl, allow_http=False)
+
+
+def test_pinned_fetch_tries_next_ip_on_transient_error():
+    """A transient error on the first pinned IP falls through to the next."""
+    capture = {}
+    good = _FakeStreamResponse(chunks=(b'{"ok": true}',))
+
+    class _FlakyClient:
+        _calls = {'n': 0}
+
+        def __init__(self, *args, **kwargs):
+            capture['client_kwargs'] = kwargs
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def stream(self, method, url, headers=None, extensions=None):
+            capture.setdefault('urls', []).append(url)
+            type(self)._calls['n'] += 1
+            if type(self)._calls['n'] == 1:
+                raise httpx.ConnectError('connection refused')
+            return good
+
+    vurl = _validated(resolved_ips=['93.184.216.34', '198.51.100.7'])
+    with patch('httpx.Client', _FlakyClient):
+        body = _pinned_fetch(vurl, allow_http=False)
+
+    assert body == b'{"ok": true}'
+    # Both pinned IPs were attempted, in order.
+    assert capture['urls'] == [
+        'https://93.184.216.34:443/openapi.json',
+        'https://198.51.100.7:443/openapi.json',
+    ]
+
+
+def test_pinned_fetch_raises_last_error_when_all_ips_fail():
+    """When every pinned IP errors transiently, the last error is raised."""
+
+    class _AlwaysFailClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def stream(self, *args, **kwargs):
+            raise httpx.ConnectError('down')
+
+    vurl = _validated(resolved_ips=['93.184.216.34', '198.51.100.7'])
+    with patch('httpx.Client', _AlwaysFailClient):
+        with pytest.raises(httpx.ConnectError, match='down'):
+            _pinned_fetch(vurl, allow_http=False)
+
+
+def test_pinned_fetch_no_resolved_ips():
+    """A ValidatedURL with no IPs surfaces a clear SSRFFetchError."""
+    vurl = _validated(resolved_ips=[])
+    with pytest.raises(SSRFFetchError, match='No resolved IPs'):
+        _pinned_fetch(vurl, allow_http=False)
+
+
+def test_validate_url_sync_bridges_from_running_loop():
+    """_validate_url_sync works when called from inside a running event loop.
+
+    load_openapi_spec is synchronous but is invoked from create_mcp_server_async;
+    the async validator must be driven without touching the live loop.
+    """
+    from awslabs.openapi_mcp_server.utils.openapi import _validate_url_sync
+
+    async def _drive():
+        # Calling the sync helper from within this running loop must not raise
+        # "asyncio.run() cannot be called from a running event loop".
+        return _validate_url_sync(
+            'https://spec.example.com/openapi.json',
+            allow_http=False,
+            allow_private_networks=False,
+        )
+
+    with patch(
+        'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
+        return_value=['93.184.216.34'],
+    ):
+        import asyncio
+
+        result = asyncio.run(_drive())
+
+    assert result.hostname == 'spec.example.com'
+    assert result.resolved_ips == ['93.184.216.34']
+
+
+def test_parse_spec_bytes_uses_prance_when_available():
+    """When prance is available, its resolved specification is returned."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    resolved = {'openapi': '3.0.0', 'info': {'title': 'Resolved', 'version': '1'}}
+    with (
+        patch.object(openapi_mod, 'PRANCE_AVAILABLE', True),
+        patch.object(openapi_mod, 'ResolvingParser') as mock_parser,
+    ):
+        mock_parser.return_value.specification = resolved
+        result = openapi_mod._parse_spec_bytes(b'{"openapi": "3.0.0"}')
+
+    assert result == resolved
+
+
+def test_parse_spec_bytes_falls_back_to_json_when_prance_fails():
+    """A prance failure falls back to basic JSON parsing."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    with (
+        patch.object(openapi_mod, 'PRANCE_AVAILABLE', True),
+        patch.object(openapi_mod, 'ResolvingParser', side_effect=Exception('prance boom')),
+    ):
+        result = openapi_mod._parse_spec_bytes(b'{"openapi": "3.0.0", "x": 1}')
+
+    assert result == {'openapi': '3.0.0', 'x': 1}
+
+
+def test_parse_spec_bytes_falls_back_to_yaml_when_not_json():
+    """Non-JSON content is parsed as YAML."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    yaml_body = b'openapi: "3.0.0"\ninfo:\n  title: YAML API\n  version: "1"\n'
+    with patch.object(openapi_mod, 'PRANCE_AVAILABLE', False):
+        result = openapi_mod._parse_spec_bytes(yaml_body)
+
+    assert result['info']['title'] == 'YAML API'
+
+
+def test_load_openapi_spec_does_not_retry_ssrf_failures():
+    """An SSRFFetchError from the fetch is raised immediately, not retried away."""
+    with (
+        patch(
+            'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
+            return_value=['93.184.216.34'],
+        ),
+        patch(
+            'awslabs.openapi_mcp_server.utils.openapi._pinned_fetch',
+            side_effect=SSRFFetchError('redirect refused'),
+        ) as mock_fetch,
+    ):
+        with pytest.raises(SSRFFetchError, match='redirect refused'):
+            load_openapi_spec(url='https://no-retry.example.com/openapi.json')
+
+    # Exactly one attempt — security failures must not be retried.
+    assert mock_fetch.call_count == 1
+
+
+def test_pinned_fetch_http_opt_in_uses_no_sni():
+    """An opted-in http:// fetch dials the pinned IP with no TLS SNI extension."""
+    capture = {}
+    response = _FakeStreamResponse(chunks=(b'{}',))
+    vurl = _validated(original_url='http://spec.example.com/openapi.json', port=80)
+    with patch('httpx.Client', _make_fake_client(capture, response)):
+        _pinned_fetch(vurl, allow_http=True)
+
+    req = capture['requests'][0]
+    assert req['url'] == 'http://93.184.216.34:80/openapi.json'
+    assert req['headers']['Host'] == 'spec.example.com'
+    # No SNI extension for plaintext http.
+    assert req['extensions'] == {}
+
+
+# --- External $ref resolution (prance) SSRF/LFI tests ---
+#
+# The DNS-pinned fetch only guards the root document; prance's default resolver
+# (and its validation backend) would otherwise dereference external $ref targets
+# with its own fetcher, bypassing SSRF validation. These tests assert that any
+# external $ref is refused before prance runs, and — critically — that NO
+# outbound request is made (a "content not embedded" check alone would miss the
+# blind-SSRF that prance's validation backend performs).
+
+
+import threading  # noqa: E402
+from http.server import BaseHTTPRequestHandler, HTTPServer  # noqa: E402
+
+
+class _RefCanaryHandler(BaseHTTPRequestHandler):
+    """Records every GET path so a test can assert the server was never hit."""
+
+    hits: list = []
+
+    def do_GET(self):  # noqa: N802
+        type(self).hits.append(self.path)
+        body = b'{"type": "string", "x-canary": "SSRF-REACHED"}'
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args):  # silence per-request logging
+        pass
+
+
+class _loopback_canary:
+    """Context manager: a loopback HTTP server that records hits on an ephemeral port."""
+
+    def __enter__(self):
+        handler = type('_H', (_RefCanaryHandler,), {'hits': []})
+        self._handler = handler
+        self._server = HTTPServer(('127.0.0.1', 0), handler)
+        self._port = self._server.server_address[1]
+        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
+        self._thread.start()
+        return self
+
+    @property
+    def url(self):
+        return f'http://127.0.0.1:{self._port}/ssrf-canary'
+
+    @property
+    def hits(self):
+        return self._handler.hits
+
+    def __exit__(self, *exc):
+        # Stop serving, close the listening socket, and join the thread so the
+        # port is fully released before the next test (avoids flaky port reuse).
+        self._server.shutdown()
+        self._server.server_close()
+        self._thread.join(timeout=5)
+
+
+def _spec_with_ref(ref: str) -> dict:
+    """Build a minimal, otherwise-valid spec whose schema carries a single $ref."""
+    return {
+        'openapi': '3.0.0',
+        'info': {'title': 'RefSpec', 'version': '1.0.0'},
+        'paths': {
+            '/x': {
+                'get': {
+                    'responses': {
+                        '200': {
+                            'description': 'ok',
+                            'content': {'application/json': {'schema': {'$ref': ref}}},
+                        }
+                    }
+                }
+            }
+        },
+    }
+
+
+def test_reject_external_refs_blocks_http_file_and_relative():
+    """_reject_external_refs raises SSRFError for any non-internal $ref."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    for ref in (
+        'http://169.254.169.254/latest/meta-data/',
+        'https://evil.example.com/schema.json',
+        'file:///etc/passwd',
+        'schemas.yaml#/Pet',  # relative external file
+    ):
+        with pytest.raises(SSRFError, match='external \\$ref'):
+            openapi_mod._reject_external_refs(_spec_with_ref(ref))
+
+
+def test_reject_external_refs_allows_internal_refs():
+    """Internal (#/...) references are permitted and do not raise."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    # Should not raise.
+    openapi_mod._reject_external_refs(_spec_with_ref('#/components/schemas/Pet'))
+
+
+def test_parse_spec_bytes_refuses_http_ref_without_making_request():
+    """A spec with an http:// $ref is refused AND the target is never contacted."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    with _loopback_canary() as canary:
+        content = json.dumps(_spec_with_ref(canary.url)).encode()
+        with pytest.raises(SSRFError, match='external \\$ref'):
+            openapi_mod._parse_spec_bytes(content)
+        # The key assertion: prance never issued the outbound request.
+        assert canary.hits == []
+
+
+def test_parse_spec_bytes_refuses_file_ref_lfi(tmp_path):
+    """A spec with a file:// $ref is refused (no local file disclosure)."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    local_file = tmp_path / 'local.json'
+    local_file.write_text('{"type": "string", "x-marker": "LOCAL-FILE-CONTENTS"}')
+    content = json.dumps(_spec_with_ref(f'file://{local_file}')).encode()
+
+    with pytest.raises(SSRFError, match='external \\$ref'):
+        openapi_mod._parse_spec_bytes(content)
+
+
+def test_parse_spec_bytes_resolves_internal_refs():
+    """Positive control: internal #/components refs still resolve and inline."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    spec = _spec_with_ref('#/components/schemas/Pet')
+    spec['components'] = {'schemas': {'Pet': {'type': 'object', 'x-legit': 'INTERNAL-OK'}}}
+    result = openapi_mod._parse_spec_bytes(json.dumps(spec).encode())
+
+    resolved = result['paths']['/x']['get']['responses']['200']['content']['application/json'][
+        'schema'
+    ]
+    assert resolved.get('x-legit') == 'INTERNAL-OK'
+
+
+def test_load_openapi_spec_file_refuses_http_ref_without_request(tmp_path):
+    """The file-path sink also refuses external $refs and makes no request."""
+    with _loopback_canary() as canary:
+        spec_file = tmp_path / 'spec.json'
+        spec_file.write_text(json.dumps(_spec_with_ref(canary.url)))
+        with pytest.raises(SSRFError, match='external \\$ref'):
+            load_openapi_spec(path=str(spec_file))
+        assert canary.hits == []
+
+
+def test_load_openapi_spec_file_refuses_relative_ref(tmp_path):
+    """A multi-file split (relative $ref) is refused rather than silently fetched."""
+    spec_file = tmp_path / 'spec.json'
+    spec_file.write_text(json.dumps(_spec_with_ref('schemas.yaml#/Pet')))
+    with pytest.raises(SSRFError, match='external \\$ref'):
+        load_openapi_spec(path=str(spec_file))
+
+
+def test_load_openapi_spec_file_resolves_internal_refs(tmp_path):
+    """Positive control: a file spec using only internal refs still loads."""
+    spec = _spec_with_ref('#/components/schemas/Pet')
+    spec['components'] = {'schemas': {'Pet': {'type': 'object', 'x-legit': 'INTERNAL-OK'}}}
+    spec_file = tmp_path / 'spec.json'
+    spec_file.write_text(json.dumps(spec))
+
+    result = load_openapi_spec(path=str(spec_file))
+    resolved = result['paths']['/x']['get']['responses']['200']['content']['application/json'][
+        'schema'
+    ]
+    assert resolved.get('x-legit') == 'INTERNAL-OK'
+
+
+def test_load_openapi_spec_file_reraises_memory_error(tmp_path):
+    """A MemoryError during the file-path prescan propagates, not masked as unparseable."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    spec_file = tmp_path / 'spec.json'
+    spec_file.write_text(json.dumps(_spec_with_ref('#/components/schemas/Pet')))
+
+    with patch.object(openapi_mod, '_basic_parse', side_effect=MemoryError('oom')):
+        with pytest.raises(MemoryError):
+            load_openapi_spec(path=str(spec_file))
+
+
+def test_load_openapi_spec_file_reraises_memory_error_from_prance(tmp_path):
+    """A MemoryError from prance on the file path propagates, not masked by fallback."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    spec_file = tmp_path / 'spec.json'
+    spec_file.write_text(json.dumps(_spec_with_ref('#/components/schemas/Pet')))
+
+    with (
+        patch.object(openapi_mod, 'PRANCE_AVAILABLE', True),
+        patch.object(openapi_mod, 'ResolvingParser', side_effect=MemoryError('oom')),
+    ):
+        with pytest.raises(MemoryError):
+            load_openapi_spec(path=str(spec_file))
+
+
+def test_parse_spec_bytes_basic_parse_yaml_without_prance():
+    """_basic_parse handles YAML; external-ref check still applies."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    yaml_body = b'openapi: "3.0.0"\ninfo:\n  title: YAML\n  version: "1"\n'
+    with patch.object(openapi_mod, 'PRANCE_AVAILABLE', False):
+        result = openapi_mod._parse_spec_bytes(yaml_body)
+    assert result['info']['title'] == 'YAML'
+
+
+def test_reject_external_refs_walks_lists():
+    """External $refs nested inside list values (e.g. allOf) are also rejected."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    node = {'allOf': [{'type': 'object'}, {'$ref': 'https://evil.example.com/s.json'}]}
+    with pytest.raises(SSRFError, match='external \\$ref'):
+        openapi_mod._reject_external_refs(node)
+
+
+def test_reject_external_refs_allows_internal_ref_in_list():
+    """Internal $refs nested inside lists do not raise."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    node = {'allOf': [{'type': 'object'}, {'$ref': '#/components/schemas/Base'}]}
+    openapi_mod._reject_external_refs(node)  # should not raise
+
+
+def test_basic_parse_falls_back_to_ruamel_when_pyyaml_absent():
+    """When PyYAML is absent, YAML is parsed via ruamel (prance's own parser).
+
+    This closes the prescan gap where a YAML spec would be unparseable here yet
+    parsed and $ref-resolved by prance.
+    """
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    yaml_body = b'openapi: "3.0.0"\ninfo:\n  title: Ruamel\n  version: "1"\n'
+    with patch.object(openapi_mod, 'yaml', None):
+        result = openapi_mod._basic_parse(yaml_body)
+    assert result['info']['title'] == 'Ruamel'
+
+
+def test_basic_parse_falls_back_to_ruamel_when_pyyaml_rejects():
+    """When PyYAML *rejects* a doc it still falls back to ruamel (prance's parser).
+
+    A tab after a mapping key is rejected by PyYAML but accepted by ruamel/prance.
+    Without falling back on PyYAML failure, the prescan would parse less than
+    prance and miss a $ref it would resolve.
+    """
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    # Tab between the key and value — PyYAML raises ScannerError, ruamel accepts.
+    yaml_body = b'openapi: "3.0.0"\ninfo:\n  title:\tTabbed\n  version: "1"\n'
+    result = openapi_mod._basic_parse(yaml_body)
+    assert result['info']['title'] == 'Tabbed'
+
+
+def test_parse_spec_bytes_yaml_ref_blocked_when_pyyaml_rejects():
+    """Regression: a PyYAML-rejected-but-prance-parseable YAML $ref is still refused.
+
+    A tab after the `$ref` key makes PyYAML reject the document; prance parses it
+    via ruamel and would resolve the external $ref. The prescan must parse it too
+    (via the ruamel fallback) so the external ref is refused with no outbound call.
+    """
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    with _loopback_canary() as canary:
+        yaml_spec = (
+            b'openapi: "3.0.0"\n'
+            b'info:\n  title: y\n  version: "1"\n'
+            b'paths:\n  /x:\n    get:\n      responses:\n        "200":\n'
+            b'          description: ok\n          content:\n            application/json:\n'
+            b'              schema:\n                $ref:\t"' + canary.url.encode() + b'"\n'
+        )
+        with pytest.raises(SSRFError, match='external \\$ref'):
+            openapi_mod._parse_spec_bytes(yaml_spec)
+        assert canary.hits == []
+
+
+def test_basic_parse_reraises_json_error_when_no_yaml_parser():
+    """With neither PyYAML nor ruamel available, non-JSON re-raises the JSON error."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    with (
+        patch.object(openapi_mod, 'yaml', None),
+        patch.dict('sys.modules', {'ruamel.yaml': None}),
+    ):
+        with pytest.raises(json.JSONDecodeError):
+            openapi_mod._basic_parse(b'not: [valid json')
+
+
+def test_parse_spec_bytes_reraises_memory_error():
+    """A MemoryError from parsing propagates rather than being masked as unparseable.
+
+    The best-effort prescan catches parse failures, but resource-exhaustion
+    errors must not be swallowed and treated as "no refs to check".
+    """
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    with patch.object(openapi_mod, '_basic_parse', side_effect=MemoryError('oom')):
+        with pytest.raises(MemoryError):
+            openapi_mod._parse_spec_bytes(b'{"openapi": "3.0.0"}')
+
+
+def test_parse_spec_bytes_rejects_non_mapping_root():
+    """A JSON/YAML doc that parses to a non-mapping root raises a clear ValueError.
+
+    Without this, a scalar/None root would later make validate_openapi_spec raise
+    an opaque TypeError on `'openapi' in spec`.
+    """
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    for body in (b'null', b'42', b'[1, 2, 3]', b'"just a string"'):
+        with pytest.raises(ValueError, match='must be a mapping'):
+            openapi_mod._parse_spec_bytes(body)
+
+
+def test_parse_spec_bytes_reraises_memory_error_from_prance():
+    """A MemoryError raised by prance propagates instead of falling back to basic parse."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    spec = json.dumps(_spec_with_ref('#/components/schemas/Pet')).encode()
+    with (
+        patch.object(openapi_mod, 'PRANCE_AVAILABLE', True),
+        patch.object(openapi_mod, 'ResolvingParser', side_effect=MemoryError('oom')),
+    ):
+        with pytest.raises(MemoryError):
+            openapi_mod._parse_spec_bytes(spec)
+
+
+def test_parse_spec_bytes_unparseable_defers_to_prance():
+    """Unparseable bytes skip the ref check (basic=None) and defer the error.
+
+    Exercises the best-effort branch: _basic_parse raises (no JSON/YAML parser
+    can read the bytes), so basic is set to None and the ref check is skipped;
+    with prance unavailable the final line re-runs _basic_parse, which raises.
+    """
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    with (
+        patch.object(openapi_mod, 'yaml', None),
+        patch.dict('sys.modules', {'ruamel.yaml': None}),
+        patch.object(openapi_mod, 'PRANCE_AVAILABLE', False),
+    ):
+        with pytest.raises(json.JSONDecodeError):
+            openapi_mod._parse_spec_bytes(b'not: [valid json')
+
+
+def test_parse_spec_bytes_yaml_ref_blocked_without_pyyaml():
+    """Regression: a YAML spec's external $ref is refused even when PyYAML is absent.
+
+    Without the ruamel fallback in _basic_parse, the prescan would set basic=None
+    and prance (which parses YAML via ruamel) would resolve the external $ref.
+    """
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    with _loopback_canary() as canary:
+        yaml_spec = (
+            b"openapi: '3.0.0'\n"
+            b'info:\n  title: y\n  version: "1"\n'
+            b'paths:\n  /x:\n    get:\n      responses:\n        "200":\n'
+            b'          description: ok\n          content:\n            application/json:\n'
+            b'              schema:\n                $ref: "' + canary.url.encode() + b'"\n'
+        )
+        with patch.object(openapi_mod, 'yaml', None):
+            with pytest.raises(SSRFError, match='external \\$ref'):
+                openapi_mod._parse_spec_bytes(yaml_spec)
+        assert canary.hits == []

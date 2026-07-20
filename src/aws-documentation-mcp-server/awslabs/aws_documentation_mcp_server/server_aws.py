@@ -25,12 +25,14 @@ from awslabs.aws_documentation_mcp_server.models import (
     SearchResponse,
     SearchResult,
     SearchResultMetadata,
+    SearchTableResponse,
 )
 from awslabs.aws_documentation_mcp_server.server_utils import (
     DEFAULT_USER_AGENT,
     add_search_result_cache_item,
     read_documentation_impl,
     read_sections_impl,
+    search_table_impl,
 )
 
 # Import utility functions
@@ -100,7 +102,8 @@ mcp = FastMCP(
 
     - Use `search_documentation` when: You need to find documentation about a specific AWS service or feature
     - Use `read_documentation` when: You have a specific documentation URL and need its content
-    - Use `read_sections` when: You have a specific documentation URL and specific section title(s) and want content from those specific section(s)
+    - Use `read_sections` when: You have a specific documentation URL and specific section title(s) and only need content from those specific section(s)
+    - Use `search_table` when: You need specific rows from a large table (e.g., service quotas, pricing, supported models). If read_sections or read_documentation shows a truncated table, use this tool with a query to find the rows you need.
     - Use `recommend` when: You want to find related content to a documentation page you're already viewing or need to find newly released information
     - Use `recommend` as a fallback when: Multiple searches have not yielded the specific information needed
     """,
@@ -153,6 +156,12 @@ async def read_documentation(
     - Code blocks for examples
     - Lists and tables converted to markdown format
 
+    ## Large Tables
+
+    Tables with more than 20 rows are automatically truncated to show only the header and 5 sample rows,
+    along with a hint to use the `search_table` tool. Use `search_table` to filter and retrieve specific
+    rows from large tables (e.g., service quotas, IAM actions).
+
     ## Handling Long Documents
 
     If the response indicates the document was truncated, you have several options:
@@ -201,6 +210,12 @@ async def read_sections(
 
     ## URL Requirements
     - Must end with .html
+
+    ## Large Tables
+
+    Tables with more than 20 rows are automatically truncated to show only the header and 5 sample rows,
+    along with a hint to use the `search_table` tool. Use `search_table` to filter and retrieve specific
+    rows from large tables (e.g., service quotas, IAM actions).
 
     ## Read Sections Tips
 
@@ -258,6 +273,111 @@ async def read_sections(
         raise ValueError('section_titles parameter cannot be empty')
 
     return await read_sections_impl(ctx, url_str, section_titles, SESSION_UUID)
+
+
+@mcp.tool()
+async def search_table(
+    ctx: Context,
+    url: str = Field(description='URL of the AWS documentation page containing the table'),
+    section_title: Optional[str] = Field(
+        default=None,
+        description='The section heading that contains the table. If omitted, searches all tables on the page. Use exact titles from search_documentation results or read_documentation output.',
+    ),
+    query: str = Field(
+        description='Search term to filter rows (case-insensitive, all words must match across any column)'
+    ),
+    max_rows: int = Field(
+        default=20,
+        description='Maximum number of matching rows to return per table',
+        ge=1,
+        le=100,
+    ),
+) -> SearchTableResponse:
+    """Search for specific rows in a large documentation table.
+
+    Use this tool when you need specific rows from a large documentation table
+    (e.g., service quotas, pricing tables, supported models lists). Returns
+    matching rows as JSON instead of dumping the entire table.
+
+    This is more efficient than read_sections for pages with hundreds of table rows.
+    If read_sections or read_documentation indicates a table was truncated, use this
+    tool to find the specific rows you need.
+
+    ## Section Title
+
+    - If you know the exact section title, provide it for precision
+    - If unsure, omit section_title — the tool will search all tables on the page
+    - Use section titles from search_documentation results (TOC) or read_documentation output
+    - If the section title is wrong, the hint field will list available sections
+
+    ## URL Requirements
+
+    - Must be from the docs.aws.amazon.com domain
+    - Must end with .html
+
+    ## Example Usage
+
+    ```
+    # With section title (searches all tables in that section):
+    search_table(
+        url='https://docs.aws.amazon.com/general/latest/gr/bedrock.html',
+        section_title='Amazon Bedrock service quotas',
+        query='Titan Text Embeddings V2',
+    )
+
+    # Without section title (searches all tables on the page):
+    search_table(
+        url='https://docs.aws.amazon.com/general/latest/gr/bedrock.html',
+        query='Claude 3 Sonnet requests',
+    )
+    ```
+
+    ## Response Format
+
+    Returns a SearchTableResponse with:
+    - tables_searched: Number of tables searched
+    - tables_with_matches: Number of tables containing matching rows
+    - hint: Guidance message when no matches found, section not found, or no tables on page
+    - error: Error message on HTTP/transport failures only
+    - results: Array of table result objects, each with:
+        - table_heading: The sub-heading above the table (if any)
+        - columns: Column headers for that table
+        - parent_columns: (optional) For rowspan/nested tables, which columns are group headers
+        - child_columns: (optional) For rowspan/nested tables, which columns are nested under groups
+        - total_rows: Total rows (or groups, for nested tables) in that table
+        - matched_rows: Number of rows/groups matching the query per table
+        - showing: Number of rows/groups returned per table (capped by max_rows per table)
+        - rows: Array of matching row objects. For flat tables: {column → value}.
+          For nested tables: {parent_col → value, ..., "rows": [{child_col → value}, ...]}
+
+    Args:
+        ctx: MCP context for logging and error handling
+        url: AWS documentation page URL (must end with .html)
+        section_title: The section heading containing the table (optional — omit to search all tables on the page)
+        query: Search term to filter rows (all words must match, case-insensitive)
+        max_rows: Maximum matching rows to return per table (default 20)
+
+    Returns:
+        SearchTableResponse with matching rows grouped by table
+    """
+    url_str = str(url)
+
+    supported_domains_regex = [r'^https?://docs\.aws\.amazon\.com/']
+    for modifier in SEARCH_TERM_DOMAIN_MODIFIERS:
+        supported_domains_regex.append(modifier['regex'])
+
+    if not any(re.match(domain_regex, url_str) for domain_regex in supported_domains_regex):
+        await ctx.error(f'Invalid URL: {url_str}. URL must be from list of supported domains')
+        raise ValueError('URL must be from list of supported domains')
+    if not url_str.endswith('.html'):
+        await ctx.error(f'Invalid URL: {url_str}. URL must end with .html')
+        raise ValueError('URL must end with .html')
+
+    if not query or not query.strip():
+        await ctx.error('query parameter cannot be empty')
+        raise ValueError('query parameter cannot be empty')
+
+    return await search_table_impl(ctx, url_str, section_title, query, max_rows, SESSION_UUID)
 
 
 @mcp.tool()
