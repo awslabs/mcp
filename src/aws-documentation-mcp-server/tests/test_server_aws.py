@@ -758,7 +758,6 @@ class TestSearchDocumentation:
                         'link': 'https://docs.aws.amazon.com/s3/latest/userguide/bucket-configuration.html',
                         'title': 'S3 Bucket Configuration Guide',
                         'metadata': {
-                            'seo_abstract': 'Complete guide to configuring S3 buckets',
                             'sections': [
                                 'Bucket Naming Rules',
                                 'Access Control Settings',
@@ -797,7 +796,8 @@ class TestSearchDocumentation:
                 == 'https://docs.aws.amazon.com/s3/latest/userguide/bucket-configuration.html'
             )
             assert first_result.title == 'S3 Bucket Configuration Guide'
-            assert first_result.context == 'Complete guide to configuring S3 buckets'
+            # seo_abstract is no longer used for context; with no summary/suggestionBody it is None.
+            assert first_result.context is None
 
             assert first_result.sections is not None
             assert len(first_result.sections) == 3

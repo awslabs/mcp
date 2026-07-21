@@ -1103,13 +1103,13 @@ class K8sHandler:
             cleaned_events = [self.cleanup_resource_response(event) for event in events]
             event_items = [
                 EventItem(
-                    first_timestamp=event['first_timestamp'],
-                    last_timestamp=event['last_timestamp'],
-                    count=event['count'],
-                    message=event['message'],
-                    reason=event['reason'],
-                    reporting_component=event['reporting_component'],
-                    type=event['type'],
+                    first_timestamp=event.get('first_timestamp'),
+                    last_timestamp=event.get('last_timestamp'),
+                    count=event.get('count'),
+                    message=event.get('message', ''),
+                    reason=event.get('reason'),
+                    reporting_component=event.get('reporting_component'),
+                    type=event.get('type'),
                 )
                 for event in cleaned_events
             ]

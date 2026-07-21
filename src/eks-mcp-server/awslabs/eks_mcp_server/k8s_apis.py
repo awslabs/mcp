@@ -16,11 +16,13 @@
 
 import base64
 import os
+import ssl
 import tempfile
 from awslabs.eks_mcp_server import __version__
 from awslabs.eks_mcp_server.models import Operation
 from loguru import logger
 from typing import Any, Dict, List, Optional
+from urllib3.util import create_urllib3_context
 
 
 class K8sApis:
@@ -85,6 +87,7 @@ class K8sApis:
 
             # Create base API client
             self.api_client = client.ApiClient(configuration)
+            self._configure_eks_ca_ssl_context(self.api_client)
 
             # Set user-agent directly on the ApiClient
             self.api_client.user_agent = f'awslabs/mcp/eks-mcp-server/{__version__}'
@@ -133,6 +136,14 @@ class K8sApis:
 
         logger.debug(f'Configuring proxy: {proxy_url}')
         config.proxy = proxy_url
+
+    def _configure_eks_ca_ssl_context(self, api_client):
+        """Configure Kubernetes TLS verification for EKS-generated cluster CAs."""
+        context = create_urllib3_context(cert_reqs=ssl.CERT_REQUIRED)
+        if hasattr(context, 'verify_flags'):
+            context.verify_flags &= ~ssl.VERIFY_X509_STRICT
+
+        api_client.rest_client.pool_manager.connection_pool_kw['ssl_context'] = context
 
     def _patch_resource(
         self,
