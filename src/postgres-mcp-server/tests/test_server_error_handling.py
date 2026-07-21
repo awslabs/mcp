@@ -334,7 +334,6 @@ class TestMainStartupValidation:
 
     def test_main_starts_when_validation_passes(self):
         """A clean validation lets startup proceed to mcp.run()."""
-
         mock_conn = MagicMock()
         with (
             patch('sys.argv', self._argv()),
@@ -354,7 +353,6 @@ class TestMainStartupValidation:
 
     def test_main_exits_on_privilege_violation(self):
         """A ConnectionValidationError (over-privileged role) aborts startup with exit 1."""
-
         mock_conn = MagicMock()
         with (
             patch('sys.argv', self._argv()),
@@ -377,7 +375,6 @@ class TestMainStartupValidation:
 
     def test_main_exits_on_unexpected_validation_error(self):
         """A non-ConnectionValidationError during validation also aborts startup with exit 1."""
-
         mock_conn = MagicMock()
         with (
             patch('sys.argv', self._argv()),
