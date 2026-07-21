@@ -46,15 +46,19 @@ class TestDetectTgwInspection:
             ]
         }
 
-    @staticmethod
-    def _describe_firewall_side_effect(FirewallName=None, **kwargs):
+    @pytest.fixture
+    def describe_firewall_side_effect(self):
         """Mimic describe_firewall(), which is where VpcId actually lives."""
-        responses = {
-            'test-fw': {'Firewall': {'VpcId': 'vpc-fw123'}},
-            'test-fw2': {'Firewall': {'VpcId': 'vpc-fw456'}},
-            'test-nf': {'Firewall': {'FirewallStatus': {'Status': 'READY'}}},
-        }
-        return responses.get(FirewallName, {'Firewall': {}})
+
+        def _side_effect(FirewallName=None, **kwargs):
+            responses = {
+                'test-fw': {'Firewall': {'VpcId': 'vpc-fw123'}},
+                'test-fw2': {'Firewall': {'VpcId': 'vpc-fw456'}},
+                'test-nf': {'Firewall': {'FirewallStatus': {'Status': 'READY'}}},
+            }
+            return responses.get(FirewallName, {'Firewall': {}})
+
+        return _side_effect
 
     @pytest.fixture
     def sample_attachments(self):
@@ -136,14 +140,19 @@ class TestDetectTgwInspection:
         'awslabs.aws_network_mcp_server.tools.transit_gateway.detect_transit_gateway_inspection.get_aws_client'
     )
     async def test_vpc_firewall_detection(
-        self, mock_get_client, mock_clients, sample_firewalls, sample_attachments
+        self,
+        mock_get_client,
+        mock_clients,
+        sample_firewalls,
+        sample_attachments,
+        describe_firewall_side_effect,
     ):
         """Test VPC-attached firewall detection."""
         ec2_client, nfw_client, _ = mock_clients
         mock_get_client.side_effect = [ec2_client, nfw_client]
 
         nfw_client.list_firewalls.return_value = sample_firewalls
-        nfw_client.describe_firewall.side_effect = self._describe_firewall_side_effect
+        nfw_client.describe_firewall.side_effect = describe_firewall_side_effect
         ec2_client.describe_transit_gateway_attachments.return_value = sample_attachments
 
         result = await detect_tgw_inspection('tgw-123', 'us-east-1')
@@ -151,29 +160,6 @@ class TestDetectTgwInspection:
         assert result['has_firewalls'] is True
         assert result['total_vpc_firewalls'] == 1
         assert len(result['vpc_firewall_attachments']) == 1
-        assert result['vpc_firewall_attachments'][0]['ResourceId'] == 'vpc-fw123'
-
-    @patch(
-        'awslabs.aws_network_mcp_server.tools.transit_gateway.detect_transit_gateway_inspection.get_aws_client'
-    )
-    async def test_vpc_firewall_detection_no_vpc_id_on_list_firewalls(
-        self, mock_get_client, mock_clients, sample_attachments
-    ):
-        """Regression test for #4286: list_firewalls() never includes VpcId.
-
-        Only describe_firewall() returns VpcId, so detect_tgw_inspection must not
-        assume list_firewalls()'s Firewalls entries carry it.
-        """
-        ec2_client, nfw_client, _ = mock_clients
-        mock_get_client.side_effect = [ec2_client, nfw_client]
-
-        nfw_client.list_firewalls.return_value = {'Firewalls': [{'FirewallName': 'test-fw'}]}
-        nfw_client.describe_firewall.return_value = {'Firewall': {'VpcId': 'vpc-fw123'}}
-        ec2_client.describe_transit_gateway_attachments.return_value = sample_attachments
-
-        result = await detect_tgw_inspection('tgw-123', 'us-east-1')
-
-        assert result['total_vpc_firewalls'] == 1
         assert result['vpc_firewall_attachments'][0]['ResourceId'] == 'vpc-fw123'
 
     @patch(
@@ -310,13 +296,14 @@ class TestDetectTgwInspection:
         sample_attachments,
         sample_vpc_endpoints,
         sample_gwlb,
+        describe_firewall_side_effect,
     ):
         """Test detection of all firewall types together."""
         ec2_client, nfw_client, elbv2_client = mock_clients
         mock_get_client.side_effect = [ec2_client, nfw_client, elbv2_client]
 
         nfw_client.list_firewalls.return_value = sample_firewalls
-        nfw_client.describe_firewall.side_effect = self._describe_firewall_side_effect
+        nfw_client.describe_firewall.side_effect = describe_firewall_side_effect
         ec2_client.describe_transit_gateway_attachments.return_value = sample_attachments
         ec2_client.describe_vpc_endpoints.return_value = sample_vpc_endpoints
         elbv2_client.describe_load_balancers.return_value = sample_gwlb
