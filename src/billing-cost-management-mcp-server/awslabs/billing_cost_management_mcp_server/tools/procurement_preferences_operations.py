@@ -30,8 +30,7 @@ from ..utilities.aws_service_base import (
     handle_aws_error,
     paginate_aws_response,
 )
-from ..utilities.time_utils import timestamp_to_utc_iso_string
-from datetime import datetime
+from ..utilities.time_utils import normalize_datetimes_to_iso
 from fastmcp import Context
 from typing import Any, Dict, Optional
 
@@ -47,30 +46,6 @@ def _create_invoicing_client() -> Any:
         boto3.client: AWS Invoicing client.
     """
     return create_aws_client('invoicing')
-
-
-def _normalize_timestamps(obj: Any) -> Any:
-    """Recursively convert ``datetime`` values to ISO 8601 UTC strings.
-
-    boto3 returns Python ``datetime`` objects for AWS timestamp fields (for
-    example ``CreateDate``, ``LastUpdateDate``, and the nested
-    ``EinvoiceDeliveryActivationDate``). These are not JSON-serializable, so we
-    walk the response and convert every ``datetime`` to a human-readable ISO
-    8601 string while leaving all other values untouched.
-
-    Args:
-        obj: An arbitrary value from an AWS response (dict, list, or scalar).
-
-    Returns:
-        The value with any ``datetime`` instances converted to ISO 8601 strings.
-    """
-    if isinstance(obj, dict):
-        return {key: _normalize_timestamps(value) for key, value in obj.items()}
-    if isinstance(obj, list):
-        return [_normalize_timestamps(item) for item in obj]
-    if isinstance(obj, datetime):
-        return timestamp_to_utc_iso_string(obj)
-    return obj
 
 
 async def list_procurement_portal_preferences(
@@ -117,7 +92,7 @@ async def list_procurement_portal_preferences(
             max_pages=max_pages,
         )
 
-        normalized = _normalize_timestamps(preferences)
+        normalized = normalize_datetimes_to_iso(preferences)
 
         await ctx.info(f'Successfully listed {len(normalized)} procurement portal preferences')
 
@@ -171,7 +146,7 @@ async def get_procurement_portal_preference(
         return format_response(
             'success',
             {
-                'procurement_portal_preference': _normalize_timestamps(
+                'procurement_portal_preference': normalize_datetimes_to_iso(
                     response.get('ProcurementPortalPreference', {})
                 )
             },

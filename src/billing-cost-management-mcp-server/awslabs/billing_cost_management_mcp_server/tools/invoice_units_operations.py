@@ -16,7 +16,7 @@
 
 This module contains the read-only operation handlers for the ``invoice-units``
 tool (AWS Invoice Configuration). Each operation performs the AWS API call,
-normalizes epoch/``datetime`` timestamps to ISO 8601 strings for the agent, and
+normalizes ``datetime`` timestamps to ISO 8601 strings for the agent, and
 returns a standardized response envelope.
 """
 
@@ -27,10 +27,9 @@ from ..utilities.aws_service_base import (
     paginate_aws_response,
 )
 from ..utilities.time_utils import (
-    timestamp_to_utc_iso_string,
+    normalize_datetimes_to_iso,
     utc_datetime_string_to_epoch_seconds,
 )
-from datetime import datetime
 from fastmcp import Context
 from typing import Any, Dict, List, Optional
 
@@ -46,31 +45,6 @@ def _create_invoicing_client() -> Any:
         boto3.client: AWS Invoicing client.
     """
     return create_aws_client('invoicing')
-
-
-def _normalize_timestamps(obj: Any) -> Any:
-    """Recursively convert ``datetime`` values to ISO 8601 UTC strings.
-
-    boto3 returns Python ``datetime`` objects for AWS timestamp fields (for
-    example ``LastModified``). These are not JSON-serializable, so we walk the
-    response and convert every ``datetime`` to a human-readable ISO 8601 string
-    while leaving all other values untouched. Walking the structure (rather than
-    normalizing named fields) keeps this correct as the API adds nested
-    timestamp fields.
-
-    Args:
-        obj: An arbitrary value from an AWS response (dict, list, or scalar).
-
-    Returns:
-        The value with any ``datetime`` instances converted to ISO 8601 strings.
-    """
-    if isinstance(obj, dict):
-        return {key: _normalize_timestamps(value) for key, value in obj.items()}
-    if isinstance(obj, list):
-        return [_normalize_timestamps(item) for item in obj]
-    if isinstance(obj, datetime):
-        return timestamp_to_utc_iso_string(obj)
-    return obj
 
 
 async def list_invoice_units(
@@ -89,21 +63,22 @@ async def list_invoice_units(
     Retrieves the invoice units (groups of accounts that receive a separate
     invoice) visible to the management account. All filters are optional and
     combine as an AND across filter types; within a single filter the list
-    values are an OR (match any).
+    values are an OR (match any). Account IDs are AWS account IDs (12 digits).
 
     Args:
         ctx: The MCP context object.
         names: Return only invoice units whose name matches one of these values.
-        invoice_receivers: Return only invoice units whose receiver account is
-            one of these 12-digit account IDs.
-        accounts: Return only invoice units that contain one of these member
-            account IDs.
-        bill_source_accounts: Return only invoice units with one of these bill
-            source account IDs.
+        invoice_receivers: Return only invoice units whose receiver is one of
+            these AWS account IDs (12 digits).
+        accounts: Return only invoice units that reference one of these AWS
+            account IDs anywhere — as the receiver, a linked (member) account,
+            or a bill-source account (a global search across all three roles).
+        bill_source_accounts: Return only invoice units with one of these AWS
+            account IDs as a bill-source account.
         as_of: Return the invoice unit definitions as they existed at this
             UTC instant (``YYYY-MM-DD`` or ``YYYY-MM-DDTHH:MM:SS``). Defaults to
             the current definitions when omitted.
-        max_results: Maximum number of results per page (1-100).
+        max_results: Maximum number of results per page (1-500).
         next_token: Pagination token from a previous response to resume from.
         max_pages: Maximum number of pages to auto-paginate through. Defaults to
             all pages.
@@ -152,7 +127,7 @@ async def list_invoice_units(
             max_pages=max_pages,
         )
 
-        normalized = _normalize_timestamps(units)
+        normalized = normalize_datetimes_to_iso(units)
 
         await ctx.info(f'Successfully listed {len(normalized)} invoice units')
 
@@ -202,7 +177,7 @@ async def get_invoice_unit(
 
         await ctx.info(f'Successfully retrieved invoice unit: {invoice_unit_arn}')
 
-        return format_response('success', {'invoice_unit': _normalize_timestamps(response)})
+        return format_response('success', {'invoice_unit': normalize_datetimes_to_iso(response)})
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'GetInvoiceUnit', 'Invoicing')
@@ -212,17 +187,19 @@ async def batch_get_invoice_profile(
     ctx: Context,
     account_ids: List[str],
 ) -> Dict[str, Any]:
-    """Retrieve invoice receiver profiles for a set of linked accounts.
+    """Retrieve invoice receiver profiles for a set of accounts.
 
     Returns high-level invoice receiver information (legal name, address,
     email, issuer, tax registration number) for each requested account. The
-    accounts must be linked accounts under the requester's management account
-    organization.
+    accounts must belong to the requester's organization; both linked accounts
+    and the payer (management) account are valid — for example, when selecting
+    the payer as an invoice unit receiver.
 
     Args:
         ctx: The MCP context object.
-        account_ids: The 12-digit account IDs to retrieve invoice profiles for
-            (required, non-empty).
+        account_ids: The AWS account IDs (12 digits) to retrieve invoice
+            profiles for (required, non-empty). Linked accounts and the payer
+            account are both valid.
 
     Returns:
         Dict containing ``profiles``, or a standardized error response.
@@ -238,7 +215,7 @@ async def batch_get_invoice_profile(
         response = client.batch_get_invoice_profile(AccountIds=account_ids)
         response.pop('ResponseMetadata', None)
 
-        profiles = _normalize_timestamps(response.get('Profiles', []))
+        profiles = normalize_datetimes_to_iso(response.get('Profiles', []))
 
         await ctx.info(f'Successfully retrieved {len(profiles)} invoice profiles')
 

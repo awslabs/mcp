@@ -66,13 +66,13 @@ async def _invoice_units(
         invoice_unit_arn: ARN of a single invoice unit (get_invoice_unit).
         names: Filter invoice units by name (list_invoice_units).
         invoice_receivers: Filter by receiver account ID (list_invoice_units).
-        accounts: Filter by member account ID (list_invoice_units).
+        accounts: Global-search filter across receiver, linked, and bill-source accounts (list_invoice_units).
         bill_source_accounts: Filter by bill source account ID
             (list_invoice_units).
         account_ids: Account IDs to fetch profiles for
             (batch_get_invoice_profile).
         as_of: Point-in-time UTC instant for list/get operations.
-        max_results: Maximum results per page (1-100).
+        max_results: Maximum results per page (1-500).
         next_token: Pagination token from a previous response.
         max_pages: Maximum pages to auto-paginate through (default: all).
 
@@ -130,13 +130,13 @@ async def _invoice_units(
 
 1) list_invoice_units - list invoice unit definitions visible to the management account
    Required: operation="list_invoice_units"
-   Optional filters (AND across types; OR within a list):
+   Optional filters (AND across types; OR within a list). Account IDs are 12-digit AWS account IDs:
      - names: match invoice unit names
-     - invoice_receivers: match receiver account IDs (12-digit)
-     - accounts: match member account IDs
-     - bill_source_accounts: match bill source account IDs
+     - invoice_receivers: match the invoice unit's receiver account
+     - bill_source_accounts: match a bill-source account
+     - accounts: global search — matches invoice units where the account appears as the receiver, a linked (member) account, OR a bill-source account
      - as_of: point-in-time UTC "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM:SS" (definitions as of that instant; defaults to current)
-   Pagination: max_results caps items per page (1-100); max_pages caps pages fetched (default: all). The `pagination` block reports total_results, pages_fetched, has_more, and next_token.
+   Pagination: max_results caps items per page (1-500); max_pages caps pages fetched (default: all). The `pagination` block reports total_results, pages_fetched, has_more, and next_token.
    Returns: `data.invoice_units`, each with InvoiceUnitArn, Name, Description, InvoiceReceiver, TaxInheritanceDisabled, Rule {LinkedAccounts}, and LastModified (ISO 8601 UTC).
 
 2) get_invoice_unit - retrieve one invoice unit definition
@@ -145,7 +145,7 @@ async def _invoice_units(
    Returns: `data.invoice_unit` with the fields above.
 
 3) batch_get_invoice_profile - fetch invoice receiver profiles for accounts
-   Required: operation="batch_get_invoice_profile", account_ids (12-digit account IDs, linked under the management account)
+   Required: operation="batch_get_invoice_profile", account_ids (12-digit AWS account IDs; linked accounts or the payer account)
    Returns: `data.profiles`, each with AccountId, ReceiverName, ReceiverAddress, ReceiverEmail, Issuer, TaxRegistrationNumber.
 
 EXAMPLES
@@ -179,13 +179,13 @@ async def invoice_units(
         invoice_unit_arn: ARN of a single invoice unit (get_invoice_unit).
         names: Filter invoice units by name (list_invoice_units).
         invoice_receivers: Filter by receiver account ID (list_invoice_units).
-        accounts: Filter by member account ID (list_invoice_units).
+        accounts: Global-search filter across receiver, linked, and bill-source accounts (list_invoice_units).
         bill_source_accounts: Filter by bill source account ID
             (list_invoice_units).
         account_ids: Account IDs to fetch profiles for
             (batch_get_invoice_profile).
         as_of: Point-in-time UTC instant for list/get operations.
-        max_results: Maximum results per page (1-100).
+        max_results: Maximum results per page (1-500).
         next_token: Pagination token from a previous response.
         max_pages: Maximum pages to auto-paginate through (default: all).
 
