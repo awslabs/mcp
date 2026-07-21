@@ -331,7 +331,8 @@ async def provision_least_privilege_access(
     )
 
     lp_role = f'mcp_e2e_lp_{cluster_identifier.replace("-", "_")}'[:60]
-    lp_password = 'Lp' + _secrets.token_hex(16)
+    # Random per-run password; generated at runtime, never hardcoded.
+    lp_password = 'Lp' + _secrets.token_hex(16)  # pragma: allowlist secret
 
     # Whether to authorize the lp role for IAM DB auth. Decoupled from the
     # master-connection method so serverless can connect-as-master over
@@ -2140,6 +2141,9 @@ async def run_privilege_enforcement_suite(
             except Exception as e:
                 record('enforce:least_priv_allowed', False, f'{type(e).__name__}: {e}')
         else:
+            # skipped is initialized to [] by TestResult.__post_init__; assert
+            # for the type-checker, which can't narrow the Optional here.
+            assert result.skipped is not None
             result.skipped.append(
                 (
                     'enforce:least_priv_allowed',

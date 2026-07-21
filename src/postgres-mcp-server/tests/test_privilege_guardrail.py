@@ -22,6 +22,7 @@ both PsycopgPoolConnection and RDSDataAPIConnection satisfy.
 """
 
 import pytest
+from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
 from awslabs.postgres_mcp_server.server import (
     POSTGRES_PRIVILEGE_QUERY,
     PRIVILEGE_CHECK_ENFORCE,
@@ -30,6 +31,7 @@ from awslabs.postgres_mcp_server.server import (
     ConnectionValidationError,
     validate_connection,
 )
+from typing import Any, Dict, List, Optional
 from unittest.mock import patch
 
 
@@ -41,26 +43,44 @@ def privilege_response(is_superuser: bool, is_rds_superuser: bool) -> dict:
     }
 
 
-class FakeConnection:
+class FakeConnection(AbstractDBConnection):
     """Minimal stand-in for a data-plane connection.
 
     Records the SQL passed to execute_query and returns a preset response,
     or raises a preset exception. Mirrors the {'columnMetadata','records'}
-    contract that both concrete connection classes return.
+    contract that both concrete connection classes return. Subclasses
+    AbstractDBConnection so it satisfies validate_connection's parameter type.
     """
 
-    def __init__(self, response=None, exc=None):
+    def __init__(
+        self,
+        response: Optional[Dict[str, Any]] = None,
+        exc: Optional[Exception] = None,
+    ):
         """Store the preset response/exception and init the query log."""
-        self.response = response
+        super().__init__(readonly=True)
+        # Coerce None to {} so the return type matches the base contract;
+        # tests that omit a response always set exc and raise before returning.
+        self.response: Dict[str, Any] = response if response is not None else {}
         self.exc = exc
-        self.queries = []
+        self.queries: List[str] = []
 
-    async def execute_query(self, sql, parameters=None):
+    async def execute_query(
+        self, sql: str, parameters: Optional[List[Dict[str, Any]]] = None
+    ) -> Dict[str, Any]:
         """Record the SQL and return the preset response or raise the preset error."""
         self.queries.append(sql)
         if self.exc is not None:
             raise self.exc
         return self.response
+
+    async def close(self) -> None:
+        """No-op close; nothing to release for the fake connection."""
+        pass
+
+    async def check_connection_health(self) -> bool:
+        """Report healthy; unused by the guardrail tests."""
+        return True
 
 
 class TestValidateConnectionEnforce:
@@ -150,6 +170,15 @@ class TestValidateConnectionWarn:
         with patch('awslabs.postgres_mcp_server.server.logger.warning') as mock_warn:
             await validate_connection(conn, PRIVILEGE_CHECK_WARN)
         mock_warn.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_unverifiable_shape_warns_but_allows(self):
+        """Under warn, an unexpected result shape logs a warning but is allowed."""
+        conn = FakeConnection(response={'columnMetadata': [], 'records': []})
+        with patch('awslabs.postgres_mcp_server.server.logger.warning') as mock_warn:
+            await validate_connection(conn, PRIVILEGE_CHECK_WARN)
+        mock_warn.assert_called_once()
+        assert 'unexpected result shape' in mock_warn.call_args[0][0].lower()
 
     @pytest.mark.asyncio
     async def test_clean_role_no_warning(self):

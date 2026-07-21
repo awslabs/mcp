@@ -17,6 +17,7 @@ import json
 import pytest
 from awslabs.postgres_mcp_server.connection.db_connection_map import ConnectionMethod, DatabaseType
 from awslabs.postgres_mcp_server.server import (
+    ConnectionValidationError,
     DummyCtx,
     connect_to_database,
     run_query,
@@ -300,3 +301,100 @@ class TestDummyCtx:
         # Should not raise any exception
         await ctx.error('Test error message')
         # If we get here, test passes
+
+
+class TestMainStartupValidation:
+    """Startup-path wiring for the least-privilege guardrail in main().
+
+    Drives server.main() with mocked argv and a mocked internal_create_connection
+    so the startup connection-validation block runs without touching AWS. Covers
+    all three branches: validation passes (server proceeds to mcp.run), a
+    least-privilege violation (ConnectionValidationError -> exit 1), and an
+    unexpected validation error (generic Exception -> exit 1).
+    """
+
+    def _argv(self):
+        """CLI args sufficient to reach the startup db-connection validation block."""
+        return [
+            'server.py',
+            '--region',
+            'us-east-1',
+            '--db_type',
+            'APG',
+            '--connection_method',
+            'RDS_API',
+            '--db_cluster_arn',
+            'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+            '--db_endpoint',
+            'test.endpoint.com',
+            '--database',
+            'testdb',
+        ]
+
+    def test_main_starts_when_validation_passes(self):
+        """A clean validation lets startup proceed to mcp.run()."""
+        import awslabs.postgres_mcp_server.server as server
+
+        mock_conn = MagicMock()
+        with (
+            patch('sys.argv', self._argv()),
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_create_connection',
+                return_value=(mock_conn, '{}'),
+            ),
+            patch(
+                'awslabs.postgres_mcp_server.server.validate_connection', new=AsyncMock()
+            ) as mock_validate,
+            patch('awslabs.postgres_mcp_server.server.mcp.run') as mock_run,
+        ):
+            server.main()
+
+        mock_validate.assert_awaited_once()
+        mock_run.assert_called_once()
+
+    def test_main_exits_on_privilege_violation(self):
+        """A ConnectionValidationError (over-privileged role) aborts startup with exit 1."""
+        import awslabs.postgres_mcp_server.server as server
+
+        mock_conn = MagicMock()
+        with (
+            patch('sys.argv', self._argv()),
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_create_connection',
+                return_value=(mock_conn, '{}'),
+            ),
+            patch(
+                'awslabs.postgres_mcp_server.server.validate_connection',
+                new=AsyncMock(side_effect=ConnectionValidationError('over-privileged role')),
+            ),
+            patch('awslabs.postgres_mcp_server.server.mcp.run') as mock_run,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                server.main()
+
+        assert exc.value.code == 1
+        # Startup must abort before the server is run.
+        mock_run.assert_not_called()
+
+    def test_main_exits_on_unexpected_validation_error(self):
+        """A non-ConnectionValidationError during validation also aborts startup with exit 1."""
+        import awslabs.postgres_mcp_server.server as server
+
+        mock_conn = MagicMock()
+        with (
+            patch('sys.argv', self._argv()),
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_create_connection',
+                return_value=(mock_conn, '{}'),
+            ),
+            patch(
+                'awslabs.postgres_mcp_server.server.validate_connection',
+                new=AsyncMock(side_effect=RuntimeError('connection reset')),
+            ),
+            patch('awslabs.postgres_mcp_server.server.mcp.run') as mock_run,
+        ):
+            with pytest.raises(SystemExit) as exc:
+                server.main()
+
+        assert exc.value.code == 1
+        mock_run.assert_not_called()
