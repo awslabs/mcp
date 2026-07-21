@@ -20,6 +20,7 @@ from awslabs.postgres_mcp_server.server import (
     ConnectionValidationError,
     DummyCtx,
     connect_to_database,
+    main,
     run_query,
 )
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -333,7 +334,6 @@ class TestMainStartupValidation:
 
     def test_main_starts_when_validation_passes(self):
         """A clean validation lets startup proceed to mcp.run()."""
-        import awslabs.postgres_mcp_server.server as server
 
         mock_conn = MagicMock()
         with (
@@ -347,14 +347,13 @@ class TestMainStartupValidation:
             ) as mock_validate,
             patch('awslabs.postgres_mcp_server.server.mcp.run') as mock_run,
         ):
-            server.main()
+            main()
 
         mock_validate.assert_awaited_once()
         mock_run.assert_called_once()
 
     def test_main_exits_on_privilege_violation(self):
         """A ConnectionValidationError (over-privileged role) aborts startup with exit 1."""
-        import awslabs.postgres_mcp_server.server as server
 
         mock_conn = MagicMock()
         with (
@@ -370,7 +369,7 @@ class TestMainStartupValidation:
             patch('awslabs.postgres_mcp_server.server.mcp.run') as mock_run,
         ):
             with pytest.raises(SystemExit) as exc:
-                server.main()
+                main()
 
         assert exc.value.code == 1
         # Startup must abort before the server is run.
@@ -378,7 +377,6 @@ class TestMainStartupValidation:
 
     def test_main_exits_on_unexpected_validation_error(self):
         """A non-ConnectionValidationError during validation also aborts startup with exit 1."""
-        import awslabs.postgres_mcp_server.server as server
 
         mock_conn = MagicMock()
         with (
@@ -394,7 +392,7 @@ class TestMainStartupValidation:
             patch('awslabs.postgres_mcp_server.server.mcp.run') as mock_run,
         ):
             with pytest.raises(SystemExit) as exc:
-                server.main()
+                main()
 
         assert exc.value.code == 1
         mock_run.assert_not_called()
