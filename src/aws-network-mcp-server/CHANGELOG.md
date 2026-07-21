@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- `detect_tgw_inspection` raising `KeyError: 'VpcId'` because `list_firewalls()` doesn't return `VpcId` (#4286)
+
 ### Added
 
 - Initial project setup
