@@ -281,6 +281,207 @@ def configure_server_secret_for_cluster(cluster_identifier: str, region: str) ->
     return secret_arn
 
 
+async def provision_least_privilege_access(
+    cluster_identifier: str,
+    region: str,
+    valid_endpoint: str,
+    port: int,
+    connection_method: ConnectionMethod,
+    database: str,
+    setup_lp_iam: Optional[bool] = None,
+) -> dict:
+    """Create a non-superuser role + Secrets Manager secret and return its ARN.
+
+    Runs the provisioning DDL as the cluster master user (so it must be called
+    while ``server.privilege_check_policy == 'off'``), then stores the role's
+    credentials in a new secret tagged ``mcp-e2e=true``. The caller pins the
+    returned ARN in ``server.configured_secret_arns`` so subsequent connections
+    authenticate as this least-privilege role.
+
+    The role is deliberately **non-superuser** (so it passes the 'enforce'
+    guardrail) but is granted ``USAGE`` + ``CREATE`` on schema ``public`` so it
+    can run the full functional suite (it owns the tables it creates). When the
+    IAM connection path will be exercised it is also granted ``rds_iam`` and an
+    ``rds-db:connect`` IAM policy entry.
+
+    ``connection_method`` selects how this function connects **as master** to
+    run the DDL — pick the cheapest method that works against the cluster from
+    the test host (RDS_API for serverless, PG_WIRE_IAM_PROTOCOL for express).
+
+    ``setup_lp_iam`` decouples the IAM-authorization decision from the
+    master-connection method: pass ``True`` to grant the lp role an
+    ``rds-db:connect`` IAM policy entry even when connecting-as-master over
+    RDS_API (needed on serverless when the PG_WIRE_IAM cell will run as lp).
+    When ``None`` (the default) it falls back to ``connection_method ==
+    PG_WIRE_IAM_PROTOCOL`` to preserve the express behavior.
+
+    Requires ``secretsmanager:CreateSecret`` (and ``DeleteSecret`` for cleanup)
+    in addition to the standard e2e permissions. Raises on failure so the
+    caller can record the affected suites.
+
+    Returns ``{'role', 'secret_arn', 'cluster_id', 'endpoint',
+    'connection_method', 'database', 'iam_policy_created'}``.
+    """
+    import boto3
+    import json as _json
+    import secrets as _secrets
+    from awslabs.postgres_mcp_server.connection.cp_api_connection import (
+        internal_get_cluster_properties,
+        setup_aurora_iam_policy_for_current_user,
+    )
+
+    lp_role = f'mcp_e2e_lp_{cluster_identifier.replace("-", "_")}'[:60]
+    lp_password = 'Lp' + _secrets.token_hex(16)
+
+    # Whether to authorize the lp role for IAM DB auth. Decoupled from the
+    # master-connection method so serverless can connect-as-master over
+    # RDS_API yet still grant lp the rds-db:connect entry it needs for the
+    # PG_WIRE_IAM cell (only when --test-non-express-cluster is set).
+    do_iam = (
+        setup_lp_iam
+        if setup_lp_iam is not None
+        else connection_method == ConnectionMethod.PG_WIRE_IAM_PROTOCOL
+    )
+
+    # 1. Connect as the master user (nothing pinned yet → metadata /
+    #    MasterUsername fallback) in write mode to run the provisioning DDL.
+    saved_readonly = server.readonly_query
+    server.readonly_query = False
+    server.db_connection_map.remove(
+        connection_method, cluster_identifier, valid_endpoint, database, port
+    )
+    resp = str(
+        await connect_to_database(
+            region=region,
+            database_type=DatabaseType.APG,
+            connection_method=connection_method,
+            cluster_identifier=cluster_identifier,
+            db_endpoint=valid_endpoint,
+            port=port,
+            database=database,
+        )
+    )
+    if 'Failed' in resp:
+        server.readonly_query = saved_readonly
+        raise RuntimeError(f'master connect for provisioning failed: {resp}')
+    conn = server.db_connection_map.get(
+        connection_method, cluster_identifier, valid_endpoint, database, port
+    )
+    if conn is None:
+        server.readonly_query = saved_readonly
+        raise RuntimeError('no master connection available for provisioning')
+
+    try:
+        # 2. Create the role. The name is unique per run (cluster id +
+        #    timestamp), so it never pre-exists and needs no pre-clean.
+        await conn.execute_query(
+            f"CREATE ROLE {lp_role} LOGIN PASSWORD '{lp_password}' "
+            'NOSUPERUSER NOCREATEDB NOCREATEROLE'
+        )
+        await conn.execute_query(f'GRANT USAGE, CREATE ON SCHEMA public TO {lp_role}')
+        # rds_iam enables the IAM connection path; harmless if unused.
+        if do_iam:
+            try:
+                await conn.execute_query(f'GRANT rds_iam TO {lp_role}')
+            except Exception as e:
+                logger.warning(f'GRANT rds_iam TO {lp_role} failed (non-fatal): {e}')
+
+        # 3. IAM path: authorize rds-db:connect for the new role.
+        if do_iam:
+            props = internal_get_cluster_properties(cluster_identifier, region)
+            setup_aurora_iam_policy_for_current_user(
+                db_user=lp_role,
+                cluster_resource_id=props['DbClusterResourceId'],
+                cluster_region=region,
+            )
+    finally:
+        # Drop the master provisioning connection so suites reconnect as lp.
+        server.db_connection_map.remove(
+            connection_method, cluster_identifier, valid_endpoint, database, port
+        )
+        server.readonly_query = saved_readonly
+
+    # 4. Store the role's credentials in a tagged secret.
+    sm = boto3.client('secretsmanager', region_name=region)
+    secret_name = f'mcp-e2e-lp-{cluster_identifier}-{datetime.now().strftime("%Y%m%d%H%M%S")}'
+    created = sm.create_secret(
+        Name=secret_name,
+        SecretString=_json.dumps({'username': lp_role, 'password': lp_password}),
+        Tags=[{'Key': 'mcp-e2e', 'Value': 'true'}],
+    )
+    logger.success(f'Provisioned least-privilege role {lp_role}; secret {secret_name}')
+    return {
+        'role': lp_role,
+        'secret_arn': created['ARN'],
+        'cluster_id': cluster_identifier,
+        'endpoint': valid_endpoint,
+        'connection_method': connection_method,
+        'database': database,
+        'iam_policy_created': do_iam,
+    }
+
+
+async def deprovision_least_privilege_access(lp_info: dict, region: str) -> None:
+    """Best-effort teardown of provisioned least-privilege AWS artifacts.
+
+    The cluster is deleted immediately after this runs, which removes the
+    database role and every object it owns — so we do NOT attempt DROP ROLE
+    here. (On Aurora the master is rds_superuser, not a true superuser, and
+    cannot drop objects owned by another role, so DROP OWNED/DROP ROLE would
+    fail anyway.) We only clean up the AWS-side artifacts that outlive the
+    cluster: the Secrets Manager secret and, when an IAM policy was created
+    for the role, the per-role IAM policy (``AuroraIAMAuth-<role>``) that
+    setup_aurora_iam_policy_for_current_user created and attached to the
+    caller — otherwise it leaks and accumulates against the principal.
+
+    Whether the IAM policy exists is read from ``lp_info['iam_policy_created']``
+    (falling back to the old ``connection_method == PG_WIRE_IAM_PROTOCOL``
+    heuristic for dicts produced before that field existed), since serverless
+    can create the policy while still connecting-as-master over RDS_API.
+    """
+    import boto3
+    from awslabs.postgres_mcp_server import __user_agent__
+    from botocore.config import Config
+
+    # Unpin the least-privilege secret.
+    server.configured_secret_arns.pop(lp_info['cluster_id'], None)
+
+    # Delete the secret.
+    try:
+        sm = boto3.client('secretsmanager', region_name=region)
+        sm.delete_secret(SecretId=lp_info['secret_arn'], ForceDeleteWithoutRecovery=True)
+    except Exception as e:
+        logger.warning(f'deprovision delete_secret failed: {e}')
+
+    # Detach + delete the per-role IAM policy (only if one was created).
+    iam_policy_created = lp_info.get(
+        'iam_policy_created',
+        lp_info.get('connection_method') == ConnectionMethod.PG_WIRE_IAM_PROTOCOL,
+    )
+    if iam_policy_created:
+        try:
+            sts = boto3.client('sts', config=Config(user_agent_extra=__user_agent__))
+            iam = boto3.client('iam', config=Config(user_agent_extra=__user_agent__))
+            ident = sts.get_caller_identity()
+            arn = ident['Arn']
+            policy_arn = f'arn:aws:iam::{ident["Account"]}:policy/AuroraIAMAuth-{lp_info["role"]}'
+            if ':user/' in arn:
+                iam.detach_user_policy(
+                    UserName=arn.split(':user/')[-1].split('/')[-1], PolicyArn=policy_arn
+                )
+            elif ':assumed-role/' in arn:
+                iam.detach_role_policy(
+                    RoleName=arn.split(':assumed-role/')[-1].split('/')[0], PolicyArn=policy_arn
+                )
+            for v in iam.list_policy_versions(PolicyArn=policy_arn)['Versions']:
+                if not v['IsDefaultVersion']:
+                    iam.delete_policy_version(PolicyArn=policy_arn, VersionId=v['VersionId'])
+            iam.delete_policy(PolicyArn=policy_arn)
+            logger.info(f'Deleted least-privilege IAM policy AuroraIAMAuth-{lp_info["role"]}')
+        except Exception as e:
+            logger.warning(f'deprovision IAM policy cleanup failed: {e}')
+
+
 def create_cluster_as_test(
     cluster_kind: str,
     creator_fn,
@@ -1830,6 +2031,136 @@ async def run_query_enforcement_suite(
     return result
 
 
+async def run_privilege_enforcement_suite(
+    cluster_identifier: str,
+    region: str,
+    valid_endpoint: str,
+    port: int,
+    cluster_kind: str,
+    connection_method: ConnectionMethod,
+    connection_method_name: str,
+    lp_secret_arn: Optional[str] = None,
+) -> TestResult:
+    """Verify the least-privilege guardrail (``server.privilege_check_policy``).
+
+    Exercises both a superuser and (when provisioned) a least-privilege role by
+    swapping which secret the connection resolves to and toggling the policy:
+
+      Master user (rds_superuser) — selected by clearing the per-cluster secret
+      pin so resolution falls back to the cluster metadata / MasterUsername:
+        - ``enforce`` → connection **rejected** ("over-privileged")
+        - ``warn`` / ``off`` → connection **allowed**
+
+      Least-privilege role — selected by pinning its provisioned secret ARN
+      (skipped with a note if no least-privilege role was provisioned for this
+      cluster, e.g. the serverless cluster in the express-only setup):
+        - ``enforce`` → connection **allowed**
+
+    Restores the policy and the secret-pin map on exit.
+    """
+    result = TestResult(
+        cluster_identifier=cluster_identifier,
+        connection_method_name=f'privilege_enforcement_{connection_method_name}',
+        passed=[],
+        failed=[],
+    )
+    test_database = 'postgres'
+
+    logger.info(f'\n{"=" * 60}')
+    logger.info(
+        f'Running privilege-enforcement suite on {cluster_kind} '
+        f'({connection_method_name}) cluster: {cluster_identifier}'
+    )
+    logger.info(f'{"=" * 60}')
+
+    def record(step, ok, detail=''):
+        """Record a test step result as passed or failed."""
+        log_step(step, 'PASS' if ok else 'FAIL', detail)
+        if ok:
+            result.passed.append(step)
+        else:
+            result.failed.append((step, detail))
+
+    async def _connect():
+        """Drop any cached connection and reconnect with the current pin."""
+        server.db_connection_map.remove(
+            connection_method, cluster_identifier, valid_endpoint, test_database, port
+        )
+        return str(
+            await connect_to_database(
+                region=region,
+                database_type=DatabaseType.APG,
+                connection_method=connection_method,
+                cluster_identifier=cluster_identifier,
+                db_endpoint=valid_endpoint,
+                port=port,
+                database=test_database,
+            )
+        )
+
+    saved_policy = server.privilege_check_policy
+    saved_secret_arns = dict(server.configured_secret_arns)
+
+    try:
+        # --- superuser (master): clear the pin → metadata/MasterUsername ---
+        server.configured_secret_arns.pop(cluster_identifier, None)
+
+        server.privilege_check_policy = server.PRIVILEGE_CHECK_ENFORCE
+        try:
+            resp = await _connect()
+            record(
+                'enforce:superuser_rejected',
+                'Failed' in resp and 'over-privileged' in resp,
+                resp[:200],
+            )
+        except Exception as e:
+            record('enforce:superuser_rejected', False, f'{type(e).__name__}: {e}')
+
+        server.privilege_check_policy = server.PRIVILEGE_CHECK_WARN
+        try:
+            resp = await _connect()
+            record('warn:superuser_allowed', 'Failed' not in resp, resp[:200])
+        except Exception as e:
+            record('warn:superuser_allowed', False, f'{type(e).__name__}: {e}')
+
+        server.privilege_check_policy = server.PRIVILEGE_CHECK_OFF
+        try:
+            resp = await _connect()
+            record('off:superuser_allowed', 'Failed' not in resp, resp[:200])
+        except Exception as e:
+            record('off:superuser_allowed', False, f'{type(e).__name__}: {e}')
+
+        # --- least-privilege role: pin its secret and connect under enforce ---
+        if lp_secret_arn:
+            server.configured_secret_arns[cluster_identifier] = lp_secret_arn
+            server.privilege_check_policy = server.PRIVILEGE_CHECK_ENFORCE
+            try:
+                resp = await _connect()
+                record('enforce:least_priv_allowed', 'Failed' not in resp, resp[:200])
+            except Exception as e:
+                record('enforce:least_priv_allowed', False, f'{type(e).__name__}: {e}')
+        else:
+            result.skipped.append(
+                (
+                    'enforce:least_priv_allowed',
+                    'no least-privilege role provisioned for this cluster',
+                )
+            )
+
+    finally:
+        server.privilege_check_policy = saved_policy
+        server.configured_secret_arns.clear()
+        server.configured_secret_arns.update(saved_secret_arns)
+        try:
+            server.db_connection_map.remove(
+                connection_method, cluster_identifier, valid_endpoint, test_database, port
+            )
+        except Exception as e:
+            logger.warning('Non-fatal cleanup failure removing test DB connection: %s', e)
+
+    return result
+
+
 def print_summary(results: list[TestResult]):
     """Print a formatted summary of all test results.
 
@@ -1899,12 +2230,40 @@ async def main_async(args):
     """
     server.readonly_query = False
 
+    # Start the run under 'off'. Bootstrapping (provisioning the least-privilege
+    # role) connects as the master user (an rds_superuser member), which the
+    # 'enforce' default would reject. Once a least-privilege role is provisioned
+    # for a cluster, its suites run under 'enforce' as that role (see
+    # _apply_identity); clusters without one (e.g. serverless in the express-only
+    # setup) keep connecting as master under 'off'.
+    server.privilege_check_policy = server.PRIVILEGE_CHECK_OFF
+
     ts = datetime.now().strftime('%Y%m%d%H%M%S')
     table_suffix = ts
 
     results: list[TestResult] = []
     clusters_to_delete: list[str] = []
     test_security_group_id: Optional[str] = None
+
+    # Cluster kind -> provisioned least-privilege access info (role + secret
+    # ARN + connection context). Populated after cluster creation; used to pin
+    # the least-privilege secret and run those suites under 'enforce'.
+    lp_info_by_kind: dict = {}
+
+    def _apply_identity(kind: str, cid: str):
+        """Set the connection identity + policy for a cluster's suite.
+
+        When a least-privilege role was provisioned for this cluster kind, pin
+        its secret and run under 'enforce' (production-like). Otherwise fall
+        back to the cluster master secret under 'off'.
+        """
+        lp = lp_info_by_kind.get(kind)
+        if lp:
+            server.configured_secret_arns[cid] = lp['secret_arn']
+            server.privilege_check_policy = server.PRIVILEGE_CHECK_ENFORCE
+        else:
+            configure_server_secret_for_cluster(cid, args.region)
+            server.privilege_check_policy = server.PRIVILEGE_CHECK_OFF
 
     # Reset the IAM policy that setup_aurora_iam_policy_for_current_user
     # appends to. Without this, repeated e2e runs accumulate stale
@@ -2089,6 +2448,69 @@ async def main_async(args):
         endpoints = {'express': express_endpoint, 'serverless': serverless_endpoint}
         cluster_ids = {'express': express_id, 'serverless': serverless_id}
 
+        # Provision a dedicated least-privilege role for the EXPRESS cluster so
+        # the functional and security suites authenticate as a non-superuser
+        # role under the default 'enforce' policy (mirroring the recommended
+        # production setup). Express-only for now; the serverless cluster
+        # (opt-in) still connects as the master user under 'off'. Provisioning
+        # runs under 'off' (it connects as master to run DDL). On failure the
+        # affected suites degrade to the master/off path and the failure is
+        # recorded.
+        if endpoints['express'] is not None:
+            try:
+                lp_info_by_kind['express'] = await provision_least_privilege_access(
+                    cluster_identifier=cluster_ids['express'],
+                    region=args.region,
+                    valid_endpoint=endpoints['express'],
+                    port=args.port,
+                    connection_method=ConnectionMethod.PG_WIRE_IAM_PROTOCOL,
+                    database='postgres',
+                )
+            except Exception as e:
+                logger.error(f'least-privilege provisioning failed for express: {e}')
+                _record(
+                    TestResult(
+                        cluster_identifier=cluster_ids['express'],
+                        connection_method_name='least_privilege_provisioning_express',
+                        passed=[],
+                        failed=[('provision_least_privilege_access', f'{type(e).__name__}: {e}')],
+                    )
+                )
+
+        # Provision a dedicated least-privilege role for the SERVERLESS cluster
+        # too (only present when --test-serverless-cluster is set). We
+        # connect-as-master over RDS_API — a public HTTPS endpoint that needs
+        # no VPC reachability and is always available for serverless — to run
+        # the provisioning DDL, then pin the lp secret so every serverless
+        # cell (RDS_API always; PG_WIRE_PROTOCOL / PG_WIRE_IAM_PROTOCOL when
+        # --test-non-express-cluster) authenticates as the non-superuser role
+        # under the default 'enforce' policy. The lp secret (username +
+        # password) covers RDS_API and PG_WIRE_PROTOCOL; the PG_WIRE_IAM cell
+        # additionally needs an rds-db:connect grant, so we request lp IAM
+        # setup only when --test-non-express-cluster will exercise it (avoids
+        # an otherwise-unused IAM policy on the default RDS_API-only run).
+        if endpoints['serverless'] is not None:
+            try:
+                lp_info_by_kind['serverless'] = await provision_least_privilege_access(
+                    cluster_identifier=cluster_ids['serverless'],
+                    region=args.region,
+                    valid_endpoint=endpoints['serverless'],
+                    port=args.port,
+                    connection_method=ConnectionMethod.RDS_API,
+                    database='postgres',
+                    setup_lp_iam=args.test_non_express_cluster,
+                )
+            except Exception as e:
+                logger.error(f'least-privilege provisioning failed for serverless: {e}')
+                _record(
+                    TestResult(
+                        cluster_identifier=cluster_ids['serverless'],
+                        connection_method_name='least_privilege_provisioning_serverless',
+                        passed=[],
+                        failed=[('provision_least_privilege_access', f'{type(e).__name__}: {e}')],
+                    )
+                )
+
         # ==============================================================
         # Phase 2: functional SQL suite per compatible cell.
         # ==============================================================
@@ -2108,7 +2530,7 @@ async def main_async(args):
                 continue
 
             try:
-                configure_server_secret_for_cluster(cid, args.region)
+                _apply_identity(kind, cid)
                 config = ClusterConfig(
                     cluster_identifier=cid,
                     region=args.region,
@@ -2149,6 +2571,7 @@ async def main_async(args):
             'endpoint_validation',
             'secret_arn_validation',
             'query_enforcement',
+            'privilege_enforcement',
             'startup_secret_arn_validation',
         )
         for kind in phase3_kinds:
@@ -2226,6 +2649,24 @@ async def main_async(args):
                     connection_method_name=mn,
                 )
 
+            async def _run_privilege_enforcement(
+                c=cid,
+                e=valid_endpoint,
+                k=kind,
+                m=enforce_method,
+                mn=enforce_method_name,
+            ):
+                return await run_privilege_enforcement_suite(
+                    cluster_identifier=c,
+                    region=args.region,
+                    valid_endpoint=e,
+                    port=args.port,
+                    cluster_kind=k,
+                    connection_method=m,
+                    connection_method_name=mn,
+                    lp_secret_arn=(lp_info_by_kind.get(k) or {}).get('secret_arn'),
+                )
+
             async def _run_startup_secret_arn_validation(c=cid):
                 return run_startup_secret_arn_validation_suite(
                     cluster_identifier=c,
@@ -2236,12 +2677,19 @@ async def main_async(args):
                 ('endpoint_validation', _run_endpoint_validation),
                 ('secret_arn_validation', _run_secret_arn_validation),
                 ('query_enforcement', _run_query_enforcement),
+                ('privilege_enforcement', _run_privilege_enforcement),
                 ('startup_secret_arn_validation', _run_startup_secret_arn_validation),
             ):
                 phase_label = f'{suite_name}_{kind}'
 
                 try:
-                    configure_server_secret_for_cluster(cid, args.region)
+                    _apply_identity(kind, cid)
+                    # secret_arn_validation exercises the master-secret fallback
+                    # and bogus ARNs, so it must run as master under 'off'
+                    # regardless of whether a least-privilege role exists.
+                    if suite_name == 'secret_arn_validation':
+                        configure_server_secret_for_cluster(cid, args.region)
+                        server.privilege_check_policy = server.PRIVILEGE_CHECK_OFF
                     _record(await runner())
                 except Exception as e:
                     logger.exception(f'{phase_label} aborted unexpectedly')
@@ -2273,6 +2721,14 @@ async def main_async(args):
 
     # Print summary before cleanup
     all_passed = print_summary(results)
+
+    # Tear down provisioned least-privilege roles/secrets before dropping the
+    # clusters they live on. Best-effort — failures are logged, not fatal.
+    for kind, lp in list(lp_info_by_kind.items()):
+        try:
+            await deprovision_least_privilege_access(lp, args.region)
+        except Exception as e:
+            logger.warning(f'least-privilege deprovision failed for {kind}: {e}')
 
     # Cleanup clusters
     logger.info('Cleaning up clusters...')

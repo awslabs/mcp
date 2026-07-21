@@ -118,9 +118,10 @@ class TestConnectToDatabaseErrorHandling:
             'port': 5432,
         }
 
-        with patch(
-            'awslabs.postgres_mcp_server.server.internal_create_connection'
-        ) as mock_connect:
+        with (
+            patch('awslabs.postgres_mcp_server.server.internal_create_connection') as mock_connect,
+            patch('awslabs.postgres_mcp_server.server.validate_connection', new=AsyncMock()),
+        ):
             mock_connect.return_value = (mock_connection, json.dumps(mock_response))
 
             result = await connect_to_database(
@@ -155,9 +156,10 @@ class TestConnectToDatabaseErrorHandling:
             }
         )
 
-        with patch(
-            'awslabs.postgres_mcp_server.server.internal_create_connection'
-        ) as mock_connect:
+        with (
+            patch('awslabs.postgres_mcp_server.server.internal_create_connection') as mock_connect,
+            patch('awslabs.postgres_mcp_server.server.validate_connection', new=AsyncMock()),
+        ):
             mock_connect.return_value = (mock_pool_conn, mock_response)
 
             result = await connect_to_database(
@@ -223,6 +225,69 @@ class TestConnectToDatabaseErrorHandling:
                 5432,
             )
             assert conn is None
+
+    @pytest.mark.asyncio
+    async def test_connect_to_database_rejects_superuser_and_removes_connection(self):
+        """A superuser connection is rejected (enforce) and removed from the map.
+
+        Wiring test for the least-privilege guardrail: connect_to_database must
+        run validate_connection, surface the rejection as a Failed response, and
+        remove the connection so it is not left cached.
+        """
+        # Non-pool connection so initialize_pool is skipped; execute_query
+        # reports a superuser role, which validate_connection rejects under the
+        # default 'enforce' policy.
+        mock_connection = MagicMock()
+        mock_connection.execute_query = AsyncMock(
+            return_value={
+                'columnMetadata': [
+                    {'name': 'is_superuser'},
+                    {'name': 'is_rds_superuser'},
+                ],
+                'records': [[{'booleanValue': True}, {'booleanValue': False}]],
+            }
+        )
+        mock_response = json.dumps(
+            {
+                'connection_method': 'rdsapi',
+                'cluster_identifier': 'test-cluster',
+                'db_endpoint': 'test.endpoint.com',
+                'database': 'testdb',
+                'port': 5432,
+            }
+        )
+
+        with (
+            patch('awslabs.postgres_mcp_server.server.internal_create_connection') as mock_connect,
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.privilege_check_policy',
+                'enforce',
+            ),
+        ):
+            mock_connect.return_value = (mock_connection, mock_response)
+
+            result = await connect_to_database(
+                region='us-east-1',
+                database_type=DatabaseType.APG,
+                connection_method=ConnectionMethod.RDS_API,
+                cluster_identifier='test-cluster',
+                db_endpoint='test.endpoint.com',
+                port=5432,
+                database='testdb',
+            )
+
+            result_dict = json.loads(result)
+            assert result_dict['status'] == 'Failed'
+            assert 'over-privileged' in result_dict['error']
+            # The rejected connection must be removed from the map.
+            mock_map.remove.assert_called_once_with(
+                ConnectionMethod.RDS_API,
+                'test-cluster',
+                'test.endpoint.com',
+                'testdb',
+                5432,
+            )
 
 
 class TestDummyCtx:

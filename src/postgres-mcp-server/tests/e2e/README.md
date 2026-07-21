@@ -19,6 +19,10 @@ There are two scripts in this directory:
 1. **AWS credentials** with permissions to:
    - Create/describe/delete RDS (Aurora) clusters and instances
    - Read AWS Secrets Manager secrets (`secretsmanager:GetSecretValue`)
+   - Create/tag/delete AWS Secrets Manager secrets (`secretsmanager:CreateSecret`,
+     `TagResource`, `DeleteSecret`) — the run provisions a least-privilege role
+     and stores its credentials in a temporary secret (see the
+     `privilege_enforcement` suite).
    - Manage the `AuroraIAMAuth-postgres` IAM policy (for IAM-auth connection methods)
    - For `--test-non-express-cluster`: `ec2:*SecurityGroup*` and `ec2:DescribeVpcs`
    The test uses the `AWS_PROFILE` / standard boto3 credential chain.
@@ -62,6 +66,25 @@ provisioning adds roughly 7–8 minutes to the run.
      modes; mutating keywords blocked in read-only mode and allowed past the
      guard in write mode; dangerous functions and security-sensitive GUCs blocked
      in **both** modes.
+   - `privilege_enforcement` — drives the least-privilege guardrail
+     (`--privilege_check`) by toggling `server.privilege_check_policy` and the
+     resolved secret in-process. It asserts the **master user** (an
+     `rds_superuser` member, selected by clearing the secret pin) is **rejected
+     under `enforce`** and **allowed under `warn`/`off`**, and that the
+     provisioned **least-privilege role** (selected by pinning its secret) is
+     **allowed under `enforce`**.
+
+   **Least-privilege connection model (express).** Rather than connect every
+   suite as the cluster master user, the run provisions a dedicated
+   non-superuser role for the **express** cluster on the fly (a role with
+   `USAGE`+`CREATE` on `public` and `rds_iam`, plus an `rds-db:connect` entry),
+   stores its credentials in a temporary secret, and pins that secret so the
+   functional and security suites authenticate as that role under `enforce` —
+   mirroring the recommended production setup. The role/secret are torn down at
+   the end of the run. `secret_arn_validation` still runs as master under `off`
+   (it exercises the master-secret fallback), and the serverless cluster
+   (opt-in) still connects as master under `off` — extending the least-privilege
+   model to serverless is a follow-up.
    - `startup_secret_arn_validation` — server startup probe rejects an unreadable
      `--secret_arn`.
 
