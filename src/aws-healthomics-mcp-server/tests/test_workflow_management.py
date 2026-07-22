@@ -4409,7 +4409,7 @@ async def test_get_workflow_invalid_type_error():
     )
 
     assert 'error' in result
-    assert 'Error getting workflow' in result['error']
+    assert 'Invalid workflow type' in result['error']
 
 
 @pytest.mark.asyncio

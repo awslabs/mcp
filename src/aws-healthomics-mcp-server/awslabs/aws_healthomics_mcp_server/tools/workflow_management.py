@@ -94,7 +94,9 @@ async def list_workflows(
             workflow_type = getattr(workflow_type, 'default', None)
 
         # Validate workflow_type parameter
-        await validate_workflow_type(ctx, workflow_type)
+        validation_result = await validate_workflow_type(ctx, workflow_type)
+        if isinstance(validation_result, dict):
+            return validation_result
 
         client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
@@ -488,7 +490,9 @@ async def get_workflow(
             export = getattr(export, 'default', None)
 
         # Validate workflow_type parameter
-        await validate_workflow_type(ctx, workflow_type)
+        validation_result = await validate_workflow_type(ctx, workflow_type)
+        if isinstance(validation_result, dict):
+            return validation_result
 
         # Validate export list parameter
         if export is not None:
