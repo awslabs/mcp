@@ -282,14 +282,89 @@ class TestConnectToDatabaseErrorHandling:
             result_dict = json.loads(result)
             assert result_dict['status'] == 'Failed'
             assert 'over-privileged' in result_dict['error']
-            # The rejected connection must be removed from the map.
-            mock_map.remove.assert_called_once_with(
-                ConnectionMethod.RDS_API,
-                'test-cluster',
-                'test.endpoint.com',
-                'testdb',
-                5432,
-            )
+            # The rejected connection must be evicted by object identity (not
+            # by a key rebuilt from the caller-supplied args, which can diverge
+            # from the resolved key the connection was stored under). See
+            # test_rejected_superuser_evicted_despite_key_mismatch for the
+            # behavioral (real-map) proof.
+            mock_map.remove_connection.assert_called_once_with(mock_connection)
+
+    @pytest.mark.asyncio
+    async def test_rejected_superuser_evicted_despite_key_mismatch(self):
+        """Behavioral guardrail-bypass regression, exercised against a REAL map.
+
+        internal_create_connection stores the connection under the AWS-resolved
+        endpoint/port, which can differ from the caller-supplied db_endpoint/port
+        (e.g. an empty db_endpoint that the resolver fills in, or a non-5432
+        port). If eviction rebuilt the map key from the caller args, the rejected
+        superuser connection would survive under its resolved key and stay
+        reachable via run_query — defeating the 'enforce' guardrail. This test
+        deliberately stores the connection under a resolved key that does NOT
+        match the caller args, then asserts it is gone after rejection.
+        """
+        from awslabs.postgres_mcp_server.server import db_connection_map
+
+        method = ConnectionMethod.RDS_API
+        cluster = 'test-cluster-evict'
+        caller_endpoint = ''  # caller passes empty; the resolver would fill this in
+        resolved_endpoint = 'writer.resolved.example.com'
+        database = 'testdb'
+
+        # execute_query reports a superuser role -> rejected under 'enforce'.
+        mock_connection = MagicMock()
+        mock_connection.execute_query = AsyncMock(
+            return_value={
+                'columnMetadata': [{'name': 'is_superuser'}, {'name': 'is_rds_superuser'}],
+                'records': [[{'booleanValue': True}, {'booleanValue': False}]],
+            }
+        )
+        mock_response = json.dumps(
+            {
+                'connection_method': 'rdsapi',
+                'cluster_identifier': cluster,
+                'db_endpoint': resolved_endpoint,
+                'database': database,
+                'port': 5432,
+            }
+        )
+
+        def fake_create(**kwargs):
+            # Mimic internal_create_connection: store under the RESOLVED key,
+            # which differs from the caller-supplied (empty) endpoint.
+            db_connection_map.set(method, cluster, resolved_endpoint, database, mock_connection)
+            return (mock_connection, mock_response)
+
+        # Ensure a clean slate in the shared real map.
+        db_connection_map.remove_connection(mock_connection)
+
+        try:
+            with (
+                patch(
+                    'awslabs.postgres_mcp_server.server.internal_create_connection',
+                    side_effect=fake_create,
+                ),
+                patch('awslabs.postgres_mcp_server.server.privilege_check_policy', 'enforce'),
+            ):
+                result = await connect_to_database(
+                    region='us-east-1',
+                    database_type=DatabaseType.APG,
+                    connection_method=method,
+                    cluster_identifier=cluster,
+                    db_endpoint=caller_endpoint,
+                    port=5432,
+                    database=database,
+                )
+
+            result_dict = json.loads(result)
+            assert result_dict['status'] == 'Failed'
+            assert 'over-privileged' in result_dict['error']
+            # The connection must be gone despite the caller/resolved key
+            # mismatch. A key-based remove() rebuilt from caller_endpoint=''
+            # would have missed the entry stored under resolved_endpoint.
+            assert db_connection_map.get(method, cluster, resolved_endpoint, database) is None
+        finally:
+            # Defensive cleanup in case the assertion above failed.
+            db_connection_map.remove_connection(mock_connection)
 
 
 class TestDummyCtx:

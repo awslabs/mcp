@@ -98,11 +98,20 @@ class TestValidateConnectionEnforce:
 
     @pytest.mark.asyncio
     async def test_rds_superuser_rejected(self):
-        """A member of rds_superuser is rejected."""
+        """A member of rds_superuser (but not a superuser) is rejected.
+
+        Asserts on the specific flag fragment ('a member of rds_superuser')
+        rather than the bare substring 'rds_superuser' — the latter also
+        appears in the static explanation text for a superuser-only rejection,
+        so it wouldn't actually prove rds_superuser was detected.
+        """
         conn = FakeConnection(response=privilege_response(False, True))
         with pytest.raises(ConnectionValidationError) as exc:
             await validate_connection(conn, PRIVILEGE_CHECK_ENFORCE)
-        assert 'rds_superuser' in str(exc.value)
+        # The flag fragment is only present when rds_superuser membership was
+        # actually detected; a superuser-only rejection uses 'a superuser'.
+        assert 'a member of rds_superuser' in str(exc.value)
+        assert conn.queries == [POSTGRES_PRIVILEGE_QUERY]
 
     @pytest.mark.asyncio
     async def test_both_flags_rejected(self):
@@ -152,7 +161,7 @@ class TestValidateConnectionEnforce:
 
 
 class TestValidateConnectionWarn:
-    """'warn' policy: log but never raise."""
+    """'warn' policy: relax the privilege guardrail, but still require connectivity."""
 
     @pytest.mark.asyncio
     async def test_superuser_warns_but_allows(self):
@@ -162,13 +171,24 @@ class TestValidateConnectionWarn:
             await validate_connection(conn, PRIVILEGE_CHECK_WARN)
         mock_warn.assert_called_once()
         assert 'over-privileged' in mock_warn.call_args[0][0].lower()
+        # The privilege query must actually have been issued (not skipped).
+        assert conn.queries == [POSTGRES_PRIVILEGE_QUERY]
 
     @pytest.mark.asyncio
-    async def test_query_error_warns_but_allows(self):
-        """Under warn, an unverifiable check logs a warning but is allowed."""
+    async def test_connectivity_error_propagates_under_warn(self):
+        """Under warn, a connectivity/auth failure must NOT be swallowed.
+
+        'warn' relaxes the privilege guardrail, not the requirement that the
+        connection actually works — so when the probe query fails to execute at
+        all, the underlying error propagates just as it does under
+        'off'/'enforce'. Previously this was logged-and-allowed, letting an
+        unreachable/mis-authenticated connection start up as healthy.
+        """
         conn = FakeConnection(exc=RuntimeError('boom'))
         with patch('awslabs.postgres_mcp_server.server.logger.warning') as mock_warn:
-            await validate_connection(conn, PRIVILEGE_CHECK_WARN)
+            with pytest.raises(RuntimeError):
+                await validate_connection(conn, PRIVILEGE_CHECK_WARN)
+        # It logs the connectivity failure before propagating.
         mock_warn.assert_called_once()
 
     @pytest.mark.asyncio

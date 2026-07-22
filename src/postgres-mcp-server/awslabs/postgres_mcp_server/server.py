@@ -170,8 +170,12 @@ async def validate_connection(db_connection: AbstractDBConnection, policy: str) 
     check. Behaviour by policy:
 
       - 'off':     connectivity only (SELECT 1); no privilege check.
-      - 'warn':    run the privilege check; log a warning on a violation or
-                   if the check could not be performed, but allow the
+      - 'warn':    run the privilege check. If the role is over-privileged or
+                   its privileges can't be determined, log a warning but still
+                   ALLOW the connection. However, if the check query cannot run
+                   at all (database unreachable or authentication failed), that
+                   error is raised, not suppressed: 'warn' only softens the
+                   privilege check, it does not waive the need for a working
                    connection.
       - 'enforce': run the privilege check; raise ConnectionValidationError
                    on a violation, or if the check could not be performed
@@ -198,13 +202,19 @@ async def validate_connection(db_connection: AbstractDBConnection, policy: str) 
         response = await db_connection.execute_query(POSTGRES_PRIVILEGE_QUERY)
         rows = parse_execute_response(response)
     except Exception as e:
-        # The check (which also proves connectivity) failed. Fail closed
-        # under enforce; allow with a warning under warn.
+        # A thrown error here means the probe query did not execute at all —
+        # a genuine connectivity/auth failure, not merely an "unverifiable
+        # privilege". Connectivity is required under every policy: 'warn'
+        # relaxes the privilege guardrail, not the requirement that the
+        # connection works. Fail closed under enforce; propagate the
+        # underlying error under warn (previously this was swallowed, which
+        # let an unreachable/mis-authenticated connection start up as if
+        # healthy).
         message = f'Could not verify connection role privileges: {type(e).__name__}: {e}'
         if policy == PRIVILEGE_CHECK_ENFORCE:
             raise ConnectionValidationError(f'{message}. Rejecting connection (fail-closed).')
-        logger.warning(f'{message}. Allowing connection (privilege_check=warn).')
-        return
+        logger.warning(f'{message}. Connectivity check failed; rejecting connection.')
+        raise
 
     # Treat both an empty result set and a result missing the expected
     # columns as "unverifiable" — we control the query, so this should not
@@ -467,22 +477,29 @@ async def connect_to_database(
                 await db_connection.initialize_pool()
             except Exception:
                 # Pool failed to open — remove the broken connection from the map
-                # so the next connect attempt creates a fresh one
-                db_connection_map.remove(
-                    connection_method, cluster_identifier, db_endpoint, database, port
-                )
+                # so the next connect attempt creates a fresh one. Evict by
+                # object identity: internal_create_connection stored it under the
+                # AWS-resolved endpoint/port, which may not match the
+                # caller-supplied db_endpoint/port here (e.g. empty db_endpoint
+                # or non-5432 port), so a key-based remove() could silently
+                # no-op and leave the broken connection cached.
+                db_connection_map.remove_connection(db_connection)
                 raise
 
         # Post-connect validation: connectivity + least-privilege guardrail.
         # A superuser / rds_superuser connection is rejected under the default
-        # 'enforce' policy. Remove the connection from the map on failure so a
-        # later attempt starts fresh.
+        # 'enforce' policy. Remove the connection from the map on failure so it
+        # cannot be reached later via run_query. Evict by object identity:
+        # internal_create_connection stored the connection under the
+        # AWS-resolved endpoint/port, which may differ from the caller-supplied
+        # db_endpoint/port here (empty db_endpoint, non-5432 port, host casing).
+        # A key-based remove() rebuilt from the caller args could miss the
+        # actual key, leave the rejected connection cached, and defeat the
+        # guardrail. See the connection-map key-normalization follow-up.
         try:
             await validate_connection(db_connection, privilege_check_policy)
         except Exception:
-            db_connection_map.remove(
-                connection_method, cluster_identifier, db_endpoint, database, port
-            )
+            db_connection_map.remove_connection(db_connection)
             raise
 
         return str(llm_response)
@@ -1010,6 +1027,13 @@ def internal_create_connection(
         )
 
     if db_connection:
+        # NOTE: the key here uses the AWS-resolved db_endpoint (overwritten
+        # above) and omits port, so it is stored as the 5432 default. This is
+        # NOT the same key callers reconstruct in get()/remove() from their
+        # own (pre-resolution) db_endpoint/port. Do not rely on rebuilding this
+        # key to evict a specific connection — use
+        # db_connection_map.remove_connection(conn) instead. Tracked for a
+        # broader key-normalization fix (see connection-map follow-up issue).
         db_connection_map.set(
             connection_method, cluster_identifier, db_endpoint, database, db_connection
         )
