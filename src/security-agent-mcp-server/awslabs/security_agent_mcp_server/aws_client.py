@@ -15,25 +15,70 @@
 """AWS SecurityAgent API client using boto3 SDK."""
 
 import boto3
+import botocore.config
 import json
 import re
 from typing import Any, Optional
 
 
+DEFAULT_MCP_CLIENT_NAME = 'unknown'
+
+
 class SecurityAgentClient:
     """Client for AWS SecurityAgent APIs using boto3."""
 
-    def __init__(self, region: str = 'us-east-1'):
+    def __init__(
+        self,
+        region: str = 'us-east-1',
+        mcp_client_name: str = DEFAULT_MCP_CLIENT_NAME,
+        mcp_client_version: str = '',
+    ):
         """Initialize SecurityAgent client."""
         self.region = region
+        self._mcp_client_name = mcp_client_name
+        self._mcp_client_version = mcp_client_version
+        self._config = self._build_config(mcp_client_name, mcp_client_version)
+
+    def _build_config(
+        self, mcp_client_name: str, mcp_client_version: str
+    ) -> botocore.config.Config:
+        """Build a botocore Config with a custom user_agent_extra string."""
+        try:
+            from importlib.metadata import version as pkg_version
+
+            mcp_server_version = pkg_version('awslabs.security-agent-mcp-server')
+        except Exception:
+            mcp_server_version = 'unknown'
+
+        ua_extra = (
+            f'awslabs-security-agent-mcp-server/{mcp_server_version} md/client#{mcp_client_name}'
+        )
+        if mcp_client_version:
+            ua_extra += f'/{mcp_client_version}'
+
+        return botocore.config.Config(user_agent_extra=ua_extra)
+
+    def set_mcp_client_info(self, mcp_client_name: str, mcp_client_version: str = '') -> None:
+        """Update the MCP client identity and rebuild the botocore config.
+
+        Called after MCP session initialization when clientInfo becomes available.
+        """
+        if (
+            mcp_client_name == self._mcp_client_name
+            and mcp_client_version == self._mcp_client_version
+        ):
+            return  # No change needed
+        self._mcp_client_name = mcp_client_name
+        self._mcp_client_version = mcp_client_version
+        self._config = self._build_config(mcp_client_name, mcp_client_version)
 
     def _get_session(self):
         """Fresh session each call to pick up rotated credentials."""
         return boto3.Session(region_name=self.region)
 
     def _client(self):
-        """Get a fresh securityagent boto3 client."""
-        return self._get_session().client('securityagent')
+        """Get a fresh securityagent boto3 client with custom user-agent."""
+        return self._get_session().client('securityagent', config=self._config)
 
     def call(self, operation: str, params: dict) -> dict:
         """Call any SecurityAgent API operation generically."""
@@ -50,7 +95,7 @@ class SecurityAgentClient:
 
     def get_caller_identity(self) -> dict:
         """Get the current AWS caller identity."""
-        return self._get_session().client('sts').get_caller_identity()
+        return self._get_session().client('sts', config=self._config).get_caller_identity()
 
     def list_agent_spaces(self) -> list[dict]:
         """List all SecurityAgent agent spaces."""
@@ -224,7 +269,7 @@ class SecurityAgentClient:
 
         Public-access block, SSE-S3, TLS-only policy, and 30-day lifecycle.
         """
-        s3 = self._get_session().client('s3')
+        s3 = self._get_session().client('s3', config=self._config)
         create_args: dict[str, Any] = {'Bucket': bucket_name}
         if self.region != 'us-east-1':
             create_args['CreateBucketConfiguration'] = {'LocationConstraint': self.region}
@@ -287,7 +332,7 @@ class SecurityAgentClient:
 
     def create_service_role(self, role_name: str, account_id: str, bucket_name: str) -> str:
         """Create IAM service role for Security Agent with S3 + CloudWatch Logs access."""
-        iam = self._get_session().client('iam')
+        iam = self._get_session().client('iam', config=self._config)
 
         trust_policy = json.dumps(
             {
@@ -347,5 +392,5 @@ class SecurityAgentClient:
 
     def upload_to_s3(self, bucket: str, key: str, file_path: str) -> str:
         """Upload a file to S3."""
-        self._get_session().client('s3').upload_file(file_path, bucket, key)
+        self._get_session().client('s3', config=self._config).upload_file(file_path, bucket, key)
         return f's3://{bucket}/{key}'
