@@ -195,8 +195,8 @@ class TestFindIpAddress:
         assert 'REQUIRED TO REMEDIATE BEFORE CONTINUING' in str(exc_info.value)
 
     @patch.object(find_ip_module, 'get_aws_client')
-    async def test_find_ip_all_regions_with_error(self, mock_get_client):
-        """Test handling errors while searching all regions."""
+    async def test_find_ip_all_regions_with_partial_error(self, mock_get_client):
+        """Test that a single region error is surfaced but doesn't stop the search."""
         mock_clients = {}
 
         def client_side_effect(service, region, profile):
@@ -225,5 +225,85 @@ class TestFindIpAddress:
                 ip_address='10.0.1.100', region='us-east-1', all_regions=True
             )
 
-        assert 'Error searching IP address in all regions: Network timeout' in str(exc_info.value)
+        assert 'not found in any searchable region' in str(exc_info.value)
+        assert 'us-east-1' in str(exc_info.value)
+        assert 'Network timeout' in str(exc_info.value)
         assert 'REQUIRED TO REMEDIATE BEFORE CONTINUING' in str(exc_info.value)
+
+    @patch.object(find_ip_module, 'get_aws_client')
+    async def test_find_ip_all_regions_all_errors(self, mock_get_client):
+        """Test that when every region raises an error the search reports it clearly."""
+        mock_clients = {}
+
+        def client_side_effect(service, region, profile):
+            if region not in mock_clients:
+                mock_clients[region] = MagicMock()
+            return mock_clients[region]
+
+        mock_get_client.side_effect = client_side_effect
+
+        mock_clients['us-east-1'] = MagicMock()
+        mock_clients['us-east-1'].describe_regions.return_value = {
+            'Regions': [{'RegionName': 'us-east-1'}, {'RegionName': 'us-west-2'}]
+        }
+
+        mock_clients['us-east-1'].describe_network_interfaces.side_effect = Exception(
+            'UnauthorizedOperation'
+        )
+        mock_clients['us-west-2'] = MagicMock()
+        mock_clients['us-west-2'].describe_network_interfaces.side_effect = Exception(
+            'UnauthorizedOperation'
+        )
+
+        with pytest.raises(ToolError) as exc_info:
+            await find_ip_module.find_ip_address(
+                ip_address='10.0.1.100', region='us-east-1', all_regions=True
+            )
+
+        assert 'could not search any region' in str(exc_info.value)
+        assert 'us-east-1' in str(exc_info.value)
+        assert 'us-west-2' in str(exc_info.value)
+
+    @patch.object(find_ip_module, 'get_aws_client')
+    async def test_find_ip_all_regions_skip_inaccessible_finds_in_next(
+        self, mock_get_client, sample_eni_response
+    ):
+        """Test that an inaccessible region is skipped and the IP is found in a later region."""
+        mock_clients = {}
+
+        def client_side_effect(service, region, profile):
+            if region not in mock_clients:
+                mock_clients[region] = MagicMock()
+            return mock_clients[region]
+
+        mock_get_client.side_effect = client_side_effect
+
+        mock_clients['us-east-1'] = MagicMock()
+        mock_clients['us-east-1'].describe_regions.return_value = {
+            'Regions': [
+                {'RegionName': 'us-east-1'},
+                {'RegionName': 'eu-west-1'},
+                {'RegionName': 'us-west-2'},
+            ]
+        }
+
+        # us-east-1: access denied (SCP), eu-west-1: access denied, us-west-2: found
+        mock_clients['us-east-1'].describe_network_interfaces.side_effect = Exception(
+            'UnauthorizedOperation: explicit deny in SCP'
+        )
+        mock_clients['eu-west-1'] = MagicMock()
+        mock_clients['eu-west-1'].describe_network_interfaces.side_effect = Exception(
+            'UnauthorizedOperation: explicit deny in SCP'
+        )
+        mock_clients['us-west-2'] = MagicMock()
+        mock_clients['us-west-2'].describe_network_interfaces.return_value = {
+            'NetworkInterfaces': [sample_eni_response]
+        }
+
+        result = await find_ip_module.find_ip_address(
+            ip_address='10.0.1.100',
+            region='us-east-1',
+            all_regions=True,
+        )
+
+        assert result == sample_eni_response
