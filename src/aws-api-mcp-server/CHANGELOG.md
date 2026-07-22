@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Deprecation warning and feature flag (#4313)
+- Deprecation warning and feature flag to suppress (#4313)
 
 ## [1.3.47] - 2026-07-22
 
