@@ -16,6 +16,7 @@
 
 import argparse
 import json
+import re
 from awslabs.iam_mcp_server.aws_client import get_iam_client
 from awslabs.iam_mcp_server.context import Context
 from awslabs.iam_mcp_server.errors import IamClientError, IamValidationError, handle_iam_error
@@ -43,33 +44,50 @@ from pydantic import Field
 from typing import Any, Dict, List, Optional, Union
 
 
-# Policy ARNs that are too dangerous to attach via MCP.
-# Stored lowercased because IAM resolves managed-policy ARNs case-insensitively,
-# so the denylist check must be case-insensitive too (see _check_denied_policy_arn).
-DENIED_POLICY_ARNS = {
-    'arn:aws:iam::aws:policy/administratoraccess',
-    'arn:aws:iam::aws:policy/iamfullaccess',
-    'arn:aws:iam::aws:policy/poweruseraccess',
+# Managed-policy names that are too dangerous to attach via MCP.
+# Compared against the policy name (the segment after ':policy/') so the denylist
+# is partition-independent: the same managed policies exist in every partition
+# (e.g. arn:aws-us-gov:iam::aws:policy/AdministratorAccess in GovCloud,
+# arn:aws-cn:iam::aws:policy/AdministratorAccess in China) and must all be denied.
+# Stored lowercased because IAM resolves managed-policy ARNs case-insensitively.
+DENIED_POLICY_NAMES = {
+    'administratoraccess',
+    'iamfullaccess',
+    'poweruseraccess',
 }
 
 
 def _check_denied_policy_arn(policy_arn: str) -> None:
     """Reject policy ARNs on the denylist.
 
-    The comparison is case-insensitive: IAM resolves managed-policy ARNs without
-    regard to case, so a case variant such as 'arn:aws:iam::aws:policy/administratoraccess'
-    would otherwise bypass the denylist and still attach the canonical policy.
+    The comparison is case-insensitive and partition-independent: it matches on the
+    policy name (the segment after ':policy/') rather than the full ARN, so case
+    variants and non-'aws' partitions (aws-us-gov, aws-cn) cannot bypass the denylist
+    and still attach the canonical high-privilege policy.
     """
     normalized = policy_arn.strip().lower()
-    if normalized in DENIED_POLICY_ARNS:
-        raise IamValidationError(
-            f'Policy {policy_arn.strip()} is on the denylist and cannot be attached via MCP. '
-            'Use the AWS Console for high-privilege policy changes.'
-        )
+    if ':policy/' in normalized:
+        policy_name = normalized.split(':policy/')[-1]
+        if policy_name in DENIED_POLICY_NAMES:
+            raise IamValidationError(
+                f'Policy {policy_arn.strip()} is on the denylist and cannot be attached via MCP. '
+                'Use the AWS Console for high-privilege policy changes.'
+            )
+
+
+# Matches a service-scoped action wildcard such as 'iam:*' or 's3:*'.
+_SERVICE_WILDCARD_RE = re.compile(r'^[a-zA-Z0-9\-]+:\*$')
 
 
 def _check_wildcard_policy(policy_document: str) -> None:
-    """Reject policy documents that grant Action:* with Resource:*."""
+    """Reject policy documents that grant overly broad access.
+
+    Blocks any statement combining a broad Action (the literal '*' or a service
+    wildcard such as 'iam:*') with a broad Resource (the literal '*', 'arn:*', or an
+    ARN ending in ':*'). Checking only the literal '*'/'*' pair let equivalent grants
+    such as Action 'iam:*' with Resource '*' through, which is still a full
+    privilege-escalation primitive.
+    """
     doc = json.loads(policy_document)
     statements = doc.get('Statement', [])
     if isinstance(statements, dict):
@@ -83,9 +101,16 @@ def _check_wildcard_policy(policy_document: str) -> None:
             actions = [actions]
         if isinstance(resources, str):
             resources = [resources]
-        if '*' in actions and '*' in resources:
+
+        has_broad_action = any(a == '*' or _SERVICE_WILDCARD_RE.match(a) for a in actions)
+        has_broad_resource = any(
+            r == '*' or r == 'arn:*' or (r.startswith('arn:') and r.endswith(':*'))
+            for r in resources
+        )
+
+        if has_broad_action and has_broad_resource:
             raise IamValidationError(
-                'Policy contains Action:* with Resource:* which grants full access. '
+                'Policy contains overly broad Action (wildcard or service:*) with broad Resource. '
                 'Please scope the policy to specific actions and resources.'
             )
 
