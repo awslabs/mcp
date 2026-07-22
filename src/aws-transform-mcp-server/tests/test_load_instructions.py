@@ -116,6 +116,25 @@ class TestLoadInstructions:
     @patch(f'{_MOD}.download_s3_content', new_callable=AsyncMock)
     @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
     @patch(f'{_MOD}.is_fes_available', return_value=True)
+    async def test_matches_basename_at_root_too(self, _, mock_fes, mock_download, handler, ctx):
+        """A root-level artifact with a folderless path still matches (agent-side uploads)."""
+        mock_fes.side_effect = [
+            {
+                'artifacts': [
+                    {'artifactId': 'art-1', 'fileMetadata': {'path': 'JOB_INSTRUCTIONS'}},
+                ]
+            },
+            {'s3PreSignedUrl': 'https://s3.example.com/file'},
+        ]
+        mock_download.return_value = {'content': '# Steering content'}
+        result = await handler.load_instructions(ctx, workspaceId='ws-1', jobId='j-1')
+        parsed = _parse(result)
+        assert parsed['data']['instructionsFound'] is True
+
+    @pytest.mark.asyncio
+    @patch(f'{_MOD}.download_s3_content', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
     async def test_empty_content_returns_error_and_does_not_mark_checked(
         self, _, mock_fes, mock_download, handler, ctx
     ):
@@ -314,3 +333,124 @@ class TestInstructionGateIntegration:
         )
         parsed = _parse(result)
         assert parsed['success'] is True
+
+    @pytest.mark.asyncio
+    @patch(f'{_MOD}.download_s3_content', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
+    async def test_finds_instructions_inside_user_uploads_folder(
+        self, _, mock_fes, mock_download, handler, ctx
+    ):
+        """Customer uploads land in a store folder; discovery must walk it."""
+        mock_fes.side_effect = [
+            # Root listing: no artifacts, one folder (live-observed shape)
+            {
+                'artifacts': [],
+                'folders': ['AWSTransform/Workspaces/ws-1/Jobs/j-1/User Uploads/'],
+            },
+            # Prefixed listing inside the folder
+            {
+                'artifacts': [
+                    {
+                        'artifactId': 'art-9',
+                        'fileMetadata': {'path': 'User Uploads/JOB_INSTRUCTIONS'},
+                    },
+                ]
+            },
+            {'s3PreSignedUrl': 'https://s3.example.com/file'},
+        ]
+        mock_download.return_value = {'content': '# Steering content'}
+        result = await handler.load_instructions(ctx, workspaceId='ws-1', jobId='j-1')
+        parsed = _parse(result)
+        assert parsed['success'] is True
+        assert parsed['data']['instructionsFound'] is True
+        assert parsed['data']['artifactId'] == 'art-9'
+        folder_req = mock_fes.call_args_list[1].args[1]
+        assert folder_req.pathPrefix == ('AWSTransform/Workspaces/ws-1/Jobs/j-1/User Uploads/')
+        assert 'j-1' in _checked_jobs
+
+    @pytest.mark.asyncio
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
+    async def test_folder_walk_finds_nothing(self, _, mock_fes, handler, ctx):
+        mock_fes.side_effect = [
+            {'artifacts': [], 'folders': ['User Uploads/']},
+            {
+                'artifacts': [
+                    {
+                        'artifactId': 'art-2',
+                        'fileMetadata': {'path': 'User Uploads/report.html'},
+                    },
+                ]
+            },
+            # canonical-prefix fallback scan
+            {'artifacts': []},
+        ]
+        result = await handler.load_instructions(ctx, workspaceId='ws-1', jobId='j-1')
+        parsed = _parse(result)
+        assert parsed['data']['instructionsFound'] is False
+        assert 'j-1' in _checked_jobs
+
+    @pytest.mark.asyncio
+    @patch(f'{_MOD}.download_s3_content', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
+    async def test_canonical_prefix_fallback_when_no_folders_reported(
+        self, _, mock_fes, mock_download, handler, ctx
+    ):
+        """Stages that omit the folders array still get the canonical scan."""
+        mock_fes.side_effect = [
+            {'artifacts': []},  # root: nothing, no folders array
+            {
+                'artifacts': [
+                    {
+                        'artifactId': 'art-c',
+                        'fileMetadata': {'path': 'User Uploads/JOB_INSTRUCTIONS'},
+                    },
+                ]
+            },
+            {'s3PreSignedUrl': 'https://s3.example.com/file'},
+        ]
+        mock_download.return_value = {'content': '# Steering content'}
+        result = await handler.load_instructions(ctx, workspaceId='ws-1', jobId='j-1')
+        parsed = _parse(result)
+        assert parsed['data']['instructionsFound'] is True
+        fallback_req = mock_fes.call_args_list[1].args[1]
+        assert fallback_req.pathPrefix == ('AWSTransform/Workspaces/ws-1/Jobs/j-1/User Uploads/')
+
+    @pytest.mark.asyncio
+    @patch(f'{_MOD}.download_s3_content', new_callable=AsyncMock)
+    @patch(f'{_MOD}.call_transform_api', new_callable=AsyncMock)
+    @patch(f'{_MOD}.is_fes_available', return_value=True)
+    async def test_failing_folder_scan_skips_to_next_folder(
+        self, _, mock_fes, mock_download, handler, ctx
+    ):
+        """A folder whose prefixed scan raises must not abort the walk."""
+        mock_fes.side_effect = [
+            # Root listing: two folders, no artifacts
+            {
+                'artifacts': [],
+                'folders': [
+                    'bad folder/',
+                    'AWSTransform/Workspaces/ws-1/Jobs/j-1/User Uploads/',
+                ],
+            },
+            # First folder scan: store rejects the prefix
+            Exception('ValidationException: invalid pathPrefix'),
+            # Second folder scan: finds the document
+            {
+                'artifacts': [
+                    {
+                        'artifactId': 'art-ok',
+                        'fileMetadata': {'path': 'User Uploads/JOB_INSTRUCTIONS'},
+                    },
+                ]
+            },
+            {'s3PreSignedUrl': 'https://s3.example.com/file'},
+        ]
+        mock_download.return_value = {'content': '# Steering content'}
+        result = await handler.load_instructions(ctx, workspaceId='ws-1', jobId='j-1')
+        parsed = _parse(result)
+        assert parsed['success'] is True
+        assert parsed['data']['instructionsFound'] is True
+        assert parsed['data']['artifactId'] == 'art-ok'

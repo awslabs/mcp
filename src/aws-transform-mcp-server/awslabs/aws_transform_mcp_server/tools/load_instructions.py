@@ -16,7 +16,10 @@
 
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
-from awslabs.aws_transform_mcp_server.guidance_nudge import mark_job_checked
+from awslabs.aws_transform_mcp_server.guidance_nudge import (
+    mark_job_checked,
+    matches_instruction_label,
+)
 from awslabs.aws_transform_mcp_server.tool_utils import (
     READ_ONLY,
     download_s3_content,
@@ -30,16 +33,43 @@ from awslabs.aws_transform_mcp_server.transform_api_models import (
     JobFilter,
     ListArtifactsRequest,
 )
+from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
-from typing import Annotated, Any, Dict
+from typing import Annotated, Any, Dict, List, Optional, Tuple
 
 
 _NOT_CONFIGURED_CODE = 'NOT_CONFIGURED'
 _NOT_CONFIGURED_MSG = 'Not connected to AWS Transform.'
 _NOT_CONFIGURED_ACTION = 'Call configure with authMode "cookie" or "sso".'
 
-INSTRUCTION_ARTIFACT_LABELS = ['JOB_INSTRUCTIONS']
+
+async def _scan_for_instruction_artifact(
+    workspace_id: str, job_id: str, path_prefix: Optional[str] = None
+) -> Tuple[Optional[Dict[str, Any]], List[str]]:
+    """Paginated ListArtifacts scan for an instruction artifact.
+
+    Returns (matching artifact or None, folders seen across all pages).
+    """
+    folders: List[str] = []
+    next_token: Optional[str] = None
+    while True:
+        list_req = ListArtifactsRequest(
+            workspaceId=workspace_id,
+            jobFilter=JobFilter(jobId=job_id),
+            nextToken=next_token,
+            pathPrefix=path_prefix,
+        )
+        result = await call_transform_api('ListArtifacts', list_req)
+        for artifact in result.get('artifacts', []):
+            if matches_instruction_label((artifact.get('fileMetadata') or {}).get('path') or ''):
+                return artifact, folders
+        for folder in result.get('folders') or []:
+            if folder not in folders:
+                folders.append(folder)
+        next_token = result.get('nextToken')
+        if not next_token:
+            return None, folders
 
 
 class LoadInstructionsHandler:
@@ -70,29 +100,41 @@ class LoadInstructionsHandler:
             return error_result(_NOT_CONFIGURED_CODE, _NOT_CONFIGURED_MSG, _NOT_CONFIGURED_ACTION)
 
         try:
-            instruction_artifact = None
-            next_token = None
-            while True:
-                list_req = ListArtifactsRequest(
-                    workspaceId=workspaceId,
-                    jobFilter=JobFilter(jobId=jobId),
-                    nextToken=next_token,
+            instruction_artifact, folders = await _scan_for_instruction_artifact(
+                workspaceId, jobId
+            )
+            if instruction_artifact is None:
+                # Customer uploads (MCP upload_artifact and the web console)
+                # land inside store folders such as 'User Uploads/', and the
+                # unprefixed listing does not descend into folders. Re-scan
+                # each folder the root listing reported, using the folder
+                # string verbatim as the pathPrefix. Some stages omit the
+                # folders array from the root listing entirely, so always
+                # include the managed store's canonical customer-upload
+                # prefix as a fallback.
+                canonical_uploads_prefix = (
+                    f'AWSTransform/Workspaces/{workspaceId}/Jobs/{jobId}/User Uploads/'
                 )
-                artifacts_result = await call_transform_api('ListArtifacts', list_req)
-                artifacts = artifacts_result.get('artifacts', [])
-                instruction_artifact = next(
-                    (
-                        a
-                        for a in artifacts
-                        if a.get('fileMetadata', {}).get('path') in INSTRUCTION_ARTIFACT_LABELS
-                    ),
-                    None,
-                )
-                if instruction_artifact:
-                    break
-                next_token = artifacts_result.get('nextToken')
-                if not next_token:
-                    break
+                if canonical_uploads_prefix not in folders:
+                    folders.append(canonical_uploads_prefix)
+                for folder in folders:
+                    # The store validates that a pathPrefix carries the correct
+                    # workspace/job identifiers; a folder string that fails that
+                    # check must not abort discovery of the remaining folders.
+                    try:
+                        instruction_artifact, _ = await _scan_for_instruction_artifact(
+                            workspaceId, jobId, folder
+                        )
+                    except Exception as scan_error:
+                        logger.warning(
+                            '[tool:load_instructions] folder scan failed, skipping | '
+                            'prefix={} | {}',
+                            folder,
+                            scan_error,
+                        )
+                        continue
+                    if instruction_artifact is not None:
+                        break
 
             if not instruction_artifact:
                 mark_job_checked(jobId)
