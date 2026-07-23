@@ -1,6 +1,6 @@
 # AWS Labs Timestream for InfluxDB MCP Server
 
-An AWS Labs Model Context Protocol (MCP) server for Timestream for InfluxDB. This server provides tools to interact with AWS Timestream for InfluxDB APIs, allowing you to create and manage database instances, clusters, parameter groups, and more. It also includes tools to interact with InfluxDB's write and query APIs.
+An AWS Labs Model Context Protocol (MCP) server for Timestream for InfluxDB. This server provides tools to interact with AWS Timestream for InfluxDB APIs, allowing you to create and manage database instances, clusters, parameter groups, and more. It also includes tools to interact with InfluxDB's write and query APIs. Test
 
 ## Features
 
