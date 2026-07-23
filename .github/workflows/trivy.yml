@@ -24,7 +24,7 @@ jobs:
     outputs:
       dockerfiles: ${{ steps.find-dockerfiles.outputs.dockerfiles }}
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Find Dockerfiles
         id: find-dockerfiles
         run: |
@@ -53,7 +53,7 @@ jobs:
 
       - name: Checkout code
         id: checkout-code
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
           fetch-depth: ${{ steps.checkout-depth.outputs.fetch-depth || '1' }}
@@ -125,7 +125,7 @@ jobs:
           output: '${{ matrix.dockerfile }}/trivy-results.sarif'
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@cf463419fdde78c727231e445622a9ac37966f84 # v4.31.9
+        uses: github/codeql-action/upload-sarif@1b0d2714d61e488d0bba3dafaca71ddc15883098 # v4.31.9
         with:
           sarif_file: '${{ matrix.dockerfile }}/trivy-results.sarif'
 
