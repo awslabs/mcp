@@ -71,7 +71,10 @@ def test_create_mcp_server_basic(
     assert result == mock_server
     mock_fastmcp.assert_called_once()
     mock_load_spec.assert_called_once_with(
-        url=mock_config.api_spec_url, path=mock_config.api_spec_path
+        url=mock_config.api_spec_url,
+        path=mock_config.api_spec_path,
+        allow_http=mock_config.allow_insecure_http,
+        allow_private_networks=mock_config.allow_private_networks,
     )
     mock_validate.assert_called_once()
     mock_create_client.assert_called_once()

@@ -27,7 +27,7 @@ jobs:
     name: PSScriptAnalyzer
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
 
       - name: Run PSScriptAnalyzer
         uses: microsoft/psscriptanalyzer-action@6b2948b1944407914a58661c49941824d149734f
@@ -37,6 +37,6 @@ jobs:
           output: results.sarif
 
       - name: Upload SARIF results file
-        uses: github/codeql-action/upload-sarif@c0fc915677567258ee3c194d03ffe7ae3dc8d741 # v4.31.9
+        uses: github/codeql-action/upload-sarif@cf463419fdde78c727231e445622a9ac37966f84 # v4.31.9
         with:
           sarif_file: results.sarif

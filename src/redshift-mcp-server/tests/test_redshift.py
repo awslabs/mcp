@@ -14,13 +14,16 @@
 
 """Tests for the redshift module."""
 
+import asyncio
 import pytest
+import sqlglot
 import time
 from awslabs.redshift_mcp_server.redshift import (
     RedshiftClientManager,
     RedshiftSessionManager,
     _execute_protected_statement,
     _execute_statement,
+    _sql_identifier,
     discover_clusters,
     discover_columns,
     discover_databases,
@@ -29,6 +32,9 @@ from awslabs.redshift_mcp_server.redshift import (
     execute_query,
 )
 from botocore.config import Config
+from botocore.exceptions import ClientError
+from sqlglot import exp
+from types import SimpleNamespace
 
 
 class TestRedshiftClientManagerRedshiftClient:
@@ -256,6 +262,7 @@ class TestExecuteProtectedStatement:
         # Mock session manager
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
         mock_session_manager.session = mocker.AsyncMock(return_value='test-session-123')
+        mock_session_manager.lock.return_value = asyncio.Lock()
 
         # Mock _execute_statement
         mock_execute_statement = mocker.patch(
@@ -299,6 +306,7 @@ class TestExecuteProtectedStatement:
         # Mock session manager
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
         mock_session_manager.session = mocker.AsyncMock(return_value='test-session-123')
+        mock_session_manager.lock.return_value = asyncio.Lock()
 
         # Mock _execute_statement
         mock_execute_statement = mocker.patch(
@@ -343,6 +351,7 @@ class TestExecuteProtectedStatement:
 
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
         mock_session_manager.session = mocker.AsyncMock(return_value='test-session-123')
+        mock_session_manager.lock.return_value = asyncio.Lock()
 
         mock_execute_statement = mocker.patch(
             'awslabs.redshift_mcp_server.redshift._execute_statement'
@@ -373,6 +382,7 @@ class TestExecuteProtectedStatement:
         # Mock session manager
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
         mock_session_manager.session = mocker.AsyncMock(return_value='test-session-123')
+        mock_session_manager.lock.return_value = asyncio.Lock()
 
         # Mock _execute_statement
         mock_execute_statement = mocker.patch(
@@ -417,6 +427,7 @@ class TestExecuteProtectedStatement:
         # Mock session manager
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
         mock_session_manager.session = mocker.AsyncMock(return_value='test-session-123')
+        mock_session_manager.lock.return_value = asyncio.Lock()
 
         # Mock _execute_statement
         mock_execute_statement = mocker.patch(
@@ -454,6 +465,7 @@ class TestExecuteProtectedStatement:
         ]
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
         mock_session_manager.session = mocker.AsyncMock(return_value='test-session-123')
+        mock_session_manager.lock.return_value = asyncio.Lock()
 
         mock_execute_statement = mocker.patch(
             'awslabs.redshift_mcp_server.redshift._execute_statement'
@@ -495,6 +507,7 @@ class TestExecuteProtectedStatement:
         ]
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
         mock_session_manager.session = mocker.AsyncMock(return_value='test-session-123')
+        mock_session_manager.lock.return_value = asyncio.Lock()
 
         mock_execute_statement = mocker.patch(
             'awslabs.redshift_mcp_server.redshift._execute_statement'
@@ -555,6 +568,7 @@ class TestExecuteProtectedStatement:
         # Mock session manager
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
         mock_session_manager.session = mocker.AsyncMock(return_value='session-123')
+        mock_session_manager.lock.return_value = asyncio.Lock()
 
         # Mock _execute_statement to fail for user SQL, succeed for BEGIN and ROLLBACK
         mock_execute_statement = mocker.patch(
@@ -598,6 +612,7 @@ class TestExecuteProtectedStatement:
         # Mock session manager
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
         mock_session_manager.session = mocker.AsyncMock(return_value='session-123')
+        mock_session_manager.lock.return_value = asyncio.Lock()
 
         # Mock _execute_statement to succeed for user SQL, fail for ROLLBACK
         mock_execute_statement = mocker.patch(
@@ -634,6 +649,7 @@ class TestExecuteProtectedStatement:
         # Mock session manager
         mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
         mock_session_manager.session = mocker.AsyncMock(return_value='session-123')
+        mock_session_manager.lock.return_value = asyncio.Lock()
 
         # Mock _execute_statement to fail for both user SQL and ROLLBACK
         mock_execute_statement = mocker.patch(
@@ -930,6 +946,28 @@ class TestRedshiftSessionManager:
         # Verify the expired session was deleted and replaced (covers lines 141-142)
         assert session_manager._sessions[session_key]['session_id'] == 'new-session-id'
 
+    def test_lock_per_key_identity(self):
+        """Test that lock() returns the same Lock for the same key and distinct Locks for distinct keys."""
+        session_manager = RedshiftSessionManager(session_keepalive=600, app_name='test-app/1.0')
+
+        # First access lazily creates the lock and returns an asyncio.Lock
+        lock_a1 = session_manager.lock('cluster-a', 'db-1')
+        assert isinstance(lock_a1, asyncio.Lock)
+
+        # Same key returns the exact same instance
+        lock_a1_again = session_manager.lock('cluster-a', 'db-1')
+        assert lock_a1_again is lock_a1
+
+        # Different database on same cluster returns a distinct lock
+        lock_a2 = session_manager.lock('cluster-a', 'db-2')
+        assert isinstance(lock_a2, asyncio.Lock)
+        assert lock_a2 is not lock_a1
+
+        # Different cluster returns a distinct lock
+        lock_b1 = session_manager.lock('cluster-b', 'db-1')
+        assert isinstance(lock_b1, asyncio.Lock)
+        assert lock_b1 is not lock_a1
+
 
 class TestDiscoverFunctions:
     """Tests for discover_*() functions."""
@@ -1066,7 +1104,9 @@ class TestDiscoverFunctions:
         ]
         mock_serverless_client.get_workgroup.return_value = {
             'workgroup': {
-                'configParameters': [{'parameterValue': 'analytics'}],
+                'configParameters': [
+                    {'parameterKey': 'default_database', 'parameterValue': 'analytics'}
+                ],
                 'endpoint': {'address': 'test.serverless.amazonaws.com', 'port': 5439},
                 'subnetIds': ['subnet-123'],
                 'publiclyAccessible': True,
@@ -1100,6 +1140,46 @@ class TestDiscoverFunctions:
         assert workgroup['tags'] == {'team': 'data'}
 
     @pytest.mark.asyncio
+    async def test_discover_clusters_serverless_empty_subnet_ids(self, mocker):
+        """Serverless workgroup with an empty subnetIds list must not raise (vpc_id=None)."""
+        mock_redshift_client = mocker.Mock()
+        mock_redshift_client.get_paginator.return_value.paginate.return_value = [{'Clusters': []}]
+
+        mock_serverless_client = mocker.Mock()
+        mock_serverless_client.get_paginator.return_value.paginate.return_value = [
+            {
+                'workgroups': [
+                    {
+                        'workgroupName': 'test-workgroup',
+                        'status': 'AVAILABLE',
+                        'creationDate': '2024-01-01T00:00:00Z',
+                    }
+                ]
+            }
+        ]
+        mock_serverless_client.get_workgroup.return_value = {
+            'workgroup': {
+                'configParameters': [],
+                'endpoint': {'address': 'test.serverless.amazonaws.com', 'port': 5439},
+                'subnetIds': [],  # present but empty - previously caused IndexError
+            }
+        }
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_client',
+            return_value=mock_redshift_client,
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_serverless_client',
+            return_value=mock_serverless_client,
+        )
+
+        result = await discover_clusters()
+
+        assert len(result) == 1
+        assert result[0]['vpc_id'] is None
+
+    @pytest.mark.asyncio
     async def test_discover_clusters_serverless_error(self, mocker):
         """Test error handling when discovering serverless workgroups fails."""
         mock_redshift_client = mocker.Mock()
@@ -1122,6 +1202,220 @@ class TestDiscoverFunctions:
         )
 
         with pytest.raises(Exception, match='Serverless API Error'):
+            await discover_clusters()
+
+    @pytest.mark.asyncio
+    async def test_discover_clusters_both_access_denied_raises_permission_error(self, mocker):
+        """Test that PermissionError is raised when both clients get access-denied."""
+        mock_redshift_client = mocker.Mock()
+        mock_paginator = mocker.Mock()
+        mock_paginator.paginate.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Not authorized'}},
+            'DescribeClusters',
+        )
+        mock_redshift_client.get_paginator.return_value = mock_paginator
+
+        mock_serverless_client = mocker.Mock()
+        mock_serverless_paginator = mocker.Mock()
+        mock_serverless_paginator.paginate.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDeniedException', 'Message': 'Not authorized'}},
+            'ListWorkgroups',
+        )
+        mock_serverless_client.get_paginator.return_value = mock_serverless_paginator
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_client',
+            return_value=mock_redshift_client,
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_serverless_client',
+            return_value=mock_serverless_client,
+        )
+
+        with pytest.raises(
+            PermissionError, match='IAM lacks both redshift and redshift-serverless'
+        ):
+            await discover_clusters()
+
+    @pytest.mark.asyncio
+    async def test_discover_clusters_provisioned_access_denied_serverless_succeeds(self, mocker):
+        """Test partial results when provisioned gets access-denied but serverless succeeds."""
+        mock_redshift_client = mocker.Mock()
+        mock_paginator = mocker.Mock()
+        mock_paginator.paginate.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Not authorized'}},
+            'DescribeClusters',
+        )
+        mock_redshift_client.get_paginator.return_value = mock_paginator
+
+        mock_serverless_client = mocker.Mock()
+        mock_serverless_client.get_paginator.return_value.paginate.return_value = [
+            {
+                'workgroups': [
+                    {
+                        'workgroupName': 'my-workgroup',
+                        'status': 'AVAILABLE',
+                        'creationDate': '2024-01-01T00:00:00Z',
+                    }
+                ]
+            }
+        ]
+        mock_serverless_client.get_workgroup.return_value = {
+            'workgroup': {
+                'configParameters': [{'parameterValue': 'dev'}],
+                'endpoint': {'address': 'wg.serverless.amazonaws.com', 'port': 5439},
+                'subnetIds': ['subnet-abc'],
+                'publiclyAccessible': False,
+                'tags': [],
+            }
+        }
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_client',
+            return_value=mock_redshift_client,
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_serverless_client',
+            return_value=mock_serverless_client,
+        )
+
+        result = await discover_clusters()
+
+        assert len(result) == 1
+        assert result[0]['identifier'] == 'my-workgroup'
+        assert result[0]['type'] == 'serverless'
+
+    @pytest.mark.asyncio
+    async def test_discover_clusters_serverless_access_denied_provisioned_succeeds(self, mocker):
+        """Test partial results when serverless gets access-denied but provisioned succeeds."""
+        mock_redshift_client = mocker.Mock()
+        mock_redshift_client.get_paginator.return_value.paginate.return_value = [
+            {
+                'Clusters': [
+                    {
+                        'ClusterIdentifier': 'my-cluster',
+                        'ClusterStatus': 'available',
+                        'DBName': 'dev',
+                        'Endpoint': {'Address': 'cluster.redshift.amazonaws.com', 'Port': 5439},
+                        'VpcId': 'vpc-123',
+                        'NodeType': 'dc2.large',
+                        'NumberOfNodes': 2,
+                        'ClusterCreateTime': '2024-01-01T00:00:00Z',
+                        'MasterUsername': 'admin',
+                        'PubliclyAccessible': False,
+                        'Encrypted': True,
+                        'Tags': [],
+                    }
+                ]
+            }
+        ]
+
+        mock_serverless_client = mocker.Mock()
+        mock_serverless_paginator = mocker.Mock()
+        mock_serverless_paginator.paginate.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDeniedException', 'Message': 'Not authorized'}},
+            'ListWorkgroups',
+        )
+        mock_serverless_client.get_paginator.return_value = mock_serverless_paginator
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_client',
+            return_value=mock_redshift_client,
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_serverless_client',
+            return_value=mock_serverless_client,
+        )
+
+        result = await discover_clusters()
+
+        assert len(result) == 1
+        assert result[0]['identifier'] == 'my-cluster'
+        assert result[0]['type'] == 'provisioned'
+
+    @pytest.mark.asyncio
+    async def test_discover_clusters_non_access_denied_provisioned_bubbles_up(self, mocker):
+        """Test that non-access-denied ClientError from provisioned discovery re-raises immediately."""
+        mock_redshift_client = mocker.Mock()
+        mock_paginator = mocker.Mock()
+        mock_paginator.paginate.side_effect = ClientError(
+            {'Error': {'Code': 'InternalServerError', 'Message': 'Something broke'}},
+            'DescribeClusters',
+        )
+        mock_redshift_client.get_paginator.return_value = mock_paginator
+
+        mock_serverless_client = mocker.Mock()
+        mock_serverless_client.get_paginator.return_value.paginate.return_value = [
+            {'workgroups': []}
+        ]
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_client',
+            return_value=mock_redshift_client,
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_serverless_client',
+            return_value=mock_serverless_client,
+        )
+
+        with pytest.raises(ClientError):
+            await discover_clusters()
+
+    @pytest.mark.asyncio
+    async def test_discover_clusters_non_access_denied_serverless_bubbles_up(self, mocker):
+        """Test that non-access-denied ClientError from serverless discovery re-raises immediately."""
+        mock_redshift_client = mocker.Mock()
+        mock_redshift_client.get_paginator.return_value.paginate.return_value = [{'Clusters': []}]
+
+        mock_serverless_client = mocker.Mock()
+        mock_serverless_paginator = mocker.Mock()
+        mock_serverless_paginator.paginate.side_effect = ClientError(
+            {'Error': {'Code': 'ThrottlingException', 'Message': 'Rate exceeded'}},
+            'ListWorkgroups',
+        )
+        mock_serverless_client.get_paginator.return_value = mock_serverless_paginator
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_client',
+            return_value=mock_redshift_client,
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_serverless_client',
+            return_value=mock_serverless_client,
+        )
+
+        with pytest.raises(ClientError):
+            await discover_clusters()
+
+    @pytest.mark.asyncio
+    async def test_discover_clusters_both_non_access_denied_first_bubbles_up(self, mocker):
+        """Test that when both clients raise non-access-denied ClientError, the first one (provisioned) re-raises."""
+        mock_redshift_client = mocker.Mock()
+        mock_paginator = mocker.Mock()
+        mock_paginator.paginate.side_effect = ClientError(
+            {'Error': {'Code': 'InternalServerError', 'Message': 'Provisioned broke'}},
+            'DescribeClusters',
+        )
+        mock_redshift_client.get_paginator.return_value = mock_paginator
+
+        mock_serverless_client = mocker.Mock()
+        mock_serverless_paginator = mocker.Mock()
+        mock_serverless_paginator.paginate.side_effect = ClientError(
+            {'Error': {'Code': 'ThrottlingException', 'Message': 'Rate exceeded'}},
+            'ListWorkgroups',
+        )
+        mock_serverless_client.get_paginator.return_value = mock_serverless_paginator
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_client',
+            return_value=mock_redshift_client,
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_serverless_client',
+            return_value=mock_serverless_client,
+        )
+
+        with pytest.raises(ClientError, match='Provisioned broke'):
             await discover_clusters()
 
     @pytest.mark.asyncio
@@ -1153,6 +1447,11 @@ class TestDiscoverFunctions:
         assert result[0]['database_name'] == 'dev'
         assert result[0]['database_owner'] == 100
         assert result[0]['database_type'] == 'local'
+
+        # SHOW DATABASES takes no bind parameters.
+        sql = mock_execute_protected.call_args[1]['sql']
+        assert 'SHOW DATABASES' in sql
+        assert mock_execute_protected.call_args[1].get('parameters') is None
 
     @pytest.mark.asyncio
     async def test_discover_databases_error(self, mocker):
@@ -1196,10 +1495,19 @@ class TestDiscoverFunctions:
         assert result[0]['schema_name'] == 'public'
         assert result[0]['schema_owner'] == 100
 
-        # Verify parameters were passed correctly
+        # The database is embedded as a quoted identifier (no bind params).
         mock_execute_protected.assert_called_once()
         call_args = mock_execute_protected.call_args
-        assert call_args[1]['parameters'] == [{'name': 'database_name', 'value': 'dev'}]
+        sql = call_args[1]['sql']
+        assert 'SHOW SCHEMAS FROM DATABASE' in sql
+        assert '"dev"' in sql
+        assert call_args[1].get('parameters') is None
+
+        # A double quote in the database name is doubled so the value cannot
+        # break out of the identifier (injection-safe).
+        mock_execute_protected.return_value = ({'Records': []}, 'query-457')
+        await discover_schemas('test-cluster', 'd"b')
+        assert '"d""b"' in mock_execute_protected.call_args[1]['sql']
 
     @pytest.mark.asyncio
     async def test_discover_schemas_error(self, mocker):
@@ -1219,6 +1527,8 @@ class TestDiscoverFunctions:
         mock_execute_protected = mocker.patch(
             'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
         )
+        # SHOW TABLES column order: database_name, schema_name, table_name,
+        # table_type, table_acl, remarks (table_type precedes table_acl).
         mock_execute_protected.return_value = (
             {
                 'Records': [
@@ -1226,8 +1536,8 @@ class TestDiscoverFunctions:
                         {'stringValue': 'dev'},
                         {'stringValue': 'public'},
                         {'stringValue': 'users'},
-                        {'stringValue': 'user=admin'},
                         {'stringValue': 'TABLE'},
+                        {'stringValue': 'user=admin'},
                         {'stringValue': 'User data table'},
                     ]
                 ]
@@ -1241,16 +1551,24 @@ class TestDiscoverFunctions:
         assert result[0]['database_name'] == 'dev'
         assert result[0]['schema_name'] == 'public'
         assert result[0]['table_name'] == 'users'
+        # Positional remap is correct: type and acl are not swapped.
         assert result[0]['table_type'] == 'TABLE'
+        assert result[0]['table_acl'] == 'user=admin'
+        assert result[0]['remarks'] == 'User data table'
 
-        # Verify parameters were passed correctly
+        # db.schema is embedded as quoted identifiers (no bind params).
         mock_execute_protected.assert_called_once()
         call_args = mock_execute_protected.call_args
-        expected_params = [
-            {'name': 'database_name', 'value': 'dev'},
-            {'name': 'schema_name', 'value': 'public'},
-        ]
-        assert call_args[1]['parameters'] == expected_params
+        sql = call_args[1]['sql']
+        assert 'SHOW TABLES FROM SCHEMA' in sql
+        assert '"dev"."public"' in sql
+        assert call_args[1].get('parameters') is None
+
+        # Double quotes in the identifiers are doubled so the values cannot
+        # break out of them (injection-safe).
+        mock_execute_protected.return_value = ({'Records': []}, 'query-790')
+        await discover_tables('test-cluster', 'd"b', 's"c')
+        assert '"d""b"."s""c"' in mock_execute_protected.call_args[1]['sql']
 
     @pytest.mark.asyncio
     async def test_discover_tables_error(self, mocker):
@@ -1302,15 +1620,19 @@ class TestDiscoverFunctions:
         assert result[0]['ordinal_position'] == 1
         assert result[0]['data_type'] == 'integer'
 
-        # Verify parameters were passed correctly
+        # db.schema.table is embedded as quoted identifiers (no bind params).
         mock_execute_protected.assert_called_once()
         call_args = mock_execute_protected.call_args
-        expected_params = [
-            {'name': 'database_name', 'value': 'dev'},
-            {'name': 'schema_name', 'value': 'public'},
-            {'name': 'table_name', 'value': 'users'},
-        ]
-        assert call_args[1]['parameters'] == expected_params
+        sql = call_args[1]['sql']
+        assert 'SHOW COLUMNS FROM TABLE' in sql
+        assert '"dev"."public"."users"' in sql
+        assert call_args[1].get('parameters') is None
+
+        # Double quotes in the identifiers are doubled so the values cannot
+        # break out of them (injection-safe).
+        mock_execute_protected.return_value = ({'Records': []}, 'query-102')
+        await discover_columns('test-cluster', 'd"b', 's"c', 't"l')
+        assert '"d""b"."s""c"."t""l"' in mock_execute_protected.call_args[1]['sql']
 
     @pytest.mark.asyncio
     async def test_discover_columns_error(self, mocker):
@@ -1413,3 +1735,535 @@ class TestExecuteQuery:
 
         with pytest.raises(Exception, match='Query execution failed'):
             await execute_query('test-cluster', 'dev', 'SELECT * FROM nonexistent')
+
+
+# Shared fakes and parametrization for the TestConcurrency tests below.
+_CONCURRENCY_CLUSTER_TYPES = pytest.mark.parametrize(
+    'cluster_type',
+    ['provisioned', 'serverless'],
+    ids=['provisioned', 'serverless'],
+)
+
+
+def _cluster_info(cluster_type='provisioned'):
+    """Build the cluster_info shared by the concurrency tests."""
+    return {
+        'identifier': 'test-cluster',
+        'type': cluster_type,
+        'status': 'available',
+    }
+
+
+def _make_counting_session_fake(prefix='session'):
+    """Counting async fake for `_create_session_with_app_name`; exposes `.count`."""
+    counter = SimpleNamespace(count=0)
+
+    async def fake_create_session(self, cluster_identifier, database_name, ci):
+        counter.count += 1
+        await asyncio.sleep(0)  # interleave point
+        return f'{prefix}-{counter.count}'
+
+    return fake_create_session, counter
+
+
+def _make_yielding_execute_statement_fake():
+    """Async fake for `_execute_statement` that yields then returns a unique id."""
+    counter = SimpleNamespace(count=0)
+
+    async def fake_execute_statement(
+        cluster_info, cluster_identifier, database_name, sql, **kwargs
+    ):
+        counter.count += 1
+        await asyncio.sleep(0)  # interleave point
+        return f'stmt-{counter.count}'
+
+    return fake_execute_statement
+
+
+def _make_recording_execute_statement_fake(owner_var=None):
+    """Recording async fake for `_execute_statement`; returns (fake, log)."""
+    log: list[tuple] = []
+
+    async def fake_execute_statement(
+        cluster_info, cluster_identifier, database_name, sql, **kwargs
+    ):
+        owner = owner_var.get('unknown') if owner_var is not None else None
+        log.append((owner, sql))
+        await asyncio.sleep(0)  # interleave point
+        return f'stmt-{len(log)}'
+
+    return fake_execute_statement, log
+
+
+class TestConcurrency:
+    """Concurrency tests for the per-cluster:database session lock."""
+
+    @pytest.mark.asyncio
+    @_CONCURRENCY_CLUSTER_TYPES
+    async def test_cold_start_creates_exactly_one_session(self, mocker, cluster_type):
+        """Concurrent cold-start calls create exactly one session (zero orphans)."""
+        import awslabs.redshift_mcp_server.redshift as redshift_module
+
+        N = 6
+        cluster_info = _cluster_info(cluster_type)
+
+        # Real manager (not a Mock) so the actual session() get-or-create race runs.
+        manager = RedshiftSessionManager(session_keepalive=600, app_name='test-app')
+        mocker.patch.object(redshift_module, 'session_manager', manager)
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters',
+            return_value=[cluster_info],
+        )
+
+        fake_create_session, session_counter = _make_counting_session_fake()
+        mocker.patch.object(
+            RedshiftSessionManager,
+            '_create_session_with_app_name',
+            fake_create_session,
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_statement',
+            side_effect=_make_yielding_execute_statement_fake(),
+        )
+
+        mock_data_client = mocker.Mock()
+        mock_data_client.describe_statement.return_value = {
+            'Status': 'FINISHED',
+            'HasResultSet': True,
+        }
+        mock_data_client.get_statement_result.return_value = {
+            'Records': [[{'stringValue': 'hello'}]],
+            'ColumnMetadata': [{'name': 'col1'}],
+        }
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
+            return_value=mock_data_client,
+        )
+
+        results = await asyncio.gather(
+            *[
+                _execute_protected_statement(
+                    'test-cluster', 'test-db', 'SELECT 1', allow_read_write=False
+                )
+                for _ in range(N)
+            ]
+        )
+
+        assert len(results) == N
+
+        assert session_counter.count == 1, (
+            f'Expected 1 session created, got {session_counter.count} '
+            f'({session_counter.count - 1} orphaned)'
+        )
+        assert len(manager._sessions) == 1, (
+            f'Expected 1 cached session, got {len(manager._sessions)}'
+        )
+
+    @pytest.mark.asyncio
+    @_CONCURRENCY_CLUSTER_TYPES
+    async def test_success_under_race_all_calls_return_correct_results(self, mocker, cluster_type):
+        """Concurrent cold-start calls all succeed with correct results."""
+        import awslabs.redshift_mcp_server.redshift as redshift_module
+
+        N = 6
+        cluster_info = _cluster_info(cluster_type)
+
+        # Real manager (not a Mock) so the actual session() get-or-create race runs.
+        manager = RedshiftSessionManager(session_keepalive=600, app_name='test-app')
+        mocker.patch.object(redshift_module, 'session_manager', manager)
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters',
+            return_value=[cluster_info],
+        )
+
+        fake_create_session, session_counter = _make_counting_session_fake()
+        mocker.patch.object(
+            RedshiftSessionManager,
+            '_create_session_with_app_name',
+            fake_create_session,
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_statement',
+            side_effect=_make_yielding_execute_statement_fake(),
+        )
+
+        expected_result = {
+            'Records': [[{'stringValue': 'result-ok'}]],
+            'ColumnMetadata': [{'name': 'col1'}],
+        }
+        mock_data_client = mocker.Mock()
+        mock_data_client.describe_statement.return_value = {
+            'Status': 'FINISHED',
+            'HasResultSet': True,
+        }
+        mock_data_client.get_statement_result.return_value = expected_result
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
+            return_value=mock_data_client,
+        )
+
+        # return_exceptions=True to inspect failures instead of aborting on the first.
+        results = await asyncio.gather(
+            *[
+                _execute_protected_statement(
+                    'test-cluster', 'test-db', 'SELECT 1', allow_read_write=False
+                )
+                for _ in range(N)
+            ],
+            return_exceptions=True,
+        )
+
+        exceptions = [r for r in results if isinstance(r, BaseException)]
+        assert exceptions == [], (
+            f'Expected zero exceptions from concurrent cold-start calls, '
+            f'got {len(exceptions)}: {exceptions}'
+        )
+
+        ok_results = [r for r in results if not isinstance(r, BaseException)]
+        assert len(ok_results) == N, f'Expected {N} results, got {len(ok_results)}'
+        for i, (result_response, query_id) in enumerate(ok_results):
+            assert result_response == expected_result, (
+                f'Result {i} has unexpected payload: {result_response}'
+            )
+            assert query_id is not None, (
+                f'Result {i} has None query_id (statement was not executed)'
+            )
+
+    @pytest.mark.asyncio
+    async def test_mutual_exclusion_begin_rollback_contiguous(self, mocker):
+        """Each call's BEGIN..ROLLBACK block stays contiguous under concurrency."""
+        import awslabs.redshift_mcp_server.redshift as redshift_module
+        import contextvars
+
+        current_owner: contextvars.ContextVar[str] = contextvars.ContextVar('current_owner')
+
+        cluster_info = _cluster_info('provisioned')
+
+        # Pre-warm the cache so session-acquire doesn't serialize the two calls.
+        manager = RedshiftSessionManager(session_keepalive=600, app_name='test-app')
+        manager._sessions['test-cluster:test-db'] = {
+            'session_id': 'warm-session-id',
+            'created_at': time.time(),
+        }
+        mocker.patch.object(redshift_module, 'session_manager', manager)
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters',
+            return_value=[cluster_info],
+        )
+
+        fake_execute_statement, statement_log = _make_recording_execute_statement_fake(
+            owner_var=current_owner
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_statement',
+            side_effect=fake_execute_statement,
+        )
+
+        mock_data_client = mocker.Mock()
+        mock_data_client.describe_statement.return_value = {
+            'Status': 'FINISHED',
+            'HasResultSet': False,
+        }
+        mock_data_client.get_statement_result.return_value = {
+            'Records': [],
+            'ColumnMetadata': [],
+        }
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
+            return_value=mock_data_client,
+        )
+
+        async def call_with_owner(owner: str, sql: str):
+            current_owner.set(owner)
+            return await _execute_protected_statement(
+                'test-cluster', 'test-db', sql, allow_read_write=False
+            )
+
+        await asyncio.gather(
+            call_with_owner('A', 'CREATE TABLE test_tbl (id INT)'),
+            call_with_owner('B', 'SELECT 1'),
+        )
+
+        owners_in_order = [owner for owner, _ in statement_log]
+
+        def is_contiguous(owners: list[str], target: str) -> bool:
+            """Check that all occurrences of `target` are contiguous in the list."""
+            indices = [i for i, o in enumerate(owners) if o == target]
+            if not indices:
+                return True
+            return indices[-1] - indices[0] == len(indices) - 1
+
+        a_contiguous = is_contiguous(owners_in_order, 'A')
+        b_contiguous = is_contiguous(owners_in_order, 'B')
+
+        log_repr = [f'{owner}:{sql}' for owner, sql in statement_log]
+
+        assert a_contiguous and b_contiguous, (
+            f'Mutual-exclusion invariant violated: statements interleave.\n'
+            f'Global statement order: {log_repr}\n'
+            f'A contiguous: {a_contiguous}, B contiguous: {b_contiguous}\n'
+            f"Expected: each call's BEGIN..ROLLBACK block is contiguous "
+            f"(no other call's statements between BEGIN and ROLLBACK)."
+        )
+
+    @pytest.mark.asyncio
+    async def test_cancellation_still_issues_rollback(self, mocker):
+        """A CancelledError during user SQL still issues ROLLBACK."""
+        recorded_statements: list[str] = []
+
+        async def fake_execute_statement(
+            cluster_info, cluster_identifier, database_name, sql, **kwargs
+        ):
+            recorded_statements.append(sql)
+            if sql == 'SELECT 1':
+                raise asyncio.CancelledError()
+            return f'stmt-id-for-{sql}'
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters',
+            return_value=[
+                {'identifier': 'test-cluster', 'type': 'provisioned', 'status': 'available'}
+            ],
+        )
+
+        mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
+        mock_session_manager.session = mocker.AsyncMock(return_value='test-session-123')
+        mock_session_manager.lock.return_value = asyncio.Lock()
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_statement',
+            side_effect=fake_execute_statement,
+        )
+
+        with pytest.raises(asyncio.CancelledError):
+            await _execute_protected_statement(
+                'test-cluster', 'test-db', 'SELECT 1', allow_read_write=False
+            )
+
+        assert 'ROLLBACK;' in recorded_statements, (
+            f'ROLLBACK was not issued. Recorded statements: {recorded_statements}'
+        )
+
+    @pytest.mark.asyncio
+    @_CONCURRENCY_CLUSTER_TYPES
+    async def test_warm_concurrent_selects_no_extra_sessions(self, mocker, cluster_type):
+        """Concurrent SELECTs on a warm cache create no extra sessions."""
+        import awslabs.redshift_mcp_server.redshift as redshift_module
+
+        N = 6
+        cluster_info = _cluster_info(cluster_type)
+
+        # Real manager (not a Mock) so the actual session() get-or-create path runs.
+        manager = RedshiftSessionManager(session_keepalive=600, app_name='test-app')
+        mocker.patch.object(redshift_module, 'session_manager', manager)
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters',
+            return_value=[cluster_info],
+        )
+
+        fake_create_session, session_counter = _make_counting_session_fake()
+        mocker.patch.object(
+            RedshiftSessionManager,
+            '_create_session_with_app_name',
+            fake_create_session,
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_statement',
+            side_effect=_make_yielding_execute_statement_fake(),
+        )
+
+        expected_result = {
+            'Records': [[{'stringValue': 'hello'}]],
+            'ColumnMetadata': [{'name': 'col1'}],
+        }
+        mock_data_client = mocker.Mock()
+        mock_data_client.describe_statement.return_value = {
+            'Status': 'FINISHED',
+            'HasResultSet': True,
+        }
+        mock_data_client.get_statement_result.return_value = expected_result
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
+            return_value=mock_data_client,
+        )
+
+        warmup_result = await _execute_protected_statement(
+            'test-cluster', 'test-db', 'SELECT 1', allow_read_write=False
+        )
+        assert warmup_result is not None, 'Warm-up call must succeed'
+        assert session_counter.count == 1, (
+            f'Warm-up must create exactly 1 session, got {session_counter.count}'
+        )
+        assert 'test-cluster:test-db' in manager._sessions, (
+            'Warm-up must populate the session cache'
+        )
+
+        results = await asyncio.gather(
+            *[
+                _execute_protected_statement(
+                    'test-cluster', 'test-db', 'SELECT 1', allow_read_write=False
+                )
+                for _ in range(N)
+            ]
+        )
+
+        assert len(results) == N, f'Expected {N} results, got {len(results)}'
+        for i, (result_response, query_id) in enumerate(results):
+            assert result_response == expected_result, f'Result {i} mismatch: {result_response}'
+
+        assert session_counter.count == 1, (
+            f'Expected 1 session created (warm-up only), got {session_counter.count} '
+            f'({session_counter.count - 1} extra sessions created during concurrent reads)'
+        )
+        assert len(manager._sessions) == 1, (
+            f'Expected 1 cached session, got {len(manager._sessions)}'
+        )
+
+    @pytest.mark.asyncio
+    async def test_lock_not_held_during_describe_statement(self, mocker):
+        """describe_statement / get_statement_result run outside the per-key lock."""
+        mock_discover_clusters = mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters'
+        )
+        mock_discover_clusters.return_value = [
+            {'identifier': 'test-cluster', 'type': 'provisioned', 'status': 'available'}
+        ]
+
+        # Real Lock so we can inspect .locked().
+        real_lock = asyncio.Lock()
+        mock_session_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.session_manager')
+        mock_session_manager.session = mocker.AsyncMock(return_value='test-session-123')
+        mock_session_manager.lock.return_value = real_lock
+
+        fake_execute_statement, _ = _make_recording_execute_statement_fake()
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_statement',
+            side_effect=fake_execute_statement,
+        )
+
+        lock_held_during_describe = None
+
+        def describe_side_effect(Id):
+            nonlocal lock_held_during_describe
+            lock_held_during_describe = real_lock.locked()
+            return {'Status': 'FINISHED', 'HasResultSet': False}
+
+        mock_data_client = mocker.Mock()
+        mock_data_client.describe_statement.side_effect = describe_side_effect
+        mock_client_manager = mocker.patch('awslabs.redshift_mcp_server.redshift.client_manager')
+        mock_client_manager.redshift_data_client.return_value = mock_data_client
+
+        await _execute_protected_statement(
+            'test-cluster', 'test-db', 'SELECT 1', allow_read_write=False
+        )
+
+        assert lock_held_during_describe is False, (
+            'describe_statement must run OUTSIDE the lock (lock should not be held)'
+        )
+
+    @pytest.mark.asyncio
+    async def test_expired_session_concurrent_creates_one_fresh(self, mocker):
+        """Concurrent calls on an expired entry create exactly one fresh session."""
+        import awslabs.redshift_mcp_server.redshift as redshift_module
+
+        N = 6
+        cluster_info = _cluster_info('provisioned')
+
+        # Real manager with a short keepalive so we can force session expiry.
+        manager = RedshiftSessionManager(session_keepalive=500, app_name='test-app')
+        mocker.patch.object(redshift_module, 'session_manager', manager)
+
+        session_key = 'test-cluster:test-db'
+        manager._sessions[session_key] = {
+            'session_id': 'expired-session-id',
+            'created_at': time.time() - 600,  # 600s ago > 500s keepalive -> expired
+        }
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters',
+            return_value=[cluster_info],
+        )
+
+        fake_create_session, session_counter = _make_counting_session_fake('fresh-session')
+        mocker.patch.object(
+            RedshiftSessionManager,
+            '_create_session_with_app_name',
+            fake_create_session,
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_statement',
+            side_effect=_make_yielding_execute_statement_fake(),
+        )
+
+        expected_result = {
+            'Records': [[{'stringValue': 'hello'}]],
+            'ColumnMetadata': [{'name': 'col1'}],
+        }
+        mock_data_client = mocker.Mock()
+        mock_data_client.describe_statement.return_value = {
+            'Status': 'FINISHED',
+            'HasResultSet': True,
+        }
+        mock_data_client.get_statement_result.return_value = expected_result
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
+            return_value=mock_data_client,
+        )
+
+        results = await asyncio.gather(
+            *[
+                _execute_protected_statement(
+                    'test-cluster', 'test-db', 'SELECT 1', allow_read_write=False
+                )
+                for _ in range(N)
+            ],
+            return_exceptions=True,
+        )
+
+        exceptions = [r for r in results if isinstance(r, BaseException)]
+        assert exceptions == [], f'Expected zero exceptions, got {len(exceptions)}: {exceptions}'
+
+        assert session_counter.count == 1, (
+            f'Expected exactly 1 fresh session created after expiry, got {session_counter.count}'
+        )
+        assert len(manager._sessions) == 1, (
+            f'Expected 1 cached session, got {len(manager._sessions)}'
+        )
+        assert manager._sessions[session_key]['session_id'] == 'fresh-session-1', (
+            f'Expected fresh session in cache, got {manager._sessions[session_key]["session_id"]}'
+        )
+
+
+class TestSqlIdentifier:
+    """`_sql_identifier` renders a value as one safely-quoted identifier that round-trips unchanged."""
+
+    @pytest.mark.parametrize(
+        'value',
+        [
+            'dev',
+            'sample_data_dev',
+            'MixedCase',  # case is preserved because the identifier is quoted
+            'weird name',  # spaces require quoting
+            'd"b',  # embedded double quote must be doubled
+            'a""b',  # an already-doubled sequence still round-trips
+            'a\\',  # trailing backslash must not escape the closing quote
+            '"; DROP TABLE users; --',  # injection attempt via a double quote
+            "'; DROP TABLE users; --",  # single quotes are not special in an identifier
+        ],
+    )
+    def test_value_round_trips_as_a_single_identifier(self, value):
+        """Parsing the rendered identifier yields exactly one identifier equal to the input."""
+        statement = 'SELECT * FROM ' + _sql_identifier(value)
+
+        # Exactly one statement -- the value cannot introduce extra statements.
+        statements = sqlglot.parse(statement, read='redshift')
+        assert len(statements) == 1
+
+        # The parsed identifier's name equals the original input.
+        identifier = sqlglot.parse_one(statement, read='redshift').find(exp.Identifier)
+        assert identifier is not None
+        assert identifier.name == value

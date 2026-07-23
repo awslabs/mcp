@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Artifact downloads now return a clear, actionable error when the server is
+  spawned with the filesystem root (`/`) as its working directory. The
+  write-path confinement added for the arbitrary-file-write fix pinned the
+  allowed base to the current working directory; when that was `/`, the
+  confinement check rejected every path with a confusing "must be within the
+  working directory (/)" message. Downloads in this case are now refused with a
+  message telling the operator to set the new `AWS_TRANSFORM_MCP_WRITE_DIR`
+  environment variable to choose where downloads are written. The
+  arbitrary-write protection is unchanged for all other cases.
+- Added the `AWS_TRANSFORM_MCP_WRITE_DIR` environment variable to let an
+  operator pin the artifact-download base directory explicitly.
+- Artifact downloads now create the target directory if it does not already
+  exist (within the confined base), instead of failing with `FileNotFoundError`.
+
 ## [0.1.0] - 2026-05-07
 
 ### Added

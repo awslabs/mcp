@@ -73,6 +73,7 @@ def create_aws_client(service_name: str, region_name: Optional[str] = None) -> A
         'bcm-pricing-calculator',  # BCM Pricing Calculator
         'billingconductor',  # AWS Billing Conductor
         'billing',  # AWS Billing
+        'invoicing',  # AWS Invoicing
     ]
 
     # Validate requested service

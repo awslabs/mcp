@@ -200,7 +200,7 @@ async def start_run_batch(
         }
 
         if batch_name is not None:
-            params['name'] = batch_name
+            params['batchName'] = batch_name
 
         if request_id is not None:
             params['requestId'] = request_id

@@ -1591,6 +1591,84 @@ metadata:
             assert data['events'][1]['message'] == 'Container started'
 
     @pytest.mark.asyncio
+    async def test_get_k8s_events_with_null_fields(
+        self, mock_context, mock_mcp, mock_client_cache
+    ):
+        """Test get_k8s_events when events carry null optional fields.
+
+        Modern events.k8s.io/v1 events leave the legacy fields (firstTimestamp,
+        lastTimestamp, count, reason, type, ...) set to None. cleanup_resource_response
+        strips null-valued keys, so the handler must not assume those keys are present.
+        Regression test for a KeyError raised when subscripting the dropped keys.
+        """
+        # Initialize the K8s handler
+        with patch(
+            'awslabs.eks_mcp_server.k8s_handler.K8sClientCache', return_value=mock_client_cache
+        ):
+            handler = K8sHandler(mock_mcp, allow_sensitive_data_access=True)
+
+        # Mock get_client with two events: one whose optional fields are all None
+        # (e.g. an events.k8s.io/v1 event with no legacy fields), and one where only
+        # some fields are null. cleanup_resource_response strips the null keys in both.
+        mock_k8s_apis = MagicMock()
+        mock_k8s_apis.get_events.return_value = [
+            {
+                'first_timestamp': None,
+                'last_timestamp': None,
+                'count': None,
+                'message': 'Something happened',
+                'reason': None,
+                'reporting_component': None,
+                'type': None,
+            },
+            {
+                'first_timestamp': '2023-01-01T00:00:00Z',
+                'last_timestamp': None,
+                'count': 3,
+                'message': 'Partly populated',
+                'reason': None,
+                'reporting_component': 'kubelet',
+                'type': 'Warning',
+            },
+        ]
+
+        with patch.object(handler, 'get_client', return_value=mock_k8s_apis):
+            result = await handler.get_k8s_events(
+                mock_context,
+                cluster_name='test-cluster',
+                kind='Pod',
+                name='test-pod',
+                namespace='test-namespace',
+            )
+
+            # The tool must succeed rather than raising KeyError on the dropped keys
+            assert not result.isError
+
+            data = json.loads(result.content[1].text)
+            assert data['count'] == 2
+            assert len(data['events']) == 2
+
+            # All-null optional fields come back as None; the message is preserved
+            all_null = data['events'][0]
+            assert all_null['message'] == 'Something happened'
+            assert all_null['first_timestamp'] is None
+            assert all_null['last_timestamp'] is None
+            assert all_null['count'] is None
+            assert all_null['reason'] is None
+            assert all_null['reporting_component'] is None
+            assert all_null['type'] is None
+
+            # Mixed event: present fields kept, null fields returned as None
+            mixed = data['events'][1]
+            assert mixed['message'] == 'Partly populated'
+            assert mixed['first_timestamp'] == '2023-01-01T00:00:00Z'
+            assert mixed['count'] == 3
+            assert mixed['reporting_component'] == 'kubelet'
+            assert mixed['type'] == 'Warning'
+            assert mixed['last_timestamp'] is None
+            assert mixed['reason'] is None
+
+    @pytest.mark.asyncio
     async def test_get_k8s_events_empty(self, mock_context, mock_mcp, mock_client_cache):
         """Test get_k8s_events method with no events found."""
         # Initialize the K8s handler
