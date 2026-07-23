@@ -12,6 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""awslabs.aws-api-mcp-server"""
-
-__version__ = '1.4.0'
+"""Review subpackage for Redshift cluster diagnostic reviews."""

@@ -7,9 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Deprecation warning and feature flag to suppress (#4313)
+
+## [1.3.47] - 2026-07-22
+
 ### Security
 
 - Fail closed when security policy enforcement data cannot be initialized at startup. Previously, if loading the read-only operations index failed (e.g. a transient network error), the server continued running with the configured security policy (denylist / elicitList) silently skipped for the entire process lifetime, allowing denylisted operations to execute unchecked. The server now refuses to start when this data cannot be loaded, and requests are denied at execution time if the index is unavailable.
+
+
+## [1.3.46] - 2026-06-25
+
+### Fixed
+
+- add logging for file access validation (#4023)
+
+## [1.3.39] - 2026-05-28
+
+### Fixed
+
+- Expand environment variables before workdir validation (#3627)
+
+## [1.3.35] - 2026-05-08
+
+### Fixed
+
+- Removed logging of headers with streamable http (#3413)
+- Patch kubeconfig writer and only allow codeartifact login under unrestricted access (#3359)
+
+## [1.3.24] - 2026-03-27
+
+### Fixed
+
+- Error sanitzation (#2797)
+
+## [1.3.17] - 2026-03-04
+
+### Added
+
+- batch tool calling for `call_aws` (#2357)
+
+## [1.3.13] - 2026-02-19
+
+### Added
+
+- expose `AWS_MAX_ATTEMPTS` (#2457)
+
+## [1.3.12] - 2026-02-17
 
 ### Fixed
 

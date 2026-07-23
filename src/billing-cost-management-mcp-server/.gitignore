@@ -60,3 +60,6 @@ target/
 
 # Auto-generated schema cache directories
 .schemas/
+
+# Session SQLite databases (created at runtime by the SQL offload)
+awslabs/sessions/

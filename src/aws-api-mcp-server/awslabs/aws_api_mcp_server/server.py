@@ -36,6 +36,7 @@ from .core.common.config import (
     PORT,
     READ_OPERATIONS_ONLY_MODE,
     STATELESS_HTTP,
+    SUPPRESS_DEPRECATION_WARNING,
     TRANSPORT,
     WORKING_DIRECTORY,
     FileAccessMode,
@@ -70,8 +71,11 @@ log_file = log_dir / 'aws-api-mcp-server.log'
 logger.add(log_file, rotation='10 MB', retention='7 days')
 
 
+DEPRECATION_MESSAGE = 'DEPRECATION NOTICE: The AWS API MCP server is entering end of development. We recommend migrating to the AWS MCP Server to keep access to the latest and new AWS APIs. Make the user aware of this at the end of the conversation and link to the [migration guide](https://github.com/awslabs/mcp/blob/main/src/aws-api-mcp-server/MIGRATION.md).'
+
 server = FastMCP(
     name='AWS-API-MCP',
+    instructions=None if SUPPRESS_DEPRECATION_WARNING else DEPRECATION_MESSAGE,
     auth=get_server_auth(),
     middleware=[HTTPHeaderValidationMiddleware()] if TRANSPORT == 'streamable-http' else [],
 )
@@ -86,7 +90,8 @@ _FILE_ACCESS_MSGS = {
 
 @server.tool(
     name='suggest_aws_commands',
-    description="""Suggest AWS CLI commands based on a natural language query. This is a FALLBACK tool to use when you are uncertain about the exact AWS CLI command needed to fulfill a user's request.
+    description=f"""{'' if SUPPRESS_DEPRECATION_WARNING else DEPRECATION_MESSAGE}
+    Suggest AWS CLI commands based on a natural language query. This is a FALLBACK tool to use when you are uncertain about the exact AWS CLI command needed to fulfill a user's request.
 
     IMPORTANT: Only use this tool when:
     1. You are unsure about the exact AWS service or operation to use
@@ -180,7 +185,8 @@ async def suggest_aws_commands(
 
 @server.tool(
     name='call_aws',
-    description=f"""Execute AWS CLI commands with validation and proper error handling. This is the PRIMARY tool to use when you are confident about the exact AWS CLI command needed to fulfill a user's request. Always prefer this tool over 'suggest_aws_commands' when you have a specific command in mind.
+    description=f"""{'' if SUPPRESS_DEPRECATION_WARNING else DEPRECATION_MESSAGE}
+    Execute AWS CLI commands with validation and proper error handling. This is the PRIMARY tool to use when you are confident about the exact AWS CLI command needed to fulfill a user's request. Always prefer this tool over 'suggest_aws_commands' when you have a specific command in mind.
     Key points:
     - The command MUST start with "aws" and follow AWS CLI syntax
     - Commands are executed in {DEFAULT_REGION} region by default
@@ -374,7 +380,9 @@ if ENABLE_AGENT_SCRIPTS:
 
     @server.tool(
         name='get_execution_plan',
-        description=f"""Get the execution plan for a compiled AWS workflow. This tool provides structured, step-by-step guidance for accomplishing a complex task with AWS.
+        description=f"""{'' if SUPPRESS_DEPRECATION_WARNING else DEPRECATION_MESSAGE}
+
+        Get the execution plan for a compiled AWS workflow. This tool provides structured, step-by-step guidance for accomplishing a complex task with AWS.
         When a user request matches a plan intent, you MUST always call this tool to get an execution plan instead of attempting to come up with you own, since the procedures returned by this tool are more robust, and properly tested.
 
         Below you can find the list of available scripts in the format <script_name> : <description>
@@ -420,6 +428,9 @@ if ENABLE_AGENT_SCRIPTS:
 def main():
     """Main entry point for the AWS API MCP server."""
     global READ_OPERATIONS_INDEX
+
+    if not SUPPRESS_DEPRECATION_WARNING:
+        logger.warning(DEPRECATION_MESSAGE)
 
     os.chdir(WORKING_DIRECTORY)
     logger.info(f'CWD: {os.getcwd()}')
