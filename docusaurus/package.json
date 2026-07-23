@@ -22,7 +22,7 @@
     "unist-util-visit": "^5.1.0"
   },
   "devDependencies": {
-    "@docusaurus/module-type-aliases": "^3.9.1",
+    "@docusaurus/module-type-aliases": "^3.10.2",
     "@docusaurus/tsconfig": "^3.9.2",
     "@docusaurus/types": "^3.9.1",
     "baseline-browser-mapping": "^2.9.19",
