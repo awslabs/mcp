@@ -652,6 +652,104 @@ class TestConvertApiResponseToTableAdditional:
             # Just verify the function runs without error
             assert result is not None
 
+    @pytest.mark.asyncio
+    async def test_records_converter_stores_one_row_per_item(self):
+        """Compute Optimizer Automation list responses store one row per item.
+
+        Columns are derived from the union of item keys, so items with differing
+        optional fields (RULE-A has `tags`, RULE-B does not) share one table.
+        """
+        mock_context = MagicMock(spec=Context)
+        conn = sqlite3.connect(':memory:')
+        conn.execute(
+            'CREATE TABLE IF NOT EXISTS schema_info '
+            '(table_name TEXT PRIMARY KEY, created_at TEXT, operation TEXT, '
+            'query TEXT, row_count INTEGER)'
+        )
+
+        response = {
+            'automation_rules': [
+                {'rule_id': 'r-1', 'name': 'RULE-A', 'tags': [{'key': 'env', 'value': 'dev'}]},
+                {'rule_id': 'r-2', 'name': 'RULE-B'},
+            ],
+            'count': 2,
+        }
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_db_connection'
+        ) as mock_conn:
+            mock_conn.return_value = (conn, conn.cursor())
+
+            result = await convert_api_response_to_table(
+                mock_context, response, 'compute_optimizer_automation_list_automation_rules'
+            )
+
+        assert result['data_stored'] is True
+        # Columns are the union of item keys, in first-seen order.
+        assert result['schema'] == ['rule_id', 'name', 'tags']
+        # One row per item (not per field).
+        assert result['row_count'] == 2
+
+        preview = result['preview']
+        assert [row['rule_id'] for row in preview] == ['r-1', 'r-2']
+        assert preview[0]['name'] == 'RULE-A'
+        # Nested list stored as JSON so it stays queryable; absent on item 2.
+        assert 'env' in preview[0]['tags']
+        assert preview[1]['tags'] is None
+
+    @pytest.mark.asyncio
+    async def test_records_converter_handles_reserved_keyword_columns(self):
+        """Columns that are SQL reserved words are quoted, so they round-trip."""
+        mock_context = MagicMock(spec=Context)
+        conn = sqlite3.connect(':memory:')
+        conn.execute(
+            'CREATE TABLE IF NOT EXISTS schema_info '
+            '(table_name TEXT PRIMARY KEY, created_at TEXT, operation TEXT, '
+            'query TEXT, row_count INTEGER)'
+        )
+
+        # 'order' and 'group' are SQL reserved words; without quoting the
+        # CREATE/INSERT would raise a syntax error.
+        response = {
+            'automation_rules': [{'order': 1, 'group': 'g-1', 'name': 'RULE-A'}],
+            'count': 1,
+        }
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_db_connection'
+        ) as mock_conn:
+            mock_conn.return_value = (conn, conn.cursor())
+
+            result = await convert_api_response_to_table(
+                mock_context, response, 'compute_optimizer_automation_list_automation_rules'
+            )
+
+        assert result['data_stored'] is True
+        assert result['schema'] == ['order', 'group', 'name']
+        assert result['row_count'] == 1
+        assert result['preview'][0]['group'] == 'g-1'
+
+    def test_specialized_converter_routes_automation_ops_to_records(self):
+        """Compute Optimizer Automation operations map to the 'records' converter."""
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _get_specialized_converter,
+        )
+
+        assert (
+            _get_specialized_converter('compute_optimizer_automation_list_automation_rules')
+            == 'records'
+        )
+        assert _get_specialized_converter('some_other_operation') is None
+
+    def test_record_columns_rejects_unsafe_identifiers(self):
+        """Derived column names must be safe SQL identifiers (injection guard)."""
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import _record_columns
+
+        assert _record_columns([{'rule_id': 'r-1', 'name': 'RULE-A'}]) == ['rule_id', 'name']
+        assert _record_columns([]) == ['value']
+        with pytest.raises(ValueError):
+            _record_columns([{'name); DROP TABLE x;--': 'boom'}])
+
 
 class TestConvertResponseIfNeeded:
     """Test convert response if needed."""
