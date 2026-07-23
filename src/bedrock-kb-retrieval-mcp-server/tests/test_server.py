@@ -107,6 +107,7 @@ class TestQueryKnowledgeBasesTool:
                 'content': {'text': 'This is a test document content.', 'type': 'TEXT'},
                 'location': {'s3Location': {'uri': 's3://test-bucket/test-document.txt'}},
                 'score': 0.95,
+                'metadata': {'doc_type': 'runbook'},
             }
         )
 
@@ -118,12 +119,14 @@ class TestQueryKnowledgeBasesTool:
             reranking=True,
             reranking_model_name='AMAZON',
             data_source_ids=['ds-12345', 'ds-67890'],
+            metadata_filter=None,
         )
 
         # Check that the result is correct
         assert 'This is a test document content.' in result
         assert 's3://test-bucket/test-document.txt' in result
         assert '0.95' in result
+        assert 'runbook' in result
 
         # Check that query_knowledge_base was called with the correct arguments
         mock_query_knowledge_base.assert_called_once_with(
@@ -134,6 +137,50 @@ class TestQueryKnowledgeBasesTool:
             reranking=True,
             reranking_model_name='AMAZON',
             data_source_ids=['ds-12345', 'ds-67890'],
+            metadata_filter=None,
+        )
+
+    @pytest.mark.asyncio
+    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.query_knowledge_base')
+    async def test_query_knowledge_bases_tool_with_metadata_filter(
+        self, mock_query_knowledge_base
+    ):
+        """Test that the metadata filter is passed through to query_knowledge_base."""
+        # Set up the mock
+        mock_query_knowledge_base.return_value = json.dumps(
+            {
+                'content': {'text': 'This is a test document content.', 'type': 'TEXT'},
+                'location': {'s3Location': {'uri': 's3://test-bucket/test-document.txt'}},
+                'score': 0.95,
+                'metadata': {'doc_type': 'runbook'},
+            }
+        )
+        metadata_filter = {'equals': {'key': 'doc_type', 'value': 'runbook'}}
+
+        # Call the function
+        result = await query_knowledge_bases_tool(
+            query='test query',
+            knowledge_base_id='kb-12345',
+            number_of_results=10,
+            reranking=False,
+            reranking_model_name='AMAZON',
+            data_source_ids=None,
+            metadata_filter=metadata_filter,
+        )
+
+        # Check that the result is correct
+        assert 'This is a test document content.' in result
+
+        # Check that query_knowledge_base was called with the metadata filter
+        mock_query_knowledge_base.assert_called_once_with(
+            query='test query',
+            knowledge_base_id='kb-12345',
+            kb_agent_client=mock.ANY,  # We can't directly access the global variable in tests
+            number_of_results=10,
+            reranking=False,
+            reranking_model_name='AMAZON',
+            data_source_ids=None,
+            metadata_filter=metadata_filter,
         )
 
 
