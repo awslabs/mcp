@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import boto3
 import botocore.exceptions
 from ..common.errors import (
@@ -106,7 +107,7 @@ def interpret_command(
         region = GLOBAL_SERVICE_REGIONS[translation.command.command_metadata.service_sdk_name]
 
     credentials = credentials or get_local_credentials(
-        profile=translation.command.profile or AWS_API_MCP_PROFILE_NAME
+        profile=translation.command.profile or AWS_API_MCP_PROFILE_NAME or os.getenv('AWS_PROFILE')
     )
 
     try:

@@ -435,12 +435,10 @@ def main():
     os.chdir(WORKING_DIRECTORY)
     logger.info(f'CWD: {os.getcwd()}')
 
-    if DEFAULT_REGION is None:
-        error_message = 'AWS_REGION environment variable is not defined.'
-        logger.error(error_message)
-        raise ValueError(error_message)
-
-    validate_aws_region(DEFAULT_REGION)
+    if DEFAULT_REGION:
+        validate_aws_region(DEFAULT_REGION)
+    else:
+        logger.warning('AWS_REGION environment variable is not defined, defaulting to us-east-1')
     logger.info('AWS_REGION: {}', DEFAULT_REGION)
 
     try:

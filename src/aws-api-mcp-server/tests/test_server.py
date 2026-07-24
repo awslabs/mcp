@@ -834,10 +834,18 @@ async def test_call_aws_awscli_customization_error(
 
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', None)
 @patch('awslabs.aws_api_mcp_server.server.WORKING_DIRECTORY', '/tmp')
-def test_main_missing_aws_region():
-    """Test main function raises ValueError when AWS_REGION environment variable is not set."""
-    with pytest.raises(ValueError, match=r'AWS_REGION environment variable is not defined.'):
-        main()
+@patch('awslabs.aws_api_mcp_server.server.get_read_only_operations')
+@patch('awslabs.aws_api_mcp_server.server.server')
+@patch('awslabs.aws_api_mcp_server.server.validate_aws_region')
+@patch('awslabs.aws_api_mcp_server.server.TRANSPORT', 'stdio')
+def test_main_missing_aws_region(
+    mock_validate_region,
+    mock_server,
+    mock_get_read_only_operations,
+):
+    """Test main function proceeds without error when AWS_REGION is not set (defaults to us-east-1)."""
+    main()
+    mock_validate_region.assert_not_called()
 
 
 @patch('awslabs.aws_api_mcp_server.server.os.chdir')

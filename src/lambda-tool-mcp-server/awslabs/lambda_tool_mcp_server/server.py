@@ -27,7 +27,7 @@ from typing import Optional
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-AWS_PROFILE = os.environ.get('AWS_PROFILE', 'default')
+AWS_PROFILE = os.environ.get('AWS_PROFILE')
 logger.info(f'AWS_PROFILE: {AWS_PROFILE}')
 
 AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
