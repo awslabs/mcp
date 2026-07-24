@@ -1168,6 +1168,54 @@ def _list_factory(method, list_key, region_pages, errors=()):
 class TestGlobalFanOut:
     """Tests for the multi-region fan-out (no explicit region)."""
 
+    @pytest.mark.parametrize(
+        ('operation', 'kwargs', 'parameter'),
+        [
+            ('list_automation_events', {'start_time': '06/01/2025'}, 'start_time'),
+            ('list_automation_events', {'end_time': 'tomorrow'}, 'end_time'),
+            (
+                'list_automation_rule_preview',
+                {
+                    'rule_type': 'AccountRule',
+                    'recommended_action_types': 'not-json',
+                },
+                'recommended_action_types',
+            ),
+            (
+                'list_automation_rule_preview',
+                {
+                    'rule_type': 'AccountRule',
+                    'recommended_action_types': '["UpgradeEbsVolumeType"]',
+                    'organization_scope': '{',
+                },
+                'organization_scope',
+            ),
+            (
+                'list_automation_rule_preview_summaries',
+                {
+                    'rule_type': 'AccountRule',
+                    'recommended_action_types': '["UpgradeEbsVolumeType"]',
+                    'criteria': '{',
+                },
+                'criteria',
+            ),
+        ],
+    )
+    async def test_invalid_structured_input_fails_before_fan_out(
+        self, mock_ctx, operation, kwargs, parameter
+    ):
+        """Malformed structured input returns one validation error and creates no clients."""
+        with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            result = await automation_fn(mock_ctx, operation=operation, **kwargs)
+
+        assert result['status'] == STATUS_ERROR
+        assert result['error_type'] == 'validation_error'
+        assert parameter in result['message']
+        assert 'region_errors' not in result
+        mock_create.assert_not_called()
+        mock_ctx.warning.assert_awaited_once()
+        mock_ctx.error.assert_not_awaited()
+
     async def test_merges_items_across_regions(self, mock_ctx):
         """With no region, a list op queries every region and merges the items."""
         factory = _list_factory(
@@ -1197,6 +1245,63 @@ class TestGlobalFanOut:
         assert set(data['regions_queried']) == set(ops.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS)
         assert 'region_next_tokens' not in data
         assert 'region_errors' not in data
+
+    @pytest.mark.parametrize(
+        ('operation', 'method', 'service_key', 'result_key', 'item'),
+        [
+            (
+                'list_automation_rule_preview',
+                'list_automation_rule_preview',
+                'previewResults',
+                'preview_results',
+                {'recommendedActionId': 'preview-1'},
+            ),
+            (
+                'list_automation_rule_preview_summaries',
+                'list_automation_rule_preview_summaries',
+                'previewResultSummaries',
+                'preview_result_summaries',
+                {'key': 'ResourceType', 'total': {'recommendedActionCount': 1}},
+            ),
+        ],
+    )
+    async def test_rule_preview_operations_fan_out(
+        self, mock_ctx, operation, method, service_key, result_key, item
+    ):
+        """Both rule-preview operations parse inputs and merge regional results."""
+        clients = {}
+
+        def factory(region=None):
+            client = MagicMock()
+            response_items = [item] if region == 'eu-west-1' else []
+            getattr(client, method).return_value = {service_key: response_items}
+            clients[region] = client
+            return client
+
+        with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            mock_create.side_effect = factory
+
+            result = await automation_fn(
+                mock_ctx,
+                operation=operation,
+                rule_type='AccountRule',
+                recommended_action_types='["UpgradeEbsVolumeType"]',
+                organization_scope='{"accountIds": ["123456789012"]}',
+                criteria='{"region": [{"comparison": "StringEquals", "values": ["eu-west-1"]}]}',
+                max_pages=1,
+            )
+
+        assert result['status'] == STATUS_SUCCESS
+        assert result['data']['count'] == 1
+        assert result['data'][result_key][0]['region'] == 'eu-west-1'
+        assert mock_create.call_count == len(ops.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS)
+
+        request = getattr(clients['eu-west-1'], method).call_args.kwargs
+        assert request['recommendedActionTypes'] == ['UpgradeEbsVolumeType']
+        assert request['organizationScope'] == {'accountIds': ['123456789012']}
+        assert request['criteria'] == {
+            'region': [{'comparison': 'StringEquals', 'values': ['eu-west-1']}]
+        }
 
     async def test_stamps_region_on_items_without_it(self, mock_ctx):
         """Summaries carry no region field, so the queried region is stamped on them."""

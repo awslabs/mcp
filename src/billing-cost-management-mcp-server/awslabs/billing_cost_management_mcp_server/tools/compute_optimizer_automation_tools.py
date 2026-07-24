@@ -37,6 +37,7 @@ from .compute_optimizer_automation_operations import (
     _collect_automation_rule_preview_summaries,
     _collect_recommended_action_summaries,
     _collect_recommended_actions,
+    _parse_datetime,
     _parse_global_next_token,
     create_compute_optimizer_automation_client,
     get_automation_event,
@@ -295,6 +296,18 @@ async def compute_optimizer_automation(
         if filter_error is not None:
             return filter_error
 
+        # Parse operation-specific structured inputs before creating one client
+        # or fanning out across regions. Handlers still parse them when building
+        # requests; this pass ensures malformed input fails once and consistently.
+        _validate_parseable_params(
+            operation,
+            start_time=start_time,
+            end_time=end_time,
+            recommended_action_types=recommended_action_types,
+            organization_scope=organization_scope,
+            criteria=criteria,
+        )
+
         # With no explicit region, most operations fan out across all Automation
         # regions; account-global operations still use a single default-region call.
         if region is None and operation not in _SINGLE_REGION_OPERATIONS:
@@ -426,7 +439,7 @@ async def _dispatch_global(
 
     Args:
         ctx: The MCP context object.
-        operation: The requested operation (a Group B/C operation).
+        operation: The requested region-scoped operation.
         event_id: Automation event ID (get_automation_event, list_automation_event_steps).
         filters: Optional JSON string list of {name, values} filter objects.
         start_time: Optional inclusive start datetime (list_automation_events).
@@ -581,6 +594,32 @@ def _validate_operation_params(
         )
 
     return None
+
+
+def _validate_parseable_params(
+    operation: str,
+    start_time: Optional[str],
+    end_time: Optional[str],
+    recommended_action_types: Optional[str],
+    organization_scope: Optional[str],
+    criteria: Optional[str],
+) -> None:
+    """Validate structured operation inputs before client creation or fan-out."""
+    if operation == 'list_automation_events':
+        if start_time:
+            _parse_datetime(start_time, 'start_time')
+        if end_time:
+            _parse_datetime(end_time, 'end_time')
+
+    if operation in {
+        'list_automation_rule_preview',
+        'list_automation_rule_preview_summaries',
+    }:
+        parse_json(recommended_action_types, 'recommended_action_types')
+        if organization_scope:
+            parse_json(organization_scope, 'organization_scope')
+        if criteria:
+            parse_json(criteria, 'criteria')
 
 
 def _validate_filters(operation: str, filters: Optional[str]) -> Optional[Dict[str, Any]]:
