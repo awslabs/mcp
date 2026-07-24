@@ -82,9 +82,7 @@ class TestBasicAuthProvider:
         hash_method = BasicAuthProvider._hash_credentials
 
         # Test that the same credentials produce the same hash
-        # Note: With bcrypt, the hash will be different each time due to the random salt
-        # So we need to verify differently - we'll check that the hash is not empty
-        # and that it's a valid hex string
+        # SHA-256 is deterministic, so same input always yields the same output
         hash1 = hash_method('testuser', 'testpass')
         assert hash1 is not None
         assert len(hash1) > 0
@@ -100,6 +98,24 @@ class TestBasicAuthProvider:
         assert hash1 != hash2
         assert hash1 != hash3
         assert hash2 != hash3
+
+    def test_hash_credentials_long_password(self):
+        """Test that credentials with passwords longer than 72 bytes are hashed without error.
+
+        This is a regression test for the bcrypt 72-byte limit bug.
+        """
+        # Create a password that makes the combined credential >72 bytes
+        long_password = 'x' * 80
+        assert len(f'longuser:{long_password}'.encode('utf-8')) > 72
+
+        # Should not raise ValueError
+        hash1 = BasicAuthProvider._hash_credentials('longuser', long_password)
+        assert hash1 is not None
+        assert len(hash1) == 64  # SHA-256 hex digest length
+
+        # Deterministic
+        hash2 = BasicAuthProvider._hash_credentials('longuser', long_password)
+        assert hash1 == hash2
 
     @patch('awslabs.openapi_mcp_server.auth.basic_auth.cached_auth_data')
     def test_cached_auth_data(self, mock_cached_auth_data):
