@@ -198,6 +198,83 @@ class TestDBConnectionMap:
         with pytest.raises(ValueError, match='database cannot be None or empty'):
             connection_map.remove(ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', None)
 
+    # ==================== remove_connection (by object) Tests ====================
+
+    def test_remove_connection_by_object(self, connection_map, mock_connection):
+        """remove_connection() evicts the entry whose value is the given conn."""
+        connection_map.set(
+            ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db', mock_connection
+        )
+
+        assert connection_map.remove_connection(mock_connection) is True
+        assert (
+            connection_map.get(
+                ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
+            )
+            is None
+        )
+
+    def test_remove_connection_regardless_of_key(self, connection_map, mock_connection):
+        """remove_connection() works even when the caller cannot reconstruct the key.
+
+        The connection is stored under a non-5432 port and a specific endpoint;
+        a caller who only holds the object (and not the resolved key) can still
+        evict it. This is the core guarantee that fixes the guardrail eviction
+        bug where the resolved storage key diverges from caller-supplied args.
+        """
+        connection_map.set(
+            ConnectionMethod.RDS_API,
+            'test-cluster',
+            'writer.resolved.example.com',
+            'test-db',
+            mock_connection,
+            port=5433,
+        )
+
+        # A key-based remove() with the wrong (default) port would miss.
+        connection_map.remove(
+            ConnectionMethod.RDS_API, 'test-cluster', 'writer.resolved.example.com', 'test-db'
+        )
+        assert (
+            connection_map.get(
+                ConnectionMethod.RDS_API,
+                'test-cluster',
+                'writer.resolved.example.com',
+                'test-db',
+                port=5433,
+            )
+            is mock_connection
+        )  # still present — key-based remove missed on port
+
+        # remove_connection() finds it by identity regardless of the key.
+        assert connection_map.remove_connection(mock_connection) is True
+        assert (
+            connection_map.get(
+                ConnectionMethod.RDS_API,
+                'test-cluster',
+                'writer.resolved.example.com',
+                'test-db',
+                port=5433,
+            )
+            is None
+        )
+
+    def test_remove_connection_not_present_returns_false(self, connection_map, mock_connection):
+        """remove_connection() returns False when the connection isn't in the map."""
+        assert connection_map.remove_connection(mock_connection) is False
+
+    def test_remove_connection_only_removes_matching_object(self, connection_map):
+        """remove_connection() leaves other connections intact."""
+        conn_a = MagicMock()
+        conn_b = MagicMock()
+        connection_map.set(ConnectionMethod.RDS_API, 'c-a', 'e-a', 'db', conn_a)
+        connection_map.set(ConnectionMethod.RDS_API, 'c-b', 'e-b', 'db', conn_b)
+
+        assert connection_map.remove_connection(conn_a) is True
+        assert connection_map.get(ConnectionMethod.RDS_API, 'c-a', 'e-a', 'db') is None
+        # conn_b is untouched.
+        assert connection_map.get(ConnectionMethod.RDS_API, 'c-b', 'e-b', 'db') is conn_b
+
     # ==================== Get Keys Method Tests ====================
 
     def test_get_keys_empty_map(self, connection_map):
