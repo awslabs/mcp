@@ -14,7 +14,7 @@
 """Data models for AWS Documentation MCP Server."""
 
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 class DiscoveredService(BaseModel):
@@ -99,3 +99,35 @@ class RecommendationResult(BaseModel):
     url: str
     title: str
     context: Optional[str] = None
+
+
+class TableResult(BaseModel):
+    """A single table's filtered results.
+
+    For flat tables, each row is a dict of {column_name: value}.
+    For nested/rowspan tables, rows are grouped: each group has parent column
+    values at the top level plus a 'rows' sub-array of child-column dicts.
+    When parent_columns is set, total_rows/matched_rows/showing count groups.
+    """
+
+    table_heading: Optional[str] = None
+    columns: List[str]
+    parent_columns: Optional[List[str]] = None
+    child_columns: Optional[List[str]] = None
+    total_rows: int
+    matched_rows: int
+    showing: int
+    rows: List[Dict[str, Any]]
+
+
+class SearchTableResponse(BaseModel):
+    """Response from the search_table tool."""
+
+    url: str
+    section_title: str
+    query: str
+    tables_searched: int
+    tables_with_matches: int
+    results: List[TableResult]
+    error: Optional[str] = None
+    hint: Optional[str] = None

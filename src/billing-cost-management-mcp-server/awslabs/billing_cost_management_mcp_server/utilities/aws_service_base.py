@@ -66,6 +66,7 @@ def create_aws_client(service_name: str, region_name: Optional[str] = None) -> A
         'pricing',  # AWS Pricing
         'athena',  # Amazon Athena (for CUR queries)
         'compute-optimizer',  # Compute Optimizer
+        'compute-optimizer-automation',  # Compute Optimizer Automation
         'cost-optimization-hub',  # Cost Optimization Hub
         'sts',  # STS (for account validation)
         'freetier',  # AWS Free Tier Usage
