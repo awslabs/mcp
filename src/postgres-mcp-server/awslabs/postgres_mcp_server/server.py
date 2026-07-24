@@ -839,7 +839,7 @@ def internal_create_connection(
         #      clusters, which never have a Secrets Manager secret.
         if effective_secret_arn:
             iam_username, _ = get_credentials_from_secret(
-                secret_arn=effective_secret_arn, region=region
+                secret_arn=effective_secret_arn, region=region, require_password=False
             )
         elif metadata_master_username:
             iam_username = metadata_master_username
@@ -1028,7 +1028,9 @@ def validate_table_name(table_name: str | None) -> bool:
     return True
 
 
-def validate_secret_arn_at_startup(secret_arn: str, region: str) -> None:
+def validate_secret_arn_at_startup(
+    secret_arn: str, region: str, require_password: bool = True
+) -> None:
     """Verify the configured Secrets Manager ARN is readable at startup.
 
     Calls Secrets Manager once with GetSecretValue against the given ARN.
@@ -1043,12 +1045,14 @@ def validate_secret_arn_at_startup(secret_arn: str, region: str) -> None:
     Args:
         secret_arn: The ARN from --secret_arn.
         region: AWS region for Secrets Manager.
+        require_password: If False, accept secrets without a password field
+            (IAM auth only reads the username from the secret).
 
     Raises:
         SystemExit: If the secret cannot be read. Exit code 1.
     """
     try:
-        get_credentials_from_secret(secret_arn, region)
+        get_credentials_from_secret(secret_arn, region, require_password=require_password)
     except Exception as e:
         logger.error(
             f'MCP server cannot start: unable to read Secrets Manager ARN '
@@ -1174,15 +1178,19 @@ def main():
     # before any query is attempted. The probe is skipped only when no
     # ARNs are configured at all — the cluster's managed secret will be
     # discovered (and validated) lazily on the first connection attempt.
+    # IAM auth generates its own token, so its secrets only need a username.
+    require_password = args.connection_method != ConnectionMethod.PG_WIRE_IAM_PROTOCOL.name
     for target, arn in configured_secret_arns.items():
         try:
-            validate_secret_arn_at_startup(arn, args.region)
+            validate_secret_arn_at_startup(arn, args.region, require_password=require_password)
         except SystemExit:
             logger.error(f'Configured --secret_arn entry for target {target!r} is unreadable.')
             raise
     if configured_default_secret_arn:
         try:
-            validate_secret_arn_at_startup(configured_default_secret_arn, args.region)
+            validate_secret_arn_at_startup(
+                configured_default_secret_arn, args.region, require_password=require_password
+            )
         except SystemExit:
             logger.error('Configured default --secret_arn is unreadable.')
             raise
