@@ -20,6 +20,7 @@ import sys
 from awslabs.amazon_qindex_mcp_server.clients import QBusinessClient, QBusinessClientError
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
+from mcp.shared.exceptions import ElicitRequestURLParams, UrlElicitationRequiredError
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, Dict, List, Optional
 
@@ -137,7 +138,7 @@ async def authorize_qindex(
     idc_application_arn: str = Field(
         description='The Amazon Q Business application ID provided by the customer'
     ),
-) -> Dict:
+) -> None:
     """Generate the OIDC authorization URL for Q index authentication.
 
     This tool generates the URL that users need to visit to authenticate with their
@@ -149,11 +150,10 @@ async def authorize_qindex(
         oauth_state (str): Random string to prevent CSRF attacks
         idc_application_arn (str): The Amazon Q Business application ID provided by the customer
 
-    Returns:
-        Dict: Response containing the authorization URL
-        {
-            'authorization_url': 'string'
-        }
+    Raises:
+        UrlElicitationRequiredError: Always raised with the OIDC authorization URL so that
+            spec-aware MCP clients (MCP 2025-11-25) can present the URL for explicit user
+            consent per the URL-mode elicitation flow.
     """
     auth_url = (
         f'https://oidc.{idc_region}.amazonaws.com/authorize'
@@ -163,11 +163,20 @@ async def authorize_qindex(
         f'&client_id={idc_application_arn}'
     )
 
-    # Ask the user to visit the URL and provide the authorization code
-    raise ValueError(
+    message = (
         f'Please visit this URL to sign in: {auth_url}\n'
         'After signing in, you will be redirected to your redirect URL.\n'
         'Please provide the authorization code from the redirect URL to continue.'
+    )
+    raise UrlElicitationRequiredError(
+        [
+            ElicitRequestURLParams(
+                message='Please sign in to authorize Q index access.',
+                url=auth_url,
+                elicitationId='authorize-qindex',
+            )
+        ],
+        message=message,
     )
 
 
