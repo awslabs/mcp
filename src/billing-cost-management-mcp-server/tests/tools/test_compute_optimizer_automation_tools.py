@@ -835,6 +835,17 @@ class TestDispatchRouting:
             assert result['status'] == STATUS_ERROR
             assert result['data']['provided_operation'] == 'delete_everything'
 
+    async def test_unsupported_operation_with_explicit_region(self, mock_ctx):
+        """An unknown explicit-region operation follows the single-region error path."""
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            result = await automation_fn(
+                mock_ctx, operation='delete_everything', region='us-east-1'
+            )
+
+        assert result['status'] == STATUS_ERROR
+        assert result['data']['provided_operation'] == 'delete_everything'
+        mock_create.assert_called_once_with('us-east-1')
+
     async def test_handles_exception(self, mock_ctx):
         """Exceptions are routed through handle_aws_error."""
         with (
@@ -1139,6 +1150,16 @@ _NOT_FOUND = ClientError(
 )
 
 
+def test_resource_not_found_classifier_rejects_other_client_errors():
+    """A ClientError response with another code is not classified as not-found."""
+    access_denied = ClientError(
+        {'Error': {'Code': 'AccessDeniedException', 'Message': 'denied'}},
+        'GetAutomationEvent',
+    )
+
+    assert ops._is_resource_not_found(access_denied) is False
+
+
 def _list_factory(method, list_key, region_pages, errors=()):
     """Build a per-region client factory for a fan-out list operation.
 
@@ -1397,6 +1418,7 @@ class TestGlobalFanOut:
     @pytest.mark.parametrize(
         ('payload', 'message_fragment'),
         [
+            ([], 'region-to-token map'),
             ({}, 'empty'),
             ({'moon-1': 'abc'}, 'unsupported region'),
             ({'us-east-1': ''}, 'non-empty string'),
@@ -1715,6 +1737,27 @@ class TestGlobalGetAutomationEvent:
             len(ops.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS) - 1
         )
 
+    async def test_none_response_is_not_treated_as_found(self, mock_ctx):
+        """A defensive None response does not produce a false successful lookup."""
+
+        def factory(region=None):
+            client = MagicMock()
+            if region == 'us-west-2':
+                client.get_automation_event.return_value = None
+            else:
+                client.get_automation_event.side_effect = _NOT_FOUND
+            return client
+
+        with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            mock_create.side_effect = factory
+
+            result = await automation_fn(
+                mock_ctx, operation='get_automation_event', event_id=EVENT_ID
+            )
+
+        assert result['status'] == STATUS_ERROR
+        assert 'not found' in result['message'].lower()
+
 
 @pytest.mark.asyncio
 class TestRegionRouting:
@@ -1749,6 +1792,23 @@ class TestRegionRouting:
         assert result['status'] == STATUS_ERROR
         assert 'only valid when region is omitted' in result['message']
         mock_create.assert_not_called()
+
+    async def test_explicit_region_accepts_native_next_token(self, mock_ctx):
+        """A native service token proceeds through the explicit-region path."""
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            client = MagicMock()
+            client.list_recommended_actions.return_value = {'recommendedActions': []}
+            mock_create.return_value = client
+
+            result = await automation_fn(
+                mock_ctx,
+                operation='list_recommended_actions',
+                region='us-west-2',
+                next_token='native-token',
+            )
+
+        assert result['status'] == STATUS_SUCCESS
+        assert client.list_recommended_actions.call_args.kwargs['nextToken'] == 'native-token'
 
     async def test_account_global_op_uses_single_call_without_region(self, mock_ctx):
         """An account-global op with no region makes one default-region call, no fan-out."""
