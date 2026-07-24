@@ -66,7 +66,7 @@ All four additions follow the handler/model conventions already used throughout 
 
 ---
 
-**Author:** Dipayan Das ([@dipayanthedata](https://github.com/dipayanthedata)) — AWS Community Builder, Senior Manager at PwC US (CEDA practice)
+**Author:** Dipayan Das ([@dipayanthedata](https://github.com/dipayanthedata)) — AWS Community Builder
 
 ---
 
