@@ -19,6 +19,7 @@ An AWS Labs Model Context Protocol (MCP) server for Timestream for InfluxDB. Thi
     - You need an AWS account with appropriate permissions
     - Configure AWS credentials with `aws configure` or environment variables
     - Consider starting with Read-only permission if you don't want the LLM to modify any resources
+4. *(Only for InfluxDB v3 data operations)* Install **Node.js ≥ 20.11** — required to build and run the separate InfluxDB 3 MCP server (see [InfluxDB v3 data operations](#influxdb-v3-data-operations)).
 
 ## Installation
 
@@ -48,6 +49,8 @@ You can modify the settings of your MCP client to run your local server (e.g. fo
   }
 }
 ```
+> **Note:** The `INFLUXDB_URL` / `INFLUXDB_TOKEN` / `INFLUXDB_ORG` variables are **optional** and apply to **InfluxDB v2** data operations only (default port **8086**). Control-plane tools (clusters, instances, parameter groups, tags) work with AWS credentials alone. For **InfluxDB v3** data operations (port 8181), see [InfluxDB v3 data operations](#influxdb-v3-data-operations).
+
 ### Windows Installation
 
 For Windows users, the MCP server configuration format is slightly different:
@@ -114,8 +117,7 @@ The Timestream for InfluxDB MCP server provides the following tools:
 - `DeleteDbCluster`: Delete a Timestream for InfluxDB database cluster
 - `ListDbClusters`: List all Timestream for InfluxDB database clusters
 - `UpdateDbCluster`: Update a Timestream for InfluxDB database cluster
-- `ListDbClusters`: List all Timestream for InfluxDB database clusters
-- `ListDbInstancesForCluster`: List DB instances belonging to a specific cluster
+- `LsInstancesOfCluster`: List DB instances belonging to a specific cluster
 - `ListClustersByStatus`: List DB clusters filtered by status
 
 ##### Database Instance Management
@@ -124,7 +126,7 @@ The Timestream for InfluxDB MCP server provides the following tools:
 - `DeleteDbInstance`: Delete a Timestream for InfluxDB database instance
 - `ListDbInstances`: List all Timestream for InfluxDB database instances
 - `UpdateDbInstance`: Update a Timestream for InfluxDB database instance
-- `ListDbInstancesByStatus`: List DB instances filtered by status
+- `LsInstancesByStatus`: List DB instances filtered by status
 
 ##### Parameter Group Management
 - `CreateDbParamGroup`: Create a new DB parameter group
@@ -152,3 +154,66 @@ The Timestream for InfluxDB MCP server provides the following tools:
 ##### Organization Management
 - `InfluxDBListOrgs`: List all organizations in InfluxDB
 - `InfluxDBCreateOrg`: Create a new organization in InfluxDB
+
+## InfluxDB v3 data operations
+
+This MCP server covers the **AWS control plane** (clusters, instances, parameter groups, tags) and **InfluxDB v2 data** operations (Flux query, writes, buckets, organizations). **InfluxDB v3 data operations** (SQL queries, v3 schema, v3 token management) are provided by a separate, InfluxData-maintained MCP server: [`influxdata/influxdb3_mcp_server`](https://github.com/influxdata/influxdb3_mcp_server). The [Kiro Power](#kiro-power)'s `kiro_power/mcp.json` references both servers.
+
+### Set up the InfluxDB 3 MCP server
+
+Requires **Node.js ≥ 20.11**. It is not published to npm yet, so clone and build it (or use the Docker option in its README):
+
+```bash
+git clone https://github.com/influxdata/influxdb3_mcp_server.git
+cd influxdb3_mcp_server
+npm install
+npm run build   # produces build/index.js
+```
+
+Then add it to your MCP client config alongside this server:
+
+```json
+{
+  "mcpServers": {
+    "influxdb3": {
+      "command": "node",
+      "args": ["/absolute/path/to/influxdb3_mcp_server/build/index.js"],
+      "env": {
+        "INFLUX_DB_INSTANCE_URL": "https://your-influxdb-v3-endpoint:8181/",
+        "INFLUX_DB_TOKEN": "your-influxdb-v3-token",
+        "INFLUX_DB_PRODUCT_TYPE": "core"
+      }
+    }
+  }
+}
+```
+
+- `INFLUX_DB_PRODUCT_TYPE`: use `core` for a single-node V3 cluster, `enterprise` for multi-node.
+- If the `node` on your PATH is older than 20.11, point `command` at an absolute path to a Node ≥ 20.11 binary.
+
+See the [InfluxDB 3 MCP server README](https://github.com/influxdata/influxdb3_mcp_server) for Cloud Dedicated/Clustered/Serverless variants and the full tool list.
+
+## AI Rules
+
+This repository also contains AI Rules (Steering). These markdown files serve as simple
+context and guidance for best practices and patterns that AI assistants automatically apply
+when generating code to improve the quality of agentic development.
+
+Recommended path:
+* [Kiro Power](#kiro-power) - button-click installation
+
+Alternative:
+The [Timestream for InfluxDB power](https://github.com/awslabs/mcp/tree/main/src/timestream-for-influxdb-mcp-server/kiro_power/) can also be cloned into your tool's respective `rules` directory
+for use with other coding assistants.
+
+### Kiro Power
+
+To setup the Kiro power:
+1. Install directly from the [Kiro Powers Registry](https://kiro.dev/launch/powers/amazon-timestream-for-influxdb/)
+2. Once redirected to the Power in the IDE either:
+   1. Select the **`Try Power`** button. Suggested for people who want:
+      - The AI to guide MCP server setup
+      - An interactive onboarding experience with Timestream for InfluxDB to create a new instance or cluster
+   2. Open a new Kiro chat and ask anything related to Timestream for InfluxDB
+      - The Kiro agent will automatically activate the power if it identifies the power as valuable for completing
+        the user's task.
