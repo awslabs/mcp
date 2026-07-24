@@ -569,3 +569,124 @@ class TestAnalyzeDeploymentEdgeCases:
         )
 
         assert result['status'] == 'success'
+
+
+class TestDescribeEventsOperationIdScoping:
+    """Regression tests for scoping describe_events to the failed OperationId.
+
+    See awslabs/mcp#4275: a rolled-back stack's latest operation is the
+    (successful) ROLLBACK, so describe_events(FailedEvents=true) scoped only to
+    StackName returns nothing. The troubleshooter must scope to the most recent
+    non-rollback operation instead.
+    """
+
+    @patch(
+        'awslabs.aws_iac_mcp_server.tools.cloudformation_deployment_troubleshooter.get_aws_client'
+    )
+    def test_describe_events_scoped_to_non_rollback_operation_id(self, mock_boto_client):
+        """describe_events must be called with the UPDATE_STACK OperationId, not StackName."""
+        mock_cfn = Mock()
+        mock_cloudtrail = Mock()
+        mock_boto_client.side_effect = [mock_cfn, mock_cloudtrail]
+
+        update_op_id = '1c211b5a-abcd-1234-5678-aaaaaaaaaaaa'
+        rollback_op_id = 'd0f12313-ef00-0000-0000-bbbbbbbbbbbb'
+        mock_cfn.describe_stacks.return_value = {
+            'Stacks': [
+                {
+                    'StackStatus': 'UPDATE_ROLLBACK_COMPLETE',
+                    'LastOperations': [
+                        {'OperationType': 'ROLLBACK', 'OperationId': rollback_op_id},
+                        {'OperationType': 'UPDATE_STACK', 'OperationId': update_op_id},
+                    ],
+                }
+            ]
+        }
+        mock_cfn.describe_events.return_value = {
+            'OperationEvents': [
+                {
+                    'EventId': 'event-1',
+                    'ResourceType': 'AWS::S3::Bucket',
+                    'ResourceStatus': 'UPDATE_FAILED',
+                    'ResourceStatusReason': 'Bucket already exists',
+                    'LogicalResourceId': 'MyBucket',
+                    'Timestamp': datetime.now(timezone.utc),
+                }
+            ]
+        }
+
+        troubleshooter = DeploymentTroubleshooter(region='us-east-1')
+        result = troubleshooter.troubleshoot_stack_deployment(
+            'test-stack', include_cloudtrail=False
+        )
+
+        assert result['status'] == 'success'
+        assert result['raw_data']['failed_event_count'] == 1
+        # The key assertion: describe_events was scoped by OperationId, not StackName.
+        call_kwargs = mock_cfn.describe_events.call_args.kwargs
+        assert call_kwargs.get('OperationId') == update_op_id
+        assert 'StackName' not in call_kwargs
+        assert call_kwargs['Filters'] == {'FailedEvents': True}
+
+    @patch(
+        'awslabs.aws_iac_mcp_server.tools.cloudformation_deployment_troubleshooter.get_aws_client'
+    )
+    def test_describe_events_falls_back_to_stack_name_without_last_operations(self, mock_boto_client):
+        """When LastOperations is absent, fall back to StackName (older API behavior)."""
+        mock_cfn = Mock()
+        mock_cloudtrail = Mock()
+        mock_boto_client.side_effect = [mock_cfn, mock_cloudtrail]
+
+        mock_cfn.describe_stacks.return_value = {'Stacks': [{'StackStatus': 'CREATE_FAILED'}]}
+        mock_cfn.describe_events.return_value = {
+            'OperationEvents': [
+                {
+                    'EventId': 'event-1',
+                    'ResourceType': 'AWS::S3::Bucket',
+                    'ResourceStatus': 'CREATE_FAILED',
+                    'ResourceStatusReason': 'Bucket already exists',
+                    'LogicalResourceId': 'MyBucket',
+                    'Timestamp': datetime.now(timezone.utc),
+                }
+            ]
+        }
+
+        troubleshooter = DeploymentTroubleshooter(region='us-east-1')
+        result = troubleshooter.troubleshoot_stack_deployment(
+            'test-stack', include_cloudtrail=False
+        )
+
+        assert result['status'] == 'success'
+        call_kwargs = mock_cfn.describe_events.call_args.kwargs
+        assert call_kwargs.get('StackName') == 'test-stack'
+        assert 'OperationId' not in call_kwargs
+        assert call_kwargs['Filters'] == {'FailedEvents': True}
+
+    @patch(
+        'awslabs.aws_iac_mcp_server.tools.cloudformation_deployment_troubleshooter.get_aws_client'
+    )
+    def test_describe_events_picks_only_non_rollback_operation(self, mock_boto_client):
+        """If only ROLLBACK operations are present, fall back to StackName."""
+        mock_cfn = Mock()
+        mock_cloudtrail = Mock()
+        mock_boto_client.side_effect = [mock_cfn, mock_cloudtrail]
+
+        rollback_op_id = 'd0f12313-ef00-0000-0000-bbbbbbbbbbbb'
+        mock_cfn.describe_stacks.return_value = {
+            'Stacks': [
+                {
+                    'StackStatus': 'ROLLBACK_COMPLETE',
+                    'LastOperations': [
+                        {'OperationType': 'ROLLBACK', 'OperationId': rollback_op_id},
+                    ],
+                }
+            ]
+        }
+        mock_cfn.describe_events.return_value = {'OperationEvents': []}
+
+        troubleshooter = DeploymentTroubleshooter(region='us-east-1')
+        troubleshooter.troubleshoot_stack_deployment('test-stack', include_cloudtrail=False)
+
+        call_kwargs = mock_cfn.describe_events.call_args.kwargs
+        assert call_kwargs.get('StackName') == 'test-stack'
+        assert 'OperationId' not in call_kwargs

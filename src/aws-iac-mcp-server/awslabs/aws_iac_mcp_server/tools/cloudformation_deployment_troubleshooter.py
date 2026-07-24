@@ -129,13 +129,36 @@ class DeploymentTroubleshooter:
                 stacks = self.cfn_client.describe_stacks(StackName=stack_name)['Stacks']
                 if not stacks:
                     raise Exception(f'Stack {stack_name} not found')
-                response['raw_data']['stack_status'] = stacks[0].get('StackStatus')
+                stack = stacks[0]
+                response['raw_data']['stack_status'] = stack.get('StackStatus')
             except self.cfn_client.exceptions.ClientError as e:
                 raise Exception(f'Stack {stack_name} not found or inaccessible: {str(e)}')
 
-            # Get failed events only using new API
+            # CloudFormation groups events by Operation ID (every update, rollback,
+            # etc. is its own operation). With FailedEvents=true and only a
+            # StackName, the API scopes to the latest operation — which for a
+            # rolled-back stack is the successful ROLLBACK, so the failed
+            # UPDATE/CREATE events are never returned. Scope describe_events to
+            # the most recent non-rollback operation so the events that actually
+            # failed are surfaced. See awslabs/mcp#4275.
+            last_operations = stack.get('LastOperations', [])
+            operation_id = next(
+                (
+                    op.get('OperationId')
+                    for op in last_operations
+                    if op.get('OperationType') != 'ROLLBACK'
+                ),
+                None,
+            )
+
+            describe_events_kwargs: Dict[str, Any] = {'Filters': {'FailedEvents': True}}
+            if operation_id:
+                describe_events_kwargs['OperationId'] = operation_id
+            else:
+                describe_events_kwargs['StackName'] = stack_name
+
             cloudformation_events = self.cfn_client.describe_events(
-                StackName=stack_name, Filters={'FailedEvents': True}
+                **describe_events_kwargs
             )['OperationEvents']
 
             # Match events against known failure patterns
