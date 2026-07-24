@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Add `ALTER TABLE ASYNC ... VALIDATE CONSTRAINT` guidance to DSQL steering. CHECK constraints can now be added with `NOT VALID` and validated asynchronously, following the same async DDL pattern as `CREATE INDEX ASYNC`.
+
 ### Security
 
 - Close read-only bypasses in `readonly_query` / `transact` (read-only mode), aligning the SQL classifier with the `postgres-mcp-server` sibling:

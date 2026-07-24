@@ -72,6 +72,11 @@ effortless scaling, multi-region viability, among other advantages.
 - MUST use **`CREATE INDEX ASYNC`:** No synchronous creation (verify limits via `awsknowledge`: `aurora dsql index limits`)
   - MAXIMUM: **24 indexes per table**
   - MAXIMUM: **8 columns per index**
+- MUST use **`ALTER TABLE ASYNC ... VALIDATE CONSTRAINT`** for constraint validation: No synchronous validation
+  - **MUST** add CHECK constraints with `NOT VALID`: `ALTER TABLE t ADD CONSTRAINT c CHECK (expr) NOT VALID`
+  - Then validate asynchronously: `ALTER TABLE ASYNC t VALIDATE CONSTRAINT c` — returns a `job_id`
+  - **MUST** monitor via `sys.jobs` or block with `SELECT sys.wait_for_job('job_id')`
+  - Constraint applies to new rows immediately; existing rows validated in background
 - **Asynchronous Execution:** DDL ALWAYS runs asynchronously
 - To add a column with DEFAULT or NOT NULL:
   1. MUST issue ADD COLUMN specifying only the column name and data type
@@ -122,10 +127,12 @@ instead implementation:
 ### Schema Operations
 
 ```sql
-CREATE INDEX ASYNC idx_name ON table(column);          ← ALWAYS ASYNC
-ALTER TABLE t ADD COLUMN c VARCHAR(50);                ← ONE AT A TIME
-ALTER TABLE t ADD COLUMN c2 INTEGER;                   ← SEPARATE STATEMENT
-UPDATE table SET c = 'default' WHERE c IS NULL;        ← AFTER ADD COLUMN
+CREATE INDEX ASYNC idx_name ON table(column);                        ← ALWAYS ASYNC
+ALTER TABLE t ADD CONSTRAINT c CHECK (age >= 0) NOT VALID;           ← NOT VALID required
+ALTER TABLE ASYNC t VALIDATE CONSTRAINT c;                           ← ALWAYS ASYNC
+ALTER TABLE t ADD COLUMN c VARCHAR(50);                              ← ONE AT A TIME
+ALTER TABLE t ADD COLUMN c2 INTEGER;                                 ← SEPARATE STATEMENT
+UPDATE table SET c = 'default' WHERE c IS NULL;                      ← AFTER ADD COLUMN
 ```
 
 ### Supported Data Types
