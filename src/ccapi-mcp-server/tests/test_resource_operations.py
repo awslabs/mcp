@@ -65,10 +65,22 @@ class TestResourceOperations:
         """Test _validate_token_chain with valid tokens."""
         workflow_store = {
             'explained': {'type': 'explained_properties', 'data': {}},
-            'security': {'type': 'security_scan', 'data': {}},
+            'security': {'type': 'security_scan', 'data': {}, 'parent_token': 'explained'},
         }
         _validate_token_chain('explained', 'security', workflow_store)
-        assert workflow_store['security']['parent_token'] == 'explained'
+
+    def test_validate_token_chain_rejects_cross_workflow(self):
+        """Test _validate_token_chain rejects tokens from different workflows."""
+        workflow_store = {
+            'explained_b': {'type': 'explained_properties', 'data': {}},
+            'security_a': {
+                'type': 'security_scan',
+                'data': {},
+                'parent_token': 'explained_a',
+            },
+        }
+        with pytest.raises(ClientError, match='Token chain mismatch'):
+            _validate_token_chain('explained_b', 'security_a', workflow_store)
 
     def test_validate_token_chain_invalid_explained(self):
         """Test _validate_token_chain with invalid explained token."""
@@ -203,6 +215,7 @@ class TestResourceOperations:
             'ProgressEvent': {'OperationStatus': 'SUCCESS'}
         }
 
+        patch_doc = [{'op': 'replace', 'path': '/BucketName', 'value': 'new-name'}]
         workflow_store = {
             'creds': {
                 'type': 'credentials',
@@ -214,14 +227,20 @@ class TestResourceOperations:
             },
             'explained': {
                 'type': 'explained_properties',
-                'data': {'properties': {'test': 'value'}},
+                'data': {
+                    'properties': {'test': 'value'},
+                    'operation': 'update',
+                    'patch_document': patch_doc,
+                    'resource_type': 'AWS::S3::Bucket',
+                    'identifier': 'test-bucket',
+                },
             },
         }
 
         request = UpdateResourceRequest(
             resource_type='AWS::S3::Bucket',
             identifier='test-bucket',
-            patch_document=[{'op': 'replace', 'path': '/BucketName', 'value': 'new-name'}],
+            patch_document=patch_doc,
             credentials_token='creds',
             explained_token='explained',
             skip_security_check=True,
@@ -512,6 +531,7 @@ class TestResourceOperations:
             'ProgressEvent': {'OperationStatus': 'SUCCESS'}
         }
 
+        patch_doc = [{'op': 'replace', 'path': '/test', 'value': 'new'}]
         workflow_store = {
             'creds': {
                 'type': 'credentials',
@@ -523,14 +543,20 @@ class TestResourceOperations:
             },
             'explained': {
                 'type': 'explained_properties',
-                'data': {'properties': {'test': 'value'}},
+                'data': {
+                    'properties': {'test': 'value'},
+                    'operation': 'update',
+                    'patch_document': patch_doc,
+                    'resource_type': 'AWS::S3::Bucket',
+                    'identifier': 'test-bucket',
+                },
             },
         }
 
         request = UpdateResourceRequest(
             resource_type='AWS::S3::Bucket',
             identifier='test-bucket',
-            patch_document=[{'op': 'replace', 'path': '/test', 'value': 'new'}],
+            patch_document=patch_doc,
             credentials_token='creds',
             explained_token='explained',
             skip_security_check=True,
@@ -675,6 +701,7 @@ class TestResourceOperations:
             'ProgressEvent': {'OperationStatus': 'SUCCESS'}
         }
 
+        patch_doc = [{'op': 'replace', 'path': '/test', 'value': 'new'}]
         workflow_store = {
             'creds': {
                 'type': 'credentials',
@@ -686,7 +713,13 @@ class TestResourceOperations:
             },
             'explained': {
                 'type': 'explained_properties',
-                'data': {'properties': {'test': 'value'}},
+                'data': {
+                    'properties': {'test': 'value'},
+                    'operation': 'update',
+                    'patch_document': patch_doc,
+                    'resource_type': 'AWS::S3::Bucket',
+                    'identifier': 'test-bucket',
+                },
             },
             'security': {'type': 'security_scan', 'data': {'passed': True}},
         }
@@ -694,7 +727,7 @@ class TestResourceOperations:
         request = UpdateResourceRequest(
             resource_type='AWS::S3::Bucket',
             identifier='test-bucket',
-            patch_document=[{'op': 'replace', 'path': '/test', 'value': 'new'}],
+            patch_document=patch_doc,
             credentials_token='creds',
             explained_token='explained',
             security_scan_token='security',
@@ -750,21 +783,32 @@ class TestResourceOperations:
         """Test update_resource_impl with API error."""
         mock_client.return_value.update_resource.side_effect = Exception('API Error')
 
+        patch_doc = [{'op': 'replace', 'path': '/test', 'value': 'new'}]
         workflow_store = {
             'creds': {
                 'type': 'credentials',
-                'data': {'credentials_valid': True, 'readonly_mode': False},
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
             },
             'explained': {
                 'type': 'explained_properties',
-                'data': {'properties': {'test': 'value'}},
+                'data': {
+                    'properties': {'test': 'value'},
+                    'operation': 'update',
+                    'patch_document': patch_doc,
+                    'resource_type': 'AWS::S3::Bucket',
+                    'identifier': 'test-bucket',
+                },
             },
         }
 
         request = UpdateResourceRequest(
             resource_type='AWS::S3::Bucket',
             identifier='test-bucket',
-            patch_document=[{'op': 'replace', 'path': '/test', 'value': 'new'}],
+            patch_document=patch_doc,
             credentials_token='creds',
             explained_token='explained',
             skip_security_check=True,
@@ -772,10 +816,9 @@ class TestResourceOperations:
         )
 
         with patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ') as mock_env:
-            with patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.validate_patch'):
-                mock_env.get.return_value = 'disabled'
-                with pytest.raises(Exception):
-                    await update_resource_impl(request, workflow_store)
+            mock_env.get.return_value = 'disabled'
+            with pytest.raises(Exception):
+                await update_resource_impl(request, workflow_store)
 
     @pytest.mark.asyncio
     @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.get_aws_client')
@@ -840,6 +883,7 @@ class TestResourceOperations:
             'ProgressEvent': {'OperationStatus': 'SUCCESS'}
         }
 
+        patch_doc = [{'op': 'replace', 'path': '/test', 'value': 'new'}]
         workflow_store = {
             'creds': {
                 'type': 'credentials',
@@ -851,14 +895,20 @@ class TestResourceOperations:
             },
             'explained': {
                 'type': 'explained_properties',
-                'data': {'properties': {'test': 'value'}},
+                'data': {
+                    'properties': {'test': 'value'},
+                    'operation': 'update',
+                    'patch_document': patch_doc,
+                    'resource_type': 'AWS::S3::Bucket',
+                    'identifier': 'test-bucket',
+                },
             },
         }
 
         request = UpdateResourceRequest(
             resource_type='AWS::S3::Bucket',
             identifier='test-bucket',
-            patch_document=[{'op': 'replace', 'path': '/test', 'value': 'new'}],
+            patch_document=patch_doc,
             credentials_token='creds',
             explained_token='explained',
             skip_security_check=True,
@@ -905,7 +955,7 @@ class TestResourceOperations:
             mock_env.get.return_value = 'enabled'
             with pytest.raises(ClientError) as exc_info:
                 await update_resource_impl(request, workflow_store)
-            assert 'Security scan token required' in str(exc_info.value)
+            assert 'no security_scan_token provided' in str(exc_info.value)
 
     def test_check_readonly_mode_with_context(self):
         """Test check_readonly_mode when Context.readonly_mode() returns True."""
@@ -1018,6 +1068,7 @@ class TestResourceOperations:
     @pytest.mark.asyncio
     async def test_update_resource_impl_no_region_configured(self):
         """Test update_resource_impl with no region configured."""
+        patch_doc = [{'op': 'replace', 'path': '/test', 'value': 'new'}]
         workflow_store = {
             'creds': {
                 'type': 'credentials',
@@ -1029,14 +1080,20 @@ class TestResourceOperations:
             },
             'explained': {
                 'type': 'explained_properties',
-                'data': {'properties': {'test': 'value'}},
+                'data': {
+                    'properties': {'test': 'value'},
+                    'operation': 'update',
+                    'patch_document': patch_doc,
+                    'resource_type': 'AWS::S3::Bucket',
+                    'identifier': 'test-bucket',
+                },
             },
         }
 
         request = UpdateResourceRequest(
             resource_type='AWS::S3::Bucket',
             identifier='test-bucket',
-            patch_document=[{'op': 'replace', 'path': '/test', 'value': 'new'}],
+            patch_document=patch_doc,
             credentials_token='creds',
             explained_token='explained',
             skip_security_check=True,
@@ -1109,3 +1166,454 @@ class TestResourceOperations:
         assert result['identifier'] == 'test-bucket'
         assert 'security_analysis' in result
         assert 'error' in result['security_analysis']
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ')
+    async def test_update_resource_impl_bogus_security_token_rejected(self, mock_environ):
+        """Verify that a non-empty but non-existent security_scan_token is rejected."""
+        mock_environ.get.return_value = 'enabled'
+
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
+            },
+            'explained': {
+                'type': 'explained_properties',
+                'data': {'properties': {'test': 'value'}},
+            },
+        }
+
+        request = UpdateResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            identifier='test-bucket',
+            patch_document=[{'op': 'replace', 'path': '/test', 'value': 'new'}],
+            credentials_token='creds',
+            explained_token='explained',
+            security_scan_token='bogus_token_not_in_store',
+            region='us-east-1',
+            skip_security_check=False,
+        )
+
+        with pytest.raises(ClientError, match='Invalid security_scan_token'):
+            await update_resource_impl(request, workflow_store)
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ')
+    async def test_update_resource_impl_bogus_explained_token_rejected(self, mock_environ):
+        """Verify that a non-existent explained_token is rejected when scanning enabled."""
+        mock_environ.get.return_value = 'enabled'
+
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
+            },
+            'security': {'type': 'security_scan', 'data': {'passed': True}},
+        }
+
+        request = UpdateResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            identifier='test-bucket',
+            patch_document=[{'op': 'replace', 'path': '/test', 'value': 'new'}],
+            credentials_token='creds',
+            explained_token='bogus_explained_not_in_store',
+            security_scan_token='security',
+            region='us-east-1',
+            skip_security_check=False,
+        )
+
+        with pytest.raises(ClientError, match='Invalid explained_token'):
+            await update_resource_impl(request, workflow_store)
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ')
+    async def test_update_resource_impl_wrong_token_types_rejected(self, mock_environ):
+        """Verify tokens with wrong types are rejected."""
+        mock_environ.get.return_value = 'enabled'
+
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
+            },
+            'explained': {
+                'type': 'security_scan',
+                'data': {},
+            },
+            'security': {'type': 'explained_properties', 'data': {}},
+        }
+
+        request = UpdateResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            identifier='test-bucket',
+            patch_document=[{'op': 'replace', 'path': '/test', 'value': 'new'}],
+            credentials_token='creds',
+            explained_token='explained',
+            security_scan_token='security',
+            region='us-east-1',
+            skip_security_check=False,
+        )
+
+        with pytest.raises(ClientError):
+            await update_resource_impl(request, workflow_store)
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ')
+    async def test_update_resource_impl_security_disabled_requires_skip(self, mock_environ):
+        """With SECURITY_SCANNING=disabled and skip_security_check=False, must reject."""
+        mock_environ.get.return_value = 'disabled'
+
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
+            },
+            'explained': {
+                'type': 'explained_properties',
+                'data': {'properties': {'test': 'value'}},
+            },
+        }
+
+        request = UpdateResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            identifier='test-bucket',
+            patch_document=[{'op': 'replace', 'path': '/test', 'value': 'new'}],
+            credentials_token='creds',
+            explained_token='explained',
+            region='us-east-1',
+            skip_security_check=False,
+        )
+
+        with pytest.raises(ClientError, match='skip_security_check=True'):
+            await update_resource_impl(request, workflow_store)
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.get_aws_client')
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ')
+    async def test_update_resource_impl_uses_stored_patch(self, mock_environ, mock_client):
+        """Verify update uses patch from token store, not caller input."""
+        mock_environ.get.return_value = 'enabled'
+        mock_client.return_value.update_resource.return_value = {
+            'ProgressEvent': {'OperationStatus': 'SUCCESS'}
+        }
+
+        stored_patch = [{'op': 'replace', 'path': '/BucketName', 'value': 'stored-name'}]
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
+            },
+            'explained': {
+                'type': 'explained_properties',
+                'data': {
+                    'properties': {'BucketName': 'stored-name'},
+                    'operation': 'update',
+                    'patch_document': stored_patch,
+                    'resource_type': 'AWS::S3::Bucket',
+                    'identifier': 'my-bucket',
+                },
+            },
+            'security': {'type': 'security_scan', 'data': {'passed': True}},
+        }
+
+        request = UpdateResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            identifier='my-bucket',
+            patch_document=stored_patch,
+            credentials_token='creds',
+            explained_token='explained',
+            security_scan_token='security',
+            region='us-east-1',
+            skip_security_check=False,
+        )
+
+        with patch(
+            'awslabs.ccapi_mcp_server.impl.tools.resource_operations.progress_event'
+        ) as mock_progress:
+            mock_progress.return_value = {'status': 'SUCCESS'}
+            result = await update_resource_impl(request, workflow_store)
+            assert result['status'] == 'SUCCESS'
+            # Verify the stored patch was sent to CloudControl
+            call_args = mock_client.return_value.update_resource.call_args
+            import json
+
+            assert json.loads(call_args[1]['PatchDocument']) == stored_patch
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ')
+    async def test_update_resource_impl_rejects_patch_mismatch(self, mock_environ):
+        """Verify update rejects when caller patch differs from stored."""
+        mock_environ.get.return_value = 'enabled'
+
+        stored_patch = [{'op': 'replace', 'path': '/BucketName', 'value': 'stored-name'}]
+        different_patch = [{'op': 'replace', 'path': '/BucketName', 'value': 'attacker-name'}]
+
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
+            },
+            'explained': {
+                'type': 'explained_properties',
+                'data': {
+                    'properties': {'BucketName': 'stored-name'},
+                    'operation': 'update',
+                    'patch_document': stored_patch,
+                    'resource_type': 'AWS::S3::Bucket',
+                    'identifier': 'my-bucket',
+                },
+            },
+            'security': {'type': 'security_scan', 'data': {'passed': True}},
+        }
+
+        request = UpdateResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            identifier='my-bucket',
+            patch_document=different_patch,
+            credentials_token='creds',
+            explained_token='explained',
+            security_scan_token='security',
+            region='us-east-1',
+            skip_security_check=False,
+        )
+
+        with pytest.raises(ClientError, match='Patch document mismatch'):
+            await update_resource_impl(request, workflow_store)
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ')
+    async def test_update_resource_impl_rejects_wrong_operation_type(self, mock_environ):
+        """Token generated for 'create' cannot be used for update."""
+        mock_environ.get.return_value = 'enabled'
+
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
+            },
+            'explained': {
+                'type': 'explained_properties',
+                'data': {
+                    'properties': {'BucketName': 'test'},
+                    'operation': 'create',
+                    'resource_type': 'AWS::S3::Bucket',
+                    'identifier': '',
+                },
+            },
+            'security': {'type': 'security_scan', 'data': {'passed': True}},
+        }
+
+        request = UpdateResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            identifier='my-bucket',
+            patch_document=[{'op': 'replace', 'path': '/test', 'value': 'new'}],
+            credentials_token='creds',
+            explained_token='explained',
+            security_scan_token='security',
+            region='us-east-1',
+            skip_security_check=False,
+        )
+
+        with pytest.raises(ClientError, match='not update'):
+            await update_resource_impl(request, workflow_store)
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ')
+    async def test_update_resource_impl_rejects_resource_type_mismatch(self, mock_environ):
+        """Token for AWS::S3::Bucket cannot update AWS::RDS::DBInstance."""
+        mock_environ.get.return_value = 'enabled'
+
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
+            },
+            'explained': {
+                'type': 'explained_properties',
+                'data': {
+                    'properties': {'BucketName': 'test'},
+                    'operation': 'update',
+                    'patch_document': [{'op': 'replace', 'path': '/test', 'value': 'x'}],
+                    'resource_type': 'AWS::S3::Bucket',
+                    'identifier': 'my-bucket',
+                },
+            },
+            'security': {'type': 'security_scan', 'data': {'passed': True}},
+        }
+
+        request = UpdateResourceRequest(
+            resource_type='AWS::RDS::DBInstance',
+            identifier='my-bucket',
+            patch_document=[{'op': 'replace', 'path': '/test', 'value': 'x'}],
+            credentials_token='creds',
+            explained_token='explained',
+            security_scan_token='security',
+            region='us-east-1',
+            skip_security_check=False,
+        )
+
+        with pytest.raises(ClientError, match='Resource type mismatch'):
+            await update_resource_impl(request, workflow_store)
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ')
+    async def test_update_resource_impl_rejects_identifier_mismatch(self, mock_environ):
+        """Token for bucket-A cannot update bucket-B."""
+        mock_environ.get.return_value = 'enabled'
+
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
+            },
+            'explained': {
+                'type': 'explained_properties',
+                'data': {
+                    'properties': {'BucketName': 'bucket-a'},
+                    'operation': 'update',
+                    'patch_document': [{'op': 'replace', 'path': '/test', 'value': 'x'}],
+                    'resource_type': 'AWS::S3::Bucket',
+                    'identifier': 'bucket-a',
+                },
+            },
+            'security': {'type': 'security_scan', 'data': {'passed': True}},
+        }
+
+        request = UpdateResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            identifier='bucket-b',
+            patch_document=[{'op': 'replace', 'path': '/test', 'value': 'x'}],
+            credentials_token='creds',
+            explained_token='explained',
+            security_scan_token='security',
+            region='us-east-1',
+            skip_security_check=False,
+        )
+
+        with pytest.raises(ClientError, match='Identifier mismatch'):
+            await update_resource_impl(request, workflow_store)
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ')
+    async def test_update_resource_impl_rejects_missing_patch_in_token(self, mock_environ):
+        """Token without stored patch_document is rejected."""
+        mock_environ.get.return_value = 'enabled'
+
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
+            },
+            'explained': {
+                'type': 'explained_properties',
+                'data': {
+                    'properties': {'BucketName': 'test'},
+                    'operation': 'update',
+                    'resource_type': 'AWS::S3::Bucket',
+                    'identifier': 'my-bucket',
+                    # patch_document intentionally omitted
+                },
+            },
+            'security': {'type': 'security_scan', 'data': {'passed': True}},
+        }
+
+        request = UpdateResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            identifier='my-bucket',
+            patch_document=[{'op': 'replace', 'path': '/test', 'value': 'x'}],
+            credentials_token='creds',
+            explained_token='explained',
+            security_scan_token='security',
+            region='us-east-1',
+            skip_security_check=False,
+        )
+
+        with pytest.raises(ClientError, match='does not contain a patch_document'):
+            await update_resource_impl(request, workflow_store)
+
+    @pytest.mark.asyncio
+    @patch('awslabs.ccapi_mcp_server.impl.tools.resource_operations.environ')
+    async def test_update_resource_impl_rejects_cross_workflow_tokens(self, mock_environ):
+        """Security scan from workflow A cannot be used with explained token from workflow B."""
+        mock_environ.get.return_value = 'enabled'
+
+        workflow_store = {
+            'creds': {
+                'type': 'credentials',
+                'data': {
+                    'credentials_valid': True,
+                    'readonly_mode': False,
+                    'environment_variables': {'AWS_REGION': 'us-east-1'},
+                },
+            },
+            'explained_b': {
+                'type': 'explained_properties',
+                'data': {
+                    'properties': {'BucketName': 'test'},
+                    'operation': 'update',
+                    'patch_document': [{'op': 'replace', 'path': '/test', 'value': 'x'}],
+                    'resource_type': 'AWS::S3::Bucket',
+                    'identifier': 'my-bucket',
+                },
+            },
+            'security_a': {
+                'type': 'security_scan',
+                'data': {'passed': True},
+                'parent_token': 'explained_a',
+            },
+        }
+
+        request = UpdateResourceRequest(
+            resource_type='AWS::S3::Bucket',
+            identifier='my-bucket',
+            patch_document=[{'op': 'replace', 'path': '/test', 'value': 'x'}],
+            credentials_token='creds',
+            explained_token='explained_b',
+            security_scan_token='security_a',
+            region='us-east-1',
+            skip_security_check=False,
+        )
+
+        with pytest.raises(ClientError, match='Token chain mismatch'):
+            await update_resource_impl(request, workflow_store)

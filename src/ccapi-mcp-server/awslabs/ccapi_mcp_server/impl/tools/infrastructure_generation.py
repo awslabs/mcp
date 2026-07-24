@@ -60,6 +60,10 @@ async def generate_infrastructure_code_impl_wrapper(
         'data': {
             'properties': result['properties'],
             'cloudformation_template': result.get('cloudformation_template', result['properties']),
+            'operation': result.get('operation', 'create'),
+            'patch_document': result.get('effective_patch_document'),
+            'resource_type': request.resource_type,
+            'identifier': request.identifier,
         },
         'parent_token': request.credentials_token,
         'timestamp': datetime.datetime.now().isoformat(),
