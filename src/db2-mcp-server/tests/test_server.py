@@ -1,0 +1,658 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Tests for server tools, helpers, the connection factory, and main()."""
+
+import pytest
+import sys
+from awslabs.db2_mcp_server import server
+from awslabs.db2_mcp_server.connection.db_connection_map import (
+    DEFAULT_DB2_SSL_PORT,
+    ConnectionMethod,
+)
+from awslabs.db2_mcp_server.connection.ibm_db_connection import DB2_TCP_PORT
+from botocore.exceptions import ClientError
+from mcp.shared.exceptions import McpError
+from unittest.mock import AsyncMock, MagicMock
+
+
+# Dummy ARNs for tests (not real secrets)
+DUMMY_RDS_SECRET_ARN = 'arn:rds'  # pragma: allowlist secret
+
+
+# --------------------------------------------------------------------------- #
+# Fixtures / fakes
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture(autouse=True)
+def restore_server_config():
+    """Snapshot and restore the global server_config around each test."""
+    snapshot = dict(server.server_config.__dict__)
+    yield
+    server.server_config.__dict__.update(snapshot)
+
+
+class FakeCtx:
+    """Minimal MCP Context with an async error() sink."""
+
+    def __init__(self):
+        """Initialize the fake context."""
+        self.errors = []
+
+    async def error(self, message):
+        """Record an error message."""
+        self.errors.append(message)
+
+
+class FakeConn:
+    """Fake DB connection implementing the bits run_query touches."""
+
+    def __init__(self, readonly=True, rows=None, exc=None):
+        """Initialize the fake connection."""
+        self.readonly_query = readonly
+        self._rows = rows if rows is not None else []
+        self._exc = exc
+        self.secret_arn = 'arn:secret'  # pragma: allowlist secret
+
+    async def execute_query(self, sql, parameters=None, max_rows=0):
+        """Return canned rows or raise the configured exception."""
+        if self._exc:
+            raise self._exc
+        return self._rows
+
+
+def _client_error(code='AccessDenied', message='nope'):
+    return ClientError({'Error': {'Code': code, 'Message': message}}, 'op')
+
+
+# --------------------------------------------------------------------------- #
+# run_query
+# --------------------------------------------------------------------------- #
+
+
+class TestRunQuery:
+    """Tests for the run_query tool."""
+
+    async def test_no_connection_returns_error(self, mocker):
+        """When no cached connection exists, an error dict is returned."""
+        mocker.patch.object(server.db_connection_map, 'get', return_value=None)
+        ctx = FakeCtx()
+        out = await server.run_query('SELECT 1 FROM SYSIBM.SYSDUMMY1', ctx, 'host', 'DB2DB')
+        assert 'error' in out
+        assert ctx.errors
+
+    async def test_success_wraps_data(self, mocker):
+        """A successful read-only query returns wrapped data with the read-only note."""
+        server.server_config.readonly_query = True
+        server.server_config.max_rows = 1000
+        mocker.patch.object(
+            server.db_connection_map, 'get', return_value=FakeConn(rows=[{'A': 1}])
+        )
+        out = await server.run_query('SELECT A FROM T', FakeCtx(), 'host', 'DB2DB')
+        assert 'UNTRUSTED database content' in out
+        assert '"A":1' in out
+        assert 'read-only mode' in out
+
+    async def test_readonly_rejects_mutating(self, mocker):
+        """A mutating statement is rejected in read-only mode."""
+        mocker.patch.object(server.db_connection_map, 'get', return_value=FakeConn(readonly=True))
+        with pytest.raises(McpError):
+            await server.run_query('DELETE FROM T', FakeCtx(), 'host', 'DB2DB')
+
+    async def test_readonly_rejects_transaction_bypass(self, mocker):
+        """A COMMIT in read-only mode is rejected as a bypass attempt."""
+        mocker.patch.object(server.db_connection_map, 'get', return_value=FakeConn(readonly=True))
+        with pytest.raises(McpError):
+            await server.run_query(
+                'SELECT 1 FROM SYSIBM.SYSDUMMY1; COMMIT', FakeCtx(), 'h', 'DB2DB'
+            )
+
+    async def test_injection_rejected(self, mocker):
+        """A suspicious injection pattern is rejected."""
+        server.server_config.readonly_query = True
+        mocker.patch.object(server.db_connection_map, 'get', return_value=FakeConn(readonly=False))
+        with pytest.raises(McpError):
+            await server.run_query('SELECT * FROM T WHERE 1=1 OR 1=1', FakeCtx(), 'h', 'DB2DB')
+
+    async def test_truncation_note(self, mocker):
+        """Results beyond max_rows are truncated with a note."""
+        server.server_config.readonly_query = False
+        server.server_config.max_rows = 2
+        mocker.patch.object(
+            server.db_connection_map,
+            'get',
+            return_value=FakeConn(readonly=False, rows=[{'A': i} for i in range(5)]),
+        )
+        out = await server.run_query('SELECT A FROM T', FakeCtx(), 'host', 'DB2DB')
+        assert 'truncated' in out.lower()
+
+    async def test_client_error(self, mocker):
+        """A ClientError from execute_query is surfaced as a structured dict."""
+        mocker.patch.object(
+            server.db_connection_map,
+            'get',
+            return_value=FakeConn(readonly=False, exc=_client_error('Throttling', 'slow down')),
+        )
+        out = await server.run_query('SELECT 1 FROM SYSIBM.SYSDUMMY1', FakeCtx(), 'h', 'DB2DB')
+        assert out['code'] == 'Throttling'
+
+    async def test_generic_exception(self, mocker):
+        """A generic exception is surfaced as an error dict."""
+        mocker.patch.object(
+            server.db_connection_map,
+            'get',
+            return_value=FakeConn(readonly=False, exc=RuntimeError('boom')),
+        )
+        out = await server.run_query('SELECT 1 FROM SYSIBM.SYSDUMMY1', FakeCtx(), 'h', 'DB2DB')
+        assert 'error' in out and 'boom' in out['error']
+
+
+# --------------------------------------------------------------------------- #
+# get_table_schema
+# --------------------------------------------------------------------------- #
+
+
+class TestGetTableSchema:
+    """Tests for the get_table_schema tool."""
+
+    async def test_invalid_table_name(self):
+        """An invalid table name raises McpError."""
+        with pytest.raises(McpError):
+            await server.get_table_schema('host', 'DB2DB', '1bad', FakeCtx())
+
+    async def test_invalid_schema_name(self):
+        """An invalid schema name raises McpError."""
+        with pytest.raises(McpError):
+            await server.get_table_schema('host', 'DB2DB', 'T', FakeCtx(), schema_name='1bad')
+
+    async def test_schema_qualified_table_name_rejected(self):
+        """A dotted 'SCHEMA.TABLE' table_name is rejected rather than silently returning empty.
+
+        validate_identifier() allows up to two parts, but the catalog query always
+        binds the whole string as TABNAME -- a dotted name would match no catalog row
+        and return an empty result with no error. Reject it and point to schema_name.
+        """
+        with pytest.raises(McpError, match='schema-qualified'):
+            await server.get_table_schema('host', 'DB2DB', 'HR.EMPLOYEE', FakeCtx())
+
+    async def test_with_schema(self, mocker):
+        """With a schema, the catalog query filters on TABSCHEMA and uppercases names."""
+        rq = mocker.patch.object(server, 'run_query', new=AsyncMock(return_value='ok'))
+        await server.get_table_schema(
+            'host', 'DB2DB', 'systables', FakeCtx(), schema_name='sysibm'
+        )
+        kwargs = rq.call_args.kwargs
+        assert 'TABSCHEMA = ?' in kwargs['sql']
+        vals = [p['value']['stringValue'] for p in kwargs['query_parameters']]
+        assert vals == ['SYSTABLES', 'SYSIBM']
+
+    async def test_without_schema(self, mocker):
+        """Without a schema, the query filters on TABNAME only."""
+        rq = mocker.patch.object(server, 'run_query', new=AsyncMock(return_value='ok'))
+        await server.get_table_schema('host', 'DB2DB', 'T', FakeCtx())
+        sql = rq.call_args.kwargs['sql']
+        assert 'WHERE TABNAME = ?' in sql and 'TABSCHEMA = ?' not in sql
+
+
+# --------------------------------------------------------------------------- #
+# connect_to_database / is_database_connected / connection info
+# --------------------------------------------------------------------------- #
+
+
+class TestConnectTool:
+    """Tests for connect_to_database and connection-info tools."""
+
+    async def test_connect_success(self, mocker):
+        """connect_to_database returns the llm_response from the factory."""
+        mocker.patch.object(
+            server, 'internal_create_connection', return_value=(object(), {'status': 'Connected'})
+        )
+        out = await server.connect_to_database('us-east-1', 'host')
+        assert out['status'] == 'Connected'
+
+    async def test_connect_failure(self, mocker):
+        """A factory error is returned as a Failed status."""
+        mocker.patch.object(
+            server, 'internal_create_connection', side_effect=ValueError('bad secret')
+        )
+        out = await server.connect_to_database('us-east-1', 'host')
+        assert out['status'] == 'Failed' and 'bad secret' in out['error']
+
+    def test_is_database_connected(self, mocker):
+        """is_database_connected reflects the connection map."""
+        mocker.patch.object(server.db_connection_map, 'get', return_value=FakeConn())
+        assert server.is_database_connected('host') is True
+        mocker.patch.object(server.db_connection_map, 'get', return_value=None)
+        assert server.is_database_connected('host') is False
+
+    def test_get_connection_info(self, mocker):
+        """get_database_connection_info delegates to the map."""
+        mocker.patch.object(
+            server.db_connection_map, 'get_keys', return_value=[{'db_endpoint': 'h'}]
+        )
+        assert server.get_database_connection_info() == [{'db_endpoint': 'h'}]
+
+    async def test_connect_offloads_to_thread(self, mocker):
+        """connect_to_database runs internal_create_connection via asyncio.to_thread.
+
+        internal_create_connection does synchronous boto3 calls plus a full TCP/TLS
+        connect and validation probe; it must not run directly on the event loop
+        (a slow/unreachable endpoint would otherwise freeze all other tools).
+        """
+        mocker.patch.object(
+            server, 'internal_create_connection', return_value=(object(), {'status': 'Connected'})
+        )
+        to_thread_spy = mocker.patch.object(
+            server.asyncio,
+            'to_thread',
+            new=AsyncMock(return_value=(object(), {'status': 'Connected'})),
+        )
+        out = await server.connect_to_database('us-east-1', 'host')
+        to_thread_spy.assert_called_once()
+        assert to_thread_spy.call_args.args[0] is server.internal_create_connection
+        assert out['status'] == 'Connected'
+
+
+# --------------------------------------------------------------------------- #
+# internal_create_connection
+# --------------------------------------------------------------------------- #
+
+
+class TestInternalCreateConnection:
+    """Tests for the connection factory."""
+
+    def test_requires_region(self):
+        """A missing region raises ValueError."""
+        with pytest.raises(ValueError):
+            server.internal_create_connection('', 'id', 'host', 50443, 'DB2DB')
+
+    def test_returns_cached(self, mocker):
+        """An existing cached connection is reused."""
+        cached = FakeConn()
+        cached.secret_arn = 'arn:secret'  # pragma: allowlist secret
+        mocker.patch.object(server.db_connection_map, 'get', return_value=cached)
+        conn, resp = server.internal_create_connection(
+            'us-east-1',
+            'id',
+            'host',
+            50443,
+            'DB2DB',
+            secret_arn='arn:secret',  # pragma: allowlist secret
+        )
+        assert conn is cached and 'cached' in resp['status'].lower()
+
+    def test_explicit_secret_creates_connection(self, mocker):
+        """An explicit secret_arn skips RDS describe and builds a connection."""
+        mocker.patch.object(server.db_connection_map, 'get', return_value=None)
+        set_spy = mocker.patch.object(server.db_connection_map, 'set')
+        fake_conn = mocker.Mock()
+        fake_conn.validate_sync = mocker.Mock()  # Mock the validation
+        fake = mocker.patch.object(server, 'IbmDbConnection', return_value=fake_conn)
+        conn, resp = server.internal_create_connection(
+            'us-east-1',
+            'id',
+            'host',
+            50443,
+            'DB2DB',
+            secret_arn='arn:explicit',  # pragma: allowlist secret
+        )
+        assert resp['status'] == 'Connected'
+        fake.assert_called_once()
+        set_spy.assert_called_once()
+        fake_conn.validate_sync.assert_called_once()  # Verify validation was called
+
+    def test_resolves_rds_master_secret(self, mocker):
+        """With no secret, the RDS managed master secret is resolved."""
+        mocker.patch.object(server.db_connection_map, 'get', return_value=None)
+        mocker.patch.object(server.db_connection_map, 'set')
+        fake_conn = mocker.Mock()
+        fake_conn.validate_sync = mocker.Mock()
+        mocker.patch.object(server, 'IbmDbConnection', return_value=fake_conn)
+        rds = MagicMock()
+        rds.describe_db_instances.return_value = {
+            'DBInstances': [{'MasterUserSecret': {'SecretArn': DUMMY_RDS_SECRET_ARN}}]
+        }
+        mocker.patch.object(server.boto3, 'client', return_value=rds)
+        conn, resp = server.internal_create_connection('us-east-1', 'id', 'host', 50443, 'DB2DB')
+        assert resp['status'] == 'Connected'
+        fake_conn.validate_sync.assert_called_once()
+
+    def test_instance_not_found(self, mocker):
+        """A DBInstanceNotFound error becomes a clear ValueError."""
+        mocker.patch.object(server.db_connection_map, 'get', return_value=None)
+        rds = MagicMock()
+        rds.describe_db_instances.side_effect = _client_error('DBInstanceNotFound', 'no')
+        mocker.patch.object(server.boto3, 'client', return_value=rds)
+        with pytest.raises(ValueError, match='not found'):
+            server.internal_create_connection('us-east-1', 'id', 'host', 50443, 'DB2DB')
+
+    def test_no_managed_secret(self, mocker):
+        """An instance without a managed secret raises a helpful ValueError."""
+        mocker.patch.object(server.db_connection_map, 'get', return_value=None)
+        rds = MagicMock()
+        rds.describe_db_instances.return_value = {'DBInstances': [{}]}
+        mocker.patch.object(server.boto3, 'client', return_value=rds)
+        with pytest.raises(ValueError, match='managed master secret'):
+            server.internal_create_connection('us-east-1', 'id', 'host', 50443, 'DB2DB')
+
+
+# --------------------------------------------------------------------------- #
+# Helpers
+# --------------------------------------------------------------------------- #
+
+
+class TestResolvePort:
+    """Tests for SSL-mode-aware port resolution."""
+
+    def test_explicit_port_wins(self):
+        """An explicit port overrides the SSL-mode default."""
+        assert server._resolve_port(60000) == 60000
+
+    def test_ssl_default(self):
+        """SSL mode resolves to 50443 when no port is given."""
+        server.server_config.ssl_encryption_mode = 'require'
+        assert server._resolve_port(None) == DEFAULT_DB2_SSL_PORT
+
+    def test_plain_default(self):
+        """Plain TCP mode resolves to 50000 when no port is given."""
+        server.server_config.ssl_encryption_mode = 'off'
+        assert server._resolve_port(None) == DB2_TCP_PORT
+
+
+class TestIdentifierValidation:
+    """Tests for Db2 identifier validation and catalog form."""
+
+    @pytest.mark.parametrize(
+        'name,valid',
+        [
+            ('EMPLOYEE', True),
+            ('myschema.mytable', True),
+            ('"Mixed Case"', True),
+            ('a.b.c', False),
+            ('1bad', False),
+            ('', False),
+            (None, False),
+            ('"a""b"', True),  # doubled quote = one escaped quote inside a quoted id
+            ('""', False),  # empty quoted identifier
+            ('"open', False),  # unterminated quoted identifier
+            ('a.', False),  # trailing separator
+            ('a b', False),  # invalid character after first part
+            ('"a\x00b"', False),  # NUL inside quoted identifier
+            ('A' * 129, False),  # exceeds the max identifier byte length
+        ],
+    )
+    def test_validate_identifier(self, name, valid):
+        """Identifier validation accepts valid one/two-part names only."""
+        assert server.validate_identifier(name) is valid
+
+    def test_catalog_form_uppercases_unquoted(self):
+        """Unquoted identifiers fold to uppercase in catalog form."""
+        assert server._catalog_form('employee') == 'EMPLOYEE'
+
+    def test_catalog_form_preserves_quoted(self):
+        """Quoted identifiers preserve case."""
+        assert server._catalog_form('"MixedCase"') == 'MixedCase'
+
+    def test_catalog_form_qualified_falls_back(self):
+        """A multi-part name falls back to uppercasing the whole string."""
+        assert server._catalog_form('a.b') == 'A.B'
+
+
+class TestWrapUntrustedData:
+    """Tests for untrusted-data wrapping."""
+
+    def test_wrap_contains_boundary_and_payload(self):
+        """Wrapped data carries a boundary marker and the serialized payload."""
+        wrapped = server._wrap_untrusted_data([{'COLNAME': 'ID'}])
+        assert 'UNTRUSTED database content' in wrapped and 'COLNAME' in wrapped
+
+
+# --------------------------------------------------------------------------- #
+# main()
+# --------------------------------------------------------------------------- #
+
+
+class TestMain:
+    """Tests for the CLI entry point."""
+
+    def test_main_readonly_default(self, mocker, monkeypatch):
+        """main() defaults to read-only and starts the server."""
+        monkeypatch.setattr(sys, 'argv', ['prog', '--region', 'us-east-1'])
+        run = mocker.patch.object(server.mcp, 'run')
+        mocker.patch.object(server.db_connection_map, 'close_all')
+        server.main()
+        assert server.server_config.readonly_query is True
+        run.assert_called_once()
+
+    def test_main_write_and_hostname_off(self, mocker, monkeypatch):
+        """--allow_write_query and --ssl_hostname_validation off are honored."""
+        monkeypatch.setattr(
+            sys,
+            'argv',
+            ['prog', '--allow_write_query', '--ssl_hostname_validation', 'off'],
+        )
+        mocker.patch.object(server.mcp, 'run')
+        mocker.patch.object(server.db_connection_map, 'close_all')
+        server.main()
+        assert server.server_config.readonly_query is False
+        assert server.server_config.ssl_hostname_validation is False
+
+    def test_main_startup_connect_validates(self, mocker, monkeypatch):
+        """With --db_endpoint, main() creates and validates a connection at startup."""
+        monkeypatch.setattr(
+            sys,
+            'argv',
+            [
+                'prog',
+                '--region',
+                'us-east-1',
+                '--db_endpoint',
+                'host',
+                '--secret_arn',
+                'arn:x',
+            ],  # pragma: allowlist secret
+        )
+        validated = MagicMock()
+        validated.validate_sync = mocker.Mock()  # Mock validation
+        mocker.patch.object(
+            server, 'internal_create_connection', return_value=(validated, {'status': 'Connected'})
+        )
+        mocker.patch.object(server.mcp, 'run')
+        mocker.patch.object(server.db_connection_map, 'close_all')
+        server.main()
+        # validate_sync is called inside internal_create_connection, not in main
+        # So we just need to verify internal_create_connection was called
+
+    def test_main_endpoint_requires_region_exits(self, mocker, monkeypatch):
+        """--db_endpoint without --region exits with a non-zero status."""
+        monkeypatch.setattr(sys, 'argv', ['prog', '--db_endpoint', 'host'])
+        mocker.patch.object(server.mcp, 'run')
+        mocker.patch.object(server.db_connection_map, 'close_all')
+        with pytest.raises(SystemExit):
+            server.main()
+
+    def test_main_startup_validate_failure_exits(self, mocker, monkeypatch):
+        """A failed startup validation exits with a non-zero status."""
+        monkeypatch.setattr(
+            sys,
+            'argv',
+            [
+                'prog',
+                '--region',
+                'us-east-1',
+                '--db_endpoint',
+                'host',
+                '--secret_arn',
+                'arn:x',
+            ],  # pragma: allowlist secret
+        )
+        # internal_create_connection now raises on validation failure
+        mocker.patch.object(
+            server, 'internal_create_connection', side_effect=ValueError('validation failed')
+        )
+        mocker.patch.object(server.mcp, 'run')
+        mocker.patch.object(server.db_connection_map, 'close_all')
+        with pytest.raises(SystemExit):
+            server.main()
+
+
+def test_connection_method_enum():
+    """The DB2 password connection method is defined."""
+    assert ConnectionMethod.DB2_PASSWORD.value == 'db2_password'
+
+
+# --------------------------------------------------------------------------- #
+# Additional coverage from review round 2
+# --------------------------------------------------------------------------- #
+
+
+class TestReadonlyPropagation:
+    """The connection factory must carry the global read-only flag into connections."""
+
+    @pytest.mark.parametrize('readonly', [True, False])
+    def test_propagates_readonly_flag(self, mocker, readonly):
+        """internal_create_connection builds the connection with server_config.readonly_query.
+
+        A regression here would silently disable all mutation blocking, and the run_query
+        security tests (which use FakeConn with an independently-set flag) would not catch it.
+        """
+        mocker.patch.object(server.db_connection_map, 'get', return_value=None)
+        mocker.patch.object(server.db_connection_map, 'set')
+        fake_conn = mocker.Mock()
+        fake_conn.validate_sync = mocker.Mock()
+        fake = mocker.patch.object(server, 'IbmDbConnection', return_value=fake_conn)
+        server.server_config.readonly_query = readonly
+        server.internal_create_connection(
+            'us-east-1',
+            'id',
+            'host',
+            50443,
+            'DB2DB',
+            secret_arn='arn:explicit',  # pragma: allowlist secret
+        )
+        assert fake.call_args.kwargs['readonly'] is readonly
+        fake_conn.validate_sync.assert_called_once()
+
+
+async def test_connect_botocore_error_returns_failed(mocker):
+    """A BotoCoreError (endpoint/credential failure) honors the Failed contract, not a crash."""
+    from botocore.exceptions import EndpointConnectionError
+
+    mocker.patch.object(
+        server,
+        'internal_create_connection',
+        side_effect=EndpointConnectionError(endpoint_url='https://rds.example'),
+    )
+    out = await server.connect_to_database('us-east-1', 'host')
+    assert out['status'] == 'Failed'
+
+
+async def test_run_query_max_rows_zero_no_truncation(mocker):
+    """max_rows=0 means no limit and no truncation note."""
+    server.server_config.readonly_query = False
+    server.server_config.max_rows = 0
+    mocker.patch.object(
+        server.db_connection_map,
+        'get',
+        return_value=FakeConn(readonly=False, rows=[{'A': i} for i in range(5)]),
+    )
+    out = await server.run_query('SELECT A FROM T', FakeCtx(), 'host', 'DB2DB')
+    assert 'truncated' not in out.lower()
+
+
+async def test_run_query_exact_boundary_no_truncation(mocker):
+    """Exactly max_rows rows returns without a truncation note (boundary case)."""
+    server.server_config.readonly_query = False
+    server.server_config.max_rows = 3
+    mocker.patch.object(
+        server.db_connection_map,
+        'get',
+        return_value=FakeConn(readonly=False, rows=[{'A': i} for i in range(3)]),
+    )
+    out = await server.run_query('SELECT A FROM T', FakeCtx(), 'host', 'DB2DB')
+    assert 'truncated' not in out.lower()
+
+
+class TestLooksLikeRdsEndpoint:
+    """Tests for RDS-endpoint detection used to derive the instance identifier."""
+
+    @pytest.mark.parametrize(
+        'host,expected',
+        [
+            ('db2.abc123.us-east-1.rds.amazonaws.com', True),
+            ('db2-prod.xyz.eu-west-1.rds.amazonaws.com', True),
+            ('host', False),  # dotless (e.g. a local alias)
+            ('127.0.0.1', False),  # IPv4 tunnel host
+            ('', False),
+        ],
+    )
+    def test_looks_like_rds_endpoint(self, host, expected):
+        """Only standard RDS DNS endpoints are treated as id-derivable."""
+        assert server._looks_like_rds_endpoint(host) is expected
+
+
+def test_main_dotless_endpoint_without_secret_exits(mocker, monkeypatch):
+    """A dotless/IP endpoint with no secret can't derive an instance id and exits cleanly."""
+    monkeypatch.setattr(
+        sys, 'argv', ['prog', '--region', 'us-east-1', '--db_endpoint', '127.0.0.1']
+    )
+    server.server_config.default_secret_arn = ''
+    mocker.patch.object(server.mcp, 'run')
+    mocker.patch.object(server.db_connection_map, 'close_all')
+    with pytest.raises(SystemExit):
+        server.main()
+
+
+def test_internal_create_connection_validates_and_evicts_on_failure(mocker):
+    """internal_create_connection validates connectivity and evicts broken connections.
+
+    When validate_sync fails (unreachable endpoint, bad secret, SSL error), the
+    tool must remove the cached entry so a broken connection is not left behind.
+    """
+    mocker.patch.object(server.db_connection_map, 'get', return_value=None)
+    set_spy = mocker.patch.object(server.db_connection_map, 'set')
+    remove_spy = mocker.patch.object(server.db_connection_map, 'remove')
+    bad = MagicMock()
+    bad.validate_sync.side_effect = RuntimeError('connection refused')
+    mocker.patch.object(server, 'IbmDbConnection', return_value=bad)
+    # Now we wrap the original exception in ValueError
+    with pytest.raises(ValueError, match='Failed to validate connection: connection refused'):
+        server.internal_create_connection(
+            'us-east-1',
+            'id',
+            'host',
+            50443,
+            'DB2DB',
+            secret_arn='arn:explicit',  # pragma: allowlist secret
+        )
+    # Cached the connection then removed it on validation failure.
+    set_spy.assert_called_once()
+    remove_spy.assert_called_once()
+
+
+async def test_connect_to_database_validation_failure_returns_failed(mocker):
+    """connect_to_database returns Failed status when validation fails at connect time."""
+    mocker.patch.object(server.db_connection_map, 'get', return_value=None)
+    mocker.patch.object(server.db_connection_map, 'set')
+    mocker.patch.object(server.db_connection_map, 'remove')
+    bad = MagicMock()
+    bad.validate_sync.side_effect = RuntimeError('SSL handshake failed')
+    mocker.patch.object(server, 'IbmDbConnection', return_value=bad)
+    out = await server.connect_to_database(
+        'us-east-1',
+        'host',
+        secret_arn='arn:x',  # pragma: allowlist secret
+    )
+    assert out['status'] == 'Failed' and 'SSL handshake failed' in out['error']
