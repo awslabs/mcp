@@ -457,3 +457,86 @@ class TestDiffScanAndThreatModel:
         mock_client.batch_get_threats.assert_called_once_with(
             agentSpaceId='as-1', threatIds=['t-1']
         )
+
+
+class TestUserAgentInjection:
+    """Tests for custom User-Agent injection."""
+
+    def test_default_user_agent_has_mcp_server_identifier(self):
+        """SecurityAgentClient includes MCP server identifier in config by default."""
+        client = SecurityAgentClient(region='us-east-1')
+        assert 'md/awslabs#mcp#security-agent-mcp-server#' in client._config.user_agent_extra  # type: ignore[attr-defined]
+        assert 'md/client#unknown' in client._config.user_agent_extra  # type: ignore[attr-defined]
+
+    def test_constructor_accepts_mcp_client_info(self):
+        """SecurityAgentClient accepts mcp_client_name and version at construction."""
+        client = SecurityAgentClient(
+            region='us-east-1', mcp_client_name='kiro', mcp_client_version='1.5.0'
+        )
+        assert 'md/client#kiro/1.5.0' in client._config.user_agent_extra  # type: ignore[attr-defined]
+
+    def test_set_mcp_client_info_updates_user_agent(self):
+        """set_mcp_client_info updates the user agent with client name and version."""
+        client = SecurityAgentClient(region='us-east-1')
+        client.set_mcp_client_info('kiro', '1.5.0')
+        assert 'md/client#kiro/1.5.0' in client._config.user_agent_extra  # type: ignore[attr-defined]
+
+    def test_set_mcp_client_info_without_version(self):
+        """set_mcp_client_info works with just client name (no version)."""
+        client = SecurityAgentClient(region='us-east-1')
+        client.set_mcp_client_info('cursor', '')
+        assert 'md/client#cursor' in client._config.user_agent_extra  # type: ignore[attr-defined]
+        assert 'md/client#cursor/' not in client._config.user_agent_extra  # type: ignore[attr-defined]
+
+    def test_set_mcp_client_info_noop_when_same(self):
+        """set_mcp_client_info does not rebuild config if info is unchanged."""
+        client = SecurityAgentClient(region='us-east-1')
+        client.set_mcp_client_info('kiro', '1.5.0')
+        config_after_first = client._config
+        client.set_mcp_client_info('kiro', '1.5.0')
+        assert client._config is config_after_first  # Same object, not rebuilt
+
+    def test_set_mcp_client_info_rebuilds_when_different(self):
+        """set_mcp_client_info rebuilds config when info changes."""
+        client = SecurityAgentClient(region='us-east-1')
+        client.set_mcp_client_info('kiro', '1.0')
+        config_first = client._config
+        client.set_mcp_client_info('claude-code', '2.0')
+        assert client._config is not config_first
+        assert 'md/client#claude-code/2.0' in client._config.user_agent_extra  # type: ignore[attr-defined]
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_client_passes_config_to_securityagent(self, mock_boto3):
+        """_client() passes the botocore config to boto3 securityagent client."""
+        mock_session = MagicMock()
+        mock_boto3.Session.return_value = mock_session
+        client = SecurityAgentClient(region='us-east-1')
+        client._client()
+        mock_session.client.assert_called_once_with('securityagent', config=client._config)
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_get_caller_identity_passes_config(self, mock_boto3):
+        """get_caller_identity passes the botocore config to sts client."""
+        mock_session = MagicMock()
+        mock_boto3.Session.return_value = mock_session
+        client = SecurityAgentClient(region='us-east-1')
+        client.get_caller_identity()
+        mock_session.client.assert_called_once_with('sts', config=client._config)
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_upload_to_s3_passes_config(self, mock_boto3):
+        """upload_to_s3 passes the botocore config to s3 client."""
+        mock_session = MagicMock()
+        mock_boto3.Session.return_value = mock_session
+        client = SecurityAgentClient(region='us-east-1')
+        client.upload_to_s3('bucket', 'key', '/path/to/file')
+        mock_session.client.assert_called_once_with('s3', config=client._config)
+
+    def test_build_config_handles_missing_package_metadata(self):
+        """_build_config falls back to unknown when package metadata unavailable."""
+        with patch('importlib.metadata.version', side_effect=Exception('not found')):
+            client = SecurityAgentClient(region='us-east-1')
+            assert (
+                'md/awslabs#mcp#security-agent-mcp-server#unknown'
+                in client._config.user_agent_extra  # type: ignore[attr-defined]
+            )
