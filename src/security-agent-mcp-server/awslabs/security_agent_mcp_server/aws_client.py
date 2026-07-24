@@ -50,9 +50,7 @@ class SecurityAgentClient:
         except Exception:
             mcp_server_version = 'unknown'
 
-        ua_extra = (
-            f'awslabs-security-agent-mcp-server/{mcp_server_version} md/client#{mcp_client_name}'
-        )
+        ua_extra = f'md/awslabs#mcp#security-agent-mcp-server#{mcp_server_version} md/client#{mcp_client_name}'
         if mcp_client_version:
             ua_extra += f'/{mcp_client_version}'
 

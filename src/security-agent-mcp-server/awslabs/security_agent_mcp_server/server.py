@@ -165,8 +165,10 @@ def _ensure_client_ua(ctx: Context) -> None:
             info.version if hasattr(info, 'version') and isinstance(info.version, str) else ''
         )
         _client.set_mcp_client_info(name, version)
-    except (AttributeError, TypeError):
-        pass
+    except (AttributeError, TypeError) as e:
+        # Best-effort enrichment only; missing/invalid session client metadata
+        # must not fail tool execution.
+        logger.debug(f'Unable to set MCP client info for user-agent: {e}')
 
 
 def _ensure_s3_bucket(config: dict, kind: str = 'scans') -> None:
