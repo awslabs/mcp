@@ -961,6 +961,18 @@ def main():
                 f'Example: https://xmfe3hc3pk.execute-api.us-east-2.amazonaws.com'
             )
             sys.exit(1)
+        # Restrict egress to a fixed allowlist of trusted AWS-hosted knowledge
+        # server endpoints. Without this, a malicious launcher configuration
+        # could coerce the server into POSTing JSON-RPC bodies (which include
+        # user-supplied search phrases/URLs) to an arbitrary HTTPS endpoint.
+        if parsed_url.hostname not in ALLOWED_KNOWLEDGE_SERVER_HOSTS:
+            logger.error(
+                f'Knowledge server host is not in the allowlist. Got: {parsed_url.hostname}. '
+                f'Allowed hosts: {sorted(ALLOWED_KNOWLEDGE_SERVER_HOSTS)}'
+            )
+            sys.exit(1)
+    except SystemExit:
+        raise
     except Exception as e:
         logger.error(f'Invalid knowledge server URL: {e}')
         sys.exit(1)
