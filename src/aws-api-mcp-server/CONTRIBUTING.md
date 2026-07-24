@@ -59,6 +59,7 @@ Add the following code to your MCP client configuration (e.g., for Kiro, edit `~
         "--directory",
         "<your_working_directory>/mcp/src/aws-api-mcp-server",
         "run",
+        "--no-sync",
         "awslabs.aws-api-mcp-server"
       ],
       "env": {

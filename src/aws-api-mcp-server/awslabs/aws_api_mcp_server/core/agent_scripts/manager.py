@@ -49,7 +49,7 @@ class AgentScriptsManager:
 
             for script_directory in self.scripts_dirs:
                 for file_path in script_directory.glob('*.script.md'):
-                    with open(file_path, 'r') as f:
+                    with file_path.open('r') as f:
                         metadata, script = frontmatter.parse(f.read())
                         script_name = file_path.stem.removesuffix('.script')
                         description = metadata.get('description')
