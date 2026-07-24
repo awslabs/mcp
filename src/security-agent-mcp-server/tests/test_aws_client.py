@@ -465,7 +465,7 @@ class TestUserAgentInjection:
     def test_default_user_agent_has_mcp_server_identifier(self):
         """SecurityAgentClient includes MCP server identifier in config by default."""
         client = SecurityAgentClient(region='us-east-1')
-        assert 'awslabs-security-agent-mcp-server' in client._config.user_agent_extra  # type: ignore[attr-defined]
+        assert 'md/awslabs#mcp#security-agent-mcp-server#' in client._config.user_agent_extra  # type: ignore[attr-defined]
         assert 'md/client#unknown' in client._config.user_agent_extra  # type: ignore[attr-defined]
 
     def test_constructor_accepts_mcp_client_info(self):
@@ -531,9 +531,3 @@ class TestUserAgentInjection:
         client = SecurityAgentClient(region='us-east-1')
         client.upload_to_s3('bucket', 'key', '/path/to/file')
         mock_session.client.assert_called_once_with('s3', config=client._config)
-
-    def test_build_config_handles_missing_package_metadata(self):
-        """_build_config falls back to unknown when package metadata unavailable."""
-        with patch('importlib.metadata.version', side_effect=Exception('not found')):
-            client = SecurityAgentClient(region='us-east-1')
-            assert 'awslabs-security-agent-mcp-server/unknown' in client._config.user_agent_extra  # type: ignore[attr-defined]

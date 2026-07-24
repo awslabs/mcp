@@ -18,6 +18,7 @@ import boto3
 import botocore.config
 import json
 import re
+from awslabs.security_agent_mcp_server import __version__
 from typing import Any, Optional
 
 
@@ -43,16 +44,10 @@ class SecurityAgentClient:
         self, mcp_client_name: str, mcp_client_version: str
     ) -> botocore.config.Config:
         """Build a botocore Config with a custom user_agent_extra string."""
-        try:
-            from importlib.metadata import version as pkg_version
+        # Sanitize client name to prevent malformed UA tokens (e.g. "Claude Code" -> "claude-code")
+        safe_name = mcp_client_name.lower().replace(' ', '-')
 
-            mcp_server_version = pkg_version('awslabs.security-agent-mcp-server')
-        except Exception:
-            mcp_server_version = 'unknown'
-
-        ua_extra = (
-            f'awslabs-security-agent-mcp-server/{mcp_server_version} md/client#{mcp_client_name}'
-        )
+        ua_extra = f'md/awslabs#mcp#security-agent-mcp-server#{__version__} md/client#{safe_name}'
         if mcp_client_version:
             ua_extra += f'/{mcp_client_version}'
 
@@ -63,6 +58,8 @@ class SecurityAgentClient:
 
         Called after MCP session initialization when clientInfo becomes available.
         """
+        # NOTE: Under concurrent HTTP/SSE sessions, _config would need per-session isolation.
+        # Current stdio transport guarantees one client per process.
         if (
             mcp_client_name == self._mcp_client_name
             and mcp_client_version == self._mcp_client_version
