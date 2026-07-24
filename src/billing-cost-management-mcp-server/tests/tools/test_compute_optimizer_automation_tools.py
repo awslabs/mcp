@@ -1347,13 +1347,7 @@ class TestGlobalFanOut:
         factory = _list_factory(
             'list_recommended_actions',
             'recommendedActions',
-            {
-                'us-west-2': {
-                    'recommendedActions': [
-                        {'recommendedActionId': 'a1', 'region': ''}
-                    ]
-                }
-            },
+            {'us-west-2': {'recommendedActions': [{'recommendedActionId': 'a1', 'region': ''}]}},
         )
         with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             mock_create.side_effect = factory
@@ -1425,13 +1419,9 @@ class TestGlobalFanOut:
             ({'us-east-1': None}, 'non-empty string'),
         ],
     )
-    async def test_rejects_invalid_global_token_state(
-        self, mock_ctx, payload, message_fragment
-    ):
+    async def test_rejects_invalid_global_token_state(self, mock_ctx, payload, message_fragment):
         """Invalid regional state is rejected before any clients are created."""
-        next_token = base64.b64encode(
-            json.dumps(payload, separators=(',', ':')).encode()
-        ).decode()
+        next_token = base64.b64encode(json.dumps(payload, separators=(',', ':')).encode()).decode()
 
         with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             result = await automation_fn(
@@ -1482,9 +1472,7 @@ class TestGlobalFanOut:
                     endpoint_url='https://example.invalid'
                 )
             else:
-                client.list_recommended_actions.return_value = {
-                    'recommendedActions': []
-                }
+                client.list_recommended_actions.return_value = {'recommendedActions': []}
             return client
 
         with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
@@ -1591,9 +1579,7 @@ class TestGlobalFanOut:
         def factory(region=None):
             client = MagicMock()
             if region == 'ap-south-1':
-                client.list_automation_event_steps.return_value = {
-                    'automationEventSteps': []
-                }
+                client.list_automation_event_steps.return_value = {'automationEventSteps': []}
             else:
                 client.list_automation_event_steps.side_effect = _NOT_FOUND
             return client

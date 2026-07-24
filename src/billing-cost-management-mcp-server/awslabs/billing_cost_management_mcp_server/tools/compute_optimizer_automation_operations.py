@@ -1253,9 +1253,7 @@ def _is_resource_not_found(error: Exception) -> bool:
     return type(error).__name__ == 'ResourceNotFoundException'
 
 
-async def _format_region_error(
-    ctx: Context, error: Exception, operation: str
-) -> Dict[str, Any]:
+async def _format_region_error(ctx: Context, error: Exception, operation: str) -> Dict[str, Any]:
     """Classify a regional failure using the shared AWS error handler."""
     classified = await handle_aws_error(ctx, error, operation, _SERVICE_NAME)
     useful_fields = (
