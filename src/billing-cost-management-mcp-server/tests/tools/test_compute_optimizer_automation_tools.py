@@ -25,12 +25,19 @@ import pytest
 from awslabs.billing_cost_management_mcp_server.tools import (
     compute_optimizer_automation_operations as ops,
 )
+from awslabs.billing_cost_management_mcp_server.tools import (
+    compute_optimizer_automation_tools as automation_tools,
+)
 from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_automation_tools import (
     VALID_OPERATIONS,
     compute_optimizer_automation_server,
 )
 from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_automation_tools import (
     compute_optimizer_automation as automation_fn,
+)
+from awslabs.billing_cost_management_mcp_server.utilities.regional_fanout import (
+    encode_regional_next_token,
+    parse_regional_next_token,
 )
 from botocore.exceptions import ClientError, EndpointConnectionError
 from datetime import datetime, timezone
@@ -690,6 +697,9 @@ class TestListRulesAndAccounts:
 _TOOLS_MODULE = (
     'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_automation_tools'
 )
+_OPS_MODULE = (
+    'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_automation_operations'
+)
 
 
 @pytest.mark.asyncio
@@ -1053,11 +1063,6 @@ class TestFilterNamesFromModel:
         mod._valid_filter_names_by_operation.cache_clear()
 
 
-_OPS_MODULE = (
-    'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_automation_operations'
-)
-
-
 @pytest.mark.asyncio
 class TestSqlOffload:
     """List handlers offload large responses to SQL to protect the context window."""
@@ -1150,14 +1155,19 @@ _NOT_FOUND = ClientError(
 )
 
 
-def test_resource_not_found_classifier_rejects_other_client_errors():
-    """A ClientError response with another code is not classified as not-found."""
-    access_denied = ClientError(
-        {'Error': {'Code': 'AccessDeniedException', 'Message': 'denied'}},
-        'GetAutomationEvent',
+def test_partition_resource_not_found_errors():
+    """The caller separates not-found outcomes while preserving other errors."""
+    other_errors, regions_not_found = automation_tools._partition_resource_not_found_errors(
+        {
+            'us-east-1': {'error_type': 'ResourceNotFoundException'},
+            'us-west-2': {'error_type': 'AccessDeniedException', 'message': 'denied'},
+        }
     )
 
-    assert ops._is_resource_not_found(access_denied) is False
+    assert regions_not_found == ['us-east-1']
+    assert other_errors == {
+        'us-west-2': {'error_type': 'AccessDeniedException', 'message': 'denied'}
+    }
 
 
 def _list_factory(method, list_key, region_pages, errors=()):
@@ -1226,7 +1236,7 @@ class TestGlobalFanOut:
         self, mock_ctx, operation, kwargs, parameter
     ):
         """Malformed structured input returns one validation error and creates no clients."""
-        with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             result = await automation_fn(mock_ctx, operation=operation, **kwargs)
 
         assert result['status'] == STATUS_ERROR
@@ -1251,7 +1261,7 @@ class TestGlobalFanOut:
                 },
             },
         )
-        with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             mock_create.side_effect = factory
 
             result = await automation_fn(
@@ -1263,7 +1273,9 @@ class TestGlobalFanOut:
         assert data['count'] == 2
         ids = sorted(item['recommended_action_id'] for item in data['recommended_actions'])
         assert ids == ['a1', 'a2']
-        assert set(data['regions_queried']) == set(ops.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS)
+        assert set(data['regions_queried']) == set(
+            automation_tools.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS
+        )
         assert 'region_next_tokens' not in data
         assert 'region_errors' not in data
 
@@ -1299,7 +1311,7 @@ class TestGlobalFanOut:
             clients[region] = client
             return client
 
-        with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             mock_create.side_effect = factory
 
             result = await automation_fn(
@@ -1315,7 +1327,7 @@ class TestGlobalFanOut:
         assert result['status'] == STATUS_SUCCESS
         assert result['data']['count'] == 1
         assert result['data'][result_key][0]['region'] == 'eu-west-1'
-        assert mock_create.call_count == len(ops.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS)
+        assert mock_create.call_count == len(automation_tools.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS)
 
         request = getattr(clients['eu-west-1'], method).call_args.kwargs
         assert request['recommendedActionTypes'] == ['UpgradeEbsVolumeType']
@@ -1331,7 +1343,7 @@ class TestGlobalFanOut:
             'automationEventSummaries',
             {'us-west-2': {'automationEventSummaries': [{'key': 'EventStatus'}]}},
         )
-        with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             mock_create.side_effect = factory
 
             result = await automation_fn(
@@ -1349,7 +1361,7 @@ class TestGlobalFanOut:
             'recommendedActions',
             {'us-west-2': {'recommendedActions': [{'recommendedActionId': 'a1', 'region': ''}]}},
         )
-        with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             mock_create.side_effect = factory
 
             result = await automation_fn(
@@ -1370,7 +1382,7 @@ class TestGlobalFanOut:
                 }
             },
         )
-        with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             mock_create.side_effect = factory
 
             result = await automation_fn(
@@ -1379,7 +1391,9 @@ class TestGlobalFanOut:
 
         next_token = result['data']['next_token']
         assert isinstance(next_token, str)
-        regions_tokens, error = ops._parse_global_next_token(next_token)
+        regions_tokens, error = parse_regional_next_token(
+            next_token, automation_tools.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS
+        )
         assert error is None
         assert regions_tokens == {'eu-west-1': 'MORE'}
         assert 'region_next_tokens' not in result['data']
@@ -1394,13 +1408,13 @@ class TestGlobalFanOut:
             seen[region] = client
             return client
 
-        with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             mock_create.side_effect = factory
 
             await automation_fn(
                 mock_ctx,
                 operation='list_recommended_actions',
-                next_token=ops._encode_global_next_token({'eu-west-1': 'abc'}),
+                next_token=encode_regional_next_token({'eu-west-1': 'abc'}),
                 max_pages=1,
             )
 
@@ -1423,7 +1437,7 @@ class TestGlobalFanOut:
         """Invalid regional state is rejected before any clients are created."""
         next_token = base64.b64encode(json.dumps(payload, separators=(',', ':')).encode()).decode()
 
-        with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             result = await automation_fn(
                 mock_ctx,
                 operation='list_recommended_actions',
@@ -1442,7 +1456,7 @@ class TestGlobalFanOut:
             {'us-east-1': {'recommendedActions': [{'recommendedActionId': 'a1'}]}},
             errors=('sa-east-1',),
         )
-        with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             mock_create.side_effect = factory
 
             result = await automation_fn(
@@ -1475,7 +1489,7 @@ class TestGlobalFanOut:
                 client.list_recommended_actions.return_value = {'recommendedActions': []}
             return client
 
-        with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             mock_create.side_effect = factory
 
             result = await automation_fn(
@@ -1495,9 +1509,9 @@ class TestGlobalFanOut:
             'list_recommended_actions',
             'recommendedActions',
             {},
-            errors=tuple(ops.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS),
+            errors=tuple(automation_tools.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS),
         )
-        with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             mock_create.side_effect = factory
 
             result = await automation_fn(
@@ -1506,12 +1520,12 @@ class TestGlobalFanOut:
 
         assert result['status'] == STATUS_ERROR
         assert len(result['data']['region_errors']) == len(
-            ops.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS
+            automation_tools.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS
         )
 
     async def test_plain_token_rejected_in_global_mode(self, mock_ctx):
         """A native single-region token is rejected with guidance to pass `region`."""
-        with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             result = await automation_fn(
                 mock_ctx, operation='list_recommended_actions', next_token='plaintoken=='
             )
@@ -1533,7 +1547,7 @@ class TestGlobalFanOut:
                 client.list_automation_event_steps.side_effect = _NOT_FOUND
             return client
 
-        with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             mock_create.side_effect = factory
 
             result = await automation_fn(
@@ -1557,7 +1571,7 @@ class TestGlobalFanOut:
             client.list_automation_event_steps.side_effect = _NOT_FOUND
             return client
 
-        with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             mock_create.side_effect = factory
 
             result = await automation_fn(
@@ -1570,7 +1584,7 @@ class TestGlobalFanOut:
         assert result['status'] == STATUS_ERROR
         assert 'not found' in result['message'].lower()
         assert len(result['data']['regions_not_found']) == len(
-            ops.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS
+            automation_tools.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS
         )
 
     async def test_event_steps_empty_success_proves_event_exists(self, mock_ctx):
@@ -1584,7 +1598,7 @@ class TestGlobalFanOut:
                 client.list_automation_event_steps.side_effect = _NOT_FOUND
             return client
 
-        with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             mock_create.side_effect = factory
 
             result = await automation_fn(
@@ -1609,7 +1623,7 @@ class TestGlobalFanOut:
                 client.list_automation_event_steps.side_effect = _NOT_FOUND
             return client
 
-        with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             mock_create.side_effect = factory
 
             result = await automation_fn(
@@ -1645,7 +1659,7 @@ class TestGlobalGetAutomationEvent:
                 client.get_automation_event.side_effect = _NOT_FOUND
             return client
 
-        with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             mock_create.side_effect = factory
 
             result = await automation_fn(
@@ -1664,7 +1678,7 @@ class TestGlobalGetAutomationEvent:
             client.get_automation_event.side_effect = _NOT_FOUND
             return client
 
-        with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             mock_create.side_effect = factory
 
             result = await automation_fn(
@@ -1674,7 +1688,7 @@ class TestGlobalGetAutomationEvent:
         assert result['status'] == STATUS_ERROR
         assert 'not found' in result['message'].lower()
         assert set(result['data']['regions_queried']) == set(
-            ops.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS
+            automation_tools.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS
         )
 
     async def test_all_regions_fail_does_not_report_not_found(self, mock_ctx):
@@ -1685,7 +1699,7 @@ class TestGlobalGetAutomationEvent:
             client.get_automation_event.side_effect = RuntimeError('endpoint unavailable')
             return client
 
-        with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             mock_create.side_effect = factory
 
             result = await automation_fn(
@@ -1696,7 +1710,7 @@ class TestGlobalGetAutomationEvent:
         assert 'could not determine' in result['message'].lower()
         assert 'not found' not in result['message'].lower()
         assert len(result['data']['region_errors']) == len(
-            ops.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS
+            automation_tools.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS
         )
 
     async def test_partial_search_failure_does_not_report_not_found(self, mock_ctx):
@@ -1710,7 +1724,7 @@ class TestGlobalGetAutomationEvent:
                 client.get_automation_event.side_effect = _NOT_FOUND
             return client
 
-        with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             mock_create.side_effect = factory
 
             result = await automation_fn(
@@ -1720,7 +1734,7 @@ class TestGlobalGetAutomationEvent:
         assert result['status'] == STATUS_ERROR
         assert 'could not determine' in result['message'].lower()
         assert len(result['data']['regions_not_found']) == (
-            len(ops.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS) - 1
+            len(automation_tools.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS) - 1
         )
 
     async def test_none_response_is_not_treated_as_found(self, mock_ctx):
@@ -1734,7 +1748,7 @@ class TestGlobalGetAutomationEvent:
                 client.get_automation_event.side_effect = _NOT_FOUND
             return client
 
-        with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             mock_create.side_effect = factory
 
             result = await automation_fn(
@@ -1765,7 +1779,7 @@ class TestRegionRouting:
 
     async def test_explicit_region_rejects_global_next_token(self, mock_ctx):
         """A global token with an explicit region yields a corrective validation error."""
-        token = ops._encode_global_next_token({'us-west-2': 'native-token'})
+        token = encode_regional_next_token({'us-west-2': 'native-token'})
 
         with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             result = await automation_fn(
@@ -1834,7 +1848,7 @@ class TestGlobalSqlOffload:
                 client.list_recommended_actions.return_value = {'recommendedActions': []}
             return client
 
-        with patch(f'{_OPS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             mock_create.side_effect = factory
 
             result = await automation_fn(
@@ -1848,7 +1862,11 @@ class TestGlobalSqlOffload:
         )
         assert data['row_count'] == 60
         # regions_queried is passed as offload metadata so it survives the SQL conversion.
-        assert set(data['regions_queried']) == set(ops.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS)
-        regions_tokens, error = ops._parse_global_next_token(data['next_token'])
+        assert set(data['regions_queried']) == set(
+            automation_tools.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS
+        )
+        regions_tokens, error = parse_regional_next_token(
+            data['next_token'], automation_tools.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS
+        )
         assert error is None
         assert regions_tokens == {'us-east-1': 'more-pages'}
