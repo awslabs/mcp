@@ -6,7 +6,6 @@ A comprehensive Model Context Protocol (MCP) server for AWS HealthImaging operat
 
 - [Features](#features)
 - [Quick Start](#quick-start)
-- [Installation](#installation)
 - [Available Tools](#available-tools)
   - [Datastore Management](#datastore-management)
   - [Image Set Operations](#image-set-operations)
