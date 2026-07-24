@@ -14,6 +14,7 @@
 
 from ..config import doc_config
 from . import doc_fetcher, indexer, text_processor
+from loguru import logger
 from typing import Dict
 
 
@@ -45,7 +46,25 @@ def load_links_only() -> None:
         _INDEX = indexer.IndexSearch()
 
     for src in doc_config.llm_texts_url:
-        for title, url in doc_fetcher.parse_llms_txt(src):
+        # Isolate each source: a failed fetch/parse (e.g. the configured
+        # llms.txt returning HTTP 404, a network error, or malformed content)
+        # must not abort startup. Without this guard the exception escapes
+        # ensure_ready() and main(), and the whole MCP server exits before it
+        # can serve any tool group. Log and continue so the remaining sources
+        # still index and the unrelated tools stay available; documentation
+        # search simply degrades to whatever sources loaded.
+        try:
+            entries = doc_fetcher.parse_llms_txt(src)
+        except Exception as exc:
+            logger.warning(
+                'Failed to load llms.txt source {}: {}. Documentation search will be '
+                'degraded for this source; other tools remain available.',
+                src,
+                exc,
+            )
+            continue
+
+        for title, url in entries:
             # Record curated display title and placeholder cache
             _URL_TITLES[url] = title
             _URL_CACHE.setdefault(url, None)
