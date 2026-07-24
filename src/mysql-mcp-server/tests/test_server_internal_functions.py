@@ -413,3 +413,140 @@ class TestInternalConnectToDatabaseEndpointFromCluster:
 
         parsed = json.loads(result_json)
         assert parsed['db_endpoint'] == 'auto-ep.rds.amazonaws.com'
+
+
+class TestInternalConnectToDatabaseStandaloneInstanceByIdentifier:
+    """Regression tests for issue #3787.
+
+    A standalone RDS MySQL / MariaDB instance has no cluster at all, so
+    passing its instance identifier as ``cluster_identifier`` (with no
+    ``db_endpoint``) must resolve via the instance API
+    (``describe_db_instances``), never via the cluster API
+    (``describe_db_clusters``) — the latter always raised
+    ``DBClusterNotFoundFault`` for a standalone instance.
+    """
+
+    @patch('awslabs.mysql_mcp_server.server.AsyncmyPoolConnection')
+    @patch('awslabs.mysql_mcp_server.server.internal_get_instance_properties_by_identifier')
+    @patch('awslabs.mysql_mcp_server.server.internal_get_cluster_properties')
+    @patch('awslabs.mysql_mcp_server.server.db_connection_map')
+    def test_rds_mysql_resolves_by_instance_identifier_not_cluster(
+        self, mock_map, mock_get_cluster, mock_get_inst_by_id, mock_asyncmy_cls
+    ):
+        """RDS MySQL with only cluster_identifier set (no db_endpoint).
+
+        Must resolve through the instance-identifier lookup, and must
+        never call the cluster lookup.
+        """
+        mock_map.get.return_value = None
+
+        mock_get_inst_by_id.return_value = {
+            'MasterUsername': 'admin',
+            'MasterUserSecret': {'SecretArn': 'arn:secret'},
+            'Endpoint': {
+                'Address': 'standalone-instance.abc123.us-east-1.rds.amazonaws.com',
+                'Port': 3306,
+            },
+        }
+
+        mock_conn = MagicMock()
+        mock_asyncmy_cls.return_value = mock_conn
+
+        result_conn, result_json = internal_connect_to_database(
+            region='us-east-1',
+            database_type=DatabaseType.RDS_MYSQL,
+            connection_method=ConnectionMethod.MYSQL_WIRE_PROTOCOL,
+            cluster_identifier='standalone-instance',
+            db_endpoint='',
+            port=3306,
+            database='testdb',
+        )
+
+        mock_get_inst_by_id.assert_called_once_with('standalone-instance', 'us-east-1')
+        mock_get_cluster.assert_not_called()
+        assert result_conn is mock_conn
+
+        parsed = json.loads(result_json)
+        assert parsed['db_endpoint'] == 'standalone-instance.abc123.us-east-1.rds.amazonaws.com'
+
+    @patch('awslabs.mysql_mcp_server.server.AsyncmyPoolConnection')
+    @patch('awslabs.mysql_mcp_server.server.internal_get_instance_properties')
+    @patch('awslabs.mysql_mcp_server.server.internal_get_instance_properties_by_identifier')
+    @patch('awslabs.mysql_mcp_server.server.internal_get_cluster_properties')
+    @patch('awslabs.mysql_mcp_server.server.db_connection_map')
+    def test_rds_mysql_prefers_endpoint_lookup_when_endpoint_given(
+        self,
+        mock_map,
+        mock_get_cluster,
+        mock_get_inst_by_id,
+        mock_get_inst_by_endpoint,
+        mock_asyncmy_cls,
+    ):
+        """Endpoint lookup takes precedence when both identifiers are set.
+
+        When both cluster_identifier and db_endpoint are set (the
+        documented Scenario 4 in connect_to_database's docstring), the
+        endpoint lookup takes precedence and neither the cluster lookup
+        nor the identifier lookup is used.
+        """
+        mock_map.get.return_value = None
+
+        mock_get_inst_by_endpoint.return_value = {
+            'MasterUsername': 'admin',
+            'MasterUserSecret': {'SecretArn': 'arn:secret'},
+            'Endpoint': {'Port': 3306},
+        }
+
+        mock_conn = MagicMock()
+        mock_asyncmy_cls.return_value = mock_conn
+
+        internal_connect_to_database(
+            region='us-east-1',
+            database_type=DatabaseType.RDS_MYSQL,
+            connection_method=ConnectionMethod.MYSQL_WIRE_PROTOCOL,
+            cluster_identifier='standalone-instance',
+            db_endpoint='standalone-instance.abc123.us-east-1.rds.amazonaws.com',
+            port=3306,
+            database='testdb',
+        )
+
+        mock_get_inst_by_endpoint.assert_called_once_with(
+            'standalone-instance.abc123.us-east-1.rds.amazonaws.com', 'us-east-1'
+        )
+        mock_get_inst_by_id.assert_not_called()
+        mock_get_cluster.assert_not_called()
+
+    @patch('awslabs.mysql_mcp_server.server.AsyncmyPoolConnection')
+    @patch('awslabs.mysql_mcp_server.server.internal_get_instance_properties_by_identifier')
+    @patch('awslabs.mysql_mcp_server.server.internal_get_cluster_properties')
+    @patch('awslabs.mysql_mcp_server.server.db_connection_map')
+    def test_rds_mariadb_resolves_by_instance_identifier_not_cluster(
+        self, mock_map, mock_get_cluster, mock_get_inst_by_id, mock_asyncmy_cls
+    ):
+        """Same regression, RDS MariaDB variant."""
+        mock_map.get.return_value = None
+
+        mock_get_inst_by_id.return_value = {
+            'MasterUsername': 'admin',
+            'MasterUserSecret': {'SecretArn': 'arn:secret'},
+            'Endpoint': {
+                'Address': 'standalone-mariadb.abc123.us-east-1.rds.amazonaws.com',
+                'Port': 3306,
+            },
+        }
+
+        mock_conn = MagicMock()
+        mock_asyncmy_cls.return_value = mock_conn
+
+        internal_connect_to_database(
+            region='us-east-1',
+            database_type=DatabaseType.RDS_MARIADB,
+            connection_method=ConnectionMethod.MYSQL_WIRE_PROTOCOL,
+            cluster_identifier='standalone-mariadb',
+            db_endpoint='',
+            port=3306,
+            database='testdb',
+        )
+
+        mock_get_inst_by_id.assert_called_once_with('standalone-mariadb', 'us-east-1')
+        mock_get_cluster.assert_not_called()

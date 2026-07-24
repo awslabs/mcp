@@ -25,6 +25,7 @@ from awslabs.mysql_mcp_server.connection.cp_api_connection import (
     internal_create_aurora_cluster,
     internal_get_cluster_properties,
     internal_get_instance_properties,
+    internal_get_instance_properties_by_identifier,
     setup_aurora_iam_policy_for_current_user,
 )
 from awslabs.mysql_mcp_server.connection.db_connection_map import (
@@ -687,7 +688,14 @@ def internal_connect_to_database(
     cluster_arn: str = ''
     secret_arn: str = ''
 
-    if cluster_identifier:
+    # Aurora MySQL is always a cluster; resolve via cluster_identifier.
+    # RDS MySQL / RDS MariaDB can be standalone instances that have no
+    # cluster at all, so resolve those via the instance endpoint instead
+    # of assuming cluster_identifier names an RDS cluster. A caller may
+    # still pass an Aurora MySQL cluster_identifier under RDS_MYSQL /
+    # RDS_MARIADB type by mistake; that is out of scope here since the
+    # documented contract for those types is instance-by-endpoint.
+    if database_type == DatabaseType.AURORA_MYSQL:
         cluster_properties = internal_get_cluster_properties(
             cluster_identifier=cluster_identifier, region=region
         )
@@ -701,7 +709,13 @@ def internal_connect_to_database(
             db_endpoint = cluster_properties.get('Endpoint', '')
             port = int(cluster_properties.get('Port', ''))
     else:
-        instance_properties = internal_get_instance_properties(db_endpoint, region)
+        if db_endpoint:
+            instance_properties = internal_get_instance_properties(db_endpoint, region)
+        else:
+            instance_properties = internal_get_instance_properties_by_identifier(
+                cluster_identifier, region
+            )
+            db_endpoint = instance_properties.get('Endpoint', {}).get('Address', '')
         masteruser = instance_properties.get('MasterUsername', '')
         secret_arn = instance_properties.get('MasterUserSecret', {}).get('SecretArn')
         port = int(instance_properties.get('Endpoint', {}).get('Port'))
