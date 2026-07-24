@@ -226,37 +226,43 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
             logger.info(f'Excluding operations with tags: {exclude_tags}')
 
         def enrich_component(route: Any, component: Any) -> None:
-            """Enrich MCP tool/resource descriptions with OpenAPI spec details."""
-            parts = []
-            if component.description:
-                parts.append(component.description)
-            # Add response info
-            if hasattr(route, 'responses') and route.responses:
-                codes = ', '.join(sorted(route.responses.keys()))
-                parts.append(f'Returns: {codes}')
-            # Add example values from parameters
-            examples = []
-            if hasattr(route, 'parameters'):
-                for p in route.parameters:
-                    schema = getattr(p, 'schema_', None) or {}
-                    if isinstance(schema, dict) and 'example' in schema:
-                        examples.append(f'{p.name}={schema["example"]}')
-                    elif isinstance(schema, dict) and 'enum' in schema:
-                        examples.append(f'{p.name}={schema["enum"][0]}')
-            if examples:
-                parts.append(f'Example: {", ".join(examples)}')
-            if parts:
-                component.description = ' | '.join(parts)
+            """Enrich MCP tool/resource descriptions with OpenAPI spec details.
 
-        provider_kwargs: Dict[str, Any] = {
-            'openapi_spec': openapi_spec,
-            'client': client,
-            'route_maps': custom_mappings,
-            'mcp_component_fn': enrich_component,
-            'validate_output': config.validate_output,
-        }
+            POC migration: this delegates to FastMCP's own shipped formatter
+            (`fastmcp.utilities.openapi.format_description_with_responses`)
+            instead of the previous bespoke string-building. The upstream
+            formatter emits richer, structured sections (Path/Query Parameters,
+            Request Body, Responses with examples) than the old
+            ``desc | Returns: ... | Example: ...`` format.
+            """
+            from fastmcp.utilities.openapi import format_description_with_responses
 
-        providers = [OpenAPIProvider(**provider_kwargs)]
+            component.description = format_description_with_responses(
+                component.description or '',
+                route.responses if getattr(route, 'responses', None) else {},
+                getattr(route, 'parameters', None),
+                getattr(route, 'request_body', None),
+            )
+
+        # POC migration: build the primary server via the native high-level
+        # ``FastMCP.from_openapi(...)`` entry point instead of hand-constructing
+        # an ``OpenAPIProvider`` and passing it to ``FastMCP(providers=[...])``.
+        # This is the supported, documented path and the one users migrating off
+        # this wrapper would call directly. Additional specs (below) are still
+        # mounted as extra providers, which ``from_openapi`` does not cover.
+        # ``instructions`` is forwarded through ``from_openapi``'s **settings to
+        # FastMCP(); preserve the wrapper's original text for behavior parity.
+        primary_server = FastMCP.from_openapi(
+            openapi_spec=openapi_spec,
+            client=client,
+            name=config.api_name or 'OpenAPI MCP Server',
+            instructions='This server acts as a bridge between OpenAPI specifications and LLMs, allowing models to have a better understanding of available API capabilities without requiring manual tool definitions.',
+            route_maps=custom_mappings,
+            mcp_component_fn=enrich_component,
+            validate_output=config.validate_output,
+        )
+
+        additional_providers = []
 
         # Load additional specs for multi-spec composition
         if config.additional_specs:
@@ -397,7 +403,7 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
                         cookies=extra_cookies,
                         follow_redirects=False,
                     )
-                    providers.append(
+                    additional_providers.append(
                         OpenAPIProvider(
                             openapi_spec=extra_spec,
                             client=extra_client,
@@ -410,11 +416,11 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
             except (json.JSONDecodeError, TypeError) as e:
                 logger.warning(f'Failed to parse additional specs: {e}')
 
-        server = FastMCP(
-            name=config.api_name or 'OpenAPI MCP Server',
-            instructions='This server acts as a bridge between OpenAPI specifications and LLMs, allowing models to have a better understanding of available API capabilities without requiring manual tool definitions.',
-            providers=providers,
-        )
+        # The primary server comes from ``from_openapi``; compose any additional
+        # specs onto it as extra providers via the public API.
+        server = primary_server
+        for extra_provider in additional_providers:
+            server.add_provider(extra_provider)
 
         # Apply tag filters after server creation
         if include_tags:
