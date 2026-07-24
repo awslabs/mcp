@@ -35,13 +35,30 @@ class TestDetectTgwInspection:
 
     @pytest.fixture
     def sample_firewalls(self):
-        """Sample Network Firewall response."""
+        """Sample Network Firewall response.
+
+        list_firewalls() only ever returns FirewallName/FirewallArn, not VpcId.
+        """
         return {
             'Firewalls': [
-                {'FirewallName': 'test-fw', 'VpcId': 'vpc-fw123'},
-                {'FirewallName': 'test-fw2', 'VpcId': 'vpc-fw456'},
+                {'FirewallName': 'test-fw'},
+                {'FirewallName': 'test-fw2'},
             ]
         }
+
+    @pytest.fixture
+    def describe_firewall_side_effect(self):
+        """Mimic describe_firewall(), which is where VpcId actually lives."""
+
+        def _side_effect(FirewallName=None, **kwargs):
+            responses = {
+                'test-fw': {'Firewall': {'VpcId': 'vpc-fw123'}},
+                'test-fw2': {'Firewall': {'VpcId': 'vpc-fw456'}},
+                'test-nf': {'Firewall': {'FirewallStatus': {'Status': 'READY'}}},
+            }
+            return responses.get(FirewallName, {'Firewall': {}})
+
+        return _side_effect
 
     @pytest.fixture
     def sample_attachments(self):
@@ -123,13 +140,19 @@ class TestDetectTgwInspection:
         'awslabs.aws_network_mcp_server.tools.transit_gateway.detect_transit_gateway_inspection.get_aws_client'
     )
     async def test_vpc_firewall_detection(
-        self, mock_get_client, mock_clients, sample_firewalls, sample_attachments
+        self,
+        mock_get_client,
+        mock_clients,
+        sample_firewalls,
+        sample_attachments,
+        describe_firewall_side_effect,
     ):
         """Test VPC-attached firewall detection."""
         ec2_client, nfw_client, _ = mock_clients
         mock_get_client.side_effect = [ec2_client, nfw_client]
 
         nfw_client.list_firewalls.return_value = sample_firewalls
+        nfw_client.describe_firewall.side_effect = describe_firewall_side_effect
         ec2_client.describe_transit_gateway_attachments.return_value = sample_attachments
 
         result = await detect_tgw_inspection('tgw-123', 'us-east-1')
@@ -273,15 +296,14 @@ class TestDetectTgwInspection:
         sample_attachments,
         sample_vpc_endpoints,
         sample_gwlb,
+        describe_firewall_side_effect,
     ):
         """Test detection of all firewall types together."""
         ec2_client, nfw_client, elbv2_client = mock_clients
         mock_get_client.side_effect = [ec2_client, nfw_client, elbv2_client]
 
         nfw_client.list_firewalls.return_value = sample_firewalls
-        nfw_client.describe_firewall.return_value = {
-            'Firewall': {'FirewallStatus': {'Status': 'READY'}}
-        }
+        nfw_client.describe_firewall.side_effect = describe_firewall_side_effect
         ec2_client.describe_transit_gateway_attachments.return_value = sample_attachments
         ec2_client.describe_vpc_endpoints.return_value = sample_vpc_endpoints
         elbv2_client.describe_load_balancers.return_value = sample_gwlb
