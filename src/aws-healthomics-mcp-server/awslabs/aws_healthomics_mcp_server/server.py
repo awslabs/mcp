@@ -14,6 +14,27 @@
 
 """awslabs aws-healthomics MCP Server implementation."""
 
+import anyio
+import sys
+from awslabs.aws_healthomics_mcp_server import consts
+from awslabs.aws_healthomics_mcp_server.config import (
+    ServerConfig,
+    TransportConfigError,
+    parse_config,
+)
+from awslabs.aws_healthomics_mcp_server.mechanisms.explicit import InboundExplicitCredentials
+from awslabs.aws_healthomics_mcp_server.mechanisms.jwt_exchange import InboundJwtExchange
+from awslabs.aws_healthomics_mcp_server.mechanisms.role_resolver import (
+    RegistryRoleResolver,
+    RoleResolver,
+    StaticRoleResolver,
+)
+from awslabs.aws_healthomics_mcp_server.mechanisms.sigv4 import InboundSigV4
+from awslabs.aws_healthomics_mcp_server.middleware import (
+    ASGIApp,
+    IdentityMiddleware,
+    InboundMechanism,
+)
 from awslabs.aws_healthomics_mcp_server.tools.codeconnections import (
     create_codeconnection,
     get_codeconnection,
@@ -115,8 +136,14 @@ from awslabs.aws_healthomics_mcp_server.tools.workflow_management import (
     list_workflow_versions,
     list_workflows,
 )
+from awslabs.aws_healthomics_mcp_server.transport import TransportSelector
+from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
+    RequestScopedCredentialResolver,
+    set_active_resolver,
+)
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
+from typing import cast
 
 
 mcp = FastMCP(
@@ -347,11 +374,215 @@ mcp.tool(name='ListAHOConfigurations')(list_configurations)
 mcp.tool(name='DeleteAHOConfiguration')(delete_configuration)
 
 
+def _build_jwt_role_resolver(config: ServerConfig) -> RoleResolver:
+    """Select and build the JWT :class:`RoleResolver` from the resolved config.
+
+    The resolver is chosen by which single role-resolution source the config
+    carries (``parse_config`` already rejects configuring both sources at once):
+
+    - :attr:`ServerConfig.jwt_role_arn` set -> :class:`StaticRoleResolver`,
+      reproducing the current static ``MCP_JWT_ROLE_ARN`` behavior (backward
+      compatible; every request resolves to that ARN with no ``ExternalId``).
+    - :attr:`ServerConfig.jwt_role_registry` set ->
+      :class:`RegistryRoleResolver`, built from the provider-controlled registry
+      source value (``file:///path/map.json`` or ``dynamodb://table-name``).
+    - neither set -> a startup error, so the server fails closed rather than
+      running the ``'jwt'`` mechanism with no way to resolve a role.
+
+    Args:
+        config: The resolved server configuration carrying the (already
+            validated and mutually exclusive) role-resolution sources.
+
+    Returns:
+        The selected role resolver.
+
+    Raises:
+        TransportConfigError: If neither role-resolution source is configured, or
+            if the configured registry source value is malformed / names an
+            unsupported backend. The server does not start in either case.
+    """
+    if config.jwt_role_arn:
+        return StaticRoleResolver(config.jwt_role_arn)
+
+    if config.jwt_role_registry:
+        try:
+            return RegistryRoleResolver.from_registry_value(config.jwt_role_registry)
+        except ValueError as exc:
+            # Fail closed on a malformed/unsupported registry source value. The
+            # value is provider-controlled configuration (not secret), so the
+            # underlying reason is safe to surface for correction.
+            raise TransportConfigError(
+                consts.ERROR_INVALID_JWT_ROLE_REGISTRY.format(
+                    consts.MCP_JWT_ROLE_REGISTRY_ENV, exc
+                )
+            ) from exc
+
+    raise TransportConfigError(
+        consts.ERROR_MISSING_JWT_ROLE_SOURCE.format(
+            consts.MCP_JWT_ROLE_ARN_ENV, consts.MCP_JWT_ROLE_REGISTRY_ENV
+        )
+    )
+
+
+def _build_inbound_mechanisms(config: ServerConfig) -> list[InboundMechanism]:
+    """Build inbound identity mechanism instances from the resolved config.
+
+    Maps each enabled mechanism name (already validated and ordered by precedence
+    in :func:`config.parse_config`) to its concrete implementation: ``'sigv4'`` ->
+    :class:`InboundSigV4`, ``'explicit'`` -> :class:`InboundExplicitCredentials`,
+    and ``'jwt'`` -> :class:`InboundJwtExchange`.
+
+    The JWT exchange mechanism is wired with the :class:`RoleResolver` selected by
+    :func:`_build_jwt_role_resolver` (static or registry) and the validated
+    :attr:`ServerConfig.jwt_session_duration`. Backward compatibility is preserved:
+    with only ``MCP_JWT_ROLE_ARN`` set, a :class:`StaticRoleResolver` is built and
+    the mechanism behaves exactly as before.
+
+    Args:
+        config: The resolved server configuration providing the enabled inbound
+            mechanisms and the JWT role-resolution / session-duration settings.
+
+    Returns:
+        The constructed inbound mechanism instances, ordered by precedence.
+
+    Raises:
+        TransportConfigError: If ``'jwt'`` is enabled but no role-resolution source
+            is configured, or the configured registry source is invalid. The
+            server does not start (fails closed on misconfiguration).
+    """
+    built: list[InboundMechanism] = []
+    for name in config.inbound_mechanisms:
+        if name == 'sigv4':
+            built.append(InboundSigV4())
+        elif name == 'explicit':
+            built.append(InboundExplicitCredentials())
+        elif name == 'jwt':
+            role_resolver = _build_jwt_role_resolver(config)
+            built.append(
+                InboundJwtExchange(
+                    role_resolver=role_resolver,
+                    session_duration=config.jwt_session_duration,
+                )
+            )
+    return built
+
+
+def _serve_asgi_app(mcp_instance: FastMCP, app) -> None:
+    """Serve a wrapped ASGI application on the configured host/port.
+
+    The MCP SDK's ``run_streamable_http_async`` / ``run_sse_async`` entry points
+    build and serve the server's *own* Starlette app and do not accept a custom
+    (middleware-wrapped) application. To actually serve the
+    :class:`IdentityMiddleware`-wrapped app, this replicates the SDK's own uvicorn
+    setup — reading host/port/log level from ``mcp_instance.settings`` exactly as
+    the SDK does — and serves the supplied ``app``.
+
+    Args:
+        mcp_instance: The ``FastMCP`` instance whose settings provide the bind
+            host, port, and log level.
+        app: The wrapped ASGI application to serve.
+    """
+    import uvicorn
+
+    uvicorn_config = uvicorn.Config(
+        app,
+        host=mcp_instance.settings.host,
+        port=mcp_instance.settings.port,
+        log_level=mcp_instance.settings.log_level.lower(),
+    )
+    server = uvicorn.Server(uvicorn_config)
+    anyio.run(server.serve)
+
+
+def _run_multi_tenant(mcp_instance: FastMCP, config: ServerConfig) -> None:
+    """Start the server in request-scoped multi-tenant mode (Phase 2).
+
+    Installs the :class:`RequestScopedCredentialResolver` as the active resolver so
+    every tool call derives credentials from the per-request
+    ``CredentialContext``, builds the enabled inbound mechanisms, applies the
+    network bind settings and the secure-by-default exposure check, then serves the
+    SDK's network ASGI app wrapped with :class:`IdentityMiddleware`.
+
+    Multi-tenant mode is only valid with a network transport (the stdio + multi-tenant
+    combination is rejected during configuration parsing), so ``config.transport`` is
+    assumed to be ``'streamable-http'`` or ``'sse'`` here.
+
+    Args:
+        mcp_instance: The ``FastMCP`` instance to serve.
+        config: The resolved server configuration (multi-tenant enabled).
+
+    Raises:
+        TransportConfigError: If a required configuration value is missing (for
+            example a JWT role ARN when the ``'jwt'`` mechanism is enabled). The
+            server does not start.
+    """
+    # Fail closed and loudly: multi-tenant mode with no inbound mechanisms would
+    # reject 100% of requests, which is almost always a misconfiguration. Surface
+    # it as a startup error before swapping the resolver or binding a socket.
+    if not config.inbound_mechanisms:
+        raise TransportConfigError(
+            consts.ERROR_MULTI_TENANT_REQUIRES_MECHANISM.format(
+                ', '.join(consts.INBOUND_MECHANISMS), consts.MCP_INBOUND_AUTH_ENV
+            )
+        )
+
+    # Build the enabled mechanisms first so any configuration error (e.g. a missing
+    # JWT role-resolution source) surfaces before the resolver is swapped or the
+    # server binds.
+    enabled_mechanisms = _build_inbound_mechanisms(config)
+
+    set_active_resolver(RequestScopedCredentialResolver())
+
+    mode = config.transport
+    # Reuse the Phase 1 bind-settings application and exposure check so behavior is
+    # identical to the single-tenant network path.
+    TransportSelector._apply_network_settings(mcp_instance, config, mode)
+    TransportSelector._check_secure_exposure(config)
+
+    if mode == 'streamable-http':
+        base_app = mcp_instance.streamable_http_app()
+    else:  # 'sse'
+        base_app = mcp_instance.sse_app()
+
+    # The SDK returns a Starlette app; cast to the middleware's ASGIApp callable
+    # alias (the two describe the same ASGI callable with differing dict typings).
+    app = IdentityMiddleware(cast(ASGIApp, base_app), enabled_mechanisms)
+    _serve_asgi_app(mcp_instance, app)
+
+
 def main():
-    """Run the MCP server with CLI argument support."""
+    """Run the MCP server with CLI argument support.
+
+    Parses and validates transport/network configuration from CLI flags and
+    environment variables, then starts the selected transport. On a configuration
+    error (unsupported transport, invalid host, invalid port, or a missing JWT role
+    ARN when multi-tenant JWT auth is enabled) a descriptive message is logged and
+    the process exits with a non-zero status without starting any transport.
+
+    In single-tenant mode the Phase 1 path is used unchanged: the default
+    :class:`DefaultCredentialResolver` stays active and ``mcp.run(transport=...)``
+    is invoked via :meth:`TransportSelector.start`. In multi-tenant mode the
+    request-scoped resolver is installed and the SDK's network ASGI app is served
+    wrapped with :class:`IdentityMiddleware`.
+    """
     logger.info('AWS HealthOmics MCP server starting')
 
-    mcp.run()
+    try:
+        config = parse_config()
+    except TransportConfigError as exc:
+        # Covers UnsupportedTransportError as well as invalid host/port errors.
+        logger.error(str(exc))
+        sys.exit(1)
+
+    if config.multi_tenant:
+        try:
+            _run_multi_tenant(mcp, config)
+        except TransportConfigError as exc:
+            # Covers a missing JWT role ARN and any other multi-tenant setup error.
+            logger.error(str(exc))
+            sys.exit(1)
+    else:
+        TransportSelector.start(mcp, config)
 
 
 if __name__ == '__main__':

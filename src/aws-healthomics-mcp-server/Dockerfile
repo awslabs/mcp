@@ -80,6 +80,37 @@ COPY ./docker-healthcheck.sh /usr/local/bin/docker-healthcheck.sh
 # Run as non-root
 USER app
 
+# Network transport configuration (Phase 1).
+#
+# By default the server runs over stdio and binds nothing on the network, so no
+# additional configuration is required. A network transport can be selected
+# using only the documented environment variables below — the image and the
+# ENTRYPOINT do not need to change:
+#
+#   MCP_TRANSPORT  Transport mode: stdio (default), streamable-http, or sse.
+#   MCP_HOST       Bind address (default: 127.0.0.1, loopback only).
+#   MCP_PORT       Bind port (default: 8000).
+#   MCP_PATH       Request path (default: /mcp).
+#
+# To expose the server outside the container you MUST bind a non-loopback host
+# (for example MCP_HOST=0.0.0.0) and publish the configured port (for example
+# `-p 8000:8000`). Binding a non-loopback host exposes AWS access on the network
+# and requires an external fronting authentication layer; the server performs no
+# inbound authentication of its own in Phase 1. See the README section
+# "Running the container with a network transport" for runnable examples.
+#
+# Example:
+#   docker run \
+#     -e MCP_TRANSPORT=streamable-http \
+#     -e MCP_HOST=0.0.0.0 \
+#     -e MCP_PORT=8000 \
+#     -p 8000:8000 \
+#     aws-healthomics-mcp-server
+
+# Document the default network transport port. Publishing it still requires an
+# explicit `-p`/`--publish` at run time; EXPOSE is documentation only.
+EXPOSE 8000
+
 # When running the container, add --db-path and a bind mount to the host's db file
 HEALTHCHECK --interval=60s --timeout=10s --start-period=10s --retries=3 CMD ["docker-healthcheck.sh"]
 ENTRYPOINT ["awslabs.aws-healthomics-mcp-server"]

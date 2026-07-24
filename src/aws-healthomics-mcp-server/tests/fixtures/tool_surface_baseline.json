@@ -1,0 +1,3818 @@
+{
+  "ActivateAHOReadSets": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "read_set_ids": {
+      "required": true,
+      "type": {
+        "anyOf": [
+          "array",
+          "string"
+        ]
+      }
+    },
+    "sequence_store_id": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "AnalyzeAHORunPerformance": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "detailed": {
+      "default": false,
+      "required": false,
+      "type": "boolean"
+    },
+    "headroom": {
+      "default": 0.2,
+      "required": false,
+      "type": "number"
+    },
+    "run_ids": {
+      "required": true,
+      "type": {
+        "anyOf": [
+          "array",
+          "string"
+        ]
+      }
+    }
+  },
+  "CancelAHORunBatch": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "batch_id": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "CheckContainerAvailability": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "image_digest": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "image_tag": {
+      "default": "latest",
+      "required": false,
+      "type": "string"
+    },
+    "initiate_pull_through": {
+      "default": false,
+      "required": false,
+      "type": "boolean"
+    },
+    "repository_name": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "CloneContainerToECR": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "source_image": {
+      "required": true,
+      "type": "string"
+    },
+    "target_image_tag": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "target_repository_name": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "CreateAHOConfiguration": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "description": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "name": {
+      "required": true,
+      "type": "string"
+    },
+    "run_configurations": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "object"
+        ]
+      }
+    },
+    "tags": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "object"
+        ]
+      }
+    }
+  },
+  "CreateAHORunCache": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "cache_behavior": {
+      "required": true,
+      "type": "string"
+    },
+    "cache_bucket_owner_id": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "cache_s3_location": {
+      "required": true,
+      "type": "string"
+    },
+    "description": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "name": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "tags": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "object"
+        ]
+      }
+    }
+  },
+  "CreateAHORunGroup": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "max_cpus": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "integer",
+          "null"
+        ]
+      }
+    },
+    "max_duration": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "integer",
+          "null"
+        ]
+      }
+    },
+    "max_gpus": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "integer",
+          "null"
+        ]
+      }
+    },
+    "max_runs": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "integer",
+          "null"
+        ]
+      }
+    },
+    "name": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "tags": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "object"
+        ]
+      }
+    }
+  },
+  "CreateAHOSequenceStore": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "description": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "fallback_location": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "name": {
+      "required": true,
+      "type": "string"
+    },
+    "sse_kms_key_arn": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "tags": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "object",
+          "string"
+        ]
+      }
+    }
+  },
+  "CreateAHOWorkflow": {
+    "accelerators": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "container_registry_map": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "object"
+        ]
+      }
+    },
+    "container_registry_map_uri": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "definition_repository": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "object"
+        ]
+      }
+    },
+    "definition_source": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "definition_uri": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "definition_zip_base64": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "description": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "engine": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "name": {
+      "required": true,
+      "type": "string"
+    },
+    "parameter_template": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "object"
+        ]
+      }
+    },
+    "parameter_template_path": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "path_to_main": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "readme": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "readme_path": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "storage_capacity": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "integer",
+          "null"
+        ]
+      }
+    },
+    "storage_type": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "tags": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "{}"
+        ]
+      }
+    },
+    "workflow_bucket_owner_id": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "CreateAHOWorkflowVersion": {
+    "accelerators": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "container_registry_map": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "object"
+        ]
+      }
+    },
+    "container_registry_map_uri": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "definition_repository": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "object"
+        ]
+      }
+    },
+    "definition_source": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "definition_uri": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "definition_zip_base64": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "description": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "engine": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "parameter_template": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "object"
+        ]
+      }
+    },
+    "parameter_template_path": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "path_to_main": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "readme": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "readme_path": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "storage_capacity": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "integer",
+          "null"
+        ]
+      }
+    },
+    "storage_type": {
+      "default": "DYNAMIC",
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "tags": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "{}"
+        ]
+      }
+    },
+    "version_name": {
+      "required": true,
+      "type": "string"
+    },
+    "workflow_bucket_owner_id": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "workflow_id": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "CreateCodeConnection": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "connection_name": {
+      "required": true,
+      "type": "string"
+    },
+    "provider_type": {
+      "required": true,
+      "type": "string"
+    },
+    "tags": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "object"
+        ]
+      }
+    }
+  },
+  "CreateContainerRegistryMap": {
+    "additional_registry_mappings": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "array",
+          "null"
+        ]
+      }
+    },
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "ecr_account_id": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "ecr_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "image_mappings": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "array",
+          "null"
+        ]
+      }
+    },
+    "include_pull_through_caches": {
+      "default": true,
+      "required": false,
+      "type": "boolean"
+    },
+    "output_format": {
+      "default": "json",
+      "required": false,
+      "type": "string"
+    }
+  },
+  "CreatePullThroughCacheForHealthOmics": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "credential_arn": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "ecr_repository_prefix": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "upstream_registry": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "DeleteAHOBatch": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "batch_id": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "DeleteAHOConfiguration": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "name": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "DeleteAHORunBatch": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "batch_id": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "DiagnoseAHORunFailure": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "detailed": {
+      "default": false,
+      "required": false,
+      "type": "boolean"
+    },
+    "run_id": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "GenerateAHORunTimeline": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "expected_bucket_owner": {
+      "default": "__DEFAULT__",
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "output_format": {
+      "default": "svg",
+      "required": false,
+      "type": "string"
+    },
+    "output_path": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "run_id": {
+      "required": true,
+      "type": "string"
+    },
+    "theme": {
+      "default": "light",
+      "required": false,
+      "type": "string"
+    },
+    "time_unit": {
+      "default": "hr",
+      "required": false,
+      "type": "string"
+    }
+  },
+  "GetAHOBatch": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "batch_id": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "GetAHOConfiguration": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "name": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "GetAHOReadSetExportJob": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "export_job_id": {
+      "required": true,
+      "type": "string"
+    },
+    "sequence_store_id": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "GetAHOReadSetImportJob": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "import_job_id": {
+      "required": true,
+      "type": "string"
+    },
+    "sequence_store_id": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "GetAHOReadSetMetadata": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "read_set_id": {
+      "required": true,
+      "type": "string"
+    },
+    "sequence_store_id": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "GetAHOReferenceImportJob": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "import_job_id": {
+      "required": true,
+      "type": "string"
+    },
+    "reference_store_id": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "GetAHOReferenceMetadata": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "reference_id": {
+      "required": true,
+      "type": "string"
+    },
+    "reference_store_id": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "GetAHOReferenceStore": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "reference_store_id": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "GetAHORun": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "run_id": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "GetAHORunCache": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "cache_id": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "GetAHORunEngineLogs": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "end_time": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "limit": {
+      "default": 100,
+      "required": false,
+      "type": "integer"
+    },
+    "next_token": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "run_id": {
+      "required": true,
+      "type": "string"
+    },
+    "start_from_head": {
+      "default": true,
+      "required": false,
+      "type": "boolean"
+    },
+    "start_time": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "GetAHORunGroup": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "run_group_id": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "GetAHORunLogs": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "end_time": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "limit": {
+      "default": 100,
+      "required": false,
+      "type": "integer"
+    },
+    "next_token": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "run_id": {
+      "required": true,
+      "type": "string"
+    },
+    "start_from_head": {
+      "default": true,
+      "required": false,
+      "type": "boolean"
+    },
+    "start_time": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "GetAHORunManifestLogs": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "end_time": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "limit": {
+      "default": 100,
+      "required": false,
+      "type": "integer"
+    },
+    "next_token": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "run_id": {
+      "required": true,
+      "type": "string"
+    },
+    "run_uuid": {
+      "required": true,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "start_from_head": {
+      "default": true,
+      "required": false,
+      "type": "boolean"
+    },
+    "start_time": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "GetAHORunTask": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "run_id": {
+      "required": true,
+      "type": "string"
+    },
+    "task_id": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "GetAHOSequenceStore": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "sequence_store_id": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "GetAHOSupportedRegions": {},
+  "GetAHOTaskLogs": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "end_time": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "limit": {
+      "default": 100,
+      "required": false,
+      "type": "integer"
+    },
+    "next_token": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "run_id": {
+      "required": true,
+      "type": "string"
+    },
+    "start_from_head": {
+      "default": true,
+      "required": false,
+      "type": "boolean"
+    },
+    "start_time": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "task_id": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "GetAHOWorkflow": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "export": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "array",
+          "null"
+        ]
+      }
+    },
+    "export_definition": {
+      "default": false,
+      "required": false,
+      "type": "boolean"
+    },
+    "workflow_id": {
+      "required": true,
+      "type": "string"
+    },
+    "workflow_owner_id": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "workflow_type": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "GetCodeConnection": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "connection_arn": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "GetSupportedFileTypes": {},
+  "GrantHealthOmicsRepositoryAccess": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "repository_name": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "LintAHOWorkflowBundle": {
+    "main_workflow_file": {
+      "required": true,
+      "type": "string"
+    },
+    "workflow_files": {
+      "required": true,
+      "type": {
+        "anyOf": [
+          "object",
+          "string"
+        ]
+      }
+    },
+    "workflow_format": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "LintAHOWorkflowDefinition": {
+    "filename": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "workflow_content": {
+      "required": true,
+      "type": "string"
+    },
+    "workflow_format": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "ListAHOBatches": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "max_results": {
+      "default": 100,
+      "required": false,
+      "type": "integer"
+    },
+    "name": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "next_token": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "run_group_id": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "status": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "ListAHOConfigurations": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "max_results": {
+      "default": 100,
+      "required": false,
+      "type": "integer"
+    },
+    "next_token": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "ListAHOReadSetExportJobs": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "max_results": {
+      "default": 100,
+      "required": false,
+      "type": "integer"
+    },
+    "next_token": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "sequence_store_id": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "ListAHOReadSetImportJobs": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "max_results": {
+      "default": 100,
+      "required": false,
+      "type": "integer"
+    },
+    "next_token": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "sequence_store_id": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "ListAHOReadSets": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "created_after": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "created_before": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "file_type": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "max_results": {
+      "default": 100,
+      "required": false,
+      "type": "integer"
+    },
+    "next_token": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "reference_arn": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "sample_id": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "sequence_store_id": {
+      "required": true,
+      "type": "string"
+    },
+    "status": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "subject_id": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "ListAHOReferenceImportJobs": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "max_results": {
+      "default": 100,
+      "required": false,
+      "type": "integer"
+    },
+    "next_token": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "reference_store_id": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "ListAHOReferenceStores": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "max_results": {
+      "default": 100,
+      "required": false,
+      "type": "integer"
+    },
+    "name_filter": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "next_token": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "ListAHOReferences": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "max_results": {
+      "default": 100,
+      "required": false,
+      "type": "integer"
+    },
+    "name_filter": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "next_token": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "reference_store_id": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "status_filter": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "ListAHORunCaches": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "cache_behavior": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "max_results": {
+      "default": 100,
+      "required": false,
+      "type": "integer"
+    },
+    "name": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "next_token": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "status": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "ListAHORunGroups": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "max_results": {
+      "default": 100,
+      "required": false,
+      "type": "integer"
+    },
+    "name": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "next_token": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "ListAHORunTasks": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "max_results": {
+      "default": 100,
+      "required": false,
+      "type": "integer"
+    },
+    "next_token": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "run_id": {
+      "required": true,
+      "type": "string"
+    },
+    "status": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "ListAHORuns": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "created_after": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "created_before": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "max_results": {
+      "default": 100,
+      "required": false,
+      "type": "integer"
+    },
+    "next_token": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "run_group_id": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "status": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "ListAHORunsInBatch": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "batch_id": {
+      "required": true,
+      "type": "string"
+    },
+    "max_results": {
+      "default": 100,
+      "required": false,
+      "type": "integer"
+    },
+    "next_token": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "run_id": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "run_setting_id": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "submission_status": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "ListAHOSequenceStores": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "max_results": {
+      "default": 100,
+      "required": false,
+      "type": "integer"
+    },
+    "name_filter": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "next_token": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "ListAHOWorkflowVersions": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "max_results": {
+      "default": 100,
+      "required": false,
+      "type": "integer"
+    },
+    "next_token": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "workflow_id": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "ListAHOWorkflows": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "max_results": {
+      "default": 100,
+      "required": false,
+      "type": "integer"
+    },
+    "next_token": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "ListCodeConnections": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "max_results": {
+      "default": 100,
+      "required": false,
+      "type": "integer"
+    },
+    "next_token": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "provider_type_filter": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "ListECRRepositories": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "filter_healthomics_accessible": {
+      "default": false,
+      "required": false,
+      "type": "boolean"
+    },
+    "max_results": {
+      "default": 100,
+      "required": false,
+      "type": "integer"
+    },
+    "next_token": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "ListPullThroughCacheRules": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "max_results": {
+      "default": 100,
+      "required": false,
+      "type": "integer"
+    },
+    "next_token": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "PackageAHOWorkflow": {
+    "additional_files": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "object"
+        ]
+      }
+    },
+    "expected_bucket_owner": {
+      "default": "__DEFAULT__",
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "main_file_content": {
+      "required": true,
+      "type": "string"
+    },
+    "main_file_name": {
+      "default": "main.wdl",
+      "required": false,
+      "type": "string"
+    },
+    "output_path": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "SearchGenomicsFiles": {
+    "adhoc_s3_buckets": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "array",
+          "null"
+        ]
+      }
+    },
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "continuation_token": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "enable_storage_pagination": {
+      "default": false,
+      "required": false,
+      "type": "boolean"
+    },
+    "file_type": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "include_associated_files": {
+      "default": true,
+      "required": false,
+      "type": "boolean"
+    },
+    "max_results": {
+      "default": 100,
+      "required": false,
+      "type": "integer"
+    },
+    "offset": {
+      "default": 0,
+      "required": false,
+      "type": "integer"
+    },
+    "pagination_buffer_size": {
+      "default": 500,
+      "required": false,
+      "type": "integer"
+    },
+    "search_terms": {
+      "required": false,
+      "type": "array"
+    }
+  },
+  "StartAHOReadSetExportJob": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "destination_s3_uri": {
+      "required": true,
+      "type": "string"
+    },
+    "read_set_ids": {
+      "required": true,
+      "type": {
+        "anyOf": [
+          "array",
+          "string"
+        ]
+      }
+    },
+    "role_arn": {
+      "required": true,
+      "type": "string"
+    },
+    "sequence_store_id": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "StartAHOReadSetImportJob": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "role_arn": {
+      "required": true,
+      "type": "string"
+    },
+    "sequence_store_id": {
+      "required": true,
+      "type": "string"
+    },
+    "sources": {
+      "required": true,
+      "type": "string"
+    },
+    "tags": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "object",
+          "string"
+        ]
+      }
+    }
+  },
+  "StartAHOReferenceImportJob": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "reference_store_id": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "role_arn": {
+      "required": true,
+      "type": "string"
+    },
+    "sources": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "StartAHORun": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "cache_behavior": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "cache_id": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "configuration_name": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "name": {
+      "required": true,
+      "type": "string"
+    },
+    "networking_mode": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "output_uri": {
+      "required": true,
+      "type": "string"
+    },
+    "parameters": {
+      "required": true,
+      "type": {
+        "anyOf": [
+          "null",
+          "object"
+        ]
+      }
+    },
+    "role_arn": {
+      "required": true,
+      "type": "string"
+    },
+    "run_group_id": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "scratch_storage_mode": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "storage_capacity": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "integer",
+          "null"
+        ]
+      }
+    },
+    "storage_type": {
+      "default": "DYNAMIC",
+      "required": false,
+      "type": "string"
+    },
+    "workflow_id": {
+      "required": true,
+      "type": "string"
+    },
+    "workflow_version_name": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "StartAHORunBatch": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "batch_name": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "batch_run_settings": {
+      "required": true,
+      "type": "object"
+    },
+    "cache_behavior": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "cache_id": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "output_uri": {
+      "required": true,
+      "type": "string"
+    },
+    "parameters": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "object"
+        ]
+      }
+    },
+    "request_id": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "retention_mode": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "role_arn": {
+      "required": true,
+      "type": "string"
+    },
+    "run_group_id": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "scratch_storage_mode": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "storage_capacity": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "integer",
+          "null"
+        ]
+      }
+    },
+    "storage_type": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "tags": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "object"
+        ]
+      }
+    },
+    "workflow_id": {
+      "required": true,
+      "type": "string"
+    },
+    "workflow_type": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "workflow_version_name": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "UpdateAHORunCache": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "cache_behavior": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "cache_id": {
+      "required": true,
+      "type": "string"
+    },
+    "description": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "name": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  },
+  "UpdateAHORunGroup": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "max_cpus": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "integer",
+          "null"
+        ]
+      }
+    },
+    "max_duration": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "integer",
+          "null"
+        ]
+      }
+    },
+    "max_gpus": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "integer",
+          "null"
+        ]
+      }
+    },
+    "max_runs": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "integer",
+          "null"
+        ]
+      }
+    },
+    "name": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "run_group_id": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "UpdateAHOSequenceStore": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "description": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "fallback_location": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "name": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "sequence_store_id": {
+      "required": true,
+      "type": "string"
+    }
+  },
+  "ValidateHealthOmicsECRConfig": {
+    "aws_profile": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    },
+    "aws_region": {
+      "default": null,
+      "required": false,
+      "type": {
+        "anyOf": [
+          "null",
+          "string"
+        ]
+      }
+    }
+  }
+}

@@ -589,6 +589,174 @@ The following IAM permissions are required:
 }
 ```
 
+## Remote Transport (HTTP/SSE)
+
+By default the server runs over **stdio**, which is ideal for local, single-user use with an MCP client. The server can also run as a network-accessible service over HTTP-based transports (`streamable-http` or `sse`) for hosted and remote scenarios.
+
+> **Security:** By default the server performs **no inbound authentication** of its own. [Multi-tenant mode](#multi-tenant-mode) adds per-request identity but does **not** change this: the server relies on the fronting layer to authenticate the caller and does not repeat that check itself. It does not validate SigV4 signatures or verify JWT signatures — it trusts the credentials the fronting layer forwards, and for `jwt` it only decodes the token's claims while the fronting layer is responsible for cryptographically verifying the signature. It binds only to the loopback address (`127.0.0.1`) by default, so it is not reachable from the network. Exposing the server on a non-loopback address **requires** an external fronting authentication layer (see [Securing non-loopback exposure](#securing-non-loopback-exposure)). When a non-loopback host is configured, the server logs a warning at startup and still binds — it does not refuse.
+>
+> A non-loopback bind is **not** the same as "no fronting layer," which is why the server warns rather than failing. Binding a non-loopback host is expected and often required in containerized or orchestrated deployments where the process must listen on the container interface (for example `0.0.0.0`) but the authentication/authorization boundary lives one layer out — a sidecar proxy, an ingress or API gateway, a service mesh enforcing mTLS, a restrictive security group, or the [AgentCore Runtime](#securing-non-loopback-exposure) that is the sole ingress. The server cannot detect from inside the process whether such a boundary exists, so it warns and defers the decision to the operator rather than breaking these valid setups. What the warning guards against is the unsafe case: a non-loopback bind with **no** access control at any layer, which exposes unauthenticated AWS access to anyone who can reach the port.
+
+### Transport selection
+
+The transport is selected with the `--transport` flag or the `MCP_TRANSPORT` environment variable. When both are supplied, the command-line flag wins. An unset, empty, or whitespace-only value selects `stdio`; any other unsupported value causes the server to log an error and exit without starting.
+
+| Transport mode | Flag | Environment variable | Start command |
+|----------------|------|----------------------|---------------|
+| `stdio` (default) | `--transport stdio` | `MCP_TRANSPORT=stdio` | `uv run -m awslabs.aws_healthomics_mcp_server.server` |
+| `streamable-http` | `--transport streamable-http` | `MCP_TRANSPORT=streamable-http` | `uv run -m awslabs.aws_healthomics_mcp_server.server --transport streamable-http --host 127.0.0.1 --port 8000 --path /mcp` |
+| `sse` | `--transport sse` | `MCP_TRANSPORT=sse` | `uv run -m awslabs.aws_healthomics_mcp_server.server --transport sse` |
+
+Each start command also has an environment-variable equivalent, for example:
+
+```bash
+# streamable-http via environment variables
+export MCP_TRANSPORT=streamable-http
+export MCP_HOST=127.0.0.1
+export MCP_PORT=8000
+export MCP_PATH=/mcp
+uv run -m awslabs.aws_healthomics_mcp_server.server
+
+# sse via environment variables
+MCP_TRANSPORT=sse uv run -m awslabs.aws_healthomics_mcp_server.server
+```
+
+### Network bind configuration
+
+When a network transport (`streamable-http` or `sse`) is selected, the bind address, port, and request path are configured with the following flags and environment variables. When both a flag and its environment variable are supplied, the command-line flag wins. These values are ignored when the transport is `stdio`.
+
+| Value | Flag | Environment variable | Default |
+|-------|------|----------------------|---------|
+| Host  | `--host` | `MCP_HOST` | `127.0.0.1` (loopback) |
+| Port  | `--port` | `MCP_PORT` | `8000` |
+| Path  | `--path` | `MCP_PATH` | `/mcp` |
+
+Validation:
+
+- The port must be an integer in the range `1`–`65535`. An invalid port causes the server to log an error and exit without binding.
+- The host must be a valid IPv4 address, IPv6 address, or syntactically valid hostname. An invalid host causes the server to log an error and exit without binding.
+
+### Securing non-loopback exposure
+
+The server does **not** perform inbound authentication. Binding to a non-loopback host (for example `0.0.0.0`) makes the endpoint reachable on the network with no built-in access control, so it **must** be placed behind an external fronting authentication layer. Concrete options include:
+
+- **SigV4 via [`mcp-proxy-for-aws`](https://github.com/aws/mcp-proxy-for-aws)** — front the server with a proxy that requires AWS Signature Version 4 signed requests, so only callers with valid AWS credentials reach the server.
+- **Reverse proxy** — terminate authentication at a reverse proxy (for example nginx or Envoy) that enforces mutual TLS, an auth subrequest, or token validation before forwarding to the loopback-bound server.
+- **API gateway** — place an API gateway (for example Amazon API Gateway) in front of the server to handle authentication and authorization, forwarding only authenticated requests.
+- **Amazon Bedrock AgentCore Runtime** — host the server on [AgentCore Runtime](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-mcp.html) with `server_protocol: MCP`. The runtime terminates inbound authentication at its boundary — either a **Custom JWT authorizer** (validates tokens against an OIDC discovery URL such as Amazon Cognito) or **AWS IAM (SigV4)** — before requests reach the server, and runs the server in an isolated microVM where the runtime is the only ingress. This pairs naturally with the server's `jwt` and `sigv4` inbound mechanisms: the runtime's Custom JWT authorizer cryptographically verifies the token signature (satisfying the `jwt` production requirement in [Multi-tenant mode](#multi-tenant-mode)), then forwards the authenticated request. In this deployment the server serves `streamable-http` bound to the container port AgentCore expects (all interfaces) rather than loopback, since AgentCore itself is the network and authentication boundary.
+
+A typical secure deployment keeps the server bound to loopback inside its host or container network namespace and lets the fronting layer be the only network-reachable entry point. The AgentCore Runtime option is the exception: there the server binds to the runtime's container port and AgentCore is the sole ingress.
+
+## Multi-tenant mode
+
+By default the server runs in **single-tenant mode**: one process identity (the default AWS credential chain, or a named `aws_profile`) serves every request. **Multi-tenant mode** lets a single network endpoint serve many caller identities by deriving AWS credentials **per inbound request** instead of once per process. Each request runs with credentials scoped to the caller that made it.
+
+> **Security:** Multi-tenant mode does not remove the need for a secured transport. The inbound identity mechanisms below either trust credential material forwarded by a fronting layer or decode (but do not cryptographically verify) bearer tokens. Multi-tenant mode **must** still be deployed behind an appropriately secured, trusted transport (TLS plus a fronting authentication layer). If no enabled mechanism can authenticate a request, the server rejects it with `401 Unauthorized` and makes no AWS call.
+
+### Enabling multi-tenant mode
+
+| Value | Flag | Environment variable | Default |
+|-------|------|----------------------|---------|
+| Multi-tenant | `--multi-tenant` | `MCP_MULTI_TENANT` | disabled |
+| Inbound mechanisms | `--inbound-auth` | `MCP_INBOUND_AUTH` | none |
+
+- Multi-tenant mode **requires a network transport** (`streamable-http` or `sse`); combining it with `stdio` causes the server to log an error and exit without starting.
+- `--multi-tenant` accepts case-insensitive enable values (`true`, `1`, `yes`, `on`, `enabled`) and disable values (`false`, `0`, `no`, `off`, `disabled`). When both the flag and environment variable are supplied, the command-line flag wins.
+- `--inbound-auth` takes a comma-separated subset of `sigv4`, `jwt`, `explicit` (for example `--inbound-auth sigv4,jwt`). At least one mechanism must be enabled; enabling multi-tenant mode with no mechanisms causes the server to exit at startup (it would otherwise reject every request).
+
+```bash
+# Multi-tenant streamable-http with SigV4 + JWT inbound mechanisms
+export MCP_TRANSPORT=streamable-http
+export MCP_MULTI_TENANT=true
+export MCP_INBOUND_AUTH=sigv4,jwt
+export MCP_JWT_ROLE_ARN=arn:aws:iam::123456789012:role/tenant-callers
+uv run -m awslabs.aws_healthomics_mcp_server.server
+```
+
+### Inbound identity mechanisms and trust models
+
+When more than one enabled mechanism can handle a request, exactly one is selected using the deterministic precedence order **`sigv4` > `jwt` > `explicit`**. Each mechanism assumes a trusted fronting layer / transport, as described below.
+
+- **`sigv4`** — The caller signs the request with their own AWS Signature Version 4 credentials. SigV4 proves possession of the secret key without transmitting it, so the server cannot recover a usable secret from the signature alone. This mechanism therefore expects a trusted fronting layer (for example [`mcp-proxy-for-aws`](https://github.com/awslabs/mcp-proxy-for-aws)) that validates the signature and forwards the caller's short-lived credentials on trusted headers (`X-Aho-Forwarded-Secret-Access-Key`, and `X-Aho-Forwarded-Session-Token` or `X-Amz-Security-Token`). The access key id parsed from the `Authorization` header becomes the per-caller cache identity. If the forwarded credential material is absent, the mechanism **fails closed** and no session is built.
+- **`jwt`** — A bearer/JWT token is exchanged server-side via AWS STS `AssumeRole` into a per-request IAM role, and the tool's AWS calls run under the returned temporary credentials. The exchange **always runs with the server's own credentials** (its execution role or default credential chain), and the inbound token is **never** transmitted to STS. The JWT **signature is not verified** by this server — it assumes a fronting layer (API gateway, load balancer, or hosting platform) has already authenticated the token; the server only decodes the claims to extract a caller identifier (the `sub` claim by default). That identifier is attached as an **ABAC session tag** (`caller=<sub>`) on the assumed-role session so the role's policies and CloudTrail can scope and attribute actions per caller. **Which** role is assumed for a request — and whether an `ExternalId` is supplied — is decided per request by the configured role resolver (see [Role resolution and customer-account access](#role-resolution-and-customer-account-access)). If role resolution or the STS call fails, the request is rejected with `401`, no credential context is populated, and no AWS call is made for the tool (**fail closed** — the server never falls back to process-level credentials).
+
+  > **Production requirement:** Because this server does **not** verify the token signature, the `jwt` mechanism **must** be deployed behind a fronting layer that cryptographically verifies the JWT signature (issuer, audience, expiry, and signature) before the request reaches the server — for example an API Gateway JWT authorizer, an ALB OIDC listener, or the hosting platform's authentication layer. The server must never be directly reachable by clients when `jwt` is enabled. Without upstream verification, any party that can reach the endpoint can forge a token with an arbitrary `sub`, obtain credentials for the assumed role, and impersonate any caller via the `caller` ABAC tag.
+- **`explicit`** — Short-lived AWS credentials are supplied directly in request headers (`X-Aws-Access-Key-Id`, `X-Aws-Secret-Access-Key`, and optionally `X-Aws-Session-Token`). These headers carry live credential material, so this mechanism **requires a trusted transport** and short-lived (STS session) credentials.
+
+Credential material (secret access keys, session tokens, bearer tokens) is **never logged** and never appears in error responses or the `401` body.
+
+### Role resolution and customer-account access
+
+For the `jwt` mechanism, the role assumed for each request is chosen by a **role resolver**, selected by which configuration value is present. The target role ARN always comes from provider-controlled configuration — **never from a token claim** — so the identity-to-role mapping is the enforced cross-tenant boundary.
+
+| Resolver | Selected by | `ExternalId` | Behavior |
+|----------|-------------|--------------|----------|
+| Static | `MCP_JWT_ROLE_ARN` | none | Every authenticated caller assumes the same provider-owned role. This is the original single-role behavior and remains fully backward compatible. |
+| Registry | `MCP_JWT_ROLE_REGISTRY` | required | The authenticated identity (the `sub` claim) is looked up in a provider-controlled source that maps it to a per-customer `{role_arn, external_id}`. Enables per-tenant, cross-account access. |
+
+**Exactly one** role-resolution source may be configured:
+
+| Value | Flag | Environment variable | Notes |
+|-------|------|----------------------|-------|
+| Static role ARN | `--jwt-role-arn` | `MCP_JWT_ROLE_ARN` | Mutually exclusive with the registry. |
+| Registry source | `--jwt-role-registry` | `MCP_JWT_ROLE_REGISTRY` | `file:///path/map.json` or `dynamodb://table-name`. |
+| Session duration | `--jwt-session-duration` | `MCP_JWT_SESSION_DURATION` | `AssumeRole` `DurationSeconds`; integer `900`–`43200`, default `3600`. |
+
+- Configuring **both** `MCP_JWT_ROLE_ARN` and `MCP_JWT_ROLE_REGISTRY` is a **startup error** — the server logs the conflict and exits without serving.
+- Enabling the `jwt` mechanism with **neither** source configured is a **startup error** (fail closed — no role could be resolved).
+- An out-of-range or non-integer `MCP_JWT_SESSION_DURATION` is a startup error.
+
+#### Customer-account (cross-account) role assumption
+
+The registry resolver implements the standard SaaS cross-account delegation pattern (`sts:AssumeRole`, **not** `AssumeRoleWithWebIdentity`): the server assumes a role that the **customer** created in **their own** AWS account, and the customer's tool calls run inside the customer account bounded by the permissions that role grants.
+
+- **`ExternalId` is mandatory for cross-account access (confused-deputy protection).** Each registry record supplies a non-empty, per-customer `ExternalId` (at most 1224 characters). The provider assigns it once at onboarding and stores it in the record; the server passes it **unmodified** on `AssumeRole` and **never generates, derives, or rotates** it. A non-static resolution that produces no `ExternalId` **fails closed** (no `AssumeRole`, `401`).
+- **Registry record shape** (keyed on the authenticated identity): `{ role_arn, external_id, account_id?, enabled? }`. A missing record, a record with `enabled: false`, a record missing `role_arn`/`external_id`, or a source that cannot be read/queried all **fail closed** with `401`. Onboarding/offboarding is done by editing the registry — no redeploy required. The DynamoDB source is queried with the server's own credentials (never the inbound token).
+- **IAM trust setup.** The customer's role trust policy names the **server's execution-role principal** and requires the matching `ExternalId`:
+
+  ```json
+  {
+    "Effect": "Allow",
+    "Principal": { "AWS": "arn:aws:iam::<PROVIDER_ACCT>:role/HealthOmicsMcpExecRole" },
+    "Action": ["sts:AssumeRole", "sts:TagSession"],
+    "Condition": { "StringEquals": { "sts:ExternalId": "<unique-per-customer>" } }
+  }
+  ```
+
+  The server's execution role must be permitted to assume those roles, scoped to a role-name pattern rather than `*`:
+
+  ```json
+  {
+    "Effect": "Allow",
+    "Action": ["sts:AssumeRole", "sts:TagSession"],
+    "Resource": "arn:aws:iam::*:role/HealthOmicsMcpAccess"
+  }
+  ```
+
+  Because customers trust this principal directly, **keep the execution-role ARN stable** — changing it requires every customer to update their trust policy. A customer revokes access at any time by editing or deleting their role.
+- **Per-action denials are tool failures, not auth failures.** When a customer's role lacks permission for a specific action, the tool's AWS call returns a normal AWS `AccessDenied`, which is surfaced to the caller as a tool-call failure result. It is **not** retried under other credentials and **not** converted into a `CredentialDerivationError` or an inbound `401`.
+
+```bash
+# Multi-tenant streamable-http, registry-backed cross-account role assumption
+export MCP_TRANSPORT=streamable-http
+export MCP_MULTI_TENANT=true
+export MCP_INBOUND_AUTH=jwt
+export MCP_JWT_ROLE_REGISTRY=dynamodb://healthomics-customer-roles
+export MCP_JWT_SESSION_DURATION=3600
+uv run -m awslabs.aws_healthomics_mcp_server.server --transport streamable-http --host 127.0.0.1 --port 8000
+```
+
+#### Multi-hop identity propagation (customer → agent → server)
+
+When the caller is an AI agent acting on a customer's behalf (customer → agent → this server), the customer's identity is propagated across the agent hop by **token pass-through**: the agent forwards the customer's original bearer token unchanged. The server therefore derives the authenticated identity from the **customer's** `sub`, not the agent's workload identity, and maps that to the customer's role exactly as in the single-hop case. This requires a **shared audience** — the customer token's `aud` must be one the server's fronting authorizer accepts — so the same token is valid at both hops. The cross-account assume is unchanged: the server uses its **own** execution-role credentials plus the request `ExternalId`, so the customer trust policy names the execution role (not the agent). A missing or unverified propagated identity, or an STS failure, fails closed with `401`. (OAuth 2.0 Token Exchange / on-behalf-of is **not** used; propagation is token pass-through only.)
+
+### Per-request credential freshness and isolation
+
+- Credentials are derived **fresh for every request** from that request's inbound identity; no process-level or prior-request session is ever reused, so no separate credential-refresh mechanism is needed. For the `jwt` mechanism a distinct `sts:AssumeRole` is performed per request and the resulting temporary credentials are **not cached** — they live only for that request and are discarded on completion.
+- The `aws_profile` tool argument is **non-authoritative** in multi-tenant mode: identity comes solely from the request context, so a caller cannot select another tenant's identity by passing a profile. The `aws_region` argument is still honored (falling back to the configured default region).
+- Each request's credential context is installed before any tool runs and discarded when the request completes, so it is never visible to another request. Concurrent requests are isolated via `contextvars`.
+- Credential-derived caches (the AWS partition cache) are keyed by caller identity, so a value derived for one identity is never served to another. The partition cache is bounded to avoid unbounded memory growth across many caller identities.
+
 ## Usage with MCP Clients
 
 ### Kiro
@@ -755,6 +923,56 @@ uv run ruff check
 # Type checking
 uv run pyright
 ```
+
+## Running in a container
+
+The published image runs the server over **stdio** by default and binds nothing
+on the network, matching the local single-tenant behavior:
+
+```bash
+docker run -e AWS_REGION=us-east-1 aws-healthomics-mcp-server
+```
+
+### Running the container with a network transport
+
+A network transport (`streamable-http` or `sse`) can be started using only the
+documented environment variables — the image and its entry point do not need to
+change. The relevant variables and their defaults are:
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `MCP_TRANSPORT` | Transport mode: `stdio`, `streamable-http`, or `sse` | `stdio` |
+| `MCP_HOST` | Network bind address | `127.0.0.1` (loopback) |
+| `MCP_PORT` | Network bind port | `8000` |
+| `MCP_PATH` | Request path served | `/mcp` |
+
+To reach the server from outside the container you must do two things:
+
+1. Bind a non-loopback host inside the container (for example `MCP_HOST=0.0.0.0`).
+   The default `127.0.0.1` is only reachable from within the container.
+2. Publish the configured port to the host with `-p`/`--publish`.
+
+```bash
+docker run \
+  -e MCP_TRANSPORT=streamable-http \
+  -e MCP_HOST=0.0.0.0 \
+  -e MCP_PORT=8000 \
+  -p 8000:8000 \
+  -e AWS_REGION=us-east-1 \
+  aws-healthomics-mcp-server
+```
+
+For the SSE transport, set `MCP_TRANSPORT=sse` instead; `MCP_PATH` then controls
+the SSE request path.
+
+> **Security: non-loopback exposure requires a fronting auth layer.** Binding a
+> non-loopback host (such as `0.0.0.0`) exposes AWS access on the network. The
+> server performs **no inbound authentication of its own**, and it
+> logs a warning at startup when it binds a non-loopback host. You must place the
+> endpoint behind an external fronting authentication layer — for example SigV4
+> via `mcp-proxy-for-aws`, a reverse proxy, or an API gateway. See the
+> secure-by-default and fronting-authentication notes elsewhere in this README
+> for details.
 
 ## Contributing
 
