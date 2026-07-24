@@ -28,7 +28,7 @@ jobs:
       - name: Find Dockerfiles
         id: find-dockerfiles
         run: |
-          DOCKERFILES=$(find . -name Dockerfile -exec dirname {} \; | sed 's/^\.\///' | jq -R -s -c 'split("\n")[:-1]')
+          DOCKERFILES=$(find . -name Dockerfile -not -path '*/integration/*' -exec dirname {} \; | sed 's/^\.\///' | jq -R -s -c 'split("\n")[:-1]')
           echo "dockerfiles=$DOCKERFILES" >> $GITHUB_OUTPUT
 
   build:

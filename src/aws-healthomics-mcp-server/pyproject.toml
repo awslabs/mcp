@@ -125,7 +125,7 @@ update_changelog_on_bump = true
 packages = ["awslabs"]
 
 [tool.bandit]
-exclude_dirs = ["venv", ".venv", "tests"]
+exclude_dirs = ["venv", ".venv", "tests", "integration"]
 
 [tool.pytest.ini_options]
 python_files = "test_*.py"
