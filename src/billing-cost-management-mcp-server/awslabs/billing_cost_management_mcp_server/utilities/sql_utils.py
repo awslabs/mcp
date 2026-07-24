@@ -25,6 +25,7 @@ Security model:
 - Query validation to prevent harmful operations
 """
 
+import asyncio
 import atexit
 import json
 import os
@@ -52,6 +53,11 @@ BUSY_TIMEOUT_MS = int(
 
 # Session database path singleton
 _SESSION_DB_PATH = None
+
+# SQLite allows concurrent readers in WAL mode, but writes are still serialized.
+# Keep the queueing inside this process so concurrent MCP tool calls do not race
+# each other into "database is locked" errors.
+_SQLITE_LOCK = asyncio.Lock()
 
 
 def should_convert_to_sql(response_size: int) -> bool:
@@ -530,6 +536,16 @@ async def convert_response_if_needed(
 async def convert_api_response_to_table(
     ctx: Context, response: Dict[str, Any], operation_name: str, **metadata
 ) -> Dict[str, Any]:
+    """Convert a large API response to a SQLite table with serialized DB access."""
+    async with _SQLITE_LOCK:
+        return await _convert_api_response_to_table_unlocked(
+            ctx, response, operation_name, **metadata
+        )
+
+
+async def _convert_api_response_to_table_unlocked(
+    ctx: Context, response: Dict[str, Any], operation_name: str, **metadata
+) -> Dict[str, Any]:
     """Convert a large API response to a SQLite table.
 
     This function stores API response data in a SQLite table for easier querying
@@ -857,6 +873,7 @@ async def convert_api_response_to_table(
         register_table_in_schema_info(
             cursor, table_name, operation_name, json.dumps(metadata), rows_inserted
         )
+        conn.commit()
 
         await ctx.info(f'Converted {rows_inserted} rows to SQL table: {table_name}')
 
@@ -1097,6 +1114,18 @@ async def convert_api_response_to_table(
 
 
 async def execute_session_sql(
+    ctx: Context,
+    query: str,
+    schema: Optional[List[str]] = None,
+    data: Optional[List[List[Any]]] = None,
+    table_name: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Execute SQL query on the session database with serialized DB access."""
+    async with _SQLITE_LOCK:
+        return await _execute_session_sql_unlocked(ctx, query, schema, data, table_name)
+
+
+async def _execute_session_sql_unlocked(
     ctx: Context,
     query: str,
     schema: Optional[List[str]] = None,

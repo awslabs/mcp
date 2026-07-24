@@ -24,12 +24,14 @@ This module contains unit tests for the sql_utils.py module, including:
 - API response conversion to database tables
 """
 
+import asyncio
 import os
 import pytest
 import sqlite3
 import sys
 import tempfile
 import uuid
+from awslabs.billing_cost_management_mcp_server.utilities import sql_utils
 from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
     convert_api_response_to_table,
     convert_response_if_needed,
@@ -61,6 +63,94 @@ def temp_db_path():
     with tempfile.TemporaryDirectory() as temp_dir:
         db_path = os.path.join(temp_dir, 'test_session.db')
         yield db_path
+
+
+@pytest.mark.asyncio
+class TestSqliteLocking:
+    """Tests for serialized SQLite access."""
+
+    async def test_convert_api_response_to_table_uses_sqlite_lock(self, mock_context):
+        """Test response conversion acquires the SQLite operation lock."""
+        mock_lock = MagicMock()
+        mock_lock.__aenter__ = AsyncMock()
+        mock_lock.__aexit__ = AsyncMock(return_value=None)
+        expected = {'status': 'success'}
+
+        with (
+            patch.object(sql_utils, '_SQLITE_LOCK', mock_lock),
+            patch.object(
+                sql_utils,
+                '_convert_api_response_to_table_unlocked',
+                AsyncMock(return_value=expected),
+            ) as mock_unlocked,
+        ):
+            result = await sql_utils.convert_api_response_to_table(
+                mock_context, {'data': 'value'}, 'test_operation', source='unit-test'
+            )
+
+        assert result == expected
+        mock_lock.__aenter__.assert_awaited_once()
+        mock_lock.__aexit__.assert_awaited_once()
+        mock_unlocked.assert_awaited_once_with(
+            mock_context, {'data': 'value'}, 'test_operation', source='unit-test'
+        )
+
+    async def test_execute_session_sql_uses_sqlite_lock(self, mock_context):
+        """Test session SQL acquires the SQLite operation lock."""
+        mock_lock = MagicMock()
+        mock_lock.__aenter__ = AsyncMock()
+        mock_lock.__aexit__ = AsyncMock(return_value=None)
+        expected = {'status': 'success'}
+
+        with (
+            patch.object(sql_utils, '_SQLITE_LOCK', mock_lock),
+            patch.object(
+                sql_utils, '_execute_session_sql_unlocked', AsyncMock(return_value=expected)
+            ) as mock_unlocked,
+        ):
+            result = await sql_utils.execute_session_sql(
+                mock_context, 'SELECT * FROM test_table'
+            )
+
+        assert result == expected
+        mock_lock.__aenter__.assert_awaited_once()
+        mock_lock.__aexit__.assert_awaited_once()
+        mock_unlocked.assert_awaited_once_with(
+            mock_context, 'SELECT * FROM test_table', None, None, None
+        )
+
+    async def test_convert_api_response_to_table_serializes_concurrent_calls(
+        self, mock_context
+    ):
+        """Test concurrent response conversions enter the SQLite section one at a time."""
+        active_calls = 0
+        max_active_calls = 0
+
+        async def slow_unlocked(*args, **kwargs):
+            nonlocal active_calls, max_active_calls
+            active_calls += 1
+            max_active_calls = max(max_active_calls, active_calls)
+            await asyncio.sleep(0.01)
+            active_calls -= 1
+            return {'status': 'success'}
+
+        with patch.object(
+            sql_utils,
+            '_convert_api_response_to_table_unlocked',
+            side_effect=slow_unlocked,
+        ) as mock_unlocked:
+            results = await asyncio.gather(
+                *[
+                    sql_utils.convert_api_response_to_table(
+                        mock_context, {'data': i}, 'test_operation'
+                    )
+                    for i in range(20)
+                ]
+            )
+
+        assert all(result == {'status': 'success'} for result in results)
+        assert mock_unlocked.await_count == 20
+        assert max_active_calls == 1
 
 
 class TestShouldConvertToSql:
@@ -1359,6 +1449,37 @@ class TestConvertApiResponseToTableSpecificTypes:
         assert result['row_count'] == 3
         assert 'table_name' in result
         assert 'sample_queries' in result
+        assert mock_connection.commit.call_count >= 3
+
+    @patch('sqlite3.connect')
+    @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
+    async def test_convert_response_commits_schema_info_registration(
+        self, mock_get_path, mock_connect, mock_context
+    ):
+        """Test schema_info registration is committed before the connection closes."""
+        mock_get_path.return_value = '/mock/path/session.db'
+        events = []
+
+        mock_cursor = MagicMock()
+        mock_cursor.description = [('tag_value',)]
+        mock_cursor.fetchall.return_value = [('Environment',)]
+
+        mock_connection = MagicMock()
+        mock_connection.cursor.return_value = mock_cursor
+        mock_connection.commit.side_effect = lambda: events.append('commit')
+        mock_connect.return_value = mock_connection
+
+        with patch.object(
+            sql_utils,
+            'register_table_in_schema_info',
+            side_effect=lambda *args, **kwargs: events.append('register'),
+        ):
+            result = await convert_api_response_to_table(
+                mock_context, {'Tags': ['Environment']}, 'cost_explorer_get_tags'
+            )
+
+        assert result['status'] == 'success'
+        assert events[-2:] == ['register', 'commit']
 
     @patch('sqlite3.connect')
     @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
