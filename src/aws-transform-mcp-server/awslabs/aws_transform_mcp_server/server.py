@@ -32,8 +32,8 @@ from awslabs.aws_transform_mcp_server.config_store import (
     set_sigv4_regions,
 )
 from awslabs.aws_transform_mcp_server.consts import (
-    FES_REGIONS,
     PROFILE_DISCOVERY_TIMEOUT_SECONDS,
+    regions_for_profile_discovery,
 )
 from awslabs.aws_transform_mcp_server.tools.adaptive_poll import AdaptivePollHandler
 from awslabs.aws_transform_mcp_server.tools.artifact import ArtifactHandler
@@ -245,10 +245,13 @@ async def _discover_sigv4_regions() -> list[str]:
             logger.info('Region discovery: {} succeeded', region)
             return region
         except Exception as exc:
-            logger.info('Region discovery failed for {}: {}', region, exc)
+            logger.info('Region discovery failed for {}: {!r}', region, exc)
             return None
 
-    results = await asyncio.gather(*[_call_region(r) for r in FES_REGIONS])
+    probe_regions = regions_for_profile_discovery()
+    if len(probe_regions) == 1:
+        logger.info('Region discovery: probing configured AWS_REGION {} only', probe_regions[0])
+    results = await asyncio.gather(*[_call_region(r) for r in probe_regions])
     return [r for r in results if r is not None]
 
 
