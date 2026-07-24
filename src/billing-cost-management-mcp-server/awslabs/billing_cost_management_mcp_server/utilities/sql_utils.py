@@ -359,7 +359,66 @@ def _get_specialized_converter(operation_name: str) -> Optional[str]:
         'aws_pricing_get_products': 'pricing_products',
     }
 
-    return converters.get(operation_name)
+    if operation_name in converters:
+        return converters[operation_name]
+
+    # Compute Optimizer Automation list operations all return a uniform
+    # {<list_key>: [...], count, next_token} shape; store one row per item so
+    # the offloaded data stays queryable instead of a single JSON blob.
+    if operation_name.startswith('compute_optimizer_automation_'):
+        return 'records'
+
+    return None
+
+
+def _extract_record_list(response: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Pull the item list out of a {<list_key>: [...], count, next_token} response.
+
+    Returns the first list-valued field (the item collection), ignoring the
+    scalar pagination fields (`count`, `next_token`). Returns an empty list if
+    the response carries no list field.
+
+    Args:
+        response: A uniform list response.
+
+    Returns:
+        The list of item dicts, or an empty list.
+    """
+    for value in response.values():
+        if isinstance(value, list):
+            return value
+    return []
+
+
+def _record_columns(items: List[Dict[str, Any]]) -> List[str]:
+    """Derive the ordered column set for a record list from the union of item keys.
+
+    Keys are collected in first-seen order across all items so items with
+    differing optional fields (e.g. rules with vs. without `criteria`) all fit
+    one table. Non-dict items fall back to a single `value` column.
+
+    Column names are interpolated into the CREATE/INSERT SQL, so each is validated
+    as a safe identifier (letters, numbers, underscores) — mirroring
+    validate_table_name — to keep the module's injection-prevention model intact.
+
+    Args:
+        items: The list of items to store.
+
+    Returns:
+        The ordered list of column names (defaults to ['value'] if none found).
+
+    Raises:
+        ValueError: If an item key is not a safe SQL identifier.
+    """
+    columns: List[str] = []
+    for item in items:
+        if isinstance(item, dict):
+            for key in item:
+                if key not in columns:
+                    if not isinstance(key, str) or not re.match(r'^[a-zA-Z0-9_]+$', key):
+                        raise ValueError(f'Invalid column name for SQL table: {key!r}')
+                    columns.append(key)
+    return columns or ['value']
 
 
 def _derive_pagination_envelope(
@@ -708,6 +767,44 @@ async def convert_api_response_to_table(
                 cursor.execute(insert_sql, ('value', value))
                 rows_inserted += 1
 
+        elif converter_type == 'records':
+            # Generic one-row-per-item converter for responses shaped like
+            # {<list_key>: [ {..}, {..} ], count, next_token}. Unlike the bespoke
+            # converters above (which hardcode a schema for one known API), this
+            # derives the columns from the union of item keys, so any uniform list
+            # response can be stored with real, queryable columns. Nested dict/list
+            # values are stored as JSON strings (query with SQLite's json_extract).
+            items = _extract_record_list(response)
+            columns = _record_columns(items)
+
+            # Double-quote every identifier so column names that are SQL reserved
+            # words (e.g. 'order', 'group') are always valid. Names are already
+            # validated as safe identifiers by _record_columns, so quoting them
+            # cannot introduce injection.
+            quoted_columns = [f'"{col}"' for col in columns]
+
+            schema = [f'{col} TEXT' for col in quoted_columns]
+            sql = create_safe_sql_statement('CREATE', table_name, *schema)
+            cursor.execute(sql)
+
+            # Table name, column list, and INSERT statement are constant across
+            # rows, so build them once rather than per iteration.
+            validate_table_name(table_name)
+            column_list = ', '.join(quoted_columns)
+            placeholders = ', '.join('?' for _ in columns)
+            insert_sql = create_safe_sql_statement(
+                'INSERT', table_name, f'({column_list}) VALUES ({placeholders})'
+            )
+            for item in items:
+                # Non-dict items (fallback 'value' column) store the scalar directly.
+                row = item if isinstance(item, dict) else {'value': item}
+                values = []
+                for col in columns:
+                    raw = row.get(col)
+                    values.append(json.dumps(raw) if isinstance(raw, (dict, list)) else raw)
+                cursor.execute(insert_sql, values)
+                rows_inserted += 1
+
         else:
             # Generic fallback for unknown response types
             schema = ['key TEXT', 'value TEXT']
@@ -940,6 +1037,17 @@ async def convert_api_response_to_table(
                     'name': 'Cost category values',
                     'description': 'Lists all cost category values alphabetically',
                     'sql': values_query,
+                }
+            )
+
+        elif converter_type == 'records':
+            # Records are one row per item with a column per field.
+            count_query = create_safe_sql_statement('SELECT', table_name, 'COUNT(*) as item_count')
+            sample_queries.append(
+                {
+                    'name': 'Item count',
+                    'description': 'Counts the number of items stored',
+                    'sql': count_query,
                 }
             )
 

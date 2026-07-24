@@ -12,6 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""AWS IAM MCP Server package."""
-
-__version__ = '1.0.22'
+"""Review subpackage for Redshift cluster diagnostic reviews."""

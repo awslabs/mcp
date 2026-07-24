@@ -243,6 +243,22 @@ Compute Optimizer:
 - compute-optimizer:GetEnrollmentStatus
 - compute-optimizer:GetIdleRecommendations
 
+Compute Optimizer Automation:
+- aco-automation:GetAutomationEvent
+- aco-automation:GetAutomationRule
+- aco-automation:GetEnrollmentConfiguration
+- aco-automation:ListAccounts
+- aco-automation:ListAutomationEvents
+- aco-automation:ListAutomationEventSteps
+- aco-automation:ListAutomationEventSummaries
+- aco-automation:ListAutomationRules
+- aco-automation:ListRecommendedActions
+- aco-automation:ListRecommendedActionSummaries
+- aco-automation:ListAutomationRulePreview
+- aco-automation:ListAutomationRulePreviewSummaries
+- aco-automation:ListTagsForResource
+- ec2:DescribeVolumes (required by ListRecommendedActions and ListAutomationRulePreview)
+
 AWS Budgets:
 - budgets:ViewBudget
 
@@ -363,16 +379,31 @@ The server currently supports the following AWS services
    - get_idle_recommendations
    - get_enrollment_status
 
-7. **Pricing Calculator**
+7. **Compute Optimizer Automation**
+   - get_automation_event
+   - get_automation_rule
+   - get_enrollment_configuration
+   - list_accounts
+   - list_automation_events
+   - list_automation_event_steps
+   - list_automation_event_summaries
+   - list_automation_rules
+   - list_recommended_actions
+   - list_recommended_action_summaries
+   - list_automation_rule_preview
+   - list_automation_rule_preview_summaries
+   - list_tags_for_resource
+
+8. **Pricing Calculator**
    - get-preferences
    - get-workload-estimate
    - list-workload-estimate-usage
    - list-workload-estimates
 
-8. **S3 Storage Lens**
+9. **S3 Storage Lens**
    - storage_lens_run_query (custom implementation using Athena)
 
-9. **AWS Billing Conductor**
+10. **AWS Billing Conductor**
    - list_billing_groups
    - list_billing_group_cost_reports
    - get_billing_group_cost_report
@@ -385,11 +416,11 @@ The server currently supports the following AWS services
    - list_custom_line_item_versions
    - list_resources_associated_to_custom_line_item
 
-10. **Cost Allocation Tags**
+11. **Cost Allocation Tags**
     - list_cost_allocation_tags
     - list_cost_allocation_tag_backfill_history
 
-11. **Cost Category Definitions**
+12. **Cost Category Definitions**
     - describe_cost_category_definition
     - list_cost_category_definitions
 

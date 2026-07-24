@@ -1,3 +1,4 @@
+import awslabs.aws_api_mcp_server.server as server_module
 import os
 import pytest
 import requests
@@ -13,6 +14,7 @@ from awslabs.aws_api_mcp_server.core.common.models import (
     InterpretationResponse,
     ProgramInterpretationResponse,
 )
+from awslabs.aws_api_mcp_server.core.security.policy import PolicyDecision
 from awslabs.aws_api_mcp_server.server import (
     _execute_single_command,
     call_aws,
@@ -27,19 +29,41 @@ from tests.fixtures import TEST_CREDENTIALS, DummyCtx
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
+@pytest.fixture(autouse=True)
+def _present_security_policy_index():
+    """Provide a loaded read operations index and a default-ALLOW policy decision.
+
+    The server fails closed when the read operations index is unavailable (see the
+    policy fail-open advisory), so request-path tests must run with the index
+    present. Tests that exercise a specific policy decision (deny / elicit /
+    read-only) override ``check_security_policy`` explicitly.
+    """
+    with (
+        patch.object(server_module, 'READ_OPERATIONS_INDEX', MagicMock()),
+        patch.object(server_module, 'check_security_policy', return_value=PolicyDecision.ALLOW),
+    ):
+        yield
+
+
 @patch('awslabs.aws_api_mcp_server.server.os.chdir')
 @patch('awslabs.aws_api_mcp_server.server.get_read_only_operations')
 @patch('awslabs.aws_api_mcp_server.server.server')
 def test_main_read_operations_index_load_failure(mock_server, mock_get_read_ops, mock_chdir):
-    """Test main function when read operations index loading fails."""
+    """Test main refuses to start when the read operations index fails to load.
+
+    The read operations index is required to enforce the security policy, so a
+    failure to load it must fail closed (refuse to start) rather than fail open
+    (start with policy checks skipped).
+    """
     mock_get_read_ops.side_effect = Exception('Failed to load operations')
 
     with patch('awslabs.aws_api_mcp_server.server.WORKING_DIRECTORY', '/tmp/test'):
         with patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1'):
             with patch('awslabs.aws_api_mcp_server.server.validate_aws_region'):
-                # Should not raise exception, just log warning
-                main()
-                mock_server.run.assert_called_once()
+                # Must propagate the failure and never start serving requests
+                with pytest.raises(Exception, match='Failed to load operations'):
+                    main()
+                mock_server.run.assert_not_called()
 
 
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
@@ -184,11 +208,13 @@ async def test_call_aws_helper_passes_region_to_customization(
     mock_validate.return_value = MagicMock(validation_failed=False)
     mock_execute.return_value = AwsCliAliasResponse(response='', error='')
 
-    # Avoid policy gating
+    # Allow the operation through the policy gate (index present, decision ALLOW)
     with (
-        patch('awslabs.aws_api_mcp_server.server.READ_OPERATIONS_INDEX', None),
-        patch('awslabs.aws_api_mcp_server.server.READ_OPERATIONS_ONLY_MODE', False),
-        patch('awslabs.aws_api_mcp_server.server.REQUIRE_MUTATION_CONSENT', False),
+        patch('awslabs.aws_api_mcp_server.server.READ_OPERATIONS_INDEX', MagicMock()),
+        patch(
+            'awslabs.aws_api_mcp_server.server.check_security_policy',
+            return_value=PolicyDecision.ALLOW,
+        ),
     ):
         # Act
         result = await call_aws_helper(
@@ -233,11 +259,13 @@ async def test_call_aws_helper_passes_region_to_interpret(
         failed_constraints=None,
     )
 
-    # Avoid policy gating
+    # Allow the operation through the policy gate (index present, decision ALLOW)
     with (
-        patch('awslabs.aws_api_mcp_server.server.READ_OPERATIONS_INDEX', None),
-        patch('awslabs.aws_api_mcp_server.server.READ_OPERATIONS_ONLY_MODE', False),
-        patch('awslabs.aws_api_mcp_server.server.REQUIRE_MUTATION_CONSENT', False),
+        patch('awslabs.aws_api_mcp_server.server.READ_OPERATIONS_INDEX', MagicMock()),
+        patch(
+            'awslabs.aws_api_mcp_server.server.check_security_policy',
+            return_value=PolicyDecision.ALLOW,
+        ),
     ):
         # Act
         result = await call_aws_helper(
@@ -255,18 +283,20 @@ async def test_call_aws_helper_passes_region_to_interpret(
 
 
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
-@patch('awslabs.aws_api_mcp_server.server.REQUIRE_MUTATION_CONSENT', True)
+@patch(
+    'awslabs.aws_api_mcp_server.server.check_security_policy',
+    return_value=PolicyDecision.ELICIT,
+)
 @patch('awslabs.aws_api_mcp_server.server.interpret_command')
 @patch('awslabs.aws_api_mcp_server.server.validate')
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
-@patch('awslabs.aws_api_mcp_server.core.aws.service.is_operation_read_only')
 async def test_call_aws_with_consent_and_accept(
-    mock_is_operation_read_only,
     mock_translate_cli_to_ir,
     mock_validate,
     mock_interpret,
+    mock_check_security_policy,
 ):
-    """Test call_aws with mutating action and consent enabled."""
+    """Test call_aws with a mutating action the policy requires consent for (accepted)."""
     # Create a proper ProgramInterpretationResponse mock
     mock_response = InterpretationResponse(error=None, json='{"Buckets": []}', status_code=200)
 
@@ -278,8 +308,6 @@ async def test_call_aws_with_consent_and_accept(
         failed_constraints=None,
     )
     mock_interpret.return_value = mock_result
-
-    mock_is_operation_read_only.return_value = False
 
     # Mock IR with command metadata
     mock_ir = MagicMock()
@@ -314,20 +342,20 @@ async def test_call_aws_with_consent_and_accept(
 
 
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
-@patch('awslabs.aws_api_mcp_server.server.REQUIRE_MUTATION_CONSENT', True)
+@patch(
+    'awslabs.aws_api_mcp_server.server.check_security_policy',
+    return_value=PolicyDecision.ELICIT,
+)
 @patch('awslabs.aws_api_mcp_server.server.interpret_command')
 @patch('awslabs.aws_api_mcp_server.server.validate')
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
-@patch('awslabs.aws_api_mcp_server.core.aws.service.is_operation_read_only')
 async def test_call_aws_with_consent_and_reject(
-    mock_is_operation_read_only,
     mock_translate_cli_to_ir,
     mock_validate,
     mock_interpret,
+    mock_check_security_policy,
 ):
-    """Test call_aws with mutating action and consent enabled."""
-    mock_is_operation_read_only.return_value = False
-
+    """Test call_aws with a mutating action the policy requires consent for (rejected)."""
     # Mock IR with command metadata
     mock_ir = MagicMock()
     mock_ir.command_metadata = MagicMock()
@@ -357,18 +385,15 @@ async def test_call_aws_with_consent_and_reject(
 
 
 @patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
-@patch('awslabs.aws_api_mcp_server.server.REQUIRE_MUTATION_CONSENT', False)
 @patch('awslabs.aws_api_mcp_server.server.interpret_command')
 @patch('awslabs.aws_api_mcp_server.server.validate')
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
-@patch('awslabs.aws_api_mcp_server.core.aws.service.is_operation_read_only')
 async def test_call_aws_without_consent(
-    mock_is_operation_read_only,
     mock_translate_cli_to_ir,
     mock_validate,
     mock_interpret,
 ):
-    """Test call_aws with mutating action and with consent disabled."""
+    """Test call_aws with a mutating action the policy allows without consent."""
     # Create a proper ProgramInterpretationResponse mock
     mock_response = InterpretationResponse(error=None, json='{"Buckets": []}', status_code=200)
 
@@ -380,8 +405,6 @@ async def test_call_aws_without_consent(
         failed_constraints=None,
     )
     mock_interpret.return_value = mock_result
-
-    mock_is_operation_read_only.return_value = False
 
     # Mock IR with command metadata
     mock_ir = MagicMock()
@@ -578,17 +601,18 @@ async def test_call_aws_non_aws_command():
         assert "Command must start with 'aws'" in result[0].error
 
 
+@patch(
+    'awslabs.aws_api_mcp_server.server.check_security_policy',
+    return_value=PolicyDecision.DENY,
+)
 @patch('awslabs.aws_api_mcp_server.server.validate')
 @patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
-@patch('awslabs.aws_api_mcp_server.core.aws.service.is_operation_read_only')
-@patch('awslabs.aws_api_mcp_server.server.READ_OPERATIONS_ONLY_MODE')
 async def test_when_operation_is_not_allowed(
-    mock_read_operations_only_mode,
-    mock_is_operation_read_only,
     mock_translate_cli_to_ir,
     mock_validate,
+    mock_check_security_policy,
 ):
-    """Test call_aws returns error when operation is not allowed in read-only mode."""
+    """Test call_aws returns error when the security policy denies the operation."""
     # Mock IR with command metadata
     mock_ir = MagicMock()
     mock_ir.command_metadata = MagicMock()
@@ -600,14 +624,10 @@ async def test_when_operation_is_not_allowed(
     mock_ir.command.is_help_operation = False
     mock_translate_cli_to_ir.return_value = mock_ir
 
-    mock_read_operations_only_mode.return_value = True
-
     # Mock validation response
     mock_response = MagicMock()
     mock_response.validation_failed = False
     mock_validate.return_value = mock_response
-
-    mock_is_operation_read_only.return_value = False
 
     # Execute and verify
     result = await call_aws('aws s3api list-buckets', DummyCtx())
@@ -615,10 +635,7 @@ async def test_when_operation_is_not_allowed(
     assert len(result) == 1
     assert result[0].cli_command == 'aws s3api list-buckets'
     assert result[0].error is not None
-    assert (
-        'Execution of this operation is not allowed because read only mode is enabled'
-        in result[0].error
-    )
+    assert 'Execution of this operation is denied by security policy.' in result[0].error
 
 
 @patch('awslabs.aws_api_mcp_server.server.validate')
