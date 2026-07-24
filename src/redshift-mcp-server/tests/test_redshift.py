@@ -45,212 +45,124 @@ def _fake_cluster(identifier='test-cluster', type='provisioned', status='availab
     )
 
 
-class TestRedshiftClientManagerRedshiftClient:
-    """Tests for RedshiftClientManager redshift_client() method."""
+class TestRetryingClientCreation:
+    """Tests for _ServiceClientAdapter lazy boto3 client creation and caching."""
 
-    def test_redshift_client_creation_default_credentials(self, mocker):
-        """Test Redshift client creation with default credentials."""
+    @pytest.mark.parametrize('service_name', ['redshift', 'redshift-serverless', 'redshift-data'])
+    def test_creation_default_credentials(self, mocker, service_name):
+        """Client is created for the given service with default credentials."""
+        from awslabs.redshift_mcp_server.redshift import _ServiceClientAdapter
+
         mock_client = mocker.Mock()
         mock_boto3_session = mocker.patch('boto3.Session')
         mock_boto3_session.return_value.client.return_value = mock_client
 
         config = Config()
-        manager = RedshiftClientManager(config)
-        client = manager.redshift_client()
+        adapter = _ServiceClientAdapter(service_name, config)
 
-        assert client == mock_client
-
-        # Verify boto3.Session was called with correct parameters
+        assert adapter._raw() == mock_client
         mock_boto3_session.assert_called_once_with(profile_name=None, region_name=None)
-        mock_boto3_session.return_value.client.assert_called_once_with('redshift', config=config)
+        mock_boto3_session.return_value.client.assert_called_once_with(service_name, config=config)
 
-    def test_redshift_client_creation_error(self, mocker):
-        """Test Redshift client creation error handling."""
+    def test_creation_error(self, mocker):
+        """Errors while creating the client propagate."""
+        from awslabs.redshift_mcp_server.redshift import _ServiceClientAdapter
+
         mock_boto3_session = mocker.patch('boto3.Session')
         mock_boto3_session.return_value.client.side_effect = Exception('AWS credentials error')
 
-        config = Config()
-        manager = RedshiftClientManager(config)
-
+        adapter = _ServiceClientAdapter('redshift', Config())
         with pytest.raises(Exception, match='AWS credentials error'):
-            manager.redshift_client()
+            adapter._raw()
 
     def test_client_caching(self, mocker):
-        """Test that clients are cached after first creation."""
+        """The boto3 client is created once and cached across calls."""
+        from awslabs.redshift_mcp_server.redshift import _ServiceClientAdapter
+
         mock_client = mocker.Mock()
         mock_boto3_session = mocker.patch('boto3.Session')
         mock_boto3_session.return_value.client.return_value = mock_client
 
-        config = Config()
-        manager = RedshiftClientManager(config)
+        adapter = _ServiceClientAdapter('redshift', Config())
 
-        # First call should create client
-        client1 = manager.redshift_client()
-        # Second call should return cached client
-        client2 = manager.redshift_client()
-
-        assert client1 == client2 == mock_client
-        # Session should only be called once
+        assert adapter._raw() is adapter._raw() == mock_client
         mock_boto3_session.assert_called_once()
 
-    def test_redshift_client_creation_with_profile_and_region(self, mocker):
-        """Test Redshift client creation with AWS profile and region."""
+    def test_creation_with_profile_and_region(self, mocker):
+        """Profile and region are passed through to the boto3 session."""
+        from awslabs.redshift_mcp_server.redshift import _ServiceClientAdapter
+
         mock_session = mocker.Mock()
         mock_client = mocker.Mock()
         mock_session.client.return_value = mock_client
         mock_session_class = mocker.patch('boto3.Session', return_value=mock_session)
 
         config = Config()
-        manager = RedshiftClientManager(config, 'us-west-2', 'test-profile')
-        client = manager.redshift_client()
+        adapter = _ServiceClientAdapter('redshift-data', config, 'us-west-2', 'test-profile')
 
-        assert client == mock_client
-
-        # Verify session was created with profile and region
-        mock_session_class.assert_called_once_with(
-            profile_name='test-profile', region_name='us-west-2'
-        )
-        mock_session.client.assert_called_once_with('redshift', config=config)
-
-
-class TestRedshiftClientManagerServerlessClient:
-    """Tests for RedshiftClientManager redshift_serverless_client() method."""
-
-    def test_redshift_serverless_client_creation_default_credentials(self, mocker):
-        """Test Redshift Serverless client creation with default credentials."""
-        mock_client = mocker.Mock()
-        mock_boto3_session = mocker.patch('boto3.Session')
-        mock_boto3_session.return_value.client.return_value = mock_client
-
-        config = Config()
-        manager = RedshiftClientManager(config)
-        client = manager.redshift_serverless_client()
-
-        assert client == mock_client
-
-        # Verify boto3.Session was called with correct parameters
-        mock_boto3_session.assert_called_once_with(profile_name=None, region_name=None)
-        mock_boto3_session.return_value.client.assert_called_once_with(
-            'redshift-serverless', config=config
-        )
-
-    def test_redshift_serverless_client_creation_error(self, mocker):
-        """Test Redshift Serverless client creation error handling."""
-        mock_boto3_session = mocker.patch('boto3.Session')
-        mock_boto3_session.return_value.client.side_effect = Exception('Serverless client error')
-
-        config = Config()
-        manager = RedshiftClientManager(config)
-
-        with pytest.raises(Exception, match='Serverless client error'):
-            manager.redshift_serverless_client()
-
-    def test_redshift_serverless_client_creation_with_profile_and_region(self, mocker):
-        """Test Redshift Serverless client creation with AWS profile and region."""
-        mock_session = mocker.Mock()
-        mock_client = mocker.Mock()
-        mock_session.client.return_value = mock_client
-        mock_session_class = mocker.patch('boto3.Session', return_value=mock_session)
-
-        config = Config()
-        manager = RedshiftClientManager(config, 'us-west-2', 'test-profile')
-        client = manager.redshift_serverless_client()
-
-        assert client == mock_client
-
-        # Verify session was created with profile and region
-        mock_session_class.assert_called_once_with(
-            profile_name='test-profile', region_name='us-west-2'
-        )
-        mock_session.client.assert_called_once_with('redshift-serverless', config=config)
-
-    def test_redshift_serverless_client_caching(self, mocker):
-        """Test that redshift serverless client is cached after first creation."""
-        mock_client = mocker.Mock()
-        mock_boto3_session = mocker.patch('boto3.Session')
-        mock_boto3_session.return_value.client.return_value = mock_client
-
-        config = Config()
-        manager = RedshiftClientManager(config)
-
-        # First call should create client
-        client1 = manager.redshift_serverless_client()
-        # Second call should return cached client
-        client2 = manager.redshift_serverless_client()
-
-        assert client1 == client2 == mock_client
-        # Session should only be called once
-        mock_boto3_session.assert_called_once()
-
-
-class TestRedshiftClientManagerDataClient:
-    """Tests for RedshiftClientManager redshift_data_client() method."""
-
-    def test_redshift_data_client_creation_default_credentials(self, mocker):
-        """Test Redshift Data API client creation with default credentials."""
-        mock_client = mocker.Mock()
-        mock_boto3_session = mocker.patch('boto3.Session')
-        mock_boto3_session.return_value.client.return_value = mock_client
-
-        config = Config()
-        manager = RedshiftClientManager(config)
-        client = manager.redshift_data_client()
-
-        assert client == mock_client
-
-        # Verify boto3.Session was called with correct parameters
-        mock_boto3_session.assert_called_once_with(profile_name=None, region_name=None)
-        mock_boto3_session.return_value.client.assert_called_once_with(
-            'redshift-data', config=config
-        )
-
-    def test_redshift_data_client_creation_error(self, mocker):
-        """Test Redshift Data client creation error handling."""
-        mock_boto3_session = mocker.patch('boto3.Session')
-        mock_boto3_session.return_value.client.side_effect = Exception('Data client error')
-
-        config = Config()
-        manager = RedshiftClientManager(config)
-
-        with pytest.raises(Exception, match='Data client error'):
-            manager.redshift_data_client()
-
-    def test_redshift_data_client_creation_with_profile_and_region(self, mocker):
-        """Test Redshift Data API client creation with AWS profile and region."""
-        mock_session = mocker.Mock()
-        mock_client = mocker.Mock()
-        mock_session.client.return_value = mock_client
-        mock_session_class = mocker.patch('boto3.Session', return_value=mock_session)
-
-        config = Config()
-        manager = RedshiftClientManager(config, 'us-west-2', 'test-profile')
-        client = manager.redshift_data_client()
-
-        assert client == mock_client
-
-        # Verify session was created with profile and region
+        assert adapter._raw() == mock_client
         mock_session_class.assert_called_once_with(
             profile_name='test-profile', region_name='us-west-2'
         )
         mock_session.client.assert_called_once_with('redshift-data', config=config)
 
-    def test_redshift_data_client_caching(self, mocker):
-        """Test that redshift data client is cached after first creation."""
-        mock_client = mocker.Mock()
+
+class TestRetryingClientInvalidate:
+    """Tests for _ServiceClientAdapter credential invalidation."""
+
+    def test_invalidate_discards_cached_client(self, mocker):
+        """invalidate() drops the cached client."""
+        from awslabs.redshift_mcp_server.redshift import _ServiceClientAdapter
+
         mock_boto3_session = mocker.patch('boto3.Session')
-        mock_boto3_session.return_value.client.return_value = mock_client
+        mock_boto3_session.return_value.client.return_value = mocker.Mock()
 
-        config = Config()
-        manager = RedshiftClientManager(config)
+        adapter = _ServiceClientAdapter('redshift-data', Config())
+        adapter._raw()
+        assert adapter._client is not None
 
-        # First call should create client
-        client1 = manager.redshift_data_client()
-        # Second call should return cached client
-        client2 = manager.redshift_data_client()
+        adapter.invalidate()
+        assert adapter._client is None
 
-        assert client1 == client2 == mock_client
-        # Session should only be called once
-        mock_boto3_session.assert_called_once()
+    def test_invalidate_allows_fresh_client(self, mocker):
+        """After invalidation, the next call creates a fresh client from a new session."""
+        from awslabs.redshift_mcp_server.redshift import _ServiceClientAdapter
+
+        old_client = mocker.Mock()
+        new_client = mocker.Mock()
+        mock_boto3_session = mocker.patch('boto3.Session')
+        mock_boto3_session.return_value.client.side_effect = [old_client, new_client]
+
+        adapter = _ServiceClientAdapter('redshift-data', Config())
+        assert adapter._raw() == old_client
+
+        adapter.invalidate()
+
+        assert adapter._raw() == new_client
+        assert mock_boto3_session.call_count == 2
+
+
+class TestRedshiftClientManager:
+    """Tests that the manager wires each accessor to the right service adapter."""
+
+    def test_accessors_return_expected_service_adapters(self):
+        """Each accessor returns an adapter bound to the expected service."""
+        manager = RedshiftClientManager(Config())
+        assert manager.redshift_client()._service_name == 'redshift'
+        assert manager.redshift_serverless_client()._service_name == 'redshift-serverless'
+        assert manager.redshift_data_client()._service_name == 'redshift-data'
+
+    def test_accessors_return_stable_instances(self):
+        """Accessors return the same adapter instance so its cached client persists."""
+        manager = RedshiftClientManager(Config())
+        assert manager.redshift_data_client() is manager.redshift_data_client()
+
+    def test_unsupported_service_rejected(self):
+        """Constructing the adapter for a non-Redshift service fails fast."""
+        from awslabs.redshift_mcp_server.redshift import _ServiceClientAdapter
+
+        with pytest.raises(ValueError, match='Unsupported service'):
+            _ServiceClientAdapter('s3', Config())
 
 
 class TestExecuteProtectedStatement:
@@ -786,6 +698,209 @@ class TestExecuteStatement:
         # Verify database and cluster are NOT added when using session
         assert 'Database' not in call_args
         assert 'ClusterIdentifier' not in call_args
+
+
+class TestServiceClientAdapterRetry:
+    """Tests for _ServiceClientAdapter credential-refresh retry on its operations."""
+
+    def test_operation_retries_with_fresh_client_on_expired_token(self, mocker):
+        """An operation invalidates the cached client and retries once with a fresh one."""
+        from awslabs.redshift_mcp_server.redshift import _ServiceClientAdapter
+        from botocore.exceptions import ClientError
+
+        expired_error = ClientError(
+            {'Error': {'Code': 'ExpiredToken', 'Message': 'Token expired'}},
+            'DescribeStatement',
+        )
+
+        # First created client raises; after invalidation a fresh client succeeds.
+        expired_client = mocker.Mock()
+        expired_client.describe_statement.side_effect = expired_error
+        fresh_client = mocker.Mock()
+        fresh_client.describe_statement.return_value = {'Status': 'FINISHED'}
+        mock_boto3_session = mocker.patch('boto3.Session')
+        mock_boto3_session.return_value.client.side_effect = [expired_client, fresh_client]
+
+        adapter = _ServiceClientAdapter('redshift-data', Config())
+        invalidate_spy = mocker.spy(adapter, 'invalidate')
+
+        result = adapter.describe_statement(Id='stmt-1')
+
+        assert result == {'Status': 'FINISHED'}
+        invalidate_spy.assert_called_once()
+        # Two clients created: the expired one and the fresh one after invalidation.
+        assert mock_boto3_session.return_value.client.call_count == 2
+
+    def test_operation_does_not_retry_on_other_errors(self, mocker):
+        """An operation propagates non-expiry ClientErrors without retrying."""
+        from awslabs.redshift_mcp_server.redshift import _ServiceClientAdapter
+        from botocore.exceptions import ClientError
+
+        access_denied = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}},
+            'ExecuteStatement',
+        )
+
+        client = mocker.Mock()
+        client.execute_statement.side_effect = access_denied
+
+        adapter = _ServiceClientAdapter('redshift-data', Config())
+        mocker.patch.object(adapter, '_raw', return_value=client)
+        invalidate_spy = mocker.spy(adapter, 'invalidate')
+
+        with pytest.raises(ClientError, match='AccessDenied'):
+            adapter.execute_statement(Sql='SELECT 1')
+
+        invalidate_spy.assert_not_called()
+
+    def test_paginator_materializes_under_retry(self, mocker):
+        """The paginator retries once on ExpiredToken and returns all pages as a list."""
+        from awslabs.redshift_mcp_server.redshift import _ServiceClientAdapter
+        from botocore.exceptions import ClientError
+
+        expired_error = ClientError(
+            {'Error': {'Code': 'ExpiredTokenException', 'Message': 'Token expired'}},
+            'DescribeClusters',
+        )
+
+        expired_client = mocker.Mock()
+        expired_client.get_paginator.return_value.paginate.side_effect = expired_error
+        fresh_client = mocker.Mock()
+        fresh_client.get_paginator.return_value.paginate.return_value = iter(
+            [{'Clusters': []}, {'Clusters': []}]
+        )
+
+        adapter = _ServiceClientAdapter('redshift', Config())
+        mocker.patch.object(adapter, '_raw', side_effect=[expired_client, fresh_client])
+        invalidate_spy = mocker.spy(adapter, 'invalidate')
+
+        pages = adapter.get_paginator('describe_clusters').paginate()
+
+        assert pages == [{'Clusters': []}, {'Clusters': []}]
+        invalidate_spy.assert_called_once()
+
+    def test_paginator_does_not_retry_on_other_errors(self, mocker):
+        """Non-expiry ClientErrors from pagination propagate without invalidation."""
+        from awslabs.redshift_mcp_server.redshift import _ServiceClientAdapter
+        from botocore.exceptions import ClientError
+
+        access_denied = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}},
+            'DescribeClusters',
+        )
+        client = mocker.Mock()
+        client.get_paginator.return_value.paginate.side_effect = access_denied
+
+        adapter = _ServiceClientAdapter('redshift', Config())
+        mocker.patch.object(adapter, '_raw', return_value=client)
+        invalidate_spy = mocker.spy(adapter, 'invalidate')
+
+        with pytest.raises(ClientError, match='AccessDenied'):
+            adapter.get_paginator('describe_clusters').paginate()
+
+        invalidate_spy.assert_not_called()
+
+
+class TestCredentialRefreshOnExpiredToken:
+    """Integration tests: expired-token refresh through the adapter call sites."""
+
+    @pytest.mark.asyncio
+    async def test_discover_clusters_retries_on_expired_token(self, mocker):
+        """Test that discover_clusters retries once after ExpiredToken error."""
+        from botocore.exceptions import ClientError
+
+        expired_error = ClientError(
+            {'Error': {'Code': 'ExpiredToken', 'Message': 'Token expired'}},
+            'DescribeClusters',
+        )
+
+        manager = RedshiftClientManager(Config())
+
+        # Provisioned: first client raises on paginate, fresh one succeeds.
+        expired_client = mocker.Mock()
+        expired_client.get_paginator.return_value.paginate.side_effect = expired_error
+        fresh_client = mocker.Mock()
+        fresh_client.get_paginator.return_value.paginate.return_value = [{'Clusters': []}]
+        mocker.patch.object(
+            manager.redshift_client(), '_raw', side_effect=[expired_client, fresh_client]
+        )
+        invalidate_spy = mocker.spy(manager.redshift_client(), 'invalidate')
+
+        # Serverless: succeeds first time.
+        serverless_client = mocker.Mock()
+        serverless_client.get_paginator.return_value.paginate.return_value = [{'workgroups': []}]
+        mocker.patch.object(
+            manager.redshift_serverless_client(), '_raw', return_value=serverless_client
+        )
+
+        mocker.patch('awslabs.redshift_mcp_server.redshift.client_manager', manager)
+
+        result = await discover_clusters()
+
+        assert result == []
+        invalidate_spy.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_execute_statement_retries_on_expired_token(self, mocker):
+        """Test that _execute_statement retries once after ExpiredToken error."""
+        from botocore.exceptions import ClientError
+
+        expired_error = ClientError(
+            {'Error': {'Code': 'ExpiredTokenException', 'Message': 'Token expired'}},
+            'ExecuteStatement',
+        )
+
+        manager = RedshiftClientManager(Config())
+
+        # execute_statement raises once, then succeeds; describe_statement finishes.
+        data_client = mocker.Mock()
+        data_client.execute_statement.side_effect = [expired_error, {'Id': 'stmt-123'}]
+        data_client.describe_statement.return_value = {'Status': 'FINISHED'}
+        mocker.patch.object(manager.redshift_data_client(), '_raw', return_value=data_client)
+        invalidate_spy = mocker.spy(manager.redshift_data_client(), 'invalidate')
+
+        mocker.patch('awslabs.redshift_mcp_server.redshift.client_manager', manager)
+
+        result = await _execute_statement(
+            cluster_info=_fake_cluster(),
+            cluster_identifier='test-cluster',
+            database_name='dev',
+            sql='SELECT 1',
+            query_poll_interval=0,
+        )
+
+        assert result == 'stmt-123'
+        invalidate_spy.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_execute_statement_does_not_retry_on_other_errors(self, mocker):
+        """Test that non-expired-token ClientErrors are not retried."""
+        from botocore.exceptions import ClientError
+
+        access_denied_error = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}},
+            'ExecuteStatement',
+        )
+
+        manager = RedshiftClientManager(Config())
+
+        data_client = mocker.Mock()
+        data_client.execute_statement.side_effect = access_denied_error
+        mocker.patch.object(manager.redshift_data_client(), '_raw', return_value=data_client)
+        invalidate_spy = mocker.spy(manager.redshift_data_client(), 'invalidate')
+
+        mocker.patch('awslabs.redshift_mcp_server.redshift.client_manager', manager)
+
+        with pytest.raises(ClientError, match='AccessDenied'):
+            await _execute_statement(
+                cluster_info=_fake_cluster(),
+                cluster_identifier='test-cluster',
+                database_name='dev',
+                sql='SELECT 1',
+                query_poll_interval=0,
+            )
+
+        invalidate_spy.assert_not_called()
 
 
 class TestRedshiftSessionManager:
