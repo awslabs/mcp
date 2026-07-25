@@ -237,11 +237,12 @@ class TestParseSearchResult:
         with pytest.raises(KeyError):
             _parse_search_documentation_result(mock_result)
 
-    def test_missing_required_field_in_item(self):
-        """Test handling of search result items missing required fields.
+    def test_missing_url_field_in_item(self):
+        """Test handling of search result items missing the optional 'url' field.
 
-        Verifies that search result items missing required fields like
-        'url' or 'context' are rejected with appropriate error messages.
+        Verifies that result items missing 'url' are returned with url=None
+        instead of raising a KeyError, so a single incomplete item does not
+        discard the entire result set.
         """
         mock_result = MagicMock()
         mock_result.is_error = False
@@ -254,7 +255,8 @@ class TestParseSearchResult:
                             {
                                 'rank_order': 1,
                                 'title': 'AWS Lambda',
-                                # Missing url and context
+                                'context': 'Serverless compute service',
+                                # Missing url
                             }
                         ]
                     }
@@ -263,5 +265,79 @@ class TestParseSearchResult:
         )
         mock_result.content = [mock_content]
 
-        with pytest.raises(KeyError):
-            _parse_search_documentation_result(mock_result)
+        parsed = _parse_search_documentation_result(mock_result)
+
+        assert len(parsed) == 1
+        assert parsed[0].rank == 1
+        assert parsed[0].title == 'AWS Lambda'
+        assert parsed[0].url is None
+        assert parsed[0].context == 'Serverless compute service'
+
+    def test_mixed_items_some_missing_url(self):
+        """Test that well-formed items are returned even when other items lack 'url'.
+
+        Verifies that a single item without 'url' does not discard the items
+        that are fully formed.
+        """
+        mock_result = MagicMock()
+        mock_result.is_error = False
+        mock_content = TextContent(
+            type='text',
+            text=json.dumps(
+                {
+                    'content': {
+                        'result': [
+                            {
+                                'rank_order': 1,
+                                'title': 'AWS S3',
+                                'url': 'https://docs.aws.amazon.com/s3/',
+                                'context': 'Object storage',
+                            },
+                            {
+                                'rank_order': 2,
+                                'title': 'AWS Lambda',
+                                'context': 'Serverless compute service',
+                                # Missing url
+                            },
+                        ]
+                    }
+                }
+            ),
+        )
+        mock_result.content = [mock_content]
+
+        parsed = _parse_search_documentation_result(mock_result)
+
+        assert len(parsed) == 2
+        assert parsed[0].url == 'https://docs.aws.amazon.com/s3/'
+        assert parsed[1].url is None
+
+    def test_missing_optional_fields_use_defaults(self):
+        """Test that missing optional fields fall back to defaults.
+
+        Verifies that items missing rank_order, title, url, or context
+        are returned with sensible defaults instead of raising a KeyError.
+        """
+        mock_result = MagicMock()
+        mock_result.is_error = False
+        mock_content = TextContent(
+            type='text',
+            text=json.dumps(
+                {
+                    'content': {
+                        'result': [
+                            {}  # completely empty item
+                        ]
+                    }
+                }
+            ),
+        )
+        mock_result.content = [mock_content]
+
+        parsed = _parse_search_documentation_result(mock_result)
+
+        assert len(parsed) == 1
+        assert parsed[0].rank == 0
+        assert parsed[0].title == ''
+        assert parsed[0].url is None
+        assert parsed[0].context == ''
