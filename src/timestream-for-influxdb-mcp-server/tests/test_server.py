@@ -85,6 +85,10 @@ class TestClientCreation:
         assert 'Connection error' in str(excinfo.value)
 
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.InfluxDBClient')
+    @patch(
+        'awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_ALLOWED_URLS',
+        'https://influxdb-example.aws:8086',
+    )
     def test_get_influxdb_client_happy_path(self, mock_influxdb_client):
         """Test get_influxdb_client function with valid parameters."""
         # Arrange
@@ -123,10 +127,29 @@ class TestClientCreation:
 
     def test_get_influxdb_client_missing_token(self):
         """Test get_influxdb_client when token is missing."""
-        with pytest.raises(ValueError) as excinfo:
-            get_influxdb_client(url='https://example.com', token=None, org='test-org')
+        with patch(
+            'awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_ALLOWED_URLS',
+            'https://example.com',
+        ):
+            with pytest.raises(ValueError) as excinfo:
+                get_influxdb_client(url='https://example.com', token=None, org='test-org')
 
         assert 'Token must be provided' in str(excinfo.value)
+
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_ALLOWED_URLS', '')
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_URL', None)
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.InfluxDBClient')
+    def test_get_influxdb_client_rejects_unapproved_url(self, mock_influxdb_client):
+        """Test that the client factory fails closed for unapproved destinations."""
+        with pytest.raises(ValueError) as excinfo:
+            get_influxdb_client(
+                url='http://169.254.169.254',
+                token='caller-token',
+                org='caller-org',
+            )
+
+        assert 'not approved by the server operator' in str(excinfo.value)
+        mock_influxdb_client.assert_not_called()
 
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.boto3')
     @patch.dict('os.environ', {'AWS_PROFILE': 'test-profile', 'AWS_REGION': 'us-west-2'})
@@ -1654,6 +1677,10 @@ class TestTagOperations:
         )
 
 
+@patch(
+    'awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_ALLOWED_URLS',
+    'https://influxdb-example.aws:8086',
+)
 class TestInfluxDBOperations:
     """Tests for InfluxDB operations."""
 
@@ -2283,6 +2310,25 @@ class TestInfluxDBOperations:
         mock_write_api.write.assert_called_once()
         assert result['status'] == 'success'
 
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_ALLOWED_URLS', '')
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_URL', None)
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_influxdb_query_rejects_unapproved_url_before_client_creation(
+        self, mock_get_client
+    ):
+        """Test that an unapproved URL never reaches the InfluxDB client."""
+        with pytest.raises(ValueError) as excinfo:
+            await influxdb_query(
+                url='http://169.254.169.254',
+                token='caller-token',
+                org='caller-org',
+                query='from(bucket: "test")',
+            )
+
+        assert 'not approved by the server operator' in str(excinfo.value)
+        mock_get_client.assert_not_called()
+
 
 class TestResolveInfluxDBConfig:
     """Tests for resolve_influxdb_config function."""
@@ -2294,7 +2340,7 @@ class TestResolveInfluxDBConfig:
         with pytest.raises(ValueError) as excinfo:
             resolve_influxdb_config(url=None, token='test-token', org='test-org')
 
-        assert 'URL must be provided' in str(excinfo.value)
+        assert 'url is required' in str(excinfo.value)
 
     def test_resolve_influxdb_config_missing_token(self):
         """Test resolve_influxdb_config when token is missing."""
@@ -2303,7 +2349,7 @@ class TestResolveInfluxDBConfig:
         with pytest.raises(ValueError) as excinfo:
             resolve_influxdb_config(url='https://example.com', token=None, org='test-org')
 
-        assert 'Token must be provided' in str(excinfo.value)
+        assert 'token is required' in str(excinfo.value)
 
     def test_resolve_influxdb_config_missing_org_when_required(self):
         """Test resolve_influxdb_config when org is missing and required."""
@@ -2314,8 +2360,12 @@ class TestResolveInfluxDBConfig:
                 url='https://example.com', token='test-token', org=None, require_org=True
             )
 
-        assert 'Organization must be provided' in str(excinfo.value)
+        assert 'org is required' in str(excinfo.value)
 
+    @patch(
+        'awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_ALLOWED_URLS',
+        'https://example.com',
+    )
     def test_resolve_influxdb_config_org_not_required(self):
         """Test resolve_influxdb_config when org is not required."""
         from awslabs.timestream_for_influxdb_mcp_server.server import resolve_influxdb_config
@@ -2328,7 +2378,199 @@ class TestResolveInfluxDBConfig:
         assert token == 'test-token'
         assert org is None
 
+    def test_resolve_rejects_custom_url_without_token(self):
+        """Test that providing a custom URL without a token is rejected (SSRF prevention)."""
+        from awslabs.timestream_for_influxdb_mcp_server.server import resolve_influxdb_config
 
+        with pytest.raises(ValueError) as excinfo:
+            resolve_influxdb_config(url='https://evil.example.com', token=None, org=None)
+
+        assert 'token is required' in str(excinfo.value)
+        assert 'Server credentials cannot be mixed' in str(excinfo.value)
+
+    def test_resolve_rejects_custom_token_without_url(self):
+        """Test that providing a custom token without a URL is rejected (mixed trust prevention)."""
+        from awslabs.timestream_for_influxdb_mcp_server.server import resolve_influxdb_config
+
+        with pytest.raises(ValueError) as excinfo:
+            resolve_influxdb_config(url=None, token='attacker-token', org=None)
+
+        assert 'url is required' in str(excinfo.value)
+        assert 'Server credentials cannot be mixed' in str(excinfo.value)
+
+    def test_resolve_rejects_custom_org_without_url_and_token(self):
+        """Test that providing only a custom org is rejected (mixed trust prevention)."""
+        from awslabs.timestream_for_influxdb_mcp_server.server import resolve_influxdb_config
+
+        with pytest.raises(ValueError) as excinfo:
+            resolve_influxdb_config(url=None, token=None, org='attacker-org')
+
+        assert 'url is required' in str(excinfo.value)
+        assert 'Server credentials cannot be mixed' in str(excinfo.value)
+
+    @patch(
+        'awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_ALLOWED_URLS',
+        'https://custom.example.com',
+    )
+    def test_resolve_accepts_all_caller_supplied_params(self):
+        """Test that providing all custom params works correctly."""
+        from awslabs.timestream_for_influxdb_mcp_server.server import resolve_influxdb_config
+
+        url, token, org = resolve_influxdb_config(
+            url='https://custom.example.com', token='custom-token', org='custom-org'
+        )
+
+        assert url == 'https://custom.example.com'
+        assert token == 'custom-token'
+        assert org == 'custom-org'
+
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_ALLOWED_URLS', '')
+    @patch(
+        'awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_URL',
+        'https://trusted.example.com',
+    )
+    def test_resolve_rejects_complete_config_for_unapproved_url(self):
+        """Test that complete caller credentials do not bypass URL approval."""
+        from awslabs.timestream_for_influxdb_mcp_server.server import resolve_influxdb_config
+
+        with pytest.raises(ValueError) as excinfo:
+            resolve_influxdb_config(
+                url='http://169.254.169.254',
+                token='caller-token',
+                org='caller-org',
+            )
+
+        assert 'not approved by the server operator' in str(excinfo.value)
+
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_ALLOWED_URLS', '')
+    @patch(
+        'awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_URL',
+        'https://trusted.example.com/',
+    )
+    def test_resolve_accepts_configured_url_override(self):
+        """Test that INFLUXDB_URL is automatically approved for caller credentials."""
+        from awslabs.timestream_for_influxdb_mcp_server.server import resolve_influxdb_config
+
+        url, token, org = resolve_influxdb_config(
+            url='https://TRUSTED.example.com',
+            token='caller-token',
+            org='caller-org',
+        )
+
+        assert url == 'https://trusted.example.com'
+        assert token == 'caller-token'
+        assert org == 'caller-org'
+
+    @patch(
+        'awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_ALLOWED_URLS',
+        'https://first.example.com, http://10.0.0.8:8086/',
+    )
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_URL', None)
+    def test_resolve_accepts_operator_approved_private_url(self):
+        """Test that operators can explicitly approve a private InfluxDB endpoint."""
+        from awslabs.timestream_for_influxdb_mcp_server.server import resolve_influxdb_config
+
+        url, _, _ = resolve_influxdb_config(
+            url='http://10.0.0.8:8086',
+            token='caller-token',
+            org='caller-org',
+        )
+
+        assert url == 'http://10.0.0.8:8086'
+
+    @pytest.mark.parametrize(
+        'url',
+        [
+            'https://user@example.com',
+            'https://example.com?target=internal',
+            'https://example.com#fragment',
+            'https://example.com:invalid',
+        ],
+    )
+    def test_resolve_rejects_ambiguous_urls(self, url):
+        """Test that URL forms unsuitable for strict allowlist comparison are rejected."""
+        from awslabs.timestream_for_influxdb_mcp_server.server import resolve_influxdb_config
+
+        with pytest.raises(ValueError):
+            resolve_influxdb_config(url=url, token='caller-token', org='caller-org')
+
+    @patch(
+        'awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_URL', 'https://env.example.com'
+    )
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_TOKEN', 'env-token')
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_ORG', 'env-org')
+    def test_resolve_uses_env_vars_when_no_caller_params(self):
+        """Test that env vars are used when no caller params are provided."""
+        from awslabs.timestream_for_influxdb_mcp_server.server import resolve_influxdb_config
+
+        url, token, org = resolve_influxdb_config()
+
+        assert url == 'https://env.example.com'
+        assert token == 'env-token'
+        assert org == 'env-org'
+
+    @pytest.mark.parametrize(
+        ('url', 'token', 'org', 'expected_message'),
+        [
+            (None, 'env-token', 'env-org', 'URL must be provided'),
+            ('https://env.example.com', None, 'env-org', 'Token must be provided'),
+            ('https://env.example.com', 'env-token', None, 'Organization must be provided'),
+        ],
+    )
+    def test_resolve_rejects_incomplete_environment_configuration(
+        self, monkeypatch, url, token, org, expected_message
+    ):
+        """Test that every environment connection field is required."""
+        from awslabs.timestream_for_influxdb_mcp_server import server
+
+        monkeypatch.setattr(server, 'INFLUXDB_URL', url)
+        monkeypatch.setattr(server, 'INFLUXDB_TOKEN', token)
+        monkeypatch.setattr(server, 'INFLUXDB_ORG', org)
+
+        with pytest.raises(ValueError, match=expected_message):
+            server.resolve_influxdb_config(require_org=True)
+
+    @pytest.mark.parametrize(
+        ('url', 'expected_message'),
+        [
+            (' ', 'non-empty string'),
+            ('https:///', 'must include a host'),
+        ],
+    )
+    def test_normalize_influxdb_url_rejects_missing_url_components(self, url, expected_message):
+        """Test that blank URLs and URLs without hosts are rejected."""
+        from awslabs.timestream_for_influxdb_mcp_server.server import normalize_influxdb_url
+
+        with pytest.raises(ValueError, match=expected_message):
+            normalize_influxdb_url(url)
+
+    def test_normalize_influxdb_url_normalizes_ipv6_host(self):
+        """Test that IPv6 hosts retain brackets after normalization."""
+        from awslabs.timestream_for_influxdb_mcp_server.server import normalize_influxdb_url
+
+        assert (
+            normalize_influxdb_url('https://[2001:db8::1]:8086/') == 'https://[2001:db8::1]:8086'
+        )
+
+    @patch(
+        'awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_URL', 'https://env.example.com'
+    )
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_TOKEN', 'env-token')
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_ORG', 'env-org')
+    def test_resolve_does_not_leak_env_token_to_custom_url(self):
+        """Test that env token is never sent to a caller-supplied URL (SSRF prevention)."""
+        from awslabs.timestream_for_influxdb_mcp_server.server import resolve_influxdb_config
+
+        with pytest.raises(ValueError) as excinfo:
+            resolve_influxdb_config(url='https://evil.example.com', token=None, org=None)
+
+        assert 'Server credentials cannot be mixed' in str(excinfo.value)
+
+
+@patch(
+    'awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_ALLOWED_URLS',
+    'https://influxdb-example.aws:8086',
+)
 class TestInfluxDBAsyncWriteMode:
     """Tests for InfluxDB async write mode."""
 
@@ -2381,6 +2623,10 @@ class TestInfluxDBAsyncWriteMode:
         assert result['status'] == 'success'
 
 
+@patch(
+    'awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_ALLOWED_URLS',
+    'https://influxdb-example.aws:8086',
+)
 class TestInfluxDBCreateBucketWithRetention:
     """Tests for influxdb_create_bucket with retention rules."""
 

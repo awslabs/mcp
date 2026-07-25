@@ -1051,3 +1051,65 @@ class TestPsycopgConnector:
             # Should close and reinitialize
             mock_pool.close.assert_called_once()
             mock_init.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.postgres_mcp_server.connection.psycopg_pool_connection.asyncio.to_thread')
+    @patch('awslabs.postgres_mcp_server.connection.psycopg_pool_connection.AsyncConnectionPool')
+    async def test_initialize_pool_offloads_secret_fetch(self, mock_pool_class, mock_to_thread):
+        """Secrets Manager credential fetch must run off the event loop.
+
+        Regression test for the blocking-boto3 crash: ``initialize_pool`` has to
+        dispatch the synchronous ``_get_credentials_from_secret`` call through
+        ``asyncio.to_thread`` so a pool refresh never freezes the stdio loop.
+        """
+        mock_pool = AsyncMock()
+        mock_pool_class.return_value = mock_pool
+        mock_to_thread.return_value = ('secret_user', 'secret_password')
+
+        conn = PsycopgPoolConnection(
+            host='localhost',
+            port=5432,
+            database='test_db',
+            readonly=False,
+            secret_arn='test_secret',
+            db_user='',
+            is_iam_auth=False,
+            region='us-east-1',
+            is_test=True,
+        )
+
+        await conn.initialize_pool()
+
+        mock_to_thread.assert_awaited_once_with(
+            conn._get_credentials_from_secret, 'test_secret', 'us-east-1', True
+        )
+        assert conn.user == 'secret_user'
+
+    @pytest.mark.asyncio
+    @patch('awslabs.postgres_mcp_server.connection.psycopg_pool_connection.asyncio.to_thread')
+    @patch('awslabs.postgres_mcp_server.connection.psycopg_pool_connection.AsyncConnectionPool')
+    async def test_initialize_pool_offloads_iam_token(self, mock_pool_class, mock_to_thread):
+        """IAM auth token generation must run off the event loop.
+
+        ``get_iam_auth_token`` makes a synchronous boto3 call, so the IAM path of
+        ``initialize_pool`` must offload it via ``asyncio.to_thread`` as well.
+        """
+        mock_pool = AsyncMock()
+        mock_pool_class.return_value = mock_pool
+        mock_to_thread.return_value = 'iam_token'
+
+        conn = PsycopgPoolConnection(
+            host='localhost',
+            port=5432,
+            database='test_db',
+            readonly=False,
+            secret_arn='',
+            db_user='iam_user',
+            is_iam_auth=True,
+            region='us-east-1',
+            is_test=True,
+        )
+
+        await conn.initialize_pool()
+
+        mock_to_thread.assert_awaited_once_with(conn.get_iam_auth_token)

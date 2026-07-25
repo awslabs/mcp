@@ -35,8 +35,26 @@ from awslabs.oracle_mcp_server.server import (
     server_config,
     validate_table_name,
 )
+from awslabs.oracle_mcp_server.server import (
+    mcp as server_mcp,
+)
+from botocore.exceptions import ClientError
 from mcp.shared.exceptions import McpError
 from unittest.mock import AsyncMock, MagicMock
+
+
+# ─── security invariant: secret_arn not exposed to LLM ──────────────────────
+
+
+def test_connect_to_database_tool_schema_does_not_expose_secret_arn():
+    """The LLM-facing connect_to_database tool must never expose secret_arn."""
+    tool = server_mcp._tool_manager.get_tool('connect_to_database')
+    assert tool is not None
+    schema = tool.parameters
+    assert 'secret_arn' not in schema.get('properties', {}), (
+        'secret_arn must not be exposed as a tool parameter — '
+        'secrets are configured exclusively via CLI --secret_arn flags'
+    )
 
 
 class DummyCtx:
@@ -53,7 +71,8 @@ def _reset_server_config():
     defaults = ServerConfig()
     yield
     server_config.readonly_query = defaults.readonly_query
-    server_config.default_secret_arn = defaults.default_secret_arn
+    server_config.configured_secret_arns = defaults.configured_secret_arns
+    server_config.configured_default_secret_arn = defaults.configured_default_secret_arn
     server_config.ssl_encryption_mode = defaults.ssl_encryption_mode
     server_config.configured_port = defaults.configured_port
     server_config.max_rows = defaults.max_rows
@@ -1184,6 +1203,33 @@ async def test_connect_to_database_closes_replaced_connection(mocker):
     replaced_conn.close.assert_awaited_once()
 
 
+@pytest.mark.asyncio
+async def test_connect_to_database_replaced_close_failure_is_non_fatal(mocker):
+    """If closing the replaced connection raises, the tool still succeeds."""
+    from awslabs.oracle_mcp_server.server import connect_to_database
+
+    replaced_conn = AsyncMock()
+    replaced_conn.close = AsyncMock(side_effect=RuntimeError('close failed'))
+    mock_pool_conn = MagicMock(spec=OracledbPoolConnection)
+    mock_pool_conn.initialize_pool = AsyncMock()
+
+    mocker.patch(
+        'awslabs.oracle_mcp_server.server.internal_create_connection',
+        return_value=(mock_pool_conn, {'status': 'ok'}, replaced_conn),
+    )
+
+    result = await connect_to_database(
+        region='us-east-1',
+        connection_method=ConnectionMethod.ORACLE_PASSWORD,
+        db_endpoint='ep1',
+        service_name='ORCL',
+    )
+
+    # Close failure is swallowed; the connect still returns the success payload.
+    assert result == {'status': 'ok'}
+    replaced_conn.close.assert_awaited_once()
+
+
 # --- internal_create_connection ---
 
 
@@ -1192,6 +1238,7 @@ def test_internal_create_connection_returns_existing(mocker):
     mock_conn = MagicMock()
     mock_conn.secret_arn = 'arn:test'  # pragma: allowlist secret
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
+    server_config.configured_default_secret_arn = 'arn:test'  # pragma: allowlist secret
 
     conn, response, replaced = internal_create_connection(
         region='us-east-1',
@@ -1201,7 +1248,6 @@ def test_internal_create_connection_returns_existing(mocker):
         port=1521,
         database='ORCL',
         service_name='ORCL',
-        secret_arn='arn:test',  # pragma: allowlist secret
     )
 
     assert conn is mock_conn
@@ -1209,12 +1255,13 @@ def test_internal_create_connection_returns_existing(mocker):
 
 
 def test_internal_create_connection_replaces_on_secret_change(mocker):
-    """Replaces existing connection when secret_arn changes."""
+    """Replaces existing connection when configured secret_arn changes."""
     old_conn = MagicMock()
     old_conn.secret_arn = 'arn:old'  # pragma: allowlist secret
     mocker.patch.object(db_connection_map, 'get', return_value=old_conn)
     mock_remove = mocker.patch.object(db_connection_map, 'remove')
     mocker.patch.object(db_connection_map, 'set')
+    server_config.configured_default_secret_arn = 'arn:new'  # pragma: allowlist secret
 
     conn, response, replaced = internal_create_connection(
         region='us-east-1',
@@ -1224,7 +1271,6 @@ def test_internal_create_connection_replaces_on_secret_change(mocker):
         port=1521,
         database='ORCL',
         service_name='ORCL',
-        secret_arn='arn:new',  # pragma: allowlist secret
     )
 
     assert replaced is old_conn
@@ -1233,8 +1279,8 @@ def test_internal_create_connection_replaces_on_secret_change(mocker):
 
 
 def test_internal_create_connection_uses_default_secret_arn(mocker):
-    """Falls back to default_secret_arn when no explicit secret_arn is given."""
-    server_config.default_secret_arn = 'arn:default'  # pragma: allowlist secret
+    """Falls back to configured_default_secret_arn when no per-target ARN is configured."""
+    server_config.configured_default_secret_arn = 'arn:default'  # pragma: allowlist secret
     mocker.patch.object(db_connection_map, 'get', return_value=None)
     mocker.patch.object(db_connection_map, 'set')
 
@@ -1273,6 +1319,7 @@ def test_internal_create_connection_cache_hit_includes_service_name_and_sid(mock
     mock_conn.service_name = 'ORCL'
     mock_conn.sid = None
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
+    server_config.configured_default_secret_arn = 'arn:test'  # pragma: allowlist secret
 
     conn, response, replaced = internal_create_connection(
         region='us-east-1',
@@ -1282,7 +1329,6 @@ def test_internal_create_connection_cache_hit_includes_service_name_and_sid(mock
         port=1521,
         database='ORCL',
         service_name='ORCL',
-        secret_arn='arn:test',  # pragma: allowlist secret
     )
 
     assert response['service_name'] == 'ORCL'
@@ -1485,3 +1531,384 @@ async def test_run_query_readonly_rejects_v_dollar_view(mocker):
             database='ORCL',
         )
     mock_conn.execute_query.assert_not_called()
+
+
+# --- --secret_arn CLI parsing ---
+
+
+def test_main_secret_arn_per_target_parsing(mocker):
+    """--secret_arn with key=arn syntax populates configured_secret_arns."""
+    from awslabs.oracle_mcp_server import server as server_module
+
+    mocker.patch(
+        'sys.argv',
+        [
+            'prog',
+            '--secret_arn',
+            'inst1=arn:aws:secretsmanager:us-east-1:123:secret:s1',
+            '--secret_arn',
+            'inst2=arn:aws:secretsmanager:us-east-1:123:secret:s2',
+        ],
+    )
+    mocker.patch.object(server_module, 'mcp')
+
+    server_module.main()
+
+    assert server_module.server_config.configured_secret_arns == {
+        'inst1': 'arn:aws:secretsmanager:us-east-1:123:secret:s1',
+        'inst2': 'arn:aws:secretsmanager:us-east-1:123:secret:s2',
+    }
+    assert server_module.server_config.configured_default_secret_arn is None
+
+
+def test_main_secret_arn_bare_default(mocker):
+    """A bare --secret_arn (no '=') sets configured_default_secret_arn."""
+    from awslabs.oracle_mcp_server import server as server_module
+
+    mocker.patch(
+        'sys.argv',
+        [
+            'prog',
+            '--secret_arn',
+            'arn:aws:secretsmanager:us-east-1:123:secret:default',
+        ],
+    )
+    mocker.patch.object(server_module, 'mcp')
+
+    server_module.main()
+
+    assert server_module.server_config.configured_default_secret_arn == (
+        'arn:aws:secretsmanager:us-east-1:123:secret:default'
+    )
+    assert server_module.server_config.configured_secret_arns == {}
+
+
+def test_main_secret_arn_invalid_key_arn_exits(mocker):
+    """--secret_arn with empty key in key=arn syntax exits with code 2."""
+    from awslabs.oracle_mcp_server import server as server_module
+
+    mocker.patch(
+        'sys.argv',
+        ['prog', '--secret_arn', '=arn:bad'],
+    )
+    mocker.patch.object(server_module, 'mcp')
+
+    with pytest.raises(SystemExit) as exc_info:
+        server_module.main()
+    assert exc_info.value.code == 2
+
+
+def test_main_secret_arn_duplicate_key_exits(mocker):
+    """Duplicate --secret_arn keys exit with code 2."""
+    from awslabs.oracle_mcp_server import server as server_module
+
+    mocker.patch(
+        'sys.argv',
+        [
+            'prog',
+            '--secret_arn',
+            'inst1=arn:aws:secretsmanager:us-east-1:123:secret:s1',
+            '--secret_arn',
+            'inst1=arn:aws:secretsmanager:us-east-1:123:secret:s2',
+        ],
+    )
+    mocker.patch.object(server_module, 'mcp')
+
+    with pytest.raises(SystemExit) as exc_info:
+        server_module.main()
+    assert exc_info.value.code == 2
+
+
+def test_main_secret_arn_two_bare_defaults_exits(mocker):
+    """Two bare --secret_arn values (no '=') exits with code 2."""
+    from awslabs.oracle_mcp_server import server as server_module
+
+    mocker.patch(
+        'sys.argv',
+        [
+            'prog',
+            '--secret_arn',
+            'arn:aws:secretsmanager:us-east-1:123:secret:a',
+            '--secret_arn',
+            'arn:aws:secretsmanager:us-east-1:123:secret:b',
+        ],
+    )
+    mocker.patch.object(server_module, 'mcp')
+
+    with pytest.raises(SystemExit) as exc_info:
+        server_module.main()
+    assert exc_info.value.code == 2
+
+
+def test_main_secret_arn_mixed_per_target_and_default(mocker):
+    """Mixing per-target and bare --secret_arn values works correctly."""
+    from awslabs.oracle_mcp_server import server as server_module
+
+    mocker.patch(
+        'sys.argv',
+        [
+            'prog',
+            '--secret_arn',
+            'inst1=arn:aws:secretsmanager:us-east-1:123:secret:specific',
+            '--secret_arn',
+            'arn:aws:secretsmanager:us-east-1:123:secret:fallback',
+        ],
+    )
+    mocker.patch.object(server_module, 'mcp')
+
+    server_module.main()
+
+    assert server_module.server_config.configured_secret_arns == {
+        'inst1': 'arn:aws:secretsmanager:us-east-1:123:secret:specific',
+    }
+    assert server_module.server_config.configured_default_secret_arn == (
+        'arn:aws:secretsmanager:us-east-1:123:secret:fallback'
+    )
+
+
+def test_internal_create_connection_uses_per_target_secret_arn(mocker):
+    """Per-target --secret_arn overrides default and skips RDS describe."""
+    mocker.patch.object(db_connection_map, 'get', return_value=None)
+    mocker.patch.object(db_connection_map, 'set')
+
+    per_target_arn = 'arn:aws:secretsmanager:us-east-1:123:secret:per-target'
+    server_config.configured_secret_arns = {'inst1': per_target_arn}
+    server_config.configured_default_secret_arn = (
+        'arn:aws:secretsmanager:us-east-1:123:secret:default'
+    )
+
+    mock_boto = mocker.patch('boto3.client')
+
+    conn, response, replaced = internal_create_connection(
+        region='us-east-1',
+        connection_method=ConnectionMethod.ORACLE_PASSWORD,
+        instance_identifier='inst1',
+        db_endpoint='ep1',
+        port=1521,
+        database='ORCL',
+        service_name='ORCL',
+    )
+
+    assert isinstance(conn, OracledbPoolConnection)
+    assert conn.secret_arn == per_target_arn
+    mock_boto.assert_not_called()
+
+
+def test_main_secret_arn_empty_value_exits(mocker):
+    """An empty bare --secret_arn value exits with code 2."""
+    from awslabs.oracle_mcp_server import server as server_module
+
+    mocker.patch(
+        'sys.argv',
+        [
+            'prog',
+            '--secret_arn',
+            '',
+        ],
+    )
+    mocker.patch.object(server_module, 'mcp')
+
+    with pytest.raises(SystemExit) as exc_info:
+        server_module.main()
+    assert exc_info.value.code == 2
+
+
+# ─── whitespace stripping in --secret_arn parsing ────────────────────────────
+
+
+def test_main_secret_arn_whitespace_stripped_per_target(mocker):
+    """Whitespace around key and ARN in per-target --secret_arn is stripped."""
+    from awslabs.oracle_mcp_server import server as server_module
+
+    padded_value = '  inst1  =  arn:aws:secretsmanager:us-east-1:123:secret:x  '
+    mocker.patch(
+        'sys.argv',
+        [
+            'prog',
+            '--secret_arn',
+            padded_value,
+        ],
+    )
+    mocker.patch.object(server_module, 'mcp')
+
+    server_module.main()
+
+    assert server_module.server_config.configured_secret_arns == {
+        'inst1': 'arn:aws:secretsmanager:us-east-1:123:secret:x',
+    }
+
+
+def test_main_secret_arn_whitespace_stripped_bare_default(mocker):
+    """Whitespace around a bare default --secret_arn is stripped."""
+    from awslabs.oracle_mcp_server import server as server_module
+
+    padded_value = '   arn:aws:secretsmanager:us-east-1:123:secret:default   '
+    mocker.patch(
+        'sys.argv',
+        [
+            'prog',
+            '--secret_arn',
+            padded_value,
+        ],
+    )
+    mocker.patch.object(server_module, 'mcp')
+
+    server_module.main()
+
+    assert server_module.server_config.configured_default_secret_arn == (
+        'arn:aws:secretsmanager:us-east-1:123:secret:default'
+    )
+
+
+def test_main_secret_arn_whitespace_only_key_exits(mocker):
+    """A per-target value whose key is whitespace-only exits with code 2."""
+    from awslabs.oracle_mcp_server import server as server_module
+
+    mocker.patch(
+        'sys.argv',
+        [
+            'prog',
+            '--secret_arn',
+            '   =arn:aws:secretsmanager:us-east-1:123:secret:x',
+        ],
+    )
+    mocker.patch.object(server_module, 'mcp')
+
+    with pytest.raises(SystemExit) as exc_info:
+        server_module.main()
+    assert exc_info.value.code == 2
+
+
+def test_main_missing_connection_method_with_endpoint_exits(mocker):
+    """--db_endpoint without --connection_method exits with code 1."""
+    from awslabs.oracle_mcp_server import server as server_module
+
+    mocker.patch(
+        'sys.argv',
+        [
+            'prog',
+            '--db_endpoint',
+            'myhost.rds.amazonaws.com',
+            '--region',
+            'us-east-1',
+        ],
+    )
+    mocker.patch.object(server_module, 'mcp')
+
+    with pytest.raises(SystemExit) as exc_info:
+        server_module.main()
+    assert exc_info.value.code == 1
+
+
+def test_main_missing_region_with_endpoint_exits(mocker):
+    """--db_endpoint without --region exits with code 1."""
+    from awslabs.oracle_mcp_server import server as server_module
+
+    mocker.patch(
+        'sys.argv',
+        [
+            'prog',
+            '--db_endpoint',
+            'myhost.rds.amazonaws.com',
+            '--connection_method',
+            'ORACLE_PASSWORD',
+        ],
+    )
+    mocker.patch.object(server_module, 'mcp')
+
+    with pytest.raises(SystemExit) as exc_info:
+        server_module.main()
+    assert exc_info.value.code == 1
+
+
+def test_main_invalid_connection_method_exits(mocker):
+    """Invalid --connection_method at startup exits with code 1."""
+    from awslabs.oracle_mcp_server import server as server_module
+
+    mocker.patch(
+        'sys.argv',
+        [
+            'prog',
+            '--connection_method',
+            'INVALID_METHOD',
+            '--db_endpoint',
+            'myhost.rds.amazonaws.com',
+            '--region',
+            'us-east-1',
+            '--service_name',
+            'ORCL',
+        ],
+    )
+    mocker.patch.object(server_module, 'mcp')
+
+    with pytest.raises(SystemExit) as exc_info:
+        server_module.main()
+    assert exc_info.value.code == 1
+
+
+def test_internal_create_connection_rds_not_found_error(mocker):
+    """ClientError with DBInstanceNotFound raises ValueError."""
+    mocker.patch.object(db_connection_map, 'get', return_value=None)
+
+    err = ClientError(
+        error_response={'Error': {'Code': 'DBInstanceNotFound', 'Message': 'not found'}},
+        operation_name='DescribeDBInstances',
+    )
+    mock_rds = MagicMock()
+    mock_rds.describe_db_instances.side_effect = err
+    mocker.patch('boto3.client', return_value=mock_rds)
+
+    with pytest.raises(ValueError, match='not found in region'):
+        internal_create_connection(
+            region='us-east-1',
+            connection_method=ConnectionMethod.ORACLE_PASSWORD,
+            instance_identifier='missing-inst',
+            db_endpoint='ep1',
+            port=1521,
+            database='ORCL',
+            service_name='ORCL',
+        )
+
+
+def test_internal_create_connection_rds_other_client_error(mocker):
+    """ClientError with non-DBInstanceNotFound code raises ValueError."""
+    mocker.patch.object(db_connection_map, 'get', return_value=None)
+
+    err = ClientError(
+        error_response={'Error': {'Code': 'AccessDenied', 'Message': 'no access'}},
+        operation_name='DescribeDBInstances',
+    )
+    mock_rds = MagicMock()
+    mock_rds.describe_db_instances.side_effect = err
+    mocker.patch('boto3.client', return_value=mock_rds)
+
+    with pytest.raises(ValueError, match='Failed to describe RDS instance'):
+        internal_create_connection(
+            region='us-east-1',
+            connection_method=ConnectionMethod.ORACLE_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='ep1',
+            port=1521,
+            database='ORCL',
+            service_name='ORCL',
+        )
+
+
+def test_internal_create_connection_empty_instances_raises(mocker):
+    """Empty DBInstances list raises ValueError."""
+    mocker.patch.object(db_connection_map, 'get', return_value=None)
+
+    mock_rds = MagicMock()
+    mock_rds.describe_db_instances.return_value = {'DBInstances': []}
+    mocker.patch('boto3.client', return_value=mock_rds)
+
+    with pytest.raises(ValueError, match='returned no instances'):
+        internal_create_connection(
+            region='us-east-1',
+            connection_method=ConnectionMethod.ORACLE_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='ep1',
+            port=1521,
+            database='ORCL',
+            service_name='ORCL',
+        )

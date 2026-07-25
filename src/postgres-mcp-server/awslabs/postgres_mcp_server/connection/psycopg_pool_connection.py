@@ -19,6 +19,7 @@ It supports both Aurora PostgreSQL and RDS PostgreSQL instances via direct conne
 parameters (host, port, database, user, password) or via AWS Secrets Manager.
 """
 
+import asyncio
 import boto3
 import json
 import re
@@ -188,13 +189,20 @@ class PsycopgPoolConnection(AbstractDBConnection):
                 f'is_iam_auth:{self.is_iam_auth}\n'
             )
 
+            # These are synchronous boto3 HTTP calls. Run them in a worker thread
+            # so a credential refresh (triggered every ``pool_expiry_min`` minutes
+            # by ``check_expiry``) does not block the event loop and stall the MCP
+            # stdio transport while the AWS round-trip is in flight.
             if self.is_iam_auth:
                 logger.debug(f'Retrieving IAM auth token for {self.user}')
-                password = self.get_iam_auth_token()
+                password = await asyncio.to_thread(self.get_iam_auth_token)
             else:
                 logger.debug(f'Retrieving credentials from Secrets Manager: {self.secret_arn}')
-                self.user, password = self._get_credentials_from_secret(
-                    self.secret_arn, self.region, self.is_test
+                self.user, password = await asyncio.to_thread(
+                    self._get_credentials_from_secret,
+                    self.secret_arn,
+                    self.region,
+                    self.is_test,
                 )
 
             self.created_time = datetime.now()

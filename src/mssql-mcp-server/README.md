@@ -65,9 +65,21 @@ Example secret value:
 }
 ```
 
-The `--secret_arn` flag can also be passed at runtime via the `connect_to_database`
-MCP tool's `secret_arn` parameter, allowing the LLM to switch credentials without
-restarting the server.
+Secrets are configured exclusively at startup via `--secret_arn`; the flag is not
+exposed as an MCP tool parameter, so the LLM cannot select an arbitrary secret ARN.
+
+The `--secret_arn` flag may be repeated to bind different secrets to different
+instances:
+
+- `--secret_arn <instance_identifier>=<arn>` — bind an ARN to a specific RDS
+  instance (matched against the `instance_identifier` supplied to
+  `connect_to_database`).
+- `--secret_arn <arn>` — a bare ARN used as the default for any instance not
+  pinned explicitly (at most one allowed).
+
+Resolution order: per-target ARN > bare default ARN > the instance's RDS-managed
+`MasterUserSecret`. The RDS `MasterUserSecret` is consulted for a given instance
+only when that instance has no per-target ARN and no bare default is configured.
 
 ## TLS / SSL
 

@@ -41,7 +41,7 @@ Alarm Recommendations - Suggests recommended alarm configurations for CloudWatch
 * `get_promql_series` - Finds time series matching PromQL label selectors. Returns the full label set of matching series.
 * `get_promql_labels` - Lists all available PromQL label names. Use to discover the label structure of OTLP-ingested and enriched vended metrics.
 
-> **Note:** PromQL tools are available in: us-east-1, us-west-2, eu-west-1, ap-southeast-1, ap-southeast-2. For enriched vended AWS metrics, OTel enrichment must be enabled first (`aws cloudwatch start-otel-enrichment`). Vended metrics are histograms — use `histogram_avg()`, `histogram_sum()`, etc. Use `@instrumentation.@name` to disambiguate metrics across services (e.g., `"cloudwatch.aws/ec2"` vs `"cloudwatch.aws/rds"`).
+> **Note:** For enriched vended AWS metrics, OTel enrichment must be enabled first (`aws cloudwatch start-otel-enrichment`). Vended metrics are histograms — use `histogram_avg()`, `histogram_sum()`, etc. Use `@instrumentation.@name` to disambiguate metrics across services (e.g., `"cloudwatch.aws/ec2"` vs `"cloudwatch.aws/rds"`).
 >
 > **OTLP scope to PromQL label mapping:**
 > | OTLP Scope | Attributes prefix | Example |
