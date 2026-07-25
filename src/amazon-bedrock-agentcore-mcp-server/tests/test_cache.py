@@ -15,6 +15,7 @@
 """Tests for the cache utility module."""
 
 from awslabs.amazon_bedrock_agentcore_mcp_server.utils import cache, doc_fetcher, indexer
+from email.message import Message
 from unittest.mock import Mock, patch
 from urllib.error import HTTPError
 
@@ -185,7 +186,7 @@ class TestCache:
             url='https://example.com/llms.txt',
             code=404,
             msg='Not Found',
-            hdrs={},
+            hdrs=Message(),
             fp=None,
         )
 
@@ -225,7 +226,7 @@ class TestCache:
                 url='https://bad.example.com/llms.txt',
                 code=404,
                 msg='Not Found',
-                hdrs={},
+                hdrs=Message(),
                 fp=None,
             ),
             [('Working Doc', 'https://good.example.com/doc')],
