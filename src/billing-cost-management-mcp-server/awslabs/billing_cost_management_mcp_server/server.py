@@ -39,6 +39,9 @@ from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_tools im
 )
 from awslabs.billing_cost_management_mcp_server.tools.budget_tools import budget_server
 from awslabs.billing_cost_management_mcp_server.tools.bvs_tools import bvs_server
+from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_automation_tools import (
+    compute_optimizer_automation_server,
+)
 from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools import (
     compute_optimizer_server,
 )
@@ -61,6 +64,7 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_optimization_hub_tool
 from awslabs.billing_cost_management_mcp_server.tools.free_tier_usage_tools import (
     free_tier_usage_server,
 )
+from awslabs.billing_cost_management_mcp_server.tools.invoicing_tools import invoicing_server
 from awslabs.billing_cost_management_mcp_server.tools.recommendation_details_tools import (
     recommendation_details_server,
 )
@@ -75,7 +79,7 @@ from awslabs.billing_cost_management_mcp_server.tools.unified_sql_tools import u
 from awslabs.billing_cost_management_mcp_server.utilities.logging_utils import get_logger
 from fastmcp import FastMCP
 from fastmcp.server.middleware import Middleware
-from fastmcp.tools.tool import ToolResult
+from fastmcp.tools import ToolResult
 
 
 # Configure logger for server
@@ -135,6 +139,7 @@ Available components:
 TOOLS:
 - cost-explorer: Historical cost and usage data with flexible filtering
 - compute-optimizer: Performance optimization recommendations to identify under provisioned AWS compute resources like EC2, Lambda, ASG, RDS, ECS
+- compute-optimizer-automation: Compute Optimizer Automation rules, events, recommended actions, and rule previews (implementing Compute Optimizer recommendations automatically via rules or on demand)
 - cost-optimization: Cost optimization recommendations across AWS services
 - storage-lens: Query S3 Storage Lens metrics data using Athena SQL
 - athena-cur: Query Cost and Usage Report data through Athena
@@ -152,6 +157,7 @@ TOOLS:
 - billing-view: AWS Billing View tools for managing and querying billing views (get-billing-view, list-billing-views, list-source-views-for-billing-view, get-resource-policy)
 - cost-allocation-tags: List cost allocation tags and backfill history (list-cost-allocation-tags, list-cost-allocation-tag-backfill-history)
 - cost-category: Describe and list cost category definitions (describe-cost-category-definition, list-cost-category-definitions)
+- invoicing: AWS Invoicing data — invoice summaries with amounts, tax, discounts/fees, currency/FX, due dates, PO numbers, and credit memos (operation: list_invoice_summaries)
 
 PROMPTS:
 - savings_plans: Analyzes AWS usage and identifies opportunities for Savings Plans purchases
@@ -195,6 +201,7 @@ async def setup():
     """Initialize the MCP server by importing all tool servers."""
     await mcp.import_server(cost_explorer_server)
     await mcp.import_server(compute_optimizer_server)
+    await mcp.import_server(compute_optimizer_automation_server)
     await mcp.import_server(cost_optimization_hub_server)
     await mcp.import_server(storage_lens_server)
     await mcp.import_server(aws_pricing_server)
@@ -211,6 +218,7 @@ async def setup():
     await mcp.import_server(bvs_server)
     await mcp.import_server(cost_allocation_tags_server)
     await mcp.import_server(cost_category_server)
+    await mcp.import_server(invoicing_server)
 
     await register_prompts()
 
@@ -220,6 +228,7 @@ async def setup():
     tools = [
         'cost-explorer',
         'compute-optimizer',
+        'compute-optimizer-automation',
         'cost-optimization',
         'storage-lens',
         'pricing',
@@ -251,6 +260,7 @@ async def setup():
         'list-cost-allocation-tag-backfill-history',
         'describe-cost-category-definition',
         'list-cost-category-definitions',
+        'invoicing',
     ]
     for tool in tools:
         logger.info(f'- {tool}')

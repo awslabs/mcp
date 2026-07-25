@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 from mcp.server.fastmcp import FastMCP
 
 
@@ -22,5 +24,5 @@ mcp = FastMCP(
     's understanding of available tools, resources, etc. It can be thought of like a '
     'hint'
     ' to the model. For example, this information MAY be added to the system prompt. Important to be clear, direct, and detailed.',
-    dependencies=['pydantic', 'loguru', 'valkey', 'dotenv', 'numpy'],
+    dependencies=['pydantic', 'loguru', 'valkey-glide', 'python-dotenv'],
 )

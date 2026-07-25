@@ -1,6 +1,6 @@
 ---
 name: distributed sql
-description: "Build with Aurora DSQL — manage schemas, execute queries, handle migrations, diagnose query plans, and develop applications with a serverless, distributed SQL database. Covers IAM auth, multi-tenant patterns, MySQL-to-DSQL migration, DDL operations, query plan explainability, and SQL compatibility validation. Triggers on phrases like: DSQL, Aurora DSQL, create DSQL table, DSQL schema, migrate to DSQL, distributed SQL database, serverless PostgreSQL-compatible database, DSQL query plan, DSQL EXPLAIN ANALYZE, why is my DSQL query slow."
+description: "Build with Aurora DSQL — manage schemas, execute queries, handle migrations, diagnose query plans, load data, and develop applications with a serverless, distributed SQL database. Covers IAM auth, multi-tenant patterns, MySQL-to-DSQL and PostgreSQL-to-DSQL schema conversion, FK replacement code generation, OCC retry patterns, ORM migration (Django/Hibernate/Rails), DDL operations, query plan explainability, SQL compatibility validation, and bulk data loading. Triggers on phrases like: DSQL, Aurora DSQL, create DSQL table, DSQL schema, migrate to DSQL, distributed SQL database, serverless PostgreSQL-compatible database, DSQL query plan, DSQL EXPLAIN ANALYZE, why is my DSQL query slow, DSQL foreign key, DSQL OCC retry, DSQL multi-region, load into DSQL, load CSV into DSQL, bulk load DSQL, aurora-dsql-loader."
 ---
 
 # Amazon Aurora DSQL Skill
@@ -67,6 +67,11 @@ sampled in [mcp/.mcp.json](mcp/.mcp.json)
 **When:** MUST load when creating database roles, granting permissions, setting up schemas for applications, or handling sensitive data. ALWAYS use scoped roles for applications — create database roles with `dsql:DbConnect`.
 **Contains:** Scoped role setup, IAM-to-database role mapping, schema separation for sensitive data, role design patterns
 
+### [occ-retry-patterns.md](references/occ-retry-patterns.md)
+
+**When:** MUST load when writing OCC retry code or mitigating commit-time conflicts
+**Contains:** DSQL Connectors, manual retry pattern, conflict mitigation, idempotent transaction design
+
 ### DDL Migrations (modular):
 
 #### [ddl-migrations/overview.md](references/ddl-migrations/overview.md)
@@ -105,6 +110,47 @@ sampled in [mcp/.mcp.json](mcp/.mcp.json)
 
 **When:** Load when migrating a complete MySQL table to DSQL
 **Contains:** End-to-end MySQL CREATE TABLE migration example with decision summary
+
+### PostgreSQL Migrations (modular):
+
+#### [pg-migrations/type-mapping.md](references/pg-migrations/type-mapping.md)
+
+**When:** MUST load for PostgreSQL → DSQL type questions
+**Contains:** C collation rules, NUMERIC precision, JSON/JSONB, types mapped to TEXT by `dsql_lint`
+
+#### [pg-migrations/fk-replacement.md](references/pg-migrations/fk-replacement.md)
+
+**When:** MUST load for foreign-key validation code generation
+**Contains:** Tenant-scoped `validate_fk_*()` template, cascade handling
+
+#### [pg-migrations/index-conversion.md](references/pg-migrations/index-conversion.md)
+
+**When:** MUST load for unfixable index diagnostics
+**Contains:** GIN/GiST/BRIN → btree, partial and expression index conversion, async index status
+
+#### [pg-migrations/schema-objects.md](references/pg-migrations/schema-objects.md)
+
+**When:** MUST load for ENUM, materialized views, extensions, or multi-schema handling
+**Contains:** ENUM → CHECK, views, temp/partitioned/inherited tables, role/IAM mapping
+
+#### [pg-migrations/multi-region.md](references/pg-migrations/multi-region.md)
+
+**When:** Load for multi-region, active-active, or HA questions
+**Contains:** Architecture patterns, geographic partitioning
+
+### ORM Guides:
+
+#### [orm-guides/overview.md](references/orm-guides/overview.md)
+
+**When:** Load when migrating any ORM to DSQL
+**Contains:** Adapter names and key gotchas for Django, Hibernate, Rails, SQLAlchemy
+
+### Data Loading:
+
+#### [data-loading.md](references/data-loading.md)
+
+**When:** Load when planning or running bulk loads with `aurora-dsql-loader`
+**Contains:** Fresh-vs-warm partitions, resume/retry, `--on-conflict` semantics, throughput diagnostics
 
 ### Query Plan Explainability (modular):
 

@@ -221,3 +221,87 @@ class TestVectorToFunctionRecords:
         """Entries without a parseable value are skipped entirely."""
         result = [{'metric': {'function.name': 'f1'}, 'value': [1, 'bad']}]
         assert promql_query.vector_to_function_records(result, 'v') == {}
+
+
+class TestErrorsByOperationException:
+    """Tests for the count-metric error-pattern builder."""
+
+    def test_basic_query_shape(self):
+        """Builds a sum-by-(operation, exception) sum_over_time query on the count metric."""
+        expr = promql_query.errors_by_operation_exception('svc', window='3h')
+        assert expr == (
+            'sum by (operation, exception) '
+            '(sum_over_time({"count","@resource.service.name"="svc"}[3h]))'
+        )
+
+    def test_operation_and_environment_filters(self):
+        """Operation and environment add quoted-label matchers to the selector."""
+        expr = promql_query.errors_by_operation_exception(
+            'svc', window='1h', operation='POST /x', environment='eks:e'
+        )
+        assert '"operation"="POST /x"' in expr
+        assert '"@resource.deployment.environment.name"="eks:e"' in expr
+        assert '"@resource.service.name"="svc"' in expr
+
+    def test_top_wraps_in_topk(self):
+        """A top value wraps the aggregation in topk()."""
+        expr = promql_query.errors_by_operation_exception('svc', window='3h', top=5)
+        assert expr.startswith('topk(5, ')
+
+
+class TestVectorToErrorPatterns:
+    """Tests for parsing the count-metric error-pattern result."""
+
+    def test_maps_and_sorts_rows(self):
+        """Rows map to {operation, exception, exception_type, count}, sorted by count."""
+        result = [
+            {
+                'metric': {'operation': 'GET /a', 'exception': 'foo.Bar NotFound'},
+                'value': [0, '10'],
+            },
+            {'metric': {'operation': 'POST /b', 'exception': 'baz Qux'}, 'value': [0, '30']},
+        ]
+        rows = promql_query.vector_to_error_patterns(result)
+        assert rows == [
+            {
+                'operation': 'POST /b',
+                'exception': 'baz Qux',
+                'exception_type': 'Qux',
+                'count': 30,
+            },
+            {
+                'operation': 'GET /a',
+                'exception': 'foo.Bar NotFound',
+                'exception_type': 'NotFound',
+                'count': 10,
+            },
+        ]
+
+    def test_drops_series_without_exception(self):
+        """Series with no exception label are dropped."""
+        result = [{'metric': {'operation': 'GET /c'}, 'value': [0, '99']}]
+        assert promql_query.vector_to_error_patterns(result) == []
+
+    def test_drops_non_finite_values(self):
+        """NaN/Inf counts are dropped (reusing the _value_of finite guard)."""
+        result = [{'metric': {'operation': 'GET /d', 'exception': 'x Y'}, 'value': [0, 'NaN']}]
+        assert promql_query.vector_to_error_patterns(result) == []
+
+    def test_exception_without_space_keeps_full_string(self):
+        """An exception label with no space uses the full string as the short name."""
+        result = [{'metric': {'operation': 'GET /e', 'exception': 'BareName'}, 'value': [0, '2']}]
+        rows = promql_query.vector_to_error_patterns(result)
+        assert rows[0]['exception_type'] == 'BareName'
+
+    def test_top_caps_rows(self):
+        """The top arg caps the number of returned rows (after sorting)."""
+        result = [
+            {'metric': {'operation': f'op{i}', 'exception': f'e E{i}'}, 'value': [0, str(i)]}
+            for i in range(5)
+        ]
+        rows = promql_query.vector_to_error_patterns(result, top=2)
+        assert [r['count'] for r in rows] == [4, 3]
+
+    def test_none_result_yields_empty(self):
+        """A None result yields an empty list."""
+        assert promql_query.vector_to_error_patterns(None) == []

@@ -33,7 +33,7 @@ Do not use for: speculative answers you can derive from code/docs only, or destr
 - Call get_database_connection_info to get all currently connections
 
 ## Tool usage policy (important)
-- Default mode is **read-only**; the server will reject any mutating SQL (INSERT/UPDATE/DELETE/DDL). If the user needs write operations, inform them the MCP server must be reconfigured with `--allow_write_query`.
+- Default mode is **read-only**; the server will reject any mutating SQL (INSERT/UPDATE/DELETE/DDL). If the user needs write operations, inform them the MCP server must be reconfigured with `--allow_write_query`. The read-only mode is a best-effort SQL-text safeguard, not a security boundary — for sensitive environments, operators should connect with a least-privilege MySQL user / IAM role with only `SELECT` granted (see the "Security model" section of the server README).
 - When writes **are** enabled, show the SQL and explain its impact before executing.
 - Dry-run first: when feasible, request an EXPLAIN plan before running heavy queries (>5s or large scans).
 - Bound queries: always include LIMIT 50 on browsing, and narrow with WHERE predicates.

@@ -184,13 +184,15 @@ class TestSecurityAgentClient:
 
     @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
     def test_update_agent_space_with_resources(self, mock_boto3):
-        """update_agent_space forwards iam_roles and s3_buckets to awsResources."""
+        """update_agent_space forwards the full awsResources dict unchanged."""
         mock_client = MagicMock()
         mock_client.update_agent_space.return_value = {'agentSpaceId': 'as-1'}
         mock_boto3.Session.return_value.client.return_value = mock_client
 
         client = SecurityAgentClient()
-        client.update_agent_space('as-1', 'name', iam_roles=['arn:role-a'], s3_buckets=['bkt'])
+        client.update_agent_space(
+            'as-1', 'name', {'iamRoles': ['arn:role-a'], 's3Buckets': ['bkt']}
+        )
         kwargs = mock_client.update_agent_space.call_args.kwargs
         assert kwargs['agentSpaceId'] == 'as-1'
         assert kwargs['awsResources']['iamRoles'] == ['arn:role-a']
@@ -198,7 +200,7 @@ class TestSecurityAgentClient:
 
     @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
     def test_update_agent_space_no_resources(self, mock_boto3):
-        """When no roles/buckets provided, awsResources is omitted."""
+        """When no resources provided, awsResources is omitted."""
         mock_client = MagicMock()
         mock_boto3.Session.return_value.client.return_value = mock_client
 

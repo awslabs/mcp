@@ -46,6 +46,9 @@ LABEL_STATUS = 'status'
 # Endpoint/operation the function executed under (e.g. "POST /checkout"). Added to
 # the service.function.duration metric so function metrics can be filtered by endpoint.
 LABEL_OPERATION = 'operation'
+# Exception label on the ``count`` metric. Value is "<dotted.path> <ExceptionName>"
+# (e.g. "...WebAsyncUtils.getAsyncManager NotFound"); the short name is the last token.
+LABEL_EXCEPTION = 'exception'
 
 DEFAULT_RATE_WINDOW = '5m'
 
@@ -259,3 +262,73 @@ def vector_to_function_records(result: List[dict], value_key: str) -> Dict[str, 
             except (ValueError, TypeError):
                 rec['line'] = line
     return records
+
+
+def errors_by_operation_exception(
+    service_name: str,
+    window: str = DEFAULT_RATE_WINDOW,
+    *,
+    operation: Optional[str] = None,
+    environment: Optional[str] = None,
+    top: Optional[int] = None,
+) -> str:
+    """Build the per-(operation, exception) error-count query on the ``count`` metric.
+
+    ``sum by (operation, exception) (sum_over_time({"count","@resource.service.name"="svc"
+    [,"operation"="op"][,env]}[window]))``. The ``count`` metric stores per-interval error
+    counts (NOT a cumulative counter), so the total over the window is ``sum_over_time``
+    — adding every interval's value. (``increase``/``rate`` are wrong here: they assume a
+    monotonic counter and compute deltas between samples, which badly undercounts and does
+    not match the CloudWatch "Errors" page.) Only series carrying an ``exception`` label
+    are errors, so no extra status filter is needed. When ``top`` is given, wraps in
+    ``topk(top, ...)``.
+    """
+    matchers: Dict[str, str] = {LABEL_SERVICE_NAME: service_name}
+    if environment:
+        matchers[LABEL_ENVIRONMENT] = environment
+    if operation:
+        matchers[LABEL_OPERATION] = operation
+    sel = build_selector(METRIC_COUNT, matchers)
+    expr = f'sum by ({LABEL_OPERATION}, {LABEL_EXCEPTION}) (sum_over_time({sel}[{window}]))'
+    if top is not None:
+        expr = f'topk({top}, {expr})'
+    return expr
+
+
+def _exception_short_name(exception: str) -> str:
+    """Return the short exception name (last whitespace token) from the label value.
+
+    The ``exception`` label is "<dotted.path> <ExceptionName>"; the CloudWatch Errors
+    page shows just the trailing name. Falls back to the full string when there is no
+    whitespace.
+    """
+    return exception.rsplit(' ', 1)[-1] if exception else exception
+
+
+def vector_to_error_patterns(
+    result: Optional[List[dict]], top: Optional[int] = None
+) -> List[Dict]:
+    """Map an instant-vector ``count`` result to per-(operation, exception) error rows.
+
+    Returns ``[{operation, exception, exception_type, count}]`` sorted by count
+    descending. Series without an ``exception`` label or a finite value are dropped.
+    """
+    rows: List[Dict] = []
+    for entry in result or []:
+        metric = entry.get('metric', {})
+        exception = metric.get(LABEL_EXCEPTION)
+        val = _value_of(entry)
+        if not exception or val is None:
+            continue
+        rows.append(
+            {
+                'operation': metric.get(LABEL_OPERATION),
+                'exception': exception,
+                'exception_type': _exception_short_name(exception),
+                'count': int(round(val)),
+            }
+        )
+    rows.sort(key=lambda r: r['count'], reverse=True)
+    if top is not None:
+        rows = rows[:top]
+    return rows
