@@ -214,22 +214,22 @@ Add to your `.cursor/mcp.json`:
 
 ## Read-Only Mode
 
-The server supports a read-only mode that prevents all mutating operations while still allowing read operations. This is useful for:
+The server starts in read-only mode by default, preventing all mutating operations while still allowing read operations. This is useful for:
 
 - **Safety**: Preventing accidental modifications in production environments
 - **Testing**: Allowing safe exploration of IAM resources without risk of changes
 - **Auditing**: Running the server in environments where only read access should be allowed
 
-### Enabling Read-Only Mode
+### Enabling Write Mode
 
-Add the `--readonly` flag when starting the server:
+Read-only mode requires no flag; it is the default. To allow mutating operations, add the `--allow-write` flag when starting the server:
 
 ```bash
 # Using uvx
-uvx awslabs.iam-mcp-server@latest --readonly
+uvx awslabs.iam-mcp-server@latest --allow-write
 
 # Or if installed locally
-python -m awslabs.iam_mcp_server.server --readonly
+python -m awslabs.iam_mcp_server.server --allow-write
 ```
 
 ### MCP Client Configuration with Read-Only Mode
@@ -240,7 +240,7 @@ python -m awslabs.iam_mcp_server.server --readonly
   "mcpServers": {
     "awslabs.iam-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.iam-mcp-server@latest", "--readonly"],
+      "args": ["awslabs.iam-mcp-server@latest"],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1"
@@ -251,7 +251,7 @@ python -m awslabs.iam_mcp_server.server --readonly
 ```
 
 #### Other MCP Clients
-Simply add `"--readonly"` to the args array in your MCP configuration.
+No flag is needed; read-only mode is the default. To enable write operations instead, add `"--allow-write"` to the args array in your MCP configuration.
 
 ### Operations Blocked in Read-Only Mode
 
