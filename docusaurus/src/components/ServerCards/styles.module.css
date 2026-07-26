@@ -11,8 +11,8 @@
   gap: 1rem;
   margin-bottom: 2rem;
   padding: 1.5rem;
-  background-color: var(--ifm-background-surface-color);
-  border-radius: 8px;
+  background-color: var(--aws-ink-050, #f8fafb);
+  border-radius: 12px;
   border: 1px solid var(--ifm-color-emphasis-300);
 }
 
@@ -77,6 +77,10 @@
 
 /* Results Stats */
 .cardStats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   margin-bottom: 1rem;
   padding: 0.5rem 0;
   font-size: 0.875rem;
@@ -84,7 +88,25 @@
 }
 
 .cardStatsCount {
+  font-weight: 700;
+  color: var(--ifm-color-primary);
+}
+
+.cardStatsClear {
+  appearance: none;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  background: #fff;
+  color: var(--aws-ink-700, #414d5c);
+  font-size: 0.8rem;
   font-weight: 600;
+  padding: 0.3rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.cardStatsClear:hover {
+  border-color: var(--ifm-color-primary);
   color: var(--ifm-color-primary);
 }
 
@@ -137,21 +159,42 @@
 }
 
 .serverCard {
+  position: relative;
   display: flex;
   flex-direction: column;
   background-color: var(--ifm-background-color);
   border: 1px solid var(--ifm-color-emphasis-300);
-  border-radius: 6px;
-  padding: .9rem;
-  transition: all 0.2s ease;
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+  transition: transform 0.2s var(--aws-ease-out, ease),
+    box-shadow 0.2s var(--aws-ease-out, ease),
+    border-color 0.2s var(--aws-ease-out, ease);
   height: 150px; /* Reduced from 185px to 150px */
   width: 100%; /* Ensure the card takes full width of its grid cell */
   cursor: pointer;
+  overflow: hidden;
+}
+
+/* Category-colored top hairline, revealed on hover */
+.serverCard::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--cat, var(--ifm-color-primary));
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.28s var(--aws-ease-out, ease);
 }
 
 .serverCard:hover {
-  border-color: var(--ifm-color-primary-light);
-  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--cat, var(--ifm-color-primary)) 40%, var(--ifm-color-emphasis-200));
+  transform: translateY(-3px);
+  box-shadow: var(--aws-shadow-md, 0 4px 12px rgba(22, 25, 31, 0.08));
+}
+
+.serverCard:hover::before {
+  transform: scaleX(1);
 }
 
 /* Card Header */
@@ -168,9 +211,22 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  font-size: 1.2rem;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--cat, var(--ifm-color-primary)) 10%, #fff);
+}
+
+.serverCardIconGlyph {
+  width: 19px;
+  height: 19px;
+  background-color: var(--cat, var(--ifm-color-primary));
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
 }
 
 .serverCardTitleSection {
@@ -200,12 +256,13 @@
 
 .serverCardCategory {
   display: inline-block;
-  padding: 0.15rem 0.2rem;
-  background-color: var(--ifm-menu-color-background-active);
-  font-size: 0.6rem;
-  font-weight: 500;
-  border-radius: 3px;
-  letter-spacing: 0;
+  padding: 0.15rem 0.4rem;
+  background-color: color-mix(in srgb, var(--cat, var(--ifm-color-primary)) 12%, #fff);
+  color: var(--cat, var(--ifm-color-primary));
+  font-size: 0.62rem;
+  font-weight: 700;
+  border-radius: 4px;
+  letter-spacing: 0.01em;
   width: fit-content;
 }
 
@@ -225,7 +282,7 @@
   opacity: 0.85;
   margin-top: 0.5rem;
   margin-bottom: 0rem; /* Reduced from 0.3rem to 0.2rem */
-  margin-left: 32px;
+  margin-left: 44px;
   flex: 1;
   height: 2.6rem; /* Reduced from 3.8rem to 2.6rem */
   overflow: hidden;
@@ -238,13 +295,13 @@
 /* Workflow Tags */
 .serverCardWorkflow {
   display: inline-block;
-  padding: 0.15rem 0.2rem;
-  background-color: var(--ifm-menu-color-background-active);
-  color: var(--ifm-font-color-base);
-  font-size: 0.6rem;
-  font-weight: 500;
-  border-radius: 3px;
-  letter-spacing: 0;
+  padding: 0.15rem 0.4rem;
+  background-color: var(--aws-ink-100, #f2f4f6);
+  color: var(--aws-ink-700, #414d5c);
+  font-size: 0.62rem;
+  font-weight: 600;
+  border-radius: 4px;
+  letter-spacing: 0.01em;
   white-space: nowrap;
   width: fit-content;
 }
@@ -276,11 +333,16 @@
 
 /* Reduced motion support */
 @media (prefers-reduced-motion: reduce) {
-  .serverCard {
+  .serverCard,
+  .serverCard::before {
     transition: none;
   }
 
   .serverCard:hover {
     transform: none;
+  }
+
+  .serverCard:hover::before {
+    transform: scaleX(1);
   }
 }

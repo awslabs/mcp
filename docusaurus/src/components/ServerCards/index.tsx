@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import clsx from 'clsx';
 import styles from './styles.module.css';
 import serverCardsData from '@site/static/assets/server-cards.json';
+import { metaForCategory, iconPath, toCategoryId } from '@site/src/categoryMeta';
 
 type ServerCardProps = {
   id: string;
@@ -30,29 +31,8 @@ type WorkflowProps = {
 };
 
 const ServerCard: React.FC<{ server: ServerCardProps }> = ({ server }) => {
-  const categoryId = server.category.toLowerCase()
-    .replace(/[^\w\s-]/g, '')
-    .replace(/[\s_-]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-
-  // Map category to local SVG icon path
-  const getCategoryIcon = (category: string) => {
-    const iconMap: Record<string, string> = {
-      'Essential Setup': '/mcp/assets/icons/key.svg',
-      'Documentation': '/mcp/assets/icons/book-open.svg',
-      'Infrastructure & Deployment': '/mcp/assets/icons/server.svg',
-      'AI & Machine Learning': '/mcp/assets/icons/cpu.svg',
-      'Data & Analytics': '/mcp/assets/icons/database.svg',
-      'Developer Tools & Support': '/mcp/assets/icons/tool.svg',
-      'Integration & Messaging': '/mcp/assets/icons/share-2.svg',
-      'Cost & Operations': '/mcp/assets/icons/dollar-sign.svg',
-      'Healthcare & Lifesciences': '/mcp/assets/icons/activity.svg',
-      'Core': '/mcp/assets/icons/zap.svg'
-    };
-    return iconMap[category] || '/mcp/assets/icons/help-circle.svg';
-  };
-
-  const categoryIconPath = getCategoryIcon(server.category);
+  const meta = metaForCategory(server.category);
+  const categoryId = toCategoryId(server.category);
 
   // Use external URL if source_path is a full URL, otherwise use local path
   const linkHref = server.source_path && (server.source_path.startsWith('http://') || server.source_path.startsWith('https://'))
@@ -60,11 +40,22 @@ const ServerCard: React.FC<{ server: ServerCardProps }> = ({ server }) => {
     : `/mcp/servers/${server.id}`;
 
   return (
-    <a href={linkHref} className={styles.serverCardLink}>
+    <a
+      href={linkHref}
+      className={styles.serverCardLink}
+      style={{ ['--cat' as string]: meta.color }}
+    >
       <div className={clsx(styles.serverCard)} data-id={server.id}>
         <div className={styles.serverCardHeader}>
           <div className={styles.serverCardIcon}>
-            <img src={categoryIconPath} alt={`${server.category} icon`} style={{ width: '22px', height: '22px' }} />
+            <span
+              className={styles.serverCardIconGlyph}
+              style={{
+                maskImage: `url(${iconPath(meta.icon)})`,
+                WebkitMaskImage: `url(${iconPath(meta.icon)})`,
+              }}
+              aria-hidden="true"
+            />
           </div>
           <div className={styles.serverCardTitleSection}>
             <h3 className={styles.serverCardTitle}>{server.name || 'Unknown Server'}</h3>
@@ -80,17 +71,6 @@ const ServerCard: React.FC<{ server: ServerCardProps }> = ({ server }) => {
               </span>
               {server.workflows?.map((workflow, index) => {
                 const workflowData = serverCardsData.workflows.find(w => w.id === workflow);
-                // Map workflow IDs to local SVG icon paths
-                const getWorkflowIcon = (workflowId) => {
-                  const iconMap = {
-                    'vibe-coding': '/mcp/assets/icons/code.svg',
-                    'conversational': '/mcp/assets/icons/message-circle.svg',
-                    'autonomous': '/mcp/assets/icons/cpu.svg'
-                  };
-                  return iconMap[workflowId] || '/mcp/assets/icons/zap.svg';
-                };
-
-                const workflowIconPath = getWorkflowIcon(workflow);
 
                 return (
                   <span key={index} className={styles.serverCardWorkflow} data-workflow={workflow}>
@@ -112,12 +92,28 @@ const ServerCard: React.FC<{ server: ServerCardProps }> = ({ server }) => {
   );
 };
 
+// Read an initial filter value from the URL query string (client-side only).
+function initialParam(key: string): string {
+  if (typeof window === 'undefined') return '';
+  const value = new URLSearchParams(window.location.search).get(key);
+  return value ? decodeURIComponent(value) : '';
+}
+
 export default function ServerCards(): React.ReactNode {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [workflowFilter, setWorkflowFilter] = useState('');
   const [sortOption, setSortOption] = useState('name-asc');
   const [filteredServers, setFilteredServers] = useState(serverCardsData.servers);
+
+  // Hydrate filters from URL params (e.g. /servers?category=Data%20%26%20Analytics)
+  // so links can deep-link into a pre-filtered view.
+  useEffect(() => {
+    const cat = initialParam('category');
+    const wf = initialParam('workflow');
+    if (cat) setCategoryFilter(cat);
+    if (wf) setWorkflowFilter(wf);
+  }, []);
 
   useEffect(() => {
     // Filter servers based on search query and filters
@@ -162,6 +158,8 @@ export default function ServerCards(): React.ReactNode {
     setFilteredServers(sorted);
   }, [searchQuery, categoryFilter, workflowFilter, sortOption]);
 
+  const hasActiveFilters = Boolean(searchQuery || categoryFilter || workflowFilter);
+
   return (
     <div className={styles.serverCardsContainer} id="server-cards-container">
       <div className={styles.cardControls}>
@@ -183,6 +181,7 @@ export default function ServerCards(): React.ReactNode {
               className={styles.cardControlsSelect}
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
+              aria-label="Filter by category"
             >
               <option value="">All Categories</option>
               {serverCardsData.categories.map((category: CategoryProps) => (
@@ -199,6 +198,7 @@ export default function ServerCards(): React.ReactNode {
               className={styles.cardControlsSelect}
               value={workflowFilter}
               onChange={(e) => setWorkflowFilter(e.target.value)}
+              aria-label="Filter by workflow"
             >
               <option value="">All Workflows</option>
               {serverCardsData.workflows.map((workflow: WorkflowProps) => (
@@ -215,6 +215,7 @@ export default function ServerCards(): React.ReactNode {
               className={styles.cardControlsSelect}
               value={sortOption}
               onChange={(e) => setSortOption(e.target.value)}
+              aria-label="Sort servers"
             >
               <option value="name-asc">Sort by Name (A-Z)</option>
               <option value="name-desc">Sort by Name (Z-A)</option>
@@ -226,7 +227,22 @@ export default function ServerCards(): React.ReactNode {
       </div>
 
       <div className={styles.cardStats}>
-        Showing <span className={styles.cardStatsCount}>{filteredServers.length}</span> of <span className={styles.cardStatsTotal}>{serverCardsData.servers.length}</span> servers
+        <span>
+          Showing <span className={styles.cardStatsCount}>{filteredServers.length}</span> of <span className={styles.cardStatsTotal}>{serverCardsData.servers.length}</span> servers
+        </span>
+        {hasActiveFilters && (
+          <button
+            type="button"
+            className={styles.cardStatsClear}
+            onClick={() => {
+              setSearchQuery('');
+              setCategoryFilter('');
+              setWorkflowFilter('');
+            }}
+          >
+            Clear filters
+          </button>
+        )}
       </div>
 
       <div className={styles.cardGrid}>
