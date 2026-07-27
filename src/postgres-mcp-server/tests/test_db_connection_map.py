@@ -2,6 +2,7 @@
 
 """Unit tests for DBConnectionMap class."""
 
+import asyncio
 import json
 import pytest
 import threading
@@ -346,6 +347,107 @@ class TestDBConnectionMap:
         conn3.close.assert_called_once()
 
         # Map should be cleared (this is the important behavior)
+        assert connection_map.map == {}
+
+    # ---- Coroutine close() paths (AbstractDBConnection.close is async) ----
+
+    def test_close_all_awaits_coroutine_close_when_no_running_loop(self, connection_map):
+        """close_all() drives an async close() to completion via asyncio.run.
+
+        Called from sync context (no running event loop), a coroutine
+        returned by close() must actually be awaited, not dropped.
+        """
+        awaited = {'count': 0}
+
+        async def async_close():
+            awaited['count'] += 1
+
+        conn = MagicMock()
+        conn.close = MagicMock(side_effect=async_close)
+
+        connection_map.set(ConnectionMethod.RDS_API, 'c', 'e', 'db', conn)
+
+        connection_map.close_all()
+
+        # The coroutine ran to completion exactly once.
+        assert awaited['count'] == 1
+        conn.close.assert_called_once()
+        assert connection_map.map == {}
+
+    def test_close_all_cancels_coroutine_when_inside_running_loop(self, connection_map):
+        """Inside a running loop, asyncio.run raises RuntimeError.
+
+        close_all() must catch it and close() the coroutine (cancelling
+        it) rather than crashing, since you can't nest asyncio.run.
+        """
+        started = {'count': 0}
+
+        async def async_close():
+            # If this body ran to completion it would increment; we
+            # expect it to be cancelled (closed) before that.
+            started['count'] += 1
+
+        conn = MagicMock()
+        conn.close = MagicMock(side_effect=async_close)
+        connection_map.set(ConnectionMethod.RDS_API, 'c', 'e', 'db', conn)
+
+        async def driver():
+            # Calling close_all from within a running loop forces the
+            # asyncio.run(...) inside it to raise RuntimeError, which the
+            # RuntimeError branch handles by closing the coroutine.
+            connection_map.close_all()
+
+        # Must not raise.
+        asyncio.run(driver())
+
+        conn.close.assert_called_once()
+        assert connection_map.map == {}
+        # The coroutine was closed (cancelled) without being awaited to
+        # completion, so its body never ran.
+        assert started['count'] == 0
+
+    def test_close_all_warns_when_coroutine_await_fails(self, connection_map):
+        """A coroutine close() that raises is caught and logged, not propagated."""
+
+        async def failing_close():
+            raise ValueError('boom during async close')
+
+        conn1 = MagicMock()
+        conn1.close = MagicMock(side_effect=failing_close)
+        conn2 = MagicMock()
+        conn2.close = MagicMock()  # sync close on the second connection
+
+        connection_map.set(ConnectionMethod.RDS_API, 'c1', 'e1', 'db1', conn1)
+        connection_map.set(ConnectionMethod.RDS_API, 'c2', 'e2', 'db2', conn2)
+
+        # Should not raise despite the async close() failing.
+        connection_map.close_all()
+
+        conn1.close.assert_called_once()
+        # Cleanup continues to the second connection.
+        conn2.close.assert_called_once()
+        assert connection_map.map == {}
+
+    def test_close_all_mixed_sync_and_async_close(self, connection_map):
+        """A map with both sync and async close() connections is fully drained."""
+        awaited = {'count': 0}
+
+        async def async_close():
+            awaited['count'] += 1
+
+        async_conn = MagicMock()
+        async_conn.close = MagicMock(side_effect=async_close)
+        sync_conn = MagicMock()
+        sync_conn.close = MagicMock()  # returns a non-coroutine
+
+        connection_map.set(ConnectionMethod.RDS_API, 'a', 'e', 'db', async_conn)
+        connection_map.set(ConnectionMethod.PG_WIRE_PROTOCOL, 's', 'e', 'db', sync_conn)
+
+        connection_map.close_all()
+
+        async_conn.close.assert_called_once()
+        sync_conn.close.assert_called_once()
+        assert awaited['count'] == 1
         assert connection_map.map == {}
 
     # ==================== Connection Method Differentiation Tests ====================

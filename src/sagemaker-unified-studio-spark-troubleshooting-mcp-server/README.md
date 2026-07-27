@@ -2,7 +2,7 @@
 
 A fully managed remote MCP server that provides specialized tools for troubleshooting Apache Spark applications on Amazon EMR, AWS Glue, and Amazon SageMaker Notebooks. This server simplifies the troubleshooting process through conversational AI capabilities, automated workload analysis, and intelligent code recommendations.
 
-**Important Note**: Not all MCP clients today support remote servers. Please make sure that your client supports remote MCP servers or that you have a suitable proxy setup to use this server. The Amazon SageMaker Unified Studio MCP server is in preview and is subject to change.
+**Important Note**: Not all MCP clients today support remote servers. Please make sure that your client supports remote MCP servers or that you have a suitable proxy setup to use this server.
 
 ## Key Features & Capabilities
 
@@ -15,7 +15,7 @@ A fully managed remote MCP server that provides specialized tools for troublesho
 
 ## Architecture
 
-The troubleshooting agent has three main components: an MCP-compatible AI Assistant in your development environment for interaction, the [MCP Proxy for AWS](https://github.com/aws/mcp-proxy-for-aws) that handles secure communication and authentication between your client and AWS services, and the Amazon SageMaker Unified Studio Remote MCP Server (preview) that provides specialized Spark troubleshooting tools for Amazon EMR, AWS Glue and Amazon SageMaker Notebooks. This diagram illustrates how you interact with the Amazon SageMaker Unified Studio Remote MCP Server through your AI Assistant.
+The troubleshooting agent has three main components: an MCP-compatible AI Assistant in your development environment for interaction, the [MCP Proxy for AWS](https://github.com/aws/mcp-proxy-for-aws) that handles secure communication and authentication between your client and AWS services, and the Amazon SageMaker Unified Studio Remote MCP Server that provides specialized Spark troubleshooting tools for Amazon EMR, AWS Glue and Amazon SageMaker Notebooks. This diagram illustrates how you interact with the Amazon SageMaker Unified Studio Remote MCP Server through your AI Assistant.
 
 ![img](https://docs.aws.amazon.com/images/emr/latest/ReleaseGuide/images/spark-troubleshooting-agent-architecture.png)
 

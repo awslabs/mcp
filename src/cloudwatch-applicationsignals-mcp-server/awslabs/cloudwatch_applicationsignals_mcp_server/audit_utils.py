@@ -940,3 +940,70 @@ def _matches_wildcard_pattern(text: Optional[str], compiled_pattern: Optional[re
         text = ''
 
     return compiled_pattern.match(text) is not None
+
+
+async def run_service_trace_audit(service_name: Optional[str], hours: int) -> str:
+    """Run a trace-only Application Signals audit for one service (or all via wildcard).
+
+    This is the importable seam used by the service_events ``get_incidents`` fallback: when
+    no service_events service_events incidents are found but Application Signals is enabled,
+    it asks Application Signals for trace-level findings. It performs the same
+    single/wildcard service audit slice as the ``audit_services`` tool, restricted to
+    the ``trace`` auditor.
+
+    Args:
+        service_name: Service name to audit. ``None`` audits all services (wildcard ``*``).
+        hours: Look-back window in hours.
+
+    Returns:
+        The formatted audit result string from the Application Signals audit API.
+    """
+    from .aws_clients import AWS_REGION, applicationsignals_client
+    from .service_audit_utils import (
+        normalize_service_targets,
+        validate_and_enrich_service_targets,
+    )
+
+    region = AWS_REGION.strip()
+    end_dt = datetime.now(timezone.utc)
+    unix_end = int(end_dt.timestamp())
+    unix_start = unix_end - hours * 3600
+
+    target_name = service_name or '*'
+    provided = [{'Type': 'service', 'Data': {'Service': {'Type': 'Service', 'Name': target_name}}}]
+
+    service_names_in_batch: List[str] = []
+    if '*' in target_name:
+        (provided, _next_token, service_names_in_batch, _stats) = expand_service_wildcard_patterns(
+            provided,
+            unix_start,
+            unix_end,
+            None,
+            5,
+            applicationsignals_client,
+        )
+        if not provided:
+            return 'No services found matching the wildcard pattern.'
+
+    normalized_targets = normalize_service_targets(provided)
+    normalized_targets = validate_and_enrich_service_targets(
+        normalized_targets, applicationsignals_client, unix_start, unix_end
+    )
+
+    auditors_list = parse_auditors('trace', ['trace'])
+
+    banner = (
+        '[MCP-SERVICE] Application Signals Trace Audit\n'
+        f'🎯 Scope: {len(normalized_targets)} service target(s) | Region: {region}\n'
+        f'⏰ Time: {unix_start}–{unix_end}\n\n'
+    )
+
+    input_obj = {
+        'StartTime': unix_start,
+        'EndTime': unix_end,
+        'AuditTargets': normalized_targets,
+    }
+    if auditors_list:
+        input_obj['Auditors'] = auditors_list
+
+    return await execute_audit_api(input_obj, region, banner)

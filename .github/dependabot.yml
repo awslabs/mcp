@@ -29,6 +29,10 @@ updates:
       prefix: "chore(deps): update uv"
     groups:
       uv-version-updates:
+        # Collapse this dependency's bump across every matched directory into a
+        # single PR. Without this, `directories: ["**/*"]` groups only WITHIN
+        # each directory.
+        group-by: dependency-name
         patterns:
           - "*"
 
@@ -41,6 +45,8 @@ updates:
       prefix: "chore(deps): update npm"
     groups:
       npm-version-updates:
+        # One PR per dependency across all directories (see uv note above).
+        group-by: dependency-name
         patterns:
           - "*"
 
@@ -53,5 +59,7 @@ updates:
       prefix: "chore(deps): update docker images"
     groups:
       docker-version-updates:
+        # One PR per image across all directories (see uv note above).
+        group-by: dependency-name
         patterns:
           - "*"

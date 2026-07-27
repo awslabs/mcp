@@ -64,23 +64,16 @@ ARGS:
       operation: The pricing operation to perform ('get_service_codes', 'get_service_attributes', 'get_attribute_values', 'get_pricing_from_api')
       service_code: AWS service code (e.g., 'AmazonEC2', 'AmazonS3', 'AmazonES'). Required for get_service_attributes, get_attribute_values, and get_pricing_from_api operations.
       attribute_name: Attribute name (e.g., 'instanceType', 'location', 'storageClass'). Required for get_attribute_values operation.
-      region: AWS region (e.g., 'us-east-1', 'us-west-2', 'eu-west-1'). Required for get_pricing_from_api operation.
       filters: Optional filters for pricing queries. Format: {'instanceType': 't3.medium', 'location': 'US East (N. Virginia)'}
 
 RETURNS:
-        Dict containing the pricing information
-
-SUPPORTED AWS PRICING API REGIONS:
-- Classic partition: us-east-1, eu-central-1, ap-southeast-1
-- China partition: cn-northwest-1
-The tool automatically maps your region to the nearest pricing endpoint.""",
+        Dict containing the pricing information""",
 )
 async def aws_pricing(
     ctx: Context,
     operation: str,
     service_code: Optional[str] = None,
     attribute_name: Optional[str] = None,
-    region: Optional[str] = None,
     filters: Optional[str] = None,
     max_results: Optional[int] = None,
 ) -> Dict[str, Any]:
@@ -91,7 +84,6 @@ async def aws_pricing(
         operation: The pricing operation to perform ('get_service_codes', 'get_service_attributes', 'get_attribute_values', 'get_pricing_from_api')
         service_code: AWS service code (e.g., 'AmazonEC2', 'AmazonS3', 'AmazonES'). Required for get_service_attributes, get_attribute_values, and get_pricing_from_api operations.
         attribute_name: Attribute name (e.g., 'instanceType', 'location', 'storageClass'). Required for get_attribute_values operation.
-        region: AWS region (e.g., 'us-east-1', 'us-west-2', 'eu-west-1'). Required for get_pricing_from_api operation.
         filters: Optional filters for pricing queries as a JSON string. Format: '{"instanceType": "t3.medium", "location": "US East (N. Virginia)"}'
         max_results: Maximum number of results to return (optional)
 
@@ -125,16 +117,12 @@ async def aws_pricing(
             )
 
         elif operation == 'get_pricing_from_api':
-            if not service_code or not region:
+            if not service_code:
                 return format_response(
                     'error',
-                    {
-                        'message': 'service_code and region are required for get_pricing_from_api operation'
-                    },
+                    {'message': 'service_code is required for get_pricing_from_api operation'},
                 )
-            return await get_pricing_from_api(
-                ctx, service_code, region, filters, max_results=max_results
-            )
+            return await get_pricing_from_api(ctx, service_code, filters, max_results=max_results)
 
         else:
             return format_response(

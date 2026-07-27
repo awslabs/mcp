@@ -199,6 +199,60 @@ class TestErrorMessages:
         # ERROR_STATIC_STORAGE_REQUIRES_CAPACITY doesn't have placeholders
 
 
+class TestScratchStorageModes:
+    """Test cases for scratch storage mode constants.
+
+    Feature: local-temp-storage
+    Validates: Requirements MCP server defaults to LOCAL scratch storage,
+    Validation of the scratch storage mode value
+    """
+
+    def test_scratch_storage_mode_constants(self):
+        """Test individual scratch storage mode constants."""
+        assert consts.SCRATCH_STORAGE_MODE_LOCAL == 'LOCAL'
+        assert consts.SCRATCH_STORAGE_MODE_SHARED == 'SHARED'
+
+    def test_scratch_storage_modes_list(self):
+        """Test SCRATCH_STORAGE_MODES contains exactly LOCAL and SHARED in order."""
+        assert consts.SCRATCH_STORAGE_MODES == ['LOCAL', 'SHARED']
+        assert consts.SCRATCH_STORAGE_MODE_LOCAL in consts.SCRATCH_STORAGE_MODES
+        assert consts.SCRATCH_STORAGE_MODE_SHARED in consts.SCRATCH_STORAGE_MODES
+        assert len(consts.SCRATCH_STORAGE_MODES) == 2
+
+    def test_default_scratch_storage_mode_is_local(self):
+        """Test the MCP server default scratch storage mode is LOCAL."""
+        assert consts.DEFAULT_SCRATCH_STORAGE_MODE == 'LOCAL'
+        assert consts.DEFAULT_SCRATCH_STORAGE_MODE in consts.SCRATCH_STORAGE_MODES
+
+
+class TestScratchStorageErrorTemplate:
+    """Test cases for the invalid scratch storage mode error template.
+
+    Feature: local-temp-storage
+    Validates: Requirements Validation of the scratch storage mode value
+    """
+
+    def test_error_template_has_two_placeholders(self):
+        """Test the template exposes placeholders for the value and allowed list."""
+        assert isinstance(consts.ERROR_INVALID_SCRATCH_STORAGE_MODE, str)
+        # Two positional placeholders: rejected value and allowed-values list.
+        assert consts.ERROR_INVALID_SCRATCH_STORAGE_MODE.count('{}') == 2
+
+    def test_error_template_includes_rejected_value_and_allowed_list(self):
+        """Test the formatted message names the rejected value and the allowed list."""
+        rejected = 'local'
+        message = consts.ERROR_INVALID_SCRATCH_STORAGE_MODE.format(
+            rejected, consts.SCRATCH_STORAGE_MODES
+        )
+
+        # The rejected value appears in the message.
+        assert rejected in message
+        # The complete list of allowed values appears in the message.
+        assert str(consts.SCRATCH_STORAGE_MODES) in message
+        assert 'LOCAL' in message
+        assert 'SHARED' in message
+
+
 class TestConstantsIntegration:
     """Integration tests for constants."""
 

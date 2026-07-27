@@ -271,6 +271,16 @@ Enables write access mode, which allows mutating operations (e.g., create, updat
 * Default: false (The server runs in read-only mode by default)
 * Example: Add `--allow-write` to the `args` list in your MCP server definition.
 
+**Security: Read-only query enforcement (Athena)**
+
+When `--allow-write` is not set, the Athena query handler uses an allowlist to determine which SQL statements are permitted. Only explicitly recognized read-only operations are allowed:
+
+* `SELECT`, `WITH` (CTEs), `SHOW`, `DESCRIBE`/`DESC`, `EXPLAIN`, `ANALYZE`
+
+CTEs (`WITH ... SELECT`) are read-only only when the entire statement is a read. CTEs followed by write operations (e.g., `WITH cte AS (...) INSERT INTO ...`) are rejected.
+
+All other statements (including `INSERT`, `UPDATE`, `DELETE`, `CREATE`, `DROP`, `UNLOAD`, etc.) are blocked. If your workload requires statements beyond the read-only allowlist, enable `--allow-write`.
+
 #### `--allow-sensitive-data-access` (optional)
 
 Enables access to operations that expose sensitive user data. When disabled (default), the following operations are restricted:

@@ -15,11 +15,14 @@
 """awslabs Aurora DSQL MCP Server implementation."""
 
 import argparse
+import asyncio
 import boto3
 import httpx
 import json
 import psycopg
 import psycopg.rows
+import shutil
+import subprocess
 import sys
 from awslabs.aurora_dsql_mcp_server import __version__
 from awslabs.aurora_dsql_mcp_server.consts import (
@@ -39,6 +42,7 @@ from awslabs.aurora_dsql_mcp_server.consts import (
     ERROR_GET_SCHEMA,
     ERROR_QUERY_INJECTION_RISK,
     ERROR_READONLY_QUERY,
+    ERROR_RESET_SESSION_STATE,
     ERROR_ROLLBACK_TRANSACTION,
     ERROR_TRANSACT,
     ERROR_TRANSACTION_BYPASS_ATTEMPT,
@@ -47,6 +51,7 @@ from awslabs.aurora_dsql_mcp_server.consts import (
     GET_SCHEMA_SQL,
     INTERNAL_ERROR,
     READ_ONLY_QUERY_WRITE_ERROR,
+    RESET_SESSION_STATE_SQL,
     ROLLBACK_TRANSACTION_SQL,
 )
 from awslabs.aurora_dsql_mcp_server.mutable_sql_detector import (
@@ -104,6 +109,11 @@ mcp = FastMCP(
 
     ### dsql_recommend
     Get recommendations for DSQL best practices.
+
+    ### dsql_lint
+    Validate SQL for Aurora DSQL compatibility. Returns diagnostics with rule violations,
+    suggestions, and optionally auto-fixed DSQL-compatible SQL. Use before executing any
+    externally-sourced SQL (ORM migrations, pg_dump output, hand-written DDL).
     """,
     dependencies=[
         'loguru',
@@ -199,7 +209,13 @@ async def readonly_query(
         await ctx.error(f'{ERROR_QUERY_INJECTION_RISK}: {injection_issues}')
         raise Exception(f'{ERROR_QUERY_INJECTION_RISK}: {injection_issues}')
 
-    # Check for transaction bypass attempts (the main vulnerability)
+    # Check for transaction bypass attempts (stacked statements / COMMIT-then-more).
+    # NOTE: `BEGIN TRANSACTION READ ONLY` alone does NOT make this tool read-only.
+    # Postgres read-only transactions block writes to TABLES but still permit
+    # session/GUC mutation (SET, set_config()). Read-only enforcement therefore
+    # depends on the detectors above (including SESSION_MUTATION) PLUS resetting
+    # session state after each query (see RESET_SESSION_STATE_SQL below) — not on
+    # this bypass check alone.
     if detect_transaction_bypass_attempt(sql):
         logger.warning(f'readonly_query rejected due to transaction bypass attempt, SQL: {sql}')
         await ctx.error(ERROR_TRANSACTION_BYPASS_ATTEMPT)
@@ -229,6 +245,10 @@ async def readonly_query(
                 await execute_query(ctx, conn, ROLLBACK_TRANSACTION_SQL)
             except Exception as e:
                 logger.error(f'{ERROR_ROLLBACK_TRANSACTION}: {str(e)}')
+            # Scrub any session/GUC state that a SET / set_config() may have
+            # mutated so it does not persist on the pooled connection. Runs
+            # after ROLLBACK, outside the transaction, on the autocommit conn.
+            await reset_session_state(ctx, conn)
 
     except Exception as e:
         await ctx.error(f'{ERROR_READONLY_QUERY}: {str(e)}')
@@ -386,6 +406,13 @@ async def transact(
             await execute_query(ctx, conn, COMMIT_TRANSACTION_SQL)
             return rows
         except psycopg.errors.ReadOnlySqlTransaction:
+            # ROLLBACK before re-raising: the transaction is aborted, and without
+            # this the finally-block session scrub (and the next request) would run
+            # against an aborted transaction where Postgres ignores every command.
+            try:
+                await execute_query(ctx, conn, ROLLBACK_TRANSACTION_SQL)
+            except Exception as re:
+                logger.error(f'{ERROR_ROLLBACK_TRANSACTION}: {str(re)}')
             await ctx.error(READ_ONLY_QUERY_WRITE_ERROR)
             raise Exception(READ_ONLY_QUERY_WRITE_ERROR)
         except Exception as e:
@@ -394,6 +421,13 @@ async def transact(
             except Exception as re:
                 logger.error(f'{ERROR_ROLLBACK_TRANSACTION}: {str(re)}')
             raise e
+        finally:
+            # In read-only mode, scrub any session/GUC state that a SET /
+            # set_config() may have mutated so it does not persist on the
+            # pooled connection into the next request. In read-write mode the
+            # caller intentionally has full session control, so leave it alone.
+            if read_only:
+                await reset_session_state(ctx, conn)
 
     except Exception as e:
         await ctx.error(f'{ERROR_TRANSACT}: {str(e)}')
@@ -514,6 +548,154 @@ async def dsql_recommend(
         Recommendations from the remote knowledge server
     """
     return await _proxy_to_knowledge_server('dsql_recommend', {'url': url}, ctx)
+
+
+MAX_LINT_SQL_CHARS = 1_000_000
+DSQL_LINT_TIMEOUT_SECONDS = 30
+# dsql-lint exit codes: 0=clean, 1=diagnostics, 2=usage-error (handled separately),
+# 3=fixes-applied-with-warnings. Anything else signals a crash or protocol violation.
+_DSQL_LINT_VALID_RETURNCODES = {0, 1, 3}
+
+
+@mcp.tool(
+    name='dsql_lint',
+    description="""Validate SQL for Aurora DSQL compatibility and optionally auto-fix issues.
+
+Parses SQL and reports compatibility errors (unsupported syntax) with suggested fixes.
+Use fix=True to generate DSQL-compatible SQL automatically.
+
+## When to Use
+- Before executing any externally-sourced SQL (ORM migrations, pg_dump, hand-written DDL)
+- When migrating schemas from PostgreSQL, MySQL, or other databases to DSQL
+- To validate CREATE TABLE, ALTER TABLE, CREATE INDEX, and other DDL statements
+- To check transaction structure (DSQL requires one DDL per transaction)
+
+## Fix Behavior
+When fix=True, each diagnostic carries a `fix_result.status`:
+- `fixed`: safe mechanical transformation applied
+- `fixed_with_warning`: fix applied but may require application code changes
+- unfixable diagnostics have no `fix_result` and require manual intervention
+""",
+)
+async def dsql_lint(
+    sql: Annotated[
+        str,
+        Field(
+            description='SQL string to validate for DSQL compatibility',
+            max_length=MAX_LINT_SQL_CHARS,
+        ),
+    ],
+    ctx: Context,
+    fix: Annotated[
+        bool,
+        Field(
+            description='When true, returns DSQL-compatible fixed SQL in addition to diagnostics'
+        ),
+    ] = False,
+) -> dict:
+    """Validate SQL for Aurora DSQL compatibility and optionally auto-fix issues.
+
+    Args:
+        sql: SQL string to validate
+        ctx: MCP context for structured error reporting
+        fix: When true, attempt to auto-fix issues and return corrected SQL
+
+    Returns:
+        Dictionary with diagnostics array, fixed_sql, and summary. `fixed_sql` is
+        always None when fix=False regardless of upstream output.
+        Each diagnostic contains: rule, line, message, suggestion, fix_result.
+    """
+    logger.info(f'dsql_lint: fix={fix}, sql_length={len(sql)}')
+
+    if not sql or not sql.strip():
+        return {
+            'diagnostics': [],
+            'fixed_sql': None,
+            'summary': {'errors': 0, 'warnings': 0, 'fixed': 0},
+        }
+
+    dsql_lint_bin = shutil.which('dsql-lint')
+    if not dsql_lint_bin:
+        error_msg = (
+            'dsql-lint binary not found on PATH. '
+            'It should be installed automatically as a dependency of this MCP server. '
+            'Try: pip install dsql-lint'
+        )
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise RuntimeError(error_msg)
+
+    cmd = [dsql_lint_bin, '--format', 'json']
+    if fix:
+        cmd.append('--fix')
+    cmd.append('-')
+
+    try:
+        result = await asyncio.to_thread(
+            subprocess.run,
+            cmd,
+            input=sql,
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            timeout=DSQL_LINT_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as e:
+        error_msg = f'dsql-lint timed out after {DSQL_LINT_TIMEOUT_SECONDS} seconds'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise RuntimeError(error_msg) from e
+    except OSError as e:
+        error_msg = f'dsql-lint failed to execute: {e}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise RuntimeError(error_msg) from e
+
+    if result.returncode == 2:
+        error_msg = f'dsql-lint usage error: {result.stderr}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise RuntimeError(error_msg)
+
+    if result.returncode not in _DSQL_LINT_VALID_RETURNCODES:
+        error_msg = (
+            f'dsql-lint exited with unexpected returncode={result.returncode}. '
+            f'stderr: {result.stderr}'
+        )
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise RuntimeError(error_msg)
+
+    if not result.stdout.strip():
+        error_msg = f'dsql-lint produced no output. stderr: {result.stderr}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise RuntimeError(error_msg)
+
+    try:
+        output = json.loads(result.stdout)
+    except json.JSONDecodeError as e:
+        logger.error(
+            f'dsql-lint returned invalid JSON: {e}. '
+            f'stdout: {result.stdout!r} stderr: {result.stderr!r}'
+        )
+        error_msg = f'dsql-lint returned invalid JSON: {e}'
+        await ctx.error(error_msg)
+        raise RuntimeError(error_msg) from e
+
+    files = output.get('files') or []
+    if not files:
+        error_msg = f'dsql-lint returned no file results. output: {result.stdout[:200]}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        raise RuntimeError(error_msg)
+
+    file_result = files[0]
+    return {
+        'diagnostics': file_result.get('diagnostics', []),
+        'fixed_sql': file_result.get('fixed_sql') if fix else None,
+        'summary': output.get('summary', {'errors': 0, 'warnings': 0, 'fixed': 0}),
+    }
 
 
 async def _proxy_to_knowledge_server(
@@ -680,6 +862,55 @@ async def execute_query(ctx, conn_to_use, query: str, params=None) -> List[dict]
         logger.error(f'{ERROR_EXECUTE_QUERY} : {e}')
         await ctx.error(f'{ERROR_EXECUTE_QUERY} : {e}')
         raise e
+
+
+async def reset_session_state(ctx, conn) -> None:
+    """Reset session-level configuration on a pooled connection (best effort).
+
+    The connection returned by get_connection is persistent and reused across
+    requests. A `SET`/`set_config()` change with session (not transaction-local)
+    scope survives COMMIT and would otherwise leak onto the next request's query
+    on the same connection (e.g. a mutated search_path or timezone). Running the
+    RESET_SESSION_STATE_SQL statements after each read-only query scrubs that
+    state so read-only enforcement cannot be defeated by persisting mutated
+    session config. Both RESET ALL and RESET ROLE are issued because `role` is
+    not covered by RESET ALL and DISCARD ALL is unsupported on Aurora DSQL.
+
+    This is best effort: each statement is attempted independently and a failure
+    is logged but never propagated, so a reset problem cannot mask the query's
+    own result or error, and one failing RESET does not skip the others.
+
+    If any statement fails, the pooled connection is discarded (closed and
+    cleared) so the NEXT request establishes a fresh connection with clean
+    session state. Without this, a scrub that is refused (e.g. because the
+    connection is wedged in an aborted transaction) would leave the mutated
+    connection pooled and the state-scrub control would silently no-op for the
+    rest of the process lifetime.
+
+    Args:
+        ctx: MCP context for logging and state management
+        conn: Database connection whose session state should be reset
+    """
+    global persistent_connection
+    reset_failed = False
+    for stmt in RESET_SESSION_STATE_SQL:
+        try:
+            await execute_query(ctx, conn, stmt)
+        except Exception as e:
+            reset_failed = True
+            logger.error(f'{ERROR_RESET_SESSION_STATE} ({stmt}): {str(e)}')
+
+    # Discard the connection if the scrub did not fully succeed, so the next
+    # request cannot inherit unscrubbed session state on this pooled connection.
+    if reset_failed:
+        try:
+            if persistent_connection is not None:
+                await persistent_connection.close()
+        except Exception as close_error:
+            # The connection is already broken; closing is best effort. Log at
+            # debug so the discard is observable without adding error noise.
+            logger.debug(f'Ignoring error while closing reset-failed connection: {close_error}')
+        persistent_connection = None
 
 
 def main():

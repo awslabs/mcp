@@ -14,10 +14,13 @@ from awslabs.aws_support_mcp_server.models import (
     AttachmentDetails,
     Category,
     Communication,
+    CreateCaseCategory,
     CreateCaseRequest,
     CreateCaseResponse,
     DescribeCasesRequest,
     DescribeCasesResponse,
+    DescribeCreateCaseOptionsRequest,
+    DescribeCreateCaseOptionsResponse,
     DescribeSupportedLanguagesRequest,
     DescribeSupportedLanguagesResponse,
     RecentCommunications,
@@ -728,3 +731,35 @@ class TestLanguageModels:
                 status='success',
                 message='',  # Empty message should fail
             )
+
+
+class TestAdditionalModelCoverage:
+    """Additional model branch coverage tests."""
+
+    def test_describe_cases_response_model_dump_with_next_token(self):
+        """Test DescribeCasesResponse model_dump includes nextToken branch."""
+        response = DescribeCasesResponse(
+            cases=[SupportCase(**VALID_SUPPORT_CASE)], nextToken='tok-1'
+        )
+        dumped = response.model_dump()
+        assert dumped['nextToken'] == 'tok-1'
+
+    def test_describe_create_case_options_request_to_api_params(self):
+        """Test DescribeCreateCaseOptionsRequest to_api_params output."""
+        req = DescribeCreateCaseOptionsRequest(serviceCode='svc', language='en')
+        assert req.to_api_params() == {'serviceCode': 'svc', 'language': 'en'}
+
+    def test_create_case_category_model_dump(self):
+        """Test CreateCaseCategory model_dump output."""
+        category = CreateCaseCategory(code='cat', name='Category')
+        assert category.model_dump() == {'code': 'cat', 'name': 'Category'}
+
+    def test_describe_create_case_options_response_model_dump(self):
+        """Test DescribeCreateCaseOptionsResponse model_dump output."""
+        response = DescribeCreateCaseOptionsResponse(
+            communicationTypes=[{'type': 'web'}],
+            languageAvailability='available',
+        )
+        dumped = response.model_dump()
+        assert dumped['communicationTypes'] == [{'type': 'web'}]
+        assert dumped['languageAvailability'] == 'available'

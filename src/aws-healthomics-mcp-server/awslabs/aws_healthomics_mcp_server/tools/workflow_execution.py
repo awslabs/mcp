@@ -17,10 +17,12 @@
 from awslabs.aws_healthomics_mcp_server.consts import (
     CACHE_BEHAVIORS,
     DEFAULT_MAX_RESULTS,
+    DEFAULT_SCRATCH_STORAGE_MODE,
     ERROR_CONFIGURATION_NAME_REQUIRES_VPC_MODE,
     ERROR_INVALID_CACHE_BEHAVIOR,
     ERROR_INVALID_NETWORKING_MODE,
     ERROR_INVALID_RUN_STATUS,
+    ERROR_INVALID_SCRATCH_STORAGE_MODE,
     ERROR_INVALID_STORAGE_TYPE,
     ERROR_STATIC_STORAGE_REQUIRES_CAPACITY,
     ERROR_VPC_MODE_REQUIRES_CONFIGURATION_NAME,
@@ -28,6 +30,7 @@ from awslabs.aws_healthomics_mcp_server.consts import (
     NETWORKING_MODE_VPC,
     NETWORKING_MODES,
     RUN_STATUSES,
+    SCRATCH_STORAGE_MODES,
     STORAGE_TYPE_STATIC,
     STORAGE_TYPES,
 )
@@ -177,6 +180,16 @@ async def start_run(
         None,
         description='Configuration name (required when networking_mode is VPC)',
     ),
+    scratch_storage_mode: Optional[str] = Field(
+        None,
+        description=(
+            'Scratch storage mode for the run. Allowed values: '
+            'LOCAL (mount local EBS ephemeral scratch storage at /tmp for CPU tasks) or '
+            'SHARED (use shared scratch storage). '
+            'Defaults to LOCAL when omitted (the MCP server default; note the HealthOmics '
+            'API default is SHARED).'
+        ),
+    ),
     aws_profile: Optional[str] = Field(
         None,
         description='AWS profile name for this operation. Overrides the default credential chain.',
@@ -208,6 +221,7 @@ async def start_run(
         run_group_id: Optional ID of a run group to associate with this run
         networking_mode: Optional networking mode (RESTRICTED or VPC)
         configuration_name: Optional configuration name (required when networking_mode is VPC)
+        scratch_storage_mode: Optional scratch storage mode (LOCAL or SHARED); defaults to LOCAL
         aws_profile: Optional AWS profile name override
         aws_region: Optional AWS region override
 
@@ -271,6 +285,22 @@ async def start_run(
             'Invalid networking configuration',
         )
 
+    # Resolve and validate scratch storage mode (MCP server defaults to LOCAL)
+    effective_scratch_storage_mode = (
+        scratch_storage_mode if scratch_storage_mode is not None else DEFAULT_SCRATCH_STORAGE_MODE
+    )
+
+    if effective_scratch_storage_mode not in SCRATCH_STORAGE_MODES:
+        return await handle_tool_error(
+            ctx,
+            ValueError(
+                ERROR_INVALID_SCRATCH_STORAGE_MODE.format(
+                    effective_scratch_storage_mode, SCRATCH_STORAGE_MODES
+                )
+            ),
+            'Invalid scratch storage mode',
+        )
+
     # Ensure output URI ends with a slash
     try:
         output_uri = ensure_s3_uri_ends_with_slash(output_uri)
@@ -286,6 +316,7 @@ async def start_run(
         'outputUri': output_uri,
         'parameters': parameters,
         'storageType': storage_type,
+        'scratchStorageMode': effective_scratch_storage_mode,
     }
 
     if workflow_version_name:
@@ -324,6 +355,7 @@ async def start_run(
             'networkingMode': networking_mode
             if networking_mode is not None
             else NETWORKING_MODE_RESTRICTED,
+            'scratchStorageMode': effective_scratch_storage_mode,
         }
     except Exception as e:
         return await handle_tool_error(ctx, e, 'Error starting run')
@@ -571,7 +603,12 @@ async def get_run(
                 result[field] = response[field].isoformat()
 
         # Handle optional string fields
-        for field in ['statusMessage', 'failureReason', 'workflowVersionName']:
+        for field in [
+            'statusMessage',
+            'failureReason',
+            'workflowVersionName',
+            'scratchStorageMode',
+        ]:
             if field in response:
                 result[field] = response[field]
 
