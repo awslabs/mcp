@@ -14,7 +14,10 @@
 
 """Review executor orchestrating signal evaluation."""
 
+import re
 from awslabs.redshift_mcp_server.review.definitions import (
+    NODE_TYPE_PLACEHOLDER,
+    NODE_TYPE_UNKNOWN,
     RECOMMENDATIONS,
     SIGNAL_EVALUATION_SQL,
     SIGNAL_UNITS,
@@ -26,6 +29,35 @@ from awslabs.redshift_mcp_server.review.models import (
 )
 from loguru import logger
 from typing import Any, Callable
+
+
+# Node types are lowercase family.size identifiers such as 'ra3.xlplus' or 'rg.4xlarge'.
+# The pattern is deliberately strict: the resolved value is inlined into diagnostic SQL
+# as a literal, so it must not be able to carry quotes or any other SQL syntax.
+NODE_TYPE_PATTERN = re.compile(r'^[a-z][a-z0-9]{0,15}\.[a-z0-9]{1,16}$')
+
+
+def resolve_node_type(node_type: str | None) -> str:
+    """Validate a node type for inlining into diagnostic SQL.
+
+    Args:
+        node_type: The node type reported by the Redshift DescribeClusters API,
+            for example 'ra3.xlplus' or 'rg.4xlarge'. May be None for serverless
+            workgroups or when the API omits it.
+
+    Returns:
+        The node type when it matches NODE_TYPE_PATTERN, otherwise NODE_TYPE_UNKNOWN.
+        NODE_TYPE_UNKNOWN appears in no signal's node_type list, so an unresolvable
+        node type yields no node-type findings instead of misattributed ones.
+    """
+    if node_type and NODE_TYPE_PATTERN.match(node_type):
+        return node_type
+
+    logger.warning(
+        'Unusable node type {!r}; node-type signals will be skipped for this review',
+        node_type,
+    )
+    return NODE_TYPE_UNKNOWN
 
 
 async def review_cluster(
@@ -62,9 +94,13 @@ async def review_cluster(
 
     is_serverless = cluster_info.type == 'serverless'
 
-    # Stage 1: Select queries, filtering by cluster type scope
+    # Stage 1: Select queries, filtering by cluster type scope, and inline the cluster's
+    # node type from the Redshift API so node-type signals evaluate it directly.
+    # Serverless workgroups have no node type, and every query using the placeholder is
+    # provisioned-only, so nothing is substituted for them.
+    node_type = NODE_TYPE_UNKNOWN if is_serverless else resolve_node_type(cluster_info.node_type)
     queries = [
-        (name, sql)
+        (name, sql.replace(NODE_TYPE_PLACEHOLDER, node_type))
         for name, cluster_type, sql in SIGNAL_EVALUATION_SQL
         if cluster_type == 'all'
         or (is_serverless and cluster_type == 'serverless')

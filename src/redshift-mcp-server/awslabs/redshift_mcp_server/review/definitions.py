@@ -351,6 +351,14 @@ SIGNAL_UNITS: dict[str, str] = {
 }
 
 
+# Placeholder substituted with the cluster's node type (from the Redshift
+# DescribeClusters API) before a query runs. Only NodeDetails uses it; the executor
+# validates the value and falls back to NODE_TYPE_UNKNOWN, which matches no
+# node_type list, so an unresolvable node type triggers no node-type signal at all.
+NODE_TYPE_PLACEHOLDER = '{node_type}'
+NODE_TYPE_UNKNOWN = 'unknown'
+
+
 SIGNAL_EVALUATION_SQL: list[tuple[str, str, str]] = [
     (
         'ATOWorkerActions',
@@ -549,24 +557,14 @@ WHERE is_stale = 't' AND state IN (0, 1)
         """\
 -- NodeDetails
 WITH data AS (
-SELECT CASE
-       WHEN capacity = 190633 THEN 'dc2.large'
-       WHEN capacity = 760956 THEN 'dc2.8xlarge'
-       WHEN capacity = 726296 THEN 'dc2.8xlarge'
-       WHEN capacity = 952455 THEN 'ds2.xlarge'
-       WHEN capacity = 945026 THEN 'ds2.8xlarge'
-       WHEN capacity < 2002943 THEN 'ra3.large'
-       WHEN capacity = 2002943 AND part_count = 1 THEN 'ra3.xlplus'
-       WHEN capacity > 2002943 AND part_count = 1 THEN 'ra3.4xlarge'
-       WHEN capacity > 2002943 AND part_count = 4 THEN 'ra3.16xlarge'
-       ELSE 'unknown'
-       END AS node_type,
+-- node_type is substituted from the cluster's actual node type as reported by the Redshift DescribeClusters API.
+SELECT '{node_type}'::varchar(32) AS node_type,
        s.node,
        slice_count,
        storage_utilization_pct,
        storage_capacity_gb,
        storage_used_gb
-FROM (SELECT distinct p.host node, p.capacity, count(1) part_count FROM stv_partitions p WHERE host = owner GROUP BY 1,2) AS s
+FROM (SELECT p.host node FROM stv_partitions p WHERE host = owner GROUP BY 1) AS s
 INNER JOIN (SELECT node,COUNT(1) AS slice_count FROM stv_slices WHERE type='D' GROUP BY node) n ON (s.node = n.node)
 INNER JOIN (SELECT node,
        ROUND((used::decimal(18,2)/capacity)*100,2) AS storage_utilization_pct,

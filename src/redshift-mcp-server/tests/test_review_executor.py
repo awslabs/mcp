@@ -17,11 +17,13 @@
 import pytest
 from awslabs.redshift_mcp_server.models import RedshiftCluster
 from awslabs.redshift_mcp_server.review.definitions import (
+    NODE_TYPE_PLACEHOLDER,
+    NODE_TYPE_UNKNOWN,
     RECOMMENDATIONS,
     SIGNAL_EVALUATION_SQL,
     SIGNAL_UNITS,
 )
-from awslabs.redshift_mcp_server.review.executor import review_cluster
+from awslabs.redshift_mcp_server.review.executor import resolve_node_type, review_cluster
 from unittest.mock import AsyncMock
 
 
@@ -41,7 +43,11 @@ def _make_empty_response() -> dict:
     return {'rows': [], 'columns': ['count', 'rec_id'], 'row_count': 0}
 
 
-def _cluster(identifier='test-cluster', cluster_type='provisioned'):
+def _cluster(
+    identifier='test-cluster',
+    cluster_type='provisioned',
+    node_type: str | None = 'ra3.xlplus',
+):
     """Build a RedshiftCluster model for discover_clusters mocks."""
     return RedshiftCluster.model_validate(
         {
@@ -49,13 +55,61 @@ def _cluster(identifier='test-cluster', cluster_type='provisioned'):
             'type': cluster_type,
             'status': 'available',
             'database_name': 'dev',
+            'node_type': None if cluster_type == 'serverless' else node_type,
         }
     )
 
 
-def _make_discover_clusters(cluster_type='provisioned'):
+def _make_discover_clusters(cluster_type='provisioned', node_type: str | None = 'ra3.xlplus'):
     """Build a mock discover_clusters returning a single cluster."""
-    return AsyncMock(return_value=[_cluster(cluster_type=cluster_type)])
+    return AsyncMock(return_value=[_cluster(cluster_type=cluster_type, node_type=node_type)])
+
+
+def _make_sql_recorder():
+    """Build an execute_query mock that records the SQL sent for each query name.
+
+    Every diagnostic query starts with a '-- <QueryName>' comment line, which is used
+    to key the recorded SQL.
+
+    Returns:
+        A (execute_query_func, recorded) tuple, where recorded maps query name to SQL.
+    """
+    recorded: dict[str, str] = {}
+
+    async def _execute(cluster_identifier, database_name, sql, allow_read_write=False):
+        recorded[sql.splitlines()[0].removeprefix('--').strip()] = sql
+        return _make_empty_response()
+
+    return _execute, recorded
+
+
+def _branch_where(sql: str, rec_id: str, label_fragment: str) -> str:
+    """Return the predicate of the UNION ALL branch selecting rec_id with a matching label.
+
+    Args:
+        sql: The full diagnostic query.
+        rec_id: The recommendation ID the branch emits, for example 'REC_001'.
+        label_fragment: A fragment of the branch's signal label, used to pick one
+            branch when several share a recommendation ID.
+
+    Returns:
+        The text following the branch's own WHERE keyword. The last WHERE in the branch
+        is the branch predicate; earlier ones belong to the CTE or its subqueries.
+
+    Raises:
+        AssertionError: If no single branch matches.
+    """
+    matches = [
+        branch
+        for branch in sql.split('UNION ALL')
+        if f"'{rec_id}'" in branch and label_fragment in branch
+    ]
+    assert len(matches) == 1, (
+        f'expected 1 branch for {rec_id}/{label_fragment}, got {len(matches)}'
+    )
+    branch = matches[0]
+    assert 'WHERE' in branch, f'branch {rec_id}/{label_fragment} has no predicate'
+    return branch.rsplit('WHERE', 1)[-1]
 
 
 # ---------------------------------------------------------------------------
@@ -377,6 +431,211 @@ class TestFullPipeline:
 
 
 # ---------------------------------------------------------------------------
+# Node type resolution and substitution
+# ---------------------------------------------------------------------------
+
+
+class TestNodeTypeResolution:
+    """Validate resolve_node_type() accepts real node types and rejects the rest."""
+
+    @pytest.mark.parametrize(
+        'node_type',
+        [
+            'dc2.large',
+            'dc2.8xlarge',
+            'ds2.xlarge',
+            'ds2.8xlarge',
+            'ra3.large',
+            'ra3.xlplus',
+            'ra3.4xlarge',
+            'ra3.16xlarge',
+            'rg.xlarge',
+            'rg.4xlarge',
+        ],
+    )
+    def test_real_node_types_pass_through(self, node_type):
+        """Every node type Redshift currently reports is used verbatim."""
+        assert resolve_node_type(node_type) == node_type
+
+    @pytest.mark.parametrize(
+        'node_type',
+        [
+            None,
+            '',
+            'ra3',
+            'RA3.xlplus',
+            'ra3.xlplus; DROP TABLE t',
+            "ra3.xlplus'--",
+            'ra3.xlplus OR 1=1',
+        ],
+    )
+    def test_unusable_node_types_fall_back(self, node_type):
+        """Absent or malformed node types resolve to the unknown sentinel."""
+        assert resolve_node_type(node_type) == NODE_TYPE_UNKNOWN
+
+
+class TestNodeTypeSubstitution:
+    """Verify the cluster's real node type reaches the diagnostic SQL."""
+
+    @pytest.mark.asyncio
+    async def test_node_type_is_inlined_into_node_details(self):
+        """NodeDetails selects the node type reported by the API, not a derived one."""
+        execute_query_func, recorded = _make_sql_recorder()
+
+        await review_cluster(
+            cluster_identifier='test-cluster',
+            execute_query_func=execute_query_func,
+            discover_clusters_func=_make_discover_clusters(node_type='rg.xlarge'),
+        )
+
+        assert "'rg.xlarge'::varchar(32) AS node_type" in recorded['NodeDetails']
+
+    @pytest.mark.asyncio
+    async def test_no_executed_query_retains_the_placeholder(self):
+        """Substitution leaves no unresolved placeholder in any executed query."""
+        execute_query_func, recorded = _make_sql_recorder()
+
+        await review_cluster(
+            cluster_identifier='test-cluster',
+            execute_query_func=execute_query_func,
+            discover_clusters_func=_make_discover_clusters(node_type='rg.4xlarge'),
+        )
+
+        assert recorded
+        for name, sql in recorded.items():
+            assert NODE_TYPE_PLACEHOLDER not in sql, f'{name} kept an unsubstituted placeholder'
+
+    @pytest.mark.asyncio
+    async def test_missing_node_type_falls_back_in_sql(self):
+        """A provisioned cluster without a node type inlines the unknown sentinel."""
+        execute_query_func, recorded = _make_sql_recorder()
+
+        await review_cluster(
+            cluster_identifier='test-cluster',
+            execute_query_func=execute_query_func,
+            discover_clusters_func=_make_discover_clusters(node_type=None),
+        )
+
+        assert f"'{NODE_TYPE_UNKNOWN}'::varchar(32) AS node_type" in recorded['NodeDetails']
+
+    @pytest.mark.asyncio
+    async def test_legacy_node_types_still_get_the_rg_migration_signal(self):
+        """Pre-RG node families remain eligible for the migrate-to-RG recommendation."""
+        execute_query_func, recorded = _make_sql_recorder()
+
+        await review_cluster(
+            cluster_identifier='test-cluster',
+            execute_query_func=execute_query_func,
+            discover_clusters_func=_make_discover_clusters(node_type='ra3.xlplus'),
+        )
+
+        predicate = _branch_where(recorded['NodeDetails'], 'REC_001', 'migrating to RG')
+        assert "'ra3.xlplus'" in predicate
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('node_type', ['rg.xlarge', 'rg.4xlarge'])
+    async def test_rg_cluster_matches_no_node_type_signal(self, node_type):
+        """No node-type-gated signal applies to RG.
+
+        REC_001 would advise migrating to the node type already in use. The storage
+        branches divide per-node `used` by the cluster-wide managed storage quota that
+        stv_node_storage_capacity reports for RG, so their thresholds do not describe
+        RG utilization. The node type is therefore expected exactly once in the query,
+        in the projection, and in no predicate.
+        """
+        execute_query_func, recorded = _make_sql_recorder()
+
+        await review_cluster(
+            cluster_identifier='test-cluster',
+            execute_query_func=execute_query_func,
+            discover_clusters_func=_make_discover_clusters(node_type=node_type),
+        )
+
+        sql = recorded['NodeDetails']
+        assert f"'{node_type}'::varchar(32) AS node_type" in sql
+        assert sql.count(f"'{node_type}'") == 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ('rec_id', 'label_fragment'),
+        [
+            ('REC_001', 'migrating to RG'),
+            ('REC_002', 'recommended storage threshold of 70%'),
+            ('REC_006', 'storage threshold of 50%'),
+            ('REC_011', 'under-utilized storage'),
+        ],
+    )
+    async def test_rg_excluded_from_each_node_type_branch(self, rec_id, label_fragment):
+        """Each node-type-gated branch individually excludes RG."""
+        execute_query_func, recorded = _make_sql_recorder()
+
+        await review_cluster(
+            cluster_identifier='test-cluster',
+            execute_query_func=execute_query_func,
+            discover_clusters_func=_make_discover_clusters(node_type='rg.xlarge'),
+        )
+
+        predicate = _branch_where(recorded['NodeDetails'], rec_id, label_fragment)
+        assert "'rg.xlarge'" not in predicate
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ('rec_id', 'label_fragment'),
+        [
+            ('REC_001', 'migrating to RG'),
+            ('REC_002', 'recommended storage threshold of 70%'),
+            ('REC_006', 'storage threshold of 50%'),
+            ('REC_011', 'under-utilized storage'),
+        ],
+    )
+    async def test_pre_rg_node_types_keep_storage_signals(self, rec_id, label_fragment):
+        """Excluding RG must not disturb the node families these signals were written for."""
+        execute_query_func, recorded = _make_sql_recorder()
+
+        await review_cluster(
+            cluster_identifier='test-cluster',
+            execute_query_func=execute_query_func,
+            discover_clusters_func=_make_discover_clusters(node_type='dc2.large'),
+        )
+
+        predicate = _branch_where(recorded['NodeDetails'], rec_id, label_fragment)
+        assert "'dc2.large'" in predicate
+
+    @pytest.mark.asyncio
+    async def test_data_skew_signal_still_applies_to_rg(self):
+        """The skew branch is not node-type gated, so it remains active on RG.
+
+        Unlike the storage thresholds, skew compares per-node usage against per-node
+        usage, which stays meaningful on managed storage.
+        """
+        execute_query_func, recorded = _make_sql_recorder()
+
+        await review_cluster(
+            cluster_identifier='test-cluster',
+            execute_query_func=execute_query_func,
+            discover_clusters_func=_make_discover_clusters(node_type='rg.xlarge'),
+        )
+
+        predicate = _branch_where(recorded['NodeDetails'], 'REC_008', 'data skew')
+        assert 'node_type' not in predicate
+
+    @pytest.mark.asyncio
+    async def test_serverless_review_executes_no_placeholder_query(self):
+        """Serverless workgroups have no node type and run no query needing one."""
+        execute_query_func, recorded = _make_sql_recorder()
+
+        await review_cluster(
+            cluster_identifier='test-cluster',
+            execute_query_func=execute_query_func,
+            discover_clusters_func=_make_discover_clusters(cluster_type='serverless'),
+        )
+
+        assert 'NodeDetails' not in recorded
+        for sql in recorded.values():
+            assert NODE_TYPE_UNKNOWN not in sql
+
+
+# ---------------------------------------------------------------------------
 # Review queries constants validation
 # ---------------------------------------------------------------------------
 
@@ -412,6 +671,31 @@ class TestReviewQueriesConstants:
             assert len(pairs) == len(set(pairs)), (
                 f'{name} has duplicate (rec, label) branches: {pairs}'
             )
+
+    def test_node_type_placeholder_confined_to_node_details(self):
+        """Only NodeDetails uses the node type placeholder."""
+        users = {name for name, _ct, sql in SIGNAL_EVALUATION_SQL if NODE_TYPE_PLACEHOLDER in sql}
+        assert users == {'NodeDetails'}
+
+    def test_node_type_placeholder_query_is_provisioned_only(self):
+        """The placeholder is only used where a node type exists (provisioned)."""
+        for name, cluster_type, sql in SIGNAL_EVALUATION_SQL:
+            if NODE_TYPE_PLACEHOLDER in sql:
+                assert cluster_type == 'provisioned', (
+                    f'{name} needs a node type but is {cluster_type}'
+                )
+
+    def test_no_unrecognized_placeholders(self):
+        """The node type placeholder is the only substitution token in any query.
+
+        Guards against a new {token} being added and silently shipped unsubstituted.
+        """
+        import re
+
+        token = re.compile(r'\{[a-z_]+\}')
+        for name, _ct, sql in SIGNAL_EVALUATION_SQL:
+            unknown = set(token.findall(sql)) - {NODE_TYPE_PLACEHOLDER}
+            assert not unknown, f'{name} has unsupported placeholders: {unknown}'
 
     def test_recommendations_not_empty(self):
         """RECOMMENDATIONS dict is not empty."""
