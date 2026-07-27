@@ -44,8 +44,8 @@ read-only:
 
 RDS for Db2 is reached over a private endpoint inside your VPC. In the Db2 tooling
 ecosystem the instance is **SSL-only**: `DB2COMM=SSL`, `ssl_svcename=50443`, and the plain
-TCP listener (`8392`) is dormant and closed in the security group. This server therefore
-**defaults to SSL on port 50443**.
+TCP listener (port `50000`, this server's `--ssl_encryption off` default) is dormant and
+closed in the security group. This server therefore **defaults to SSL on port 50443**.
 
 SSL uses the IBM driver's `SSLServerCertificate` option pointed at the RDS **regional
 certificate bundle (PEM)** — no Java keystore or `keytool` required. Download the bundle

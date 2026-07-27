@@ -42,6 +42,86 @@ class TestDetectMutatingKeywords:
         """Mutating keywords are detected; SELECT is clean."""
         assert sorted(detect_mutating_keywords(sql)) == sorted(expected)
 
+    @pytest.mark.parametrize(
+        'sql,expected_keyword',
+        [
+            ('INSERT INTO T VALUES (1)', 'INSERT'),
+            ('UPDATE T SET C = 1', 'UPDATE'),
+            ('DELETE FROM T', 'DELETE'),
+            ('MERGE INTO T USING S ON T.ID = S.ID', 'MERGE'),
+            ('TRUNCATE TABLE T', 'TRUNCATE'),
+            ('CREATE TABLE T (C INT)', 'CREATE'),
+            ('DROP TABLE T', 'DROP'),
+            ('ALTER TABLE T ADD COLUMN C INT', 'ALTER'),
+            ('RENAME TABLE T TO T2', 'RENAME'),
+            ('GRANT SELECT ON T TO USER x', 'GRANT'),
+            ('REVOKE SELECT ON T FROM USER x', 'REVOKE'),
+            # Multi-word keyword: not detected via its individual words, so it needs
+            # its own coverage -- if the multi-word pattern regresses, this is the
+            # only test that would catch a mutating statement slipping through.
+            ('TRANSFER OWNERSHIP OF TABLE T TO USER x', 'TRANSFER OWNERSHIP'),
+            ("COMMENT ON TABLE T IS 'x'", 'COMMENT ON'),
+            # Multi-word keyword, same rationale as TRANSFER OWNERSHIP above.
+            ('LOCK TABLE T IN EXCLUSIVE MODE', 'LOCK TABLE'),
+            ("CALL SYSPROC.ADMIN_CMD('REORG TABLE T')", 'CALL'),
+            ('BEGIN\n  DECLARE X INT;\nEND', 'BEGIN'),
+            ('DECLARE X INT DEFAULT 0', 'DECLARE'),
+            ('SET CURRENT SCHEMA = MYSCHEMA', 'SET'),
+            ('SET INTEGRITY FOR T IMMEDIATE CHECKED', 'SET INTEGRITY'),
+            ('REORG TABLE T', 'REORG'),
+            ('RUNSTATS ON TABLE T', 'RUNSTATS'),
+            ('IMPORT FROM file.del OF DEL INSERT INTO T', 'IMPORT'),
+            ('LOAD FROM file.del OF DEL INSERT INTO T', 'LOAD'),
+            ('EXPORT TO file.del OF DEL SELECT * FROM T', 'EXPORT'),
+            ('FLUSH PACKAGE CACHE DYNAMIC', 'FLUSH'),
+            ('REFRESH TABLE MV1', 'REFRESH'),
+        ],
+    )
+    def test_every_mutating_keyword_is_detected(self, sql, expected_keyword):
+        """Every entry in MUTATING_KEYWORDS has at least one exercised detection case.
+
+        detect_mutating_keywords is the sole gate for read-only enforcement, so an
+        untested entry (especially a multi-word literal like LOCK TABLE or TRANSFER
+        OWNERSHIP, whose individual words are not standalone keywords) could regress
+        silently and let a mutating statement through with no failing test.
+        """
+        assert expected_keyword in detect_mutating_keywords(sql)
+
+    def test_all_keywords_have_coverage(self):
+        """Guard against a new keyword being added without a matching test case."""
+        from awslabs.db2_mcp_server.mutable_sql_detector import MUTATING_KEYWORDS
+
+        exercised = {
+            'INSERT',
+            'UPDATE',
+            'SET',
+            'DELETE',
+            'DROP',
+            'CALL',
+            'COMMENT ON',
+            'MERGE',
+            'TRUNCATE',
+            'CREATE',
+            'ALTER',
+            'RENAME',
+            'GRANT',
+            'REVOKE',
+            'TRANSFER OWNERSHIP',
+            'LOCK TABLE',
+            'BEGIN',
+            'DECLARE',
+            'SET INTEGRITY',
+            'REORG',
+            'RUNSTATS',
+            'IMPORT',
+            'LOAD',
+            'EXPORT',
+            'FLUSH',
+            'REFRESH',
+        }
+        missing = MUTATING_KEYWORDS - exercised
+        assert not missing, f'MUTATING_KEYWORDS added without test coverage: {missing}'
+
     def test_keyword_in_string_literal_is_ignored(self):
         """A keyword inside a string literal must not trigger detection."""
         assert detect_mutating_keywords("SELECT 'DELETE me' FROM SYSIBM.SYSDUMMY1") == []
@@ -66,6 +146,14 @@ class TestInjectionRisk:
             'SELECT 1 UNION\n   SELECT pwd FROM SYSCAT.DBAUTH',
             "CALL SYSPROC.ADMIN_CMD('REORG TABLE T')",
             'SELECT 1; DROP TABLE T',
+            # Previously untested SUSPICIOUS_PATTERNS entries -- each is a distinct
+            # regex in the list, so a regression in any one wouldn't be caught by
+            # the cases above.
+            'SELECT * FROM T WHERE SLEEP(5) = 0',
+            "EXECUTE IMMEDIATE 'SELECT 1 FROM SYSIBM.SYSDUMMY1'",
+            "CALL DBMS_PIPE.RECEIVE_MESSAGE('x', 1)",
+            'CALL SYSPROC.ADMIN_CMD_FAKE()',
+            'CALL SYSPROC.SYSINSTALLOBJECTS(?, ?, ?, ?)',
         ],
     )
     def test_suspicious(self, sql):

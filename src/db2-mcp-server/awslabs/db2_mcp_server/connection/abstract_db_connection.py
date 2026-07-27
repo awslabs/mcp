@@ -61,10 +61,18 @@ class AbstractDBConnection(ABC):
 
     @abstractmethod
     async def check_connection_health(self) -> bool:
-        """Check if the database connection is healthy.
+        """Run a lightweight probe query and report whether it succeeded.
+
+        This is a standalone diagnostic primitive (exercised directly by live
+        integration tests) -- it is NOT wired into any MCP tool and is not what
+        powers the automatic liveness recovery used by ``run_query``/``execute_query``
+        (that recovery lives in each connection's own reconnect-on-use logic, e.g.
+        ``ibm_db.active()`` checks). ``is_database_connected`` also does not call
+        this: it reports cache presence, not live health. Call this directly on a
+        connection object when a manual health probe is needed.
 
         Returns:
-            bool: True if the connection is healthy, False otherwise
+            bool: True if the probe query succeeded, False otherwise
         """
         pass  # pragma: no cover
 

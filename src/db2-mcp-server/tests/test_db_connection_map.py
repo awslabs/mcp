@@ -207,6 +207,27 @@ async def test_close_all_running_loop_tolerates_task_error():
     assert m.map == {}
 
 
+async def test_close_all_running_loop_logs_scheduling_warning(mocker):
+    """close_all logs a warning at scheduling time, before the map is cleared.
+
+    On the running-loop path, close tasks are scheduled but not awaited, and the map
+    is cleared unconditionally right after. If the loop stops before a scheduled task
+    runs, that close silently never happens with no trace -- so a diagnostic must be
+    emitted at scheduling time, not only from the (possibly-never-firing) done
+    callback.
+    """
+    log_warning = mocker.patch(
+        'awslabs.db2_mcp_server.connection.db_connection_map.logger.warning'
+    )
+    m = DBConnectionMap()
+    m.set(M, 'id', 'host', 'DB2DB', FakeConn(async_close=True), 50443)
+    m.close_all()
+    assert log_warning.called
+    assert 'Scheduling' in log_warning.call_args_list[0].args[0]
+    await asyncio.sleep(0.05)  # let the scheduled close task run
+    assert m.map == {}
+
+
 def test_set_closes_replaced_connection_on_overwrite():
     """Re-setting the same key with a new connection closes the previous one (no leak)."""
     m = DBConnectionMap()

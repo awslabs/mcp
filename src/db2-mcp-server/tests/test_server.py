@@ -466,13 +466,22 @@ class TestMain:
         )
         validated = MagicMock()
         validated.validate_sync = mocker.Mock()  # Mock validation
-        mocker.patch.object(
+        create_connection = mocker.patch.object(
             server, 'internal_create_connection', return_value=(validated, {'status': 'Connected'})
         )
-        mocker.patch.object(server.mcp, 'run')
+        run = mocker.patch.object(server.mcp, 'run')
         mocker.patch.object(server.db_connection_map, 'close_all')
         server.main()
-        # validate_sync is called inside internal_create_connection, not in main
+        # validate_sync is called inside internal_create_connection (mocked above), not
+        # in main -- assert main actually reached the startup-connect call with the
+        # expected args and then proceeded to serve, so a regression that skips or
+        # misconfigures the startup connection fails this test.
+        create_connection.assert_called_once()
+        _, kwargs = create_connection.call_args
+        assert kwargs['region'] == 'us-east-1'
+        assert kwargs['db_endpoint'] == 'host'
+        assert kwargs['secret_arn'] == 'arn:x'  # pragma: allowlist secret
+        run.assert_called_once()
         # So we just need to verify internal_create_connection was called
 
     def test_main_endpoint_requires_region_exits(self, mocker, monkeypatch):

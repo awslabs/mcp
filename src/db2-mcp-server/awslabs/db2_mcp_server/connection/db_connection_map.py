@@ -24,8 +24,9 @@ from typing import List, Optional
 
 
 # RDS for Db2 in this ecosystem is SSL-only: the provisioning skill enforces
-# DB2COMM=SSL with ssl_svcename=50443 and leaves the plain TCP listener (8392)
-# dormant and closed in the security group. 50443 is therefore the default.
+# DB2COMM=SSL with ssl_svcename=50443 and leaves the plain TCP listener (port
+# 50000, see ibm_db_connection.DB2_TCP_PORT) dormant and closed in the security
+# group. 50443 is therefore the default.
 DEFAULT_DB2_SSL_PORT = 50443
 
 
@@ -205,6 +206,20 @@ class DBConnectionMap:
                     loop = None
 
                 if loop and loop.is_running():
+                    # These tasks are scheduled on the loop but not awaited here (this
+                    # method is synchronous), and self.map.clear() below runs
+                    # unconditionally right after. If the loop stops before a scheduled
+                    # task gets to run (e.g. shutdown proceeds immediately after this
+                    # call), that close silently never happens and the map has already
+                    # forgotten the handle -- an unrecoverable leaked server-side Db2
+                    # session with no trace. Log now, at scheduling time, so there is at
+                    # least a diagnostic even if the later done-callback never fires.
+                    logger.warning(
+                        f'Scheduling {len(coros)} connection close task(s) on the running '
+                        'event loop; completion is not guaranteed if the loop stops before '
+                        'they run. Keys: '
+                        f'{keys}'
+                    )
                     for key, coro in zip(keys, coros):
                         task = loop.create_task(coro)
 
@@ -213,9 +228,10 @@ class DBConnectionMap:
                                 logger.warning(f'Close task for connection {k} was cancelled')
                             elif t.exception():
                                 logger.warning(f'Failed to close connection {k}: {t.exception()}')
+                            else:
+                                logger.info(f'Close task for connection {k} completed')
 
                         task.add_done_callback(_done_cb)
-                    logger.info('Scheduled connection close tasks on running event loop')
                 else:
 
                     async def _close_all():

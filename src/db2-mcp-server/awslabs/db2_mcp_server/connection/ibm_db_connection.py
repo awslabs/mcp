@@ -206,6 +206,23 @@ class IbmDbConnection(AbstractDBConnection):
         conn = ibm_db.connect(conn_str, '', '', options)
         if not conn:
             raise ValueError(f'ibm_db.connect failed: {ibm_db.conn_errormsg()}')
+        # Autocommit-off is the second layer of the read-only guarantee: the
+        # explicit rollback after each read-only query (below) is only meaningful
+        # if autocommit is actually off. Read the setting back rather than trusting
+        # that the connect-time option was honored -- if a driver/version silently
+        # failed to apply it, autocommit would stay ON, every statement would commit
+        # immediately, and the rollback would become a no-op while run_query still
+        # tells the caller "any uncommitted changes are rolled back". Fail fast
+        # instead of quietly running with a false safety guarantee.
+        if ibm_db.autocommit(conn) != ibm_db.SQL_AUTOCOMMIT_OFF:
+            try:
+                ibm_db.close(conn)
+            except Exception:
+                pass
+            raise ValueError(
+                'Failed to disable autocommit on the Db2 connection; refusing to use it '
+                '(the read-only rollback-after-query guarantee depends on autocommit being off).'
+            )
         return conn
 
     def _ensure_conn_sync(self):

@@ -167,6 +167,7 @@ def _fake_ibm_db(mocker, *, rows, active=False, prepare_ok=True, execute_ok=True
     fake.SQL_AUTOCOMMIT_OFF = 0
     fake.SQL_ATTR_QUERY_TIMEOUT = 1
     fake.connect.return_value = 'CONN' if connect_ok else 0
+    fake.autocommit.return_value = 0  # matches SQL_AUTOCOMMIT_OFF above by default
     fake.active.return_value = active
     fake.prepare.return_value = 'STMT' if prepare_ok else 0
     fake.exec_immediate.return_value = 'STMT'
@@ -539,3 +540,30 @@ def test_conn_string_rejects_closing_brace_in_database_or_host():
         _conn(database='DB2DB}x')._build_conn_string('admin', 'pw')
     with pytest.raises(ValueError, match='unsupported character'):
         _conn(host='h}x')._build_conn_string('admin', 'pw')
+
+
+async def test_connect_rejects_when_autocommit_not_disabled(mocker):
+    """If the driver silently fails to disable autocommit, the connection is refused.
+
+    Autocommit-off is the second layer of the read-only guarantee -- the rollback
+    after each read-only query is only meaningful if autocommit is actually off. If
+    ibm_db.autocommit() reads back anything other than SQL_AUTOCOMMIT_OFF after
+    connect, the connection must not be used (fail fast rather than silently running
+    with a false safety guarantee).
+    """
+    fake = _fake_ibm_db(mocker, rows=[])
+    fake.autocommit.return_value = 1  # SQL_AUTOCOMMIT_ON -- driver did not honor the option
+    c = _conn(readonly=True)
+    with pytest.raises(ValueError, match='autocommit'):
+        await c.execute_query('SELECT 1 FROM SYSIBM.SYSDUMMY1')
+    # The bad connection must be closed rather than cached for reuse.
+    fake.close.assert_called_once()
+
+
+async def test_connect_accepts_when_autocommit_confirmed_off(mocker):
+    """A connection is used normally when autocommit reads back as OFF."""
+    fake = _fake_ibm_db(mocker, rows=[{'A': 1}])
+    fake.autocommit.return_value = 0  # SQL_AUTOCOMMIT_OFF
+    c = _conn(readonly=True)
+    out = await c.execute_query('SELECT A FROM T')
+    assert out == [{'A': 1}]
