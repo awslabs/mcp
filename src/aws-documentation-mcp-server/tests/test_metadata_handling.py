@@ -30,44 +30,8 @@ class TestMetadataHandling:
     """Tests for the new metadata handling logic in search results."""
 
     @pytest.mark.asyncio
-    async def test_seo_abstract_priority(self):
-        """Test that seo_abstract is used when available."""
-        ctx = MockContext()
-
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            'queryId': 'test-query-id',
-            'suggestions': [
-                {
-                    'textExcerptSuggestion': {
-                        'link': 'https://docs.aws.amazon.com/test',
-                        'title': 'Test Page',
-                        'summary': 'Regular summary',
-                        'suggestionBody': 'Suggestion body text',
-                        'metadata': {
-                            'seo_abstract': 'SEO optimized abstract',
-                            'abstract': 'Regular abstract',
-                            'summary': 'Metadata summary',
-                        },
-                    }
-                }
-            ],
-        }
-
-        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
-            mock_post.return_value = mock_response
-
-            response = await search_documentation(
-                ctx, search_phrase='test', limit=10, product_types=None, guide_types=None
-            )
-            results = response.search_results
-            assert len(results) == 1
-            assert results[0].context == 'SEO optimized abstract'
-
-    @pytest.mark.asyncio
-    async def test_summary_fallback_when_no_seo_abstract(self):
-        """Test that summary is used when seo_abstract is not available."""
+    async def test_summary_priority(self):
+        """The authored summary is used for context; the metadata.summary key is not consulted."""
         ctx = MockContext()
 
         mock_response = MagicMock()
@@ -101,7 +65,7 @@ class TestMetadataHandling:
 
     @pytest.mark.asyncio
     async def test_summary_fallback(self):
-        """Test that summary is used when metadata abstracts are not available."""
+        """Test that summary is used when metadata is empty."""
         ctx = MockContext()
 
         mock_response = MagicMock()
@@ -238,7 +202,7 @@ class TestMetadataHandling:
                         'link': 'https://docs.aws.amazon.com/test1',
                         'title': 'Test Page 1',
                         'summary': 'Regular summary 1',
-                        'metadata': {'seo_abstract': 'SEO abstract 1'},
+                        'metadata': {},
                     }
                 },
                 {
@@ -276,7 +240,7 @@ class TestMetadataHandling:
             )
             results = response.search_results
             assert len(results) == 4
-            assert results[0].context == 'SEO abstract 1'
+            assert results[0].context == 'Regular summary 1'
             assert results[1].context == 'Regular summary 2'
             assert results[2].context == 'Regular summary 3'
             assert results[3].context == 'Suggestion body 4'
@@ -302,7 +266,6 @@ class TestMetadataHandling:
                             'abstract': "This document introduces Amazon S3, a scalable object storage service offering various storage classes, management features, access controls, and data processing capabilities. It covers S3's core concepts, bucket types, versioning, consistency model, and integration with other AWS services.",
                             'last_updated': '2025-07-29T22:20:53.000Z',
                             'summary': "This document introduces Amazon S3, a scalable object storage service offering various storage classes, management features, access controls, and data processing capabilities. It covers S3's core concepts, bucket types, versioning, consistency model, and integration with other AWS services.",
-                            'seo_abstract': 'Amazon S3 offers object storage service with scalability, availability, security, and performance. Manage storage classes, lifecycle policies, access permissions, data transformations, usage metrics, and query tabular data.',
                         },
                     }
                 },
@@ -325,12 +288,12 @@ class TestMetadataHandling:
             )
             results = response.search_results
             assert len(results) == 2
-            # First result should use seo_abstract
+            # First result should use the authored summary
             assert (
                 results[0].context
-                == 'Amazon S3 offers object storage service with scalability, availability, security, and performance. Manage storage classes, lifecycle policies, access permissions, data transformations, usage metrics, and query tabular data.'
+                == 'Store data in the cloud and learn the core concepts of buckets and objects with the Amazon S3 web service.'
             )
-            # Second result should use suggestionBody since no seo_abstract or abstract in metadata
+            # Second result should use suggestionBody since no summary is present
             assert results[1].context == 'funasS3OrNull():S3?'
 
     @pytest.mark.asyncio
