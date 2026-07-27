@@ -36,6 +36,7 @@ from awslabs.aws_healthomics_mcp_server.consts import (
 )
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_omics_client
 from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
+from awslabs.aws_healthomics_mcp_server.utils.validation_utils import validate_workflow_type
 from awslabs.aws_healthomics_mcp_server.utils.s3_utils import ensure_s3_uri_ends_with_slash
 from datetime import datetime
 from loguru import logger
@@ -147,17 +148,21 @@ async def start_run(
        necessary to inspect the workflow definition to determine the appropriate parameter type.
        """,
     ),
+    workflow_type: Optional[str] = Field(
+        None,
+        description='Workflow type: PRIVATE (default) or READY2RUN. Must be set to READY2RUN when running AWS-provided Ready2Run workflows. When READY2RUN, storage_type and storage_capacity are not applicable (Ready2Run workflows use fixed storage).',
+    ),
     workflow_version_name: Optional[str] = Field(
         None,
         description='Optional version name to run',
     ),
     storage_type: str = Field(
         'DYNAMIC',
-        description='Storage type (STATIC or DYNAMIC). DYNAMIC is preferred except for runs with very large inputs (TiBs).',
+        description='Storage type (STATIC or DYNAMIC). DYNAMIC is preferred except for runs with very large inputs (TiBs). Not applicable when workflow_type is READY2RUN (Ready2Run workflows use fixed storage).',
     ),
     storage_capacity: Optional[int] = Field(
         None,
-        description='Storage capacity in GB (required for STATIC). Storage is allocated in 1200 GiB chunks',
+        description='Storage capacity in GB (required for STATIC). Storage is allocated in 1200 GiB chunks. Not applicable when workflow_type is READY2RUN (Ready2Run workflows use fixed storage).',
         ge=1200,
     ),
     cache_id: Optional[str] = Field(
@@ -213,6 +218,7 @@ async def start_run(
            names are allowed.
            The descriptions of the parameters in the parameter template may provide clues to the type of the parameter. It may be
            necessary to inspect the workflow definition to determine the appropriate parameter type.
+        workflow_type: Optional workflow type (PRIVATE or READY2RUN). Required for Ready2Run workflows.
         workflow_version_name: Optional version name to run
         storage_type: Storage type (STATIC or DYNAMIC)
         storage_capacity: Storage capacity in GB (required for STATIC)
@@ -229,6 +235,14 @@ async def start_run(
         Dictionary containing the run information or error dict
     """
     # Validate parameters first, before creating client
+    # Validate workflow type (using shared utility from validation_utils)
+    if workflow_type is not None and isinstance(workflow_type, str):
+        validation_result = await validate_workflow_type(ctx, workflow_type)
+        if isinstance(validation_result, dict):
+            return validation_result
+    # Normalize workflow_type: only pass to API if it's a valid string
+    effective_workflow_type = workflow_type if isinstance(workflow_type, str) else None
+
     # Validate storage type
     if storage_type not in STORAGE_TYPES:
         return await handle_tool_error(
@@ -315,15 +329,21 @@ async def start_run(
         'name': name,
         'outputUri': output_uri,
         'parameters': parameters,
-        'storageType': storage_type,
-        'scratchStorageMode': effective_scratch_storage_mode,
     }
+
+    if effective_workflow_type:
+        params['workflowType'] = effective_workflow_type
+
+    # Ready2Run workflows use fixed storage settings and reject storageType/storageCapacity
+    if effective_workflow_type != 'READY2RUN':
+        params['storageType'] = storage_type
+        params['scratchStorageMode'] = effective_scratch_storage_mode
+
+        if storage_type == STORAGE_TYPE_STATIC and storage_capacity:
+            params['storageCapacity'] = storage_capacity
 
     if workflow_version_name:
         params['workflowVersionName'] = workflow_version_name
-
-    if storage_type == STORAGE_TYPE_STATIC and storage_capacity:
-        params['storageCapacity'] = storage_capacity
 
     if cache_id:
         params['cacheId'] = cache_id

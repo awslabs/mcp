@@ -2613,3 +2613,129 @@ class TestGetRunPassesScratchStorageModeThrough:
         else:
             # When the API response omits scratchStorageMode, the result omits it entirely.
             assert 'scratchStorageMode' not in result
+
+
+
+@pytest.mark.asyncio
+async def test_start_run_with_workflow_type_ready2run():
+    """Test that workflow_type=READY2RUN is passed to the API."""
+    mock_response = {
+        'id': 'run-r2r-001',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:run/run-r2r-001',
+        'status': 'PENDING',
+        'name': 'ready2run-test',
+        'workflowId': '2174942',
+        'uuid': 'uuid-r2r-001',
+        'tags': {},
+    }
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.start_run.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await start_run(
+            mock_ctx,
+            workflow_id='2174942',
+            role_arn='arn:aws:iam::123456789012:role/OmicsRole',
+            name='ready2run-test',
+            output_uri='s3://my-bucket/outputs/',
+            parameters={'samplename': 'test', 'protocol': '10XV3', 'input': []},
+            workflow_type='READY2RUN',
+            storage_type='STATIC',
+            storage_capacity=1200,
+            cache_id=None,
+            cache_behavior=None,
+            run_group_id=None,
+            networking_mode=None,
+            configuration_name=None,
+            scratch_storage_mode=None,
+        )
+
+    # Verify workflowType was passed to the API call
+    call_kwargs = mock_client.start_run.call_args[1]
+    assert call_kwargs['workflowType'] == 'READY2RUN'
+    assert call_kwargs['workflowId'] == '2174942'
+    # Ready2Run workflows must NOT send storage params
+    assert 'storageType' not in call_kwargs
+    assert 'storageCapacity' not in call_kwargs
+    assert 'scratchStorageMode' not in call_kwargs
+
+    assert result['id'] == 'run-r2r-001'
+    assert result['status'] == 'PENDING'
+
+
+@pytest.mark.asyncio
+async def test_start_run_without_workflow_type_omits_it():
+    """Test that workflowType is NOT passed when workflow_type is None (default)."""
+    mock_response = {
+        'id': 'run-private-001',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:run/run-private-001',
+        'status': 'PENDING',
+        'name': 'private-run',
+        'workflowId': 'wfl-99999',
+        'uuid': 'uuid-priv-001',
+        'tags': {},
+    }
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.start_run.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await start_run(
+            mock_ctx,
+            workflow_id='wfl-99999',
+            role_arn='arn:aws:iam::123456789012:role/OmicsRole',
+            name='private-run',
+            output_uri='s3://my-bucket/outputs/',
+            parameters={'param1': 'value1'},
+            workflow_type=None,
+            storage_type='DYNAMIC',
+            storage_capacity=None,
+            cache_id=None,
+            cache_behavior=None,
+            run_group_id=None,
+            networking_mode=None,
+            configuration_name=None,
+            scratch_storage_mode=None,
+        )
+
+    # Verify workflowType was NOT passed to the API call
+    call_kwargs = mock_client.start_run.call_args[1]
+    assert 'workflowType' not in call_kwargs
+
+    assert result['id'] == 'run-private-001'
+
+
+@pytest.mark.asyncio
+async def test_start_run_invalid_workflow_type():
+    """Test that invalid workflow_type values are rejected."""
+    mock_ctx = AsyncMock()
+
+    result = await start_run(
+        mock_ctx,
+        workflow_id='wfl-12345',
+        role_arn='arn:aws:iam::123456789012:role/OmicsRole',
+        name='bad-type-run',
+        output_uri='s3://my-bucket/outputs/',
+        parameters={'param1': 'value1'},
+        workflow_type='INVALID',
+        storage_type='DYNAMIC',
+        storage_capacity=None,
+        cache_id=None,
+        cache_behavior=None,
+        run_group_id=None,
+        networking_mode=None,
+        configuration_name=None,
+        scratch_storage_mode=None,
+    )
+
+    # Should return an error dict from handle_tool_error
+    mock_ctx.report_progress.assert_not_called()  # Shouldn't get to client call
