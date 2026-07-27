@@ -14,7 +14,9 @@
 
 """URL validation for domain restriction."""
 
+import posixpath
 from typing import List
+from urllib.parse import urlparse
 
 
 class URLValidationError(Exception):
@@ -23,48 +25,58 @@ class URLValidationError(Exception):
     pass
 
 
+class _AllowedOrigin:
+    """Parsed representation of an allowed URL prefix for structural matching."""
+
+    def __init__(self, raw: str):
+        parsed = urlparse(raw)
+        self.scheme = parsed.scheme
+        self.hostname = parsed.hostname or ''
+        self.path = parsed.path.rstrip('/')
+
+    def matches(self, scheme: str, hostname: str, normalized_path: str) -> bool:
+        if self.scheme != scheme or self.hostname != hostname:
+            return False
+        if not self.path:
+            return True
+        return normalized_path == self.path or normalized_path.startswith(self.path + '/')
+
+
 class URLValidator:
     """Validates URLs against a list of allowed domain prefixes."""
 
     def __init__(self, allowed_domain_prefixes: List[str]):
-        """Initialize the URL validator with allowed domain prefixes.
-
-        Args:
-            allowed_domain_prefixes: List of allowed domain prefixes
-        """
+        """Initialize the URL validator with allowed domain prefixes."""
         self.allowed_domain_prefixes = set(allowed_domain_prefixes)
+        self._allowed_origins = [_AllowedOrigin(p) for p in allowed_domain_prefixes]
 
-    def is_url_allowed(self, url: str) -> bool:
-        """Check if a URL is allowed based on domain prefixes.
-
-        Args:
-            url: The URL to validate
-
-        Returns:
-            True if the URL is allowed, False otherwise
-        """
+    def is_url_allowed(self, url: str | None) -> bool:
+        """Check if a URL is allowed based on structural matching against allowed origins."""
         if not url or not isinstance(url, str):
             return False
 
-        # Check if URL starts with any of the allowed prefixes
-        for allowed_prefix in self.allowed_domain_prefixes:
-            if url.startswith(allowed_prefix):
+        if any(c in url for c in '\r\n\x00'):
+            return False
+
+        parsed = urlparse(url)
+
+        if parsed.scheme != 'https':
+            return False
+
+        if '@' in parsed.netloc:
+            return False
+
+        hostname = parsed.hostname or ''
+        normalized_path = posixpath.normpath(parsed.path or '/')
+
+        for origin in self._allowed_origins:
+            if origin.matches(parsed.scheme, hostname, normalized_path):
                 return True
 
         return False
 
     def validate_urls(self, urls) -> List[str]:
-        """Validate URLs and return valid ones.
-
-        Args:
-            urls: Single URL string or list of URLs to validate
-
-        Returns:
-            List of validated URLs (single URL wrapped in list if input was string)
-
-        Raises:
-            URLValidationError: If any URL is not allowed
-        """
+        """Validate URLs and return valid ones, raising URLValidationError for any disallowed URL."""
         if isinstance(urls, str):
             urls = [urls]
 
@@ -113,15 +125,15 @@ def validate_urls(urls, allowed_domains: list[str] | None = None) -> list[str]:
     if isinstance(urls, str):
         urls = [urls]
 
-    # Convert relative URLs to absolute URLs
-    processed_urls = []
     for url in urls:
         if not url.startswith(('http://', 'https://')):
-            url = 'https://aws.github.io/bedrock-agentcore-starter-toolkit' + url
-        processed_urls.append(url)
+            raise URLValidationError(
+                f'Relative URLs are not allowed: {url}. '
+                f'All URLs must use an absolute https:// scheme.'
+            )
 
     if allowed_domains is None:
-        return default_validator.validate_urls(processed_urls)
+        return default_validator.validate_urls(urls)
     else:
         validator = URLValidator(allowed_domains)
-        return validator.validate_urls(processed_urls)
+        return validator.validate_urls(urls)

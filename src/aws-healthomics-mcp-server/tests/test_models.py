@@ -1125,3 +1125,34 @@ class TestSourceReferenceModel:
 
         with pytest.raises(ValidationError):
             SourceReference(type='INVALID_TYPE', value='main')  # type: ignore[arg-type]
+
+
+class TestScratchStorageModeEnum:
+    """Test cases for the ScratchStorageMode enum.
+
+    Feature: local-temp-storage
+    Validates: Requirements Scratch storage mode parameter on the single-run tool,
+    Scratch storage mode parameter on the batch-run tool
+    """
+
+    def test_members_equal_expected_strings(self):
+        """Test ScratchStorageMode members compare equal to their string values."""
+        from awslabs.aws_healthomics_mcp_server.models.core import ScratchStorageMode
+
+        assert ScratchStorageMode.LOCAL == 'LOCAL'
+        assert ScratchStorageMode.SHARED == 'SHARED'
+        assert ScratchStorageMode.LOCAL.value == 'LOCAL'
+        assert ScratchStorageMode.SHARED.value == 'SHARED'
+
+    def test_is_str_enum(self):
+        """Test ScratchStorageMode members are usable as strings."""
+        from awslabs.aws_healthomics_mcp_server.models.core import ScratchStorageMode
+
+        assert isinstance(ScratchStorageMode.LOCAL, str)
+        assert isinstance(ScratchStorageMode.SHARED, str)
+
+    def test_exactly_two_members(self):
+        """Test ScratchStorageMode defines exactly LOCAL and SHARED."""
+        from awslabs.aws_healthomics_mcp_server.models.core import ScratchStorageMode
+
+        assert [member.value for member in ScratchStorageMode] == ['LOCAL', 'SHARED']

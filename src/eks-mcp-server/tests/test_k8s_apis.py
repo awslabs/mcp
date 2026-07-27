@@ -17,6 +17,7 @@
 import base64
 import os
 import pytest
+import ssl
 from awslabs.eks_mcp_server.k8s_apis import K8sApis
 from awslabs.eks_mcp_server.models import Operation
 from datetime import datetime
@@ -125,7 +126,6 @@ class TestK8sApisInitialization:
 
             # Verify configuration
             assert mock_config.host == 'https://test-endpoint'
-            assert mock_config.api_key == {'authorization': 'Bearer test-token'}
             assert mock_config.verify_ssl is True
             assert mock_config.ssl_ca_cert == '/tmp/ca-cert-file'
 
@@ -134,6 +134,92 @@ class TestK8sApisInitialization:
 
             # Verify dynamic client was set
             assert apis.dynamic_client == mock_dynamic_client
+
+    def test_init_keeps_ssl_verification_without_x509_strict(self):
+        """Test EKS CA verification avoids strict AKI enforcement."""
+        strict_context = ssl.create_default_context()
+        strict_context.verify_flags |= ssl.VERIFY_X509_STRICT
+        original_flags = strict_context.verify_flags
+
+        with (
+            patch('kubernetes.dynamic.DynamicClient'),
+            patch(
+                'awslabs.eks_mcp_server.k8s_apis.create_urllib3_context',
+                return_value=strict_context,
+            ),
+        ):
+            ca_data = base64.b64encode(b'test-ca-data').decode('utf-8')
+
+            apis = K8sApis('https://test-endpoint', 'test-token', ca_data)
+
+            pool_kwargs = apis.api_client.rest_client.pool_manager.connection_pool_kw
+            ssl_context = pool_kwargs['ssl_context']
+            connection_pool = apis.api_client.rest_client.pool_manager.connection_from_url(
+                'https://test-endpoint/version'
+            )
+
+            assert apis.api_client.configuration.verify_ssl is True
+            assert apis.api_client.configuration.ssl_ca_cert
+            assert pool_kwargs['cert_reqs'] == ssl.CERT_REQUIRED
+            assert pool_kwargs['ca_certs'] == apis.api_client.configuration.ssl_ca_cert
+            assert ssl_context is strict_context
+            assert ssl_context.verify_mode == ssl.CERT_REQUIRED
+            assert ssl_context.verify_flags == original_flags & ~ssl.VERIFY_X509_STRICT
+            assert connection_pool.cert_reqs == ssl.CERT_REQUIRED
+            assert connection_pool.ca_certs == apis.api_client.configuration.ssl_ca_cert
+            assert connection_pool.conn_kw['ssl_context'] is strict_context
+
+    def test_init_accepts_ssl_context_without_verify_flags(self):
+        """Test compatibility with urllib3 contexts without verify_flags."""
+        context = object()
+
+        with (
+            patch('kubernetes.dynamic.DynamicClient'),
+            patch(
+                'awslabs.eks_mcp_server.k8s_apis.create_urllib3_context',
+                return_value=context,
+            ),
+        ):
+            ca_data = base64.b64encode(b'test-ca-data').decode('utf-8')
+
+            apis = K8sApis('https://test-endpoint', 'test-token', ca_data)
+
+            pool_kwargs = apis.api_client.rest_client.pool_manager.connection_pool_kw
+            assert pool_kwargs['ssl_context'] is context
+
+    @pytest.mark.parametrize(
+        'mock_version,expected_api_key,expected_prefix',
+        [
+            ('36.0.0', {'BearerToken': 'test-token'}, {'BearerToken': 'Bearer'}),
+            ('35.0.0', {'authorization': 'Bearer test-token'}, None),
+        ],
+    )
+    def test_init_api_key_by_version(
+        self, mock_kubernetes_client, mock_version, expected_api_key, expected_prefix
+    ):
+        """Test api_key configuration for different kubernetes client versions."""
+        _, mock_config, _ = mock_kubernetes_client
+
+        mock_temp_file = MagicMock()
+        mock_temp_file.name = '/tmp/ca-cert-file'
+        mock_temp_file.__enter__ = MagicMock(return_value=mock_temp_file)
+        mock_temp_file.__exit__ = MagicMock(return_value=False)
+
+        mock_dynamic_client = MagicMock()
+
+        with (
+            patch('tempfile.NamedTemporaryFile', return_value=mock_temp_file),
+            patch('os.path.exists', return_value=True),
+            patch('os.unlink'),
+            patch('kubernetes.dynamic.DynamicClient', return_value=mock_dynamic_client),
+            patch('kubernetes.__version__', mock_version),
+        ):
+            ca_data = base64.b64encode(b'test-ca-data').decode('utf-8')
+            K8sApis('https://test-endpoint', 'test-token', ca_data)
+
+            assert mock_config.api_key == expected_api_key
+            if expected_prefix:
+                assert mock_config.api_key_prefix == expected_prefix
 
     def test_init_with_ca_data_error(self, mock_kubernetes_client):
         """Test initialization with CA data when an error occurs."""

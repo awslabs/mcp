@@ -1,19 +1,16 @@
 """Tests for CloudWatch Application Signals MCP Server."""
 
-import json
 import pytest
 from awslabs.cloudwatch_applicationsignals_mcp_server.server import _filter_operation_targets, main
 from awslabs.cloudwatch_applicationsignals_mcp_server.service_tools import (
-    get_service_detail,
     list_monitored_services,
     query_service_metrics,
 )
 from awslabs.cloudwatch_applicationsignals_mcp_server.slo_tools import get_slo
 from awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools import (
+    _compose_spans_query,
     check_transaction_search_enabled,
-    get_trace_summaries_paginated,
     list_slis,
-    query_sampled_traces,
     search_transaction_spans,
 )
 from awslabs.cloudwatch_applicationsignals_mcp_server.utils import remove_null_values
@@ -149,7 +146,7 @@ async def test_list_monitored_services_success(mock_aws_clients):
 
     result = await list_monitored_services()
 
-    assert 'Application Signals Services (1 total)' in result
+    assert 'Application Signals Services (1 total' in result
     assert 'test-service' in result
     assert 'AWS::ECS::Service' in result
 
@@ -164,55 +161,6 @@ async def test_list_monitored_services_empty(mock_aws_clients):
     result = await list_monitored_services()
 
     assert result == 'No services found in Application Signals.'
-
-
-@pytest.mark.asyncio
-async def test_get_service_detail_success(mock_aws_clients):
-    """Test successful retrieval of service details."""
-    mock_list_response = {
-        'ServiceSummaries': [
-            {'KeyAttributes': {'Name': 'test-service', 'Type': 'AWS::ECS::Service'}}
-        ]
-    }
-
-    mock_get_response = {
-        'Service': {
-            'KeyAttributes': {'Name': 'test-service', 'Type': 'AWS::ECS::Service'},
-            'AttributeMaps': [{'Platform': 'ECS', 'Application': 'test-app'}],
-            'MetricReferences': [
-                {
-                    'Namespace': 'AWS/ApplicationSignals',
-                    'MetricName': 'Latency',
-                    'MetricType': 'GAUGE',
-                    'Dimensions': [{'Name': 'Service', 'Value': 'test-service'}],
-                }
-            ],
-            'LogGroupReferences': [{'Identifier': '/aws/ecs/test-service'}],
-        }
-    }
-
-    mock_aws_clients['applicationsignals_client'].list_services.return_value = mock_list_response
-    mock_aws_clients['applicationsignals_client'].get_service.return_value = mock_get_response
-
-    result = await get_service_detail('test-service')
-
-    assert 'Service Details: test-service' in result
-    assert 'AWS::ECS::Service' in result
-    assert 'Platform: ECS' in result
-    assert 'AWS/ApplicationSignals/Latency' in result
-    assert '/aws/ecs/test-service' in result
-
-
-@pytest.mark.asyncio
-async def test_get_service_detail_not_found(mock_aws_clients):
-    """Test when service is not found."""
-    mock_response = {'ServiceSummaries': []}
-
-    mock_aws_clients['applicationsignals_client'].list_services.return_value = mock_response
-
-    result = await get_service_detail('nonexistent-service')
-
-    assert "Service 'nonexistent-service' not found" in result
 
 
 @pytest.mark.asyncio
@@ -506,102 +454,6 @@ async def test_list_slis_success(mock_aws_clients):
             assert 'test-service' in result
 
 
-@pytest.mark.asyncio
-async def test_query_sampled_traces_success(mock_aws_clients):
-    """Test successful query of sampled traces."""
-    mock_traces = [
-        {
-            'Id': 'trace1',
-            'Duration': 0.5,
-            'ResponseTime': 500,
-            'HasError': False,
-            'HasFault': True,
-            'HasThrottle': False,
-            'Http': {'HttpStatus': 500},
-            'FaultRootCauses': [
-                {
-                    'Services': [
-                        {
-                            'Name': 'test-service',
-                            'Exceptions': [{'Message': 'Internal server error'}],
-                        }
-                    ]
-                }
-            ],
-        }
-    ]
-
-    with patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.get_trace_summaries_paginated'
-    ) as mock_get_traces:
-        with patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
-        ) as mock_check:
-            mock_get_traces.return_value = mock_traces
-            mock_check.return_value = (False, 'XRay', 'INACTIVE')
-
-            result_json = await query_sampled_traces(
-                start_time='2024-01-01T00:00:00Z',
-                end_time='2024-01-01T01:00:00Z',
-                filter_expression='service("test-service"){fault = true}',
-            )
-
-            result = json.loads(result_json)
-            assert result['TraceCount'] == 1
-            assert result['TraceSummaries'][0]['Id'] == 'trace1'
-            assert result['TraceSummaries'][0]['HasFault'] is True
-
-
-@pytest.mark.asyncio
-async def test_query_sampled_traces_time_window_too_large(mock_aws_clients):
-    """Test when time window is too large."""
-    result_json = await query_sampled_traces(
-        start_time='2024-01-01T00:00:00Z',
-        end_time='2024-01-02T00:00:00Z',  # 24 hours > 6 hours max
-        filter_expression='service("test-service")',
-    )
-
-    result = json.loads(result_json)
-    assert 'error' in result
-    assert 'Time window too large' in result['error']
-
-
-def test_get_trace_summaries_paginated():
-    """Test paginated trace retrieval."""
-    mock_client = MagicMock()
-    mock_responses = [
-        {'TraceSummaries': [{'Id': 'trace1'}, {'Id': 'trace2'}], 'NextToken': 'token1'},
-        {'TraceSummaries': [{'Id': 'trace3'}]},
-    ]
-    mock_client.get_trace_summaries.side_effect = mock_responses
-
-    start_time = datetime.now(timezone.utc) - timedelta(hours=1)
-    end_time = datetime.now(timezone.utc)
-
-    traces = get_trace_summaries_paginated(
-        mock_client, start_time, end_time, 'service("test")', max_traces=10
-    )
-
-    assert len(traces) == 3
-    assert traces[0]['Id'] == 'trace1'
-    assert traces[2]['Id'] == 'trace3'
-
-
-def test_get_trace_summaries_paginated_with_error():
-    """Test paginated trace retrieval with error."""
-    mock_client = MagicMock()
-    mock_client.get_trace_summaries.side_effect = Exception('API Error')
-
-    start_time = datetime.now(timezone.utc) - timedelta(hours=1)
-    end_time = datetime.now(timezone.utc)
-
-    traces = get_trace_summaries_paginated(
-        mock_client, start_time, end_time, 'service("test")', max_traces=10
-    )
-
-    assert len(traces) == 0  # Should return empty list on error
-
-
 def test_check_transaction_search_enabled(mock_aws_clients):
     """Test checking transaction search status."""
     mock_aws_clients['xray_client'].get_trace_segment_destination.return_value = {
@@ -697,50 +549,6 @@ async def test_list_monitored_services_general_exception(mock_aws_clients):
     result = await list_monitored_services()
 
     assert 'Error: Unexpected error occurred' in result
-
-
-@pytest.mark.asyncio
-async def test_get_service_detail_client_error(mock_aws_clients):
-    """Test ClientError handling in get_service_detail."""
-    mock_list_response = {
-        'ServiceSummaries': [
-            {'KeyAttributes': {'Name': 'test-service', 'Type': 'AWS::ECS::Service'}}
-        ]
-    }
-
-    mock_aws_clients['applicationsignals_client'].list_services.return_value = mock_list_response
-    mock_aws_clients['applicationsignals_client'].get_service.side_effect = ClientError(
-        error_response={
-            'Error': {
-                'Code': 'ResourceNotFoundException',
-                'Message': 'Service not found in Application Signals',
-            }
-        },
-        operation_name='GetService',
-    )
-
-    result = await get_service_detail('test-service')
-
-    assert 'AWS Error: Service not found in Application Signals' in result
-
-
-@pytest.mark.asyncio
-async def test_get_service_detail_general_exception(mock_aws_clients):
-    """Test general exception handling in get_service_detail."""
-    mock_list_response = {
-        'ServiceSummaries': [
-            {'KeyAttributes': {'Name': 'test-service', 'Type': 'AWS::ECS::Service'}}
-        ]
-    }
-
-    mock_aws_clients['applicationsignals_client'].list_services.return_value = mock_list_response
-    mock_aws_clients['applicationsignals_client'].get_service.side_effect = Exception(
-        'Unexpected error in get_service'
-    )
-
-    result = await get_service_detail('test-service')
-
-    assert 'Error: Unexpected error in get_service' in result
 
 
 @pytest.mark.asyncio
@@ -1091,7 +899,7 @@ async def test_get_slo_client_error(mock_aws_clients):
 
 @pytest.mark.asyncio
 async def test_search_transaction_spans_empty_log_group(mock_aws_clients):
-    """Test search transaction spans with empty log group defaults to aws/spans."""
+    """Empty log_group_name triggers SOURCE logGroups() + @data_format filterIndex."""
     with patch(
         'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
     ) as mock_check:
@@ -1104,7 +912,7 @@ async def test_search_transaction_spans_empty_log_group(mock_aws_clients):
         }
 
         await search_transaction_spans(
-            log_group_name='',  # Empty string should default to 'aws/spans'
+            log_group_name='',
             start_time='2024-01-01T00:00:00+00:00',
             end_time='2024-01-01T01:00:00+00:00',
             query_string='fields @timestamp',
@@ -1112,10 +920,12 @@ async def test_search_transaction_spans_empty_log_group(mock_aws_clients):
             max_timeout=30,
         )
 
-        # Verify start_query was called with default 'aws/spans'
         mock_aws_clients['logs_client'].start_query.assert_called()
         call_args = mock_aws_clients['logs_client'].start_query.call_args[1]
-        assert 'aws/spans' in call_args['logGroupNames']
+        assert 'logGroupNames' not in call_args
+        assert 'SOURCE logGroups()' in call_args['queryString']
+        assert 'filterIndex @data_format = "AWS-OTEL-TRACE-V1"' in call_args['queryString']
+        assert 'fields @timestamp' in call_args['queryString']
 
 
 @pytest.mark.asyncio
@@ -1267,39 +1077,8 @@ async def test_list_monitored_services_with_attributes_branch(mock_aws_clients):
 
     result = await list_monitored_services()
 
-    assert 'Application Signals Services (1 total)' in result
+    assert 'Application Signals Services (1 total' in result
     assert 'Key Attributes:' not in result  # Should not show when empty
-
-
-@pytest.mark.asyncio
-async def test_get_trace_summaries_paginated_with_limit(mock_aws_clients):
-    """Test get_trace_summaries_paginated when it hits the max_traces limit."""
-    # Mock responses with more traces than the limit
-    mock_response_1 = {
-        'TraceSummaries': [{'Id': f'trace-{i}', 'Duration': 100} for i in range(10)],
-        'NextToken': 'token1',
-    }
-    mock_response_2 = {
-        'TraceSummaries': [{'Id': f'trace-{i}', 'Duration': 100} for i in range(10, 15)]
-    }
-
-    mock_aws_clients['xray_client'].get_trace_summaries.side_effect = [
-        mock_response_1,
-        mock_response_2,
-    ]
-
-    # Test with max_traces=12
-    traces = get_trace_summaries_paginated(
-        mock_aws_clients['xray_client'],
-        datetime.now(timezone.utc),
-        datetime.now(timezone.utc),
-        'service("test")',
-        max_traces=12,
-    )
-
-    # The function continues until it gets all traces from the current page
-    # before checking the limit, so we might get more than max_traces
-    assert len(traces) >= 12  # Should have at least the limit
 
 
 @pytest.mark.asyncio
@@ -1483,7 +1262,7 @@ async def test_get_slo_general_exception(mock_aws_clients):
 
 @pytest.mark.asyncio
 async def test_search_transaction_spans_with_none_log_group(mock_aws_clients):
-    """Test search_transaction_spans when log_group_name is None."""
+    """None log_group_name is treated the same as empty: cross-log-group index query."""
     with patch(
         'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
     ) as mock_check:
@@ -1495,7 +1274,6 @@ async def test_search_transaction_spans_with_none_log_group(mock_aws_clients):
             'results': [],
         }
 
-        # Pass None for log_group_name to test the default handling
         await search_transaction_spans(
             log_group_name=None,  # type: ignore
             start_time='2024-01-01T00:00:00+00:00',
@@ -1505,9 +1283,396 @@ async def test_search_transaction_spans_with_none_log_group(mock_aws_clients):
             max_timeout=30,
         )
 
-        # Verify it used the default log group
         call_args = mock_aws_clients['logs_client'].start_query.call_args[1]
-        assert 'aws/spans' in call_args['logGroupNames']
+        assert 'logGroupNames' not in call_args
+        assert 'SOURCE logGroups()' in call_args['queryString']
+        assert 'filterIndex @data_format = "AWS-OTEL-TRACE-V1"' in call_args['queryString']
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_explicit_log_group_injects_filter_index(
+    mock_aws_clients,
+):
+    """Explicit log_group_name scopes via logGroupNames and still injects the @data_format filterIndex."""
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+        mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
+        mock_aws_clients['logs_client'].get_query_results.return_value = {
+            'queryId': 'test-query-id',
+            'status': 'Complete',
+            'results': [],
+        }
+
+        await search_transaction_spans(
+            log_group_name='custom-spans-lg',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string='fields @timestamp',
+            limit=None,
+            max_timeout=30,
+        )
+
+        call_args = mock_aws_clients['logs_client'].start_query.call_args[1]
+        assert call_args['logGroupNames'] == ['custom-spans-lg']
+        assert 'SOURCE logGroups()' not in call_args['queryString']
+        assert 'filterIndex @data_format = "AWS-OTEL-TRACE-V1"' in call_args['queryString']
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_user_source_clause_left_alone(mock_aws_clients):
+    """A user-supplied SOURCE clause suppresses all automatic injection."""
+    user_query = (
+        'SOURCE logGroups(namePrefix: ["my/spans"]) '
+        '| filterIndex @data_format = "AWS-OTEL-TRACE-V1" '
+        '| fields @timestamp'
+    )
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+        mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
+        mock_aws_clients['logs_client'].get_query_results.return_value = {
+            'queryId': 'test-query-id',
+            'status': 'Complete',
+            'results': [],
+        }
+
+        await search_transaction_spans(
+            log_group_name='',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string=user_query,
+            limit=None,
+            max_timeout=30,
+        )
+
+        call_args = mock_aws_clients['logs_client'].start_query.call_args[1]
+        assert call_args['queryString'] == user_query
+        # Exactly one SOURCE clause: the user's.
+        assert call_args['queryString'].lower().count('source ') == 1
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_explicit_log_group_with_user_data_format(
+    mock_aws_clients,
+):
+    """Explicit log_group_name + user-supplied @data_format: no injection at all."""
+    user_query = 'filter @data_format = "AWS-OTEL-TRACE-V1" | fields @timestamp'
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+        mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
+        mock_aws_clients['logs_client'].get_query_results.return_value = {
+            'queryId': 'test-query-id',
+            'status': 'Complete',
+            'results': [],
+        }
+
+        await search_transaction_spans(
+            log_group_name='custom-spans-lg',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string=user_query,
+            limit=None,
+            max_timeout=30,
+        )
+
+        call_args = mock_aws_clients['logs_client'].start_query.call_args[1]
+        assert call_args['logGroupNames'] == ['custom-spans-lg']
+        # Neither SOURCE nor a second filterIndex should be prepended.
+        assert call_args['queryString'] == user_query
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_user_source_wins_over_log_group_name(
+    mock_aws_clients,
+):
+    """If the user supplies a SOURCE clause, log_group_name is dropped (not both)."""
+    user_query = (
+        'SOURCE logGroups(namePrefix: ["my/spans"]) '
+        '| filterIndex @data_format = "AWS-OTEL-TRACE-V1" '
+        '| fields @timestamp'
+    )
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+        mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
+        mock_aws_clients['logs_client'].get_query_results.return_value = {
+            'queryId': 'test-query-id',
+            'status': 'Complete',
+            'results': [],
+        }
+
+        await search_transaction_spans(
+            log_group_name='ignored-log-group',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string=user_query,
+            limit=None,
+            max_timeout=30,
+        )
+
+        call_args = mock_aws_clients['logs_client'].start_query.call_args[1]
+        assert call_args['queryString'] == user_query
+        # logGroupNames must NOT be sent when SOURCE is present — CloudWatch rejects
+        # that combination.
+        assert 'logGroupNames' not in call_args
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_user_data_format_filter_preserved(mock_aws_clients):
+    """If the user already references @data_format, the tool does not double-inject the filter."""
+    user_query = 'filter @data_format = "AWS-VENDED-LOG-V1" | fields @timestamp'
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+        mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
+        mock_aws_clients['logs_client'].get_query_results.return_value = {
+            'queryId': 'test-query-id',
+            'status': 'Complete',
+            'results': [],
+        }
+
+        await search_transaction_spans(
+            log_group_name='',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string=user_query,
+            limit=None,
+            max_timeout=30,
+        )
+
+        call_args = mock_aws_clients['logs_client'].start_query.call_args[1]
+        # SOURCE logGroups() still added (no explicit log group).
+        assert 'SOURCE logGroups()' in call_args['queryString']
+        # But the AWS-OTEL-TRACE-V1 filter is NOT injected — user's @data_format filter wins.
+        assert 'AWS-OTEL-TRACE-V1' not in call_args['queryString']
+        assert 'AWS-VENDED-LOG-V1' in call_args['queryString']
+
+
+def test_compose_spans_query_never_ends_with_pipe():
+    """Guard against regressions of the empty-query trailing-pipe bug."""
+    # Valid inputs: final query must not end with '|' or '| '.
+    for q in ('fields @timestamp', '   fields @timestamp   ', 'filter x = "y"'):
+        for lg in ('', 'my-lg'):
+            out = _compose_spans_query(q, lg)
+            assert not out.rstrip().endswith('|'), f'trailing pipe for q={q!r} lg={lg!r}: {out!r}'
+    # Empty / whitespace-only queries: helper must not emit trailing pipes even
+    # though the tool entry point rejects these before reaching the helper.
+    for q in ('', '   '):
+        out = _compose_spans_query(q, '')
+        assert not out.rstrip().endswith('|'), f'trailing pipe for empty q={q!r}: {out!r}'
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_empty_query_string_rejected(mock_aws_clients):
+    """Empty query_string returns an Invalid Input error without calling StartQuery."""
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+
+        result = await search_transaction_spans(
+            log_group_name='',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string='',
+            limit=None,
+            max_timeout=30,
+        )
+
+        assert result['status'] == 'Invalid Input'
+        assert 'query_string' in result['message']
+        mock_aws_clients['logs_client'].start_query.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_whitespace_query_string_rejected(mock_aws_clients):
+    """Whitespace-only query_string also returns Invalid Input (not a bare SOURCE that would error in CWL)."""
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+
+        result = await search_transaction_spans(
+            log_group_name='',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string='   \n\t  ',
+            limit=None,
+            max_timeout=30,
+        )
+
+        assert result['status'] == 'Invalid Input'
+        mock_aws_clients['logs_client'].start_query.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_log_group_name_ignored_surfaced_in_response(
+    mock_aws_clients,
+):
+    """When log_group_name is dropped because of a user SOURCE clause, the response says so."""
+    user_query = (
+        'SOURCE logGroups(namePrefix: ["my/spans"]) '
+        '| filterIndex @data_format = "AWS-OTEL-TRACE-V1" '
+        '| fields @timestamp'
+    )
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+        mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
+        mock_aws_clients['logs_client'].get_query_results.return_value = {
+            'queryId': 'test-query-id',
+            'status': 'Complete',
+            'statistics': {'recordsMatched': 0},
+            'results': [],
+        }
+
+        result = await search_transaction_spans(
+            log_group_name='ignored-log-group',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string=user_query,
+            limit=None,
+            max_timeout=30,
+        )
+
+        assert result['log_group_name_ignored'] is True
+        assert 'SOURCE' in result['log_group_name_ignored_reason']
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_log_group_name_ignored_absent_in_normal_response(
+    mock_aws_clients,
+):
+    """The ignored flag must NOT leak into responses where log_group_name was actually used."""
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+        mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
+        mock_aws_clients['logs_client'].get_query_results.return_value = {
+            'queryId': 'test-query-id',
+            'status': 'Complete',
+            'statistics': {'recordsMatched': 0},
+            'results': [],
+        }
+
+        result = await search_transaction_spans(
+            log_group_name='my-lg',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string='fields @timestamp',
+            limit=None,
+            max_timeout=30,
+        )
+
+        assert 'log_group_name_ignored' not in result
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_log_group_name_ignored_surfaced_on_timeout(
+    mock_aws_clients,
+):
+    """On Polling Timeout, the ignored flag and reason are still surfaced in the response."""
+    user_query = 'SOURCE logGroups(namePrefix: ["my/spans"]) | fields @timestamp'
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        with patch(
+            'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.timer'
+        ) as mock_timer:
+            with patch('asyncio.sleep', new_callable=AsyncMock):
+                mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+                mock_aws_clients['logs_client'].start_query.return_value = {
+                    'queryId': 'test-query-id'
+                }
+                mock_aws_clients['logs_client'].get_query_results.return_value = {
+                    'status': 'Running'
+                }
+                mock_timer.side_effect = [0, 0, 0, 31, 31]
+
+                result = await search_transaction_spans(
+                    log_group_name='ignored-log-group',
+                    start_time='2024-01-01T00:00:00+00:00',
+                    end_time='2024-01-01T01:00:00+00:00',
+                    query_string=user_query,
+                    limit=None,
+                    max_timeout=30,
+                )
+
+                assert result['status'] == 'Polling Timeout'
+                assert result['log_group_name_ignored'] is True
+                assert 'SOURCE' in result['log_group_name_ignored_reason']
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_injection_not_confused_by_data_format_prefix(
+    mock_aws_clients,
+):
+    """A field like @data_format_version should NOT suppress the @data_format filterIndex."""
+    user_query = 'fields @data_format_version, @timestamp'
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+        mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
+        mock_aws_clients['logs_client'].get_query_results.return_value = {
+            'queryId': 'test-query-id',
+            'status': 'Complete',
+            'results': [],
+        }
+
+        await search_transaction_spans(
+            log_group_name='',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string=user_query,
+            limit=None,
+            max_timeout=30,
+        )
+
+        call_args = mock_aws_clients['logs_client'].start_query.call_args[1]
+        assert 'filterIndex @data_format = "AWS-OTEL-TRACE-V1"' in call_args['queryString']
+
+
+@pytest.mark.asyncio
+async def test_search_transaction_spans_source_check_not_confused_by_identifier_prefix(
+    mock_aws_clients,
+):
+    """A leading token like `sourced` must not be mistaken for a SOURCE clause."""
+    # `sourced` isn't a real CWLI keyword, but it's a worst-case prefix collision test.
+    user_query = 'sourced_spans | fields @timestamp'
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.check_transaction_search_enabled'
+    ) as mock_check:
+        mock_check.return_value = (True, 'CloudWatchLogs', 'ACTIVE')
+        mock_aws_clients['logs_client'].start_query.return_value = {'queryId': 'test-query-id'}
+        mock_aws_clients['logs_client'].get_query_results.return_value = {
+            'queryId': 'test-query-id',
+            'status': 'Complete',
+            'results': [],
+        }
+
+        await search_transaction_spans(
+            log_group_name='',
+            start_time='2024-01-01T00:00:00+00:00',
+            end_time='2024-01-01T01:00:00+00:00',
+            query_string=user_query,
+            limit=None,
+            max_timeout=30,
+        )
+
+        call_args = mock_aws_clients['logs_client'].start_query.call_args[1]
+        # Because the token isn't actually SOURCE, both injections should fire.
+        assert 'SOURCE logGroups()' in call_args['queryString']
+        assert 'filterIndex @data_format = "AWS-OTEL-TRACE-V1"' in call_args['queryString']
 
 
 @pytest.mark.asyncio
@@ -1774,336 +1939,6 @@ async def test_list_slis_general_exception(mock_aws_clients):
     result = await list_slis(hours=24)
 
     assert 'Error getting SLI status: Service unavailable' in result
-
-
-@pytest.mark.asyncio
-async def test_query_sampled_traces_with_defaults(mock_aws_clients):
-    """Test query_sampled_traces with default start_time and end_time."""
-    mock_trace_response = {
-        'TraceSummaries': [
-            {
-                'Id': 'trace1',
-                'Duration': 100,
-                'HasError': True,
-                'ErrorRootCauses': [
-                    {
-                        'Services': [
-                            {
-                                'Name': 'test-service',
-                                'Names': ['test-service'],
-                                'Type': 'AWS::ECS::Service',
-                                'AccountId': '123456789012',
-                                'EntityPath': [
-                                    {'Name': 'test-service', 'Coverage': 1.0, 'Remote': False}
-                                ],
-                                'Inferred': False,
-                            }
-                        ],
-                        'ClientImpacting': True,
-                    }
-                ],
-            }
-        ]
-    }
-
-    with patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.get_trace_summaries_paginated'
-    ) as mock_paginated:
-        mock_paginated.return_value = mock_trace_response['TraceSummaries']
-
-        # Call without start_time and end_time to test defaults
-        result_json = await query_sampled_traces(
-            filter_expression='service("test-service")',
-            start_time=None,
-            end_time=None,
-            region='us-east-1',
-        )
-
-        result = json.loads(result_json)
-        assert result['TraceCount'] == 1
-        assert result['TraceSummaries'][0]['HasError'] is True
-
-        # Verify the time window was set to 3 hours
-        call_args = mock_paginated.call_args[0]
-        time_diff = call_args[2] - call_args[1]  # end_time - start_time
-        assert 2.9 < time_diff.total_seconds() / 3600 < 3.1  # Approximately 3 hours
-
-
-@pytest.mark.asyncio
-async def test_query_sampled_traces_with_annotations(mock_aws_clients):
-    """Test query_sampled_traces with annotations filtering."""
-    mock_trace = {
-        'Id': 'trace1',
-        'Duration': 100,
-        'Annotations': {
-            'aws.local.operation': 'GetItem',
-            'aws.remote.operation': 'Query',
-            'custom.field': 'should-be-filtered',
-            'another.field': 'also-filtered',
-        },
-        'Users': [
-            {'UserName': 'user1', 'ServiceIds': []},
-            {'UserName': 'user2', 'ServiceIds': []},
-            {'UserName': 'user3', 'ServiceIds': []},  # Should be limited to 2
-        ],
-    }
-
-    with patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.get_trace_summaries_paginated'
-    ) as mock_paginated:
-        mock_paginated.return_value = [mock_trace]
-
-        result_json = await query_sampled_traces(
-            start_time='2024-01-01T00:00:00Z',
-            end_time='2024-01-01T01:00:00Z',
-            filter_expression='service("test")',
-        )
-
-        result = json.loads(result_json)
-        trace_summary = result['TraceSummaries'][0]
-
-        # Check annotations were filtered
-        assert 'Annotations' in trace_summary
-        assert 'aws.local.operation' in trace_summary['Annotations']
-        assert 'aws.remote.operation' in trace_summary['Annotations']
-        assert 'custom.field' not in trace_summary['Annotations']
-
-        # Check users were limited
-        assert len(trace_summary['Users']) == 2
-
-
-@pytest.mark.asyncio
-async def test_query_sampled_traces_with_fault_causes(mock_aws_clients):
-    """Test query_sampled_traces with fault root causes."""
-    mock_trace = {
-        'Id': 'trace1',
-        'Duration': 100,
-        'HasFault': True,
-        'FaultRootCauses': [
-            {'Services': [{'Name': 'service1', 'Exceptions': [{'Message': 'Test fault error'}]}]},
-            {'Services': [{'Name': 'service2'}]},
-            {'Services': [{'Name': 'service3'}]},
-            {'Services': [{'Name': 'service4'}]},  # Should be limited to 3
-        ],
-        'ResponseTimeRootCauses': [{'Services': [{'Name': 'slow-service'}]}],
-    }
-
-    with patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.get_trace_summaries_paginated'
-    ) as mock_paginated:
-        mock_paginated.return_value = [mock_trace]
-
-        result_json = await query_sampled_traces(
-            start_time='2024-01-01T00:00:00Z', end_time='2024-01-01T01:00:00Z'
-        )
-
-        result = json.loads(result_json)
-        trace_summary = result['TraceSummaries'][0]
-
-        # Check root causes were limited to 3
-        assert len(trace_summary['FaultRootCauses']) == 3
-        assert 'ResponseTimeRootCauses' in trace_summary
-
-
-@pytest.mark.asyncio
-async def test_query_sampled_traces_general_exception(mock_aws_clients):
-    """Test query_sampled_traces with general exception."""
-    with patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.get_trace_summaries_paginated'
-    ) as mock_paginated:
-        mock_paginated.side_effect = Exception('Trace query failed')
-
-        result_json = await query_sampled_traces(
-            start_time='2024-01-01T00:00:00Z', end_time='2024-01-01T01:00:00Z'
-        )
-
-        result = json.loads(result_json)
-        assert 'error' in result
-        assert 'Trace query failed' in result['error']
-
-
-@pytest.mark.asyncio
-async def test_query_sampled_traces_datetime_conversion(mock_aws_clients):
-    """Test query_sampled_traces with datetime objects that need conversion."""
-    # The convert_datetime function in server.py only processes top-level fields,
-    # not nested datetime objects. Let's test with a datetime at the top level.
-    mock_trace = {
-        'Id': 'trace1',
-        'Duration': 100,
-        'Http': {'HttpStatus': 200, 'HttpMethod': 'GET'},
-        'StartTime': datetime.now(timezone.utc),  # This will be processed by convert_datetime
-        'EndTime': datetime.now(timezone.utc) + timedelta(minutes=1),
-    }
-
-    with patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.get_trace_summaries_paginated'
-    ) as mock_paginated:
-        mock_paginated.return_value = [mock_trace]
-
-        result_json = await query_sampled_traces(
-            start_time='2024-01-01T00:00:00Z', end_time='2024-01-01T01:00:00Z'
-        )
-
-        # Should not raise JSON serialization error
-        result = json.loads(result_json)
-        assert result['TraceCount'] == 1
-        # The datetime fields should have been converted during processing
-        trace_summary = result['TraceSummaries'][0]
-        assert (
-            'StartTime' not in trace_summary
-        )  # These fields are not included in the simplified output
-        assert 'EndTime' not in trace_summary
-
-
-@pytest.mark.asyncio
-async def test_query_sampled_traces_deduplication(mock_aws_clients):
-    """Test query_sampled_traces deduplicates traces with same fault message.
-
-    Note: Only FaultRootCauses are deduplicated, not ErrorRootCauses.
-    This is because the primary use case is investigating server faults (5xx errors),
-    not client errors (4xx).
-    """
-    # Create 5 traces with the same fault message
-    mock_traces = [
-        {
-            'Id': f'trace{i}',
-            'Duration': 100 + i * 10,
-            'ResponseTime': 95 + i * 10,
-            'HasFault': True,
-            'FaultRootCauses': [
-                {
-                    'Services': [
-                        {
-                            'Name': 'test-service',
-                            'Exceptions': [{'Message': 'Database connection timeout'}],
-                        }
-                    ]
-                }
-            ],
-        }
-        for i in range(1, 6)
-    ]
-
-    # Add 2 traces with ErrorRootCauses (these should NOT be deduplicated)
-    mock_traces.extend(
-        [
-            {
-                'Id': 'trace6',
-                'Duration': 200,
-                'HasError': True,
-                'ErrorRootCauses': [
-                    {
-                        'Services': [
-                            {
-                                'Name': 'api-service',
-                                'Exceptions': [{'Message': 'Invalid API key'}],
-                            }
-                        ]
-                    }
-                ],
-            },
-            {
-                'Id': 'trace7',
-                'Duration': 210,
-                'HasError': True,
-                'ErrorRootCauses': [
-                    {
-                        'Services': [
-                            {
-                                'Name': 'api-service',
-                                'Exceptions': [{'Message': 'Invalid API key'}],
-                            }
-                        ]
-                    }
-                ],
-            },
-        ]
-    )
-
-    # Add 2 healthy traces
-    mock_traces.extend(
-        [
-            {
-                'Id': 'trace8',
-                'Duration': 50,
-                'ResponseTime': 45,
-                'HasError': False,
-                'HasFault': False,
-            },
-            {
-                'Id': 'trace9',
-                'Duration': 55,
-                'ResponseTime': 50,
-                'HasError': False,
-                'HasFault': False,
-            },
-        ]
-    )
-
-    with patch(
-        'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.get_trace_summaries_paginated'
-    ) as mock_paginated:
-        mock_paginated.return_value = mock_traces
-
-        result_json = await query_sampled_traces(
-            start_time='2024-01-01T00:00:00Z', end_time='2024-01-01T01:00:00Z'
-        )
-
-        result = json.loads(result_json)
-
-        # Verify deduplication worked - should only have 5 traces
-        # 1 for database timeout fault (deduplicated from 5)
-        # 2 for API key errors (NOT deduplicated - only faults are deduped)
-        # 2 healthy traces (not deduplicated)
-        assert result['TraceCount'] == 5
-        assert len(result['TraceSummaries']) == 5
-
-        # Verify deduplication stats
-        assert 'DeduplicationStats' in result
-        assert result['DeduplicationStats']['OriginalTraceCount'] == 9
-        assert result['DeduplicationStats']['DuplicatesRemoved'] == 4  # 9 - 5 = 4
-        assert (
-            result['DeduplicationStats']['UniqueFaultMessages'] == 1
-        )  # Only counting FaultRootCauses
-
-        # Find the trace with fault
-        db_trace = next(
-            (
-                t
-                for t in result['TraceSummaries']
-                if t.get('FaultRootCauses')
-                and any(
-                    'Database connection timeout' in str(s.get('Exceptions', []))
-                    for cause in t['FaultRootCauses']
-                    for s in cause.get('Services', [])
-                )
-            ),
-            None,
-        )
-        assert db_trace is not None
-        assert db_trace['HasFault'] is True
-
-        # Verify both error traces are present (not deduplicated)
-        error_traces = [
-            t
-            for t in result['TraceSummaries']
-            if t.get('ErrorRootCauses')
-            and any(
-                'Invalid API key' in str(s.get('Exceptions', []))
-                for cause in t['ErrorRootCauses']
-                for s in cause.get('Services', [])
-            )
-        ]
-        assert len(error_traces) == 2  # Both error traces should be kept
-        assert all(t['HasError'] is True for t in error_traces)
-
-        # Verify healthy traces are included
-        healthy_count = sum(
-            1
-            for t in result['TraceSummaries']
-            if not t.get('HasError') and not t.get('HasFault') and not t.get('HasThrottle')
-        )
-        assert healthy_count == 2
 
 
 def test_main_success(mock_aws_clients):

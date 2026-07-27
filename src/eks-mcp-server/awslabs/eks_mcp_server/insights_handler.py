@@ -135,13 +135,14 @@ class InsightsHandler:
             # Always use the default EKS client
             eks_client = self.eks_client
 
-            # Determine operation mode based on whether insight_id is provided
-            detail_mode = insight_id is not None
+            # Treat empty or whitespace-only insight_id as unset (list mode).
+            normalized_insight_id = insight_id.strip() if insight_id else None
+            detail_mode = bool(normalized_insight_id)
 
             if detail_mode:
                 # Get details for a specific insight
                 return await self._get_insight_detail(
-                    ctx, eks_client, cluster_name, insight_id, next_token
+                    ctx, eks_client, cluster_name, normalized_insight_id, next_token
                 )
             else:
                 # List all insights with optional category filter

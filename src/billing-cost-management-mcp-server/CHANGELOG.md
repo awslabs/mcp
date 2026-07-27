@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 ### Added
+- Added AWS Compute Optimizer Automation support via a `compute-optimizer-automation` tool (`GetAutomationEvent`, `GetAutomationRule`, `GetEnrollmentConfiguration`, `ListAccounts`, `ListAutomationEvents`, `ListAutomationEventSteps`, `ListAutomationEventSummaries`, `ListAutomationRules`, `ListRecommendedActions`, `ListRecommendedActionSummaries`, `ListAutomationRulePreview`, `ListAutomationRulePreviewSummaries`, `ListTagsForResource`)
 - Extending support for Billing and Cost Management Pricing Calculator's Workload estimate (`CreateWorkloadEstimate`, `BatchCreateWorkloadEstimateUsage`).
 - Added AWS Billing Conductor tools to analize billing groups, account associations, billing group cost reports, pricing rules/plans, and custom line items
 - Added AWS Billing tools for managing and querying billing views

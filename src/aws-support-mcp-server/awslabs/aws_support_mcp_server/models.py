@@ -552,18 +552,16 @@ class CreateCaseCategory(BaseModel):
 class DescribeCreateCaseOptionsResponse(BaseModel):
     """Response model for describing create case options."""
 
-    category_list: List[CreateCaseCategory] = Field(
+    communication_types: List[Dict[str, Any]] = Field(
         ...,
-        description='The list of available categories for the specified service',
-        alias='categoryList',
+        description='Communication type options with supported hours and dates without support',
+        alias='communicationTypes',
     )
-    severity_levels: List[SeverityLevel] = Field(
+    language_availability: str = Field(
         ...,
-        description='The list of available severity levels for the specified service',
-        alias='severityLevels',
+        description='Language availability: available, best_effort, or unavailable',
+        alias='languageAvailability',
     )
-    status: str = Field('success', description='The status of the operation')
-    message: str = Field(..., description='A message describing the result of the operation')
 
     class Config:
         """Pydantic model configuration."""
@@ -573,15 +571,18 @@ class DescribeCreateCaseOptionsResponse(BaseModel):
     def model_dump(self, **kwargs) -> Dict[str, JsonValue]:  # type: ignore
         """Convert model to dictionary."""
         return {
-            'categoryList': [cat.model_dump() for cat in self.category_list],
-            'severityLevels': [sev.model_dump() for sev in self.severity_levels],
+            'communicationTypes': cast(JsonValue, self.communication_types),
+            'languageAvailability': self.language_availability,
         }
 
 
 class AttachmentData(BaseModel):
     """Model for attachment data."""
 
-    data: str = Field(..., description='The base64-encoded contents of the attachment')
+    data: str = Field(
+        ...,
+        description='The file contents as a base64-encoded string (encode once, the SDK handles wire encoding)',
+    )
     file_name: str = Field(
         ..., description='The name of the attachment file', alias='fileName', min_length=1
     )
@@ -685,6 +686,21 @@ class DescribeSupportedLanguagesResponse(BaseModel):
     """Response model for describing supported languages."""
 
     languages: List[str] = Field(..., description='The list of supported language codes')
+    status: str = Field('success', description='The status of the operation')
+    message: str = Field(
+        ..., description='A message describing the result of the operation', min_length=1
+    )
+
+    class Config:
+        """Pydantic model configuration."""
+
+
+class DescribeAttachmentResponse(BaseModel):
+    """Response model for describing an attachment."""
+
+    attachment: Dict[str, Any] = Field(
+        ..., description='The attachment data including fileName and base64-encoded data'
+    )
     status: str = Field('success', description='The status of the operation')
     message: str = Field(
         ..., description='A message describing the result of the operation', min_length=1

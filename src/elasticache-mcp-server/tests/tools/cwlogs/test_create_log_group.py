@@ -95,3 +95,15 @@ async def test_create_log_group_error():
 
         assert 'error' in result
         assert 'Log group already exists' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_create_log_group_readonly_mode():
+    """Test create_log_group in readonly mode."""
+    from awslabs.elasticache_mcp_server.context import Context
+    from unittest.mock import patch
+
+    with patch.object(Context, 'readonly_mode', return_value=True):
+        result = await create_log_group(log_group_name='test-log-group')
+        assert 'error' in result
+        assert 'readonly mode' in result['error']

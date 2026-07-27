@@ -20,6 +20,7 @@ It supports both markdown and CSV output formats with detailed cost breakdowns.
 
 import csv
 import io
+import os
 import re
 from awslabs.aws_pricing_mcp_server.helpers import CostAnalysisHelper
 from awslabs.aws_pricing_mcp_server.static import COST_REPORT_TEMPLATE
@@ -44,6 +45,67 @@ SKIP_KEYS = {
 COST_FIELDS = {'monthly_cost', 'cost', 'price', 'one_time_cost', 'total_cost'}
 
 MONETARY_FIELDS = {'cost', 'price', 'rate', 'fee', 'charge', 'amount', 'total'}
+
+# Environment variable that overrides the base directory reports may be written to.
+# Defaults to the current working directory.
+OUTPUT_DIR_ENV_VAR = 'AWS_PRICING_MCP_OUTPUT_DIR'
+
+
+class OutputPathError(ValueError):
+    """Raised when output_file is rejected by path-confinement validation."""
+
+
+def _validate_output_path(output_file: str) -> Path:
+    """Resolve and confine output_file within the permitted output directory.
+
+    The base directory defaults to the current working directory and can be
+    overridden with the AWS_PRICING_MCP_OUTPUT_DIR environment variable. Paths
+    are canonicalized with resolve() so that '..' segments, absolute paths and
+    symlinks that escape the base directory are all rejected.
+
+    Args:
+        output_file: Caller-supplied destination path for the report.
+
+    Returns:
+        The validated, fully-resolved path contained within the base directory.
+
+    Raises:
+        OutputPathError: if output_file contains '..' segments or resolves
+            outside the permitted base directory.
+    """
+    base = Path(os.environ.get(OUTPUT_DIR_ENV_VAR) or Path.cwd()).resolve()
+
+    if '..' in Path(output_file).parts:
+        raise OutputPathError(f"output_file '{output_file}' must not contain '..' path segments")
+
+    resolved = (base / output_file).resolve()
+    if not resolved.is_relative_to(base):
+        raise OutputPathError(
+            f"output_file '{output_file}' resolves outside the permitted output directory '{base}'"
+        )
+
+    return resolved
+
+
+async def _write_report_file(
+    output_file: str, content: str, ctx: Optional[Context] = None
+) -> None:
+    """Validate the destination and write report content to a confined path.
+
+    Args:
+        output_file: Caller-supplied destination path for the report.
+        content: Report content to write.
+        ctx: Optional MCP context for logging.
+
+    Raises:
+        OutputPathError: if output_file is rejected by _validate_output_path.
+    """
+    safe_path = _validate_output_path(output_file)
+    safe_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(safe_path, 'w') as f:
+        f.write(content)
+    if ctx:
+        await ctx.info(f'Report saved to {safe_path}')
 
 
 @dataclass
@@ -772,16 +834,7 @@ async def _generate_custom_data_report(
 
     # Write to file if requested
     if output_file:
-        try:
-            output_path = Path(output_file)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(output_file, 'w') as f:
-                f.write(report)
-            if ctx:
-                await ctx.info(f'Report saved to {output_file}')
-        except Exception as e:
-            if ctx:
-                await ctx.error(f'Failed to write report to file: {e}')
+        await _write_report_file(output_file, report, ctx)
 
     return report
 
@@ -921,16 +974,7 @@ async def _generate_pricing_data_report(
 
     # Write to file if requested
     if output_file:
-        try:
-            output_path = Path(output_file)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(output_file, 'w') as f:
-                f.write(report)
-            if ctx:
-                await ctx.info(f'Report saved to {output_file}')
-        except Exception as e:
-            if ctx:
-                await ctx.error(f'Failed to write report to file: {e}')
+        await _write_report_file(output_file, report, ctx)
 
     return report
 
@@ -1068,16 +1112,7 @@ async def _generate_csv_report(
 
     # Write to file if requested
     if output_file:
-        try:
-            output_path = Path(output_file)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(output_file, 'w') as f:
-                f.write(csv_content)
-            if ctx:
-                await ctx.info(f'CSV report saved to {output_file}')
-        except Exception as e:
-            if ctx:
-                await ctx.error(f'Failed to write CSV report to file: {e}')
+        await _write_report_file(output_file, csv_content, ctx)
 
     return csv_content
 
@@ -1186,6 +1221,10 @@ async def generate_cost_report(
                     params=params,
                     format=format,
                 )
+    except OutputPathError:
+        # Security rejection of output_file must not be swallowed into a
+        # success-looking error string; surface it to the caller.
+        raise
     except Exception as e:
         if ctx:
             await ctx.error(f'Error generating cost report: {str(e)}')

@@ -18,6 +18,8 @@ import os
 import pytest
 from awslabs.aws_pricing_mcp_server.helpers import CostAnalysisHelper
 from awslabs.aws_pricing_mcp_server.report_generator import (
+    OUTPUT_DIR_ENV_VAR,
+    OutputPathError,
     ServiceInfo,
     _create_cost_calculation_table,
     _create_free_tier_info,
@@ -30,6 +32,8 @@ from awslabs.aws_pricing_mcp_server.report_generator import (
     _generate_pricing_data_report,
     _process_custom_sections,
     _process_recommendations,
+    _validate_output_path,
+    _write_report_file,
     generate_cost_report,
 )
 
@@ -156,8 +160,9 @@ class TestReportGenerator:
         assert '$40' in table  # High usage (200%)
 
     @pytest.mark.asyncio
-    async def test_generate_custom_data_report(self, mock_context, temp_output_dir):
+    async def test_generate_custom_data_report(self, mock_context, temp_output_dir, monkeypatch):
         """Test generating a report from custom data."""
+        monkeypatch.setenv('AWS_PRICING_MCP_OUTPUT_DIR', temp_output_dir)
         custom_cost_data = {
             'project_name': 'Test Project',
             'description': 'A test project',
@@ -191,8 +196,9 @@ class TestReportGenerator:
         assert report is not None
 
     @pytest.mark.asyncio
-    async def test_generate_csv_report(self, mock_context, temp_output_dir):
+    async def test_generate_csv_report(self, mock_context, temp_output_dir, monkeypatch):
         """Test generating a CSV report."""
+        monkeypatch.setenv('AWS_PRICING_MCP_OUTPUT_DIR', temp_output_dir)
         cost_data = {
             'project_name': 'Test Project',
             'services': {
@@ -219,9 +225,10 @@ class TestReportGenerator:
 
     @pytest.mark.asyncio
     async def test_generate_cost_report_markdown(
-        self, mock_context, sample_pricing_data_web, temp_output_dir
+        self, mock_context, sample_pricing_data_web, temp_output_dir, monkeypatch
     ):
         """Test the main generate_cost_report function with markdown output."""
+        monkeypatch.setenv('AWS_PRICING_MCP_OUTPUT_DIR', temp_output_dir)
         output_file = os.path.join(temp_output_dir, 'report.md')
         report = await generate_cost_report(
             pricing_data=sample_pricing_data_web,
@@ -236,9 +243,10 @@ class TestReportGenerator:
 
     @pytest.mark.asyncio
     async def test_generate_cost_report_csv(
-        self, mock_context, sample_pricing_data_web, temp_output_dir
+        self, mock_context, sample_pricing_data_web, temp_output_dir, monkeypatch
     ):
         """Test the main generate_cost_report function with CSV output."""
+        monkeypatch.setenv('AWS_PRICING_MCP_OUTPUT_DIR', temp_output_dir)
         output_file = os.path.join(temp_output_dir, 'report.csv')
         report = await generate_cost_report(
             pricing_data=sample_pricing_data_web,
@@ -377,3 +385,120 @@ class TestReportGenerator:
         assert service.usage_quantities == {'requests': '1M'}
         assert service.calculation_details == '$0.20 × 1M requests'
         assert service.free_tier_info == '1M free requests per month'
+
+
+class TestOutputPathValidation:
+    """Tests for output_file path confinement.
+
+    Reports may only be written within the permitted base directory; paths that
+    resolve outside it, '..' traversal segments, and symlink escapes are
+    rejected.
+    """
+
+    def test_valid_relative_path_is_contained(self, tmp_path, monkeypatch):
+        """A normal relative path resolves inside the base directory."""
+        monkeypatch.setenv(OUTPUT_DIR_ENV_VAR, str(tmp_path))
+
+        resolved = _validate_output_path('reports/cost.md')
+
+        assert resolved == (tmp_path / 'reports' / 'cost.md').resolve()
+
+    def test_absolute_path_within_base_is_allowed(self, tmp_path, monkeypatch):
+        """An absolute path that stays inside the base is permitted."""
+        monkeypatch.setenv(OUTPUT_DIR_ENV_VAR, str(tmp_path))
+        target = tmp_path / 'sub' / 'cost.md'
+
+        resolved = _validate_output_path(str(target))
+
+        assert resolved == target.resolve()
+
+    def test_absolute_path_outside_base_is_rejected(self, tmp_path, monkeypatch):
+        """An absolute path outside the base directory is rejected."""
+        monkeypatch.setenv(OUTPUT_DIR_ENV_VAR, str(tmp_path))
+
+        with pytest.raises(OutputPathError):
+            _validate_output_path('/etc/passwd')
+
+    def test_parent_traversal_is_rejected(self, tmp_path, monkeypatch):
+        """A leading '..' escape is rejected."""
+        monkeypatch.setenv(OUTPUT_DIR_ENV_VAR, str(tmp_path))
+
+        with pytest.raises(OutputPathError, match=r'\.\.'):
+            _validate_output_path('../escape.md')
+
+    def test_nested_parent_traversal_is_rejected(self, tmp_path, monkeypatch):
+        """A '..' segment nested within the path is rejected."""
+        monkeypatch.setenv(OUTPUT_DIR_ENV_VAR, str(tmp_path))
+
+        with pytest.raises(OutputPathError):
+            _validate_output_path('reports/../../escape.md')
+
+    def test_symlink_escape_is_rejected(self, tmp_path, monkeypatch):
+        """A symlink inside the base that points outside is rejected."""
+        outside = tmp_path / 'outside'
+        outside.mkdir()
+        base = tmp_path / 'base'
+        base.mkdir()
+        (base / 'link').symlink_to(outside, target_is_directory=True)
+        monkeypatch.setenv(OUTPUT_DIR_ENV_VAR, str(base))
+
+        with pytest.raises(OutputPathError):
+            _validate_output_path('link/evil.md')
+
+    def test_defaults_to_cwd_when_env_unset(self, tmp_path, monkeypatch):
+        """With no env override, the base directory is the current working dir."""
+        monkeypatch.delenv(OUTPUT_DIR_ENV_VAR, raising=False)
+        monkeypatch.chdir(tmp_path)
+
+        resolved = _validate_output_path('cost.md')
+
+        assert resolved == (tmp_path / 'cost.md').resolve()
+
+    def test_absolute_and_traversal_outside_base_rejected(self, tmp_path, monkeypatch):
+        """Both an absolute path outside the base and a '../' escape are rejected."""
+        monkeypatch.setenv(OUTPUT_DIR_ENV_VAR, str(tmp_path))
+
+        with pytest.raises(OutputPathError):
+            _validate_output_path(str(tmp_path.parent / 'offlimits' / 'pwned.md'))
+        with pytest.raises(OutputPathError):
+            _validate_output_path('../../offlimits/pwned.md')
+
+    @pytest.mark.asyncio
+    async def test_write_report_file_writes_within_base(self, tmp_path, monkeypatch, mock_context):
+        """_write_report_file creates parent dirs and writes inside the base."""
+        monkeypatch.setenv(OUTPUT_DIR_ENV_VAR, str(tmp_path))
+
+        await _write_report_file('nested/out.md', 'hello', mock_context)
+
+        written = tmp_path / 'nested' / 'out.md'
+        assert written.read_text() == 'hello'
+        mock_context.info.assert_awaited()
+
+    @pytest.mark.asyncio
+    async def test_write_report_file_rejects_traversal_and_writes_nothing(
+        self, tmp_path, monkeypatch, mock_context
+    ):
+        """A rejected path raises and leaves no file behind."""
+        monkeypatch.setenv(OUTPUT_DIR_ENV_VAR, str(tmp_path))
+
+        with pytest.raises(OutputPathError):
+            await _write_report_file('../evil.md', 'pwned', mock_context)
+
+        assert not (tmp_path.parent / 'evil.md').exists()
+
+    @pytest.mark.asyncio
+    async def test_generate_cost_report_raises_on_traversal(
+        self, mock_context, sample_pricing_data_web, tmp_path, monkeypatch
+    ):
+        """End-to-end: a traversal output_file propagates OutputPathError."""
+        monkeypatch.setenv(OUTPUT_DIR_ENV_VAR, str(tmp_path))
+
+        with pytest.raises(OutputPathError):
+            await generate_cost_report(
+                pricing_data=sample_pricing_data_web,
+                service_name='AWS Lambda',
+                output_file='../../../tmp/evil.md',
+                ctx=mock_context,
+            )
+
+        assert not (tmp_path.parent / 'tmp' / 'evil.md').exists()
