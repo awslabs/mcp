@@ -438,6 +438,127 @@ class TestParseListFilesResponse:
         assert file_paths == ['/home/user/data.csv']
         assert 'data.csv' in raw_content
 
+    def test_parse_long_format_without_date_fields(self):
+        """A mode row with no date columns still yields the trailing name.
+
+        Some busybox/minimal `ls -l` variants emit only mode, links, owner,
+        group and size before the name.
+        """
+        response = {
+            'stream': [
+                {
+                    'result': {
+                        'content': [
+                            {'type': 'text', 'text': '-rw-r--r-- 1 root root 12 a.csv'},
+                        ],
+                    },
+                },
+            ],
+        }
+
+        file_paths, _, _ = _parse_list_files_response(response)
+
+        assert file_paths == ['a.csv']
+
+    def test_parse_mode_like_line_too_short_is_kept_verbatim(self):
+        """A mode-like first field with too few columns falls back to the raw line.
+
+        Guards against truncating a legitimate 10-character file name that
+        happens to start with one of the ls type characters.
+        """
+        response = {
+            'stream': [
+                {
+                    'result': {
+                        'content': [
+                            {'type': 'text', 'text': 'data-1.csv 42'},
+                        ],
+                    },
+                },
+            ],
+        }
+
+        file_paths, _, _ = _parse_list_files_response(response)
+
+        assert file_paths == ['data-1.csv 42']
+
+    def test_parse_skips_events_without_result(self):
+        """Stream events lacking a 'result' key are ignored."""
+        response = {
+            'stream': [
+                {'metadata': {'latencyMs': 3}},
+                {'result': {'content': [{'type': 'text', 'text': 'a.csv'}]}},
+            ],
+        }
+
+        file_paths, raw_content, is_error = _parse_list_files_response(response)
+
+        assert file_paths == ['a.csv']
+        assert raw_content == 'a.csv'
+        assert is_error is False
+
+    def test_parse_ignores_unknown_block_types(self):
+        """Blocks that are neither text nor resource_link are skipped."""
+        response = {
+            'stream': [
+                {
+                    'result': {
+                        'content': [
+                            {'type': 'image', 'data': 'ignored'},
+                            {'type': 'text', 'text': 'a.csv'},
+                        ],
+                    },
+                },
+            ],
+        }
+
+        file_paths, raw_content, is_error = _parse_list_files_response(response)
+
+        assert file_paths == ['a.csv']
+        assert 'ignored' not in raw_content
+
+    def test_parse_resource_link_without_uri_or_name_is_skipped(self):
+        """A resource_link carrying neither uri nor name adds no entry."""
+        response = {
+            'stream': [
+                {
+                    'result': {
+                        'content': [
+                            {'type': 'resource_link', 'uri': '', 'name': ''},
+                        ],
+                    },
+                },
+            ],
+        }
+
+        file_paths, raw_content, is_error = _parse_list_files_response(response)
+
+        assert file_paths == []
+        assert raw_content == ''
+        assert is_error is False
+
+    def test_parse_flat_dict_ignores_non_text_blocks(self):
+        """Non-text blocks in a flat dict response are skipped."""
+        response = {
+            'content': [
+                {'type': 'resource_link', 'uri': 'file:///w/a.csv'},
+                {'type': 'text', 'text': 'a.csv'},
+            ],
+        }
+
+        file_paths, raw_content, is_error = _parse_list_files_response(response)
+
+        assert file_paths == ['a.csv']
+        assert raw_content == 'a.csv'
+
+    def test_parse_unexpected_response_type_returns_empty(self):
+        """A response that is neither dict nor str yields empty results."""
+        file_paths, raw_content, is_error = _parse_list_files_response(None)
+
+        assert file_paths == []
+        assert raw_content == ''
+        assert is_error is False
+
 
 class TestListFiles:
     """Test cases for list_files."""
