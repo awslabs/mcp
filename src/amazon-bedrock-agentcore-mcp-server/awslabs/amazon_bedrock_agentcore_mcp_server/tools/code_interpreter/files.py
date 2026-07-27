@@ -128,21 +128,53 @@ async def download_file(
     )
 
 
-def _parse_list_files_response(result: Any) -> tuple[list[str], str]:
+def _parse_listing_line(line: str) -> str | None:
+    """Extract a file name from one line of textual listing output.
+
+    Handles both bare names ('a.csv') and long-format `ls -l` rows
+    ('-rw-r--r-- 1 root root 12 Jan  1 00:00 a.csv'), where the name is the
+    final whitespace-delimited field. Returns None for lines that carry no
+    name, such as the 'total 8' header.
+    """
+    stripped = line.strip()
+    if not stripped or stripped.startswith('total '):
+        return None
+
+    fields = stripped.split()
+    # A long-format row starts with a 10-character mode string such as
+    # '-rw-r--r--' or 'drwxr-xr-x', followed by link count, owner, group and
+    # size. GNU ls then emits three date fields before the name; shorter
+    # variants omit them. Anything that is not a mode row is treated as a bare
+    # name so that names containing spaces survive intact.
+    first = fields[0]
+    if len(first) == 10 and first[0] in 'bcdlps-':
+        if len(fields) >= 9:
+            return ' '.join(fields[8:]) or None
+        if len(fields) >= 6:
+            return ' '.join(fields[5:]) or None
+
+    return stripped
+
+
+def _parse_list_files_response(result: Any) -> tuple[list[str], str, bool]:
     """Parse the EventStream response from invoke('listFiles').
 
     The API returns a streaming response with content blocks. For listFiles,
     expect 'text' blocks with listing output and 'resource_link' blocks with
     file URIs.
 
+    Falls back to flat-dict parsing if the SDK pre-consumes the stream in a
+    future version, mirroring _parse_invoke_response in execution.py.
+
     Args:
         result: Raw response from client.invoke('listFiles', ...).
 
     Returns:
-        Tuple of (file_paths, raw_content_text).
+        Tuple of (file_paths, raw_content_text, is_error).
     """
     files: list[str] = []
     text_parts: list[str] = []
+    is_error = False
 
     if isinstance(result, dict) and 'stream' in result:
         for event in result['stream']:
@@ -164,16 +196,32 @@ def _parse_list_files_response(result: Any) -> tuple[list[str], str]:
                     if entry:
                         files.append(entry)
 
-    # If no resource_link blocks were found, extract file paths from text output
-    if not files and text_parts:
-        raw_text = '\n'.join(text_parts)
-        for line in raw_text.splitlines():
-            stripped = line.strip()
-            if stripped and not stripped.startswith('total '):
-                files.append(stripped)
+            if event_result.get('isError'):
+                is_error = True
+    elif isinstance(result, dict):
+        is_error = bool(result.get('isError', False))
+        for block in result.get('content', []) or []:
+            if block.get('type') == 'text' and block.get('text'):
+                text_parts.append(block['text'])
+    elif isinstance(result, str):
+        text_parts.append(result)
 
     raw_content = '\n'.join(text_parts)
-    return files, raw_content
+
+    # An error response carries a diagnostic message, not a listing. Parsing it
+    # would turn the error text into a bogus file name that a caller could pass
+    # on to download_file, so leave `files` empty and let the caller report it.
+    if is_error:
+        return [], raw_content, True
+
+    # If no resource_link blocks were found, extract file names from text output
+    if not files and text_parts:
+        for line in raw_content.splitlines():
+            entry = _parse_listing_line(line)
+            if entry:
+                files.append(entry)
+
+    return files, raw_content, False
 
 
 async def list_files(
@@ -208,13 +256,24 @@ async def list_files(
             kwargs['directoryPath'] = directory_path
 
         raw = client.invoke('listFiles', kwargs)
-        files, content = _parse_list_files_response(raw)
+        files, content, is_error = _parse_list_files_response(raw)
 
     except Exception as e:
         error_msg = f'List files failed: {type(e).__name__}: {e}'
         logger.error(error_msg, exc_info=True)
         await ctx.error(error_msg)
         raise
+
+    if is_error:
+        error_msg = f'List files failed in {target}: {content}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return FileListResult(
+            files=[],
+            content=content,
+            message=error_msg,
+            is_error=True,
+        )
 
     count = len(files)
     message = (

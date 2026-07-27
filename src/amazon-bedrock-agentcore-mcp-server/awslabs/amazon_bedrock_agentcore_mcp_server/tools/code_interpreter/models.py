@@ -96,11 +96,14 @@ class FileListResult(BaseModel):
         files: List of file/directory paths in the sandbox.
         content: Raw text output of the file listing.
         message: Human-readable status message.
+        is_error: True if the listing failed, in which case files is empty and
+            content holds the error text from the sandbox.
     """
 
     files: list[str] = Field(default_factory=list, description='List of file/directory paths')
     content: str = Field(default='', description='Raw text output of the file listing')
     message: str = Field(default='', description='Human-readable status message')
+    is_error: bool = Field(default=False, description='True if the listing failed')
 
 
 class FileOperationResult(BaseModel):

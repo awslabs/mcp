@@ -229,7 +229,7 @@ class TestParseListFilesResponse:
             ],
         }
 
-        file_paths, raw_content = _parse_list_files_response(response)
+        file_paths, raw_content, is_error = _parse_list_files_response(response)
 
         assert file_paths == ['data.csv', 'scripts/run.py', 'README.md']
         assert 'data.csv' in raw_content
@@ -257,7 +257,7 @@ class TestParseListFilesResponse:
             ],
         }
 
-        file_paths, raw_content = _parse_list_files_response(response)
+        file_paths, raw_content, is_error = _parse_list_files_response(response)
 
         assert file_paths == ['/home/user/data.csv', '/home/user/output.json']
         assert raw_content == ''
@@ -276,7 +276,7 @@ class TestParseListFilesResponse:
             ],
         }
 
-        file_paths, _ = _parse_list_files_response(response)
+        file_paths, _, _ = _parse_list_files_response(response)
 
         assert file_paths == ['fallback.txt']
 
@@ -284,19 +284,116 @@ class TestParseListFilesResponse:
         """Empty stream returns no files."""
         response = {'stream': []}
 
-        file_paths, raw_content = _parse_list_files_response(response)
+        file_paths, raw_content, is_error = _parse_list_files_response(response)
 
         assert file_paths == []
         assert raw_content == ''
 
     def test_parse_no_stream_key(self):
-        """Response without stream key returns empty results."""
+        """Response with neither stream nor content returns empty results."""
         response = {'something_else': 'value'}
 
-        file_paths, raw_content = _parse_list_files_response(response)
+        file_paths, raw_content, is_error = _parse_list_files_response(response)
 
         assert file_paths == []
         assert raw_content == ''
+        assert is_error is False
+
+    def test_parse_flat_dict_without_stream(self):
+        """Flat dict is parsed if the SDK pre-consumes the stream."""
+        response = {'content': [{'type': 'text', 'text': 'a.csv\nb.csv'}]}
+
+        file_paths, raw_content, is_error = _parse_list_files_response(response)
+
+        assert file_paths == ['a.csv', 'b.csv']
+        assert 'a.csv' in raw_content
+        assert is_error is False
+
+    def test_parse_flat_dict_is_error(self):
+        """An error flag on a flat dict is surfaced."""
+        response = {'content': [{'type': 'text', 'text': 'boom'}], 'isError': True}
+
+        file_paths, raw_content, is_error = _parse_list_files_response(response)
+
+        assert file_paths == []
+        assert raw_content == 'boom'
+        assert is_error is True
+
+    def test_parse_bare_string_response(self):
+        """A bare string response is treated as listing text."""
+        file_paths, raw_content, is_error = _parse_list_files_response('a.csv\nb.csv')
+
+        assert file_paths == ['a.csv', 'b.csv']
+        assert raw_content == 'a.csv\nb.csv'
+        assert is_error is False
+
+    def test_parse_is_error_does_not_become_a_file_path(self):
+        """An error response yields no files, so error text cannot be used as a path."""
+        response = {
+            'stream': [
+                {
+                    'result': {
+                        'content': [
+                            {'type': 'text', 'text': "Error: directory '/nope' does not exist"},
+                        ],
+                        'isError': True,
+                    },
+                },
+            ],
+        }
+
+        file_paths, raw_content, is_error = _parse_list_files_response(response)
+
+        assert is_error is True
+        assert file_paths == []
+        assert 'does not exist' in raw_content
+
+    def test_parse_long_format_listing_extracts_names(self):
+        """`ls -l` rows yield bare file names, not whole permission lines."""
+        response = {
+            'stream': [
+                {
+                    'result': {
+                        'content': [
+                            {
+                                'type': 'text',
+                                'text': (
+                                    'total 8\n'
+                                    '-rw-r--r-- 1 root root   12 Jan  1 00:00 a.csv\n'
+                                    'drwxr-xr-x 2 root root 4096 Jan  1 00:00 sub\n'
+                                ),
+                            },
+                        ],
+                    },
+                },
+            ],
+        }
+
+        file_paths, _, is_error = _parse_list_files_response(response)
+
+        assert file_paths == ['a.csv', 'sub']
+        assert is_error is False
+
+    def test_parse_long_format_preserves_names_with_spaces(self):
+        """A long-format name containing spaces is kept whole."""
+        response = {
+            'stream': [
+                {
+                    'result': {
+                        'content': [
+                            {
+                                'type': 'text',
+                                'text': '-rw-r--r-- 1 root root 12 Jan  1 00:00 my report.csv',
+                            },
+                        ],
+                    },
+                },
+            ],
+        }
+
+        file_paths, _, _ = _parse_list_files_response(response)
+
+        assert file_paths == ['my report.csv']
 
     def test_parse_text_filters_total_line(self):
         """Text fallback parser filters 'total N' lines from ls-style output."""
@@ -312,7 +409,7 @@ class TestParseListFilesResponse:
             ],
         }
 
-        file_paths, _ = _parse_list_files_response(response)
+        file_paths, _, _ = _parse_list_files_response(response)
 
         assert file_paths == ['file1.py', 'file2.py']
 
@@ -335,7 +432,7 @@ class TestParseListFilesResponse:
             ],
         }
 
-        file_paths, raw_content = _parse_list_files_response(response)
+        file_paths, raw_content, is_error = _parse_list_files_response(response)
 
         # resource_link paths take priority; text is still in raw_content
         assert file_paths == ['/home/user/data.csv']
@@ -344,6 +441,65 @@ class TestParseListFilesResponse:
 
 class TestListFiles:
     """Test cases for list_files."""
+
+    @patch(f'{MODULE_PATH}.get_session_client')
+    async def test_list_files_reports_sandbox_error(self, mock_get_session, mock_ctx):
+        """An isError response is reported as a failure, not as a file named after the error."""
+        mock_client = MagicMock()
+        mock_client.invoke.return_value = {
+            'stream': [
+                {
+                    'result': {
+                        'content': [
+                            {'type': 'text', 'text': "Error: directory '/nope' does not exist"},
+                        ],
+                        'isError': True,
+                    },
+                },
+            ],
+        }
+        mock_get_session.return_value = mock_client
+
+        result = await files.list_files(
+            mock_ctx,
+            session_id='session-123',
+            directory_path='/nope',
+        )
+
+        assert result.is_error is True
+        assert result.files == []
+        assert 'Found' not in result.message
+        assert 'does not exist' in result.content
+        mock_ctx.error.assert_awaited_once()
+
+    @patch(f'{MODULE_PATH}.get_session_client')
+    async def test_list_files_long_format_output(self, mock_get_session, mock_ctx):
+        """`ls -l` style output yields bare file names."""
+        mock_client = MagicMock()
+        mock_client.invoke.return_value = {
+            'stream': [
+                {
+                    'result': {
+                        'content': [
+                            {
+                                'type': 'text',
+                                'text': (
+                                    'total 8\n'
+                                    '-rw-r--r-- 1 root root 12 Jan  1 00:00 a.csv\n'
+                                    'drwxr-xr-x 2 root root 40 Jan  1 00:00 sub\n'
+                                ),
+                            },
+                        ],
+                    },
+                },
+            ],
+        }
+        mock_get_session.return_value = mock_client
+
+        result = await files.list_files(mock_ctx, session_id='session-123')
+
+        assert result.files == ['a.csv', 'sub']
+        assert result.is_error is False
 
     @patch(f'{MODULE_PATH}.get_session_client')
     async def test_list_files_happy_path(self, mock_get_session, mock_ctx):
