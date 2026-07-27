@@ -93,8 +93,9 @@ def _branch_where(sql: str, rec_id: str, label_fragment: str) -> str:
             branch when several share a recommendation ID.
 
     Returns:
-        The text following the branch's own WHERE keyword. The last WHERE in the branch
-        is the branch predicate; earlier ones belong to the CTE or its subqueries.
+        The text following the branch's own WHERE keyword. That WHERE is the first one
+        after the branch's FROM data clause: earlier ones belong to the CTE, and later
+        ones may belong to a subquery inside the predicate itself.
 
     Raises:
         AssertionError: If no single branch matches.
@@ -108,8 +109,10 @@ def _branch_where(sql: str, rec_id: str, label_fragment: str) -> str:
         f'expected 1 branch for {rec_id}/{label_fragment}, got {len(matches)}'
     )
     branch = matches[0]
-    assert 'WHERE' in branch, f'branch {rec_id}/{label_fragment} has no predicate'
-    return branch.rsplit('WHERE', 1)[-1]
+    assert 'FROM data' in branch, f'branch {rec_id}/{label_fragment} does not select FROM data'
+    after_from = branch.rsplit('FROM data', 1)[-1]
+    assert 'WHERE' in after_from, f'branch {rec_id}/{label_fragment} has no predicate'
+    return after_from.split('WHERE', 1)[-1]
 
 
 # ---------------------------------------------------------------------------
@@ -658,6 +661,66 @@ class TestNodeTypeSubstitution:
         assert 'NodeDetails' not in recorded
         for sql in recorded.values():
             assert NODE_TYPE_UNKNOWN not in sql
+
+
+# ---------------------------------------------------------------------------
+# Spectrum QMR activity gate
+# ---------------------------------------------------------------------------
+
+
+def _query_sql(name: str) -> str:
+    """Return the SQL of a named diagnostic query."""
+    matches = [sql for query_name, _ct, sql in SIGNAL_EVALUATION_SQL if query_name == name]
+    assert len(matches) == 1, f'expected 1 query named {name}, got {len(matches)}'
+    return matches[0]
+
+
+class TestSpectrumActivityGate:
+    """The spectrum_scan QMR signal only applies to clusters that query the data lake."""
+
+    def test_spectrum_branch_requires_recent_s3_activity(self):
+        """The branch is gated on S3 external queries within the retained window.
+
+        spectrum_scan_size_mb and spectrum_scan_row_count only bound queries scanning S3
+        external data, so without such queries the missing rules are not actionable.
+        """
+        predicate = _branch_where(_query_sql('WLMConfig'), 'REC_019', 'spectrum_scan_size_mb')
+
+        assert 'SYS_EXTERNAL_QUERY_DETAIL' in predicate
+        assert "trim(source_type) = 'S3'" in predicate
+        assert 'dateadd(day, -7, getdate())' in predicate
+
+    @pytest.mark.parametrize(
+        'label_fragment',
+        [
+            'no query monitoring rules (QMR) defined',
+            'query_execution_time metric',
+            'query_temp_blocks_to_disk metric',
+        ],
+    )
+    def test_other_qmr_branches_stay_ungated(self, label_fragment):
+        """Only the Spectrum branch is gated; the other QMR signals apply to any cluster."""
+        predicate = _branch_where(_query_sql('WLMConfig'), 'REC_019', label_fragment)
+
+        assert 'SYS_EXTERNAL_QUERY_DETAIL' not in predicate
+
+    def test_qmr_branch_count_unchanged(self):
+        """Gating must not remove a QMR branch: REC_019 still has four in WLMConfig."""
+        sql = _query_sql('WLMConfig')
+
+        assert sql.count("'REC_019'") == 4
+
+    def test_gate_is_confined_to_wlmconfig_spectrum_branch(self):
+        """No other query gains a dependency on external query history.
+
+        ExtQueryPerformance reads the same view, but by design: it reports on external
+        queries, so it returns no rows when there are none.
+        """
+        users = {
+            name for name, _ct, sql in SIGNAL_EVALUATION_SQL if 'SYS_EXTERNAL_QUERY_DETAIL' in sql
+        }
+
+        assert users == {'WLMConfig', 'ExtQueryPerformance'}
 
 
 # ---------------------------------------------------------------------------
