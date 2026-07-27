@@ -93,7 +93,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-billing-cost-management-mcp-server"
-version = "0.0.27"
+version = "0.0.29"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
@@ -121,7 +121,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "boto3", specifier = ">=1.42.4" },
-    { name = "fastmcp", specifier = ">=2.14.0" },
+    { name = "fastmcp", specifier = ">=3.0.0" },
     { name = "loguru", specifier = ">=0.7.0" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.23.0" },
     { name = "pydantic", specifier = ">=2.10.6" },

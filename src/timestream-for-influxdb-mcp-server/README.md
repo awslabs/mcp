@@ -80,6 +80,27 @@ For Windows users, the MCP server configuration format is slightly different:
 }
 ```
 
+### InfluxDB Connection Security
+
+InfluxDB tools use the `INFLUXDB_URL`, `INFLUXDB_TOKEN`, and `INFLUXDB_ORG`
+environment variables when no connection parameters are supplied in a tool call.
+
+Connection parameters are treated as a single trust boundary:
+
+- If a tool call supplies any connection parameter, it must supply all parameters
+  required by that tool. Server environment credentials are never used to complete
+  a partial caller-supplied configuration.
+- A caller-supplied URL must match `INFLUXDB_URL` or an entry in the optional,
+  comma-separated `INFLUXDB_ALLOWED_URLS` environment variable.
+- Configure additional endpoints before allowing tool calls to target them. For
+  example, set `INFLUXDB_ALLOWED_URLS` to
+  `https://influxdb-a.example.com:8086,https://influxdb-b.example.com:8086`.
+
+This is a breaking change for clients that previously supplied only some connection
+parameters and relied on environment-variable fallback for the others. Update those
+clients to either omit all connection parameters or provide a complete configuration
+for an operator-approved URL.
+
 
 ### Available Tools
 

@@ -70,11 +70,84 @@ except ImportError:
 # Try to import prance, but don't fail if it's not installed
 try:
     from prance import ResolvingParser
+    from prance.util.resolver import RESOLVE_INTERNAL
 
     PRANCE_AVAILABLE = True
 except ImportError:
     PRANCE_AVAILABLE = False
     logger.warning('Prance library not found. Reference resolution will be limited.')
+
+
+def _reject_external_refs(node: Any) -> None:
+    """Reject any non-internal ``$ref`` before the spec reaches prance.
+
+    prance's default resolver (and its validation backend) dereferences
+    ``http(s)://`` and ``file://`` ``$ref`` targets using its own fetcher, which
+    bypasses the DNS-pinned, SSRF-validated fetch used for the root document.
+    A hostile spec served from a validation-passing host could therefore embed a
+    ``$ref`` pointing at internal services or cloud metadata (SSRF) or a local
+    file (LFI) and exfiltrate the resolved content. We refuse to resolve any
+    reference that is not a local, in-document reference (i.e. one that does not
+    start with ``#``), so no external network or filesystem access is ever
+    triggered by reference resolution.
+
+    Args:
+        node: A parsed spec fragment (dict, list, or scalar) to walk recursively.
+
+    Raises:
+        SSRFError: If an external (non-``#``) ``$ref`` is present anywhere.
+
+    """
+    if isinstance(node, dict):
+        ref = node.get('$ref')
+        if isinstance(ref, str) and not ref.startswith('#'):
+            raise SSRFError(
+                f'Refusing to resolve external $ref {ref!r} in OpenAPI spec; only '
+                'internal references (starting with "#") are allowed. External '
+                'http(s)://, file://, and relative-path references are blocked to '
+                'prevent SSRF and local file disclosure.'
+            )
+        for value in node.values():
+            _reject_external_refs(value)
+    elif isinstance(node, list):
+        for item in node:
+            _reject_external_refs(item)
+
+
+def _basic_parse(content: bytes) -> Any:
+    """Parse spec bytes as JSON, then YAML, without resolving any references.
+
+    Returns whatever the parser produces — normally a ``dict`` for an OpenAPI
+    document, but JSON/YAML may legally yield a list, scalar, or ``None``; the
+    caller (``_reject_external_refs``) handles any node type.
+
+    YAML is parsed with PyYAML when installed, then with ``ruamel-yaml`` (a
+    ``prance`` dependency) as a fallback. The ruamel fallback matters for the
+    external-``$ref`` prescan: ``prance`` parses YAML via ``ruamel-yaml``, which
+    accepts inputs PyYAML rejects (e.g. a tab after a mapping key). Without also
+    trying ruamel when PyYAML *fails*, such a document would be treated as
+    unparseable here, skip ``_reject_external_refs``, yet still be parsed and
+    ``$ref``-resolved by ``prance`` — silently re-opening the SSRF/LFI bypass. So
+    the prescan must never parse *less* than prance would.
+    """
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError as json_err:
+        # Try PyYAML first when present, but fall back to ruamel-yaml if PyYAML
+        # is absent OR rejects the document, so the prescan parses whatever
+        # prance (which uses ruamel) would. Only surface a parse error when no
+        # available YAML parser can read the content.
+        if yaml is not None:
+            try:
+                return yaml.safe_load(content)
+            except yaml.YAMLError:
+                pass
+        try:
+            import io
+            from ruamel.yaml import YAML
+        except ImportError:
+            raise json_err
+        return YAML(typ='safe').load(io.BytesIO(content))
 
 
 def _validate_url_sync(
@@ -218,33 +291,68 @@ def _pinned_fetch(
     raise SSRFFetchError(f'No resolved IPs available for {validated_url.original_url}')
 
 
+def _require_mapping(spec: Any) -> Dict[str, Any]:
+    """Return ``spec`` if it is a mapping, else raise a clear ``ValueError``.
+
+    JSON/YAML may legally parse to a list, scalar, or ``None``. Returning such a
+    value would make downstream validation (``'openapi' in spec``) raise an
+    opaque ``TypeError`` on non-iterable roots; enforcing a mapping here converts
+    malformed input into a clear error instead of an unhandled exception.
+    """
+    if not isinstance(spec, dict):
+        raise ValueError(f'OpenAPI spec must be a mapping at its root, got {type(spec).__name__}')
+    return spec
+
+
 def _parse_spec_bytes(content: bytes) -> Dict[str, Any]:
     """Parse fetched spec bytes into a dict.
 
-    Uses prance for ``$ref`` resolution when available, falling back to basic
-    JSON (then YAML) parsing.
+    Any external ``$ref`` is refused before prance sees the spec (see
+    ``_reject_external_refs``), then prance resolves internal references only.
+    Falls back to basic JSON (then YAML) parsing when prance is unavailable or
+    fails on a spec that has already passed the external-ref check. The returned
+    root is always a mapping; a non-mapping document raises ``ValueError``.
     """
+    # Refuse external references before any resolver/validator can dereference
+    # them. Parse once (best effort) purely for this safety check: if the bytes
+    # are not parseable as JSON/YAML there are no references to resolve, so we
+    # defer the parse error to prance / the basic fallback below. An SSRFError
+    # from the ref check propagates and is never swallowed by the fallback.
+    try:
+        basic = _basic_parse(content)
+    except (MemoryError, RecursionError):
+        # Resource-exhaustion failures are not "unparseable content" — let them
+        # propagate rather than masking them as a silent prescan skip.
+        raise
+    except Exception:
+        basic = None
+    if basic is not None:
+        _reject_external_refs(basic)
+
     if PRANCE_AVAILABLE:
         logger.info('Using prance for reference resolution')
         with tempfile.NamedTemporaryFile(suffix='.yaml', delete=False) as temp_file:
             temp_path = temp_file.name
             temp_file.write(content)
         try:
-            parser = ResolvingParser(temp_path)
+            # RESOLVE_INTERNAL restricts prance to in-document references; combined
+            # with the external-ref rejection above, no http(s)://, file://, or
+            # relative-path reference is ever fetched.
+            parser = ResolvingParser(temp_path, resolve_types=RESOLVE_INTERNAL)
             spec = parser.specification
             Path(temp_path).unlink(missing_ok=True)
-            return spec
+            return _require_mapping(spec)
+        except (MemoryError, RecursionError):
+            # Resource-exhaustion failures are non-recoverable; clean up the temp
+            # file and propagate rather than silently falling back to basic parsing.
+            Path(temp_path).unlink(missing_ok=True)
+            raise
         except Exception as e:
             logger.warning(f'Failed to parse with prance: {e}. Falling back to basic parsing.')
             Path(temp_path).unlink(missing_ok=True)
 
-    # Basic parsing without reference resolution: JSON first, then YAML.
-    try:
-        return json.loads(content)
-    except json.JSONDecodeError:
-        if yaml is None:
-            raise
-        return yaml.safe_load(content)
+    # Basic parsing (references already validated as internal-only above).
+    return _require_mapping(basic if basic is not None else _basic_parse(content))
 
 
 @cached(ttl_seconds=3600)  # Cache OpenAPI specs for 1 hour
@@ -344,12 +452,36 @@ def load_openapi_spec(
 
         logger.info(f'Loading OpenAPI spec from file: {path}')
         try:
+            # Refuse external references before prance can dereference them. This
+            # runs outside the prance try/except below so the SSRFError is never
+            # swallowed by the fallback-to-basic-parsing path. The parse here is
+            # best effort purely for the safety check: an unparseable file has no
+            # references to resolve, so its parse error is left to the existing
+            # handling below.
+            with open(spec_path, 'rb') as f:
+                try:
+                    prescan_spec = _basic_parse(f.read())
+                except (MemoryError, RecursionError):
+                    # Resource-exhaustion failures are not "unparseable content" —
+                    # let them propagate rather than masking them as a prescan skip.
+                    raise
+                except Exception:
+                    prescan_spec = None
+            if prescan_spec is not None:
+                _reject_external_refs(prescan_spec)
+
             if PRANCE_AVAILABLE:
                 logger.info('Using prance for reference resolution')
-                # Use prance for reference resolution if available
+                # Use prance for reference resolution if available. RESOLVE_INTERNAL
+                # restricts prance to in-document references; combined with the
+                # external-ref rejection above, no external file/URL is fetched.
                 try:
-                    parser = ResolvingParser(path)
+                    parser = ResolvingParser(path, resolve_types=RESOLVE_INTERNAL)
                     spec = parser.specification
+                except (MemoryError, RecursionError):
+                    # Resource-exhaustion failures are non-recoverable; propagate
+                    # rather than silently falling back to basic parsing.
+                    raise
                 except Exception as e:
                     logger.warning(
                         f'Failed to parse with prance: {e}. Falling back to basic parsing.'
@@ -393,6 +525,10 @@ def load_openapi_spec(
                         except Exception as yaml_err:
                             logger.error(f'Failed to parse YAML: {yaml_err}')
                             raise ValueError(f'Invalid YAML: {yaml_err}') from yaml_err
+
+            # Enforce a mapping root so validation gets a clear error rather than
+            # an opaque TypeError on a non-dict (list/scalar/None) document.
+            spec = _require_mapping(spec)
 
             # Validate the spec
             if validate_openapi_spec(spec):

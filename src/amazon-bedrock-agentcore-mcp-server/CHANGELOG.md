@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- **Browser `browser_evaluate`** — preserve non-ASCII text (CJK, emoji) in object/array results instead of emitting `\uXXXX` escapes, matching the scalar-string return path (`ensure_ascii=False`)
+
 ## 0.1.0 - 2026-05-14
 
 ### Added
