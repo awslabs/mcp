@@ -304,17 +304,42 @@ class TestErrorPropagation:
 
     @pytest.mark.asyncio
     async def test_permission_denied_aborts_review(self):
-        """A permission denied error aborts with a helpful superuser message."""
+        """A permission denied error aborts with the grant that resolves it."""
         execute_query_func = AsyncMock(
             side_effect=RuntimeError('permission denied for relation sys_auto_table_optimization')
         )
 
-        with pytest.raises(Exception, match='Review requires superuser'):
+        with pytest.raises(
+            Exception, match='Review requires read access to Redshift system views'
+        ):
             await review_cluster(
                 cluster_identifier='test-cluster',
                 execute_query_func=execute_query_func,
                 discover_clusters_func=_make_discover_clusters(),
             )
+
+    @pytest.mark.asyncio
+    async def test_permission_denied_message_names_the_working_grant(self):
+        """The message points at sys:monitor, not at ALTER USER CREATEUSER.
+
+        CREATEUSER cannot be granted to an IAM database user, so recommending it sends
+        callers down a path that always fails.
+        """
+        execute_query_func = AsyncMock(
+            side_effect=RuntimeError('permission denied for relation sys_auto_table_optimization')
+        )
+
+        with pytest.raises(Exception) as excinfo:
+            await review_cluster(
+                cluster_identifier='test-cluster',
+                execute_query_func=execute_query_func,
+                discover_clusters_func=_make_discover_clusters(),
+            )
+
+        message = str(excinfo.value)
+        assert 'GRANT ROLE sys:monitor' in message
+        assert 'CREATEUSER' not in message
+        assert 'sys_auto_table_optimization' in message
 
 
 # ---------------------------------------------------------------------------

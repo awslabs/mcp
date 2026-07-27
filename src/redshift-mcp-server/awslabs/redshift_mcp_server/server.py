@@ -86,7 +86,7 @@ This tool uses the Redshift Data API to run queries and return results.
 ### review_cluster
 Runs a diagnostic review of a Redshift cluster or serverless workgroup.
 Returns identified potential issues and respective recommendations ordered by required mitigation effort.
-Requires superuser (CREATEUSER) privileges.
+Requires the connected database user to hold the sys:monitor role (or be a superuser).
 
 ## Getting Started
 
@@ -657,11 +657,20 @@ async def review_cluster_tool(
     - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
     - The cluster must be available and accessible.
     - Required IAM permissions: redshift-data:ExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
-    - The connected user must have superuser (CREATEUSER) privileges to access the required system views.
-      If it does not, the review fails fast with "Review requires superuser (CREATEUSER) privileges"
-      (for example "permission denied for relation sys_auto_table_optimization"). This is by design -
-      an expected signal, not a tool defect - so the review never returns partial or misleading
-      results. Run the review as a superuser to get a complete assessment.
+    - The connected database user must be able to read Redshift system views, some of which
+      are visible only to superusers. The narrowest grant that covers them is the
+      sys:monitor role: GRANT ROLE sys:monitor TO "<database_user>";
+      The grant must be issued by a superuser, such as the cluster's admin (master) user;
+      a regular user granting it to itself fails with "must be superuser or have GRANT ROLE
+      system privilege". Use SELECT current_user to get the exact user name - when the
+      server authenticates with IAM credentials it is IAM:<user> or IAMR:<role>, and the
+      quotes are required. ALTER USER <user> CREATEUSER is an alternative for
+      password-based users, but fails for IAM identities with "Superusers cannot have
+      disabled passwords".
+      Without that access the review fails fast with "Review requires read access to
+      Redshift system views" (for example "permission denied for relation
+      sys_auto_table_optimization"). This is by design - an expected signal, not a tool
+      defect - so the review never returns partial or misleading results.
 
     ## Parameters
 
