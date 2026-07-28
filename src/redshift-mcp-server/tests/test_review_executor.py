@@ -17,13 +17,11 @@
 import pytest
 from awslabs.redshift_mcp_server.models import RedshiftCluster
 from awslabs.redshift_mcp_server.review.definitions import (
-    NODE_TYPE_PLACEHOLDER,
-    NODE_TYPE_UNKNOWN,
     RECOMMENDATIONS,
     SIGNAL_EVALUATION_SQL,
     SIGNAL_UNITS,
 )
-from awslabs.redshift_mcp_server.review.executor import resolve_node_type, review_cluster
+from awslabs.redshift_mcp_server.review.executor import review_cluster
 from unittest.mock import AsyncMock
 
 
@@ -459,47 +457,8 @@ class TestFullPipeline:
 
 
 # ---------------------------------------------------------------------------
-# Node type resolution and substitution
+# Node type substitution
 # ---------------------------------------------------------------------------
-
-
-class TestNodeTypeResolution:
-    """Validate resolve_node_type() accepts real node types and rejects the rest."""
-
-    @pytest.mark.parametrize(
-        'node_type',
-        [
-            'dc2.large',
-            'dc2.8xlarge',
-            'ds2.xlarge',
-            'ds2.8xlarge',
-            'ra3.large',
-            'ra3.xlplus',
-            'ra3.4xlarge',
-            'ra3.16xlarge',
-            'rg.xlarge',
-            'rg.4xlarge',
-        ],
-    )
-    def test_real_node_types_pass_through(self, node_type):
-        """Every node type Redshift currently reports is used verbatim."""
-        assert resolve_node_type(node_type) == node_type
-
-    @pytest.mark.parametrize(
-        'node_type',
-        [
-            None,
-            '',
-            'ra3',
-            'RA3.xlplus',
-            'ra3.xlplus; DROP TABLE t',
-            "ra3.xlplus'--",
-            'ra3.xlplus OR 1=1',
-        ],
-    )
-    def test_unusable_node_types_fall_back(self, node_type):
-        """Absent or malformed node types resolve to the unknown sentinel."""
-        assert resolve_node_type(node_type) == NODE_TYPE_UNKNOWN
 
 
 class TestNodeTypeSubstitution:
@@ -531,7 +490,7 @@ class TestNodeTypeSubstitution:
 
         assert recorded
         for name, sql in recorded.items():
-            assert NODE_TYPE_PLACEHOLDER not in sql, f'{name} kept an unsubstituted placeholder'
+            assert '{node_type}' not in sql, f'{name} kept an unrendered node type field'
 
     @pytest.mark.asyncio
     async def test_missing_node_type_falls_back_in_sql(self):
@@ -544,7 +503,7 @@ class TestNodeTypeSubstitution:
             discover_clusters_func=_make_discover_clusters(node_type=None),
         )
 
-        assert f"'{NODE_TYPE_UNKNOWN}'::varchar(32) AS node_type" in recorded['NodeDetails']
+        assert "'unknown'::varchar(32) AS node_type" in recorded['NodeDetails']
 
     @pytest.mark.asyncio
     async def test_legacy_node_types_still_get_the_rg_migration_signal(self):
@@ -660,7 +619,7 @@ class TestNodeTypeSubstitution:
 
         assert 'NodeDetails' not in recorded
         for sql in recorded.values():
-            assert NODE_TYPE_UNKNOWN not in sql
+            assert 'unknown' not in sql
 
 
 # ---------------------------------------------------------------------------
@@ -760,30 +719,40 @@ class TestReviewQueriesConstants:
                 f'{name} has duplicate (rec, label) branches: {pairs}'
             )
 
-    def test_node_type_placeholder_confined_to_node_details(self):
-        """Only NodeDetails uses the node type placeholder."""
-        users = {name for name, _ct, sql in SIGNAL_EVALUATION_SQL if NODE_TYPE_PLACEHOLDER in sql}
+    def test_node_type_field_confined_to_node_details(self):
+        """Only NodeDetails uses the {node_type} format field."""
+        users = {name for name, _ct, sql in SIGNAL_EVALUATION_SQL if '{node_type}' in sql}
         assert users == {'NodeDetails'}
 
-    def test_node_type_placeholder_query_is_provisioned_only(self):
-        """The placeholder is only used where a node type exists (provisioned)."""
+    def test_node_type_field_query_is_provisioned_only(self):
+        """The field is only used where a node type exists (provisioned)."""
         for name, cluster_type, sql in SIGNAL_EVALUATION_SQL:
-            if NODE_TYPE_PLACEHOLDER in sql:
+            if '{node_type}' in sql:
                 assert cluster_type == 'provisioned', (
                     f'{name} needs a node type but is {cluster_type}'
                 )
 
-    def test_no_unrecognized_placeholders(self):
-        """The node type placeholder is the only substitution token in any query.
+    def test_no_unrecognized_braces(self):
+        """{node_type} is the only brace sequence in any query.
 
-        Guards against a new {token} being added and silently shipped unsubstituted.
+        Queries are rendered with str.format, so every brace is read as a format field.
+        Redshift SQL can legitimately contain braces (regex quantifiers such as 'a{2,3}',
+        SUPER or JSON literals); any that are added must be escaped as {{ and }}, or
+        rendering raises at review time. This fails in CI instead.
         """
-        import re
-
-        token = re.compile(r'\{[a-z_]+\}')
         for name, _ct, sql in SIGNAL_EVALUATION_SQL:
-            unknown = set(token.findall(sql)) - {NODE_TYPE_PLACEHOLDER}
-            assert not unknown, f'{name} has unsupported placeholders: {unknown}'
+            stripped = sql.replace('{node_type}', '')
+            assert '{' not in stripped and '}' not in stripped, (
+                f'{name} has an unescaped brace: str.format would treat it as a field'
+            )
+
+    def test_every_query_renders(self):
+        """Rendering with a node type succeeds for every query."""
+        for name, _ct, sql in SIGNAL_EVALUATION_SQL:
+            try:
+                sql.format(node_type='rg.xlarge')
+            except (KeyError, IndexError, ValueError) as e:  # pragma: no cover
+                raise AssertionError(f'{name} fails to render: {type(e).__name__}: {e}') from e
 
     def test_recommendations_not_empty(self):
         """RECOMMENDATIONS dict is not empty."""

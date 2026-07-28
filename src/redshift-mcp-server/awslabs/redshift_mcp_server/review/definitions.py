@@ -351,12 +351,10 @@ SIGNAL_UNITS: dict[str, str] = {
 }
 
 
-# Placeholder substituted with the cluster's node type (from the Redshift
-# DescribeClusters API) before a query runs. Only NodeDetails uses it; the executor
-# validates the value and falls back to NODE_TYPE_UNKNOWN, which matches no
-# node_type list, so an unresolvable node type triggers no node-type signal at all.
-NODE_TYPE_PLACEHOLDER = '{node_type}'
-NODE_TYPE_UNKNOWN = 'unknown'
+# Every query is rendered with str.format(node_type=...) before it runs, so a
+# {node_type} field is substituted with the cluster's node type from the Redshift
+# DescribeClusters API. Only NodeDetails uses it. Any other brace in a query would be
+# read as a format field, which test_no_unrecognized_braces guards against.
 
 
 SIGNAL_EVALUATION_SQL: list[tuple[str, str, str]] = [
