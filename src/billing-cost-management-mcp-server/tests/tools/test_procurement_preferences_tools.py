@@ -49,6 +49,8 @@ def sample_preference():
             'arn:aws:invoicing::123456789012:procurement-portal-preference/abc123'
         ),
         'Status': 'ACTIVE',
+        # Sensitive: must never be propagated to the agent/LLM (dropped by the tool).
+        'ProcurementPortalSharedSecret': 'super-secret-shared-value',  # pragma: allowlist secret
         'EinvoiceDeliveryPreference': {
             'EinvoiceDeliveryActivationDate': datetime(2026, 3, 1, tzinfo=timezone.utc),
         },
@@ -76,6 +78,26 @@ class TestListProcurementPortalPreferences:
         pref = result['data']['procurement_portal_preferences'][0]
         assert pref['CreateDate'] == '2026-01-01T00:00:00'
         assert pref['LastUpdateDate'] == '2026-02-01T00:00:00'
+
+    @pytest.mark.asyncio
+    async def test_shared_secret_dropped(self, mock_context, sample_preference):
+        """ProcurementPortalSharedSecret is dropped from every listed item."""
+        mock_client = MagicMock()
+        mock_client.list_procurement_portal_preferences.return_value = {
+            'ProcurementPortalPreferences': [sample_preference, dict(sample_preference)]
+        }
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.return_value = mock_client
+            result = await list_procurement_portal_preferences(mock_context)
+
+        assert result['status'] == 'success'
+        prefs = result['data']['procurement_portal_preferences']
+        assert prefs, 'expected at least one preference'
+        for pref in prefs:
+            assert 'ProcurementPortalSharedSecret' not in pref
+        # Non-sensitive fields are preserved.
+        assert prefs[0]['Status'] == 'ACTIVE'
 
     @pytest.mark.asyncio
     async def test_pagination_across_pages(self, mock_context, sample_preference):
@@ -188,6 +210,29 @@ class TestGetProcurementPortalPreference:
         )
 
     @pytest.mark.asyncio
+    async def test_shared_secret_dropped(self, mock_context, sample_preference):
+        """ProcurementPortalSharedSecret is dropped from the retrieved preference."""
+        mock_client = MagicMock()
+        mock_client.get_procurement_portal_preference.return_value = {
+            'ProcurementPortalPreference': sample_preference,
+            'ResponseMetadata': {'RequestId': 'abc'},
+        }
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.return_value = mock_client
+            result = await get_procurement_portal_preference(
+                mock_context,
+                procurement_portal_preference_arn=sample_preference[
+                    'ProcurementPortalPreferenceArn'
+                ],
+            )
+
+        assert result['status'] == 'success'
+        pref = result['data']['procurement_portal_preference']
+        assert 'ProcurementPortalSharedSecret' not in pref
+        assert pref['Status'] == 'ACTIVE'
+
+    @pytest.mark.asyncio
     async def test_api_client_error(self, mock_context):
         """A ClientError from the API returns an error status."""
         mock_client = MagicMock()
@@ -203,6 +248,47 @@ class TestGetProcurementPortalPreference:
             )
 
         assert result['status'] == 'error'
+
+
+class TestDropSensitiveFields:
+    """Direct tests for the recursive secret-dropping helper."""
+
+    def test_drops_top_level_and_nested_and_lists(self):
+        """The secret key is removed at any depth and in list items."""
+        from awslabs.billing_cost_management_mcp_server.tools.procurement_preferences_operations import (
+            drop_sensitive_fields,
+        )
+
+        data = {
+            'ProcurementPortalSharedSecret': 'top',  # pragma: allowlist secret
+            'Status': 'ACTIVE',
+            'nested': {
+                'ProcurementPortalSharedSecret': 'deep',  # pragma: allowlist secret
+                'keep': 1,
+            },
+            'items': [
+                {'ProcurementPortalSharedSecret': 'a'},
+                {'ProcurementPortalSharedSecret': 'b', 'keep': 2},
+            ],
+        }
+
+        result = drop_sensitive_fields(data)
+
+        assert 'ProcurementPortalSharedSecret' not in result
+        assert 'ProcurementPortalSharedSecret' not in result['nested']
+        assert result['nested']['keep'] == 1
+        assert all('ProcurementPortalSharedSecret' not in item for item in result['items'])
+        assert result['items'][1]['keep'] == 2
+        assert result['Status'] == 'ACTIVE'
+
+    def test_noop_when_absent(self):
+        """Structures without the secret are returned unchanged."""
+        from awslabs.billing_cost_management_mcp_server.tools.procurement_preferences_operations import (
+            drop_sensitive_fields,
+        )
+
+        data = {'Status': 'ACTIVE', 'items': [{'keep': 1}]}
+        assert drop_sensitive_fields(data) == {'Status': 'ACTIVE', 'items': [{'keep': 1}]}
 
 
 class TestProcurementPreferencesServer:

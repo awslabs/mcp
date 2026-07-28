@@ -35,6 +35,41 @@ from fastmcp import Context
 from typing import Any, Dict, Optional
 
 
+# ``ProcurementPortalSharedSecret`` is a shared secret / authentication
+# credential for the procurement portal. The tool must not expose it to the
+# LLM, so it is dropped from the response after the SDK call returns, before the
+# response is returned to the agent. The field is still returned by the AWS API
+# and remains accessible via a direct SDK call; we simply do not propagate it out
+# of this tool. Other preference attributes are intentionally retained.
+_SENSITIVE_FIELD_NAMES = frozenset({'ProcurementPortalSharedSecret'})
+
+
+def drop_sensitive_fields(value: Any) -> Any:
+    """Recursively drop known secret fields from an AWS response structure.
+
+    Walks nested dicts and lists and removes any key named in
+    ``_SENSITIVE_FIELD_NAMES``. Recursion makes the redaction robust against the
+    secret appearing at any depth (for example nested under
+    ``TestEnvPreference``) and against every item in a list, not just the first.
+
+    Args:
+        value: An arbitrary JSON-like structure (dict, list, or scalar).
+
+    Returns:
+        The same structure with sensitive keys removed. Dicts and lists are
+        mutated in place and also returned for convenience.
+    """
+    if isinstance(value, dict):
+        for key in [k for k in value if k in _SENSITIVE_FIELD_NAMES]:
+            del value[key]
+        for inner in value.values():
+            drop_sensitive_fields(inner)
+    elif isinstance(value, list):
+        for item in value:
+            drop_sensitive_fields(item)
+    return value
+
+
 def _create_invoicing_client() -> Any:
     """Create an AWS Invoicing client.
 
@@ -93,6 +128,9 @@ async def list_procurement_portal_preferences(
         )
 
         normalized = normalize_datetimes_to_iso(preferences)
+        # Drop procurement portal secrets before returning so they never reach
+        # the agent/LLM context (see drop_sensitive_fields / _SENSITIVE_FIELD_NAMES).
+        drop_sensitive_fields(normalized)
 
         await ctx.info(f'Successfully listed {len(normalized)} procurement portal preferences')
 
@@ -143,13 +181,15 @@ async def get_procurement_portal_preference(
             f'{procurement_portal_preference_arn}'
         )
 
+        # Drop procurement portal secrets before returning so they never reach
+        # the agent/LLM context (see drop_sensitive_fields / _SENSITIVE_FIELD_NAMES).
+        preference = drop_sensitive_fields(
+            normalize_datetimes_to_iso(response.get('ProcurementPortalPreference', {}))
+        )
+
         return format_response(
             'success',
-            {
-                'procurement_portal_preference': normalize_datetimes_to_iso(
-                    response.get('ProcurementPortalPreference', {})
-                )
-            },
+            {'procurement_portal_preference': preference},
         )
 
     except Exception as e:

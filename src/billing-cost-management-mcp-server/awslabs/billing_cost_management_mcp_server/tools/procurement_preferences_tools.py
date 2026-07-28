@@ -117,7 +117,7 @@ async def _procurement_preferences(
    Required: operation="get_procurement_portal_preference", procurement_portal_preference_arn
    Returns: `data.procurement_portal_preference` with the fields above, including EinvoiceDeliveryPreference.EinvoiceDeliveryActivationDate (ISO 8601 UTC).
 
-NOTE: preference records may include procurement portal connection details; treat the output as sensitive.
+NOTE: preference records may include procurement portal connection details; treat the output as sensitive. The `ProcurementPortalSharedSecret` field is intentionally omitted from tool output and is only accessible via a direct SDK call.
 
 EXAMPLES
 - {"operation": "list_procurement_portal_preferences"}
