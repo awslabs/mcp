@@ -50,18 +50,34 @@ CREATE TABLE user_preferences (
 );
 ```
 
-**DSQL equivalent using TEXT (comma-separated):**
+**DSQL equivalent — PREFER JSONB; MAY use TEXT for opaque columns. ASK the user.**
 
 ```sql
+-- PREFERRED: JSONB. Filter with `@>`, expand with `jsonb_array_elements_text`,
+-- and let the database validate JSON shape on write.
 transact([
   "CREATE TABLE user_preferences (
      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-     permissions TEXT  -- Stored as comma-separated: 'read,write,admin'
+     permissions JSONB  -- '[\"read\",\"write\",\"admin\"]'
+   )"
+])
+
+-- MAY: TEXT, when the column is opaque to the database (application
+-- reads the whole value, parses it, never queries inside).
+transact([
+  "CREATE TABLE user_preferences (
+     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+     permissions TEXT  -- e.g. 'read,write,admin'; app validates and parses
    )"
 ])
 ```
 
-**Note:** Application layer MUST validate and parse SET values. MySQL stores SET values as comma-separated strings internally, so direct migration preserves the format.
+**Choosing:**
+
+- **JSONB** when the application filters with `permissions @> '[\"admin\"]'`, expands with `jsonb_array_elements_text`, or wants JSON shape validated at write
+- **TEXT** when the column is opaque to the database — application reads the whole value, parses it, never queries inside
+
+**Note:** Application layer MUST validate `permissions` against the allowed value set on write regardless of the column type. Enum-of-values constraints belong in the application or as a `CHECK` against a derived column.
 
 ---
 

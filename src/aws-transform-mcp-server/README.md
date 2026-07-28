@@ -1,5 +1,7 @@
 # AWS Transform MCP Server
 
+[![PyPI Downloads](https://static.pepy.tech/personalized-badge/awslabs-aws-transform-mcp-server?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/awslabs-aws-transform-mcp-server) [![PyPI Downloads/month](https://static.pepy.tech/personalized-badge/awslabs-aws-transform-mcp-server?period=month&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads/month)](https://pepy.tech/projects/awslabs-aws-transform-mcp-server)
+
 An MCP server for [AWS Transform](https://aws.amazon.com/transform/) that enables AI assistants to manage transformation workspaces, jobs, connectors, human-in-the-loop (HITL) tasks, artifacts, and chat directly from the IDE.
 
 AWS Transform accelerates migration and modernization of enterprise workloads using specialized AI agents across discovery, planning, and execution. This MCP server exposes the Transform lifecycle through 19 tools, supporting mainframe modernization, VMware migration, .NET modernization, and custom code transformations.
@@ -315,6 +317,7 @@ Set these in your MCP client config `env` block:
 | `AWS_PROFILE` | No | `default` profile | AWS profile from `~/.aws/credentials` to use for Control Plane tools (e.g., `accept_connector`). If you have multiple AWS profiles, set this to the one with access to your Transform account. If not set, boto3 uses the `[default]` profile, then falls back to environment variables (`AWS_ACCESS_KEY_ID`), then instance metadata. See [boto3 credential chain](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html#configuring-credentials) for the full resolution order. |
 | `AWS_REGION` | No | Profile region, then `us-east-1` | AWS region for Control Plane API calls. If not set, uses the region from your AWS profile (`~/.aws/config`), then falls back to `us-east-1`. |
 | `FASTMCP_LOG_LEVEL` | No | `INFO` | Log level for the MCP server (`DEBUG`, `INFO`, `WARNING`, `ERROR`). |
+| `AWS_TRANSFORM_MCP_WRITE_DIR` | No | Server working directory | Base directory that artifact downloads (`get_resource`, `load_instructions`) are confined to. A `savePath` must resolve to this directory or a subdirectory of it; anything outside is rejected. If not set, the server's current working directory at startup is used. If that working directory is the filesystem root (`/`) — which happens when a desktop or IDE client launches the server outside a shell — downloads are refused until this variable is set, since confining to `/` would place no bound on writes. Set this to the directory you want downloads written to. |
 
 ## HITL Task Response System
 
@@ -367,7 +370,8 @@ All outbound HTTP calls use **HTTPS** exclusively. API endpoints are derived wit
 
 The server blocks reads and writes to sensitive files and directories to prevent credential exfiltration via tool misuse:
 
-- **Blocked filenames:** `.env`, `.netrc`, `.pgpass`, SSH keys (`id_rsa`, `id_ed25519`, etc.), `credentials`, `authorized_keys`, and others
+- **Write confinement:** artifact downloads are confined to an allowed base directory (see `AWS_TRANSFORM_MCP_WRITE_DIR`), which defaults to the server's working directory. A `savePath` that resolves outside the base is rejected, so an LLM-controlled path cannot write to arbitrary filesystem locations. If the base would be the filesystem root (`/`), downloads are refused until `AWS_TRANSFORM_MCP_WRITE_DIR` is set, rather than allowing unbounded writes.
+- **Blocked filenames:** `.env`, `.netrc`, `.pgpass`, SSH keys (`id_rsa`, `id_ed25519`, etc.), `credentials`, `authorized_keys`, and others — enforced on both reads and writes
 - **Blocked directories:** `~/.aws`, `~/.ssh`, `~/.gnupg`, `~/.docker`, `~/.aws-transform-mcp`
 - **Path traversal prevention:** all file paths are resolved and validated against directory boundaries
 - **Extension allowlisting:** only approved file extensions can be downloaded

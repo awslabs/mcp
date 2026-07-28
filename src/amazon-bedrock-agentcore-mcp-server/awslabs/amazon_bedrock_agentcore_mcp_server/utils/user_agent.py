@@ -32,7 +32,13 @@ Examples:
     agentcore-mcp-server/0.1.0 code-interpreter
 """
 
-MCP_SERVER_VERSION = '0.1.0'
+from importlib.metadata import PackageNotFoundError, version
+
+
+try:
+    MCP_SERVER_VERSION = version('awslabs.amazon-bedrock-agentcore-mcp-server')
+except PackageNotFoundError:
+    MCP_SERVER_VERSION = 'unknown'
 
 
 def build_user_agent(primitive: str, plane: str = '') -> str:

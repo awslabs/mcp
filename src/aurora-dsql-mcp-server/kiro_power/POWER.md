@@ -2,7 +2,7 @@
 name: "amazon-aurora-dsql"
 displayName: "Build applications with Aurora DSQL"
 description: "Build applications using a serverless, PostgreSQL-compatible database with scale-to-zero and pay-per-use pricing - built for applications at any scale."
-keywords: ["aurora", "dsql", "postgresql", "serverless", "database", "sql", "aws", "distributed"]
+keywords: ["aurora", "dsql", "postgresql", "serverless", "database", "sql", "aws", "distributed", "migration", "data-loading", "occ-retry", "orm"]
 author: "AWS"
 ---
 
@@ -51,6 +51,9 @@ This power includes the following steering files in [steering](./steering)
 - **access-control**
   - MUST load when creating database roles, granting permissions, setting up schemas, or handling sensitive data
   - Scoped role setup, IAM-to-database role mapping, schema separation for sensitive data, role design patterns
+- **occ-retry-patterns**
+  - MUST load when writing OCC retry code or mitigating commit-time conflicts
+  - DSQL Connectors, manual retry pattern, conflict mitigation, idempotent transaction design
 - **ddl-migrations-overview**
   - MUST load when performing DROP COLUMN, ALTER COLUMN TYPE, or DROP CONSTRAINT
   - Table recreation pattern overview, transaction rules, verify & swap pattern
@@ -67,6 +70,21 @@ This power includes the following steering files in [steering](./steering)
   - Load when translating MySQL DDL operations to DSQL equivalents
 - **mysql-full-example**
   - Load when migrating a complete MySQL table to DSQL
+- **pg-migrations-type-mapping**
+  - MUST load for PostgreSQL → DSQL type questions
+  - C collation rules, NUMERIC precision, JSON/JSONB, types mapped to TEXT by `dsql_lint`
+- **pg-migrations-fk-replacement**
+  - MUST load for foreign-key validation code generation — tenant-scoped `validate_fk_*()` template, cascade handling
+- **pg-migrations-index-conversion**
+  - MUST load for unfixable index diagnostics — GIN/GiST/BRIN → btree, partial and expression indexes, async index status
+- **pg-migrations-schema-objects**
+  - MUST load for ENUM, materialized views, extensions, or multi-schema handling — ENUM → CHECK, views, role/IAM mapping
+- **pg-migrations-multi-region**
+  - Load for multi-region, active-active, or HA questions — architecture, geographic partitioning
+- **orm-guides-overview**
+  - Load when migrating any ORM to DSQL — adapter names and gotchas for Django, Hibernate, Rails, SQLAlchemy
+- **data-loading**
+  - Load when planning or running bulk loads with `aurora-dsql-loader` — fresh-vs-warm partitions, resume/retry, `--on-conflict`, throughput diagnostics
 - **query-plan-interpretation**
   - MUST load when diagnosing slow queries or unexpected plans
   - DSQL node types, duration math, estimation-error bands
@@ -82,6 +100,9 @@ This power includes the following steering files in [steering](./steering)
   - Load when setting up connection pooling or connectivity tools
 - **auth-scaling**
   - Load when planning connection scaling patterns
+- **dsql-lint**
+  - SHOULD load when validating SQL for DSQL compatibility or migrating schemas
+  - `dsql_lint` MCP tool reference, fix statuses, workflow steps, ORM integration, unfixable error resolution, error handling
 
 ---
 
@@ -93,6 +114,9 @@ The `aurora-dsql` MCP server provides these tools:
 1. **readonly_query** - Execute SELECT queries (returns rows and metadata)
 2. **transact** - Execute DDL/DML statements in transaction (takes list of SQL statements)
 3. **get_schema** - Get table structure for a specific table
+
+**SQL Validation:**
+4. **dsql_lint** - Validate SQL for DSQL compatibility and optionally auto-fix issues. Use before executing externally-sourced SQL.
 
 **Documentation & Knowledge:**
 4. **dsql_search_documentation** - Search Aurora DSQL documentation
@@ -166,15 +190,17 @@ Authorize the caller against the tenant **before** validating format or calling 
 - **MUST** include `tenant_id` in all tables
 - **MUST** use `CREATE INDEX ASYNC` exclusively
 - **MUST** issue each DDL in its own `transact` call
-- **MUST** store arrays/JSON as TEXT
+- **MUST** serialize arrays into a single-column representation; **PREFER `JSONB`** (operators `@>`/`?`/`jsonb_array_elements_text` work directly); **MAY use `TEXT`** when the column is opaque to the database; **ASK** the user about query patterns
 
 ### Workflow 2: Safe Data Migration
 
-1. Add column using `transact`: `transact(["ALTER TABLE ... ADD COLUMN ..."])`
-2. Populate existing rows with UPDATE in separate `transact` calls (batched under 3,000 rows)
-3. Verify migration with `readonly_query` using COUNT
-4. Create async index for new column using `transact` if needed
+1. Validate DDL with `dsql_lint(sql=..., fix=true)` — apply fixes if needed
+2. Add column using `transact`: `transact(["ALTER TABLE ... ADD COLUMN ..."])`
+3. Populate existing rows with UPDATE in separate `transact` calls (batched under 3,000 rows)
+4. Verify migration with `readonly_query` using COUNT
+5. Create async index for new column using `transact` if needed
 
+- **MUST** validate DDL with `dsql_lint` before executing
 - **MUST** add column first, populate later
 - **MUST** issue ADD COLUMN with only name and type; apply DEFAULT via separate UPDATE
 - **MUST** batch updates under 3,000 rows in separate `transact` calls
@@ -199,13 +225,13 @@ Authorize the caller against the tenant **before** validating format or calling 
 
 ### Workflow 6: Table Recreation DDL Migration
 
-DSQL does NOT support direct `ALTER COLUMN TYPE`, `DROP COLUMN`, `DROP CONSTRAINT`, or `MODIFY PRIMARY KEY`. These operations require the **Table Recreation Pattern**.
+DSQL does NOT support direct `ALTER COLUMN TYPE`, `DROP COLUMN`, `DROP CONSTRAINT`, or `MODIFY PRIMARY KEY`. These require the **Table Recreation Pattern**. This is a destructive workflow that requires user confirmation at each step. Validate the new CREATE TABLE with `dsql_lint(sql=..., fix=true)` before execution.
 
 **MUST** load [ddl-migrations-overview.md](steering/ddl-migrations-overview.md) before attempting any of these operations.
 
-### Workflow 7: MySQL to DSQL Schema Migration
+### Workflow 7: Validate and Migrate to DSQL
 
-**MUST** load [mysql-type-mapping.md](steering/mysql-type-mapping.md) for type mappings, feature alternatives, and migration steps.
+Run `dsql_lint(sql=source_sql, fix=true)` to validate and auto-convert PostgreSQL-compatible SQL. For MySQL-specific syntax (SET, ENGINE, PARTITION BY), `dsql_lint` returns a parse error — fall back to [mysql-type-mapping.md](steering/mysql-type-mapping.md) for manual conversion. **MUST** load [dsql-lint.md](steering/dsql-lint.md) for the full workflow, ORM-specific guidance, and unfixable error resolution.
 
 ### Workflow 8: Query Plan Explainability
 

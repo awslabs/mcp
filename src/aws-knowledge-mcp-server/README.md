@@ -32,10 +32,9 @@ This MCP server is in general availability.
 
 1. `search_documentation`: Search across all AWS documentation, agent skills, and Strands Agents SDK docs with optional topic-based filtering for more targeted results
 2. `read_documentation`: Retrieve and convert AWS documentation and Strands Agents (strandsagents.com) pages to markdown
-3. `recommend`: Get content recommendations for AWS documentation pages
-4. `list_regions`: Retrieve a list of all AWS regions, including their identifiers and names
-5. `get_regional_availability`: Retrieve AWS regional availability information for Services, Features, SDK service APIs and CloudFormation resources
-6. `retrieve_skill`: Retrieve an AWS agent skill that provides domain-specific expertise, workflows, and step-by-step procedures for AWS tasks
+3. `list_regions`: Retrieve a list of all AWS regions, including their identifiers and names
+4. `get_regional_availability`: Retrieve AWS regional availability information for Services, Features, SDK service APIs and CloudFormation resources
+5. `retrieve_skill`: Retrieve an AWS agent skill that provides domain-specific expertise, workflows, and step-by-step procedures for AWS tasks
 
 ### Current knowledge sources
 

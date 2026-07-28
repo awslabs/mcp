@@ -233,3 +233,19 @@ class TestStartMigration:
         response = await start_migration(request)
         assert 'error' in response
         assert error_message in response['error']
+
+
+@pytest.mark.asyncio
+async def test_start_migration_readonly_mode():
+    """Test starting migration in readonly mode."""
+    from awslabs.elasticache_mcp_server.context import Context
+    from unittest.mock import patch
+
+    with patch.object(Context, 'readonly_mode', return_value=True):
+        request = StartMigrationRequest(
+            replication_group_id='test-rg',
+            customer_node_endpoint_list='Address=1.2.3.4,Port=6379',
+        )
+        result = await start_migration(request)
+        assert 'error' in result
+        assert 'readonly mode' in result['error']

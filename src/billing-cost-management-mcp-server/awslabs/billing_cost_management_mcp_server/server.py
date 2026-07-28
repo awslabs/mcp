@@ -29,6 +29,7 @@ if __name__ == '__main__':
     if parent_dir not in sys.path:
         sys.path.insert(0, parent_dir)
 
+import mcp.types as mcp_types
 from awslabs.billing_cost_management_mcp_server.tools.aws_pricing_tools import aws_pricing_server
 from awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools import (
     bcm_pricing_calculator_server,
@@ -38,6 +39,9 @@ from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_tools im
 )
 from awslabs.billing_cost_management_mcp_server.tools.budget_tools import budget_server
 from awslabs.billing_cost_management_mcp_server.tools.bvs_tools import bvs_server
+from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_automation_tools import (
+    compute_optimizer_automation_server,
+)
 from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools import (
     compute_optimizer_server,
 )
@@ -60,6 +64,7 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_optimization_hub_tool
 from awslabs.billing_cost_management_mcp_server.tools.free_tier_usage_tools import (
     free_tier_usage_server,
 )
+from awslabs.billing_cost_management_mcp_server.tools.invoicing_tools import invoicing_server
 from awslabs.billing_cost_management_mcp_server.tools.recommendation_details_tools import (
     recommendation_details_server,
 )
@@ -73,10 +78,49 @@ from awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools import 
 from awslabs.billing_cost_management_mcp_server.tools.unified_sql_tools import unified_sql_server
 from awslabs.billing_cost_management_mcp_server.utilities.logging_utils import get_logger
 from fastmcp import FastMCP
+from fastmcp.server.middleware import Middleware
+from fastmcp.tools import ToolResult
 
 
 # Configure logger for server
 logger = get_logger(__name__)
+
+
+class _ErrorToolResult(ToolResult):
+    """A ToolResult that serializes to a CallToolResult with isError=True."""
+
+    def to_mcp_result(self):
+        return mcp_types.CallToolResult(
+            content=self.content,
+            structuredContent=self.structured_content,
+            isError=True,
+            _meta=self.meta,
+        )
+
+
+class ErrorSignalingMiddleware(Middleware):
+    """Middleware that sets isError=True when a tool returns an error response.
+
+    Per the MCP spec, tools should signal errors via isError on CallToolResult.
+    This middleware intercepts tool results that contain status='error' in their
+    response body and returns a result with isError=True, preserving the original
+    content and structuredContent for backward compatibility.
+    """
+
+    async def on_call_tool(self, context, call_next):
+        """Intercept tool results and set isError for error responses."""
+        result = await call_next(context)
+        if (
+            isinstance(result, ToolResult)
+            and isinstance(result.structured_content, dict)
+            and result.structured_content.get('status') == 'error'
+        ):
+            return _ErrorToolResult(
+                content=result.content,
+                structured_content=result.structured_content,
+                meta=result.meta,
+            )
+        return result
 
 
 # Main MCP server instance
@@ -95,6 +139,7 @@ Available components:
 TOOLS:
 - cost-explorer: Historical cost and usage data with flexible filtering
 - compute-optimizer: Performance optimization recommendations to identify under provisioned AWS compute resources like EC2, Lambda, ASG, RDS, ECS
+- compute-optimizer-automation: Compute Optimizer Automation rules, events, recommended actions, and rule previews (implementing Compute Optimizer recommendations automatically via rules or on demand)
 - cost-optimization: Cost optimization recommendations across AWS services
 - storage-lens: Query S3 Storage Lens metrics data using Athena SQL
 - athena-cur: Query Cost and Usage Report data through Athena
@@ -112,6 +157,7 @@ TOOLS:
 - billing-view: AWS Billing View tools for managing and querying billing views (get-billing-view, list-billing-views, list-source-views-for-billing-view, get-resource-policy)
 - cost-allocation-tags: List cost allocation tags and backfill history (list-cost-allocation-tags, list-cost-allocation-tag-backfill-history)
 - cost-category: Describe and list cost category definitions (describe-cost-category-definition, list-cost-category-definitions)
+- invoicing: AWS Invoicing data — invoice summaries with amounts, tax, discounts/fees, currency/FX, due dates, PO numbers, and credit memos (operation: list_invoice_summaries)
 
 PROMPTS:
 - savings_plans: Analyzes AWS usage and identifies opportunities for Savings Plans purchases
@@ -136,6 +182,9 @@ For multi-account environments:
 """,
 )
 
+# Register middleware to signal errors via isError per MCP spec
+mcp.add_middleware(ErrorSignalingMiddleware())
+
 
 async def register_prompts():
     """Register all prompts with the MCP server."""
@@ -152,6 +201,7 @@ async def setup():
     """Initialize the MCP server by importing all tool servers."""
     await mcp.import_server(cost_explorer_server)
     await mcp.import_server(compute_optimizer_server)
+    await mcp.import_server(compute_optimizer_automation_server)
     await mcp.import_server(cost_optimization_hub_server)
     await mcp.import_server(storage_lens_server)
     await mcp.import_server(aws_pricing_server)
@@ -168,6 +218,7 @@ async def setup():
     await mcp.import_server(bvs_server)
     await mcp.import_server(cost_allocation_tags_server)
     await mcp.import_server(cost_category_server)
+    await mcp.import_server(invoicing_server)
 
     await register_prompts()
 
@@ -177,6 +228,7 @@ async def setup():
     tools = [
         'cost-explorer',
         'compute-optimizer',
+        'compute-optimizer-automation',
         'cost-optimization',
         'storage-lens',
         'pricing',
@@ -208,6 +260,7 @@ async def setup():
         'list-cost-allocation-tag-backfill-history',
         'describe-cost-category-definition',
         'list-cost-category-definitions',
+        'invoicing',
     ]
     for tool in tools:
         logger.info(f'- {tool}')

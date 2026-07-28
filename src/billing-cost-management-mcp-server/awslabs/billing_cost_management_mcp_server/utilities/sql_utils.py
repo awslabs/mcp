@@ -46,6 +46,9 @@ SQL_CONVERSION_THRESHOLD = int(
     os.getenv('MCP_SQL_THRESHOLD', 25 * 1024)
 )  # 25KB default (lowered from 50KB)
 FORCE_SQL_CONVERSION = os.getenv('MCP_FORCE_SQL', 'false').lower() == 'true'
+BUSY_TIMEOUT_MS = int(
+    os.getenv('BCM_MCP_SQLITE_TIMEOUT_MS', 30000)
+)  # 30s default — handles concurrent subagent writes
 
 # Session database path singleton
 _SESSION_DB_PATH = None
@@ -128,6 +131,8 @@ def get_db_connection() -> Tuple[sqlite3.Connection, sqlite3.Cursor]:
 
     # Create connection and cursor
     conn = sqlite3.connect(db_path)
+    conn.execute('PRAGMA journal_mode=WAL')
+    conn.execute(f'PRAGMA busy_timeout={BUSY_TIMEOUT_MS}')
     cursor = conn.cursor()
 
     # Create schema_info table to track created tables if it doesn't exist
@@ -334,14 +339,16 @@ def _get_specialized_converter(operation_name: str) -> Optional[str]:
     """Get specific converter function for API.
 
     Args:
-        operation_name: Name of the API operation
+        operation_name: Name of the API operation. MUST match the string the
+            caller passes to ``convert_api_response_to_table`` /
+            ``convert_response_if_needed`` (e.g. ``cost_explorer_get_cost_and_usage``).
 
     Returns:
         Optional[str]: Type of specialized converter to use, or None for generic
     """
-    # Map of operation names to specialized converter types
+    # Keys must match operation_name strings the callers pass; mismatches
+    # silently fall through to the generic (key, value) flatten branch.
     converters = {
-        'aws_pricing_get_products': 'pricing_products',
         'cost_explorer_get_cost_and_usage': 'cost_and_usage',
         'cost_explorer_get_cost_and_usage_with_resources': 'cost_and_usage',
         'cost_explorer_get_dimension_values': 'dimension_values',
@@ -349,54 +356,175 @@ def _get_specialized_converter(operation_name: str) -> Optional[str]:
         'cost_explorer_get_usage_forecast': 'forecast',
         'cost_explorer_get_tags': 'tags',
         'cost_explorer_get_cost_categories': 'cost_categories',
+        'aws_pricing_get_products': 'pricing_products',
     }
 
-    return converters.get(operation_name)
+    if operation_name in converters:
+        return converters[operation_name]
+
+    # Compute Optimizer Automation list operations all return a uniform
+    # {<list_key>: [...], count, next_token} shape; store one row per item so
+    # the offloaded data stays queryable instead of a single JSON blob.
+    if operation_name.startswith('compute_optimizer_automation_'):
+        return 'records'
+
+    return None
+
+
+def _extract_record_list(response: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Pull the item list out of a {<list_key>: [...], count, next_token} response.
+
+    Returns the first list-valued field (the item collection), ignoring the
+    scalar pagination fields (`count`, `next_token`). Returns an empty list if
+    the response carries no list field.
+
+    Args:
+        response: A uniform list response.
+
+    Returns:
+        The list of item dicts, or an empty list.
+    """
+    for value in response.values():
+        if isinstance(value, list):
+            return value
+    return []
+
+
+def _record_columns(items: List[Dict[str, Any]]) -> List[str]:
+    """Derive the ordered column set for a record list from the union of item keys.
+
+    Keys are collected in first-seen order across all items so items with
+    differing optional fields (e.g. rules with vs. without `criteria`) all fit
+    one table. Non-dict items fall back to a single `value` column.
+
+    Column names are interpolated into the CREATE/INSERT SQL, so each is validated
+    as a safe identifier (letters, numbers, underscores) — mirroring
+    validate_table_name — to keep the module's injection-prevention model intact.
+
+    Args:
+        items: The list of items to store.
+
+    Returns:
+        The ordered list of column names (defaults to ['value'] if none found).
+
+    Raises:
+        ValueError: If an item key is not a safe SQL identifier.
+    """
+    columns: List[str] = []
+    for item in items:
+        if isinstance(item, dict):
+            for key in item:
+                if key not in columns:
+                    if not isinstance(key, str) or not re.match(r'^[a-zA-Z0-9_]+$', key):
+                        raise ValueError(f'Invalid column name for SQL table: {key!r}')
+                    columns.append(key)
+    return columns or ['value']
+
+
+def _derive_pagination_envelope(
+    response: Dict[str, Any], token_key: str = 'NextPageToken'
+) -> Dict[str, Any]:
+    """Extract pagination metadata from a response so it survives SQL offload.
+
+    Recognizes two shapes produced upstream:
+
+    - Multi-page wrapper built by callers after `paginate_aws_response`:
+      ``{'<ResultsKey>': [...], 'Pagination': {next_token, has_more, pages_fetched, ...}}``
+    - Single-page raw boto3 response with a continuation-token field (e.g.
+      ``NextPageToken``).
+
+    Args:
+        response: The API response (or paginated wrapper) being offloaded.
+        token_key: Name of the continuation-token field in the single-page
+            boto3 response. Defaults to ``NextPageToken`` (used by Cost
+            Explorer ops); pass e.g. ``NextToken`` for AWS Pricing.
+
+    Returns:
+        Dict with ``next_page_token``, ``has_more``, ``pages_fetched`` keys.
+        Empty dict if the response carries no pagination markers (e.g. a
+        forecast response), so unrelated APIs aren't polluted with bogus
+        pagination metadata.
+    """
+    if 'Pagination' in response and isinstance(response['Pagination'], dict):
+        pag_meta = response['Pagination']
+        return {
+            'next_page_token': pag_meta.get('next_token'),
+            'has_more': pag_meta.get('has_more', False),
+            'pages_fetched': pag_meta.get('pages_fetched'),
+        }
+    if token_key in response:
+        token = response.get(token_key)
+        return {
+            'next_page_token': token,
+            'has_more': bool(token),
+            'pages_fetched': 1,
+        }
+    return {}
 
 
 async def convert_response_if_needed(
-    ctx: Context, response: Dict[str, Any], api_name: str, **metadata
+    ctx: Context,
+    response: Dict[str, Any],
+    api_name: str,
+    pagination_token_key: str = 'NextPageToken',
+    **metadata,
 ) -> Dict[str, Any]:
-    """Convert API response to SQL if it exceeds size threshold.
+    """Offload an API response to SQL if it exceeds the size threshold.
+
+    Auto-derives pagination metadata (`next_page_token`, `has_more`,
+    `pages_fetched`) from the response shape so callers don't have to
+    pass it explicitly. Explicit kwargs in `metadata` override the
+    derived values.
+
+    Return contract — always returns something the caller can pass
+    straight through to `format_response`:
+    - Offload happened: the offload sentinel dict (with `data_stored=True`,
+      `table_name`, sample queries, etc.).
+    - No offload (size below threshold): the original `response`.
+    - Conversion errored: log + return the original `response`.
+
+    The original response is returned on no-offload and on error so
+    callers don't need to unwrap a size-meta or error envelope.
 
     Args:
         ctx: MCP context
         response: API response data
-        api_name: Name of the API operation (e.g., 'aws_pricing_get_products')
-        **metadata: Additional metadata to include in response
+        api_name: Name of the API operation (e.g. 'aws_pricing_get_products')
+        pagination_token_key: Name of the continuation-token field in
+            single-page boto3 responses. Defaults to 'NextPageToken'.
+        **metadata: Additional metadata to include in the offload sentinel.
 
     Returns:
-        Either SQL table info or formatted response
+        Either the offload sentinel dict or the original response.
     """
     # Get context logger for consistent logging
     ctx_logger = get_context_logger(ctx, __name__)
 
+    # Pull pagination markers out of the response so they survive offload —
+    # caller-provided metadata still wins on key conflict.
+    metadata = {**_derive_pagination_envelope(response, pagination_token_key), **metadata}
+
     try:
-        # Calculate response size
         response_size = len(json.dumps(response).encode('utf-8'))
 
-        if should_convert_to_sql(response_size):
-            # Convert large response to SQL
-            await ctx_logger.info(
-                f'Response size {response_size / 1024:.2f}KB exceeds threshold, converting to SQL'
-            )
-            return await convert_api_response_to_table(ctx, response, api_name, **metadata)
-        else:
-            # Return original response with size info
+        if not should_convert_to_sql(response_size):
             await ctx_logger.debug(
                 f'Response size {response_size / 1024:.2f}KB below threshold, returning directly'
             )
-            return {'status': 'success', 'data': response, 'response_size_bytes': response_size}
+            return response
+
+        await ctx_logger.info(
+            f'Response size {response_size / 1024:.2f}KB exceeds threshold, converting to SQL'
+        )
+        return await convert_api_response_to_table(ctx, response, api_name, **metadata)
     except Exception as e:
-        error_message = f'Error processing response for {api_name}: {str(e)}'
-        await ctx_logger.error(error_message, exc_info=True)
-        # Return error response with original data to ensure no data loss
-        return {
-            'status': 'error',
-            'message': error_message,
-            'data': response,
-            'response_size_bytes': len(json.dumps(response).encode('utf-8')),
-        }
+        # Offload is an optimization — if it fails, fall back to the original
+        # response rather than propagating an error envelope the caller would
+        # have to unwrap anyway.
+        await ctx_logger.error(
+            f'Error processing response for {api_name}: {str(e)}', exc_info=True
+        )
+        return response
 
 
 async def convert_api_response_to_table(
@@ -639,6 +767,44 @@ async def convert_api_response_to_table(
                 cursor.execute(insert_sql, ('value', value))
                 rows_inserted += 1
 
+        elif converter_type == 'records':
+            # Generic one-row-per-item converter for responses shaped like
+            # {<list_key>: [ {..}, {..} ], count, next_token}. Unlike the bespoke
+            # converters above (which hardcode a schema for one known API), this
+            # derives the columns from the union of item keys, so any uniform list
+            # response can be stored with real, queryable columns. Nested dict/list
+            # values are stored as JSON strings (query with SQLite's json_extract).
+            items = _extract_record_list(response)
+            columns = _record_columns(items)
+
+            # Double-quote every identifier so column names that are SQL reserved
+            # words (e.g. 'order', 'group') are always valid. Names are already
+            # validated as safe identifiers by _record_columns, so quoting them
+            # cannot introduce injection.
+            quoted_columns = [f'"{col}"' for col in columns]
+
+            schema = [f'{col} TEXT' for col in quoted_columns]
+            sql = create_safe_sql_statement('CREATE', table_name, *schema)
+            cursor.execute(sql)
+
+            # Table name, column list, and INSERT statement are constant across
+            # rows, so build them once rather than per iteration.
+            validate_table_name(table_name)
+            column_list = ', '.join(quoted_columns)
+            placeholders = ', '.join('?' for _ in columns)
+            insert_sql = create_safe_sql_statement(
+                'INSERT', table_name, f'({column_list}) VALUES ({placeholders})'
+            )
+            for item in items:
+                # Non-dict items (fallback 'value' column) store the scalar directly.
+                row = item if isinstance(item, dict) else {'value': item}
+                values = []
+                for col in columns:
+                    raw = row.get(col)
+                    values.append(json.dumps(raw) if isinstance(raw, (dict, list)) else raw)
+                cursor.execute(insert_sql, values)
+                rows_inserted += 1
+
         else:
             # Generic fallback for unknown response types
             schema = ['key TEXT', 'value TEXT']
@@ -842,6 +1008,46 @@ async def convert_api_response_to_table(
                     'name': 'Common tags',
                     'description': 'Finds common tags like environment, project, or name',
                     'sql': tags_query,
+                }
+            )
+
+        elif converter_type == 'cost_categories':
+            # Cost Categories queries
+
+            # Category names only
+            names_query = (
+                create_safe_sql_statement('SELECT', table_name, 'category_value')
+                + " WHERE category_type = 'name' ORDER BY category_value"
+            )
+            sample_queries.append(
+                {
+                    'name': 'Cost category names',
+                    'description': 'Lists all cost category names alphabetically',
+                    'sql': names_query,
+                }
+            )
+
+            # Category values only
+            values_query = (
+                create_safe_sql_statement('SELECT', table_name, 'category_value')
+                + " WHERE category_type = 'value' ORDER BY category_value"
+            )
+            sample_queries.append(
+                {
+                    'name': 'Cost category values',
+                    'description': 'Lists all cost category values alphabetically',
+                    'sql': values_query,
+                }
+            )
+
+        elif converter_type == 'records':
+            # Records are one row per item with a column per field.
+            count_query = create_safe_sql_statement('SELECT', table_name, 'COUNT(*) as item_count')
+            sample_queries.append(
+                {
+                    'name': 'Item count',
+                    'description': 'Counts the number of items stored',
+                    'sql': count_query,
                 }
             )
 

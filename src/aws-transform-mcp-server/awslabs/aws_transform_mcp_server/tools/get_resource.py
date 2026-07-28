@@ -20,7 +20,7 @@ from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.guidance_nudge import job_needs_check
 from awslabs.aws_transform_mcp_server.tool_utils import (
-    READ_ONLY,
+    CREATE,
     download_s3_content,
     error_result,
     failure_result,
@@ -132,7 +132,7 @@ class GetResourceHandler:
             mcp,
             'get_resource',
             title='Get Resource',
-            annotations=READ_ONLY,
+            annotations=CREATE,
             description=TOOL_DESCRIPTION,
         )(self.get_resource)
 
@@ -179,7 +179,16 @@ class GetResourceHandler:
         ] = None,
         savePath: Annotated[
             Optional[str],
-            Field(description='Local path to save artifact file (artifact only)'),
+            Field(
+                description=(
+                    'Local path to save artifact file (artifact only). Must resolve '
+                    'within the allowed base directory (the server working directory, '
+                    'or AWS_TRANSFORM_MCP_WRITE_DIR if set); paths outside it are '
+                    'rejected. If the server was started with the filesystem root as '
+                    'its working directory, downloads are refused until '
+                    'AWS_TRANSFORM_MCP_WRITE_DIR is set to a non-root directory.'
+                )
+            ),
         ] = None,
         fileName: Annotated[
             Optional[str],

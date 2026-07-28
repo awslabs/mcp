@@ -31,12 +31,26 @@ BEGIN_READ_ONLY_TRANSACTION_SQL = 'BEGIN TRANSACTION READ ONLY'
 COMMIT_TRANSACTION_SQL = 'COMMIT'
 ROLLBACK_TRANSACTION_SQL = 'ROLLBACK'
 BEGIN_TRANSACTION_SQL = 'BEGIN'
+# Statements issued after each read-only query to scrub session state that a
+# SET / set_config() may have mutated, so it does not persist on the pooled
+# connection into subsequent requests.
+#   - RESET ALL resets ordinary GUCs (search_path, timezone, planner flags).
+#   - RESET ROLE is required in addition because Postgres marks `role` and
+#     `session_authorization` as GUC_NO_RESET_ALL, so a `SET ROLE` /
+#     `SET SESSION AUTHORIZATION` survives a bare RESET ALL. In Postgres
+#     `RESET ROLE` and `RESET SESSION AUTHORIZATION` are equivalent (both
+#     restore the session to the authenticated user default), so the single
+#     `RESET ROLE` clears both.
+# `DISCARD ALL` would cover this in one statement but is not supported by
+# Aurora DSQL (FeatureNotSupported), so the two explicit RESETs are used.
+RESET_SESSION_STATE_SQL = ('RESET ALL', 'RESET ROLE')
 GET_SCHEMA_SQL = 'SELECT column_name, data_type FROM information_schema.columns WHERE LOWER(table_name) = LOWER(%s)'
 GET_QUALIFIED_SCHEMA_SQL = 'SELECT column_name, data_type FROM information_schema.columns WHERE LOWER(table_schema) = LOWER(%s) AND LOWER(table_name) = LOWER(%s)'
 ERROR_BEGIN_READ_ONLY_TRANSACTION = 'Failed to begin read only transaction'
 INTERNAL_ERROR = 'Internal Error'
 READ_ONLY_QUERY_WRITE_ERROR = 'readonly_query does not support write operations. Use transact'
 ERROR_ROLLBACK_TRANSACTION = 'Failed to rollback transaction'
+ERROR_RESET_SESSION_STATE = 'Failed to reset session state'
 ERROR_READONLY_QUERY = 'Error executing readonly_query'
 ERROR_BEGIN_TRANSACTION = 'Failed to begin transaction'
 ERROR_TRANSACT = 'Error executing transact'

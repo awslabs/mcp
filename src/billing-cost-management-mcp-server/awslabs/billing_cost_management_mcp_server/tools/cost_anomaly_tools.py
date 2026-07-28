@@ -48,6 +48,8 @@ You can filter anomalies by:
 - Feedback status (optional)
 - Total impact (optional)
 
+Note: Both start_date and end_date are INCLUSIVE. To get anomalies including today, use today's date as end_date.
+
 Feedback status options:
 - YES: Anomalies marked as accurate
 - NO: Anomalies marked as inaccurate
@@ -68,8 +70,8 @@ async def cost_anomaly(
 
     Args:
         ctx: The MCP context object
-        start_date: Start date in YYYY-MM-DD format. Required.
-        end_date: End date in YYYY-MM-DD format. Required.
+        start_date: Start date in YYYY-MM-DD format (inclusive). Required.
+        end_date: End date in YYYY-MM-DD format (inclusive — use today's date to include today's anomalies). Required.
         monitor_arn: Optional ARN of a specific cost anomaly monitor to filter results.
         feedback: Optional filter for anomalies by feedback status (YES, NO, PLANNED_ACTIVITY).
         max_results: Optional maximum number of results to return.

@@ -113,6 +113,7 @@ def get_user_agent_extra() -> str:
     user_agent_extra += f' cfg/ro#{"1" if READ_OPERATIONS_ONLY_MODE else "0"}'
     user_agent_extra += f' cfg/consent#{"1" if REQUIRE_MUTATION_CONSENT else "0"}'
     user_agent_extra += f' cfg/scripts#{"1" if ENABLE_AGENT_SCRIPTS else "0"}'
+    user_agent_extra += f' cfg/file-access#{FILE_ACCESS_MODE.value}'
     return user_agent_extra
 
 
@@ -178,6 +179,7 @@ PORT = int(os.getenv('AWS_API_MCP_PORT', 8000))
 ALLOWED_HOSTS = os.getenv('AWS_API_MCP_ALLOWED_HOSTS', HOST)
 ALLOWED_ORIGINS = os.getenv('AWS_API_MCP_ALLOWED_ORIGINS', HOST)
 STATELESS_HTTP = get_env_bool('AWS_API_MCP_STATELESS_HTTP', False)
+SUPPRESS_DEPRECATION_WARNING = get_env_bool('AWS_API_MCP_SUPPRESS_DEPRECATION_WARNING', False)
 CUSTOM_SCRIPTS_DIR = os.getenv('AWS_API_MCP_AGENT_SCRIPTS_DIR')
 FILE_ACCESS_MODE = get_file_access_mode()
 ENDPOINT_SUGGEST_AWS_COMMANDS = os.getenv(

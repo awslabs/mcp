@@ -496,3 +496,63 @@ def test_local_file_uri_validation_failure():
 def test_codeartifact_login_allowed_in_unrestricted_mode():
     """Test that codeartifact login is allowed when FILE_ACCESS_MODE is UNRESTRICTED."""
     assert not is_denied_custom_operation('codeartifact', 'login')
+
+
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.WORKING_DIRECTORY',
+    '/test/workdir',
+)
+def test_env_var_home_blocked_in_ecs_deploy():
+    """Test that $HOME/path is blocked in ecs deploy when it resolves outside workdir."""
+    import os
+    from unittest.mock import patch as mock_patch
+
+    with mock_patch.dict(os.environ, {'HOME': '/Users/testuser'}):
+        with pytest.raises(FileParameterError):
+            parse(
+                'aws ecs deploy --service test --task-definition $HOME/secret.json --codedeploy-appspec $HOME/secret.json'
+            )
+
+
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.WORKING_DIRECTORY',
+    '/test/workdir',
+)
+def test_env_var_home_braces_blocked_in_ecs_deploy():
+    """Test that ${HOME}/path is blocked in ecs deploy when it resolves outside workdir."""
+    import os
+    from unittest.mock import patch as mock_patch
+
+    with mock_patch.dict(os.environ, {'HOME': '/Users/testuser'}):
+        with pytest.raises(FileParameterError):
+            parse(
+                'aws ecs deploy --service test --task-definition ${HOME}/secret.json --codedeploy-appspec ${HOME}/secret.json'
+            )
+
+
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.WORKING_DIRECTORY',
+    '/test/workdir',
+)
+def test_env_var_tmpdir_blocked_in_cloudformation_deploy():
+    """Test that $TMPDIR/path is blocked in cloudformation deploy."""
+    import os
+    from unittest.mock import patch as mock_patch
+
+    with mock_patch.dict(os.environ, {'TMPDIR': '/var/folders/tmp'}):
+        with pytest.raises(FileParameterError):
+            parse(
+                'aws cloudformation deploy --template-file $TMPDIR/secret.json --stack-name test'
+            )
+
+
+@patch(
+    'awslabs.aws_api_mcp_server.core.common.file_system_controls.WORKING_DIRECTORY',
+    '/test/workdir',
+)
+def test_tilde_still_blocked_in_ecs_deploy():
+    """Test that ~/path remains blocked (regression check for PR #1390 fix)."""
+    with pytest.raises(FileParameterError):
+        parse(
+            'aws ecs deploy --service test --task-definition ~/secret.json --codedeploy-appspec ~/secret.json'
+        )

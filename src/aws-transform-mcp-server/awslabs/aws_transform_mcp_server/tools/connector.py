@@ -95,7 +95,8 @@ class ConnectorHandler:
         targetRegions: Annotated[
             Optional[list],
             Field(
-                description='Optional list of target AWS regions (e.g. ["us-east-1", "us-west-2"])',
+                description='List of target AWS regions (e.g. ["us-east-1", "us-west-2"]). '
+                'Required for containerization and infra_provisioning connector types.',
             ),
         ] = None,
     ) -> dict:
