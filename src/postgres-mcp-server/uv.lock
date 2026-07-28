@@ -85,7 +85,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.42.79" },
     { name = "botocore", specifier = ">=1.42.79" },
     { name = "loguru", specifier = ">=0.7.0" },
-    { name = "mcp", extras = ["cli"], specifier = ">=1.23.0" },
+    { name = "mcp", extras = ["cli"], specifier = ">=1.23.0,<2.0.0" },
     { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.1.12" },
     { name = "pydantic", specifier = ">=2.10.6" },
 ]

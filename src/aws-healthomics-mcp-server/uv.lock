@@ -90,7 +90,7 @@ requires-dist = [
     { name = "cwltool", extras = ["deps"], specifier = ">=3.1.0" },
     { name = "isodate", specifier = ">=0.6.0" },
     { name = "loguru", specifier = ">=0.7.0" },
-    { name = "mcp", extras = ["cli"], specifier = ">=1.23.0" },
+    { name = "mcp", extras = ["cli"], specifier = ">=1.23.0,<2.0.0" },
     { name = "miniwdl", specifier = ">=1.12.0" },
     { name = "nest-asyncio", specifier = ">=1.5.0" },
     { name = "polars", specifier = ">=1.0.0" },

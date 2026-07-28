@@ -78,7 +78,7 @@ requires-dist = [
     { name = "dsql-lint", specifier = ">=0.2.1,<0.3" },
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "loguru", specifier = ">=0.7.0" },
-    { name = "mcp", extras = ["cli"], specifier = ">=1.23.0" },
+    { name = "mcp", extras = ["cli"], specifier = ">=1.23.0,<2.0.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.0" },
     { name = "pydantic", specifier = ">=2.10.6" },
 ]

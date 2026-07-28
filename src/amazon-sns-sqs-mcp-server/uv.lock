@@ -75,7 +75,7 @@ dev = [
 requires-dist = [
     { name = "boto3", specifier = ">=1.38.12" },
     { name = "markdownify", specifier = ">=0.13.1" },
-    { name = "mcp", extras = ["cli"], specifier = ">=1.23.0" },
+    { name = "mcp", extras = ["cli"], specifier = ">=1.23.0,<2.0.0" },
     { name = "protego", specifier = ">=0.3.1" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "pytest", specifier = ">=8.3.5" },

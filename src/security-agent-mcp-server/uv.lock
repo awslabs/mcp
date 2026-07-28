@@ -85,7 +85,7 @@ requires-dist = [
     { name = "gitignorefile", specifier = ">=1.1.0" },
     { name = "idna", specifier = ">=3.15" },
     { name = "loguru", specifier = ">=0.7.0" },
-    { name = "mcp", extras = ["cli"], specifier = ">=1.6.0" },
+    { name = "mcp", extras = ["cli"], specifier = ">=1.6.0,<2.0.0" },
     { name = "pydantic", specifier = ">=2.10.6" },
 ]
 

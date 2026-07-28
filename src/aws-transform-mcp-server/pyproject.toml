@@ -7,7 +7,7 @@ requires-python = ">=3.10"
 dependencies = [
     "boto3>=1.37.27",
     "botocore[crt]>=1.37.27",
-    "mcp[cli]>=1.23.0",
+    "mcp[cli]>=1.23.0,<2.0.0",
     "pydantic>=2.10.6",
     "loguru>=0.7.0",
     "httpx>=0.28.0",

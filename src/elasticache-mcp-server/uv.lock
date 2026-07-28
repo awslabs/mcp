@@ -72,7 +72,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.34.0" },
     { name = "commitizen", marker = "extra == 'dev'", specifier = ">=4.2.2" },
     { name = "loguru", specifier = ">=0.7.0" },
-    { name = "mcp", extras = ["cli"], specifier = ">=1.23.0" },
+    { name = "mcp", extras = ["cli"], specifier = ">=1.23.0,<2.0.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.1.0" },
     { name = "pydantic", specifier = ">=2.10.6" },
     { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1.398" },

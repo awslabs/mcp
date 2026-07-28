@@ -112,7 +112,7 @@ requires-dist = [
     { name = "botocore", extras = ["crt"], specifier = ">=1.37.27" },
     { name = "httpx", specifier = ">=0.28.0" },
     { name = "loguru", specifier = ">=0.7.0" },
-    { name = "mcp", extras = ["cli"], specifier = ">=1.23.0" },
+    { name = "mcp", extras = ["cli"], specifier = ">=1.23.0,<2.0.0" },
     { name = "pydantic", specifier = ">=2.10.6" },
 ]
 

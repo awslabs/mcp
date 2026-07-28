@@ -80,7 +80,7 @@ requires-dist = [
     { name = "filelock", specifier = ">=3.20.3" },
     { name = "httpx", specifier = ">=0.25.0" },
     { name = "loguru", specifier = ">=0.7.0" },
-    { name = "mcp", extras = ["cli"], specifier = ">=1.23.0" },
+    { name = "mcp", extras = ["cli"], specifier = ">=1.23.0,<2.0.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.1.0" },
     { name = "pydantic", specifier = ">=2.10.6" },
     { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1.408" },

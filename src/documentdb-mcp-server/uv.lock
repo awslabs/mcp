@@ -70,7 +70,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "loguru", specifier = ">=0.7.0" },
-    { name = "mcp", extras = ["cli"], specifier = ">=1.23.0" },
+    { name = "mcp", extras = ["cli"], specifier = ">=1.23.0,<2.0.0" },
     { name = "pydantic", specifier = ">=2.10.6" },
     { name = "pymongo", specifier = ">=4.12.1" },
 ]

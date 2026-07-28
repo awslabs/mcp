@@ -75,7 +75,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.38.7" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "loguru", specifier = ">=0.7.0" },
-    { name = "mcp", extras = ["cli"], specifier = ">=1.23.0" },
+    { name = "mcp", extras = ["cli"], specifier = ">=1.23.0,<2.0.0" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "requests", specifier = ">=2.32.3" },

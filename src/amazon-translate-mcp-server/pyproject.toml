@@ -39,7 +39,7 @@ keywords = [
 ]
 dependencies = [
     "boto3>=1.38.12",
-    "mcp[cli]>=1.23.0",
+    "mcp[cli]>=1.23.0,<2.0.0",
     "pydantic>=2.0.0",
     "fastmcp>=2.13.1",
     "defusedxml>=0.7.1",

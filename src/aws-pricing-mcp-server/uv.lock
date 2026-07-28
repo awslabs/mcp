@@ -72,7 +72,7 @@ dev = [
 requires-dist = [
     { name = "boto3", specifier = ">=1.39.4" },
     { name = "loguru", specifier = ">=0.7.3" },
-    { name = "mcp", extras = ["cli"], specifier = ">=1.23.0" },
+    { name = "mcp", extras = ["cli"], specifier = ">=1.23.0,<2.0.0" },
     { name = "pydantic", specifier = ">=2.10.5" },
     { name = "pytest", specifier = ">=8.1.1" },
     { name = "pytest-asyncio", specifier = ">=0.20.3" },
