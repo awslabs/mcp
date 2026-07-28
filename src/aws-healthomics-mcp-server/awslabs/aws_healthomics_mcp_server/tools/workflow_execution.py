@@ -150,7 +150,13 @@ async def start_run(
     ),
     workflow_type: Optional[str] = Field(
         None,
-        description='Workflow type: PRIVATE (default) or READY2RUN. Must be set to READY2RUN when running AWS-provided Ready2Run workflows. When READY2RUN, storage_type and storage_capacity are not applicable (Ready2Run workflows use fixed storage).',
+        description=(
+            'REQUIRED for Ready2Run workflows — set to "READY2RUN" for any AWS-provided '
+            'workflow (i.e. workflows discovered with workflow_type=READY2RUN in '
+            'ListWorkflows or GetWorkflow). Omitting this for a Ready2Run workflow causes '
+            'ResourceNotFoundException. Set to "PRIVATE" for user-created workflows. '
+            'Defaults to PRIVATE if omitted.'
+        ),
     ),
     workflow_version_name: Optional[str] = Field(
         None,
@@ -158,11 +164,11 @@ async def start_run(
     ),
     storage_type: str = Field(
         'DYNAMIC',
-        description='Storage type (STATIC or DYNAMIC). DYNAMIC is preferred except for runs with very large inputs (TiBs). Not applicable when workflow_type is READY2RUN (Ready2Run workflows use fixed storage).',
+        description='Storage type (STATIC or DYNAMIC). DYNAMIC is preferred except for runs with very large inputs (TiBs).',
     ),
     storage_capacity: Optional[int] = Field(
         None,
-        description='Storage capacity in GB (required for STATIC). Storage is allocated in 1200 GiB chunks. Not applicable when workflow_type is READY2RUN (Ready2Run workflows use fixed storage).',
+        description='Storage capacity in GB (required for STATIC). Storage is allocated in 1200 GiB chunks.',
         ge=1200,
     ),
     cache_id: Optional[str] = Field(
@@ -242,6 +248,28 @@ async def start_run(
             return validation_result
     # Normalize workflow_type: only pass to API if it's a valid string
     effective_workflow_type = workflow_type if isinstance(workflow_type, str) else None
+
+    # Validate that storage parameters are not set for Ready2Run workflows
+    if effective_workflow_type == 'READY2RUN':
+        if storage_capacity is not None:
+            return await handle_tool_error(
+                ctx,
+                ValueError(
+                    'storage_capacity cannot be set when workflow_type is READY2RUN. '
+                    'Ready2Run workflows use fixed storage managed by AWS.'
+                ),
+                'Invalid parameter for Ready2Run workflow',
+            )
+        if storage_type != 'DYNAMIC':
+            # storage_type has a default of 'DYNAMIC', so only error if explicitly changed
+            return await handle_tool_error(
+                ctx,
+                ValueError(
+                    'storage_type cannot be set when workflow_type is READY2RUN. '
+                    'Ready2Run workflows use fixed storage managed by AWS.'
+                ),
+                'Invalid parameter for Ready2Run workflow',
+            )
 
     # Validate storage type
     if storage_type not in STORAGE_TYPES:
