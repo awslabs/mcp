@@ -220,7 +220,9 @@ class TestFrontendUploader:
             await upload_to_s3('/dir/source', 'test-bucket', 'us-east-1')
 
             # Verify S3 client was created with correct region
-            mock_session.client.assert_called_once_with('s3')
+            mock_session.client.assert_called_once()
+            args, kwargs = mock_session.client.call_args
+            assert args[0] == 's3'
 
             # Verify files were uploaded
             expected_calls = [
@@ -254,7 +256,9 @@ class TestFrontendUploader:
             await upload_to_s3('/dir/source', 'test-bucket')
 
             # Verify Session was created without region
-            mock_session.client.assert_called_once_with('s3')
+            mock_session.client.assert_called_once()
+            args, kwargs = mock_session.client.call_args
+            assert args[0] == 's3'
 
     @pytest.mark.asyncio
     async def test_upload_to_s3_client_error(self):

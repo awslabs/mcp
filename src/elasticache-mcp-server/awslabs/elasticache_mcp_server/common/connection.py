@@ -16,6 +16,7 @@
 
 import boto3
 import os
+from awslabs.elasticache_mcp_server import __version__
 from botocore.config import Config
 from typing import Any, Optional
 
@@ -51,7 +52,7 @@ class BaseConnectionManager:
                 connect_timeout=connect_timeout,
                 read_timeout=read_timeout,
                 # Configure custom user agent to identify requests from LLM/MCP
-                user_agent_extra='MCP/ElastiCacheServer',
+                user_agent_extra=f'md/awslabs#mcp#elasticache-mcp-server#{__version__}',
             )
 
             # Initialize AWS client with session and config

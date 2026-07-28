@@ -245,13 +245,11 @@ class TestTaskAggregatorPropertyBased:
     @given(base_name=base_task_name_strategy)
     @settings(max_examples=100)
     def test_property_normalization_idempotence(self, base_name: str):
-        """Property 8: Task Name Normalization Idempotence.
+        """Property: Task Name Normalization Idempotence.
 
         For any task name N, normalizing N twice SHALL produce the same result
         as normalizing once: normalize(normalize(N)) == normalize(N).
-
-        **Validates: Requirements 6.1, 6.2**
-        **Feature: run-analyzer-enhancement, Property 8: Task Name Normalization Idempotence**
+        **Feature: run-analyzer-enhancement, Property: Task Name Normalization Idempotence**
         """
         # Test with base name (no suffix)
         once = TaskAggregator.normalize_task_name(base_name)
@@ -267,12 +265,10 @@ class TestTaskAggregatorPropertyBased:
     def test_property_normalization_idempotence_wdl(
         self, base_name: str, shard: int, attempt: int
     ):
-        """Property 8: Task Name Normalization Idempotence (WDL pattern).
+        """Property: Task Name Normalization Idempotence (WDL pattern).
 
         For any WDL-style task name, normalizing twice produces the same result.
-
-        **Validates: Requirements 6.1, 6.2**
-        **Feature: run-analyzer-enhancement, Property 8: Task Name Normalization Idempotence**
+        **Feature: run-analyzer-enhancement, Property: Task Name Normalization Idempotence**
         """
         task_name = f'{base_name}-{shard}-{attempt}'
         once = TaskAggregator.normalize_task_name(task_name)
@@ -285,12 +281,10 @@ class TestTaskAggregatorPropertyBased:
     )
     @settings(max_examples=100)
     def test_property_normalization_idempotence_nextflow(self, base_name: str, index: str):
-        """Property 8: Task Name Normalization Idempotence (Nextflow pattern).
+        """Property: Task Name Normalization Idempotence (Nextflow pattern).
 
         For any Nextflow-style task name, normalizing twice produces the same result.
-
-        **Validates: Requirements 6.1, 6.2**
-        **Feature: run-analyzer-enhancement, Property 8: Task Name Normalization Idempotence**
+        **Feature: run-analyzer-enhancement, Property: Task Name Normalization Idempotence**
         """
         task_name = f'{base_name} ({index})'
         once = TaskAggregator.normalize_task_name(task_name)
@@ -303,12 +297,10 @@ class TestTaskAggregatorPropertyBased:
     )
     @settings(max_examples=100)
     def test_property_normalization_idempotence_cwl(self, base_name: str, index: int):
-        """Property 8: Task Name Normalization Idempotence (CWL pattern).
+        """Property: Task Name Normalization Idempotence (CWL pattern).
 
         For any CWL-style task name, normalizing twice produces the same result.
-
-        **Validates: Requirements 6.1, 6.2**
-        **Feature: run-analyzer-enhancement, Property 8: Task Name Normalization Idempotence**
+        **Feature: run-analyzer-enhancement, Property: Task Name Normalization Idempotence**
         """
         task_name = f'{base_name}_{index}'
         once = TaskAggregator.normalize_task_name(task_name)
@@ -344,13 +336,11 @@ class TestTaskAggregatorAggregationPropertyBased:
     @given(tasks=st.lists(task_strategy(), min_size=0, max_size=50))
     @settings(max_examples=100)
     def test_property_aggregation_count_invariant(self, tasks: list[dict]):
-        """Property 9: Aggregation Count Invariant.
+        """Property: Aggregation Count Invariant.
 
         For any set of tasks grouped by base name, the sum of counts across all
         aggregated groups SHALL equal the total number of input tasks.
-
-        **Validates: Requirements 6.3, 6.4, 7.1, 7.2**
-        **Feature: run-analyzer-enhancement, Property 9: Aggregation Count Invariant**
+        **Feature: run-analyzer-enhancement, Property: Aggregation Count Invariant**
         """
         aggregator = TaskAggregator()
         result = aggregator.aggregate_tasks(tasks)

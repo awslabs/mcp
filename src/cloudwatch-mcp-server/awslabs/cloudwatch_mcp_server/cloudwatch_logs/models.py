@@ -25,7 +25,7 @@ class LogGroupMetadata(BaseModel):
     creationTime: str = Field(..., description='ISO 8601 timestamp when the log group was created')
     retentionInDays: Optional[int] = Field(default=None, description='Retention period, if set')
     metricFilterCount: int = Field(..., description='Number of metric filters')
-    storedBytes: int = Field(..., description='The number of bytes stored')
+    storedBytes: Optional[int] = Field(default=None, description='The number of bytes stored')
     kmsKeyId: Optional[str] = Field(
         default=None, description='KMS Key Id used for data encryption, if set'
     )

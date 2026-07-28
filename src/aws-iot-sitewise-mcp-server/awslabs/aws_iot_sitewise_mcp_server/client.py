@@ -19,6 +19,9 @@ from awslabs.aws_iot_sitewise_mcp_server import __version__
 from botocore.config import Config
 
 
+USER_AGENT_EXTRA = f'md/awslabs#mcp#aws-iot-sitewise-mcp-server#{__version__}'
+
+
 def create_sitewise_client(region: str = 'us-east-1'):
     """Create a standardized AWS IoT SiteWise client with proper user agent.
 
@@ -28,7 +31,7 @@ def create_sitewise_client(region: str = 'us-east-1'):
     Returns:
         boto3 IoT SiteWise client instance
     """
-    config = Config(user_agent_extra=f'awslabs/mcp/aws-iot-sitewise-mcp-server/{__version__}')
+    config = Config(user_agent_extra=USER_AGENT_EXTRA)
 
     return boto3.client('iotsitewise', region_name=region, config=config)
 
@@ -42,7 +45,7 @@ def create_iam_client(region: str = 'us-east-1'):
     Returns:
         boto3 IAM client instance
     """
-    config = Config(user_agent_extra=f'awslabs/mcp/aws-iot-sitewise-mcp-server/{__version__}')
+    config = Config(user_agent_extra=USER_AGENT_EXTRA)
 
     return boto3.client('iam', region_name=region, config=config)
 
@@ -56,6 +59,6 @@ def create_twinmaker_client(region: str = 'us-east-1'):
     Returns:
         boto3 IoT TwinMaker client instance
     """
-    config = Config(user_agent_extra=f'awslabs/mcp/aws-iot-sitewise-mcp-server/{__version__}')
+    config = Config(user_agent_extra=USER_AGENT_EXTRA)
 
     return boto3.client('iottwinmaker', region_name=region, config=config)

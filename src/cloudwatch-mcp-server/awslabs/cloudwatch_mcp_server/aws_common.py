@@ -41,7 +41,7 @@ def get_aws_client(
         profile_name = getenv('AWS_PROFILE', None)
 
     # Configure user agent
-    config = Config(user_agent_extra=f'awslabs/mcp/cloudwatch-mcp-server/{MCP_SERVER_VERSION}')
+    config = Config(user_agent_extra=f'md/awslabs#mcp#cloudwatch-mcp-server#{MCP_SERVER_VERSION}')
 
     # Create session with or without profile
     if profile_name:

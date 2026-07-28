@@ -40,17 +40,17 @@ This MCP server provides tools for:
 ### Workflow Management Tools
 
 1. **ListAHOWorkflows** - List available HealthOmics workflows with pagination support
-2. **CreateAHOWorkflow** - Create new workflows with WDL, CWL, or Nextflow definitions from base64-encoded ZIP files or S3 URIs, with optional container registry mappings
+2. **CreateAHOWorkflow** - Create new workflows with WDL, CWL, or Nextflow definitions from local ZIP files, S3 URIs, or base64-encoded content, with optional container registry mappings
 3. **GetAHOWorkflow** - Retrieve detailed workflow information and export definitions
-4. **CreateAHOWorkflowVersion** - Create new versions of existing workflows from base64-encoded ZIP files or S3 URIs, with optional container registry mappings
+4. **CreateAHOWorkflowVersion** - Create new versions of existing workflows from local ZIP files, S3 URIs, or base64-encoded content, with optional container registry mappings
 5. **ListAHOWorkflowVersions** - List all versions of a specific workflow
-6. **LintAHOWorkflowDefinition** - Lint single WDL or CWL workflow files using miniwdl and cwltool
-7. **LintAHOWorkflowBundle** - Lint multi-file WDL or CWL workflow bundles with import/dependency support
-8. **PackageAHOWorkflow** - Package workflow files into base64-encoded ZIP format
+6. **LintAHOWorkflowDefinition** - Lint single WDL or CWL workflow files using miniwdl and cwltool, accepting local file paths, S3 URIs, or inline content
+7. **LintAHOWorkflowBundle** - Lint multi-file WDL or CWL workflow bundles with import/dependency support, accepting local directories, ZIP files, S3 prefixes, or inline dictionaries
+8. **PackageAHOWorkflow** - Package workflow files into base64-encoded ZIP format, accepting local file paths, S3 URIs, or inline content
 
 ### Workflow Execution Tools
 
-1. **StartAHORun** - Start workflow runs with custom parameters and resource configuration
+1. **StartAHORun** - Start workflow runs with custom parameters, resource configuration, and optional VPC networking mode with a named configuration
 2. **ListAHORuns** - List workflow runs with filtering by status and date ranges
 3. **GetAHORun** - Retrieve detailed run information including status and metadata
 4. **ListAHORunTasks** - List tasks for specific runs with status filtering
@@ -82,6 +82,39 @@ This MCP server provides tools for:
 2. **GetAHORunCache** - Retrieve detailed information about a specific run cache including configuration, status, and metadata
 3. **ListAHORunCaches** - List available run caches with optional filtering by name, status, or cache behavior, with pagination support
 4. **UpdateAHORunCache** - Update an existing run cache's cache behavior, name, or description
+
+### Sequence Store Management Tools
+
+1. **CreateAHOSequenceStore** - Create a new sequence store with optional encryption, description, fallback location, and tags
+2. **ListAHOSequenceStores** - List sequence stores with optional name filtering and pagination
+3. **GetAHOSequenceStore** - Get detailed information about a specific sequence store
+4. **UpdateAHOSequenceStore** - Update a sequence store's name, description, or fallback location (manages ETags internally)
+5. **ListAHOReadSets** - List read sets in a sequence store with filtering by sample ID, subject ID, reference ARN, status, file type, and date range
+6. **GetAHOReadSetMetadata** - Get detailed metadata for a specific read set including sequence information and file details
+7. **StartAHOReadSetImportJob** - Import genomic files from S3 into a sequence store with batch support
+8. **GetAHOReadSetImportJob** - Get status and details of a read set import job including per-source statuses
+9. **ListAHOReadSetImportJobs** - List import jobs for a sequence store with pagination
+10. **StartAHOReadSetExportJob** - Export read sets from a sequence store to S3 with batch support
+11. **GetAHOReadSetExportJob** - Get status and details of a read set export job
+12. **ListAHOReadSetExportJobs** - List export jobs for a sequence store with pagination
+13. **ActivateAHOReadSets** - Activate archived read sets for analysis access
+
+### Reference Store Management Tools
+
+1. **ListAHOReferenceStores** - List reference stores with optional name filtering and pagination
+2. **GetAHOReferenceStore** - Get detailed information about a specific reference store
+3. **ListAHOReferences** - List references in a reference store with optional name and status filtering
+4. **GetAHOReferenceMetadata** - Get detailed metadata for a specific reference including file information
+5. **StartAHOReferenceImportJob** - Import reference files from S3 into a reference store with batch support
+6. **GetAHOReferenceImportJob** - Get status and details of a reference import job including per-source statuses
+7. **ListAHOReferenceImportJobs** - List import jobs for a reference store with pagination
+
+### Configuration Management Tools
+
+1. **CreateAHOConfiguration** - Create a new HealthOmics configuration for workflow runs with optional run settings, description, and tags
+2. **GetAHOConfiguration** - Get detailed information about a specific configuration including run settings and status
+3. **ListAHOConfigurations** - List available configurations with pagination support
+4. **DeleteAHOConfiguration** - Delete a configuration
 
 ### Region Management Tools
 
@@ -120,7 +153,7 @@ AWS HealthOmics is designed for genomic data analysis workflows. Key concepts:
      - S3 URI must start with `s3://`
      - The S3 bucket must be in the same region as the HealthOmics service
      - Appropriate S3 permissions must be configured for the HealthOmics service
-   - **Usage**: Specify either `definition_zip_base64` OR `definition_uri`, but not both
+   - **Usage**: Specify either `definition_source` (local ZIP path, S3 URI, or base64 content) OR `definition_uri`, but not both. The legacy `definition_zip_base64` parameter is still accepted as a deprecated alias.
 
 3. **Version Management**:
    - Create new versions for workflow updates rather than modifying existing ones
@@ -486,6 +519,24 @@ The following IAM permissions are required:
                 "omics:ListReferenceStores",
                 "omics:ListReferences",
                 "omics:GetReferenceMetadata",
+                "omics:CreateSequenceStore",
+                "omics:GetSequenceStore",
+                "omics:UpdateSequenceStore",
+                "omics:StartReadSetImportJob",
+                "omics:GetReadSetImportJob",
+                "omics:ListReadSetImportJobs",
+                "omics:StartReadSetExportJob",
+                "omics:GetReadSetExportJob",
+                "omics:ListReadSetExportJobs",
+                "omics:StartReadSetActivationJob",
+                "omics:GetReferenceStore",
+                "omics:StartReferenceImportJob",
+                "omics:GetReferenceImportJob",
+                "omics:ListReferenceImportJobs",
+                "omics:CreateConfiguration",
+                "omics:GetConfiguration",
+                "omics:ListConfigurations",
+                "omics:DeleteConfiguration",
                 "logs:DescribeLogGroups",
                 "logs:DescribeLogStreams",
                 "logs:GetLogEvents"

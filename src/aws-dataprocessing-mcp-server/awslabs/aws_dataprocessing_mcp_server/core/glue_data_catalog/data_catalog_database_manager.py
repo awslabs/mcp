@@ -171,7 +171,7 @@ class DataCatalogDatabaseManager:
                 database = response.get('Database', {})
 
                 # Construct the ARN for the database
-                region = AwsHelper.get_aws_region()
+                region = AwsHelper.get_or_default_aws_region()
                 account_id = catalog_id or AwsHelper.get_aws_account_id()
                 partition = AwsHelper.get_aws_partition()
                 database_arn = (
@@ -425,7 +425,7 @@ class DataCatalogDatabaseManager:
                 existing_parameters = database.get('Parameters', {})
 
                 # Construct the ARN for the database
-                region = AwsHelper.get_aws_region()
+                region = AwsHelper.get_or_default_aws_region()
                 account_id = catalog_id or AwsHelper.get_aws_account_id()
                 partition = AwsHelper.get_aws_partition()
                 database_arn = (

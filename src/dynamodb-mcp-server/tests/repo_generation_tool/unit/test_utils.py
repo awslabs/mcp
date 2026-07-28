@@ -518,8 +518,8 @@ class TestCrudMethodNames:
 
 
 @pytest.mark.unit
-class TestCrudSignatureEdgeCases:
-    """Tests for edge cases in get_crud_signature."""
+class TestCrudSignatureVariants:
+    """Tests for get_crud_signature with different key configurations."""
 
     def test_get_crud_signature_delete_with_single_key(self):
         """Test delete signature with single key parameter (line 115)."""
@@ -534,8 +534,8 @@ class TestCrudSignatureEdgeCases:
 
 
 @pytest.mark.unit
-class TestSemanticEquivalenceEdgeCases:
-    """Tests for edge cases in is_semantically_equivalent_to_crud."""
+class TestSemanticEquivalenceMatching:
+    """Tests for is_semantically_equivalent_to_crud matching logic."""
 
     def test_update_item_with_entity_param_equivalent(self):
         """Test UpdateItem with entity parameter is equivalent to update (line 179)."""

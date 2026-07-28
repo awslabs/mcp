@@ -101,9 +101,6 @@ def mock_ce_client():
     mock_client.get_tag_values.return_value = {'TagValues': ['dev', 'prod', 'test']}
 
     mock_client.get_cost_categories.return_value = {'CostCategoryNames': ['Department', 'Team']}
-    mock_client.get_cost_category_values.return_value = {
-        'CostCategoryValues': ['Engineering', 'Marketing']
-    }
 
     mock_client.get_savings_plans_utilization.return_value = {
         'SavingsPlansUtilizationsByTime': [
@@ -115,6 +112,129 @@ def mock_ce_client():
     }
 
     return mock_client
+
+
+@pytest.fixture
+def sample_billing_view_arn():
+    """Sample billing view ARN for testing billing view support."""
+    return 'arn:aws:billing::123456789012:billingview/custom-view-abc123'
+
+
+@pytest.mark.asyncio
+class TestBillingViewArnSupport:
+    """Tests for billing_view_arn parameter across all supported CE operations."""
+
+    async def test_get_cost_and_usage_with_billing_view_arn(
+        self, mock_context, mock_ce_client, sample_billing_view_arn
+    ):
+        """Test get_cost_and_usage includes BillingViewArn in request."""
+        result = await get_cost_and_usage(
+            mock_context,
+            mock_ce_client,
+            start_date='2023-01-01',
+            end_date='2023-01-31',
+            billing_view_arn=sample_billing_view_arn,
+        )
+        assert result['status'] == 'success'
+        call_kwargs = mock_ce_client.get_cost_and_usage.call_args[1]
+        assert call_kwargs['BillingViewArn'] == sample_billing_view_arn
+
+    async def test_get_cost_and_usage_without_billing_view_arn(self, mock_context, mock_ce_client):
+        """Test get_cost_and_usage omits BillingViewArn when not provided."""
+        await get_cost_and_usage(mock_context, mock_ce_client)
+        call_kwargs = mock_ce_client.get_cost_and_usage.call_args[1]
+        assert 'BillingViewArn' not in call_kwargs
+
+    async def test_get_cost_and_usage_with_resources_with_billing_view_arn(
+        self, mock_context, mock_ce_client, sample_billing_view_arn
+    ):
+        """Test get_cost_and_usage_with_resources includes BillingViewArn."""
+        result = await get_cost_and_usage_with_resources(
+            mock_context,
+            mock_ce_client,
+            start_date='2023-01-01',
+            end_date='2023-01-07',
+            billing_view_arn=sample_billing_view_arn,
+        )
+        assert result['status'] == 'success'
+        call_kwargs = mock_ce_client.get_cost_and_usage_with_resources.call_args[1]
+        assert call_kwargs['BillingViewArn'] == sample_billing_view_arn
+
+    async def test_get_dimension_values_with_billing_view_arn(
+        self, mock_context, mock_ce_client, sample_billing_view_arn
+    ):
+        """Test get_dimension_values includes BillingViewArn."""
+        result = await get_dimension_values(
+            mock_context,
+            mock_ce_client,
+            dimension='SERVICE',
+            billing_view_arn=sample_billing_view_arn,
+        )
+        assert result['status'] == 'success'
+        call_kwargs = mock_ce_client.get_dimension_values.call_args[1]
+        assert call_kwargs['BillingViewArn'] == sample_billing_view_arn
+
+    async def test_get_cost_forecast_with_billing_view_arn(
+        self, mock_context, mock_ce_client, sample_billing_view_arn
+    ):
+        """Test get_cost_forecast includes BillingViewArn."""
+        result = await get_cost_forecast(
+            mock_context,
+            mock_ce_client,
+            metric='UNBLENDED_COST',
+            start_date='2023-02-01',
+            end_date='2023-02-28',
+            billing_view_arn=sample_billing_view_arn,
+        )
+        assert result['status'] == 'success'
+        call_kwargs = mock_ce_client.get_cost_forecast.call_args[1]
+        assert call_kwargs['BillingViewArn'] == sample_billing_view_arn
+
+    async def test_get_usage_forecast_with_billing_view_arn(
+        self, mock_context, mock_ce_client, sample_billing_view_arn
+    ):
+        """Test get_usage_forecast includes BillingViewArn."""
+        mock_ce_client.get_usage_forecast.return_value = {
+            'Total': {'Amount': '1500.0', 'Unit': 'GB'},
+            'ForecastResultsByTime': [],
+        }
+        result = await get_usage_forecast(
+            mock_context,
+            mock_ce_client,
+            metric='USAGE_QUANTITY',
+            start_date='2023-02-01',
+            end_date='2023-02-28',
+            billing_view_arn=sample_billing_view_arn,
+        )
+        assert result['status'] == 'success'
+        call_kwargs = mock_ce_client.get_usage_forecast.call_args[1]
+        assert call_kwargs['BillingViewArn'] == sample_billing_view_arn
+
+    async def test_get_tags_with_billing_view_arn(
+        self, mock_context, mock_ce_client, sample_billing_view_arn
+    ):
+        """Test get_tags includes BillingViewArn."""
+        result = await get_tags(
+            mock_context,
+            mock_ce_client,
+            billing_view_arn=sample_billing_view_arn,
+        )
+        assert result['status'] == 'success'
+        call_kwargs = mock_ce_client.get_tags.call_args[1]
+        assert call_kwargs['BillingViewArn'] == sample_billing_view_arn
+
+    async def test_get_cost_categories_with_billing_view_arn(
+        self, mock_context, mock_ce_client, sample_billing_view_arn
+    ):
+        """Test get_cost_categories includes BillingViewArn."""
+        result = await get_cost_categories(
+            mock_context,
+            mock_ce_client,
+            billing_view_arn=sample_billing_view_arn,
+        )
+        assert result['status'] == 'success'
+        call_kwargs = mock_ce_client.get_cost_categories.call_args[1]
+        assert call_kwargs['BillingViewArn'] == sample_billing_view_arn
 
 
 @pytest.mark.asyncio
@@ -214,6 +334,78 @@ class TestGetCostAndUsage:
         # Verify error was properly handled
         assert result['status'] == 'error'
         assert 'message' in result
+
+    async def test_caller_next_token_is_used_on_first_request(self, mock_context, mock_ce_client):
+        """Caller-supplied next_token must be injected into the first boto3 call."""
+        mock_ce_client.get_cost_and_usage.return_value = {
+            'ResultsByTime': [{'TimePeriod': {'Start': '2023-01-02', 'End': '2023-01-03'}}],
+        }
+
+        await get_cost_and_usage(
+            mock_context,
+            mock_ce_client,
+            start_date='2023-01-01',
+            end_date='2023-01-31',
+            next_token='resume-from-here',
+            max_pages=1,
+        )
+
+        first_call_kwargs = mock_ce_client.get_cost_and_usage.call_args_list[0][1]
+        assert first_call_kwargs.get('NextPageToken') == 'resume-from-here'
+
+    async def test_single_page_surfaces_next_page_token_for_agent(
+        self, mock_context, mock_ce_client
+    ):
+        """Small responses preserve the raw boto3 NextPageToken in result.data."""
+        mock_ce_client.get_cost_and_usage.return_value = {
+            'ResultsByTime': [{'TimePeriod': {'Start': '2023-01-01', 'End': '2023-01-02'}}],
+            'NextPageToken': 'continue-here',
+        }
+
+        result = await get_cost_and_usage(
+            mock_context,
+            mock_ce_client,
+            start_date='2023-01-01',
+            end_date='2023-01-31',
+        )
+
+        assert result['status'] == 'success'
+        assert result['data'].get('NextPageToken') == 'continue-here'
+
+    async def test_pagination_metadata_forwarded_to_sql_offload(
+        self, mock_context, mock_ce_client
+    ):
+        """Pagination markers in the response must surface in the offload result.
+
+        convert_response_if_needed auto-derives next_page_token / has_more /
+        pages_fetched from the response shape (NextPageToken for single-page,
+        or the Pagination sub-dict for the paginate_aws_response wrapper),
+        so the operation no longer passes them as kwargs.
+        """
+        mock_ce_client.get_cost_and_usage.return_value = {
+            'ResultsByTime': [{'TimePeriod': {'Start': '2023-01-01', 'End': '2023-01-02'}}],
+            'NextPageToken': 'continue-here',
+        }
+
+        # Force SQL offload so we can inspect the offload result, regardless
+        # of the small response size that would otherwise stay inline.
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.should_convert_to_sql',
+            return_value=True,
+        ):
+            result = await get_cost_and_usage(
+                mock_context,
+                mock_ce_client,
+                start_date='2023-01-01',
+                end_date='2023-01-31',
+            )
+
+        assert result['status'] == 'success'
+        data = result['data']
+        assert data.get('data_stored') is True
+        assert data.get('next_page_token') == 'continue-here'
+        assert data.get('has_more') is True
+        assert data.get('pages_fetched') == 1
 
 
 @pytest.mark.asyncio
@@ -704,15 +896,19 @@ class TestGetCostCategories:
         assert result['data'] is not None
 
     async def test_get_cost_category_values(self, mock_context, mock_ce_client):
-        """Test get_cost_categories with cost_category_name to get values."""
+        """Test get_cost_categories with cost_category_name to get values.
+
+        AWS GetCostCategories is a single API: passing CostCategoryName makes
+        it return CostCategoryValues from the same get_cost_categories method.
+        """
         result = await get_cost_categories(
             mock_context,
             mock_ce_client,
             cost_category_name='Department',
         )
 
-        mock_ce_client.get_cost_category_values.assert_called_once()
-        call_kwargs = mock_ce_client.get_cost_category_values.call_args[1]
+        mock_ce_client.get_cost_categories.assert_called_once()
+        call_kwargs = mock_ce_client.get_cost_categories.call_args[1]
         assert 'CostCategoryName' in call_kwargs
         assert call_kwargs['CostCategoryName'] == 'Department'
 
@@ -810,3 +1006,140 @@ class TestGetSavingsPlansUtilization:
         # Verify error was properly handled
         assert result['status'] == 'error'
         assert 'message' in result
+
+
+# Pagination contract — agent-supplied next_token must be injected into the
+# first boto3 request for every paginated CE operation. Pre-fix, only its
+# truthiness was used (as a flag to enable paginate-mode); the value was lost.
+
+
+@pytest.mark.parametrize(
+    'op_func, ce_method, result_key, token_key, kwargs',
+    [
+        (
+            get_cost_and_usage,
+            'get_cost_and_usage',
+            'ResultsByTime',
+            'NextPageToken',
+            {'start_date': '2023-01-01', 'end_date': '2023-01-31'},
+        ),
+        (
+            get_cost_and_usage_with_resources,
+            'get_cost_and_usage_with_resources',
+            'ResultsByTime',
+            'NextPageToken',
+            {'start_date': '2023-01-01', 'end_date': '2023-01-07'},
+        ),
+        (
+            get_dimension_values,
+            'get_dimension_values',
+            'DimensionValues',
+            'NextPageToken',
+            {'dimension': 'SERVICE', 'start_date': '2023-01-01', 'end_date': '2023-01-31'},
+        ),
+        (
+            get_tags,
+            'get_tags',
+            'Tags',
+            'NextPageToken',
+            {'start_date': '2023-01-01', 'end_date': '2023-01-31'},
+        ),
+        (
+            get_cost_categories,
+            'get_cost_categories',
+            'CostCategories',
+            'NextPageToken',
+            {'start_date': '2023-01-01', 'end_date': '2023-01-31'},
+        ),
+        (
+            get_savings_plans_utilization,
+            'get_savings_plans_utilization',
+            'SavingsPlansUtilizationsByTime',
+            'NextToken',
+            {'start_date': '2023-01-01', 'end_date': '2023-01-31'},
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_caller_next_token_injected_into_first_request(
+    mock_context, mock_ce_client, op_func, ce_method, result_key, token_key, kwargs
+):
+    """Caller's next_token reaches the first boto3 call for every paginated CE op."""
+    getattr(mock_ce_client, ce_method).return_value = {result_key: []}
+
+    await op_func(
+        mock_context,
+        mock_ce_client,
+        next_token='resume-from-here',
+        max_pages=1,
+        **kwargs,
+    )
+
+    first_call_kwargs = getattr(mock_ce_client, ce_method).call_args_list[0][1]
+    assert first_call_kwargs.get(token_key) == 'resume-from-here'
+
+
+@pytest.mark.parametrize(
+    'op_func, ce_method, result_key, token_key, kwargs',
+    [
+        (
+            get_cost_and_usage,
+            'get_cost_and_usage',
+            'ResultsByTime',
+            'NextPageToken',
+            {'start_date': '2023-01-01', 'end_date': '2023-01-31'},
+        ),
+        (
+            get_cost_and_usage_with_resources,
+            'get_cost_and_usage_with_resources',
+            'ResultsByTime',
+            'NextPageToken',
+            {'start_date': '2023-01-01', 'end_date': '2023-01-07'},
+        ),
+        (
+            get_dimension_values,
+            'get_dimension_values',
+            'DimensionValues',
+            'NextPageToken',
+            {'dimension': 'SERVICE', 'start_date': '2023-01-01', 'end_date': '2023-01-31'},
+        ),
+        (
+            get_tags,
+            'get_tags',
+            'Tags',
+            'NextPageToken',
+            {'start_date': '2023-01-01', 'end_date': '2023-01-31'},
+        ),
+        (
+            get_cost_categories,
+            'get_cost_categories',
+            'CostCategories',
+            'NextPageToken',
+            {'start_date': '2023-01-01', 'end_date': '2023-01-31'},
+        ),
+        (
+            get_savings_plans_utilization,
+            'get_savings_plans_utilization',
+            'SavingsPlansUtilizationsByTime',
+            'NextToken',
+            {'start_date': '2023-01-01', 'end_date': '2023-01-31'},
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_max_pages_without_next_token_omits_token_from_first_request(
+    mock_context, mock_ce_client, op_func, ce_method, result_key, token_key, kwargs
+):
+    """When max_pages is set but next_token is None, the first boto3 request must not carry a token."""
+    getattr(mock_ce_client, ce_method).return_value = {result_key: []}
+
+    await op_func(
+        mock_context,
+        mock_ce_client,
+        next_token=None,
+        max_pages=1,
+        **kwargs,
+    )
+
+    first_call_kwargs = getattr(mock_ce_client, ce_method).call_args_list[0][1]
+    assert token_key not in first_call_kwargs

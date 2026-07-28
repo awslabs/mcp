@@ -155,7 +155,7 @@ class TestAwsHelper:
 
                     # Verify the user agent suffix uses the version from __init__.py
                     assert config is not None
-                    expected_user_agent = f'awslabs/mcp/sagemaker-ai-mcp-server/{__version__}'
+                    expected_user_agent = f'md/awslabs#mcp#sagemaker-ai-mcp-server#{__version__}'
                     assert config.user_agent_extra == expected_user_agent
 
     @patch('boto3.client')

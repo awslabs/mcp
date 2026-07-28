@@ -300,6 +300,16 @@ class EMREc2StepsHandler:
                 if step_id is None:
                     raise ValueError('step_id is required for describe-step operation')
 
+                # SECURITY: Step details may contain sensitive data in arguments, configurations, and error messages
+                # Require --allow-sensitive-data-access flag to prevent unauthorized data exposure
+                if not self.allow_sensitive_data_access:
+                    error_message = 'Operation describe-step may contain sensitive data in step arguments and error messages, and requires --allow-sensitive-data-access flag'
+                    log_with_request_id(ctx, LogLevel.ERROR, error_message)
+                    return CallToolResult(
+                        isError=True,
+                        content=[TextContent(type='text', text=error_message)],
+                    )
+
                 # Describe step
                 response = self.emr_client.describe_step(
                     ClusterId=cluster_id,

@@ -23,12 +23,12 @@ async def test_get_all_counts_attribute_error_handling():
     """Test that AttributeError in get_resource_templates is handled properly."""
     # Create a mock server with get_resource_templates that raises AttributeError
     mock_server = MagicMock()
-    mock_server.get_prompts = AsyncMock(return_value=[])
-    mock_server.get_tools = AsyncMock(return_value=[])
-    mock_server.get_resources = AsyncMock(return_value=[])
+    mock_server.list_prompts = AsyncMock(return_value=[])
+    mock_server.list_tools = AsyncMock(return_value=[])
+    mock_server.list_resources = AsyncMock(return_value=[])
 
-    # Mock hasattr to return True, but get_resource_templates raises AttributeError
-    mock_server.get_resource_templates = AsyncMock(
+    # Mock hasattr to return True, but list_resource_templates raises AttributeError
+    mock_server.list_resource_templates = AsyncMock(
         side_effect=AttributeError('Method not implemented')
     )
 
@@ -42,7 +42,7 @@ async def test_get_all_counts_attribute_error_handling():
 
         # Verify that the debug log was called for AttributeError
         mock_logger.debug.assert_called_once()
-        assert 'get_resource_templates exists but not implemented' in str(
+        assert 'list_resource_templates exists but not implemented' in str(
             mock_logger.debug.call_args
         )
 
@@ -52,12 +52,12 @@ async def test_get_all_counts_general_exception_handling():
     """Test that general Exception in get_resource_templates is handled properly."""
     # Create a mock server with get_resource_templates that raises a general Exception
     mock_server = MagicMock()
-    mock_server.get_prompts = AsyncMock(return_value=[])
-    mock_server.get_tools = AsyncMock(return_value=[])
-    mock_server.get_resources = AsyncMock(return_value=[])
+    mock_server.list_prompts = AsyncMock(return_value=[])
+    mock_server.list_tools = AsyncMock(return_value=[])
+    mock_server.list_resources = AsyncMock(return_value=[])
 
-    # Mock hasattr to return True, but get_resource_templates raises a general Exception
-    mock_server.get_resource_templates = AsyncMock(side_effect=RuntimeError('Unexpected error'))
+    # Mock hasattr to return True, but list_resource_templates raises a general Exception
+    mock_server.list_resource_templates = AsyncMock(side_effect=RuntimeError('Unexpected error'))
 
     # Mock the main function's get_all_counts function
     with patch('awslabs.openapi_mcp_server.server.logger') as mock_logger:

@@ -74,7 +74,7 @@ class TestUserInlinePolicies:
         # Setup
         mock_client = Mock()
         mock_get_client.return_value = mock_client
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         # Execute
         result = await put_user_policy(
@@ -103,7 +103,7 @@ class TestUserInlinePolicies:
         # Setup
         mock_client = Mock()
         mock_get_client.return_value = mock_client
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         # Execute
         result = await put_user_policy(
@@ -139,7 +139,7 @@ class TestUserInlinePolicies:
 
     async def test_put_user_policy_validation_errors(self, sample_policy_document):
         """Test put_user_policy validation errors."""
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         # Test missing user name
         with pytest.raises(IamValidationError, match='User name and policy name are required'):
@@ -184,6 +184,37 @@ class TestUserInlinePolicies:
             UserName='test-user', PolicyName='test-policy'
         )
 
+    @patch('awslabs.iam_mcp_server.server.get_iam_client')
+    async def test_get_user_policy_success_with_dict_response(
+        self, mock_get_client, sample_policy_document
+    ):
+        """Test successful retrieval of user inline policy when boto3 returns dict.
+
+        boto3's get_user_policy() auto-parses the PolicyDocument from JSON to a dict.
+        This test verifies the fix for issue #2566 where the dict was passed directly
+        to InlinePolicyResponse which expected a string, causing a Pydantic validation error.
+        """
+        # Setup
+        mock_client = Mock()
+        mock_get_client.return_value = mock_client
+        # boto3 returns PolicyDocument as a dict (auto-parsed)
+        mock_client.get_user_policy.return_value = {
+            'UserName': 'test-user',
+            'PolicyName': 'test-policy',
+            'PolicyDocument': sample_policy_document,  # dict, not string
+        }
+
+        # Execute
+        result = await get_user_policy(user_name='test-user', policy_name='test-policy')
+
+        # Verify
+        assert isinstance(result, InlinePolicyResponse)
+        assert result.policy_name == 'test-policy'
+        assert result.user_name == 'test-user'
+        # The policy_document should be serialized to a JSON string
+        assert isinstance(result.policy_document, str)
+        assert json.loads(result.policy_document) == sample_policy_document
+
     async def test_get_user_policy_validation_errors(self):
         """Test get_user_policy validation errors."""
         # Test missing user name
@@ -200,7 +231,7 @@ class TestUserInlinePolicies:
         # Setup
         mock_client = Mock()
         mock_get_client.return_value = mock_client
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         # Execute
         result = await delete_user_policy(user_name='test-user', policy_name='test-policy')
@@ -263,7 +294,7 @@ class TestRoleInlinePolicies:
         # Setup
         mock_client = Mock()
         mock_get_client.return_value = mock_client
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         # Execute
         result = await put_role_policy(
@@ -300,7 +331,7 @@ class TestRoleInlinePolicies:
 
     async def test_put_role_policy_validation_errors(self, sample_policy_document):
         """Test put_role_policy validation errors."""
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         # Test missing role name
         with pytest.raises(IamValidationError, match='Role name and policy name are required'):
@@ -340,12 +371,43 @@ class TestRoleInlinePolicies:
         )
 
     @patch('awslabs.iam_mcp_server.server.get_iam_client')
+    async def test_get_role_policy_success_with_dict_response(
+        self, mock_get_client, sample_policy_document
+    ):
+        """Test successful retrieval of role inline policy when boto3 returns dict.
+
+        boto3's get_role_policy() auto-parses the PolicyDocument from JSON to a dict.
+        This test verifies the fix for issue #2566 where the dict was passed directly
+        to InlinePolicyResponse which expected a string, causing a Pydantic validation error.
+        """
+        # Setup
+        mock_client = Mock()
+        mock_get_client.return_value = mock_client
+        # boto3 returns PolicyDocument as a dict (auto-parsed)
+        mock_client.get_role_policy.return_value = {
+            'RoleName': 'test-role',
+            'PolicyName': 'test-policy',
+            'PolicyDocument': sample_policy_document,  # dict, not string
+        }
+
+        # Execute
+        result = await get_role_policy(role_name='test-role', policy_name='test-policy')
+
+        # Verify
+        assert isinstance(result, InlinePolicyResponse)
+        assert result.policy_name == 'test-policy'
+        assert result.role_name == 'test-role'
+        # The policy_document should be serialized to a JSON string
+        assert isinstance(result.policy_document, str)
+        assert json.loads(result.policy_document) == sample_policy_document
+
+    @patch('awslabs.iam_mcp_server.server.get_iam_client')
     async def test_delete_role_policy_success(self, mock_get_client):
         """Test successful deletion of role inline policy."""
         # Setup
         mock_client = Mock()
         mock_get_client.return_value = mock_client
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         # Execute
         result = await delete_role_policy(role_name='test-role', policy_name='test-policy')
@@ -395,7 +457,7 @@ class TestInlinePolicyErrorHandling:
             error_response={'Error': {'Code': 'NoSuchEntity', 'Message': 'User not found'}},
             operation_name='PutUserPolicy',
         )
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         # Execute & Verify
         with pytest.raises(Exception):  # Will be handled by handle_iam_error
@@ -430,7 +492,7 @@ class TestInlinePolicyErrorHandling:
             error_response={'Error': {'Code': 'NoSuchEntity', 'Message': 'Policy not found'}},
             operation_name='DeleteUserPolicy',
         )
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         # Execute & Verify
         with pytest.raises(Exception):  # Will be handled by handle_iam_error
@@ -464,7 +526,7 @@ class TestErrorHandlingCoverage:
         """Test put_user_policy with invalid JSON (lines 1065-1070)."""
         mock_client = Mock()
         mock_get_client.return_value = mock_client
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         with pytest.raises(IamValidationError, match='Invalid JSON in policy_document'):
             await put_user_policy(
@@ -476,7 +538,7 @@ class TestErrorHandlingCoverage:
         """Test put_role_policy with invalid JSON (lines 1065-1070)."""
         mock_client = Mock()
         mock_get_client.return_value = mock_client
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         with pytest.raises(IamValidationError, match='Invalid JSON in policy_document'):
             await put_role_policy(
@@ -512,7 +574,7 @@ class TestErrorHandlingCoverage:
         """Test exception handling in delete_user_policy (lines 1178-1181)."""
         mock_client = Mock()
         mock_get_client.return_value = mock_client
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         # Mock a generic exception to trigger the exception handler
         mock_client.delete_user_policy.side_effect = Exception('Generic error')
@@ -525,7 +587,7 @@ class TestErrorHandlingCoverage:
         """Test exception handling in delete_role_policy (lines 1178-1181)."""
         mock_client = Mock()
         mock_get_client.return_value = mock_client
-        Context.initialize(readonly=False)
+        Context.initialize(readonly=False, require_confirmation=False)
 
         # Mock a generic exception to trigger the exception handler
         mock_client.delete_role_policy.side_effect = Exception('Generic error')

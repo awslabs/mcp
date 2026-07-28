@@ -44,45 +44,6 @@ logger = get_logger(__name__)
 # Version for user agent tracking
 __version__ = '1.0.0'
 
-# Supported AWS Pricing API regions
-PRICING_API_REGIONS = {
-    'classic': ['us-east-1', 'eu-central-1', 'ap-southeast-1'],
-    'china': ['cn-northwest-1'],
-}
-
-
-def get_pricing_region(requested_region: Optional[str] = None) -> str:
-    """Determine the appropriate AWS Pricing API region.
-
-    The AWS Pricing API is only available in specific regions:
-    - Classic partition: us-east-1, eu-central-1, ap-southeast-1
-    - China partition: cn-northwest-1
-
-    Args:
-        requested_region: The AWS region requested by the user (default: None)
-
-    Returns:
-        str: The closest AWS Pricing API region
-    """
-    if not requested_region:
-        requested_region = os.environ.get('AWS_REGION', 'us-east-1')
-
-    all_pricing_regions = PRICING_API_REGIONS['classic'] + PRICING_API_REGIONS['china']
-    if requested_region in all_pricing_regions:
-        return requested_region
-
-    # Map the requested region to the nearest pricing API region
-    if requested_region.startswith('cn-'):
-        pricing_region = 'cn-northwest-1'
-    elif requested_region.startswith(('eu-', 'me-', 'af-')):
-        pricing_region = 'eu-central-1'
-    elif requested_region.startswith('ap-'):
-        pricing_region = 'ap-southeast-1'
-    else:
-        pricing_region = 'us-east-1'
-
-    return pricing_region
-
 
 def create_aws_client(service_name: str, region_name: Optional[str] = None) -> Any:
     """Create and return an AWS service client with appropriate security constraints.
@@ -105,11 +66,15 @@ def create_aws_client(service_name: str, region_name: Optional[str] = None) -> A
         'pricing',  # AWS Pricing
         'athena',  # Amazon Athena (for CUR queries)
         'compute-optimizer',  # Compute Optimizer
+        'compute-optimizer-automation',  # Compute Optimizer Automation
         'cost-optimization-hub',  # Cost Optimization Hub
         'sts',  # STS (for account validation)
         'freetier',  # AWS Free Tier Usage
         's3',  # AWS S3
         'bcm-pricing-calculator',  # BCM Pricing Calculator
+        'billingconductor',  # AWS Billing Conductor
+        'billing',  # AWS Billing
+        'invoicing',  # AWS Invoicing
     ]
 
     # Validate requested service
@@ -130,7 +95,7 @@ def create_aws_client(service_name: str, region_name: Optional[str] = None) -> A
     # Configure the client with user agent and security settings
     config = Config(
         region_name=region,
-        user_agent_extra=f'awslabs/mcp/aws-finops-mcp-server/{__version__}',
+        user_agent_extra=f'md/awslabs#mcp#billing-cost-management-mcp-server#{__version__}',
         retries={'max_attempts': 3, 'mode': 'standard'},
     )
 

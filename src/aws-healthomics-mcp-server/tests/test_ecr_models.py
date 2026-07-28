@@ -106,16 +106,13 @@ def available_container_response_strategy(draw):
 
 
 # =============================================================================
-# Property 6: Container Image Response Completeness
-# Feature: ecr-container-tools, Property 6: Container Image Response Completeness
-# Validates: Requirements 2.3
+# Property: Container Image Response Completeness
+# Feature: ecr-container-tools, Property: Container Image Response Completeness
 # =============================================================================
 
 
 class TestContainerImageResponseCompleteness:
-    """Property 6: Container Image Response Completeness.
-
-    **Validates: Requirements 2.3**
+    """Property: Container Image Response Completeness.
 
     *For any* container availability check where the image exists, the response SHALL include:
     - image_digest (non-empty string starting with 'sha256:')
@@ -126,10 +123,9 @@ class TestContainerImageResponseCompleteness:
     @settings(max_examples=100)
     @given(response=available_container_response_strategy())
     def test_image_digest_format_when_available(self, response: ContainerAvailabilityResponse):
-        """Property 6.1: When image is available, image_digest must be non-empty and start with 'sha256:'.
+        """Property: When image is available, image_digest must be non-empty and start with 'sha256:'.
 
-        Feature: ecr-container-tools, Property 6: Container Image Response Completeness
-        **Validates: Requirements 2.3**
+        Feature: ecr-container-tools, Property: Container Image Response Completeness
         """
         # When image is available, image must be present
         assert response.image is not None, 'Available response must include image'
@@ -152,10 +148,9 @@ class TestContainerImageResponseCompleteness:
     @settings(max_examples=100)
     @given(response=available_container_response_strategy())
     def test_image_size_bytes_type_when_available(self, response: ContainerAvailabilityResponse):
-        """Property 6.2: When image is available, image_size_bytes must be positive integer or None.
+        """Property: When image is available, image_size_bytes must be positive integer or None.
 
-        Feature: ecr-container-tools, Property 6: Container Image Response Completeness
-        **Validates: Requirements 2.3**
+        Feature: ecr-container-tools, Property: Container Image Response Completeness
         """
         assert response.image is not None, 'Available response must include image'
 
@@ -169,10 +164,9 @@ class TestContainerImageResponseCompleteness:
     @settings(max_examples=100)
     @given(response=available_container_response_strategy())
     def test_pushed_at_type_when_available(self, response: ContainerAvailabilityResponse):
-        """Property 6.3: When image is available, pushed_at must be datetime or None.
+        """Property: When image is available, pushed_at must be datetime or None.
 
-        Feature: ecr-container-tools, Property 6: Container Image Response Completeness
-        **Validates: Requirements 2.3**
+        Feature: ecr-container-tools, Property: Container Image Response Completeness
         """
         assert response.image is not None, 'Available response must include image'
 
@@ -187,10 +181,9 @@ class TestContainerImageResponseCompleteness:
     def test_complete_response_structure_when_available(
         self, response: ContainerAvailabilityResponse
     ):
-        """Property 6.4: When image is available, all required fields must be present with correct types.
+        """Property: When image is available, all required fields must be present with correct types.
 
-        Feature: ecr-container-tools, Property 6: Container Image Response Completeness
-        **Validates: Requirements 2.3**
+        Feature: ecr-container-tools, Property: Container Image Response Completeness
         """
         # Response must indicate availability
         assert response.available is True, 'Response must indicate image is available'

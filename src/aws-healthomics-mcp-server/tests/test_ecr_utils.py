@@ -306,16 +306,13 @@ def multi_statement_policy_strategy(draw) -> str:
 
 
 # =============================================================================
-# Property 1: Permission Checking Correctness
-# Feature: ecr-container-tools, Property 1: Permission Checking Correctness
-# Validates: Requirements 1.2, 1.3
+# Property: Permission Checking Correctness
+# Feature: ecr-container-tools, Property: Permission Checking Correctness
 # =============================================================================
 
 
 class TestPermissionCheckingCorrectness:
-    """Property 1: Permission Checking Correctness.
-
-    **Validates: Requirements 1.2, 1.3**
+    """Property: Permission Checking Correctness.
 
     *For any* ECR repository policy that contains the HealthOmics principal
     (`omics.amazonaws.com`) with both `ecr:BatchGetImage` and `ecr:GetDownloadUrlForLayer`
@@ -325,10 +322,9 @@ class TestPermissionCheckingCorrectness:
     @settings(max_examples=100)
     @given(policy_text=valid_healthomics_policy_strategy())
     def test_valid_policy_returns_accessible(self, policy_text: str):
-        """Property 1.1: Valid HealthOmics policy returns ACCESSIBLE status.
+        """Property: Valid HealthOmics policy returns ACCESSIBLE status.
 
-        Feature: ecr-container-tools, Property 1: Permission Checking Correctness
-        **Validates: Requirements 1.2, 1.3**
+        Feature: ecr-container-tools, Property: Permission Checking Correctness
 
         When a repository policy grants HealthOmics principal both required actions
         (ecr:BatchGetImage and ecr:GetDownloadUrlForLayer), the function SHALL
@@ -346,10 +342,9 @@ class TestPermissionCheckingCorrectness:
     @settings(max_examples=100)
     @given(policy_text=invalid_healthomics_policy_strategy())
     def test_invalid_policy_returns_not_accessible(self, policy_text: str):
-        """Property 1.2: Invalid HealthOmics policy returns NOT_ACCESSIBLE status.
+        """Property: Invalid HealthOmics policy returns NOT_ACCESSIBLE status.
 
-        Feature: ecr-container-tools, Property 1: Permission Checking Correctness
-        **Validates: Requirements 1.2, 1.3**
+        Feature: ecr-container-tools, Property: Permission Checking Correctness
 
         When a repository policy does NOT grant HealthOmics principal both required
         actions, the function SHALL return HealthOmicsAccessStatus.NOT_ACCESSIBLE.
@@ -381,10 +376,9 @@ class TestPermissionCheckingCorrectness:
     @settings(max_examples=100)
     @given(policy_text=policy_with_wildcard_principal_strategy())
     def test_wildcard_principal_returns_accessible(self, policy_text: str):
-        """Property 1.3: Wildcard principal with required actions returns ACCESSIBLE.
+        """Property: Wildcard principal with required actions returns ACCESSIBLE.
 
-        Feature: ecr-container-tools, Property 1: Permission Checking Correctness
-        **Validates: Requirements 1.2, 1.3**
+        Feature: ecr-container-tools, Property: Permission Checking Correctness
 
         When a repository policy uses wildcard principal ('*') with both required
         actions, the function SHALL return HealthOmicsAccessStatus.ACCESSIBLE.
@@ -403,10 +397,9 @@ class TestPermissionCheckingCorrectness:
     def test_multi_statement_policy_with_valid_statement_returns_accessible(
         self, policy_text: str
     ):
-        """Property 1.4: Multi-statement policy with valid HealthOmics statement returns ACCESSIBLE.
+        """Property: Multi-statement policy with valid HealthOmics statement returns ACCESSIBLE.
 
-        Feature: ecr-container-tools, Property 1: Permission Checking Correctness
-        **Validates: Requirements 1.2, 1.3**
+        Feature: ecr-container-tools, Property: Permission Checking Correctness
 
         When a repository policy contains multiple statements and at least one grants
         HealthOmics the required permissions, the function SHALL return ACCESSIBLE.
@@ -424,10 +417,9 @@ class TestPermissionCheckingCorrectness:
     @settings(max_examples=100)
     @given(st.none())
     def test_none_policy_returns_unknown(self, policy_text: None):
-        """Property 1.5: None policy returns UNKNOWN status.
+        """Property: None policy returns UNKNOWN status.
 
-        Feature: ecr-container-tools, Property 1: Permission Checking Correctness
-        **Validates: Requirements 1.2, 1.3**
+        Feature: ecr-container-tools, Property: Permission Checking Correctness
 
         When no repository policy exists (None), the function SHALL return
         HealthOmicsAccessStatus.UNKNOWN with no missing permissions.
@@ -444,10 +436,9 @@ class TestPermissionCheckingCorrectness:
     @settings(max_examples=100)
     @given(invalid_json=st.text(min_size=1, max_size=100).filter(lambda s: not _is_valid_json(s)))
     def test_invalid_json_returns_unknown(self, invalid_json: str):
-        """Property 1.6: Invalid JSON policy returns UNKNOWN status.
+        """Property: Invalid JSON policy returns UNKNOWN status.
 
-        Feature: ecr-container-tools, Property 1: Permission Checking Correctness
-        **Validates: Requirements 1.2, 1.3**
+        Feature: ecr-container-tools, Property: Permission Checking Correctness
 
         When the policy text is not valid JSON, the function SHALL return
         HealthOmicsAccessStatus.UNKNOWN with no missing permissions.
@@ -478,10 +469,9 @@ class TestPermissionCheckingCorrectness:
         )
     )
     def test_missing_permissions_are_correctly_identified(self, actions: List[str]):
-        """Property 1.7: Missing permissions are correctly identified.
+        """Property: Missing permissions are correctly identified.
 
-        Feature: ecr-container-tools, Property 1: Permission Checking Correctness
-        **Validates: Requirements 1.2, 1.3**
+        Feature: ecr-container-tools, Property: Permission Checking Correctness
 
         The function SHALL correctly identify which required permissions are missing
         from the policy.
@@ -753,16 +743,13 @@ ecr_prefix_strategy = st.one_of(
 
 
 # =============================================================================
-# Property 4: HealthOmics Usability Evaluation
-# Feature: ecr-container-tools, Property 4: HealthOmics Usability Evaluation
-# Validates: Requirements 3.3, 3.4, 3.5
+# Property: HealthOmics Usability Evaluation
+# Feature: ecr-container-tools, Property: HealthOmics Usability Evaluation
 # =============================================================================
 
 
 class TestHealthOmicsUsabilityEvaluation:
-    """Property 4: HealthOmics Usability Evaluation.
-
-    **Validates: Requirements 3.3, 3.4, 3.5**
+    """Property: HealthOmics Usability Evaluation.
 
     *For any* pull-through cache rule, the `healthomics_usable` field SHALL be True
     if and only if:
@@ -782,10 +769,9 @@ class TestHealthOmicsUsabilityEvaluation:
     def test_all_conditions_met_returns_usable(
         self, registry_policy: str, template_policy: str, prefix: Optional[str]
     ):
-        """Property 4.1: All conditions met returns healthomics_usable=True.
+        """Property: All conditions met returns healthomics_usable=True.
 
-        Feature: ecr-container-tools, Property 4: HealthOmics Usability Evaluation
-        **Validates: Requirements 3.3, 3.4, 3.5**
+        Feature: ecr-container-tools, Property: HealthOmics Usability Evaluation
 
         When registry policy grants required permissions AND template exists AND
         template grants required permissions, healthomics_usable SHALL be True.
@@ -814,10 +800,9 @@ class TestHealthOmicsUsabilityEvaluation:
     def test_invalid_registry_policy_returns_not_usable(
         self, registry_policy: str, template_policy: str, prefix: Optional[str]
     ):
-        """Property 4.2: Invalid registry policy returns healthomics_usable=False.
+        """Property: Invalid registry policy returns healthomics_usable=False.
 
-        Feature: ecr-container-tools, Property 4: HealthOmics Usability Evaluation
-        **Validates: Requirements 3.3, 3.4, 3.5**
+        Feature: ecr-container-tools, Property: HealthOmics Usability Evaluation
 
         When registry policy does NOT grant required permissions, healthomics_usable
         SHALL be False even if template is valid.
@@ -842,10 +827,9 @@ class TestHealthOmicsUsabilityEvaluation:
     def test_invalid_template_policy_returns_not_usable(
         self, registry_policy: str, template_policy: str, prefix: Optional[str]
     ):
-        """Property 4.3: Invalid template policy returns healthomics_usable=False.
+        """Property: Invalid template policy returns healthomics_usable=False.
 
-        Feature: ecr-container-tools, Property 4: HealthOmics Usability Evaluation
-        **Validates: Requirements 3.3, 3.4, 3.5**
+        Feature: ecr-container-tools, Property: HealthOmics Usability Evaluation
 
         When template policy does NOT grant required permissions, healthomics_usable
         SHALL be False even if registry policy is valid.
@@ -869,10 +853,9 @@ class TestHealthOmicsUsabilityEvaluation:
         prefix=ecr_prefix_strategy,
     )
     def test_no_template_returns_not_usable(self, registry_policy: str, prefix: Optional[str]):
-        """Property 4.4: No template (None) returns healthomics_usable=False.
+        """Property: No template (None) returns healthomics_usable=False.
 
-        Feature: ecr-container-tools, Property 4: HealthOmics Usability Evaluation
-        **Validates: Requirements 3.3, 3.4, 3.5**
+        Feature: ecr-container-tools, Property: HealthOmics Usability Evaluation
 
         When no repository creation template exists (None), healthomics_usable
         SHALL be False even if registry policy is valid.
@@ -898,10 +881,9 @@ class TestHealthOmicsUsabilityEvaluation:
     def test_no_registry_policy_returns_not_usable(
         self, template_policy: str, prefix: Optional[str]
     ):
-        """Property 4.5: No registry policy (None) returns healthomics_usable=False.
+        """Property: No registry policy (None) returns healthomics_usable=False.
 
-        Feature: ecr-container-tools, Property 4: HealthOmics Usability Evaluation
-        **Validates: Requirements 3.3, 3.4, 3.5**
+        Feature: ecr-container-tools, Property: HealthOmics Usability Evaluation
 
         When no registry permissions policy exists (None), healthomics_usable
         SHALL be False even if template is valid.
@@ -921,10 +903,9 @@ class TestHealthOmicsUsabilityEvaluation:
     @settings(max_examples=100)
     @given(prefix=ecr_prefix_strategy)
     def test_both_policies_none_returns_not_usable(self, prefix: Optional[str]):
-        """Property 4.6: Both policies None returns healthomics_usable=False.
+        """Property: Both policies None returns healthomics_usable=False.
 
-        Feature: ecr-container-tools, Property 4: HealthOmics Usability Evaluation
-        **Validates: Requirements 3.3, 3.4, 3.5**
+        Feature: ecr-container-tools, Property: HealthOmics Usability Evaluation
 
         When both registry policy and template policy are None, healthomics_usable
         SHALL be False.
@@ -951,10 +932,9 @@ class TestHealthOmicsUsabilityEvaluation:
     def test_both_policies_invalid_returns_not_usable(
         self, invalid_registry: str, invalid_template: str, prefix: Optional[str]
     ):
-        """Property 4.7: Both policies invalid returns healthomics_usable=False.
+        """Property: Both policies invalid returns healthomics_usable=False.
 
-        Feature: ecr-container-tools, Property 4: HealthOmics Usability Evaluation
-        **Validates: Requirements 3.3, 3.4, 3.5**
+        Feature: ecr-container-tools, Property: HealthOmics Usability Evaluation
 
         When both registry policy and template policy are invalid, healthomics_usable
         SHALL be False.
@@ -985,10 +965,9 @@ class TestHealthOmicsUsabilityEvaluation:
         template_has_download: bool,
         prefix: Optional[str],
     ):
-        """Property 4.8: healthomics_usable is True IFF all permissions are present.
+        """Property: healthomics_usable is True IFF all permissions are present.
 
-        Feature: ecr-container-tools, Property 4: HealthOmics Usability Evaluation
-        **Validates: Requirements 3.3, 3.4, 3.5**
+        Feature: ecr-container-tools, Property: HealthOmics Usability Evaluation
 
         The healthomics_usable field SHALL be True if and only if all four required
         permissions are granted across both policies.
@@ -1075,10 +1054,9 @@ class TestHealthOmicsUsabilityEvaluation:
         template_policy=valid_template_policy_strategy(),
     )
     def test_result_contains_all_required_fields(self, registry_policy: str, template_policy: str):
-        """Property 4.9: Result contains all required fields.
+        """Property: Result contains all required fields.
 
-        Feature: ecr-container-tools, Property 4: HealthOmics Usability Evaluation
-        **Validates: Requirements 3.3, 3.4, 3.5**
+        Feature: ecr-container-tools, Property: HealthOmics Usability Evaluation
 
         The result dictionary SHALL always contain all required fields regardless
         of input values.
@@ -1118,10 +1096,9 @@ class TestHealthOmicsUsabilityEvaluation:
     def test_usability_logical_conjunction(
         self, registry_policy: Optional[str], template_policy: Optional[str], prefix: Optional[str]
     ):
-        """Property 4.10: healthomics_usable equals logical AND of all conditions.
+        """Property: healthomics_usable equals logical AND of all conditions.
 
-        Feature: ecr-container-tools, Property 4: HealthOmics Usability Evaluation
-        **Validates: Requirements 3.3, 3.4, 3.5**
+        Feature: ecr-container-tools, Property: HealthOmics Usability Evaluation
 
         The healthomics_usable field SHALL equal the logical conjunction (AND) of:
         - registry_permission_granted

@@ -21,12 +21,10 @@ import sys
 from typing import Dict, List, Optional
 
 import boto3
-from botocore.config import Config
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 
-from awslabs.well_architected_security_mcp_server import __version__
 from awslabs.well_architected_security_mcp_server.consts import INSTRUCTIONS
 from awslabs.well_architected_security_mcp_server.util.network_security import (
     check_network_security,
@@ -50,11 +48,6 @@ from awslabs.well_architected_security_mcp_server.util.security_services import 
 )
 from awslabs.well_architected_security_mcp_server.util.storage_security import (
     check_storage_encryption,
-)
-
-# User agent configuration for AWS API calls
-USER_AGENT_CONFIG = Config(
-    user_agent_extra=f"awslabs/mcp/well-architected-security-mcp-server/{__version__}"
 )
 
 # Set up AWS region and profile from environment variables

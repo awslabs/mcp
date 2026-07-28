@@ -14,9 +14,18 @@
 # ruff: noqa: D101, D102, D103
 """Tests for the K8sClientCache class."""
 
+import os
 import pytest
 import time
-from awslabs.eks_mcp_server.k8s_client_cache import K8S_AWS_ID_HEADER, K8sClientCache
+from awslabs.eks_mcp_server.k8s_apis import K8sApis
+from awslabs.eks_mcp_server.k8s_client_cache import (
+    AUTH_MODE_IAM,
+    AUTH_MODE_KUBECONFIG,
+    K8S_AWS_ID_HEADER,
+    KUBECONFIG_TTL,
+    TOKEN_TTL,
+    K8sClientCache,
+)
 from unittest.mock import MagicMock, patch
 
 
@@ -414,3 +423,220 @@ class TestK8sClientCache:
 
             # Verify that describe_cluster was called with the correct parameters
             mock_eks_client.describe_cluster.assert_called_once_with(name='test-cluster')
+
+
+class TestK8sClientCacheAuthMode:
+    """Tests for K8sClientCache authentication mode selection."""
+
+    @pytest.fixture(autouse=True)
+    def reset_singleton(self):
+        """Reset singleton between tests."""
+        K8sClientCache._instance = None
+        yield
+        K8sClientCache._instance = None
+
+    def test_default_auth_mode_is_iam(self):
+        with patch.dict(os.environ, {}, clear=False):
+            # Remove EKS_AUTH_MODE if present
+            os.environ.pop('EKS_AUTH_MODE', None)
+            cache = K8sClientCache()
+            assert cache.auth_mode == AUTH_MODE_IAM
+
+    def test_kubeconfig_auth_mode(self):
+        with patch.dict(os.environ, {'EKS_AUTH_MODE': 'kubeconfig'}):
+            cache = K8sClientCache()
+            assert cache.auth_mode == AUTH_MODE_KUBECONFIG
+
+    def test_iam_auth_mode_explicit(self):
+        with patch.dict(os.environ, {'EKS_AUTH_MODE': 'iam'}):
+            cache = K8sClientCache()
+            assert cache.auth_mode == AUTH_MODE_IAM
+
+    def test_invalid_auth_mode_falls_back_to_iam(self):
+        with patch.dict(os.environ, {'EKS_AUTH_MODE': 'invalid'}):
+            cache = K8sClientCache()
+            assert cache.auth_mode == AUTH_MODE_IAM
+
+    def test_kubeconfig_mode_uses_longer_ttl(self):
+        with patch.dict(os.environ, {'EKS_AUTH_MODE': 'kubeconfig'}):
+            cache = K8sClientCache()
+            assert cache._client_cache.ttl == KUBECONFIG_TTL
+
+    def test_iam_mode_uses_token_ttl(self):
+        with patch.dict(os.environ, {'EKS_AUTH_MODE': 'iam'}):
+            cache = K8sClientCache()
+            assert cache._client_cache.ttl == TOKEN_TTL
+
+    def test_auth_mode_case_insensitive(self):
+        with patch.dict(os.environ, {'EKS_AUTH_MODE': 'KUBECONFIG'}):
+            cache = K8sClientCache()
+            assert cache.auth_mode == AUTH_MODE_KUBECONFIG
+
+
+class TestK8sClientCacheKubeconfigMode:
+    """Tests for kubeconfig-based authentication."""
+
+    @pytest.fixture(autouse=True)
+    def reset_singleton(self):
+        """Reset singleton between tests."""
+        K8sClientCache._instance = None
+        yield
+        K8sClientCache._instance = None
+
+    def test_resolve_context_exact_match(self):
+        """Test that exact context name match works."""
+        with patch.dict(os.environ, {'EKS_AUTH_MODE': 'kubeconfig'}):
+            cache = K8sClientCache()
+            mock_contexts = [
+                {'name': 'my-context', 'context': {'cluster': 'some-cluster'}},
+            ]
+            with patch(
+                'kubernetes.config.list_kube_config_contexts',
+                return_value=(mock_contexts, mock_contexts[0]),
+            ):
+                result = cache._resolve_kubeconfig_context('my-context')
+                assert result == 'my-context'
+
+    def test_resolve_context_by_cluster_name(self):
+        """Test that cluster name is resolved to matching context."""
+        with patch.dict(os.environ, {'EKS_AUTH_MODE': 'kubeconfig'}):
+            cache = K8sClientCache()
+            mock_contexts = [
+                {
+                    'name': 'arn:aws:eks:us-east-1:123456:cluster/my-cluster',
+                    'context': {
+                        'cluster': 'arn:aws:eks:us-east-1:123456:cluster/my-cluster',
+                    },
+                },
+            ]
+            with patch(
+                'kubernetes.config.list_kube_config_contexts',
+                return_value=(mock_contexts, mock_contexts[0]),
+            ):
+                result = cache._resolve_kubeconfig_context('my-cluster')
+                assert result == 'arn:aws:eks:us-east-1:123456:cluster/my-cluster'
+
+    def test_resolve_context_no_match(self):
+        """Test that ValueError is raised when no context matches."""
+        with patch.dict(os.environ, {'EKS_AUTH_MODE': 'kubeconfig'}):
+            cache = K8sClientCache()
+            mock_contexts = [
+                {'name': 'other-context', 'context': {'cluster': 'other-cluster'}},
+            ]
+            with patch(
+                'kubernetes.config.list_kube_config_contexts',
+                return_value=(mock_contexts, mock_contexts[0]),
+            ):
+                with pytest.raises(ValueError, match='No kubeconfig context found'):
+                    cache._resolve_kubeconfig_context('nonexistent')
+
+    def test_resolve_context_multiple_matches(self):
+        """Test that ValueError is raised when multiple contexts match."""
+        with patch.dict(os.environ, {'EKS_AUTH_MODE': 'kubeconfig'}):
+            cache = K8sClientCache()
+            mock_contexts = [
+                {
+                    'name': 'ctx1',
+                    'context': {'cluster': 'arn:aws:eks:us-east-1:111:cluster/my-cluster'},
+                },
+                {
+                    'name': 'ctx2',
+                    'context': {'cluster': 'arn:aws:eks:us-west-2:222:cluster/my-cluster'},
+                },
+            ]
+            with patch(
+                'kubernetes.config.list_kube_config_contexts',
+                return_value=(mock_contexts, mock_contexts[0]),
+            ):
+                with pytest.raises(ValueError, match='Multiple kubeconfig contexts match'):
+                    cache._resolve_kubeconfig_context('my-cluster')
+
+    def test_get_client_kubeconfig_mode(self):
+        with patch.dict(os.environ, {'EKS_AUTH_MODE': 'kubeconfig'}):
+            cache = K8sClientCache()
+            with patch.object(
+                cache, '_resolve_kubeconfig_context', return_value='resolved-context'
+            ):
+                with patch('kubernetes.config.new_client_from_config') as mock_new_client:
+                    mock_api_client = MagicMock()
+                    mock_new_client.return_value = mock_api_client
+                    with patch.object(K8sApis, 'from_api_client') as mock_from_api_client:
+                        mock_k8s_apis = MagicMock()
+                        mock_from_api_client.return_value = mock_k8s_apis
+
+                        client = cache.get_client('my-cluster')
+
+                        mock_new_client.assert_called_once_with(
+                            config_file=None,
+                            context='resolved-context',
+                        )
+                        mock_from_api_client.assert_called_once_with(mock_api_client)
+                        assert client is mock_k8s_apis
+
+    def test_get_client_kubeconfig_mode_with_kubeconfig_env(self):
+        with patch.dict(
+            os.environ,
+            {
+                'EKS_AUTH_MODE': 'kubeconfig',
+                'KUBECONFIG': '/custom/path/kubeconfig',
+            },
+        ):
+            cache = K8sClientCache()
+            with patch.object(cache, '_resolve_kubeconfig_context', return_value='my-context'):
+                with patch('kubernetes.config.new_client_from_config') as mock_new_client:
+                    mock_api_client = MagicMock()
+                    mock_new_client.return_value = mock_api_client
+                    with patch.object(K8sApis, 'from_api_client') as mock_from_api_client:
+                        mock_from_api_client.return_value = MagicMock()
+
+                        cache.get_client('my-cluster')
+
+                        mock_new_client.assert_called_once_with(
+                            config_file='/custom/path/kubeconfig',
+                            context='my-context',
+                        )
+
+    def test_get_client_kubeconfig_mode_caches_client(self):
+        with patch.dict(os.environ, {'EKS_AUTH_MODE': 'kubeconfig'}):
+            cache = K8sClientCache()
+            with patch.object(
+                cache, '_resolve_kubeconfig_context', return_value='resolved-context'
+            ):
+                with patch('kubernetes.config.new_client_from_config') as mock_new_client:
+                    mock_api_client = MagicMock()
+                    mock_new_client.return_value = mock_api_client
+                    with patch.object(K8sApis, 'from_api_client') as mock_from_api_client:
+                        mock_k8s_apis = MagicMock()
+                        mock_from_api_client.return_value = mock_k8s_apis
+
+                        client1 = cache.get_client('my-cluster')
+                        client2 = cache.get_client('my-cluster')
+
+                        # Should only call new_client_from_config once
+                        mock_new_client.assert_called_once()
+                        assert client1 is client2
+
+    def test_get_client_kubeconfig_mode_error_handling(self):
+        with patch.dict(os.environ, {'EKS_AUTH_MODE': 'kubeconfig'}):
+            cache = K8sClientCache()
+            with patch.object(cache, '_resolve_kubeconfig_context', return_value='bad-context'):
+                with patch(
+                    'kubernetes.config.new_client_from_config',
+                    side_effect=Exception('Context not found'),
+                ):
+                    with pytest.raises(Exception, match='Failed to get cluster credentials'):
+                        cache.get_client('nonexistent-cluster')
+
+    def test_iam_mode_does_not_call_kubeconfig(self):
+        with patch.dict(os.environ, {'EKS_AUTH_MODE': 'iam'}):
+            cache = K8sClientCache()
+            with patch.object(
+                cache,
+                '_get_cluster_credentials',
+                return_value=('https://endpoint', 'token', 'ca_data'),
+            ):
+                with patch('awslabs.eks_mcp_server.k8s_client_cache.K8sApis') as mock_cls:
+                    mock_cls.return_value = MagicMock()
+                    with patch('kubernetes.config.new_client_from_config') as mock_kube_config:
+                        cache.get_client('my-cluster')
+                        mock_kube_config.assert_not_called()

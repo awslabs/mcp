@@ -14,9 +14,11 @@
 
 """Create Data Source operation for AWS AppSync MCP Server."""
 
+import ipaddress
 import re
 from awslabs.aws_appsync_mcp_server.helpers import get_appsync_client, handle_exceptions
 from typing import Any, Dict, Optional
+from urllib.parse import urlparse
 
 
 def _validate_service_role_arn(arn: str) -> bool:
@@ -25,19 +27,49 @@ def _validate_service_role_arn(arn: str) -> bool:
     return bool(re.match(arn_pattern, arn))
 
 
+def _is_private_ip(ip_str: str) -> bool:
+    """Check if IP address is private/internal using ipaddress module."""
+    try:
+        ip = ipaddress.ip_address(ip_str)
+        # Treat any non-globally-routable address as private/internal, including
+        # private, loopback, link-local, unspecified, reserved, multicast, etc.
+        return not ip.is_global
+    except ValueError:
+        return False
+
+
 def _validate_http_config(http_config: Dict) -> None:
     """Validate HTTP configuration for security."""
     endpoint = http_config.get('endpoint', '')
 
-    # Block localhost/private IPs to prevent SSRF
-    if re.search(
-        r'(localhost|127\.0\.0\.1|10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[01])\.)', endpoint
-    ):
-        raise ValueError('HTTP endpoint cannot target localhost or private IP ranges')
-
-    # Require HTTPS for external endpoints
+    # Require HTTPS
     if not endpoint.startswith('https://'):
         raise ValueError('HTTP endpoint must use HTTPS protocol')
+
+    # Parse URL and extract hostname
+    try:
+        parsed = urlparse(endpoint)
+        hostname = parsed.hostname
+        if not hostname:
+            raise ValueError('Invalid endpoint URL')
+    except Exception:
+        raise ValueError('Invalid endpoint URL')
+
+    # Block localhost patterns
+    if hostname.lower() in ('localhost', 'localhost.localdomain'):
+        raise ValueError('HTTP endpoint cannot target localhost or private IP ranges')
+
+    # Try to parse as IP address (standard IPv4/IPv6 string forms)
+    if _is_private_ip(hostname):
+        raise ValueError('HTTP endpoint cannot target localhost or private IP ranges')
+
+    # Block numeric IPs in various encodings (check specific patterns before general)
+    if re.match(r'^0x[0-9a-fA-F]+$', hostname):  # Hex encoding
+        raise ValueError('HTTP endpoint cannot use numeric IP encoding')
+    if re.match(r'^0[0-7]+$', hostname):  # Octal encoding
+        raise ValueError('HTTP endpoint cannot use numeric IP encoding')
+    if re.match(r'^[0-9]+$', hostname):  # Decimal encoding
+        raise ValueError('HTTP endpoint cannot use numeric IP encoding')
 
 
 @handle_exceptions

@@ -389,7 +389,6 @@ class TestTools:
         from awslabs.ccapi_mcp_server.server import (
             _workflow_store,
             check_environment_variables,
-            create_template,
             delete_resource,
             get_aws_account_info,
             get_aws_session_info,
@@ -557,15 +556,6 @@ class TestTools:
                 )
                 assert not result['passed']
 
-        # Test lines 1130-1131 - create_template with save_to_file
-        with patch('awslabs.ccapi_mcp_server.iac_generator.create_template') as mock_impl:
-            mock_impl.return_value = {'template_body': '{}'}
-            with patch('builtins.open', create=True):
-                try:
-                    await create_template(template_id='test', save_to_file='/tmp/test.yaml')
-                except Exception:
-                    pass
-
         # Test lines 1243, 1247 - get_aws_profile_info exception handling
         with patch('awslabs.ccapi_mcp_server.server.get_aws_client') as mock_client:
             mock_client.side_effect = Exception('AWS Error')
@@ -649,7 +639,6 @@ class TestTools:
         from awslabs.ccapi_mcp_server.impl.tools.security_scanning import _check_checkov_installed
         from awslabs.ccapi_mcp_server.server import (
             _workflow_store,
-            create_template,
             delete_resource,
             explain,
             generate_infrastructure_code,
@@ -833,17 +822,6 @@ class TestTools:
                     explained_token=explained_token, framework='cloudformation'
                 )
                 assert not result['passed']
-
-        # Test create_template with FieldInfo save_to_file
-        with patch('awslabs.ccapi_mcp_server.iac_generator.create_template') as mock_impl:
-            mock_impl.return_value = {'template_body': '{}'}
-            field_info = MagicMock()
-            field_info.default = '/tmp/test.yaml'
-            with patch('builtins.open', create=True):
-                try:
-                    await create_template(template_id='test', save_to_file=field_info)
-                except Exception:
-                    pass
 
         # Test get_aws_session_info with invalid environment token
         try:

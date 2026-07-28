@@ -26,6 +26,7 @@ from awslabs.amazon_neptune_mcp_server.graph_store import (
     NeptuneDatabase,
     NeptuneGraph,
 )
+from awslabs.amazon_neptune_mcp_server.graph_store.analytics import GRAPH_ID_PATTERN
 from awslabs.amazon_neptune_mcp_server.models import GraphSchema
 from loguru import logger
 from typing import Optional
@@ -65,9 +66,20 @@ class NeptuneServer:
                 self.graph = NeptuneDatabase(endpoint, port, use_https=use_https)
                 logger.debug('Creating Neptune Database session for %s', endpoint)
             elif endpoint.startswith('neptune-graph://'):
-                # This is a Neptune Analytics Graph
-                graphId = endpoint.replace('neptune-graph://', '')
-                self.graph = NeptuneAnalytics(graphId)
+                # Neptune Analytics Graph
+                # Two forms:
+                #   neptune-graph://g-1234567890  (graph ID, uses default service endpoint)
+                #   neptune-graph://localhost:9100 (custom endpoint, placeholder graph ID)
+                value = endpoint.replace('neptune-graph://', '')
+
+                if GRAPH_ID_PATTERN.match(value):
+                    graphId = value
+                    endpoint_url = None
+                else:
+                    graphId = 'g-1234567890'
+                    endpoint_url = f'http://{value}'
+
+                self.graph = NeptuneAnalytics(graphId, endpoint_url=endpoint_url)
                 logger.debug('Creating Neptune Graph session for %s', endpoint)
             else:
                 raise ValueError(

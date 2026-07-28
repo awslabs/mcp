@@ -21,9 +21,10 @@ from .config import (
     WORKING_DIRECTORY,
     FileAccessMode,
 )
-from .errors import FilePathValidationError, LocalFileAccessDisabledError
+from .errors import FilePathValidationError, LocalFileAccessDisabledError, sanitized_exceptions
 from awscli.arguments import CLIArgument
 from awscli.paramfile import get_file
+from loguru import logger
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -113,6 +114,7 @@ def is_streaming_blob_argument(cli_argument: CLIArgument) -> bool:
     return argument_model.type_name == 'blob' and argument_model.serialization.get('streaming')
 
 
+@sanitized_exceptions
 def get_file_validated(prefix, path, mode):
     """Validate that a URI path (i.e. file://<path>) is within the allowed working directory."""
     file_path = os.path.expandvars(os.path.expanduser(path[len(prefix) :]))
@@ -135,17 +137,20 @@ def validate_file_path(file_path: str) -> str:
         FilePathValidationError: If the path is outside the working directory and unrestricted access is not allowed
     """
     if FILE_ACCESS_MODE == FileAccessMode.NO_ACCESS:
-        # Reject local file paths
-        raise LocalFileAccessDisabledError(file_path)
+        logger.warning('File access denied (no-access mode): {}', file_path)
+        raise LocalFileAccessDisabledError()
 
     if FILE_ACCESS_MODE == FileAccessMode.UNRESTRICTED:
+        logger.info('File access allowed (unrestricted mode): {}', file_path)
         return file_path
+    # Expand environment variables and user home directory before validation
+    # to prevent bypass via $HOME, ${HOME}, $TMPDIR, etc.
+    file_path = os.path.expandvars(os.path.expanduser(file_path))
 
     # Reject unexpanded tilde paths (e.g., ~invalid_user/path)
     if file_path.startswith('~') and not os.path.isabs(os.path.expanduser(file_path)):
-        raise FilePathValidationError(
-            file_path, 'contains unexpanded tilde (~) which is not allowed'
-        )
+        logger.warning('File access denied (unexpanded tilde): {}', file_path)
+        raise FilePathValidationError('contains unexpanded tilde (~) which is not allowed')
 
     # Relative paths resolve against WORKING_DIRECTORY via os.chdir() in server initialization
     absolute_path = os.path.abspath(file_path)
@@ -156,11 +161,13 @@ def validate_file_path(file_path: str) -> str:
         Path(absolute_path).resolve().relative_to(Path(working_directory).resolve())
     except ValueError:
         reason = (
-            f"is outside the allowed working directory '{WORKING_DIRECTORY}'. "
+            f"path is outside the allowed working directory '{WORKING_DIRECTORY}'. "
             f'Set {FILE_ACCESS_MODE_KEY}=unrestricted to allow unrestricted file access.'
         )
-        raise FilePathValidationError(file_path, reason)
+        logger.warning('File access denied (outside working directory): {}', absolute_path)
+        raise FilePathValidationError(reason)
 
+    logger.info('File access allowed (workdir mode): {}', absolute_path)
     return absolute_path
 
 

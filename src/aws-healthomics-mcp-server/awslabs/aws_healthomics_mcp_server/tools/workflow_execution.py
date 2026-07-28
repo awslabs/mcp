@@ -17,11 +17,20 @@
 from awslabs.aws_healthomics_mcp_server.consts import (
     CACHE_BEHAVIORS,
     DEFAULT_MAX_RESULTS,
+    DEFAULT_SCRATCH_STORAGE_MODE,
+    ERROR_CONFIGURATION_NAME_REQUIRES_VPC_MODE,
     ERROR_INVALID_CACHE_BEHAVIOR,
+    ERROR_INVALID_NETWORKING_MODE,
     ERROR_INVALID_RUN_STATUS,
+    ERROR_INVALID_SCRATCH_STORAGE_MODE,
     ERROR_INVALID_STORAGE_TYPE,
     ERROR_STATIC_STORAGE_REQUIRES_CAPACITY,
+    ERROR_VPC_MODE_REQUIRES_CONFIGURATION_NAME,
+    NETWORKING_MODE_RESTRICTED,
+    NETWORKING_MODE_VPC,
+    NETWORKING_MODES,
     RUN_STATUSES,
+    SCRATCH_STORAGE_MODES,
     STORAGE_TYPE_STATIC,
     STORAGE_TYPES,
 )
@@ -163,6 +172,32 @@ async def start_run(
         None,
         description='Optional ID of a run group to associate with this run',
     ),
+    networking_mode: Optional[str] = Field(
+        None,
+        description='Networking mode: RESTRICTED (default) or VPC',
+    ),
+    configuration_name: Optional[str] = Field(
+        None,
+        description='Configuration name (required when networking_mode is VPC)',
+    ),
+    scratch_storage_mode: Optional[str] = Field(
+        None,
+        description=(
+            'Scratch storage mode for the run. Allowed values: '
+            'LOCAL (mount local EBS ephemeral scratch storage at /tmp for CPU tasks) or '
+            'SHARED (use shared scratch storage). '
+            'Defaults to LOCAL when omitted (the MCP server default; note the HealthOmics '
+            'API default is SHARED).'
+        ),
+    ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Start a workflow run.
 
@@ -184,6 +219,11 @@ async def start_run(
         cache_id: Optional ID of a run cache to use
         cache_behavior: Optional cache behavior (CACHE_ALWAYS or CACHE_ON_FAILURE)
         run_group_id: Optional ID of a run group to associate with this run
+        networking_mode: Optional networking mode (RESTRICTED or VPC)
+        configuration_name: Optional configuration name (required when networking_mode is VPC)
+        scratch_storage_mode: Optional scratch storage mode (LOCAL or SHARED); defaults to LOCAL
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing the run information or error dict
@@ -219,13 +259,55 @@ async def start_run(
             'Invalid cache configuration',
         )
 
+    # Validate networking mode
+    if networking_mode is not None and networking_mode not in NETWORKING_MODES:
+        return await handle_tool_error(
+            ctx,
+            ValueError(ERROR_INVALID_NETWORKING_MODE.format(NETWORKING_MODES)),
+            'Invalid networking mode',
+        )
+
+    # Validate VPC mode requires configuration name
+    if networking_mode == NETWORKING_MODE_VPC and configuration_name is None:
+        return await handle_tool_error(
+            ctx,
+            ValueError(ERROR_VPC_MODE_REQUIRES_CONFIGURATION_NAME),
+            'Missing configuration name',
+        )
+
+    # Validate configuration name requires VPC mode
+    if (
+        networking_mode is None or networking_mode != NETWORKING_MODE_VPC
+    ) and configuration_name is not None:
+        return await handle_tool_error(
+            ctx,
+            ValueError(ERROR_CONFIGURATION_NAME_REQUIRES_VPC_MODE),
+            'Invalid networking configuration',
+        )
+
+    # Resolve and validate scratch storage mode (MCP server defaults to LOCAL)
+    effective_scratch_storage_mode = (
+        scratch_storage_mode if scratch_storage_mode is not None else DEFAULT_SCRATCH_STORAGE_MODE
+    )
+
+    if effective_scratch_storage_mode not in SCRATCH_STORAGE_MODES:
+        return await handle_tool_error(
+            ctx,
+            ValueError(
+                ERROR_INVALID_SCRATCH_STORAGE_MODE.format(
+                    effective_scratch_storage_mode, SCRATCH_STORAGE_MODES
+                )
+            ),
+            'Invalid scratch storage mode',
+        )
+
     # Ensure output URI ends with a slash
     try:
         output_uri = ensure_s3_uri_ends_with_slash(output_uri)
     except ValueError as e:
         return await handle_tool_error(ctx, e, 'Invalid S3 URI')
 
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     params = {
         'workflowId': workflow_id,
@@ -234,6 +316,7 @@ async def start_run(
         'outputUri': output_uri,
         'parameters': parameters,
         'storageType': storage_type,
+        'scratchStorageMode': effective_scratch_storage_mode,
     }
 
     if workflow_version_name:
@@ -251,6 +334,10 @@ async def start_run(
     if run_group_id:
         params['runGroupId'] = run_group_id
 
+    if networking_mode == NETWORKING_MODE_VPC:
+        params['networkingMode'] = networking_mode
+        params['configurationName'] = configuration_name
+
     try:
         response = client.start_run(**params)
 
@@ -263,6 +350,12 @@ async def start_run(
             'workflowVersionName': workflow_version_name,
             'outputUri': output_uri,
             'runGroupId': run_group_id,
+            'tags': response.get('tags', {}),
+            'uuid': response.get('uuid'),
+            'networkingMode': networking_mode
+            if networking_mode is not None
+            else NETWORKING_MODE_RESTRICTED,
+            'scratchStorageMode': effective_scratch_storage_mode,
         }
     except Exception as e:
         return await handle_tool_error(ctx, e, 'Error starting run')
@@ -296,6 +389,14 @@ async def list_runs(
         None,
         description='Optional run group ID to filter runs',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """List workflow runs.
 
@@ -307,6 +408,8 @@ async def list_runs(
         created_after: Filter for runs created after this timestamp (ISO format)
         created_before: Filter for runs created before this timestamp (ISO format)
         run_group_id: Optional run group ID to filter runs
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing run information and next token if available, or error dict
@@ -330,7 +433,7 @@ async def list_runs(
         except ValueError as e:
             return await handle_tool_error(ctx, e, 'Invalid created_before datetime')
 
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     # Determine if we need client-side filtering
     needs_filtering = created_after or created_before
@@ -441,12 +544,22 @@ async def get_run(
         ...,
         description='ID of the run to retrieve',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Get details about a specific run.
 
     Args:
         ctx: MCP context for error reporting
         run_id: ID of the run to retrieve
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing run details or error dict including:
@@ -458,7 +571,7 @@ async def get_run(
         - Run parameters and metadata
         - Status messages and failure reasons (if applicable)
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     try:
         response = client.get_run(id=run_id)
@@ -490,7 +603,12 @@ async def get_run(
                 result[field] = response[field].isoformat()
 
         # Handle optional string fields
-        for field in ['statusMessage', 'failureReason', 'workflowVersionName']:
+        for field in [
+            'statusMessage',
+            'failureReason',
+            'workflowVersionName',
+            'scratchStorageMode',
+        ]:
             if field in response:
                 result[field] = response[field]
 
@@ -519,6 +637,14 @@ async def list_run_tasks(
         None,
         description='Filter by task status',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """List tasks for a specific run.
 
@@ -528,11 +654,13 @@ async def list_run_tasks(
         max_results: Maximum number of results to return (default: 10)
         next_token: Token for pagination
         status: Filter by task status
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing task information and next token if available
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     params = {
         'id': run_id,
@@ -586,6 +714,14 @@ async def get_run_task(
         ...,
         description='ID of the task',
     ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Get details about a specific task.
 
@@ -593,11 +729,13 @@ async def get_run_task(
         ctx: MCP context for error reporting
         run_id: ID of the run
         task_id: ID of the task
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing task details including imageDetails when available
     """
-    client = get_omics_client()
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
     try:
         response = client.get_run_task(id=run_id, taskId=task_id)

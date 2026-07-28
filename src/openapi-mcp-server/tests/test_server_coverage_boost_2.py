@@ -65,5 +65,5 @@ class TestServerCoverageBoost:
         with patch('sys.exit'):
             create_mcp_server(mock_config)
 
-        # Verify FastMCP was created
-        mock_fastmcp.assert_called_once()
+        # Verify FastMCP was not created (error before server creation)
+        mock_fastmcp.assert_not_called()

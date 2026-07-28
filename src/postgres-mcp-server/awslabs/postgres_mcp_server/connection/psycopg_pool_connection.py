@@ -19,8 +19,10 @@ It supports both Aurora PostgreSQL and RDS PostgreSQL instances via direct conne
 parameters (host, port, database, user, password) or via AWS Secrets Manager.
 """
 
+import asyncio
 import boto3
 import json
+import re
 from aiorwlock import RWLock
 from awslabs.postgres_mcp_server import __user_agent__
 from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
@@ -29,6 +31,75 @@ from datetime import datetime, timedelta
 from loguru import logger
 from psycopg_pool import AsyncConnectionPool
 from typing import Any, Dict, List, Optional, Tuple
+
+
+def get_credentials_from_secret(
+    secret_arn: str, region: str, is_test: bool = False
+) -> Tuple[str, str]:
+    """Fetch database (username, password) from AWS Secrets Manager.
+
+    The secret payload is expected to be JSON with ``username``/``user``/
+    ``Username`` and ``password``/``Password`` fields — the standard shape
+    RDS-managed secrets produce.
+
+    Module-level so callers (e.g. ``server.internal_create_connection``
+    on the IAM-auth path, which only needs the username) can reuse it
+    without instantiating a connection pool.
+
+    Args:
+        secret_arn: Secrets Manager ARN.
+        region: AWS region of the secret.
+        is_test: If True, return deterministic test credentials instead of
+            hitting AWS. Intended for unit tests only.
+
+    Returns:
+        ``(username, password)`` tuple.
+
+    Raises:
+        ValueError: If the secret is missing, malformed, or lacks
+            username/password fields.
+    """
+    if is_test:
+        return 'test_user', 'test_password'
+
+    try:
+        logger.debug(f'Creating Secrets Manager client in region {region}')
+        session = boto3.Session()
+        client = session.client(service_name='secretsmanager', region_name=region)
+
+        logger.debug(f'Retrieving secret value for {secret_arn}')
+        get_secret_value_response = client.get_secret_value(SecretId=secret_arn)
+        logger.debug('Successfully retrieved secret value')
+
+        if 'SecretString' not in get_secret_value_response:
+            logger.error('Secret does not contain a SecretString')
+            raise ValueError('Secret does not contain a SecretString')
+
+        secret = json.loads(get_secret_value_response['SecretString'])
+        logger.debug(f'Secret keys: {", ".join(secret.keys())}')
+
+        username = secret.get('username') or secret.get('user') or secret.get('Username')
+        password = secret.get('password') or secret.get('Password')
+
+        if not username:
+            logger.error(
+                f'Username not found in secret. Available keys: {", ".join(secret.keys())}'
+            )
+            raise ValueError(
+                f'Secret does not contain username. Available keys: {", ".join(secret.keys())}'
+            )
+
+        if not password:
+            logger.error('Password not found in secret')
+            raise ValueError(
+                f'Secret does not contain password. Available keys: {", ".join(secret.keys())}'
+            )
+
+        logger.debug(f'Successfully extracted credentials for user: {username}')
+        return username, password
+    except Exception as e:
+        logger.exception(f'Failed to retrieve credentials from Secrets Manager: {str(e)}')
+        raise ValueError(f'Failed to retrieve credentials from Secrets Manager: {str(e)}')
 
 
 class PsycopgPoolConnection(AbstractDBConnection):
@@ -96,7 +167,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
 
             # set pool expiry before IAM auth token expiry of 15 minutes
             self.pool_expiry_min = 14
-            logger.info(f'Use IAM auth for user: {db_user}')
+            logger.debug(f'Use IAM auth for user: {db_user}')
 
     async def initialize_pool(self):
         """Initialize the connection pool."""
@@ -108,7 +179,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
             if self.pool is not None:
                 return
 
-            logger.info(
+            logger.debug(
                 f'initialize_pool:\n'
                 f'endpoint:{self.host}\n'
                 f'port:{self.port}\n'
@@ -118,13 +189,20 @@ class PsycopgPoolConnection(AbstractDBConnection):
                 f'is_iam_auth:{self.is_iam_auth}\n'
             )
 
+            # These are synchronous boto3 HTTP calls. Run them in a worker thread
+            # so a credential refresh (triggered every ``pool_expiry_min`` minutes
+            # by ``check_expiry``) does not block the event loop and stall the MCP
+            # stdio transport while the AWS round-trip is in flight.
             if self.is_iam_auth:
-                logger.info(f'Retrieving IAM auth token for {self.user}')
-                password = self.get_iam_auth_token()
+                logger.debug(f'Retrieving IAM auth token for {self.user}')
+                password = await asyncio.to_thread(self.get_iam_auth_token)
             else:
-                logger.info(f'Retrieving credentials from Secrets Manager: {self.secret_arn}')
-                self.user, password = self._get_credentials_from_secret(
-                    self.secret_arn, self.region, self.is_test
+                logger.debug(f'Retrieving credentials from Secrets Manager: {self.secret_arn}')
+                self.user, password = await asyncio.to_thread(
+                    self._get_credentials_from_secret,
+                    self.secret_arn,
+                    self.region,
+                    self.is_test,
                 )
 
             self.created_time = datetime.now()
@@ -134,8 +212,20 @@ class PsycopgPoolConnection(AbstractDBConnection):
             )
 
             # wait up to 30 seconds to fill the pool with connections
-            await self.pool.open(True, 30)
-            logger.info('Connection pool initialized successfully')
+            try:
+                await self.pool.open(True, 30)
+            except Exception:
+                # Pool failed to open — psycopg marks it as closed internally.
+                # Set self.pool to None so callers don't try to use a closed pool.
+                logger.exception('Failed to open connection pool')
+                self.pool = None
+                raise
+            pool_name = getattr(self.pool, 'name', 'unknown')
+            logger.info(
+                f'Connection pool {pool_name} initialized at {self.created_time.isoformat()}, '
+                f'host={self.host}, db={self.database}, is_iam={self.is_iam_auth}, '
+                f'expiry_min={self.pool_expiry_min}'
+            )
 
     async def _get_connection(self):
         """Get a database connection from the pool."""
@@ -154,6 +244,13 @@ class PsycopgPoolConnection(AbstractDBConnection):
             ):
                 return
 
+        pool_name = getattr(self.pool, 'name', 'None') if self.pool else 'None'
+        age_seconds = (datetime.now() - self.created_time).total_seconds()
+        logger.debug(
+            f'check_expiry: pool {pool_name} expired or None. '
+            f'age={age_seconds:.1f}s, expiry={self.pool_expiry_min * 60}s, '
+            f'host={self.host}, db={self.database}'
+        )
         await self.close()
         await self.initialize_pool()
 
@@ -165,15 +262,16 @@ class PsycopgPoolConnection(AbstractDBConnection):
             async with await self._get_connection() as conn:
                 async with conn.transaction():
                     if self.readonly_query:
-                        logger.info('SET TRANSACTION READ ONLY')
+                        logger.debug('SET TRANSACTION READ ONLY')
                         await conn.execute('SET TRANSACTION READ ONLY')
 
                     # Create a cursor for better control
                     async with conn.cursor() as cursor:
                         # Execute the query
                         if parameters:
-                            params = self._convert_parameters(parameters)
-                            await cursor.execute(sql, params)
+                            converted_sql = self._convert_sql_for_psycopg(sql)
+                            converted_params = self._convert_parameters(parameters)
+                            await cursor.execute(converted_sql, converted_params)
                         else:
                             await cursor.execute(sql)
 
@@ -216,8 +314,8 @@ class PsycopgPoolConnection(AbstractDBConnection):
                             return {'columnMetadata': [], 'records': []}
 
         except Exception as e:
-            logger.error(f'Database connection error: {str(e)}')
-            raise e
+            logger.exception(f'Database connection error: {str(e)}')
+            raise
 
     def _convert_parameters(self, parameters: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Transform structured parameter format to psycopg's native parameter format."""
@@ -242,64 +340,38 @@ class PsycopgPoolConnection(AbstractDBConnection):
 
         return result
 
+    def _convert_sql_for_psycopg(self, sql: str) -> str:
+        """Convert Aurora-style :name placeholders to psycopg %(name)s style.
+
+        Uses negative lookbehind to avoid mangling PostgreSQL's :: cast operator.
+
+        Examples:
+            :table_name     →  %(table_name)s
+            column::text    →  column::text  (unchanged)
+            :schema_name    →  %(schema_name)s
+        """
+        return re.sub(r'(?<!:):([a-zA-Z_]\w*)', r'%(\1)s', sql)
+
     def _get_credentials_from_secret(
         self, secret_arn: str, region: str, is_test: bool = False
     ) -> Tuple[str, str]:
-        """Get database credentials from AWS Secrets Manager."""
-        if is_test:
-            return 'test_user', 'test_password'
+        """Get database credentials from AWS Secrets Manager.
 
-        try:
-            # Create a Secrets Manager client
-            logger.info(f'Creating Secrets Manager client in region {region}')
-            session = boto3.Session()
-            client = session.client(service_name='secretsmanager', region_name=region)
-
-            # Get the secret value
-            logger.info(f'Retrieving secret value for {secret_arn}')
-            get_secret_value_response = client.get_secret_value(SecretId=secret_arn)
-            logger.info('Successfully retrieved secret value')
-
-            # Parse the secret string
-            if 'SecretString' in get_secret_value_response:
-                secret = json.loads(get_secret_value_response['SecretString'])
-                logger.info(f'Secret keys: {", ".join(secret.keys())}')
-
-                # Extract username and password
-                username = secret.get('username') or secret.get('user') or secret.get('Username')
-                password = secret.get('password') or secret.get('Password')
-
-                if not username:
-                    logger.error(
-                        f'Username not found in secret. Available keys: {", ".join(secret.keys())}'
-                    )
-                    raise ValueError(
-                        f'Secret does not contain username. Available keys: {", ".join(secret.keys())}'
-                    )
-
-                if not password:
-                    logger.error('Password not found in secret')
-                    raise ValueError(
-                        f'Secret does not contain password. Available keys: {", ".join(secret.keys())}'
-                    )
-
-                logger.info(f'Successfully extracted credentials for user: {username}')
-                return username, password
-            else:
-                logger.error('Secret does not contain a SecretString')
-                raise ValueError('Secret does not contain a SecretString')
-        except Exception as e:
-            logger.error(f'Error retrieving secret: {str(e)}')
-            raise ValueError(f'Failed to retrieve credentials from Secrets Manager: {str(e)}')
+        Instance-method wrapper around the module-level
+        :func:`get_credentials_from_secret` helper, kept for backward
+        compatibility with existing tests.
+        """
+        return get_credentials_from_secret(secret_arn, region, is_test)
 
     async def close(self) -> None:
         """Close all connections in the pool."""
         async with self.rw_lock.writer_lock:
             if self.pool is not None:
-                logger.info('Closing connection pool')
+                pool_name = getattr(self.pool, 'name', 'unknown')
+                logger.info(f'Closing connection pool {pool_name} at {datetime.now().isoformat()}')
                 await self.pool.close()
                 self.pool = None
-                logger.info('Connection pool closed successfully')
+                logger.info(f'Connection pool {pool_name} closed successfully')
 
     async def check_connection_health(self) -> bool:
         """Check if the connection is healthy."""
@@ -307,7 +379,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
             result = await self.execute_query('SELECT 1')
             return len(result.get('records', [])) > 0
         except Exception as e:
-            logger.error(f'Connection health check failed: {str(e)}')
+            logger.exception(f'Connection health check failed: {str(e)}')
             return False
 
     async def get_pool_stats(self) -> Dict[str, int]:

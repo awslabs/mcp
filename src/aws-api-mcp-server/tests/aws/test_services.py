@@ -57,7 +57,7 @@ def test_session_user_agent_in_boto_request(mock_send, mock_env):
     client.get_caller_identity()
 
     user_agent = mock_send.call_args[0][0].headers.get('User-Agent', b'').decode()
-    assert 'awslabs/mcp/AWS-API-MCP-server' in user_agent
+    assert 'awslabs#mcp#aws-api-mcp-server' in user_agent
     assert 'cli-customizations' in user_agent
 
 
@@ -108,5 +108,5 @@ def test_get_awscli_driver_user_agent_configuration(mock_create_driver):
     result = get_awscli_driver(None)
 
     assert result == mock_driver
-    assert 'awslabs/mcp/AWS-API-MCP-server' in mock_session.user_agent_extra
+    assert 'awslabs#mcp#aws-api-mcp-server' in mock_session.user_agent_extra
     assert 'cli-customizations' in mock_session.user_agent_extra

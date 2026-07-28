@@ -14,6 +14,7 @@
 """Utility functions for AWS Documentation MCP Server."""
 
 import markdownify
+import re
 from awslabs.aws_documentation_mcp_server.models import RecommendationResult
 from typing import Any, Dict, List
 from urllib.parse import quote_plus
@@ -190,6 +191,148 @@ def format_documentation_result(url: str, content: str, start_index: int, max_le
         result += f'\n\n<e>Content truncated. Call the read_documentation tool with start_index={next_start} to get more content.</e>'
 
     return result
+
+
+def extract_sections_from_html(html: str, section_titles: List[str]) -> str:
+    """Extract requested sections from HTML.
+
+    Args:
+        html: Raw HTML content
+        section_titles: List of section titles to extract
+
+    Returns:
+        Filtered HTML content containing only the requested sections
+    """
+    if not html or not section_titles:
+        return 'No content or section titles provided'
+
+    from bs4 import BeautifulSoup, Tag
+
+    soup = BeautifulSoup(html, 'html.parser')
+
+    normalized_titles = {}
+    for title in section_titles:
+        normalized_key = ' '.join(title.strip().lower().split())
+        normalized_titles[normalized_key] = title.strip()
+
+    h2_tags = soup.find_all('h2')
+    available_level2_sections = []
+    matched_sections_html = []
+    found_sections = set()
+
+    for h2 in h2_tags:
+        h2_text = h2.get_text(strip=True)
+        available_level2_sections.append(h2_text)
+
+        normalized_h2 = ' '.join(h2_text.lower().split())
+
+        if normalized_h2 in normalized_titles:
+            section_content = [h2]
+
+            for sibling in h2.find_next_siblings():
+                # Only Tag elements have name attribute; skip NavigableStrings
+                if isinstance(sibling, Tag) and sibling.name in ['h1', 'h2']:
+                    break
+                section_content.append(sibling)
+
+            section_html_str = ''.join(str(elem) for elem in section_content)
+            matched_sections_html.append(section_html_str)
+            found_sections.add(normalized_titles[normalized_h2])
+
+    if not found_sections:
+        section_list = ', '.join(f'"{title}"' for title in section_titles)
+        if available_level2_sections:
+            available_list = ', '.join(f'"{section}"' for section in available_level2_sections)
+            error_msg = f'No matching sections were found: {section_list}. Available sections: {available_list}. Please retry with one or more of these sections or use the read_documentation tool instead to get the full document content.'
+            raise ValueError(error_msg)
+        else:
+            error_msg = 'This document does not contain subsections. Please use the read_documentation tool instead to get the full document content.'
+            raise ValueError(error_msg)
+
+    result_html = ''.join(matched_sections_html)
+
+    if len(found_sections) < len(section_titles):
+        missing_sections = [
+            title.strip() for title in section_titles if title.strip() not in found_sections
+        ]
+        missing_list = ', '.join(f'"{title}"' for title in missing_sections)
+        result_html += f'\n\n<blockquote><strong>Note</strong>: The following requested sections were not found: {missing_list}</blockquote>'
+
+    return result_html
+
+
+def truncate_large_tables(
+    markdown: str, url: str = '', max_rows: int = 20, preview_rows: int = 5
+) -> str:
+    """Detect large markdown tables and truncate them with a search_table hint.
+
+    Args:
+        markdown: Markdown content that may contain large tables
+        url: The source URL (used in the hint message)
+        max_rows: Tables with more data rows than this get truncated
+        preview_rows: Number of sample rows to keep
+
+    Returns:
+        Markdown with large tables truncated and a tool usage hint appended
+    """
+    if not markdown:
+        return markdown
+
+    lines = markdown.split('\n')
+    result = []
+    i = 0
+    in_code_block = False
+
+    while i < len(lines):
+        stripped = lines[i].strip()
+        # Track fenced code blocks — never truncate inside them
+        if stripped.startswith('```') or stripped.startswith('~~~'):
+            in_code_block = not in_code_block
+            result.append(lines[i])
+            i += 1
+            continue
+
+        if in_code_block:
+            result.append(lines[i])
+            i += 1
+            continue
+
+        if stripped.startswith('|'):
+            table_lines = []
+            while i < len(lines) and lines[i].strip().startswith('|'):
+                table_lines.append(lines[i])
+                i += 1
+
+            # Validate: must have >=3 lines and line[1] must be a GFM separator
+            is_table = (
+                len(table_lines) >= 3
+                and re.fullmatch(r'\s*\|?[\s|:-]+\|?\s*', table_lines[1])
+                and '-' in table_lines[1]
+            )
+
+            if is_table:
+                header = table_lines[0]
+                separator = table_lines[1]
+                data_rows = table_lines[2:]
+
+                if len(data_rows) > max_rows:
+                    result.append(header)
+                    result.append(separator)
+                    for row in data_rows[:preview_rows]:
+                        result.append(row)
+                    hint = f'\n\nTable truncated (showing {preview_rows} of {len(data_rows)} rows). Use the `search_table` tool to find specific rows.'
+                    if url:
+                        hint += f'\n  Example: search_table(url="{url}", section_title="<section>", query="your search term")'
+                    result.append(hint)
+                else:
+                    result.extend(table_lines)
+            else:
+                result.extend(table_lines)
+        else:
+            result.append(lines[i])
+            i += 1
+
+    return '\n'.join(result)
 
 
 def parse_recommendation_results(data: Dict[str, Any]) -> List[RecommendationResult]:

@@ -72,9 +72,20 @@ class UpdateResourceRequest(BaseModel):
 
 
 class DatastoreFilter(BaseModel):
-    """Filter for listing datastores."""
+    """Filter for listing datastores.
 
-    status: Optional[str] = Field(None, pattern='^(CREATING|ACTIVE|DELETING|DELETED)$')
+    Accepts either ``filter`` (the MCP tool input schema name, surfaced to
+    clients) or ``status`` (the internal field name used by existing
+    callers and tests). Both populate the same underlying value.
+    """
+
+    status: Optional[str] = Field(
+        None,
+        alias='filter',
+        pattern='^(CREATING|ACTIVE|DELETING|DELETED)$',
+    )
+
+    model_config = {'populate_by_name': True}
 
 
 class ImportJobConfig(BaseModel):

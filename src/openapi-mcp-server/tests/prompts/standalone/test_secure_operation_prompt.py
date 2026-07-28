@@ -26,7 +26,7 @@ class TestSecureOperationPrompt(unittest.TestCase):
         """Set up test environment."""
         # Create a mock server
         self.server = FastMCP(name='test-server')
-        self.server._prompt_manager = MagicMock()
+        self.server.add_prompt = MagicMock()
 
     def test_basic_operation(self):
         """Test creating a basic operation prompt."""
@@ -89,10 +89,10 @@ class TestSecureOperationPrompt(unittest.TestCase):
 
         # Verify prompt was created successfully
         self.assertTrue(success)
-        self.server._prompt_manager.add_prompt.assert_called_once()
+        self.server.add_prompt.assert_called_once()
 
         # Get the prompt that was added
-        prompt = self.server._prompt_manager.add_prompt.call_args[0][0]
+        prompt = self.server.add_prompt.call_args[0][0]
 
         # Verify prompt properties
         self.assertEqual(prompt.name, 'findPetsByStatus')
@@ -107,9 +107,9 @@ class TestSecureOperationPrompt(unittest.TestCase):
         messages = prompt.fn('available')
         self.assertIsInstance(messages, list)
         self.assertGreaterEqual(len(messages), 1)
-        self.assertEqual(messages[0]['role'], 'user')
-        self.assertEqual(messages[0]['content']['type'], 'text')
-        self.assertIn('findPetsByStatus', messages[0]['content']['text'])
+        self.assertEqual(messages[0].role, 'user')
+        self.assertEqual(messages[0].content.type, 'text')
+        self.assertIn('findPetsByStatus', messages[0].content.text)
 
     def test_required_parameters(self):
         """Test operation with required parameters."""
@@ -170,7 +170,7 @@ class TestSecureOperationPrompt(unittest.TestCase):
         self.assertTrue(success)
 
         # Get the prompt that was added
-        prompt = self.server._prompt_manager.add_prompt.call_args[0][0]
+        prompt = self.server.add_prompt.call_args[0][0]
 
         # Verify prompt arguments
         self.assertEqual(len(prompt.arguments), 1)
@@ -239,7 +239,7 @@ class TestSecureOperationPrompt(unittest.TestCase):
             self.assertTrue(success)
 
             # Get the prompt that was added
-            prompt = self.server._prompt_manager.add_prompt.call_args[0][0]
+            prompt = self.server.add_prompt.call_args[0][0]
 
             # Test the function
             messages = prompt.fn('123')
@@ -248,14 +248,13 @@ class TestSecureOperationPrompt(unittest.TestCase):
 
             # Verify resource message
             resource_message = messages[1]
-            self.assertEqual(resource_message['role'], 'user')
-            self.assertEqual(resource_message['content']['type'], 'resource')
-            self.assertEqual(
-                resource_message['content']['resource']['uri'], 'api://petstore/pet/{petId}'
-            )
-            self.assertEqual(
-                resource_message['content']['resource']['mimeType'], 'application/json'
-            )
+            self.assertEqual(resource_message.role, 'user')
+            self.assertEqual(resource_message.content.type, 'resource')
+            # AnyUrl percent-encodes curly braces in path templates
+            uri_str = str(resource_message.content.resource.uri)
+            self.assertIn('petstore/pet/', uri_str)
+            self.assertIn('petId', uri_str)
+            self.assertEqual(resource_message.content.resource.mimeType, 'application/json')
 
         finally:
             # Restore original function
@@ -322,7 +321,7 @@ class TestSecureOperationPrompt(unittest.TestCase):
         self.assertTrue(success)
 
         # Get the prompt that was added
-        prompt = self.server._prompt_manager.add_prompt.call_args[0][0]
+        prompt = self.server.add_prompt.call_args[0][0]
 
         # Verify prompt arguments
         self.assertEqual(len(prompt.arguments), 3)

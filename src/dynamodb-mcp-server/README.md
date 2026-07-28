@@ -17,7 +17,7 @@ The DynamoDB MCP server provides eight tools for data modeling, validation, cost
 
   **Example invocation:** "Validate my DynamoDB data model"
 
-- `source_db_analyzer` - Analyzes existing MySQL databases to extract schema structure, access patterns from Performance Schema, and generates timestamped analysis files for use with dynamodb_data_modeling. Supports both RDS Data API-based access and connection-based access.
+- `source_db_analyzer` - Analyzes existing databases (MySQL, PostgreSQL, SQL Server, Oracle) to extract schema structure, access patterns, and generates timestamped analysis files for use with dynamodb_data_modeling. Supports both RDS Data API-based access and connection-based access for MySQL.
 
   **Example invocation:** "Analyze my MySQL database and help me design a DynamoDB data model"
 
@@ -51,7 +51,7 @@ The DynamoDB MCP server provides eight tools for data modeling, validation, cost
 
 | Kiro   | Cursor  | VS Code |
 |:------:|:-------:|:-------:|
-| [![Kiro](https://img.shields.io/badge/Install-Kiro-9046FF?style=flat-square&logo=kiro)](https://kiro.dev/launch/mcp/add?name=awslabs.dynamodb-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.dynamodb-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22DDB-MCP-READONLY%22%3A%22true%22%2C%22AWS_PROFILE%22%3A%22default%22%2C%22AWS_REGION%22%3A%22us-west-2%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%7D)| [![Cursor](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.dynamodb-mcp-server&config=JTdCJTIyY29tbWFuZCUyMiUzQSUyMnV2eCUyMGF3c2xhYnMuZHluYW1vZGItbWNwLXNlcnZlciU0MGxhdGVzdCUyMiUyQyUyMmVudiUyMiUzQSU3QiUyMkFXU19QUk9GSUxFJTIyJTNBJTIyZGVmYXVsdCUyMiUyQyUyMkFXU19SRUdJT04lMjIlM0ElMjJ1cy13ZXN0LTIlMjIlMkMlMjJGQVNUTUNQX0xPR19MRVZFTCUyMiUzQSUyMkVSUk9SJTIyJTdEJTJDJTIyZGlzYWJsZWQlMjIlM0FmYWxzZSUyQyUyMmF1dG9BcHByb3ZlJTIyJTNBJTVCJTVEJTdE)| [![VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=DynamoDB%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.dynamodb-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22default%22%2C%22AWS_REGION%22%3A%22us-west-2%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
+| [![Kiro](https://img.shields.io/badge/Install-Kiro-9046FF?style=flat-square&logo=kiro)](https://kiro.dev/launch/mcp/add?name=awslabs-dynamodb-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.dynamodb-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22DDB-MCP-READONLY%22%3A%22true%22%2C%22AWS_PROFILE%22%3A%22default%22%2C%22AWS_REGION%22%3A%22us-west-2%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%7D)| [![Cursor](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs-dynamodb-mcp-server&config=JTdCJTIyY29tbWFuZCUyMiUzQSUyMnV2eCUyMGF3c2xhYnMuZHluYW1vZGItbWNwLXNlcnZlciU0MGxhdGVzdCUyMiUyQyUyMmVudiUyMiUzQSU3QiUyMkFXU19QUk9GSUxFJTIyJTNBJTIyZGVmYXVsdCUyMiUyQyUyMkFXU19SRUdJT04lMjIlM0ElMjJ1cy13ZXN0LTIlMjIlMkMlMjJGQVNUTUNQX0xPR19MRVZFTCUyMiUzQSUyMkVSUk9SJTIyJTdEJTJDJTIyZGlzYWJsZWQlMjIlM0FmYWxzZSUyQyUyMmF1dG9BcHByb3ZlJTIyJTNBJTVCJTVEJTdE)| [![VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=DynamoDB%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.dynamodb-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22AWS_PROFILE%22%3A%22default%22%2C%22AWS_REGION%22%3A%22us-west-2%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
 
 > **Note:** The install buttons above configure `AWS_REGION` to `us-west-2` by default. Update this value in your MCP configuration after installation if you need a different region.
 
@@ -60,7 +60,7 @@ Add the MCP server to your configuration file (for [Kiro](https://kiro.dev/docs/
 ```json
 {
   "mcpServers": {
-    "awslabs.dynamodb-mcp-server": {
+    "awslabs-dynamodb-mcp-server": {
       "command": "uvx",
       "args": ["awslabs.dynamodb-mcp-server@latest"],
       "env": {
@@ -80,7 +80,7 @@ For Windows users, the MCP server configuration format is slightly different:
 ```json
 {
   "mcpServers": {
-    "awslabs.dynamodb-mcp-server": {
+    "awslabs-dynamodb-mcp-server": {
       "disabled": false,
       "timeout": 60,
       "type": "stdio",
@@ -107,7 +107,7 @@ After a successful `docker build -t awslabs/dynamodb-mcp-server .`:
 ```json
 {
   "mcpServers": {
-    "awslabs.dynamodb-mcp-server": {
+    "awslabs-dynamodb-mcp-server": {
       "command": "docker",
       "args": [
         "run",
@@ -188,14 +188,15 @@ The tool supports two connection methods for MySQL:
 - MySQL / Aurora MySQL
 - PostgreSQL
 - SQL Server
+- Oracle
 
 **Execution Modes:**
-- **Self-Service Mode**: Generate SQL queries, run them yourself, provide results (MYSQL, PSQL, MSSQL)
+- **Self-Service Mode**: Generate SQL queries, run them yourself, provide results (MySQL, PostgreSQL, SQL Server, Oracle)
 - **Managed Mode**: Direct connection via AWS RDS Data API (MySQL only)
 
 We recommend running this tool against a non-production database instance.
 
-### Self-Service Mode (MYSQL, PSQL, MSSQL)
+### Self-Service Mode (MySQL, PostgreSQL, SQL Server, Oracle)
 
 Self-service mode allows you to analyze any database without AWS connectivity:
 
@@ -203,9 +204,9 @@ Self-service mode allows you to analyze any database without AWS connectivity:
 2. **Run Queries**: You execute queries against your database
 3. **Provide Results**: Tool parses results and generates analysis
 
-### Managed Mode (MYSQL, PSQL, MSSQL)
+### Managed Mode (MySQL only)
 
-Managed mode allow you to connect tool, to AWS RDS Data API, to analyzes existing MySQL/Aurora databases to extract schema and access patterns for DynamoDB modeling.
+Managed mode allows you to connect the tool to AWS RDS Data API to analyze existing MySQL/Aurora databases to extract schema and access patterns for DynamoDB modeling.
 
 #### Prerequisites for MySQL Integration (Managed Mode)
 
@@ -217,7 +218,22 @@ Managed mode allow you to connect tool, to AWS RDS Data API, to analyzes existin
 **For Connection-based access:**
 1. MySQL server accessible from your environment
 2. Database credentials stored in AWS Secrets Manager
-3. AWS credentials with permissions to access Secrets Manager
+3. The Secrets Manager secret **must** contain a `host` field matching your database hostname (in addition to `username` and `password`). This ensures credentials are only used with the intended database host. RDS-managed secrets include this field automatically. If you created your secret manually, ensure it follows the [standard structure](https://docs.aws.amazon.com/secretsmanager/latest/userguide/reference_secret_json_structure.html):
+
+   ```bash
+   aws secretsmanager create-secret \
+       --name "my-db-secret" \
+       --secret-string '{
+           "engine": "mysql",
+           "host": "my-db.cluster-xxx.us-east-1.rds.amazonaws.com",
+           "username": "<username>",
+           "password": "<password>",
+           "dbname": "<database name>",
+           "port": 3306
+       }'
+   ```
+
+4. AWS credentials with permissions to access Secrets Manager
 
 **For both connection methods:**
 4. Enable Performance Schema for access pattern analysis (optional but recommended):
@@ -258,7 +274,7 @@ Add these environment variables to enable MySQL integration:
 ```json
 {
   "mcpServers": {
-    "awslabs.dynamodb-mcp-server": {
+    "awslabs-dynamodb-mcp-server": {
       "command": "uvx",
       "args": ["awslabs.dynamodb-mcp-server@latest"],
       "env": {
@@ -404,7 +420,7 @@ pip install pydantic boto3
 **Optional Development Dependencies:**
 
 For linting and formatting the generated code:
-- `ruff>=0.9.7` - Python linter and formatter (recommended)
+- `ruff==0.15.8` - Python linter and formatter (recommended)
 
 **Generated File Structure:**
 

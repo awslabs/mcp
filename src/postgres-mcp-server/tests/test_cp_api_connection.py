@@ -2,9 +2,12 @@
 
 import pytest
 from awslabs.postgres_mcp_server.connection.cp_api_connection import (
+    internal_create_express_cluster,
     internal_create_rds_client,
     internal_create_serverless_cluster,
+    internal_delete_cluster,
     internal_get_cluster_properties,
+    internal_get_cluster_valid_endpoints,
 )
 from botocore.exceptions import ClientError, WaiterError
 from typing import Dict, List, Optional
@@ -220,6 +223,19 @@ class TestInternalGetClusterProperties:
         )
 
     @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_get_cluster_properties_with_express(self, mock_create_client):
+        """Test retrieving cluster properties with express configuration."""
+        mock_rds_client = MagicMock()
+        mock_create_client.return_value = mock_rds_client
+        mock_rds_client.describe_db_clusters.return_value = {
+            'DBClusters': [{'DBClusterIdentifier': 'test-cluster'}]
+        }
+
+        internal_get_cluster_properties('test-cluster', 'us-west-2')
+
+        mock_create_client.assert_called_once_with('us-west-2')
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
     def test_get_cluster_properties_client_error(self, mock_create_client):
         """Test handling of AWS ClientError."""
         mock_rds_client = MagicMock()
@@ -230,6 +246,108 @@ class TestInternalGetClusterProperties:
 
         with pytest.raises(ClientError):
             internal_get_cluster_properties('test-cluster', 'us-west-2')
+
+
+# =============================================================================
+# TESTS FOR: internal_create_express_cluster
+# =============================================================================
+
+
+class TestInternalCreateExpressCluster:
+    """Tests for internal_create_express_cluster function."""
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.time')
+    def test_create_express_cluster_success(self, mock_time, mock_create_client):
+        """Test successful express cluster creation."""
+        # Setup mocks
+        mock_rds_client = MagicMock()
+        mock_create_client.return_value = mock_rds_client
+        mock_time.time.side_effect = [100.0, 200.0]  # Start and end times
+
+        mock_rds_client.describe_db_clusters.return_value = {
+            'DBClusters': [
+                {
+                    'DBClusterIdentifier': 'express-cluster',
+                    'Status': 'creating',
+                    'Engine': 'aurora-postgresql',
+                }
+            ]
+        }
+
+        mock_waiter = MagicMock()
+        mock_rds_client.get_waiter.return_value = mock_waiter
+
+        # Execute
+        result = internal_create_express_cluster('express-cluster', 'us-east-2')
+
+        # Verify
+        assert result['DBClusterIdentifier'] == 'express-cluster'
+        mock_create_client.assert_called_once_with('us-east-2')
+
+        # Verify create_db_cluster was called with correct parameters
+        mock_rds_client.create_db_cluster.assert_called_once()
+        call_kwargs = mock_rds_client.create_db_cluster.call_args[1]
+        assert call_kwargs['DBClusterIdentifier'] == 'express-cluster'
+        assert call_kwargs['Engine'] == 'aurora-postgresql'
+        assert call_kwargs['WithExpressConfiguration'] is True
+        assert any(
+            tag['Key'] == 'CreatedBy' and tag['Value'] == 'MCP' for tag in call_kwargs['Tags']
+        )
+
+        # Verify waiter was used
+        mock_rds_client.get_waiter.assert_called_once_with('db_cluster_available')
+        mock_waiter.wait.assert_called_once()
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_create_express_cluster_create_fails(self, mock_create_client):
+        """Test handling of cluster creation failure."""
+        mock_rds_client = MagicMock()
+        mock_create_client.return_value = mock_rds_client
+        mock_rds_client.create_db_cluster.side_effect = ClientError(
+            {
+                'Error': {
+                    'Code': 'DBClusterAlreadyExistsFault',
+                    'Message': 'Cluster already exists',
+                }
+            },
+            'CreateDBCluster',
+        )
+
+        with pytest.raises(ClientError) as exc_info:
+            internal_create_express_cluster('express-cluster', 'us-east-2')
+
+        assert exc_info.value.response['Error']['Code'] == 'DBClusterAlreadyExistsFault'
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_create_express_cluster_waiter_timeout(self, mock_create_client):
+        """Test handling of waiter timeout."""
+        mock_rds_client = MagicMock()
+        mock_create_client.return_value = mock_rds_client
+        mock_rds_client.describe_db_clusters.return_value = {
+            'DBClusters': [{'DBClusterIdentifier': 'express-cluster'}]
+        }
+
+        mock_waiter = MagicMock()
+        mock_waiter.wait.side_effect = WaiterError(
+            name='db_cluster_available', reason='Max attempts exceeded', last_response={}
+        )
+        mock_rds_client.get_waiter.return_value = mock_waiter
+
+        with pytest.raises(WaiterError):
+            internal_create_express_cluster('express-cluster', 'us-east-2')
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_create_express_cluster_unexpected_error(self, mock_create_client):
+        """Test handling of unexpected errors."""
+        mock_rds_client = MagicMock()
+        mock_create_client.return_value = mock_rds_client
+        mock_rds_client.create_db_cluster.side_effect = Exception('Unexpected error')
+
+        with pytest.raises(Exception) as exc_info:
+            internal_create_express_cluster('express-cluster', 'us-east-2')
+
+        assert 'Unexpected error' in str(exc_info.value)
 
 
 # =============================================================================
@@ -890,3 +1008,551 @@ class TestSetupAuroraIamPolicy:
         mock_iam.delete_policy_version.assert_called_once()
         delete_call = mock_iam.delete_policy_version.call_args
         assert delete_call[1]['VersionId'] == 'v1'  # Oldest non-default version
+
+
+# =============================================================================
+# TESTS FOR: internal_delete_cluster
+# =============================================================================
+
+
+class TestInternalDeleteCluster:
+    """Tests for internal_delete_cluster function."""
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.time')
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.boto3')
+    def test_delete_cluster_success(self, mock_boto3, mock_time):
+        """Test successful cluster deletion with one instance."""
+        mock_rds = MagicMock()
+        mock_boto3.client.return_value = mock_rds
+
+        mock_rds.describe_db_clusters.side_effect = [
+            # First call: cluster exists
+            {
+                'DBClusters': [
+                    {
+                        'DBClusterIdentifier': 'test-cluster',
+                        'Status': 'available',
+                        'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+                        'DBClusterMembers': [{'DBInstanceIdentifier': 'test-instance-1'}],
+                    }
+                ]
+            },
+            # Second call (polling): cluster still exists
+            {'DBClusters': [{'DBClusterIdentifier': 'test-cluster'}]},
+            # Third call (polling): cluster gone
+            ClientError(
+                {'Error': {'Code': 'DBClusterNotFoundFault', 'Message': 'Not found'}},
+                'DescribeDBClusters',
+            ),
+        ]
+
+        mock_rds.list_tags_for_resource.return_value = {
+            'TagList': [{'Key': 'CreatedBy', 'Value': 'MCP'}]
+        }
+
+        # Instance polling: first call exists, second call gone
+        mock_rds.describe_db_instances.side_effect = [
+            ClientError(
+                {'Error': {'Code': 'DBInstanceNotFoundFault', 'Message': 'Not found'}},
+                'DescribeDBInstances',
+            ),
+        ]
+
+        internal_delete_cluster('us-east-1', 'test-cluster')
+
+        mock_rds.delete_db_instance.assert_called_once_with(
+            DBInstanceIdentifier='test-instance-1',
+            SkipFinalSnapshot=True,
+            DeleteAutomatedBackups=True,
+        )
+        mock_rds.delete_db_cluster.assert_called_once_with(
+            DBClusterIdentifier='test-cluster',
+            SkipFinalSnapshot=True,
+        )
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.boto3')
+    def test_delete_cluster_not_found(self, mock_boto3):
+        """Test deletion when cluster doesn't exist — should return silently."""
+        mock_rds = MagicMock()
+        mock_boto3.client.return_value = mock_rds
+
+        mock_rds.describe_db_clusters.side_effect = ClientError(
+            {'Error': {'Code': 'DBClusterNotFoundFault', 'Message': 'Not found'}},
+            'DescribeDBClusters',
+        )
+
+        # Should not raise
+        internal_delete_cluster('us-east-1', 'nonexistent-cluster')
+
+        mock_rds.delete_db_instance.assert_not_called()
+        mock_rds.delete_db_cluster.assert_not_called()
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.boto3')
+    def test_delete_cluster_not_created_by_mcp(self, mock_boto3):
+        """Test deletion is rejected when cluster was not created by MCP."""
+        mock_rds = MagicMock()
+        mock_boto3.client.return_value = mock_rds
+
+        mock_rds.describe_db_clusters.return_value = {
+            'DBClusters': [
+                {
+                    'DBClusterIdentifier': 'test-cluster',
+                    'Status': 'available',
+                    'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+                    'DBClusterMembers': [],
+                }
+            ]
+        }
+
+        mock_rds.list_tags_for_resource.return_value = {
+            'TagList': [{'Key': 'Environment', 'Value': 'prod'}]
+        }
+
+        with pytest.raises(Exception, match='Can only delete clusters created by MCP tool'):
+            internal_delete_cluster('us-east-1', 'test-cluster')
+
+        mock_rds.delete_db_instance.assert_not_called()
+        mock_rds.delete_db_cluster.assert_not_called()
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.boto3')
+    def test_delete_cluster_no_tags(self, mock_boto3):
+        """Test deletion is rejected when cluster has no tags."""
+        mock_rds = MagicMock()
+        mock_boto3.client.return_value = mock_rds
+
+        mock_rds.describe_db_clusters.return_value = {
+            'DBClusters': [
+                {
+                    'DBClusterIdentifier': 'test-cluster',
+                    'Status': 'available',
+                    'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+                    'DBClusterMembers': [],
+                }
+            ]
+        }
+
+        mock_rds.list_tags_for_resource.return_value = {'TagList': []}
+
+        with pytest.raises(Exception, match='Can only delete clusters created by MCP tool'):
+            internal_delete_cluster('us-east-1', 'test-cluster')
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.boto3')
+    def test_delete_cluster_describe_error(self, mock_boto3):
+        """Test deletion when describe_db_clusters returns unexpected error."""
+        mock_rds = MagicMock()
+        mock_boto3.client.return_value = mock_rds
+
+        mock_rds.describe_db_clusters.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}},
+            'DescribeDBClusters',
+        )
+
+        with pytest.raises(ClientError):
+            internal_delete_cluster('us-east-1', 'test-cluster')
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.boto3')
+    def test_delete_cluster_instance_already_deleted(self, mock_boto3):
+        """Test deletion when instance is already gone."""
+        mock_rds = MagicMock()
+        mock_boto3.client.return_value = mock_rds
+
+        mock_rds.describe_db_clusters.side_effect = [
+            {
+                'DBClusters': [
+                    {
+                        'DBClusterIdentifier': 'test-cluster',
+                        'Status': 'available',
+                        'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+                        'DBClusterMembers': [{'DBInstanceIdentifier': 'test-instance-1'}],
+                    }
+                ]
+            },
+            # Polling: cluster gone
+            ClientError(
+                {'Error': {'Code': 'DBClusterNotFoundFault', 'Message': 'Not found'}},
+                'DescribeDBClusters',
+            ),
+        ]
+
+        mock_rds.list_tags_for_resource.return_value = {
+            'TagList': [{'Key': 'CreatedBy', 'Value': 'MCP'}]
+        }
+
+        # delete_db_instance returns "already deleted"
+        mock_rds.delete_db_instance.side_effect = ClientError(
+            {'Error': {'Code': 'DBInstanceNotFoundFault', 'Message': 'Not found'}},
+            'DeleteDBInstance',
+        )
+
+        # Instance polling: already gone
+        mock_rds.describe_db_instances.side_effect = ClientError(
+            {'Error': {'Code': 'DBInstanceNotFoundFault', 'Message': 'Not found'}},
+            'DescribeDBInstances',
+        )
+
+        internal_delete_cluster('us-east-1', 'test-cluster')
+
+        # delete_db_instance was called but instance was already gone — that's OK
+        mock_rds.delete_db_instance.assert_called_once()
+        mock_rds.delete_db_cluster.assert_called_once()
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.boto3')
+    def test_delete_cluster_instance_delete_error(self, mock_boto3):
+        """Test deletion when instance deletion fails with unexpected error."""
+        mock_rds = MagicMock()
+        mock_boto3.client.return_value = mock_rds
+
+        mock_rds.describe_db_clusters.return_value = {
+            'DBClusters': [
+                {
+                    'DBClusterIdentifier': 'test-cluster',
+                    'Status': 'available',
+                    'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+                    'DBClusterMembers': [{'DBInstanceIdentifier': 'test-instance-1'}],
+                }
+            ]
+        }
+
+        mock_rds.list_tags_for_resource.return_value = {
+            'TagList': [{'Key': 'CreatedBy', 'Value': 'MCP'}]
+        }
+
+        mock_rds.delete_db_instance.side_effect = ClientError(
+            {'Error': {'Code': 'InternalFailure', 'Message': 'Internal error'}},
+            'DeleteDBInstance',
+        )
+
+        with pytest.raises(ClientError):
+            internal_delete_cluster('us-east-1', 'test-cluster')
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.boto3')
+    def test_delete_cluster_delete_cluster_error(self, mock_boto3):
+        """Test deletion when delete_db_cluster fails."""
+        mock_rds = MagicMock()
+        mock_boto3.client.return_value = mock_rds
+
+        mock_rds.describe_db_clusters.return_value = {
+            'DBClusters': [
+                {
+                    'DBClusterIdentifier': 'test-cluster',
+                    'Status': 'available',
+                    'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+                    'DBClusterMembers': [],
+                }
+            ]
+        }
+
+        mock_rds.list_tags_for_resource.return_value = {
+            'TagList': [{'Key': 'CreatedBy', 'Value': 'MCP'}]
+        }
+
+        mock_rds.delete_db_cluster.side_effect = ClientError(
+            {
+                'Error': {
+                    'Code': 'InvalidDBClusterStateFault',
+                    'Message': 'Cluster is not in a valid state',
+                }
+            },
+            'DeleteDBCluster',
+        )
+
+        with pytest.raises(ClientError):
+            internal_delete_cluster('us-east-1', 'test-cluster')
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.time')
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.boto3')
+    def test_delete_cluster_no_instances(self, mock_boto3, mock_time):
+        """Test deletion of cluster with no instances."""
+        mock_rds = MagicMock()
+        mock_boto3.client.return_value = mock_rds
+
+        mock_rds.describe_db_clusters.side_effect = [
+            {
+                'DBClusters': [
+                    {
+                        'DBClusterIdentifier': 'test-cluster',
+                        'Status': 'available',
+                        'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+                        'DBClusterMembers': [],
+                    }
+                ]
+            },
+            # Polling: cluster gone
+            ClientError(
+                {'Error': {'Code': 'DBClusterNotFoundFault', 'Message': 'Not found'}},
+                'DescribeDBClusters',
+            ),
+        ]
+
+        mock_rds.list_tags_for_resource.return_value = {
+            'TagList': [{'Key': 'CreatedBy', 'Value': 'MCP'}]
+        }
+
+        internal_delete_cluster('us-east-1', 'test-cluster')
+
+        mock_rds.delete_db_instance.assert_not_called()
+        mock_rds.delete_db_cluster.assert_called_once()
+
+
+# =============================================================================
+# TESTS FOR: internal_get_cluster_valid_endpoints
+# =============================================================================
+
+
+class TestInternalGetClusterValidEndpoints:
+    """Tests for internal_get_cluster_valid_endpoints function.
+
+    Covers cluster-level dict parsing (writer, reader, custom endpoints, port
+    parsing) and the member-instance lookup branch that queries
+    describe_db_instances. Tests that don't exercise the member-instance
+    branch don't need to patch the RDS client because the function only
+    reaches AWS when DBClusterMembers contains an identifier.
+    """
+
+    def test_writer_and_reader_endpoints_included(self):
+        """Writer and reader endpoints are both returned with the cluster port."""
+        cluster_properties = {
+            'Endpoint': 'cluster.writer.rds.amazonaws.com',
+            'ReaderEndpoint': 'cluster.reader.rds.amazonaws.com',
+            'Port': 5432,
+        }
+
+        result = internal_get_cluster_valid_endpoints(cluster_properties, 'us-east-1')
+
+        assert ('cluster.writer.rds.amazonaws.com', 5432) in result
+        assert ('cluster.reader.rds.amazonaws.com', 5432) in result
+        assert len(result) == 2
+
+    def test_custom_endpoints_included(self):
+        """Custom endpoints are included alongside writer/reader."""
+        cluster_properties = {
+            'Endpoint': 'cluster.writer.rds.amazonaws.com',
+            'ReaderEndpoint': 'cluster.reader.rds.amazonaws.com',
+            'CustomEndpoints': [
+                'cluster.custom-a.rds.amazonaws.com',
+                'cluster.custom-b.rds.amazonaws.com',
+            ],
+            'Port': 5432,
+        }
+
+        result = internal_get_cluster_valid_endpoints(cluster_properties, 'us-east-1')
+
+        assert ('cluster.custom-a.rds.amazonaws.com', 5432) in result
+        assert ('cluster.custom-b.rds.amazonaws.com', 5432) in result
+        assert len(result) == 4
+
+    def test_custom_endpoints_none_is_treated_as_empty(self):
+        """Explicit CustomEndpoints=None does not crash and yields no custom entries."""
+        cluster_properties = {
+            'Endpoint': 'cluster.writer.rds.amazonaws.com',
+            'ReaderEndpoint': 'cluster.reader.rds.amazonaws.com',
+            'CustomEndpoints': None,
+            'Port': 5432,
+        }
+
+        result = internal_get_cluster_valid_endpoints(cluster_properties, 'us-east-1')
+
+        assert len(result) == 2
+
+    def test_custom_endpoints_empty_list_yields_no_extras(self):
+        """An empty CustomEndpoints list contributes nothing."""
+        cluster_properties = {
+            'Endpoint': 'cluster.writer.rds.amazonaws.com',
+            'ReaderEndpoint': 'cluster.reader.rds.amazonaws.com',
+            'CustomEndpoints': [],
+            'Port': 5432,
+        }
+
+        result = internal_get_cluster_valid_endpoints(cluster_properties, 'us-east-1')
+
+        assert len(result) == 2
+
+    def test_port_as_string_parses(self):
+        """Port returned as a string (as the RDS API sometimes does) is parsed as int."""
+        cluster_properties = {
+            'Endpoint': 'cluster.writer.rds.amazonaws.com',
+            'Port': '5432',
+        }
+
+        result = internal_get_cluster_valid_endpoints(cluster_properties, 'us-east-1')
+
+        assert ('cluster.writer.rds.amazonaws.com', 5432) in result
+
+    def test_missing_port_raises_value_error(self):
+        """Missing Port suppresses all cluster-level endpoints, yielding an empty list → ValueError."""
+        cluster_properties = {
+            'Endpoint': 'cluster.writer.rds.amazonaws.com',
+            'ReaderEndpoint': 'cluster.reader.rds.amazonaws.com',
+        }
+
+        with pytest.raises(ValueError, match='no valid connection endpoints'):
+            internal_get_cluster_valid_endpoints(cluster_properties, 'us-east-1')
+
+    def test_invalid_port_string_falls_back_to_default(self):
+        """Unparseable Port falls back to DEFAULT_POSTGRES_PORT (5432)."""
+        cluster_properties = {
+            'Endpoint': 'cluster.writer.rds.amazonaws.com',
+            'Port': 'not-a-number',
+        }
+
+        result = internal_get_cluster_valid_endpoints(cluster_properties, 'us-east-1')
+
+        assert ('cluster.writer.rds.amazonaws.com', 5432) in result
+
+    def test_empty_cluster_properties_raises_value_error(self):
+        """Empty cluster properties yield no endpoints and must raise ValueError."""
+        with pytest.raises(ValueError, match='no valid connection endpoints'):
+            internal_get_cluster_valid_endpoints({}, 'us-east-1')
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_members_included_when_describe_succeeds(self, mock_create_client):
+        """Each member instance's endpoint is included in the valid list."""
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+        mock_rds.describe_db_instances.side_effect = [
+            {
+                'DBInstances': [
+                    {
+                        'Endpoint': {
+                            'Address': 'instance-1.abc.us-east-1.rds.amazonaws.com',
+                            'Port': 5432,
+                        }
+                    }
+                ]
+            },
+            {
+                'DBInstances': [
+                    {
+                        'Endpoint': {
+                            'Address': 'instance-2.abc.us-east-1.rds.amazonaws.com',
+                            'Port': 5432,
+                        }
+                    }
+                ]
+            },
+        ]
+        cluster_properties = {
+            'Endpoint': 'cluster.writer.rds.amazonaws.com',
+            'Port': 5432,
+            'DBClusterMembers': [
+                {'DBInstanceIdentifier': 'instance-1'},
+                {'DBInstanceIdentifier': 'instance-2'},
+            ],
+        }
+
+        result = internal_get_cluster_valid_endpoints(cluster_properties, 'us-east-1')
+
+        assert ('instance-1.abc.us-east-1.rds.amazonaws.com', 5432) in result
+        assert ('instance-2.abc.us-east-1.rds.amazonaws.com', 5432) in result
+        assert mock_rds.describe_db_instances.call_count == 2
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_member_clienterror_is_logged_and_skipped(self, mock_create_client):
+        """ClientError on one member does not abort processing of others."""
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+        mock_rds.describe_db_instances.side_effect = [
+            ClientError(
+                {'Error': {'Code': 'AccessDenied', 'Message': 'denied'}},
+                'DescribeDBInstances',
+            ),
+            {
+                'DBInstances': [
+                    {
+                        'Endpoint': {
+                            'Address': 'instance-2.abc.us-east-1.rds.amazonaws.com',
+                            'Port': 5432,
+                        }
+                    }
+                ]
+            },
+        ]
+        cluster_properties = {
+            'Endpoint': 'cluster.writer.rds.amazonaws.com',
+            'Port': 5432,
+            'DBClusterMembers': [
+                {'DBInstanceIdentifier': 'instance-1'},
+                {'DBInstanceIdentifier': 'instance-2'},
+            ],
+        }
+
+        result = internal_get_cluster_valid_endpoints(cluster_properties, 'us-east-1')
+
+        # Writer endpoint is still there, and the second member's endpoint
+        # is present even though the first member's lookup failed.
+        assert ('cluster.writer.rds.amazonaws.com', 5432) in result
+        assert ('instance-2.abc.us-east-1.rds.amazonaws.com', 5432) in result
+        assert mock_rds.describe_db_instances.call_count == 2
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_member_missing_endpoint_fields_skipped(self, mock_create_client):
+        """Member instance responses missing Address or Port are skipped."""
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+        mock_rds.describe_db_instances.side_effect = [
+            # No Endpoint at all
+            {'DBInstances': [{}]},
+            # Endpoint with no Address
+            {'DBInstances': [{'Endpoint': {'Port': 5432}}]},
+            # Endpoint with Address but no Port
+            {
+                'DBInstances': [
+                    {'Endpoint': {'Address': 'instance-3.abc.us-east-1.rds.amazonaws.com'}}
+                ]
+            },
+        ]
+        cluster_properties = {
+            'Endpoint': 'cluster.writer.rds.amazonaws.com',
+            'Port': 5432,
+            'DBClusterMembers': [
+                {'DBInstanceIdentifier': 'instance-1'},
+                {'DBInstanceIdentifier': 'instance-2'},
+                {'DBInstanceIdentifier': 'instance-3'},
+            ],
+        }
+
+        result = internal_get_cluster_valid_endpoints(cluster_properties, 'us-east-1')
+
+        # Writer endpoint is still present, but none of the malformed members
+        # contributed entries.
+        assert result == [('cluster.writer.rds.amazonaws.com', 5432)]
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_member_invalid_port_string_skipped(self, mock_create_client):
+        """A member instance with an unparseable Port string is skipped."""
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+        mock_rds.describe_db_instances.return_value = {
+            'DBInstances': [
+                {
+                    'Endpoint': {
+                        'Address': 'instance-1.abc.us-east-1.rds.amazonaws.com',
+                        'Port': 'not-a-number',
+                    }
+                }
+            ]
+        }
+        cluster_properties = {
+            'Endpoint': 'cluster.writer.rds.amazonaws.com',
+            'Port': 5432,
+            'DBClusterMembers': [{'DBInstanceIdentifier': 'instance-1'}],
+        }
+
+        result = internal_get_cluster_valid_endpoints(cluster_properties, 'us-east-1')
+
+        # Writer endpoint is the only survivor; the member's bad port was rejected.
+        assert result == [('cluster.writer.rds.amazonaws.com', 5432)]
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_members_without_identifier_are_skipped(self, mock_create_client):
+        """DBClusterMembers entries lacking DBInstanceIdentifier trigger no API call."""
+        cluster_properties = {
+            'Endpoint': 'cluster.writer.rds.amazonaws.com',
+            'Port': 5432,
+            'DBClusterMembers': [{}, {'SomeOtherField': 'x'}],
+        }
+
+        result = internal_get_cluster_valid_endpoints(cluster_properties, 'us-east-1')
+
+        assert ('cluster.writer.rds.amazonaws.com', 5432) in result
+        mock_create_client.assert_not_called()

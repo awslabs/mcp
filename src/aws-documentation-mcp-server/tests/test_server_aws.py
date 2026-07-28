@@ -19,10 +19,13 @@ import pytest
 from awslabs.aws_documentation_mcp_server.server_aws import (
     main,
     read_documentation,
+    read_sections,
     recommend,
     search_documentation,
+    search_table,
 )
 from unittest.mock import AsyncMock, MagicMock, patch
+from urllib.parse import parse_qs, unquote, urlparse
 
 
 class MockContext:
@@ -126,6 +129,349 @@ class TestReadDocumentation:
 
         with pytest.raises(ValueError, match='URL must end with .html'):
             await read_documentation(ctx, url=url, max_length=10000, start_index=0)
+
+
+class TestReadSections:
+    """Tests for the read_sections function."""
+
+    @pytest.mark.asyncio
+    async def test_read_sections_success(self):
+        """Test successful section extraction from AWS documentation."""
+        url = 'https://docs.aws.amazon.com/test.html'
+        section_titles = ['Introduction', 'Main Section']
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """<html><body>
+            <h2>Introduction</h2>
+            <p>This is the introduction.</p>
+            <h2>Main Section</h2>
+            <p>This is the main content.</p>
+            <h2>Other Section</h2>
+            <p>This should not be included.</p>
+        </body></html>"""
+        mock_response.headers = {'content-type': 'text/html'}
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            result = await read_sections(ctx, url=url, section_titles=section_titles)
+
+            # Verify requested sections are extracted
+            assert 'This is the introduction' in result
+            assert 'This is the main content' in result
+
+            # Verify unmatched section is not included
+            assert 'This should not be included' not in result
+
+            mock_get.assert_called_once()
+            called_url = mock_get.call_args[0][0]
+
+            # Verify sections parameter by parsing and decoding
+            parsed_url = urlparse(called_url)
+            query_params = parse_qs(parsed_url.query)
+            assert 'sections' in query_params
+
+            # Decode and verify section titles
+            encoded_sections = query_params['sections'][0]
+            decoded_sections = [unquote(s.strip()) for s in encoded_sections.split(',')]
+            assert 'Introduction' in decoded_sections
+            assert 'Main Section' in decoded_sections
+
+    @pytest.mark.asyncio
+    async def test_read_sections_with_domain_modification(self):
+        """Test section extraction with domain modification."""
+        url = 'https://awsdocs-neuron.readthedocs-hosted.com/test.html'
+        section_titles = ['Getting Started']
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = (
+            '<html><body><h2>Getting Started</h2><p>Neuron content.</p></body></html>'
+        )
+        mock_response.headers = {'content-type': 'text/html'}
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            result = await read_sections(ctx, url=url, section_titles=section_titles)
+
+            assert 'Neuron content' in result
+            called_url = mock_get.call_args[0][0]
+            assert '?session=' in called_url
+
+    @pytest.mark.asyncio
+    async def test_read_sections_http_error(self):
+        """Test read_sections with HTTP error."""
+        url = 'https://docs.aws.amazon.com/test.html'
+        section_titles = ['Introduction']
+        ctx = MockContext()
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.side_effect = httpx.HTTPError('Connection error')
+
+            result = await read_sections(ctx, url=url, section_titles=section_titles)
+
+            assert 'Failed to fetch' in result
+            assert 'Connection error' in result
+            mock_get.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_read_sections_no_sections_found(self):
+        """Test read_sections when no requested sections exist."""
+        url = 'https://docs.aws.amazon.com/test.html'
+        section_titles = ['Nonexistent Section']
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        # Only h1, no h2 sections
+        mock_response.text = (
+            '<html><body><h1>Other Section</h1><p>Different content.</p></body></html>'
+        )
+        mock_response.headers = {'content-type': 'text/html'}
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            with pytest.raises(ValueError, match='This document does not contain subsections'):
+                await read_sections(ctx, url=url, section_titles=section_titles)
+
+    @pytest.mark.asyncio
+    async def test_read_sections_partial_success(self):
+        """Test read_sections with partial success (some sections found, others missing)."""
+        url = 'https://docs.aws.amazon.com/test.html'
+        section_titles = ['Found Section', 'Missing Section']
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        # One h2 section exists, one doesn't
+        mock_response.text = '<html><body><h2>Found Section</h2><p>Content here.</p></body></html>'
+        mock_response.headers = {'content-type': 'text/html'}
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            result = await read_sections(ctx, url=url, section_titles=section_titles)
+
+            assert 'Content here' in result
+            assert 'The following requested sections were not found: "Missing Section"' in result
+
+    @pytest.mark.asyncio
+    async def test_read_sections_invalid_domain(self):
+        """Test read_sections with invalid domain."""
+        url = 'https://invalid-domain.com/test.html'
+        section_titles = ['Introduction']
+        ctx = MockContext()
+
+        with pytest.raises(ValueError, match='URL must be from list of supported domains'):
+            await read_sections(ctx, url=url, section_titles=section_titles)
+
+    @pytest.mark.asyncio
+    async def test_read_sections_invalid_extension(self):
+        """Test read_sections with invalid file extension."""
+        url = 'https://docs.aws.amazon.com/test.pdf'
+        section_titles = ['Introduction']
+        ctx = MockContext()
+
+        with pytest.raises(ValueError, match='URL must end with .html'):
+            await read_sections(ctx, url=url, section_titles=section_titles)
+
+    @pytest.mark.asyncio
+    async def test_read_sections_empty_section_titles(self):
+        """Test read_sections with empty section_titles parameter."""
+        url = 'https://docs.aws.amazon.com/test.html'
+        section_titles = []
+        ctx = MockContext()
+
+        with pytest.raises(ValueError, match='section_titles parameter cannot be empty'):
+            await read_sections(ctx, url=url, section_titles=section_titles)
+
+    @pytest.mark.asyncio
+    async def test_read_sections_special_characters_url_encoding(self):
+        """Test that section titles with special characters are properly URL-encoded."""
+        url = 'https://docs.aws.amazon.com/test.html'
+        section_titles = [
+            'C++ & C# Programming',
+            'REST/HTTP APIs',
+            'Parameters (optional)',
+            'Key=Value Pairs',
+        ]
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """<html><body>
+            <h2>C++ & C# Programming</h2>
+            <p>Programming content.</p>
+            <h2>REST/HTTP APIs</h2>
+            <p>API content.</p>
+            <h2>Parameters (optional)</h2>
+            <p>Parameter details.</p>
+            <h2>Key=Value Pairs</h2>
+            <p>Key-value content.</p>
+        </body></html>"""
+        mock_response.headers = {'content-type': 'text/html'}
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            result = await read_sections(ctx, url=url, section_titles=section_titles)
+
+            assert 'Programming content' in result
+            assert 'API content' in result
+
+            called_url = mock_get.call_args[0][0]
+            parsed_url = urlparse(called_url)
+            query_params = parse_qs(parsed_url.query)
+
+            assert 'sections' in query_params, 'sections parameter missing from URL'
+
+            # Decode comma-separated sections (use unquote since we use quote, not quote_plus)
+            encoded_sections = query_params['sections'][0]
+            decoded_sections = [unquote(s.strip()) for s in encoded_sections.split(',')]
+
+            for original_title in section_titles:
+                assert original_title.strip() in decoded_sections, (
+                    f'Title "{original_title}" not in decoded sections: {decoded_sections}'
+                )
+
+    @pytest.mark.asyncio
+    async def test_read_sections_whitespace_normalization(self):
+        """Test whitespace normalization fix for BUG-001."""
+        url = 'https://docs.aws.amazon.com/test.html'
+        section_titles = [' Best  practices \n']  # Extra spaces and newline
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '<html><body><h1>This is a page<h1/><h2>Best practices</h2><p>Content here.</p></body></html>'
+        mock_response.headers = {'content-type': 'text/html'}
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            result = await read_sections(ctx, url=url, section_titles=section_titles)
+
+            # Whitespace normalization should match despite extra spaces/newlines
+            assert 'Content here' in result
+
+    @pytest.mark.asyncio
+    async def test_read_sections_non_html_content(self):
+        """Test read_sections with non-HTML content."""
+        url = 'https://docs.aws.amazon.com/test.html'
+        section_titles = ['Introduction']
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = 'Plain text content without HTML'
+        mock_response.headers = {'content-type': 'text/plain'}
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+            with patch(
+                'awslabs.aws_documentation_mcp_server.server_utils.is_html_content'
+            ) as mock_is_html:
+                mock_is_html.return_value = False
+
+                result = await read_sections(ctx, url=url, section_titles=section_titles)
+
+                assert 'Cannot extract sections from non-HTML content' in result
+                assert 'read_documentation tool instead' in result
+                mock_get.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_read_sections_non_404_error(self):
+        """Test read_sections with non-404 HTTP error."""
+        url = 'https://docs.aws.amazon.com/test.html'
+        section_titles = ['Introduction']
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            result = await read_sections(ctx, url=url, section_titles=section_titles)
+
+            assert 'Failed to fetch' in result
+            assert 'status code 500' in result
+            mock_get.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_read_sections_extract_content_error(self):
+        """Test read_sections when extract_content_from_html returns error."""
+        url = 'https://docs.aws.amazon.com/test.html'
+        section_titles = ['Test Section']
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = '<html><body><h2>Test Section</h2><p>Content.</p></body></html>'
+        mock_response.headers = {'content-type': 'text/html'}
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+            with patch(
+                'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html'
+            ) as mock_extract:
+                # Simulate extract_content_from_html returning an error
+                mock_extract.return_value = '<e>Failed to convert HTML to markdown</e>'
+
+                with pytest.raises(ValueError, match='Failed to convert HTML to markdown'):
+                    await read_sections(ctx, url=url, section_titles=section_titles)
+
+    @pytest.mark.asyncio
+    async def test_read_sections_end_to_end_workflow(self):
+        """Test complete end-to-end workflow and verify only h2 sections extracted."""
+        url = 'https://docs.aws.amazon.com/s3/latest/userguide/test.html'
+        section_titles = ['Bucket Naming Rules', 'Examples']
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """<html><body>
+            <div class="main-content">
+                <h1>S3 Bucket Guide</h1>
+                <p>Introduction to S3 buckets.</p>
+                <h2>Bucket Naming Rules</h2>
+                <ul>
+                    <li>Names must be unique</li>
+                    <li>Use lowercase letters</li>
+                </ul>
+                <h2>Examples</h2>
+                <p>Here are some examples:</p>
+                <code>my-bucket-name</code>
+                <h2>Other Information</h2>
+                <p>This section should not be included.</p>
+            </div>
+        </body></html>"""
+        mock_response.headers = {'content-type': 'text/html'}
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            result = await read_sections(ctx, url=url, section_titles=section_titles)
+
+            # Verify h2 sections ARE extracted
+            assert 'Bucket Naming Rules' in result
+            assert 'Names must be unique' in result
+            assert 'Examples' in result
+            assert 'my-bucket-name' in result
+
+            # Verify h1 content is NOT extracted
+            assert 'Introduction to S3 buckets' not in result
+
+            # Verify unmatched h2 section is NOT extracted
+            assert 'Other Information' not in result
+            assert 'This section should not be included' not in result
+
+            mock_get.assert_called_once()
 
 
 class TestSearchDocumentation:
@@ -396,6 +742,341 @@ class TestSearchDocumentation:
             context_attrs = kwargs['json']['contextAttributes']
             assert {'key': 'aws-docs-search-guide', 'value': 'User Guide'} in context_attrs
 
+    @pytest.mark.asyncio
+    async def test_search_documentation_with_sections(self):
+        """Test searching AWS documentation with section summaries included in results."""
+        search_phrase = 'S3 bucket configuration'
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'queryId': 'test-query-sections',
+            'suggestions': [
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/s3/latest/userguide/bucket-configuration.html',
+                        'title': 'S3 Bucket Configuration Guide',
+                        'metadata': {
+                            'sections': [
+                                'Bucket Naming Rules',
+                                'Access Control Settings',
+                                'Versioning Configuration',
+                            ],
+                        },
+                    }
+                },
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/s3/latest/userguide/basic-setup.html',
+                        'title': 'S3 Basic Setup',
+                        'summary': 'Basic S3 setup instructions',
+                        'metadata': {
+                            # No sections for this result
+                        },
+                    }
+                },
+            ],
+        }
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
+
+            results = await search_documentation(
+                ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
+            )
+
+            assert len(results.search_results) == 2
+            assert results.query_id == 'test-query-sections'
+
+            first_result = results.search_results[0]
+            assert first_result.rank_order == 1
+            assert (
+                first_result.url
+                == 'https://docs.aws.amazon.com/s3/latest/userguide/bucket-configuration.html'
+            )
+            assert first_result.title == 'S3 Bucket Configuration Guide'
+            # seo_abstract is no longer used for context; with no summary/suggestionBody it is None.
+            assert first_result.context is None
+
+            assert first_result.sections is not None
+            assert len(first_result.sections) == 3
+            assert first_result.sections == [
+                'Bucket Naming Rules',
+                'Access Control Settings',
+                'Versioning Configuration',
+            ]
+
+            second_result = results.search_results[1]
+            assert second_result.rank_order == 2
+            assert (
+                second_result.url
+                == 'https://docs.aws.amazon.com/s3/latest/userguide/basic-setup.html'
+            )
+            assert second_result.title == 'S3 Basic Setup'
+            assert second_result.context == 'Basic S3 setup instructions'
+
+            assert second_result.sections is None
+
+            mock_post.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_search_documentation_with_recommended_sections(self):
+        """recommended_sections is lifted to a top-level field, parallel to sections."""
+        search_phrase = 'S3 object lock'
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'queryId': 'test-query-recommended',
+            'suggestions': [
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/s3/latest/userguide/object-lock-managing.html',
+                        'title': 'S3 Object Lock',
+                        'metadata': {
+                            'seo_abstract': 'Managing S3 Object Lock',
+                            'sections': ['Permissions', 'Bypassing governance mode'],
+                            'recommended_sections': [
+                                'Managing S3 Lifecycle policies with Object Lock',
+                                'Uploading objects to an Object Lock enabled bucket',
+                            ],
+                        },
+                    }
+                },
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/s3/latest/userguide/basic.html',
+                        'title': 'Basic',
+                        'summary': 'No recommended sections here',
+                        'metadata': {},
+                    }
+                },
+            ],
+        }
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
+
+            results = await search_documentation(
+                ctx, search_phrase=search_phrase, limit=10, product_types=None, guide_types=None
+            )
+
+            first_result = results.search_results[0]
+            # Both fields surface independently at the top level
+            assert first_result.sections == ['Permissions', 'Bypassing governance mode']
+            assert first_result.recommended_sections == [
+                'Managing S3 Lifecycle policies with Object Lock',
+                'Uploading objects to an Object Lock enabled bucket',
+            ]
+
+            # No error on absent recommended_sections
+            second_result = results.search_results[1]
+            assert second_result.recommended_sections is None
+
+            mock_post.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_search_documentation_recommended_sections_filters_and_ignores_non_list(self):
+        """Empty/non-string entries are dropped; a non-list value yields None."""
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'queryId': 'test-query-rec-edge',
+            'suggestions': [
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/s3/latest/userguide/a.html',
+                        'title': 'A',
+                        'metadata': {
+                            # falsy and non-string entries are filtered out
+                            'recommended_sections': ['Keep me', '', None, 42, 'Also keep'],
+                        },
+                    }
+                },
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/s3/latest/userguide/b.html',
+                        'title': 'B',
+                        'metadata': {
+                            # non-list value is ignored entirely
+                            'recommended_sections': 'not-a-list',
+                        },
+                    }
+                },
+            ],
+        }
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
+
+            results = await search_documentation(
+                ctx, search_phrase='test', limit=10, product_types=None, guide_types=None
+            )
+
+            assert results.search_results[0].recommended_sections == ['Keep me', 'Also keep']
+            assert results.search_results[1].recommended_sections is None
+
+            mock_post.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_search_documentation_surfaces_known_response_metadata_fields(self):
+        """Known response-level metadata fields are surfaced; unknown fields are dropped."""
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'queryId': 'qid',
+            'suggestions': [
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/x',
+                        'title': 'X',
+                        'suggestionBody': 'desc',
+                    }
+                }
+            ],
+            'metadata': {
+                'discovered_services': [{'name': 'Amazon S3'}],
+                'related_tasks': [
+                    {
+                        'name': 'enable Object Lock',
+                        'description': '...',
+                        'urls': [
+                            {
+                                'url_name': '/AmazonS3/latest/userguide/lock.html',
+                                'url_description': 'Object Lock overview',
+                            }
+                        ],
+                    }
+                ],
+                'unknown_field_a': 'should-not-appear',
+                'unknown_field_b': {'foo': 'bar'},
+            },
+        }
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
+
+            response = await search_documentation(
+                ctx, search_phrase='test', limit=10, product_types=None, guide_types=None
+            )
+
+            assert response.metadata is not None
+            assert response.metadata.discovered_services is not None
+            assert response.metadata.discovered_services[0].name == 'Amazon S3'
+            assert response.metadata.related_tasks is not None
+            assert response.metadata.related_tasks[0].name == 'enable Object Lock'
+            metadata_dump = response.metadata.model_dump(exclude_none=True)
+            assert 'unknown_field_a' not in metadata_dump
+            assert 'unknown_field_b' not in metadata_dump
+
+    @pytest.mark.asyncio
+    async def test_search_documentation_no_metadata_when_proxy_omits_it(self):
+        """Responses without a metadata block leave SearchResponse.metadata as None."""
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'queryId': 'qid',
+            'suggestions': [
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/x',
+                        'title': 'X',
+                        'suggestionBody': 'desc',
+                    }
+                }
+            ],
+        }
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
+
+            response = await search_documentation(
+                ctx, search_phrase='test', limit=10, product_types=None, guide_types=None
+            )
+
+            assert response.metadata is None
+
+    @pytest.mark.asyncio
+    async def test_search_documentation_drops_malformed_response_metadata(self):
+        """A malformed response-level metadata block is dropped, not raised."""
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'queryId': 'qid',
+            'suggestions': [
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/x',
+                        'title': 'X',
+                        'suggestionBody': 'desc',
+                    }
+                }
+            ],
+            # discovered_services items require a string `name`; a non-dict entry
+            # makes model_validate raise (ValidationError) unless guarded.
+            'metadata': {'discovered_services': ['not-a-dict']},
+        }
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
+
+            response = await search_documentation(
+                ctx, search_phrase='test', limit=10, product_types=None, guide_types=None
+            )
+
+            # Search succeeded; bad metadata was dropped rather than raised.
+            assert len(response.search_results) == 1
+            assert response.search_results[0].url == 'https://docs.aws.amazon.com/x'
+            assert response.metadata is None
+
+    @pytest.mark.asyncio
+    async def test_search_documentation_drops_malformed_result_metadata(self):
+        """A malformed per-result metadata block is dropped, not raised."""
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'queryId': 'qid',
+            'suggestions': [
+                {
+                    'textExcerptSuggestion': {
+                        'link': 'https://docs.aws.amazon.com/x',
+                        'title': 'X',
+                        'suggestionBody': 'desc',
+                        'metadata': {
+                            'sections': ['Overview'],
+                            # additional_urls entries require a string `url`; a bare
+                            # string entry makes model_validate raise unless guarded.
+                            'additional_urls': ['not-a-dict'],
+                        },
+                    }
+                }
+            ],
+        }
+
+        with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
+            mock_post.return_value = mock_response
+
+            response = await search_documentation(
+                ctx, search_phrase='test', limit=10, product_types=None, guide_types=None
+            )
+
+            result = response.search_results[0]
+            assert result.url == 'https://docs.aws.amazon.com/x'
+            assert result.sections == ['Overview']
+            assert result.metadata is None
+
 
 class TestRecommend:
     """Tests for the recommend function."""
@@ -447,7 +1128,7 @@ class TestRecommend:
             assert '?path=' in called_url
             assert '&session=' in called_url
             assert called_url.startswith(
-                'https://contentrecs-api.docs.aws.amazon.com/v1/recommendations?path=https://docs.aws.amazon.com/test&session='
+                'https://api.contentrecs.docs.aws.com/v1/recommendations?path=https://docs.aws.amazon.com/test&session='
             )
 
     @pytest.mark.asyncio
@@ -504,6 +1185,154 @@ class TestRecommend:
             assert results[0].url == ''
             assert 'Error parsing recommendations:' in results[0].title
             assert results[0].context is None
+
+
+class TestSearchTable:
+    """Tests for the search_table function."""
+
+    @pytest.mark.asyncio
+    async def test_search_table_success(self):
+        """Test successful table search."""
+        url = 'https://docs.aws.amazon.com/general/latest/gr/test.html'
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """<html><body>
+            <h2>Service quotas</h2>
+            <table><thead><tr><th>Name</th><th>Value</th></tr></thead>
+            <tbody><tr><td>Foo quota</td><td>100</td></tr>
+            <tr><td>Bar quota</td><td>200</td></tr></tbody></table>
+        </body></html>"""
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            result = await search_table(
+                ctx, url=url, section_title='Service quotas', query='Foo', max_rows=20
+            )
+
+            assert result.tables_with_matches == 1
+            assert result.results[0].matched_rows == 1
+            assert result.results[0].rows[0]['Name'] == 'Foo quota'
+
+    @pytest.mark.asyncio
+    async def test_search_table_invalid_url(self):
+        """Test that invalid URLs are rejected."""
+        ctx = MockContext()
+
+        with pytest.raises(ValueError, match='URL must be from list of supported domains'):
+            await search_table(
+                ctx,
+                url='https://example.com/page.html',
+                section_title='Test',
+                query='foo',
+                max_rows=20,
+            )
+
+    @pytest.mark.asyncio
+    async def test_search_table_url_must_end_with_html(self):
+        """Test that URLs must end with .html."""
+        ctx = MockContext()
+
+        with pytest.raises(ValueError, match='URL must end with .html'):
+            await search_table(
+                ctx,
+                url='https://docs.aws.amazon.com/test.json',
+                section_title='Test',
+                query='foo',
+                max_rows=20,
+            )
+
+    @pytest.mark.asyncio
+    async def test_search_table_empty_query(self):
+        """Test that empty query is rejected."""
+        ctx = MockContext()
+
+        with pytest.raises(ValueError, match='query parameter cannot be empty'):
+            await search_table(
+                ctx,
+                url='https://docs.aws.amazon.com/test.html',
+                section_title='Test',
+                query='',
+                max_rows=20,
+            )
+
+    @pytest.mark.asyncio
+    async def test_search_table_no_matches_returns_hint(self):
+        """Test that zero matches includes a hint."""
+        url = 'https://docs.aws.amazon.com/general/latest/gr/test.html'
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """<html><body>
+            <h2>Quotas</h2>
+            <table><thead><tr><th>Name</th></tr></thead>
+            <tbody><tr><td>Something</td></tr></tbody></table>
+        </body></html>"""
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            result = await search_table(
+                ctx, url=url, section_title='Quotas', query='nonexistent', max_rows=20
+            )
+
+            assert result.tables_with_matches == 0
+            assert result.results == []
+            assert result.hint is not None
+
+    @pytest.mark.asyncio
+    async def test_search_table_section_not_found_returns_available(self):
+        """Test that wrong section title returns available sections."""
+        url = 'https://docs.aws.amazon.com/general/latest/gr/test.html'
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """<html><body>
+            <h2>Real Section</h2>
+            <table><thead><tr><th>A</th></tr></thead>
+            <tbody><tr><td>1</td></tr></tbody></table>
+        </body></html>"""
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            result = await search_table(
+                ctx, url=url, section_title='Wrong Section', query='foo', max_rows=20
+            )
+
+            assert result.hint is not None
+            assert 'Real Section' in result.hint
+
+    @pytest.mark.asyncio
+    async def test_search_table_optional_section_title(self):
+        """Test that section_title can be omitted to search all tables."""
+        url = 'https://docs.aws.amazon.com/general/latest/gr/test.html'
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = """<html><body>
+            <h2>Section A</h2>
+            <table><thead><tr><th>Name</th></tr></thead>
+            <tbody><tr><td>Alpha</td></tr></tbody></table>
+            <h2>Section B</h2>
+            <table><thead><tr><th>Name</th></tr></thead>
+            <tbody><tr><td>Beta</td></tr></tbody></table>
+        </body></html>"""
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            result = await search_table(
+                ctx, url=url, section_title=None, query='Beta', max_rows=20
+            )
+
+            assert result.tables_with_matches == 1
+            assert 'Beta' in str(result.results[0].rows)
 
 
 class TestMain:

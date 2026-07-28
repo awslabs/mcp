@@ -43,9 +43,7 @@ def task_strategy(draw, base_time: datetime | None = None):
         st.text(
             min_size=1,
             max_size=50,
-            alphabet=st.characters(
-                whitelist_categories=('L', 'N', 'P', 'S'), blacklist_characters='<>&"\''
-            ),
+            alphabet=st.characters(categories=('L', 'N', 'P', 'S'), exclude_characters='<>&"\''),
         )
     )
 
@@ -278,14 +276,12 @@ class TestGanttGeneratorPropertyBased:
     @given(tasks=tasks_list_strategy(min_tasks=1, max_tasks=50))
     @settings(max_examples=100)
     def test_property_svg_contains_required_visual_elements(self, tasks: list[dict]):
-        """Property 7: SVG Contains Required Visual Elements.
+        """Property: SVG Contains Required Visual Elements.
 
         For any task in the timeline, the SVG SHALL contain exactly two rectangle
         elements for that task (pending phase and running phase), and the running
         phase rectangle SHALL have a fill color matching the task's status.
-
-        **Validates: Requirements 5.2, 5.3, 5.4**
-        **Feature: run-analyzer-enhancement, Property 7: SVG Contains Required Visual Elements**
+        **Feature: run-analyzer-enhancement, Property: SVG Contains Required Visual Elements**
         """
         generator = GanttGenerator()
         run_info = {'runName': 'TestRun'}
@@ -309,13 +305,14 @@ class TestGanttGeneratorPropertyBased:
 
         # Property: For each task, there should be at least one rectangle
         # (pending phase may have zero width if start == creation)
+        # +1 accounts for the background rectangle added by SVGBuilder
         num_tasks = len(tasks)
-        # Each task has at most 2 rects (pending + running), at least 1 (running)
-        assert len(rects) >= num_tasks, (
-            f'Expected at least {num_tasks} rectangles for {num_tasks} tasks, got {len(rects)}'
+        # Each task has at most 2 rects (pending + running), at least 1 (running), plus background
+        assert len(rects) >= num_tasks + 1, (
+            f'Expected at least {num_tasks + 1} rectangles for {num_tasks} tasks (including background), got {len(rects)}'
         )
-        assert len(rects) <= num_tasks * 2, (
-            f'Expected at most {num_tasks * 2} rectangles for {num_tasks} tasks, got {len(rects)}'
+        assert len(rects) <= num_tasks * 2 + 1, (
+            f'Expected at most {num_tasks * 2 + 1} rectangles for {num_tasks} tasks (including background), got {len(rects)}'
         )
 
         # Property: Running phase rectangles have correct status colors
@@ -337,9 +334,7 @@ class TestGanttGeneratorPropertyBased:
 
         For any valid time unit and dimensions, the generated SVG should be
         well-formed and contain the correct dimensions.
-
-        **Validates: Requirements 5.5, 5.7**
-        **Feature: run-analyzer-enhancement, Property 7: SVG Contains Required Visual Elements**
+        **Feature: run-analyzer-enhancement, Property: SVG Contains Required Visual Elements**
         """
         generator = GanttGenerator()
         base_time = datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
@@ -378,9 +373,7 @@ class TestGanttGeneratorPropertyBased:
 
         For any task status, the running phase rectangle SHALL have the
         correct fill color as defined in STATUS_COLORS.
-
-        **Validates: Requirements 5.3**
-        **Feature: run-analyzer-enhancement, Property 7: SVG Contains Required Visual Elements**
+        **Feature: run-analyzer-enhancement, Property: SVG Contains Required Visual Elements**
         """
         generator = GanttGenerator()
         base_time = datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
@@ -403,3 +396,178 @@ class TestGanttGeneratorPropertyBased:
 
         # Property: The pending color also appears (for the pending phase)
         assert GanttGenerator.PENDING_COLOR in svg, 'Expected pending color in SVG'
+
+
+class TestGanttGeneratorTheme:
+    """Tests for GanttGenerator dark/light theme support."""
+
+    def test_dark_theme_uses_dark_status_colors(self):
+        """Test that dark theme uses brighter status colors for contrast."""
+        generator = GanttGenerator()
+        base_time = datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+
+        for status, expected_color in GanttGenerator.STATUS_COLORS_DARK.items():
+            tasks = [
+                {
+                    'taskName': f'Task_{status}',
+                    'creationTime': base_time.isoformat(),
+                    'startTime': (base_time + timedelta(seconds=10)).isoformat(),
+                    'stopTime': (base_time + timedelta(minutes=1)).isoformat(),
+                    'status': status,
+                }
+            ]
+            run_info = {'runName': 'TestRun'}
+            svg = generator.generate_chart(tasks, run_info, theme='dark')
+            assert expected_color in svg, (
+                f'Expected dark color {expected_color} for status {status}'
+            )
+
+    def test_dark_theme_uses_dark_pending_color(self):
+        """Test that dark theme uses the dark pending color."""
+        generator = GanttGenerator()
+        base_time = datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+        tasks = [
+            {
+                'taskName': 'Task1',
+                'creationTime': base_time.isoformat(),
+                'startTime': (base_time + timedelta(minutes=1)).isoformat(),
+                'stopTime': (base_time + timedelta(minutes=5)).isoformat(),
+                'status': 'COMPLETED',
+            }
+        ]
+        run_info = {'runName': 'TestRun'}
+        svg = generator.generate_chart(tasks, run_info, theme='dark')
+
+        assert GanttGenerator.PENDING_COLOR_DARK in svg
+        # Light pending color should NOT be present
+        assert GanttGenerator.PENDING_COLOR not in svg
+
+    def test_dark_theme_has_dark_background(self):
+        """Test that dark theme SVG has a dark background."""
+        generator = GanttGenerator()
+        base_time = datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+        tasks = [
+            {
+                'taskName': 'Task1',
+                'creationTime': base_time.isoformat(),
+                'startTime': (base_time + timedelta(seconds=10)).isoformat(),
+                'stopTime': (base_time + timedelta(minutes=1)).isoformat(),
+                'status': 'COMPLETED',
+            }
+        ]
+        run_info = {'runName': 'TestRun'}
+        svg = generator.generate_chart(tasks, run_info, theme='dark')
+
+        assert '#1E1E1E' in svg  # Dark background color
+
+    def test_dark_theme_has_light_text(self):
+        """Test that dark theme SVG uses light-colored text."""
+        generator = GanttGenerator()
+        base_time = datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+        tasks = [
+            {
+                'taskName': 'Task1',
+                'creationTime': base_time.isoformat(),
+                'startTime': (base_time + timedelta(seconds=10)).isoformat(),
+                'stopTime': (base_time + timedelta(minutes=1)).isoformat(),
+                'status': 'COMPLETED',
+            }
+        ]
+        run_info = {'runName': 'TestRun'}
+        svg = generator.generate_chart(tasks, run_info, theme='dark')
+
+        assert 'fill="#E0E0E0"' in svg  # Light text color
+
+    def test_light_theme_does_not_use_dark_colors(self):
+        """Test that light theme does not use dark theme colors."""
+        generator = GanttGenerator()
+        base_time = datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+        tasks = [
+            {
+                'taskName': 'Task1',
+                'creationTime': base_time.isoformat(),
+                'startTime': (base_time + timedelta(seconds=10)).isoformat(),
+                'stopTime': (base_time + timedelta(minutes=1)).isoformat(),
+                'status': 'COMPLETED',
+            }
+        ]
+        run_info = {'runName': 'TestRun'}
+        svg = generator.generate_chart(tasks, run_info, theme='light')
+
+        # Should use light mode colors, not dark mode
+        assert GanttGenerator.STATUS_COLORS['COMPLETED'] in svg
+        assert GanttGenerator.STATUS_COLORS_DARK['COMPLETED'] not in svg
+
+    def test_empty_chart_dark_theme(self):
+        """Test that empty chart with dark theme has correct background and text colors."""
+        generator = GanttGenerator()
+        run_info = {'runName': 'TestRun'}
+        svg = generator.generate_chart([], run_info, theme='dark')
+
+        assert '#1E1E1E' in svg  # Dark background
+        assert '#E0E0E0' in svg  # Light text
+        assert 'No task data available' in svg
+
+    def test_empty_chart_light_theme(self):
+        """Test that empty chart with light theme has correct background and text colors."""
+        generator = GanttGenerator()
+        run_info = {'runName': 'TestRun'}
+        svg = generator.generate_chart([], run_info, theme='light')
+
+        assert '#FFFFFF' in svg  # White background
+        assert '#000000' in svg  # Dark text
+        assert 'No task data available' in svg
+
+    def test_filtered_empty_tasks_dark_theme(self):
+        """Test dark theme when all tasks are filtered out (no valid timing data)."""
+        generator = GanttGenerator()
+        # Tasks without stopTime will be filtered out
+        tasks = [
+            {
+                'taskName': 'InvalidTask',
+                'creationTime': '2024-01-01T10:00:00Z',
+                # No stopTime
+            }
+        ]
+        run_info = {'runName': 'TestRun'}
+        svg = generator.generate_chart(tasks, run_info, theme='dark')
+
+        assert '#1E1E1E' in svg  # Dark background
+        assert '#E0E0E0' in svg  # Light text
+        assert 'No task data available' in svg
+
+    def test_dark_theme_produces_valid_xml(self):
+        """Test that dark theme Gantt chart is valid XML."""
+        generator = GanttGenerator()
+        base_time = datetime(2024, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+        tasks = [
+            {
+                'taskName': 'Task1',
+                'creationTime': base_time.isoformat(),
+                'startTime': (base_time + timedelta(seconds=30)).isoformat(),
+                'stopTime': (base_time + timedelta(minutes=5)).isoformat(),
+                'status': 'COMPLETED',
+                'allocatedCpus': 4,
+                'allocatedMemoryGiB': 8,
+                'instanceType': 'omics.m.xlarge',
+                'estimatedUSD': 0.05,
+            },
+            {
+                'taskName': 'Task2',
+                'creationTime': (base_time + timedelta(minutes=1)).isoformat(),
+                'startTime': (base_time + timedelta(minutes=2)).isoformat(),
+                'stopTime': (base_time + timedelta(minutes=10)).isoformat(),
+                'status': 'FAILED',
+                'allocatedCpus': 8,
+                'allocatedMemoryGiB': 16,
+                'instanceType': 'omics.r.2xlarge',
+                'estimatedUSD': 0.12,
+            },
+        ]
+        run_info = {'runName': 'TestRun', 'runId': 'run-123'}
+        svg = generator.generate_chart(tasks, run_info, theme='dark')
+
+        try:
+            ET.fromstring(svg)
+        except ET.ParseError as e:
+            pytest.fail(f'Dark theme Gantt chart is not valid XML: {e}')

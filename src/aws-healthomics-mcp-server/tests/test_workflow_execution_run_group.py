@@ -73,6 +73,9 @@ class TestStartRunConditionallyIncludesRunGroupId:
                 cache_id=None,
                 cache_behavior=None,
                 run_group_id=run_group_id,
+                networking_mode=None,
+                configuration_name=None,
+                scratch_storage_mode=None,
             )
 
         mock_client.start_run.assert_called_once()
@@ -182,6 +185,9 @@ class TestStartRunWithRunGroupIdUnit:
                 cache_id=None,
                 cache_behavior=None,
                 run_group_id='12345',
+                networking_mode=None,
+                configuration_name=None,
+                scratch_storage_mode=None,
             )
 
         actual_params = mock_client.start_run.call_args[1]
@@ -220,6 +226,9 @@ class TestStartRunWithRunGroupIdUnit:
                 cache_id=None,
                 cache_behavior=None,
                 run_group_id=None,
+                networking_mode=None,
+                configuration_name=None,
+                scratch_storage_mode=None,
             )
 
         actual_params = mock_client.start_run.call_args[1]

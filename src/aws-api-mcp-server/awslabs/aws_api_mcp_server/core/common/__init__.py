@@ -23,6 +23,8 @@ from .models import (
     ProgramValidationRequest,
 )
 
+import awslabs.aws_api_mcp_server.core.common.awscli_patch as _awscli_patch
+
 __all__ = [
     'AwsApiMcpError',
     'Failure',

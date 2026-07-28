@@ -261,7 +261,7 @@ class TestUpdateWebappFrontend:
         )
 
         mock_session = MagicMock()
-        mock_session.client.side_effect = lambda service: {
+        mock_session.client.side_effect = lambda service, **kwargs: {
             'cloudformation': mock_cfn_client,
         }.get(service, MagicMock())
 
@@ -293,7 +293,7 @@ class TestUpdateWebappFrontend:
         }
 
         mock_session = MagicMock()
-        mock_session.client.side_effect = lambda service: {
+        mock_session.client.side_effect = lambda service, **kwargs: {
             'cloudformation': mock_cfn_client,
         }.get(service, MagicMock())
 
@@ -325,7 +325,7 @@ class TestUpdateWebappFrontend:
         mock_cloudfront_client = MagicMock()
 
         mock_session = MagicMock()
-        mock_session.client.side_effect = lambda service: {
+        mock_session.client.side_effect = lambda service, **kwargs: {
             'cloudformation': mock_cfn_client,
             's3': mock_s3_client,
             'cloudfront': mock_cloudfront_client,
@@ -378,7 +378,7 @@ class TestUpdateWebappFrontend:
         mock_cloudfront_client = MagicMock()
 
         mock_session = MagicMock()
-        mock_session.client.side_effect = lambda service: {
+        mock_session.client.side_effect = lambda service, **kwargs: {
             'cloudformation': mock_cfn_client,
             's3': mock_s3_client,
             'cloudfront': mock_cloudfront_client,
@@ -442,7 +442,7 @@ class TestUpdateWebappFrontend:
         mock_cloudfront_client = MagicMock()
 
         mock_session = MagicMock()
-        mock_session.client.side_effect = lambda service: {
+        mock_session.client.side_effect = lambda service, **kwargs: {
             'cloudformation': mock_cfn_client,
             's3': mock_s3_client,
             'cloudfront': mock_cloudfront_client,
@@ -485,7 +485,7 @@ class TestUpdateWebappFrontend:
         mock_cloudfront_client = MagicMock()
 
         mock_session = MagicMock()
-        mock_session.client.side_effect = lambda service: {
+        mock_session.client.side_effect = lambda service, **kwargs: {
             'cloudformation': mock_cfn_client,
             's3': mock_s3_client,
             'cloudfront': mock_cloudfront_client,
@@ -524,7 +524,7 @@ class TestUpdateWebappFrontend:
         mock_cloudfront_client = MagicMock()
 
         mock_session = MagicMock()
-        mock_session.client.side_effect = lambda service: {
+        mock_session.client.side_effect = lambda service, **kwargs: {
             'cloudformation': mock_cfn_client,
             's3': mock_s3_client,
             'cloudfront': mock_cloudfront_client,
@@ -568,7 +568,7 @@ class TestUpdateWebappFrontend:
         mock_cloudfront_client = MagicMock()
 
         mock_session = MagicMock()
-        mock_session.client.side_effect = lambda service: {
+        mock_session.client.side_effect = lambda service, **kwargs: {
             'cloudformation': mock_cfn_client,
             's3': mock_s3_client,
             'cloudfront': mock_cloudfront_client,

@@ -22,6 +22,7 @@
       "**/*.cs",
       "**/*.properties",
       "**/*.xml",
+      "**/*.drawio",
       "**/dist/**"
     ],
     "include": [
@@ -78,10 +79,13 @@
       "**/*.template",
       "**/*.properties",
       "**/*.xml",
+      "**/*.drawio",
       "**/dist/**",
       "**/skills/*/scripts",
       "**/skills/*/references",
-      "**/skills/*/mcp"
+      "**/skills/*/mcp",
+      "**/DO_NOT_RELEASE",
+      "**/*.pyi"
     ]
   }
 ]

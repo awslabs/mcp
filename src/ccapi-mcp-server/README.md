@@ -1,3 +1,5 @@
+> **⚠️ DEPRECATION NOTICE**: This server is deprecated and will no longer receive updates. Please migrate to the [AWS IAC MCP Server](https://github.com/awslabs/mcp/tree/main/src/aws-iac-mcp-server), which provides infrastructure-as-code authoring with CloudFormation and CDK documentation, template validation (cfn-lint), compliance checking (cfn-guard), and deployment troubleshooting. See the [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-ccapi.md) for a detailed tool-by-tool mapping.
+
 # AWS Cloud Control API (CCAPI) MCP Server
 
 Model Context Protocol (MCP) server that enables LLMs to directly create and manage over 1,100 AWS resources through natural language using AWS Cloud Control API and IaC Generator with Infrastructure as Code best practices.

@@ -38,6 +38,11 @@ env/
 .coverage
 htmlcov/
 .tox/
+junit.xml
+*-junit.xml
+coverage.xml
+*-coverage.xml
+bandit-report-*.html
 
 # UV
 .uv/

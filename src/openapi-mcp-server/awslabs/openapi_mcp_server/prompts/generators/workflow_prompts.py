@@ -15,6 +15,7 @@
 
 from awslabs.openapi_mcp_server import logger
 from awslabs.openapi_mcp_server.prompts.models import PromptArgument
+from fastmcp.prompts import Message
 from fastmcp.prompts.prompt import Prompt
 from typing import Any, Dict, List
 
@@ -225,14 +226,11 @@ def create_workflow_prompt(server: Any, workflow: Dict[str, Any]) -> bool:
                             )
 
         # Create a function that returns messages for this workflow
-        def workflow_fn() -> List[Dict[str, Any]]:
-            # Create messages
-            messages = [{'role': 'user', 'content': {'type': 'text', 'text': documentation}}]
-
-            return messages
+        def workflow_fn() -> List[Message]:
+            return [Message(documentation)]
 
         # Register the function as a prompt
-        if hasattr(server, '_prompt_manager'):
+        if hasattr(server, 'add_prompt'):
             # Create tags based on workflow metadata
             tags = {resource_type, workflow_type}
 
@@ -245,11 +243,11 @@ def create_workflow_prompt(server: Any, workflow: Dict[str, Any]) -> bool:
             )
 
             # Add the prompt to the server
-            server._prompt_manager.add_prompt(prompt)
+            server.add_prompt(prompt)
             logger.debug(f'Added workflow prompt: {workflow["name"]}')
             return True
         else:
-            logger.warning('Server does not have _prompt_manager')
+            logger.warning('Server does not have add_prompt')
             return False
 
     except Exception as e:

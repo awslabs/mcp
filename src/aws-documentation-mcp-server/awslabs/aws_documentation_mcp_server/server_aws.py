@@ -21,13 +21,18 @@ import uuid
 # Import models
 from awslabs.aws_documentation_mcp_server.models import (
     RecommendationResult,
+    ResponseMetadata,
     SearchResponse,
     SearchResult,
+    SearchResultMetadata,
+    SearchTableResponse,
 )
 from awslabs.aws_documentation_mcp_server.server_utils import (
     DEFAULT_USER_AGENT,
     add_search_result_cache_item,
     read_documentation_impl,
+    read_sections_impl,
+    search_table_impl,
 )
 
 # Import utility functions
@@ -37,13 +42,32 @@ from awslabs.aws_documentation_mcp_server.util import (
 )
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
-from pydantic import Field
-from typing import List, Optional
+from pydantic import BaseModel, Field, ValidationError
+from typing import Any, Dict, List, Optional, Type, TypeVar
 
 
 SEARCH_API_URL = 'https://proxy.search.docs.aws.com/search'
-RECOMMENDATIONS_API_URL = 'https://contentrecs-api.docs.aws.amazon.com/v1/recommendations'
+RECOMMENDATIONS_API_URL = 'https://api.contentrecs.docs.aws.com/v1/recommendations'
 SESSION_UUID = str(uuid.uuid4())
+SUPPORTED_METADATA_KEYS = ('discovered_services', 'related_tasks', 'relationships')
+SUPPORTED_RESULT_METADATA_KEYS = ('additional_urls',)
+
+_ModelT = TypeVar('_ModelT', bound=BaseModel)
+
+
+def _safe_model_validate(model: Type[_ModelT], data: Dict[str, Any]) -> Optional[_ModelT]:
+    """Validate optional metadata, dropping it (returning None) on any error.
+
+    Metadata is best-effort enrichment: a malformed block from the search backend
+    must never fail an otherwise-successful search. Log and drop instead of raising.
+    """
+    if not data:
+        return None
+    try:
+        return model.model_validate(data)
+    except (ValidationError, TypeError, KeyError, AttributeError) as e:
+        logger.warning(f'Dropping malformed {model.__name__} metadata: {e}')
+        return None
 
 
 # Dict for domain modifiers for search if search terms contain any of the terms
@@ -66,6 +90,7 @@ mcp = FastMCP(
     ## Best Practices
 
     - For long documentation pages, make multiple calls to `read_documentation` with different `start_index` values for pagination
+    - By default, use read_sections when the answer could be within a specific section(s), given the table of contents. Otherwise, use read_documentation to scan the entire page.
     - For very long documents (>30,000 characters), stop reading if you've found the needed information
     - When searching, use specific technical terms rather than general phrases
     - Use `recommend` tool to discover related content that might not appear in search results
@@ -77,6 +102,8 @@ mcp = FastMCP(
 
     - Use `search_documentation` when: You need to find documentation about a specific AWS service or feature
     - Use `read_documentation` when: You have a specific documentation URL and need its content
+    - Use `read_sections` when: You have a specific documentation URL and specific section title(s) and only need content from those specific section(s)
+    - Use `search_table` when: You need specific rows from a large table (e.g., service quotas, pricing, supported models). If read_sections or read_documentation shows a truncated table, use this tool with a query to find the rows you need.
     - Use `recommend` when: You want to find related content to a documentation page you're already viewing or need to find newly released information
     - Use `recommend` as a fallback when: Multiple searches have not yielded the specific information needed
     """,
@@ -129,6 +156,12 @@ async def read_documentation(
     - Code blocks for examples
     - Lists and tables converted to markdown format
 
+    ## Large Tables
+
+    Tables with more than 20 rows are automatically truncated to show only the header and 5 sample rows,
+    along with a hint to use the `search_table` tool. Use `search_table` to filter and retrieve specific
+    rows from large tables (e.g., service quotas, IAM actions).
+
     ## Handling Long Documents
 
     If the response indicates the document was truncated, you have several options:
@@ -160,6 +193,191 @@ async def read_documentation(
         raise ValueError('URL must end with .html')
 
     return await read_documentation_impl(ctx, url_str, max_length, start_index, SESSION_UUID)
+
+
+@mcp.tool()
+async def read_sections(
+    ctx: Context,
+    url: str = Field(description='URL of the AWS documentation page to read'),
+    section_titles: List[str] = Field(
+        description='List of section titles to extract from the documentation'
+    ),
+) -> str:
+    """Extract specific sections from AWS documentation pages by title.
+
+    Retrieves a page, converts to markdown, and returns only matching sections.
+    Section matching is case-insensitive and handles whitespace differences.
+
+    ## URL Requirements
+    - Must end with .html
+
+    ## Large Tables
+
+    Tables with more than 20 rows are automatically truncated to show only the header and 5 sample rows,
+    along with a hint to use the `search_table` tool. Use `search_table` to filter and retrieve specific
+    rows from large tables (e.g., service quotas, IAM actions).
+
+    ## Read Sections Tips
+
+    - Use exact section titles from search results 'sections' field when available
+    - Section matching is case-insensitive and handles whitespace differences
+    - Include multiple related sections in one call for comprehensive coverage
+
+    ## Example Usage
+
+    ```
+    # If query is about S3 bucket naming rules:
+    # Available sections: ['General purpose buckets naming rules', 'Example general purpose bucket names', 'Best practices', 'Creating a bucket that uses a GUID in the bucket name']
+    # Read these specific sections:
+    read_sections(
+        url='https://docs.aws.amazon.com/s3/latest/userguide/bucketnamingrules.html',
+        section_titles=['General purpose buckets naming rules', 'Best practices'],
+    )
+
+    # If query is about Python Lambda function examples:
+    # Available sections: ['Example Python Lambda function code', 'Handler naming conventions', 'Using the Lambda event object', 'Accessing and using the Lambda context object'. 'Valid handler signatures for Python handlers', 'Returning a value', 'Using the AWS SDK for Python (Boto3) in your handler', 'Accessing environment variables, 'Code best practices for Python Lambda functions']
+    # Read these specific sections:
+    read_sections(
+        url='https://docs.aws.amazon.com/lambda/latest/dg/python-handler.html',
+        section_titles=[
+            'Example Python Lambda function code',
+            'Code best practices for Python Lambda functions',
+        ],
+    )
+    ```
+
+    Args:
+        ctx: MCP context for logging and error handling
+        url: URL of the AWS documentation page to read
+        section_titles: List of section titles to extract
+
+    Returns:
+        Filtered markdown content containing only the requested sections
+    """
+    # Validate that URL is from docs.aws.amazon.com and ends with .html
+    url_str = str(url)
+
+    supported_domains_regex = [r'^https?://docs\.aws\.amazon\.com/']
+    for modifier in SEARCH_TERM_DOMAIN_MODIFIERS:
+        supported_domains_regex.append(modifier['regex'])
+
+    if not any(re.match(domain_regex, url_str) for domain_regex in supported_domains_regex):
+        await ctx.error(f'Invalid URL: {url_str}. URL must be from list of supported domains')
+        raise ValueError('URL must be from list of supported domains')
+    if not url_str.endswith('.html'):
+        await ctx.error(f'Invalid URL: {url_str}. URL must end with .html')
+        raise ValueError('URL must end with .html')
+
+    if not section_titles:
+        await ctx.error('section_titles parameter cannot be empty')
+        raise ValueError('section_titles parameter cannot be empty')
+
+    return await read_sections_impl(ctx, url_str, section_titles, SESSION_UUID)
+
+
+@mcp.tool()
+async def search_table(
+    ctx: Context,
+    url: str = Field(description='URL of the AWS documentation page containing the table'),
+    section_title: Optional[str] = Field(
+        default=None,
+        description='The section heading that contains the table. If omitted, searches all tables on the page. Use exact titles from search_documentation results or read_documentation output.',
+    ),
+    query: str = Field(
+        description='Search term to filter rows (case-insensitive, all words must match across any column)'
+    ),
+    max_rows: int = Field(
+        default=20,
+        description='Maximum number of matching rows to return per table',
+        ge=1,
+        le=100,
+    ),
+) -> SearchTableResponse:
+    """Search for specific rows in a large documentation table.
+
+    Use this tool when you need specific rows from a large documentation table
+    (e.g., service quotas, pricing tables, supported models lists). Returns
+    matching rows as JSON instead of dumping the entire table.
+
+    This is more efficient than read_sections for pages with hundreds of table rows.
+    If read_sections or read_documentation indicates a table was truncated, use this
+    tool to find the specific rows you need.
+
+    ## Section Title
+
+    - If you know the exact section title, provide it for precision
+    - If unsure, omit section_title — the tool will search all tables on the page
+    - Use section titles from search_documentation results (TOC) or read_documentation output
+    - If the section title is wrong, the hint field will list available sections
+
+    ## URL Requirements
+
+    - Must be from the docs.aws.amazon.com domain
+    - Must end with .html
+
+    ## Example Usage
+
+    ```
+    # With section title (searches all tables in that section):
+    search_table(
+        url='https://docs.aws.amazon.com/general/latest/gr/bedrock.html',
+        section_title='Amazon Bedrock service quotas',
+        query='Titan Text Embeddings V2',
+    )
+
+    # Without section title (searches all tables on the page):
+    search_table(
+        url='https://docs.aws.amazon.com/general/latest/gr/bedrock.html',
+        query='Claude 3 Sonnet requests',
+    )
+    ```
+
+    ## Response Format
+
+    Returns a SearchTableResponse with:
+    - tables_searched: Number of tables searched
+    - tables_with_matches: Number of tables containing matching rows
+    - hint: Guidance message when no matches found, section not found, or no tables on page
+    - error: Error message on HTTP/transport failures only
+    - results: Array of table result objects, each with:
+        - table_heading: The sub-heading above the table (if any)
+        - columns: Column headers for that table
+        - parent_columns: (optional) For rowspan/nested tables, which columns are group headers
+        - child_columns: (optional) For rowspan/nested tables, which columns are nested under groups
+        - total_rows: Total rows (or groups, for nested tables) in that table
+        - matched_rows: Number of rows/groups matching the query per table
+        - showing: Number of rows/groups returned per table (capped by max_rows per table)
+        - rows: Array of matching row objects. For flat tables: {column → value}.
+          For nested tables: {parent_col → value, ..., "rows": [{child_col → value}, ...]}
+
+    Args:
+        ctx: MCP context for logging and error handling
+        url: AWS documentation page URL (must end with .html)
+        section_title: The section heading containing the table (optional — omit to search all tables on the page)
+        query: Search term to filter rows (all words must match, case-insensitive)
+        max_rows: Maximum matching rows to return per table (default 20)
+
+    Returns:
+        SearchTableResponse with matching rows grouped by table
+    """
+    url_str = str(url)
+
+    supported_domains_regex = [r'^https?://docs\.aws\.amazon\.com/']
+    for modifier in SEARCH_TERM_DOMAIN_MODIFIERS:
+        supported_domains_regex.append(modifier['regex'])
+
+    if not any(re.match(domain_regex, url_str) for domain_regex in supported_domains_regex):
+        await ctx.error(f'Invalid URL: {url_str}. URL must be from list of supported domains')
+        raise ValueError('URL must be from list of supported domains')
+    if not url_str.endswith('.html'):
+        await ctx.error(f'Invalid URL: {url_str}. URL must end with .html')
+        raise ValueError('URL must end with .html')
+
+    if not query or not query.strip():
+        await ctx.error('query parameter cannot be empty')
+        raise ValueError('query parameter cannot be empty')
+
+    return await search_table_impl(ctx, url_str, section_title, query, max_rows, SESSION_UUID)
 
 
 @mcp.tool()
@@ -213,8 +431,16 @@ async def search_documentation(
         - url: The documentation page URL
         - title: The page title
         - context: A brief excerpt or summary (if available)
+        - recommended_sections: A subset of section titles ranked as most relevant to the query, in rank order (when available) - Pass these directly to read_sections for targeted content extraction
+        - sections: All available section titles for this page (when available) - individual titles can be used with the read_sections tool for targeted content extraction
+        - metadata: Optional per-result context (when available). May include:
+            - additional_urls: Other doc URLs related to the same result `{url, section_title, section_anchor}` - pass `section_title` to read_sections to fetch content; use `url#section_anchor` when citing
     - facets: Available filters (product_types, guide_types) for refining searches
     - query_id: Unique identifier for this search session
+    - metadata: Optional response-level context (when available). May include:
+        - discovered_services: AWS services inferred from the query that may be relevant beyond the top results
+        - related_tasks: Related operations or workflows the user may want to follow up on, each with its own doc URLs
+        - relationships: Named connections between information in the search results, useful for understanding how the returned topics relate to each other
 
 
     Args:
@@ -286,7 +512,11 @@ async def search_documentation(
             logger.error(error_msg)
             await ctx.error(error_msg)
             return SearchResponse(
-                search_results=[SearchResult(rank_order=1, url='', title=error_msg, context=None)],
+                search_results=[
+                    SearchResult(
+                        rank_order=1, url='', title=error_msg, context=None, sections=None
+                    )
+                ],
                 facets=None,
                 query_id='',
             )
@@ -304,13 +534,22 @@ async def search_documentation(
                         facets['product_types'] = value
                     elif key == 'aws-docs-search-guide':
                         facets['guide_types'] = value
+            raw_metadata = data.get('metadata') or {}
+            filtered_metadata = {
+                k: raw_metadata[k] for k in SUPPORTED_METADATA_KEYS if raw_metadata.get(k)
+            }
+            response_metadata = _safe_model_validate(ResponseMetadata, filtered_metadata)
 
         except json.JSONDecodeError as e:
             error_msg = f'Error parsing search results: {str(e)}'
             logger.error(error_msg)
             await ctx.error(error_msg)
             return SearchResponse(
-                search_results=[SearchResult(rank_order=1, url='', title=error_msg, context=None)],
+                search_results=[
+                    SearchResult(
+                        rank_order=1, url='', title=error_msg, context=None, sections=None
+                    )
+                ],
                 facets=None,
                 query_id='',
             )
@@ -322,31 +561,85 @@ async def search_documentation(
                 text_suggestion = suggestion['textExcerptSuggestion']
                 context = None
 
-                # Use SEO abstract if available, as it is designed for this task explicitly. If that is not available,
-                # Try using Intelligent Summary Abstract, then fallback to authored summary and finally content body
+                # Use the authored summary if available, falling back to content body.
                 metadata = text_suggestion.get('metadata', {})
-                if 'seo_abstract' in metadata:
-                    context = metadata['seo_abstract']
-                elif 'abstract' in metadata:
-                    context = metadata['abstract']
-                elif 'summary' in text_suggestion:
+                if 'summary' in text_suggestion:
                     context = text_suggestion['summary']
                 elif 'suggestionBody' in text_suggestion:
                     context = text_suggestion['suggestionBody']
 
-                results.append(
-                    SearchResult(
-                        rank_order=i + 1,
-                        url=text_suggestion.get('link', ''),
-                        title=text_suggestion.get('title', ''),
-                        context=context,
+                sections = []
+                title = text_suggestion.get('title', '')
+                url = text_suggestion.get('link', '')
+
+                # Log metadata for debugging
+                logger.debug(f'Processing result {i + 1}: {title} - {url}')
+                logger.debug(f'Available metadata keys: {list(metadata.keys())}')
+
+                if 'sections' in metadata:
+                    try:
+                        sections_data = metadata.pop('sections')
+                        logger.debug(f'Found sections: {sections_data}')
+                        logger.debug(f'Raw sections data type: {type(sections_data)}')
+
+                        if isinstance(sections_data, list):
+                            logger.debug(f'Processing {len(sections_data)} sections')
+                            for idx, section_data in enumerate(sections_data):
+                                logger.debug(
+                                    f'Section {idx}: {section_data} (type: {type(section_data)})'
+                                )
+
+                                if isinstance(section_data, str) and section_data != '':
+                                    sections.append(section_data)
+                                    logger.debug(f'Added section: {section_data}')
+                    except (TypeError, KeyError) as e:
+                        logger.error(f'Error processing sections for {title}: {url}, {e}')
+                else:
+                    logger.debug(f'No sections found in metadata for {title}: {url}')
+
+                if sections:
+                    logger.info(
+                        f'Found {len(sections)} sections for {title}: {url}, sections: {sections}'
                     )
+
+                # Surface relevant sections distinctly from full table of contents.
+                recommended_data = metadata.pop('recommended_sections', None)
+                recommended_sections = (
+                    [s for s in recommended_data if isinstance(s, str) and s != '']
+                    if isinstance(recommended_data, list)
+                    else []
                 )
+
+                if recommended_sections:
+                    logger.info(
+                        f'Found {len(recommended_sections)} recommended sections for {title}: {url}'
+                    )
+
+                filtered_result_metadata = {
+                    k: metadata[k] for k in SUPPORTED_RESULT_METADATA_KEYS if metadata.get(k)
+                }
+                search_result_metadata = _safe_model_validate(
+                    SearchResultMetadata, filtered_result_metadata
+                )
+                search_result = SearchResult(
+                    rank_order=i + 1,
+                    url=text_suggestion.get('link', ''),
+                    title=text_suggestion.get('title', ''),
+                    context=context,
+                    sections=sections if sections else None,
+                    recommended_sections=recommended_sections if recommended_sections else None,
+                    metadata=search_result_metadata,
+                )
+
+                results.append(search_result)
 
     logger.debug(f'Found {len(results)} search results for: {search_phrase}')
     logger.debug(f'Search query ID: {query_id}')
     final_search_response = SearchResponse(
-        search_results=results, facets=facets if facets else None, query_id=query_id
+        search_results=results,
+        facets=facets if facets else None,
+        query_id=query_id,
+        metadata=response_metadata,
     )
     add_search_result_cache_item(final_search_response)
     return final_search_response

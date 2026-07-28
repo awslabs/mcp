@@ -267,8 +267,8 @@ class MarkdownFormatter:
 
             # Add metadata section
             content_parts.append('## Metadata')
-            database_name = self.metadata.get('database', 'Unknown')
-            content_parts.append(f'- **Database**: {database_name}')
+            source_identifier = self.metadata.get('database', 'Unknown')
+            content_parts.append(f'- **Database**: {source_identifier}')
 
             timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             content_parts.append(f'- **Generated**: {timestamp}')

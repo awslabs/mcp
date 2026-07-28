@@ -56,7 +56,7 @@ class AwsHelper:
 
         # Create config with user agent
         config = botocore.config.Config(
-            user_agent_extra=f'awslabs/mcp/aws-stepfunctions-tool-mcp-server/{__version__}'
+            user_agent_extra=f'md/awslabs#mcp#stepfunctions-tool-mcp-server#{__version__}'
         )
 
         # Get profile and region

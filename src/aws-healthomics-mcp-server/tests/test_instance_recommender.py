@@ -224,7 +224,7 @@ class TestInstanceRecommenderPropertyBased:
     def test_property_recommended_instance_fits_required_resources(
         self, cpus_maximum: float, memory_maximum_gib: float, headroom: float
     ):
-        """Property 3: Recommended Instance Fits Required Resources.
+        """Property: Recommended Instance Fits Required Resources.
 
         For any task with maximum observed CPU usage C and memory usage M,
         and headroom H, the recommended instance type SHALL have at least
@@ -233,9 +233,7 @@ class TestInstanceRecommenderPropertyBased:
         Note: When requirements exceed the largest available instance (omics.r.48xlarge
         with 192 CPUs and 1536 GiB), the system falls back to that instance. This test
         filters out such edge cases to focus on the core property.
-
-        **Validates: Requirements 3.1, 3.3, 6.5**
-        **Feature: run-analyzer-enhancement, Property 3: Recommended Instance Fits Required Resources**
+        **Feature: run-analyzer-enhancement, Property: Recommended Instance Fits Required Resources**
         """
         # Calculate expected required resources
         expected_cpus = max(1, math.ceil(cpus_maximum * (1.0 + headroom)))
@@ -274,13 +272,11 @@ class TestInstanceRecommenderPropertyBased:
     def test_property_savings_calculation_correctness(
         self, estimated_cost: float, minimum_cost: float
     ):
-        """Property 4: Savings Calculation Correctness.
+        """Property: Savings Calculation Correctness.
 
         For any task with estimated cost E and minimum cost M,
         the potential savings SHALL equal max(0, E - M).
-
-        **Validates: Requirements 4.1, 4.2**
-        **Feature: run-analyzer-enhancement, Property 4: Savings Calculation Correctness**
+        **Feature: run-analyzer-enhancement, Property: Savings Calculation Correctness**
         """
         # We test the savings calculation by mocking the pricing API
         # to return a price that results in the minimum_cost
@@ -313,13 +309,11 @@ class TestInstanceRecommenderPropertyBased:
     def test_property_high_priority_savings_threshold(
         self, estimated_cost: float, savings_ratio: float
     ):
-        """Property 5: High-Priority Savings Threshold.
+        """Property: High-Priority Savings Threshold.
 
         For any task with estimated cost E and potential savings S,
         the task SHALL be flagged as high-priority if and only if S > 0.1 * E.
-
-        **Validates: Requirements 4.4**
-        **Feature: run-analyzer-enhancement, Property 5: High-Priority Savings Threshold**
+        **Feature: run-analyzer-enhancement, Property: High-Priority Savings Threshold**
         """
         recommender = InstanceRecommender()
 

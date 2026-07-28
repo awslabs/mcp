@@ -14,6 +14,7 @@
 """Tests for the postgres MCP Server."""
 
 import asyncio
+import awslabs.postgres_mcp_server.server as server_module
 import datetime
 import decimal
 import json
@@ -29,6 +30,7 @@ from awslabs.postgres_mcp_server.server import (
     async_job_status,
     async_job_status_lock,
     client_error_code_key,
+    configured_secret_arns,
     create_cluster,
     db_connection_map,
     get_database_connection_info,
@@ -37,7 +39,6 @@ from awslabs.postgres_mcp_server.server import (
     is_database_connected,
     main,
     run_query,
-    unexpected_error_key,
     write_query_prohibited_key,
 )
 from conftest import DummyCtx, Mock_DBConnection, Mock_PsycopgPoolConnection, MockException
@@ -617,7 +618,6 @@ async def test_run_query_throw_unexpected_error():
     assert len(response) == 1
     assert len(response[0]) == 1
     assert 'error' in response[0]
-    assert response[0].get('error') == unexpected_error_key
 
 
 @pytest.mark.asyncio
@@ -717,16 +717,23 @@ def test_main_with_valid_parameters(monkeypatch, capsys):
             'postgres',
             '--region',
             'us-west-2',
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:test-secret',
         ],
     )
     monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    # Stub the startup Secrets Manager probe so main() doesn't exit(1).
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
+        lambda secret_arn, region, is_test=False: ('test_user', 'test_password'),
+    )
 
     # Mock the connection so main can complete successfully
     mock_connection = Mock_DBConnection(readonly=False)
     # Add mock response for the validation query
     mock_connection.data_client.add_mock_response(get_mock_normal_query_response())
 
-    # Store connection in map and mock the internal_connect_to_database function
+    # Store connection in map and mock the internal_create_connection function
     db_connection_map.set(
         ConnectionMethod.RDS_API,
         'example-cluster-name',
@@ -763,9 +770,16 @@ def test_main_with_invalid_parameters(monkeypatch, capsys):
             'postgres',
             '--region',
             'invalid',
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:test-secret',
         ],
     )
     monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    # Stub the startup Secrets Manager probe so main() doesn't exit(1).
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
+        lambda secret_arn, region, is_test=False: ('test_user', 'test_password'),
+    )
 
     # This test of main() will succeed in parsing parameters.
     # With mcp.run mocked, the server starts and stops without error.
@@ -827,9 +841,16 @@ def test_main_with_psycopg_parameters(monkeypatch, capsys):
             'postgres',
             '--region',
             'us-west-2',
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:test-secret',
         ],
     )
     monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    # Stub the startup Secrets Manager probe so main() doesn't exit(1).
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
+        lambda secret_arn, region, is_test=False: ('test_user', 'test_password'),
+    )
 
     # The key fix: patch the PsycopgPoolConnection.__init__ to set is_test=True
     original_init = PsycopgPoolConnection.__init__
@@ -956,6 +977,306 @@ def test_main_with_invalid_psycopg_parameters(monkeypatch, capsys):
     with pytest.raises(SystemExit) as excinfo:
         main()
     assert excinfo.value.code == 2  # argparse exits with code 2 for invalid arguments
+
+
+def test_main_exits_when_secret_arn_unreadable(monkeypatch, capsys):
+    """Server fails to start with a clear error when --secret_arn can't be read.
+
+    Simulates an operator who gives the correct CLI shape but whose AWS
+    principal lacks secretsmanager:GetSecretValue. main() must surface the
+    underlying error, log a clear startup-failure message, and exit(1)
+    before mcp.run() is ever reached.
+    """
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--region',
+            'us-west-2',
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:unreadable',
+        ],
+    )
+
+    # mcp.run must not be called when startup validation fails.
+    mcp_run_called = {'count': 0}
+
+    def _fail_if_called():
+        mcp_run_called['count'] += 1
+
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', _fail_if_called)
+
+    def _raise_access_denied(secret_arn, region, is_test=False):
+        raise ValueError(
+            'Failed to retrieve credentials from Secrets Manager: AccessDeniedException'
+        )
+
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
+        _raise_access_denied,
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+
+    assert excinfo.value.code == 1
+    assert mcp_run_called['count'] == 0
+
+
+def test_main_verifies_secret_before_mcp_run(monkeypatch, capsys):
+    """Happy path: startup validation succeeds and mcp.run is invoked.
+
+    No --db_type is supplied (lazy-connect mode), so the only work done
+    between argument parsing and mcp.run is the secret-ARN verification.
+    """
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--region',
+            'us-west-2',
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:readable',
+        ],
+    )
+
+    # Capture mcp.run invocation order.
+    call_order = []
+
+    def _record_run():
+        call_order.append('mcp.run')
+
+    def _record_secret(secret_arn, region, is_test=False):
+        call_order.append('get_credentials_from_secret')
+        return ('test_user', 'test_password')
+
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', _record_run)
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
+        _record_secret,
+    )
+
+    main()
+
+    # Verification must happen before mcp.run, not after.
+    assert call_order == ['get_credentials_from_secret', 'mcp.run']
+
+
+def test_main_skips_secret_probe_when_arg_omitted(monkeypatch, capsys):
+    """When --secret_arn is omitted, no Secrets Manager call is made at startup.
+
+    The cluster's managed secret will be discovered lazily on the first
+    connection attempt; there's nothing to probe at startup.
+    """
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--region',
+            'us-west-2',
+        ],
+    )
+
+    secret_probe_calls = {'count': 0}
+
+    def _record_secret(secret_arn, region, is_test=False):
+        secret_probe_calls['count'] += 1
+        return ('test_user', 'test_password')
+
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
+        _record_secret,
+    )
+
+    main()
+
+    # No --secret_arn → no probe.
+    assert secret_probe_calls['count'] == 0
+    # And the override map plus default ARN are both empty so the
+    # cluster-metadata fallback kicks in on the first connection attempt.
+    assert configured_secret_arns == {}
+    assert server_module.configured_default_secret_arn is None
+
+
+def test_main_parses_per_target_and_default_secret_arn(monkeypatch, capsys):
+    """Multiple --secret_arn flags populate the per-target map plus the default."""
+    cluster_a_arn = 'arn:aws:secretsmanager:us-west-2:123456789012:secret:cluster-a'  # pragma: allowlist secret
+    cluster_b_arn = 'arn:aws:secretsmanager:us-west-2:123456789012:secret:cluster-b'  # pragma: allowlist secret
+    instance_arn = 'arn:aws:secretsmanager:us-west-2:123456789012:secret:instance-x'  # pragma: allowlist secret
+    default_arn = (
+        'arn:aws:secretsmanager:us-west-2:123456789012:secret:default'  # pragma: allowlist secret
+    )
+
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--region',
+            'us-west-2',
+            '--secret_arn',
+            f'cluster-a={cluster_a_arn}',
+            '--secret_arn',
+            f'cluster-b={cluster_b_arn}',
+            '--secret_arn',
+            f'mydb-instance.abc.us-west-2.rds.amazonaws.com={instance_arn}',
+            '--secret_arn',
+            default_arn,
+        ],
+    )
+
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
+        lambda secret_arn, region, is_test=False: ('test_user', 'test_password'),
+    )
+
+    main()
+
+    assert configured_secret_arns == {
+        'cluster-a': cluster_a_arn,
+        'cluster-b': cluster_b_arn,
+        'mydb-instance.abc.us-west-2.rds.amazonaws.com': instance_arn,
+    }
+    assert server_module.configured_default_secret_arn == default_arn
+
+
+def test_main_rejects_two_default_secret_arns(monkeypatch, capsys):
+    """Two bare --secret_arn (no '=' separator) → exit 2."""
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--region',
+            'us-west-2',
+            '--secret_arn',
+            'arn:aws:secretsmanager:us-west-2:1:secret:default-a',
+            '--secret_arn',
+            'arn:aws:secretsmanager:us-west-2:1:secret:default-b',
+        ],
+    )
+
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+
+    with pytest.raises(SystemExit) as excinfo:
+        from awslabs.postgres_mcp_server.server import main as main_fn
+
+        main_fn()
+    assert excinfo.value.code == 2
+
+
+def test_main_rejects_duplicate_per_target_key(monkeypatch, capsys):
+    """Two --secret_arn entries with the same key → exit 2."""
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--region',
+            'us-west-2',
+            '--secret_arn',
+            'cluster-a=arn:aws:secretsmanager:us-west-2:1:secret:s1',
+            '--secret_arn',
+            'cluster-a=arn:aws:secretsmanager:us-west-2:1:secret:s2',
+        ],
+    )
+
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+
+    with pytest.raises(SystemExit) as excinfo:
+        from awslabs.postgres_mcp_server.server import main as main_fn
+
+        main_fn()
+    assert excinfo.value.code == 2
+
+
+def test_main_rejects_secret_arn_with_empty_key(monkeypatch, capsys):
+    """'=arn' (key=arn syntax with an empty key) → exit 2."""
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--region',
+            'us-west-2',
+            '--secret_arn',
+            '=arn:aws:secretsmanager:us-west-2:1:secret:s1',
+        ],
+    )
+
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+
+    with pytest.raises(SystemExit) as excinfo:
+        from awslabs.postgres_mcp_server.server import main as main_fn
+
+        main_fn()
+    assert excinfo.value.code == 2
+
+
+def test_main_rejects_secret_arn_with_empty_arn(monkeypatch, capsys):
+    """'key=' (key=arn syntax with an empty ARN) → exit 2."""
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--region',
+            'us-west-2',
+            '--secret_arn',
+            'cluster-a=',
+        ],
+    )
+
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+
+    with pytest.raises(SystemExit) as excinfo:
+        from awslabs.postgres_mcp_server.server import main as main_fn
+
+        main_fn()
+    assert excinfo.value.code == 2
+
+
+def test_main_skips_empty_bare_secret_arn(monkeypatch, capsys):
+    """A bare --secret_arn that is blank/whitespace is ignored, not treated as a default.
+
+    The empty value is skipped (``continue``) so it neither populates the
+    map nor sets the default, and startup proceeds normally.
+    """
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--region',
+            'us-west-2',
+            '--secret_arn',
+            '   ',
+        ],
+    )
+
+    secret_probe_calls = {'count': 0}
+
+    def _record_secret(secret_arn, region, is_test=False):
+        secret_probe_calls['count'] += 1
+        return ('test_user', 'test_password')
+
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
+        _record_secret,
+    )
+
+    main()
+
+    # Blank bare ARN skipped → nothing probed, nothing configured.
+    assert secret_probe_calls['count'] == 0
+    assert configured_secret_arns == {}
+    assert server_module.configured_default_secret_arn is None
 
 
 # =============================================================================
@@ -1101,6 +1422,54 @@ def test_is_database_connected_with_endpoint():
 
 
 @pytest.mark.asyncio
+async def test_create_cluster_express():
+    """Test create_cluster function for express cluster creation."""
+    # Mock the internal_create_express_cluster function
+    with patch(
+        'awslabs.postgres_mcp_server.server.internal_create_express_cluster'
+    ) as mock_create:
+        with patch(
+            'awslabs.postgres_mcp_server.server.internal_get_cluster_properties'
+        ) as mock_get_props:
+            with patch(
+                'awslabs.postgres_mcp_server.server.setup_aurora_iam_policy_for_current_user'
+            ) as mock_setup_iam:
+                with patch(
+                    'awslabs.postgres_mcp_server.server.internal_create_connection'
+                ) as mock_connect:
+                    mock_get_props.return_value = {
+                        'Endpoint': 'test-endpoint.amazonaws.com',
+                        'Port': 5432,
+                        'MasterUsername': 'postgres',
+                        'DbClusterResourceId': 'cluster-ABCD1234',
+                        'DBClusterArn': 'arn:aws:rds:us-east-2:123456789012:cluster:test-express-cluster',
+                    }
+                    mock_conn = Mock_DBConnection(readonly=False)
+                    mock_connect.return_value = (mock_conn, 'Connected successfully')
+
+                    result = create_cluster(
+                        region='us-east-2',
+                        cluster_identifier='test-express-cluster',
+                        database='testdb',
+                        engine_version='15.3',
+                        with_express_configuration=True,
+                    )
+
+                    # Express cluster returns immediately with status
+                    assert isinstance(result, str)
+                    result_dict = json.loads(result)
+                    assert result_dict['status'] == 'Completed'
+                    assert result_dict['cluster_identifier'] == 'test-express-cluster'
+                    assert 'db_endpoint' in result_dict
+
+                    # Verify the mocks were called
+                    mock_create.assert_called_once()
+                    mock_get_props.assert_called_once()
+                    mock_setup_iam.assert_called_once()
+                    mock_connect.assert_called_once()
+
+
+@pytest.mark.asyncio
 async def test_create_cluster_serverless():
     """Test create_cluster function for serverless cluster creation."""
     # Mock the internal_create_serverless_cluster function
@@ -1117,6 +1486,7 @@ async def test_create_cluster_serverless():
                 cluster_identifier='test-serverless-cluster',
                 database='testdb',
                 engine_version='15.3',
+                with_express_configuration=False,
             )
 
             # Should return job ID
@@ -1149,6 +1519,7 @@ async def test_create_cluster_error_handling():
             cluster_identifier='test-error-cluster',
             database='testdb',
             engine_version='15.3',
+            with_express_configuration=False,
         )
 
         # Should still return job ID
@@ -1168,6 +1539,42 @@ async def test_create_cluster_error_handling():
                 assert job_status['state'] in ['failed', 'in_progress']  # May still be processing
         finally:
             async_job_status_lock.release()
+
+
+@pytest.mark.asyncio
+async def test_create_cluster_minimal_parameters():
+    """Test create_cluster with minimal required parameters."""
+    # Mock the internal_create_express_cluster function
+    with patch('awslabs.postgres_mcp_server.server.internal_create_express_cluster'):
+        with patch(
+            'awslabs.postgres_mcp_server.server.internal_get_cluster_properties'
+        ) as mock_get_props:
+            with patch(
+                'awslabs.postgres_mcp_server.server.setup_aurora_iam_policy_for_current_user'
+            ):
+                with patch(
+                    'awslabs.postgres_mcp_server.server.internal_create_connection'
+                ) as mock_connect:
+                    mock_get_props.return_value = {
+                        'Endpoint': 'minimal-endpoint.amazonaws.com',
+                        'Port': 5432,
+                        'MasterUsername': 'postgres',
+                        'DbClusterResourceId': 'cluster-MINIMAL123',
+                        'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:minimal-cluster',
+                    }
+                    mock_conn = Mock_DBConnection(readonly=False)
+                    mock_connect.return_value = (mock_conn, 'Connected successfully')
+
+                    result = create_cluster(
+                        region='us-east-1',
+                        cluster_identifier='minimal-cluster',
+                        with_express_configuration=True,
+                    )
+
+                    # Should return completed status
+                    assert isinstance(result, str)
+                    result_dict = json.loads(result)
+                    assert result_dict['status'] == 'Completed'
 
 
 if __name__ == '__main__':

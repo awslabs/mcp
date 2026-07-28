@@ -101,7 +101,7 @@ def create_pricing_client(profile: Optional[str] = None, region: Optional[str] =
 
     config = Config(
         region_name=pricing_region,
-        user_agent_extra=f'awslabs/mcp/{consts.MCP_SERVER_NAME}/{__version__}',
+        user_agent_extra=f'md/awslabs#mcp#aws-pricing-mcp-server#{__version__}',
     )
 
     logger.debug(

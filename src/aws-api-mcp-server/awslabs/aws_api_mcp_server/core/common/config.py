@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import boto3
-import importlib.metadata
 import os
 import tempfile
+from awslabs.aws_api_mcp_server import __version__
 from enum import Enum
 from fastmcp.server.auth import JWTVerifier
 from fastmcp.server.dependencies import get_context
@@ -23,12 +23,6 @@ from loguru import logger
 from pathlib import Path
 from typing import Literal, cast
 
-
-# Get package version for user agent
-try:
-    PACKAGE_VERSION = importlib.metadata.version('awslabs.aws_api_mcp_server')
-except importlib.metadata.PackageNotFoundError:
-    PACKAGE_VERSION = 'unknown'
 
 TRUTHY_VALUES = frozenset(['true', 'yes', '1'])
 READ_ONLY_KEY = 'READ_OPERATIONS_ONLY'
@@ -103,16 +97,14 @@ def get_transport_from_env() -> Literal['stdio', 'streamable-http']:
 
 def get_user_agent_extra() -> str:
     """Get the user agent extra string."""
-    user_agent_extra = f'awslabs/mcp/AWS-API-MCP-server/{PACKAGE_VERSION}'
+    user_agent_extra = f'md/awslabs#mcp#aws-api-mcp-server#{__version__}'
 
     try:
         ctx = get_context()
-        user_agent_extra += f' via/{ctx.fastmcp.name}'
+        user_agent_extra += f' md/via/{ctx.fastmcp.name}'
 
-        if client_params := ctx.session.client_params:
-            user_agent_extra += (
-                f' MCPClient/{client_params.clientInfo.name}#{client_params.clientInfo.version}'
-            )
+        if OPT_IN_TELEMETRY and (client_params := ctx.session.client_params):
+            user_agent_extra += f' MCPClient/{client_params.clientInfo.name.replace(" ", "-")}#{client_params.clientInfo.version}'
     except RuntimeError:
         pass  # get_context throws a RuntimeError when called outside of a server request, we can safely ingore that
 
@@ -121,6 +113,7 @@ def get_user_agent_extra() -> str:
     user_agent_extra += f' cfg/ro#{"1" if READ_OPERATIONS_ONLY_MODE else "0"}'
     user_agent_extra += f' cfg/consent#{"1" if REQUIRE_MUTATION_CONSENT else "0"}'
     user_agent_extra += f' cfg/scripts#{"1" if ENABLE_AGENT_SCRIPTS else "0"}'
+    user_agent_extra += f' cfg/file-access#{FILE_ACCESS_MODE.value}'
     return user_agent_extra
 
 
@@ -186,6 +179,7 @@ PORT = int(os.getenv('AWS_API_MCP_PORT', 8000))
 ALLOWED_HOSTS = os.getenv('AWS_API_MCP_ALLOWED_HOSTS', HOST)
 ALLOWED_ORIGINS = os.getenv('AWS_API_MCP_ALLOWED_ORIGINS', HOST)
 STATELESS_HTTP = get_env_bool('AWS_API_MCP_STATELESS_HTTP', False)
+SUPPRESS_DEPRECATION_WARNING = get_env_bool('AWS_API_MCP_SUPPRESS_DEPRECATION_WARNING', False)
 CUSTOM_SCRIPTS_DIR = os.getenv('AWS_API_MCP_AGENT_SCRIPTS_DIR')
 FILE_ACCESS_MODE = get_file_access_mode()
 ENDPOINT_SUGGEST_AWS_COMMANDS = os.getenv(

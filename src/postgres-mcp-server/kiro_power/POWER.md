@@ -34,9 +34,16 @@ This power uses the **awslabs.postgres-mcp-server** MCP server to provide direct
 
 The MCP server provides tools for:
 - **Cluster Management**: Create clusters, monitor job status
-   -- database cluster creation take about 5 to 10 minutes after create_cluster tool call
-   -- get_job_status tool should be run every minute or so. Running it every few seconds is excessive and may feel like a stuck loop.
+  -- use with_express_configuration: true for fast dev/test setup (10-20 seconds)
+  -- express clusters use "postgres" as the default master username
+  -- with_express_configuration: false creates a regular cluster with serverless instance (5-10 minutes)
+  -- for regular clusters, get_job_status should be polled every 60 seconds, not every few seconds
 - **Database Connections**: Connect to databases, manage multiple connections
+  -- for express clusters (with_express_configuration=true), use pgwire_iam connection_method only. The default master username is "postgres".
+  -- for regular clusters, use rdsapi connection_method by default. The cluster must have the Data API (RDSAPI) enabled.
+  -- pgwire or pgwire_iam on regular clusters requires additional VPC security group configuration, since the MCP server runs outside the cluster's VPC and the cluster does not allow public access by default.
+  -- pgwire/pgwire_iam connections cannot run CREATE DATABASE (transaction block limitation). Use a schema within the default database, or use rdsapi for CREATE DATABASE.
+  -- run one SQL statement per run_query call. Multi-statement queries may be rejected by safety guardrails.
 - **Query Execution**: Run SQL queries with safety guardrails
 - **Schema Exploration**: Get table schemas and metadata
 

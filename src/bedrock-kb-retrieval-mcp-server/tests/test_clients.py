@@ -18,7 +18,7 @@ from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.clients import (
     get_bedrock_agent_client,
     get_bedrock_agent_runtime_client,
 )
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 
 class TestTypeDefinitions:
@@ -86,7 +86,7 @@ class TestGetBedrockAgentRuntimeClient:
 
         # Check that boto3.client was called with the correct parameters
         mock_boto3['client'].assert_called_once_with(
-            'bedrock-agent-runtime', region_name='us-west-2'
+            'bedrock-agent-runtime', region_name='us-west-2', config=ANY
         )
 
         # Check that the client is the mock client
@@ -98,7 +98,7 @@ class TestGetBedrockAgentRuntimeClient:
 
         # Check that boto3.client was called with the correct parameters
         mock_boto3['client'].assert_called_once_with(
-            'bedrock-agent-runtime', region_name='us-east-1'
+            'bedrock-agent-runtime', region_name='us-east-1', config=ANY
         )
 
         # Check that the client is the mock client
@@ -113,7 +113,7 @@ class TestGetBedrockAgentRuntimeClient:
 
         # Check that session.client was called with the correct parameters
         mock_boto3['Session'].return_value.client.assert_called_once_with(
-            'bedrock-agent-runtime', region_name='us-west-2'
+            'bedrock-agent-runtime', region_name='us-west-2', config=ANY
         )
 
         # Check that the client is the mock client
@@ -130,7 +130,7 @@ class TestGetBedrockAgentRuntimeClient:
 
         # Check that session.client was called with the correct parameters
         mock_boto3['Session'].return_value.client.assert_called_once_with(
-            'bedrock-agent-runtime', region_name='us-east-1'
+            'bedrock-agent-runtime', region_name='us-east-1', config=ANY
         )
 
         # Check that the client is the mock client
@@ -142,7 +142,7 @@ class TestGetBedrockAgentRuntimeClient:
 
         # Check that boto3.client was called with the correct parameters
         mock_boto3['client'].assert_called_once_with(
-            'bedrock-agent-runtime', region_name='us-west-2'
+            'bedrock-agent-runtime', region_name='us-west-2', config=ANY
         )
 
         # Check that the client is the mock client
@@ -157,7 +157,9 @@ class TestGetBedrockAgentClient:
         client = get_bedrock_agent_client()
 
         # Check that boto3.client was called with the correct parameters
-        mock_boto3['client'].assert_called_once_with('bedrock-agent', region_name='us-west-2')
+        mock_boto3['client'].assert_called_once_with(
+            'bedrock-agent', region_name='us-west-2', config=ANY
+        )
 
         # Check that the client is the mock client
         assert client == mock_boto3['bedrock_agent']
@@ -167,7 +169,9 @@ class TestGetBedrockAgentClient:
         client = get_bedrock_agent_client(region_name='us-east-1')
 
         # Check that boto3.client was called with the correct parameters
-        mock_boto3['client'].assert_called_once_with('bedrock-agent', region_name='us-east-1')
+        mock_boto3['client'].assert_called_once_with(
+            'bedrock-agent', region_name='us-east-1', config=ANY
+        )
 
         # Check that the client is the mock client
         assert client == mock_boto3['bedrock_agent']
@@ -181,7 +185,7 @@ class TestGetBedrockAgentClient:
 
         # Check that session.client was called with the correct parameters
         mock_boto3['Session'].return_value.client.assert_called_once_with(
-            'bedrock-agent', region_name='us-west-2'
+            'bedrock-agent', region_name='us-west-2', config=ANY
         )
 
         # Check that the client is the mock client
@@ -196,7 +200,7 @@ class TestGetBedrockAgentClient:
 
         # Check that session.client was called with the correct parameters
         mock_boto3['Session'].return_value.client.assert_called_once_with(
-            'bedrock-agent', region_name='us-east-1'
+            'bedrock-agent', region_name='us-east-1', config=ANY
         )
 
         # Check that the client is the mock client
@@ -207,7 +211,9 @@ class TestGetBedrockAgentClient:
         client = get_bedrock_agent_client(region_name=None)
 
         # Check that boto3.client was called with the correct parameters
-        mock_boto3['client'].assert_called_once_with('bedrock-agent', region_name='us-west-2')
+        mock_boto3['client'].assert_called_once_with(
+            'bedrock-agent', region_name='us-west-2', config=ANY
+        )
 
         # Check that the client is the mock client
         assert client == mock_boto3['bedrock_agent']

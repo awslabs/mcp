@@ -19,7 +19,13 @@ import logging
 import time
 import uuid
 from abc import ABC, abstractmethod
+from awslabs.mcp_lambda_handler import __version__
+from botocore.config import Config
 from typing import Any, Dict, Optional
+
+
+USER_AGENT_EXTRA = f'md/awslabs#mcp#mcp-lambda-handler#{__version__}'
+_config = Config(user_agent_extra=USER_AGENT_EXTRA)
 
 
 logger = logging.getLogger(__name__)
@@ -113,7 +119,7 @@ class DynamoDBSessionStore(SessionStore):
 
         """
         self.table_name = table_name
-        self.dynamodb = boto3.resource('dynamodb')
+        self.dynamodb = boto3.resource('dynamodb', config=_config)
         self.table = self.dynamodb.Table(table_name)  # pyright: ignore [reportAttributeAccessIssue]
 
     def create_session(self, session_data: Optional[Dict[str, Any]] = None) -> str:

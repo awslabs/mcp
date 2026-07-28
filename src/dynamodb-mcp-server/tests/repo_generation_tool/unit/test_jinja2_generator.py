@@ -1421,8 +1421,8 @@ class TestTransactionServiceTemplateRendering:
 
 
 @pytest.mark.unit
-class TestJinja2GeneratorEdgeCases:
-    """Test edge cases in Jinja2Generator."""
+class TestJinja2GeneratorBoundaryConditions:
+    """Test Jinja2Generator boundary conditions for projections, transactions, and return types."""
 
     @pytest.fixture
     def generator(self, mock_schema_data, tmp_path):

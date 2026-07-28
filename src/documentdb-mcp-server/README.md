@@ -43,7 +43,7 @@ The DocumentDB MCP Server provides the following tools:
 ### Document Operations
 
 - `find`: Query documents from a collection
-- `aggregate`: Run aggregation pipelines
+- `aggregate`: Run aggregation pipelines (pipelines with `$out` or `$merge` stages are blocked in read-only mode)
 - `insert`: Insert documents (blocked in read-only mode)
 - `update`: Update documents (blocked in read-only mode)
 - `delete`: Delete documents (blocked in read-only mode)
@@ -79,8 +79,9 @@ python -m awslabs.documentdb_mcp_server.server --allow-write
 
 By default, the server runs in read-only mode that only allows read operations. This enhances security by preventing any modifications to the database. In read-only mode:
 
-- Read operations (`find`, `aggregate`, `listCollections`) work normally
-- Write operations (`insert`, `update`, `delete`) are blocked and return a permission error
+- Read operations (`find`, `listCollections`) work normally
+- Aggregation pipelines (`aggregate`) work normally, except pipelines containing `$out` or `$merge` stages are blocked
+- Write operations (`insert`, `update`, `delete`, `createCollection`, `dropCollection`) are blocked and return a permission error
 - Connection management operations (`connect`, `disconnect`) work normally
 
 This mode is particularly useful for:

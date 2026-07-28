@@ -73,34 +73,61 @@ body:
       label: Server
       multiple: true
       options:
-        - aws-api-mcp-server
+        - amazon-bedrock-agentcore-mcp-server
         - amazon-kendra-index-mcp-server
+        - amazon-keyspaces-mcp-server
         - amazon-mq-mcp-server
         - amazon-neptune-mcp-server
+        - amazon-qbusiness-anonymous-mcp-server
+        - amazon-qindex-mcp-server
         - amazon-sns-sqs-mcp-server
-        - amazon-dsql-mcp-server
-        - aws-diagram-mcp-server
+        - aurora-dsql-mcp-server
+        - aws-api-mcp-server
+        - aws-appsync-mcp-server
+        - aws-bedrock-custom-model-import-mcp-server
+        - aws-dataprocessing-mcp-server
         - aws-documentation-mcp-server
+        - aws-healthomics-mcp-server
+        - aws-iac-mcp-server
+        - aws-iot-sitewise-mcp-server
+        - aws-knowledge-mcp-server
         - aws-location-mcp-server
+        - aws-network-mcp-server
         - aws-pricing-mcp-server
+        - aws-serverless-mcp-server
+        - aws-support-mcp-server
         - bedrock-kb-retrieval-mcp-server
-        - cdk-mcp-server
-        - cfn-mcp-server
-        - code-doc-gen-mcp-server
-        - core-mcp-server
+        - billing-cost-management-mcp-server
+        - ccapi-mcp-server
+        - cloudtrail-mcp-server
+        - cloudwatch-applicationsignals-mcp-server
+        - cloudwatch-mcp-server
+        - document-loader-mcp-server
         - documentdb-mcp-server
         - dynamodb-mcp-server
-        - frontend-mcp-server
-        - git-repo-research-mcp-server
-        - lambda-mcp-server
+        - ecs-mcp-server
+        - eks-mcp-server
+        - elasticache-mcp-server
+        - finch-mcp-server
+        - healthimaging-mcp-server
+        - healthlake-mcp-server
+        - iam-mcp-server
+        - lambda-tool-mcp-server
         - mcp-lambda-handler
         - memcached-mcp-server
         - mysql-mcp-server
-        - nova-canvas-mcp-server
+        - openapi-mcp-server
         - postgres-mcp-server
-        - syntheticdata-mcp-server
-        - terraform-mcp-server
+        - prometheus-mcp-server
+        - redshift-mcp-server
+        - s3-tables-mcp-server
+        - sagemaker-ai-mcp-server
+        - sagemaker-unified-studio-spark-troubleshooting-mcp-server
+        - sagemaker-unified-studio-spark-upgrade-mcp-server
+        - stepfunctions-tool-mcp-server
+        - timestream-for-influxdb-mcp-server
         - valkey-mcp-server
+        - well-architected-security-mcp-server
         - other
     validations:
       required: true

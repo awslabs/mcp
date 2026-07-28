@@ -14,6 +14,7 @@
 
 import boto3
 import json
+from awslabs.amazon_neptune_mcp_server.constants import USER_AGENT_CONFIG
 from awslabs.amazon_neptune_mcp_server.exceptions import NeptuneException
 from awslabs.amazon_neptune_mcp_server.graph_store.base import NeptuneGraph
 from awslabs.amazon_neptune_mcp_server.models import (
@@ -64,7 +65,7 @@ class NeptuneDatabase(NeptuneGraph):
             client_params = {}
             protocol = 'https' if use_https else 'http'
             client_params['endpoint_url'] = f'{protocol}://{host}:{port}'
-            self.client = session.client('neptunedata', **client_params)
+            self.client = session.client('neptunedata', config=USER_AGENT_CONFIG, **client_params)
 
         except Exception as e:
             logger.exception('Could not load credentials to authenticate with AWS client')

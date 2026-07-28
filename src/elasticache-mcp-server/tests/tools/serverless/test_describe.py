@@ -189,3 +189,25 @@ async def test_describe_serverless_caches_invalid_parameter():
             str(getattr(mock_client.exceptions, 'InvalidParameterValueException')())
             in result['error']
         )
+
+
+@pytest.mark.asyncio
+async def test_describe_serverless_caches_works_in_readonly_mode():
+    """Test that describe works even when readonly mode is enabled."""
+    from awslabs.elasticache_mcp_server.context import Context
+
+    mock_client = MagicMock()
+    mock_client.describe_serverless_caches.return_value = {
+        'ServerlessCaches': [{'ServerlessCacheName': 'test-cache'}]
+    }
+
+    with (
+        patch.object(Context, 'readonly_mode', return_value=True),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=mock_client,
+        ),
+    ):
+        result = await describe_serverless_caches()
+        assert 'error' not in result
+        assert 'ServerlessCaches' in result

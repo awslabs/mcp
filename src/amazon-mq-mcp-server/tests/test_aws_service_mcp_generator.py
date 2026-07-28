@@ -604,7 +604,9 @@ class TestAWSToolGenerator(unittest.TestCase):
         # Verify the config has the correct user_agent_extra
         from awslabs.amazon_mq_mcp_server.consts import MCP_SERVER_VERSION
 
-        expected_user_agent = f'awslabs/mcp/{service_name}/{MCP_SERVER_VERSION}'
+        expected_user_agent = (
+            f'md/awslabs#mcp#amazon-{service_name}-mcp-server#{MCP_SERVER_VERSION}'
+        )
         self.assertEqual(generator.config.user_agent_extra, expected_user_agent)
         # Verify the config is used when creating a client
         generator._AWSToolGenerator__get_client()

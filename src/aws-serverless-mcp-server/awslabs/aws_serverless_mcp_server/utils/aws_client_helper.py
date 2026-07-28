@@ -13,7 +13,13 @@
 # limitations under the License.
 
 import boto3
+from awslabs.aws_serverless_mcp_server import __version__
+from botocore.config import Config
 from typing import Any, Optional
+
+
+USER_AGENT_EXTRA = f'md/awslabs#mcp#aws-serverless-mcp-server#{__version__}'
+_config = Config(user_agent_extra=USER_AGENT_EXTRA)
 
 
 def get_aws_client(service_name: str, region: Optional[str]) -> Any:
@@ -31,4 +37,4 @@ def get_aws_client(service_name: str, region: Optional[str]) -> Any:
         - Requires valid AWS credentials to be configured in the environment.
     """
     session = boto3.Session(region_name=region) if region else boto3.Session()
-    return session.client(service_name)
+    return session.client(service_name, config=_config)

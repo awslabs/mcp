@@ -20,19 +20,24 @@ from typing import Optional
 class Context:
     """Context class for managing server state and configuration."""
 
-    _readonly: bool = False
+    _readonly: bool = True
     _region: Optional[str] = None
+    _require_confirmation: bool = True
 
     @classmethod
-    def initialize(cls, readonly: bool = False, region: Optional[str] = None):
+    def initialize(
+        cls, readonly: bool = True, region: Optional[str] = None, require_confirmation: bool = True
+    ):
         """Initialize the context with configuration options.
 
         Args:
             readonly: Whether to run in read-only mode (prevents mutations)
             region: AWS region to use for operations
+            require_confirmation: Whether write operations require confirmation
         """
         cls._readonly = readonly
         cls._region = region
+        cls._require_confirmation = require_confirmation
 
     @classmethod
     def is_readonly(cls) -> bool:
@@ -53,3 +58,13 @@ class Context:
     def set_readonly(cls, readonly: bool):
         """Set the read-only mode."""
         cls._readonly = readonly
+
+    @classmethod
+    def requires_confirmation(cls) -> bool:
+        """Check if write operations require confirmation."""
+        return cls._require_confirmation
+
+    @classmethod
+    def set_require_confirmation(cls, require: bool):
+        """Set whether write operations require confirmation."""
+        cls._require_confirmation = require

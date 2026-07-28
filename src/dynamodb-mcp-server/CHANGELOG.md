@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-04-07
+
+### Changed
+
+- **BREAKING CHANGE:** Connection-based managed mode in `source_db_analyzer` now requires the Secrets Manager secret to contain a `host` field. If your secret only has `username` and `password`, add the `host` field matching your database endpoint before upgrading. RDS-managed secrets already include this field. RDS Data API mode and self-service mode are not affected.
+
+### Added
+
+- Hostname validation against Secrets Manager secret for connection-based managed mode, ensuring credentials are only used with the intended database host.
+
 ## [2.0.4] - 2025-11-21
 
 ### Added

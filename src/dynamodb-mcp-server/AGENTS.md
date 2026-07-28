@@ -129,7 +129,7 @@ The project uses pytest markers to categorize tests (configured in pyproject.tom
 
 ### Test Suite
 - **Property-based tests**: Using `hypothesis` for comprehensive input validation
-- **Comprehensive test coverage**: Unit, integration, and evaluation tests
+- **Comprehensive test coverage**: Unit and integration tests
 - **Async test support**: pytest-asyncio with auto mode
 - **Mocking support**: Using `moto` for AWS service mocking
 - **Coverage exclusions**: Pragma comments and main blocks are excluded
@@ -140,7 +140,6 @@ The project uses pytest markers to categorize tests (configured in pyproject.tom
 - `tests/test_markdown_formatter.py` - Markdown formatting tests
 - `tests/test_model_validation_utils.py` - DynamoDB validation tests
 - `tests/db_analyzer/` - Database analyzer tests
-- `tests/evals/` - Evaluation framework tests
 - `tests/cdk_generator/` - CDK code generation tests
 - `tests/repo_generation_tool/` - Data access layer generation tests
 - `tests/conftest.py` - Shared pytest fixtures and configuration
@@ -170,7 +169,7 @@ The project uses pytest markers to categorize tests (configured in pyproject.tom
   - `usage_data_generator.md` - Test data generation instructions
   - `dal_implementation/` - Data access layer implementation templates
   - `next_steps/` - Post-modeling guidance
-- `awslabs/dynamodb_mcp_server/db_analyzer/` - Database analysis tools (MySQL, PostgreSQL, SQL Server)
+- `awslabs/dynamodb_mcp_server/db_analyzer/` - Database analysis tools (MySQL, PostgreSQL, SQL Server, Oracle)
   - `base_plugin.py` - Base analyzer plugin interface
   - `mysql.py` - MySQL analyzer implementation
   - `postgresql.py` - PostgreSQL analyzer implementation
@@ -184,7 +183,7 @@ The project uses pytest markers to categorize tests (configured in pyproject.tom
   - `core/` - Core validation and parsing logic
   - `languages/` - Language-specific code generators
   - `codegen.py` - Main code generation orchestration
-- `tests/` - Test suite with unit, integration, and evaluation tests
+- `tests/` - Test suite with unit and integration tests
 
 ### Available MCP Tools
 
@@ -194,7 +193,7 @@ The DynamoDB MCP server provides **7 tools** for data modeling, validation, and 
 
 2. **dynamodb_data_model_validation** - Automated validation using DynamoDB Local. Validates your DynamoDB data model by loading dynamodb_data_model.json, setting up DynamoDB Local, creating tables with test data, and executing all defined access patterns.
 
-3. **source_db_analyzer** - Extract schema and patterns from existing databases. Analyzes existing MySQL/PostgreSQL/SQL Server databases to extract schema structure and access patterns from Performance Schema.
+3. **source_db_analyzer** - Extract schema and patterns from existing databases. Analyzes existing MySQL/PostgreSQL/SQL Server/Oracle databases to extract schema structure and access patterns from Performance Schema.
 
 4. **generate_resources** - Generates various resources from the DynamoDB data model JSON file. Currently supports CDK infrastructure code generation for deploying DynamoDB tables.
 

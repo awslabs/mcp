@@ -76,7 +76,8 @@ async def test_package_workflow_basic():
         ctx=mock_ctx,
         main_file_content=SAMPLE_WDL_WORKFLOW,
         main_file_name='main.wdl',
-        additional_files=None,  # Explicitly pass None for optional parameter
+        additional_files=None,
+        output_path=None,
     )
 
     # Verify result is a base64 string
@@ -113,6 +114,7 @@ async def test_package_workflow_with_additional_files():
         main_file_content=SAMPLE_WDL_WORKFLOW,
         main_file_name='main.wdl',
         additional_files=additional_files,
+        output_path=None,
     )
 
     # Decode base64 string
@@ -151,8 +153,9 @@ async def test_package_workflow_default_filename():
     result = await package_workflow(
         ctx=mock_ctx,
         main_file_content=SAMPLE_WDL_WORKFLOW,
-        main_file_name='main.wdl',  # Explicitly provide default value
+        main_file_name='main.wdl',
         additional_files=None,
+        output_path=None,
     )
 
     # Decode base64 string
@@ -175,6 +178,7 @@ async def test_package_workflow_cwl_file():
         main_file_content=SAMPLE_CWL_WORKFLOW,
         main_file_name='workflow.cwl',
         additional_files=None,
+        output_path=None,
     )
 
     # Decode base64 string
@@ -210,6 +214,7 @@ async def test_package_workflow_with_subdirectories():
         main_file_content=SAMPLE_WDL_WORKFLOW,
         main_file_name='main.wdl',
         additional_files=additional_files,
+        output_path=None,
     )
 
     # Decode base64 string
@@ -241,7 +246,8 @@ async def test_package_workflow_empty_additional_files():
         ctx=mock_ctx,
         main_file_content=SAMPLE_WDL_WORKFLOW,
         main_file_name='main.wdl',
-        additional_files={},  # Empty dict instead of None
+        additional_files={},
+        output_path=None,
     )
 
     # Decode base64 string
@@ -271,6 +277,7 @@ async def test_package_workflow_error_handling():
             main_file_content=SAMPLE_WDL_WORKFLOW,
             main_file_name='main.wdl',
             additional_files=None,
+            output_path=None,
         )
 
         assert isinstance(result, dict)
@@ -291,6 +298,7 @@ async def test_package_workflow_large_files():
         main_file_content=large_content,
         main_file_name='large.wdl',
         additional_files=None,
+        output_path=None,
     )
 
     # Decode base64 string
@@ -323,6 +331,7 @@ workflow SpecialChars {
         main_file_content=special_content,
         main_file_name='special.wdl',
         additional_files=None,
+        output_path=None,
     )
 
     # Decode base64 string
