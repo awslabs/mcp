@@ -217,8 +217,11 @@ class IbmDbConnection(AbstractDBConnection):
         if ibm_db.autocommit(conn) != ibm_db.SQL_AUTOCOMMIT_OFF:
             try:
                 ibm_db.close(conn)
-            except Exception:
-                pass
+            except Exception as e:
+                # Best-effort cleanup of the rejected connection; log rather than
+                # silently swallow (Bandit B110), matching the close-failure logging
+                # convention used elsewhere in this module (_close_sync).
+                logger.warning(f'Failed to close connection rejected for bad autocommit: {e}')
             raise ValueError(
                 'Failed to disable autocommit on the Db2 connection; refusing to use it '
                 '(the read-only rollback-after-query guarantee depends on autocommit being off).'

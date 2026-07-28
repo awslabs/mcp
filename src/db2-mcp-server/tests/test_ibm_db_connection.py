@@ -567,3 +567,24 @@ async def test_connect_accepts_when_autocommit_confirmed_off(mocker):
     c = _conn(readonly=True)
     out = await c.execute_query('SELECT A FROM T')
     assert out == [{'A': 1}]
+
+
+async def test_autocommit_rejection_logs_warning_on_close_failure(mocker):
+    """A failure while closing the autocommit-rejected connection is logged, not swallowed.
+
+    Bandit (B110/try-except-pass) flags a bare `except Exception: pass` here; the
+    cleanup close is genuinely best-effort (the connection is being discarded either
+    way), but a failure must still be logged so an operator has a trace, matching the
+    close-failure logging convention used elsewhere in this module (_close_sync).
+    """
+    fake = _fake_ibm_db(mocker, rows=[])
+    fake.autocommit.return_value = 1  # SQL_AUTOCOMMIT_ON -- driver did not honor the option
+    fake.close.side_effect = RuntimeError('close failed')
+    log_warning = mocker.patch(
+        'awslabs.db2_mcp_server.connection.ibm_db_connection.logger.warning'
+    )
+    c = _conn(readonly=True)
+    with pytest.raises(ValueError, match='autocommit'):
+        await c.execute_query('SELECT 1 FROM SYSIBM.SYSDUMMY1')
+    log_warning.assert_called_once()
+    assert 'autocommit' in log_warning.call_args.args[0].lower()
