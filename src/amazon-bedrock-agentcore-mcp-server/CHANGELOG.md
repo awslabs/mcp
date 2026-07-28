@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- **Browser client credential caching** — `get_browser_client` cached a `BrowserClient` per region at module level and never invalidated it. Because the wrapped boto3 clients resolve credentials at construction time, a long-lived MCP server kept using credentials captured at first use, so a refresh (`ada credentials update`, IAM role rotation, expired STS session) had no effect until the process was restarted. Cache entries now expire after a TTL (default 300s, configurable via `AGENTCORE_BROWSER_CLIENT_TTL_SECONDS`; `0` disables caching) and are rebuilt on the next call, forcing credentials to be re-resolved.
+
 ## 0.1.0 - 2026-05-14
 
 ### Added
