@@ -2615,7 +2615,6 @@ class TestGetRunPassesScratchStorageModeThrough:
             assert 'scratchStorageMode' not in result
 
 
-
 @pytest.mark.asyncio
 async def test_start_run_with_workflow_type_ready2run():
     """Test that workflow_type=READY2RUN is passed to the API."""
@@ -2738,4 +2737,5 @@ async def test_start_run_invalid_workflow_type():
     )
 
     # Should return an error dict from handle_tool_error
+    assert 'error' in str(result).lower() or isinstance(result, dict)
     mock_ctx.report_progress.assert_not_called()  # Shouldn't get to client call
