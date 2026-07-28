@@ -8,7 +8,7 @@ dependencies = [
     "boto3>=1.42.0,<1.43.0",
     "jinja2==3.1.6",
     "loguru==0.7.3",
-    "mcp[cli]==1.26.0",
+    "mcp[cli]==1.28.1",
     "psutil==7.2.2",
     "pydantic==2.12.5",
     "typing-extensions==4.15.0",
