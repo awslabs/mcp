@@ -150,13 +150,7 @@ async def start_run(
     ),
     workflow_type: Optional[str] = Field(
         None,
-        description=(
-            'REQUIRED for Ready2Run workflows — set to "READY2RUN" for any AWS-provided '
-            'workflow (i.e. workflows discovered with workflow_type=READY2RUN in '
-            'ListWorkflows or GetWorkflow). Omitting this for a Ready2Run workflow causes '
-            'ResourceNotFoundException. Set to "PRIVATE" for user-created workflows. '
-            'Defaults to PRIVATE if omitted.'
-        ),
+        description='REQUIRED for Ready2Run workflows. Set to READY2RUN for any AWS-provided workflow. Omitting this for a Ready2Run workflow causes ResourceNotFoundException. Set to PRIVATE for user-created workflows. Defaults to PRIVATE if omitted.',
     ),
     workflow_version_name: Optional[str] = Field(
         None,
