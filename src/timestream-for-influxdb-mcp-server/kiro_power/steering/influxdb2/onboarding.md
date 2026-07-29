@@ -256,8 +256,6 @@ ALL_ACCESS_TOKEN=$(curl -s -X POST "https://<endpoint>:8086/api/v2/authorization
     {\"action\":\"read\",  \"resource\":{\"id\":\"$USER_ID\", \"type\":\"users\"}},
     {\"action\":\"write\", \"resource\":{\"id\":\"$USER_ID\", \"type\":\"users\"}}
   ]}" | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
-
-echo "All-access token: $ALL_ACCESS_TOKEN"
 ```
 
 Use `$ALL_ACCESS_TOKEN` as the Token for all subsequent data plane operations. The session cookie is only needed for this bootstrap step — it expires after ~1 hour.
