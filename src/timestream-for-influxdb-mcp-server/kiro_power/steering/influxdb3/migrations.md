@@ -23,7 +23,7 @@ no Flux**. Consequences for every migration path:
 
 | Source | Tooling | Mechanism |
 |--------|---------|-----------|
-| **Timestream for LiveAnalytics** | [`tools/python/liveanalytics_influxdb3_migration_plugin`](https://github.com/awslabs/amazon-timestream-tools/tree/mainline/tools/python/liveanalytics_influxdb3_migration_plugin) (`influxdb_version: v3`) | Unload to S3 → ingest using processing engine → validate |
+| **Timestream for LiveAnalytics** | [`tools/python/liveanalytics_migration_scripts`](https://github.com/awslabs/amazon-timestream-tools/tree/mainline/tools/python/liveanalytics_migration_scripts) (`influxdb_version: v3`) | Unload to S3 → Athena transform to line protocol → ingest → validate |
 | **Timestream for InfluxDB v2** | [`tools/python/influxdb_v2_to_v3_migration`](https://github.com/awslabs/amazon-timestream-tools/tree/mainline/tools/python/influxdb_v2_to_v3_migration) | `influx backup` → translate to line protocol → write to V3 HTTP API |
 | **InfluxDB v1** | No direct tool | Two-hop: `influxd upgrade` → `export-lp` → write line protocol to V3 |
 | **InfluxDB OSS 2.x** | Export line protocol | Write line protocol to V3's v2-compatible endpoint |
@@ -32,12 +32,11 @@ no Flux**. Consequences for every migration path:
 
 ## From Timestream for LiveAnalytics
 
-Use the same [**LiveAnalytics migration tooling**](https://github.com/awslabs/amazon-timestream-tools/tree/mainline/tools/python/liveanalytics_migration_scripts)
-as the V2 path — it targets **both V2 and V3**. The four stages are identical (unload to S3 in
-Parquet → Athena transform to line protocol → ingest → validate), orchestrated by
+Use the [**LiveAnalytics migration tooling**](https://github.com/awslabs/amazon-timestream-tools/tree/mainline/tools/python/liveanalytics_migration_scripts).
+The four stages are unload to S3 in Parquet → Athena transform to line protocol → ingest → validate, orchestrated by
 `main.py --config <config.yaml>` in either `batch` or `live_replication` mode.
 
-To target **V3**, make two changes versus the V2 setup:
+To target **V3**:
 
 1. Set `influxdb_version: v3` in the config (remember *buckets* become *databases*).
 2. Configure the V3 endpoint via environment variables — port **8181**, and **omit
