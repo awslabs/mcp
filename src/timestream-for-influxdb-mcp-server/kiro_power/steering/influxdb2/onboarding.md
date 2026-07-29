@@ -317,8 +317,8 @@ cpu,host=server02,region=us-east usage_idle=92.1,usage_system=3.4 $NOW"
 ```
 
 Returns `204` on success. Common errors:
-- `401` — token invalid or wrong org
-- `400` — malformed line protocol (check tag/field syntax, no spaces in tag values)
+- `401` — token invalid or token doesn't have permission to write to a specific organization
+- `400` — `org` or `orgID` does not match an existing organization
 
 ## Step 7 — Query to Verify
 

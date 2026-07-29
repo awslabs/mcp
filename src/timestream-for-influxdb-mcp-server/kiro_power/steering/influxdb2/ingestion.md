@@ -10,7 +10,7 @@ Content-Type: text/plain
 
 - Use `org` ID (not name) to avoid breakage if the org is renamed.
 - Default precision is `ns` — always specify explicitly to avoid silent timestamp errors.
-- Returns `204` on success, `400` on malformed line protocol, `422` on field type conflict, `401` on bad token.
+- Returns `204` on success, `400` on `org` not matching an existing organization, `422` on schema or retention policy violations, `401` on bad token.
 
 ## Batching
 
@@ -141,9 +141,9 @@ Telegraf automatically batches writes — default `metric_batch_size = 1000`. In
 | HTTP Status | Cause | Action |
 |-------------|-------|--------|
 | 204 | Success | — |
-| 400 | Malformed line protocol | Check syntax |
-| 401 | Invalid or expired token | Verify token has write permission |
-| 404 | Bucket not found | Verify names or IDs |
+| 400 | `org` or `orgID` parameter doesn't match an existing organization | Check `org` or `orgID` |
+| 401 | Invalid or expired token or the token doesn't have permission to write to a specific organization | Verify token is valid and has write permission |
+| 404 | A requested resource was not found | Verify names or IDs |
 | 413 | Payload too large | Reduce batch size |
 | 422 | Field type conflict | Conflicting points are **dropped** (partial write); valid points in the batch succeed. Check field types haven't changed. |
 | 429 | Too many requests | Back off and retry with exponential backoff |

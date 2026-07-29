@@ -29,12 +29,10 @@ For terminology, see [glossary.md](../glossary.md).
 Status codes for the v2 write API (see the
 [InfluxDB v2 write troubleshooting docs](https://docs.influxdata.com/influxdb/v2/write-data/troubleshoot/)):
 
-- **`400` Bad request** — malformed line protocol; **all request data is rejected** and
-  the response body contains the first malformed line. Validate syntax (see
-  [line-protocol.md](../line-protocol.md)).
+- **`400` Bad request** — The `org` or `orgID` parameter doesn't match an existing organization.
 - **`401` Unauthorized** — missing/malformed `Authorization: Bearer` header or insufficient
   token permissions.
-- **`404` Not found** — a resource such as the `org` or `bucket` wasn't found.
+- **`404` Not found** — A requested resource was not found
 - **`413` Request entity too large** — reduce batch size.
 - **`422` Unprocessable entity** — well-formed request, but some/all points were rejected
   for **semantic** reasons (schema/field-type conflict or retention-policy violation).
