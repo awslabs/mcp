@@ -30,7 +30,7 @@ Content-Type: text/plain
 
 ## Batching
 
-**Always batch writes.** Single-point writes with many concurrent writers cause severe replica lag.
+**Always batch writes.**
 
 - Target **5,000+ points per request** minimum
 - Optimal batch size: 5,000–10,000 points
