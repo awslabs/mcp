@@ -122,8 +122,6 @@ Prerequisites:
     - `INFLUX_DB_TOKEN`: "your-influxdb-3-token"
     - `INFLUX_DB_PRODUCT_TYPE`: "core"
 
-> See [mcp.json](./mcp.json) for an example configuration.
-
 ## Additional Resources
 
 - [Timestream for InfluxDB 3](https://docs.aws.amazon.com/timestream/latest/developerguide/influxdb3.html)
