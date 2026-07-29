@@ -39,6 +39,9 @@ from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_tools im
 )
 from awslabs.billing_cost_management_mcp_server.tools.budget_tools import budget_server
 from awslabs.billing_cost_management_mcp_server.tools.bvs_tools import bvs_server
+from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_automation_tools import (
+    compute_optimizer_automation_server,
+)
 from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools import (
     compute_optimizer_server,
 )
@@ -136,6 +139,7 @@ Available components:
 TOOLS:
 - cost-explorer: Historical cost and usage data with flexible filtering
 - compute-optimizer: Performance optimization recommendations to identify under provisioned AWS compute resources like EC2, Lambda, ASG, RDS, ECS
+- compute-optimizer-automation: Compute Optimizer Automation rules, events, recommended actions, and rule previews (implementing Compute Optimizer recommendations automatically via rules or on demand)
 - cost-optimization: Cost optimization recommendations across AWS services
 - storage-lens: Query S3 Storage Lens metrics data using Athena SQL
 - athena-cur: Query Cost and Usage Report data through Athena
@@ -197,6 +201,7 @@ async def setup():
     """Initialize the MCP server by importing all tool servers."""
     await mcp.import_server(cost_explorer_server)
     await mcp.import_server(compute_optimizer_server)
+    await mcp.import_server(compute_optimizer_automation_server)
     await mcp.import_server(cost_optimization_hub_server)
     await mcp.import_server(storage_lens_server)
     await mcp.import_server(aws_pricing_server)
@@ -223,6 +228,7 @@ async def setup():
     tools = [
         'cost-explorer',
         'compute-optimizer',
+        'compute-optimizer-automation',
         'cost-optimization',
         'storage-lens',
         'pricing',
