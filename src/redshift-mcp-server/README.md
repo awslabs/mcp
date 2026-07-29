@@ -465,6 +465,6 @@ In addition to AWS IAM permissions, you need appropriate database-level permissi
   GRANT ROLE sys:monitor TO "<database_user>";
   ```
 
-  `<database_user>` is the output of `SELECT current_user`. When the server authenticates with IAM credentials it is `IAM:<user>` or `IAMR:<role>`, and the double quotes are required for those names. The grant must be issued by a superuser, such as the cluster's admin (master) user.
+  `<database_user>` is the output of `SELECT current_user`. When the server authenticates with IAM credentials it is `IAM:<user>` or `IAMR:<role>`, and the double quotes are required for those names. The grant must be issued by a superuser, such as the cluster's admin user.
 
 For the strongest protection, grant these to a **least-privilege, read-only role** rather than a broad or write-capable one.

@@ -351,10 +351,9 @@ SIGNAL_UNITS: dict[str, str] = {
 }
 
 
-# Every query is rendered with str.format(node_type=...) before it runs, so a
-# {node_type} field is substituted with the cluster's node type from the Redshift
-# DescribeClusters API. Only NodeDetails uses it. Any other brace in a query would be
-# read as a format field, which test_no_unrecognized_braces guards against.
+# Queries are rendered with str.format(node_type=...) before they run: a {node_type}
+# field takes the cluster's node type from the Redshift DescribeClusters API, and any
+# other brace must be escaped as {{ or }}.
 
 
 SIGNAL_EVALUATION_SQL: list[tuple[str, str, str]] = [
@@ -556,7 +555,7 @@ WHERE is_stale = 't' AND state IN (0, 1)
 -- NodeDetails
 WITH data AS (
 -- node_type is substituted from the cluster's actual node type as reported by the Redshift DescribeClusters API.
-SELECT '{node_type}'::varchar(32) AS node_type,
+SELECT '{node_type}'::text AS node_type,
        s.node,
        slice_count,
        storage_utilization_pct,
@@ -963,15 +962,11 @@ FROM data
 WHERE service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select count(1) from data where coalesce(qmr_rule,'') not like '%query_temp_blocks_to_disk%') = (select count(1) from data))
 UNION ALL
 -- Signal: no QMR defined for spectrum_scan_size_mb or spectrum_scan_row_count metric
--- Gated on recent Spectrum activity: those metrics only bound queries that scan S3
--- external data, so on a cluster that runs none the missing rules are not actionable.
--- source_type is 'S3' for Spectrum (including Glue and S3 Tables external schemas) and
--- 'PG' for federated queries, which these metrics do not govern. If a lake source type
--- other than 'S3' is ever introduced this signal goes quiet rather than firing on every
--- cluster, which is the safer direction.
+-- Gated on recent Spectrum activity (source_type 'S3'), since these metrics only bound
+-- queries that scan S3 external data.
 SELECT count(*), 'REC_019', 'no QMR defined for spectrum_scan_size_mb or spectrum_scan_row_count metric'
 FROM data
-WHERE service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select count(1) from data where coalesce(qmr_rule,'') not like '%spectrum_scan%') = (select count(1) from data)) AND ((SELECT count(1) FROM SYS_EXTERNAL_QUERY_DETAIL WHERE trim(source_type) = 'S3' AND start_time >= dateadd(day, -7, getdate())) > 0)
+WHERE service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select count(1) from data where coalesce(qmr_rule,'') not like '%spectrum_scan%') = (select count(1) from data)) AND EXISTS (SELECT 1 FROM SYS_EXTERNAL_QUERY_DETAIL WHERE trim(source_type) = 'S3' AND start_time >= dateadd(day, -7, getdate()))
 """,
     ),
     (

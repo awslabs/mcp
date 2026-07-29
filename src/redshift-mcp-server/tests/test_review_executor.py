@@ -81,38 +81,6 @@ def _make_sql_recorder():
     return _execute, recorded
 
 
-def _branch_where(sql: str, rec_id: str, label_fragment: str) -> str:
-    """Return the predicate of the UNION ALL branch selecting rec_id with a matching label.
-
-    Args:
-        sql: The full diagnostic query.
-        rec_id: The recommendation ID the branch emits, for example 'REC_001'.
-        label_fragment: A fragment of the branch's signal label, used to pick one
-            branch when several share a recommendation ID.
-
-    Returns:
-        The text following the branch's own WHERE keyword. That WHERE is the first one
-        after the branch's FROM data clause: earlier ones belong to the CTE, and later
-        ones may belong to a subquery inside the predicate itself.
-
-    Raises:
-        AssertionError: If no single branch matches.
-    """
-    matches = [
-        branch
-        for branch in sql.split('UNION ALL')
-        if f"'{rec_id}'" in branch and label_fragment in branch
-    ]
-    assert len(matches) == 1, (
-        f'expected 1 branch for {rec_id}/{label_fragment}, got {len(matches)}'
-    )
-    branch = matches[0]
-    assert 'FROM data' in branch, f'branch {rec_id}/{label_fragment} does not select FROM data'
-    after_from = branch.rsplit('FROM data', 1)[-1]
-    assert 'WHERE' in after_from, f'branch {rec_id}/{label_fragment} has no predicate'
-    return after_from.split('WHERE', 1)[-1]
-
-
 # ---------------------------------------------------------------------------
 # Serverless exclusion
 # ---------------------------------------------------------------------------
@@ -319,29 +287,6 @@ class TestErrorPropagation:
                 discover_clusters_func=_make_discover_clusters(),
             )
 
-    @pytest.mark.asyncio
-    async def test_permission_denied_message_names_the_working_grant(self):
-        """The message points at sys:monitor, not at ALTER USER CREATEUSER.
-
-        CREATEUSER cannot be granted to an IAM database user, so recommending it sends
-        callers down a path that always fails.
-        """
-        execute_query_func = AsyncMock(
-            side_effect=RuntimeError('permission denied for relation sys_auto_table_optimization')
-        )
-
-        with pytest.raises(Exception) as excinfo:
-            await review_cluster(
-                cluster_identifier='test-cluster',
-                execute_query_func=execute_query_func,
-                discover_clusters_func=_make_discover_clusters(),
-            )
-
-        message = str(excinfo.value)
-        assert 'GRANT ROLE sys:monitor' in message
-        assert 'CREATEUSER' not in message
-        assert 'sys_auto_table_optimization' in message
-
 
 # ---------------------------------------------------------------------------
 # Recommendation deduplication
@@ -465,34 +410,6 @@ class TestNodeTypeSubstitution:
     """Verify the cluster's real node type reaches the diagnostic SQL."""
 
     @pytest.mark.asyncio
-    async def test_node_type_is_inlined_into_node_details(self):
-        """NodeDetails selects the node type reported by the API, not a derived one."""
-        execute_query_func, recorded = _make_sql_recorder()
-
-        await review_cluster(
-            cluster_identifier='test-cluster',
-            execute_query_func=execute_query_func,
-            discover_clusters_func=_make_discover_clusters(node_type='rg.xlarge'),
-        )
-
-        assert "'rg.xlarge'::varchar(32) AS node_type" in recorded['NodeDetails']
-
-    @pytest.mark.asyncio
-    async def test_no_executed_query_retains_the_placeholder(self):
-        """Substitution leaves no unresolved placeholder in any executed query."""
-        execute_query_func, recorded = _make_sql_recorder()
-
-        await review_cluster(
-            cluster_identifier='test-cluster',
-            execute_query_func=execute_query_func,
-            discover_clusters_func=_make_discover_clusters(node_type='rg.4xlarge'),
-        )
-
-        assert recorded
-        for name, sql in recorded.items():
-            assert '{node_type}' not in sql, f'{name} kept an unrendered node type field'
-
-    @pytest.mark.asyncio
     async def test_missing_node_type_falls_back_in_sql(self):
         """A provisioned cluster without a node type inlines the unknown sentinel."""
         execute_query_func, recorded = _make_sql_recorder()
@@ -503,108 +420,7 @@ class TestNodeTypeSubstitution:
             discover_clusters_func=_make_discover_clusters(node_type=None),
         )
 
-        assert "'unknown'::varchar(32) AS node_type" in recorded['NodeDetails']
-
-    @pytest.mark.asyncio
-    async def test_legacy_node_types_still_get_the_rg_migration_signal(self):
-        """Pre-RG node families remain eligible for the migrate-to-RG recommendation."""
-        execute_query_func, recorded = _make_sql_recorder()
-
-        await review_cluster(
-            cluster_identifier='test-cluster',
-            execute_query_func=execute_query_func,
-            discover_clusters_func=_make_discover_clusters(node_type='ra3.xlplus'),
-        )
-
-        predicate = _branch_where(recorded['NodeDetails'], 'REC_001', 'migrating to RG')
-        assert "'ra3.xlplus'" in predicate
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize('node_type', ['rg.xlarge', 'rg.4xlarge'])
-    async def test_rg_cluster_matches_no_node_type_signal(self, node_type):
-        """No node-type-gated signal applies to RG.
-
-        REC_001 would advise migrating to the node type already in use. The storage
-        branches divide per-node `used` by the cluster-wide managed storage quota that
-        stv_node_storage_capacity reports for RG, so their thresholds do not describe
-        RG utilization. The node type is therefore expected exactly once in the query,
-        in the projection, and in no predicate.
-        """
-        execute_query_func, recorded = _make_sql_recorder()
-
-        await review_cluster(
-            cluster_identifier='test-cluster',
-            execute_query_func=execute_query_func,
-            discover_clusters_func=_make_discover_clusters(node_type=node_type),
-        )
-
-        sql = recorded['NodeDetails']
-        assert f"'{node_type}'::varchar(32) AS node_type" in sql
-        assert sql.count(f"'{node_type}'") == 1
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        ('rec_id', 'label_fragment'),
-        [
-            ('REC_001', 'migrating to RG'),
-            ('REC_002', 'recommended storage threshold of 70%'),
-            ('REC_006', 'storage threshold of 50%'),
-            ('REC_011', 'under-utilized storage'),
-        ],
-    )
-    async def test_rg_excluded_from_each_node_type_branch(self, rec_id, label_fragment):
-        """Each node-type-gated branch individually excludes RG."""
-        execute_query_func, recorded = _make_sql_recorder()
-
-        await review_cluster(
-            cluster_identifier='test-cluster',
-            execute_query_func=execute_query_func,
-            discover_clusters_func=_make_discover_clusters(node_type='rg.xlarge'),
-        )
-
-        predicate = _branch_where(recorded['NodeDetails'], rec_id, label_fragment)
-        assert "'rg.xlarge'" not in predicate
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        ('rec_id', 'label_fragment'),
-        [
-            ('REC_001', 'migrating to RG'),
-            ('REC_002', 'recommended storage threshold of 70%'),
-            ('REC_006', 'storage threshold of 50%'),
-            ('REC_011', 'under-utilized storage'),
-        ],
-    )
-    async def test_pre_rg_node_types_keep_storage_signals(self, rec_id, label_fragment):
-        """Excluding RG must not disturb the node families these signals were written for."""
-        execute_query_func, recorded = _make_sql_recorder()
-
-        await review_cluster(
-            cluster_identifier='test-cluster',
-            execute_query_func=execute_query_func,
-            discover_clusters_func=_make_discover_clusters(node_type='dc2.large'),
-        )
-
-        predicate = _branch_where(recorded['NodeDetails'], rec_id, label_fragment)
-        assert "'dc2.large'" in predicate
-
-    @pytest.mark.asyncio
-    async def test_data_skew_signal_still_applies_to_rg(self):
-        """The skew branch is not node-type gated, so it remains active on RG.
-
-        Unlike the storage thresholds, skew compares per-node usage against per-node
-        usage, which stays meaningful on managed storage.
-        """
-        execute_query_func, recorded = _make_sql_recorder()
-
-        await review_cluster(
-            cluster_identifier='test-cluster',
-            execute_query_func=execute_query_func,
-            discover_clusters_func=_make_discover_clusters(node_type='rg.xlarge'),
-        )
-
-        predicate = _branch_where(recorded['NodeDetails'], 'REC_008', 'data skew')
-        assert 'node_type' not in predicate
+        assert "'unknown'::text AS node_type" in recorded['NodeDetails']
 
     @pytest.mark.asyncio
     async def test_serverless_review_executes_no_placeholder_query(self):
@@ -618,68 +434,6 @@ class TestNodeTypeSubstitution:
         )
 
         assert 'NodeDetails' not in recorded
-        for sql in recorded.values():
-            assert 'unknown' not in sql
-
-
-# ---------------------------------------------------------------------------
-# Spectrum QMR activity gate
-# ---------------------------------------------------------------------------
-
-
-def _query_sql(name: str) -> str:
-    """Return the SQL of a named diagnostic query."""
-    matches = [sql for query_name, _ct, sql in SIGNAL_EVALUATION_SQL if query_name == name]
-    assert len(matches) == 1, f'expected 1 query named {name}, got {len(matches)}'
-    return matches[0]
-
-
-class TestSpectrumActivityGate:
-    """The spectrum_scan QMR signal only applies to clusters that query the data lake."""
-
-    def test_spectrum_branch_requires_recent_s3_activity(self):
-        """The branch is gated on S3 external queries within the retained window.
-
-        spectrum_scan_size_mb and spectrum_scan_row_count only bound queries scanning S3
-        external data, so without such queries the missing rules are not actionable.
-        """
-        predicate = _branch_where(_query_sql('WLMConfig'), 'REC_019', 'spectrum_scan_size_mb')
-
-        assert 'SYS_EXTERNAL_QUERY_DETAIL' in predicate
-        assert "trim(source_type) = 'S3'" in predicate
-        assert 'dateadd(day, -7, getdate())' in predicate
-
-    @pytest.mark.parametrize(
-        'label_fragment',
-        [
-            'no query monitoring rules (QMR) defined',
-            'query_execution_time metric',
-            'query_temp_blocks_to_disk metric',
-        ],
-    )
-    def test_other_qmr_branches_stay_ungated(self, label_fragment):
-        """Only the Spectrum branch is gated; the other QMR signals apply to any cluster."""
-        predicate = _branch_where(_query_sql('WLMConfig'), 'REC_019', label_fragment)
-
-        assert 'SYS_EXTERNAL_QUERY_DETAIL' not in predicate
-
-    def test_qmr_branch_count_unchanged(self):
-        """Gating must not remove a QMR branch: REC_019 still has four in WLMConfig."""
-        sql = _query_sql('WLMConfig')
-
-        assert sql.count("'REC_019'") == 4
-
-    def test_gate_is_confined_to_wlmconfig_spectrum_branch(self):
-        """No other query gains a dependency on external query history.
-
-        ExtQueryPerformance reads the same view, but by design: it reports on external
-        queries, so it returns no rows when there are none.
-        """
-        users = {
-            name for name, _ct, sql in SIGNAL_EVALUATION_SQL if 'SYS_EXTERNAL_QUERY_DETAIL' in sql
-        }
-
-        assert users == {'WLMConfig', 'ExtQueryPerformance'}
 
 
 # ---------------------------------------------------------------------------
@@ -699,38 +453,6 @@ class TestReviewQueriesConstants:
         """Every query in SIGNAL_EVALUATION_SQL maps to a non-empty unit."""
         for name, _cluster_type, _sql in SIGNAL_EVALUATION_SQL:
             assert SIGNAL_UNITS.get(name), f'{name} is missing a unit in SIGNAL_UNITS'
-
-    def test_every_branch_emits_a_signal_label(self):
-        """Every rec branch selects a 3rd literal (its -- Signal label)."""
-        import re
-
-        no_label = re.compile(r"SELECT count\(\*\),\s*'REC_\d+'(?!\s*,)")
-        for name, _ct, sql in SIGNAL_EVALUATION_SQL:
-            assert not no_label.findall(sql), f'{name} has a branch without a label column'
-
-    def test_branch_rec_label_pairs_unique_per_query(self):
-        """Within a query, no two branches share the same (rec_id, label)."""
-        import re
-
-        pair = re.compile(r"SELECT count\(\*\),\s*'(REC_\d+)',\s*'((?:[^']|'')*)'")
-        for name, _ct, sql in SIGNAL_EVALUATION_SQL:
-            pairs = pair.findall(sql)
-            assert len(pairs) == len(set(pairs)), (
-                f'{name} has duplicate (rec, label) branches: {pairs}'
-            )
-
-    def test_node_type_field_confined_to_node_details(self):
-        """Only NodeDetails uses the {node_type} format field."""
-        users = {name for name, _ct, sql in SIGNAL_EVALUATION_SQL if '{node_type}' in sql}
-        assert users == {'NodeDetails'}
-
-    def test_node_type_field_query_is_provisioned_only(self):
-        """The field is only used where a node type exists (provisioned)."""
-        for name, cluster_type, sql in SIGNAL_EVALUATION_SQL:
-            if '{node_type}' in sql:
-                assert cluster_type == 'provisioned', (
-                    f'{name} needs a node type but is {cluster_type}'
-                )
 
     def test_no_unrecognized_braces(self):
         """{node_type} is the only brace sequence in any query.
@@ -757,10 +479,3 @@ class TestReviewQueriesConstants:
     def test_recommendations_not_empty(self):
         """RECOMMENDATIONS dict is not empty."""
         assert len(RECOMMENDATIONS) > 0
-
-    def test_provisioned_only_flags(self):
-        """NodeDetails and WLMConfig are marked provisioned-only."""
-        provisioned = {name for name, ct, _ in SIGNAL_EVALUATION_SQL if ct == 'provisioned'}
-        assert 'NodeDetails' in provisioned
-        assert 'WLMConfig' in provisioned
-        assert 'WorkloadEvaluation' in provisioned

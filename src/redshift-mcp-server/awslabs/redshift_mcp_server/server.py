@@ -657,20 +657,12 @@ async def review_cluster_tool(
     - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
     - The cluster must be available and accessible.
     - Required IAM permissions: redshift-data:ExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
-    - The connected database user must be able to read Redshift system views, some of which
-      are visible only to superusers. The narrowest grant that covers them is the
-      sys:monitor role: GRANT ROLE sys:monitor TO "<database_user>";
-      The grant must be issued by a superuser, such as the cluster's admin (master) user;
-      a regular user granting it to itself fails with "must be superuser or have GRANT ROLE
-      system privilege". Use SELECT current_user to get the exact user name - when the
-      server authenticates with IAM credentials it is IAM:<user> or IAMR:<role>, and the
-      quotes are required. ALTER USER <user> CREATEUSER is an alternative for
-      password-based users, but fails for IAM identities with "Superusers cannot have
-      disabled passwords".
-      Without that access the review fails fast with "Review requires read access to
-      Redshift system views" (for example "permission denied for relation
-      sys_auto_table_optimization"). This is by design - an expected signal, not a tool
-      defect - so the review never returns partial or misleading results.
+    - The connected database user must be able to read Redshift system views, some of
+      which are superuser-visible. A superuser must grant the sys:monitor role:
+      GRANT ROLE sys:monitor TO "<database_user>"; where <database_user> is the output
+      of SELECT current_user, quoted because IAM identities contain a colon
+      (IAM:<user> or IAMR:<role>).
+    - Without that access the review fails fast rather than returning partial results.
 
     ## Parameters
 

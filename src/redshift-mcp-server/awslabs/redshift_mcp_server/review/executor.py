@@ -62,11 +62,8 @@ async def review_cluster(
 
     is_serverless = cluster_info.type == 'serverless'
 
-    # Stage 1: Select queries, filtering by cluster type scope, and render each with the
-    # cluster's node type from the Redshift API so node-type signals evaluate it directly.
-    # The fallback satisfies the format field for clusters that report no node type; it
-    # matches no signal's node_type list, and serverless workgroups run no query
-    # containing the field, so it never reaches a query in practice.
+    # Stage 1: select queries in this cluster's type scope and render each with the
+    # node type from the Redshift API so node-type signals evaluate it directly.
     node_type = cluster_info.node_type or 'unknown'
     queries = [
         (name, sql.format(node_type=node_type))
