@@ -157,7 +157,7 @@ The Timestream for InfluxDB MCP server provides the following tools:
 
 ## InfluxDB v3 data operations
 
-This MCP server covers the **AWS control plane** (clusters, instances, parameter groups, tags) and **InfluxDB v2 data** operations (Flux query, writes, buckets, organizations). **InfluxDB v3 data operations** (SQL queries, v3 schema, v3 token management) are provided by a separate, InfluxData-maintained MCP server: [`influxdata/influxdb3_mcp_server`](https://github.com/influxdata/influxdb3_mcp_server). The [Kiro Power](#kiro-power)'s `kiro_power/mcp.json` references both servers.
+This MCP server covers the **AWS control plane** (clusters, instances, parameter groups, tags) and **InfluxDB v2 data** operations (Flux query, writes, buckets, organizations). **InfluxDB v3 data operations** (SQL queries, v3 schema, v3 token management) are provided by a separate, InfluxData-maintained MCP server: [`influxdata/influxdb3_mcp_server`](https://github.com/influxdata/influxdb3_mcp_server).
 
 ### Set up the InfluxDB 3 MCP server
 
