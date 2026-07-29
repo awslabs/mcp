@@ -143,7 +143,7 @@ def validate_cloudformation_template(
 
 @mcp.tool()
 def check_cloudformation_template_compliance(
-    template_content: str, rules_file_path: str = 'default_guard_rules.guard'
+    template_content: str,
 ) -> str:
     """Validate CloudFormation template against security and compliance rules using cfn-guard.
 
@@ -184,13 +184,13 @@ def check_cloudformation_template_compliance(
     - Use inline comments to explain each fix
     - Focus on what changed, not the entire resource definition
 
+    Validates against the server's bundled security rules.
+
     Args:
         template_content: CloudFormation template as YAML or JSON string
-        rules_file_path: Path to guard rules file (default: default_guard_rules.guard)
     """
     result = check_compliance(
         template_content=template_content,
-        rules_file_path=rules_file_path,
     )
     response_text = json.dumps(result, indent=2)
     return sanitize_tool_response(response_text)

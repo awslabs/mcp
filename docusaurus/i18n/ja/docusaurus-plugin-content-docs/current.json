@@ -1,0 +1,62 @@
+{
+  "sidebar.mainSidebar.category.AI & Machine Learning": {
+    "description": "The label for category 'AI & Machine Learning' in sidebar 'mainSidebar'",
+    "message": "AI\u3068\u6a5f\u68b0\u5b66\u7fd2"
+  },
+  "sidebar.mainSidebar.category.Available MCP Servers for AWS": {
+    "description": "The label for category 'Available MCP Servers for AWS' in sidebar 'mainSidebar'",
+    "message": "\u5229\u7528\u53ef\u80fd\u306aAWS\u5411\u3051MCP\u30b5\u30fc\u30d0\u30fc"
+  },
+  "sidebar.mainSidebar.category.Cost & Operations": {
+    "description": "The label for category 'Cost & Operations' in sidebar 'mainSidebar'",
+    "message": "\u30b3\u30b9\u30c8\u3068\u904b\u7528"
+  },
+  "sidebar.mainSidebar.category.Data & Analytics": {
+    "description": "The label for category 'Data & Analytics' in sidebar 'mainSidebar'",
+    "message": "\u30c7\u30fc\u30bf\u3068\u5206\u6790"
+  },
+  "sidebar.mainSidebar.category.Developer Tools & Support": {
+    "description": "The label for category 'Developer Tools & Support' in sidebar 'mainSidebar'",
+    "message": "\u958b\u767a\u8005\u30c4\u30fc\u30eb\u3068\u30b5\u30dd\u30fc\u30c8"
+  },
+  "sidebar.mainSidebar.category.Documentation": {
+    "description": "The label for category 'Documentation' in sidebar 'mainSidebar'",
+    "message": "\u30c9\u30ad\u30e5\u30e1\u30f3\u30c8"
+  },
+  "sidebar.mainSidebar.category.Get Started": {
+    "description": "The label for category 'Get Started' in sidebar 'mainSidebar'",
+    "message": "\u306f\u3058\u3081\u306b"
+  },
+  "sidebar.mainSidebar.category.Getting Started": {
+    "description": "The label for category 'Getting Started' in sidebar 'mainSidebar'",
+    "message": "\u30b9\u30bf\u30fc\u30c8\u30ac\u30a4\u30c9"
+  },
+  "sidebar.mainSidebar.category.Healthcare & Lifesciences": {
+    "description": "The label for category 'Healthcare & Lifesciences' in sidebar 'mainSidebar'",
+    "message": "\u30d8\u30eb\u30b9\u30b1\u30a2\u3068\u30e9\u30a4\u30d5\u30b5\u30a4\u30a8\u30f3\u30b9"
+  },
+  "sidebar.mainSidebar.category.Infrastructure & Deployment": {
+    "description": "The label for category 'Infrastructure & Deployment' in sidebar 'mainSidebar'",
+    "message": "\u30a4\u30f3\u30d5\u30e9\u30b9\u30c8\u30e9\u30af\u30c1\u30e3\u3068\u30c7\u30d7\u30ed\u30a4"
+  },
+  "sidebar.mainSidebar.category.Integration & Messaging": {
+    "description": "The label for category 'Integration & Messaging' in sidebar 'mainSidebar'",
+    "message": "\u7d71\u5408\u3068\u30e1\u30c3\u30bb\u30fc\u30b8\u30f3\u30b0"
+  },
+  "sidebar.mainSidebar.category.Migration & Modernization": {
+    "description": "The label for category 'Migration & Modernization' in sidebar 'mainSidebar'",
+    "message": "\u79fb\u884c\u3068\u30e2\u30c0\u30ca\u30a4\u30bc\u30fc\u30b7\u30e7\u30f3"
+  },
+  "sidebar.mainSidebar.category.Samples": {
+    "description": "The label for category 'Samples' in sidebar 'mainSidebar'",
+    "message": "\u30b5\u30f3\u30d7\u30eb"
+  },
+  "sidebar.mainSidebar.link.AWS MCP": {
+    "description": "The label for link 'AWS MCP' in sidebar 'mainSidebar', linking to 'https://docs.aws.amazon.com/aws-mcp/latest/userguide/what-is-mcp-server.html'",
+    "message": "AWS MCP"
+  },
+  "version.label": {
+    "description": "The label for version current",
+    "message": "Next"
+  }
+}

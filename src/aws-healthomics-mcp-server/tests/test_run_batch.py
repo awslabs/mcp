@@ -368,7 +368,7 @@ class TestStartRunBatch:
         assert default_setting['retentionMode'] == 'RETAIN'
 
         # Verify top-level optional params
-        assert call_kwargs['name'] == 'my-batch'
+        assert call_kwargs['batchName'] == 'my-batch'
         assert call_kwargs['requestId'] == 'req-123'
         assert call_kwargs['tags'] == {'env': 'prod'}
 
