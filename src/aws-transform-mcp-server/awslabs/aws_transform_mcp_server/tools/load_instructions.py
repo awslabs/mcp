@@ -108,15 +108,17 @@ class LoadInstructionsHandler:
                 # land inside store folders such as 'User Uploads/', and the
                 # unprefixed listing does not descend into folders. Re-scan
                 # each folder the root listing reported, using the folder
-                # string verbatim as the pathPrefix. Some stages omit the
-                # folders array from the root listing entirely, so always
-                # include the managed store's canonical customer-upload
-                # prefix as a fallback.
+                # string verbatim as the pathPrefix. Scan the managed store's
+                # canonical customer-upload folder first: it is where uploaded
+                # instruction documents live, so the common case resolves in
+                # one extra single-page call. It also covers stages whose root
+                # listing omits the folders array entirely.
                 canonical_uploads_prefix = (
                     f'AWSTransform/Workspaces/{workspaceId}/Jobs/{jobId}/User Uploads/'
                 )
-                if canonical_uploads_prefix not in folders:
-                    folders.append(canonical_uploads_prefix)
+                if canonical_uploads_prefix in folders:
+                    folders.remove(canonical_uploads_prefix)
+                folders.insert(0, canonical_uploads_prefix)
                 for folder in folders:
                     # The store validates that a pathPrefix carries the correct
                     # workspace/job identifiers; a folder string that fails that

@@ -375,6 +375,8 @@ class TestInstructionGateIntegration:
     async def test_folder_walk_finds_nothing(self, _, mock_fes, handler, ctx):
         mock_fes.side_effect = [
             {'artifacts': [], 'folders': ['User Uploads/']},
+            # canonical-prefix scan (walked first)
+            {'artifacts': []},
             {
                 'artifacts': [
                     {
@@ -383,8 +385,6 @@ class TestInstructionGateIntegration:
                     },
                 ]
             },
-            # canonical-prefix fallback scan
-            {'artifacts': []},
         ]
         result = await handler.load_instructions(ctx, workspaceId='ws-1', jobId='j-1')
         parsed = _parse(result)
@@ -427,22 +427,19 @@ class TestInstructionGateIntegration:
     ):
         """A folder whose prefixed scan raises must not abort the walk."""
         mock_fes.side_effect = [
-            # Root listing: two folders, no artifacts
+            # Root listing: one reported folder, no artifacts
             {
                 'artifacts': [],
-                'folders': [
-                    'bad folder/',
-                    'AWSTransform/Workspaces/ws-1/Jobs/j-1/User Uploads/',
-                ],
+                'folders': ['reports/'],
             },
-            # First folder scan: store rejects the prefix
+            # Canonical User Uploads scan (walked first): store rejects it
             Exception('ValidationException: invalid pathPrefix'),
-            # Second folder scan: finds the document
+            # Reported-folder scan: finds the document
             {
                 'artifacts': [
                     {
                         'artifactId': 'art-ok',
-                        'fileMetadata': {'path': 'User Uploads/JOB_INSTRUCTIONS'},
+                        'fileMetadata': {'path': 'reports/JOB_INSTRUCTIONS'},
                     },
                 ]
             },
@@ -454,3 +451,8 @@ class TestInstructionGateIntegration:
         assert parsed['success'] is True
         assert parsed['data']['instructionsFound'] is True
         assert parsed['data']['artifactId'] == 'art-ok'
+        # Canonical prefix is scanned before folders the root listing reported.
+        assert mock_fes.call_args_list[1].args[1].pathPrefix == (
+            'AWSTransform/Workspaces/ws-1/Jobs/j-1/User Uploads/'
+        )
+        assert mock_fes.call_args_list[2].args[1].pathPrefix == 'reports/'
