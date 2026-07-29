@@ -550,31 +550,24 @@ async def list_runs(
                 if len(filtered_so_far) >= max_results:
                     break
 
-        # Apply client-side filtering if needed
-        if needs_filtering:
-            filtered_runs = filter_runs_by_creation_time(all_runs, created_after, created_before)
+        # Apply client-side filtering
+        filtered_runs = filter_runs_by_creation_time(all_runs, created_after, created_before)
 
-            # Apply max_results limit to filtered results
-            result_runs = filtered_runs[:max_results]
+        # Apply max_results limit to filtered results
+        result_runs = filtered_runs[:max_results]
 
-            result = {'runs': result_runs}
+        result = {'runs': result_runs}
 
-            # If we have more filtered results than max_results, we could implement
-            # a custom pagination token, but for simplicity we'll omit nextToken
-            # when client-side filtering is applied
-            if len(filtered_runs) > max_results:
-                logger.info(
-                    f'Client-side filtering returned {len(filtered_runs)} results, '
-                    f'truncated to {max_results}. Pagination not supported with date filters.'
-                )
+        # If we have more filtered results than max_results, we could implement
+        # a custom pagination token, but for simplicity we'll omit nextToken
+        # when client-side filtering is applied
+        if len(filtered_runs) > max_results:
+            logger.info(
+                f'Client-side filtering returned {len(filtered_runs)} results, '
+                f'truncated to {max_results}. Pagination not supported with date filters.'
+            )
 
-            return result
-        else:
-            # No filtering needed, return all collected runs
-            result: Dict[str, Any] = {'runs': all_runs}
-            if current_token:
-                result['nextToken'] = current_token
-            return result
+        return result
 
     except Exception as e:
         return await handle_tool_error(ctx, e, 'Error listing runs')
