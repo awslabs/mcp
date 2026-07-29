@@ -21,10 +21,10 @@ cost_optimization_hub in this package.
 Compute Optimizer Automation lets customers implement Compute Optimizer recommendations,
 either automatically via rules or on demand.
 
-Compute Optimizer Automation is a regional service, but this tool presents it globally:
-with no `region`, operations that return region-scoped data (events, recommended actions,
-and their summaries and previews) query every Automation region concurrently and merge the
-results. Pass a `region` to target a single region.
+Compute Optimizer Automation is a regional service. Pass `regions` to query several
+regions concurrently and merge the results; operations that return region-scoped data
+(events, recommended actions, and their summaries and previews) stamp each item with its
+region. With no `regions`, a single call targets the AWS_REGION env var or us-east-1.
 """
 
 import asyncio
@@ -34,6 +34,7 @@ from ..utilities.regional_fanout import (
     collect_regional_pages,
     encode_regional_next_token,
     fan_out_regions,
+    is_regional_next_token,
     parse_regional_next_token,
 )
 from ..utilities.sql_utils import convert_response_if_needed
@@ -72,29 +73,6 @@ _SERVICE_NAME = 'Compute Optimizer Automation'
 _BOTO_SERVICE_NAME = 'compute-optimizer-automation'
 _MAX_CONCURRENT_REGIONS = 8
 
-# The AWS regions where Compute Optimizer Automation is available. The service is
-# absent from botocore's endpoints.json (it ships only an endpoint rule set), so
-# there is no local API to enumerate its regions; this list is maintained by hand.
-COMPUTE_OPTIMIZER_AUTOMATION_REGIONS = [
-    'ap-northeast-1',
-    'ap-northeast-2',
-    'ap-northeast-3',
-    'ap-south-1',
-    'ap-southeast-1',
-    'ap-southeast-2',
-    'ca-central-1',
-    'eu-central-1',
-    'eu-north-1',
-    'eu-west-1',
-    'eu-west-2',
-    'eu-west-3',
-    'sa-east-1',
-    'us-east-1',
-    'us-east-2',
-    'us-west-1',
-    'us-west-2',
-]
-
 # The operations this tool supports, in the order presented to callers.
 VALID_OPERATIONS = [
     'get_automation_event',
@@ -114,8 +92,8 @@ VALID_OPERATIONS = [
 
 # Operations whose data is account-global: a single regional endpoint returns
 # everything (rules are global resources; enrollment and account lists are
-# account-scoped), so with no explicit region they use one default-region call
-# rather than fanning out. Every other operation fans out across all regions.
+# account-scoped), so fanning them out would repeat identical data. They accept
+# at most one region. Every other operation can span the requested regions.
 _SINGLE_REGION_OPERATIONS = {
     'get_automation_rule',
     'list_tags_for_resource',
@@ -191,15 +169,13 @@ Distinction: this tool covers the *automation* layer — rules, events, and the 
 actions those rules operate on. It does not generate Compute Optimizer recommendations
 itself; for those use the compute-optimizer tool.
 
-**Regions:** By default this tool is global. With no `region`, operations that return
-region-scoped data (get_automation_event, list_automation_events,
-list_automation_event_steps, list_recommended_actions, the *_summaries, and the rule
-preview operations) query every Compute Optimizer Automation region concurrently and merge
-the results; each item includes its `region`, and the response includes `regions_queried`.
-Account-global operations (get_automation_rule, get_enrollment_configuration, list_accounts,
-list_automation_rules, list_tags_for_resource) use a single call — rules are global
-resources. Specify a `region` to target one region (defaults to the AWS_REGION env var or
-us-east-1 for the account-global operations).
+**Regions:** Compute Optimizer Automation is a regional service. Omit `regions` to query a
+single region (the AWS_REGION env var, or us-east-1). Pass `regions` as a list — e.g.
+["us-east-1", "eu-west-1"] — to query those regions concurrently and merge the results: each
+item includes its `region` and the response includes `regions_queried`. Duplicate entries are
+collapsed. Account-global operations (get_automation_rule, get_enrollment_configuration,
+list_accounts, list_automation_rules, list_tags_for_resource) accept at most one region —
+rules are global resources, so fanning them out would repeat identical data.
 
 Supported operations (pass via the `operation` parameter):
 
@@ -243,23 +219,24 @@ Valid filter names by operation:
   CurrentResourceDetailsEbsVolumeType, ResourceTagsKey, ResourceTagsValue, AccountId,
   RestartNeeded
 
-List operations paginate automatically up to max_pages (default 10, applied per region in
-global mode). The returned `count` is the number of items in this response, not a grand
-total. When more results remain, pass the returned opaque `next_token` string back
-unchanged. Tokens from global and explicit-region queries are not interchangeable.
-A global response may also include `region_errors` ({region: structured error}) for
-regions that failed while others succeeded.
+List operations paginate automatically up to max_pages (default 10, applied per region when
+`regions` is passed). The returned `count` is the number of items in this response, not a
+grand total. When more results remain, pass the returned opaque `next_token` string back
+unchanged along with the same `regions` list it was produced with. A multi-region response
+may also include `region_errors` ({region: structured error}) for regions that failed while
+others succeeded.
 
 Examples:
 - {"operation": "get_enrollment_configuration"}
 - {"operation": "get_automation_event", "event_id": "abc123"}
+- {"operation": "list_automation_events", "regions": ["us-east-1", "eu-west-1"]}
 - {"operation": "list_automation_events", "filters": "[{\"name\": \"EventStatus\", \"values\": [\"Complete\"]}]"}
 - {"operation": "list_automation_rule_preview", "rule_type": "AccountRule", "recommended_action_types": "[\"UpgradeEbsVolumeType\"]"}""",
 )
 async def compute_optimizer_automation(
     ctx: Context,
     operation: str,
-    region: Optional[str] = None,
+    regions: Optional[List[str]] = None,
     event_id: Optional[str] = None,
     rule_arn: Optional[str] = None,
     resource_arn: Optional[str] = None,
@@ -281,9 +258,9 @@ async def compute_optimizer_automation(
     Args:
         ctx: The MCP context object.
         operation: The operation to perform (see VALID_OPERATIONS).
-        region: Optional AWS region. If omitted, region-scoped operations query all
-            Compute Optimizer Automation regions and merge; account-global operations
-            default to the AWS_REGION env var or us-east-1.
+        regions: Optional list of AWS regions to query concurrently and merge. If omitted
+            or empty, a single call targets the AWS_REGION env var or us-east-1.
+            Account-global operations accept at most one region.
         event_id: Automation event ID (get_automation_event, list_automation_event_steps).
         rule_arn: Automation rule ARN (get_automation_rule).
         resource_arn: Resource ARN (list_tags_for_resource).
@@ -298,10 +275,10 @@ async def compute_optimizer_automation(
         criteria: Optional JSON string of rule criteria conditions for the preview operations.
         max_results: Optional maximum number of results per page (list operations).
         max_pages: Maximum number of API pages to fetch (list operations). Defaults to 10.
-            Applied per region in global mode.
+            Applied per region when `regions` is passed.
         next_token: Optional pagination token from a previous response (list operations).
-            Pass the opaque string from the previous response back unchanged. Global
-            tokens and explicit-region tokens are not interchangeable.
+            Pass the opaque string back unchanged, along with the same `regions` list it
+            was produced with.
 
     Returns:
         Dict containing the requested Compute Optimizer Automation data.
@@ -338,12 +315,17 @@ async def compute_optimizer_automation(
             criteria=criteria,
         )
 
-        # With no explicit region, most operations fan out across all Automation
-        # regions; account-global operations still use a single default-region call.
-        if region is None and operation not in _SINGLE_REGION_OPERATIONS:
-            return await dispatch_global(
+        requested_regions, regions_error = _resolve_requested_regions(operation, regions)
+        if regions_error is not None:
+            return regions_error
+
+        # A list of regions spans them concurrently and merges the results. Account-global
+        # operations and an omitted list use one call with the service's native shape.
+        if requested_regions and operation not in _SINGLE_REGION_OPERATIONS:
+            return await dispatch_multi_region(
                 ctx,
                 operation,
+                requested_regions,
                 event_id=event_id,
                 filters=filters,
                 start_time=start_time,
@@ -359,26 +341,21 @@ async def compute_optimizer_automation(
                 next_token=next_token,
             )
 
-        # Single-region path: an explicit region, or an account-global operation.
-        # Catch the actionable cross-mode mistake locally instead of sending an
-        # encoded regional map to AWS as though it were a native service token.
-        if next_token:
-            _, global_token_error = parse_regional_next_token(
-                next_token, COMPUTE_OPTIMIZER_AUTOMATION_REGIONS
+        # Catch the actionable cross-mode mistake locally instead of sending an encoded
+        # regional map to AWS as though it were a native service token.
+        if is_regional_next_token(next_token):
+            return format_response(
+                'error',
+                {'operation': operation, 'parameter': 'next_token'},
+                'A multi-region next_token cannot be used for a single-region request. '
+                'Pass the same `regions` list the token was produced with, or omit '
+                'next_token to start a new query.',
             )
-            if global_token_error is None:
-                return format_response(
-                    'error',
-                    {'operation': operation, 'parameter': 'next_token'},
-                    'A global next_token is only valid when region is omitted. With an '
-                    'explicit region, pass the next_token returned by that same '
-                    'explicit-region query.',
-                )
 
         return await dispatch_regional(
             ctx,
             operation,
-            region=region,
+            region=requested_regions[0] if requested_regions else None,
             event_id=event_id,
             rule_arn=rule_arn,
             resource_arn=resource_arn,
@@ -482,9 +459,10 @@ async def dispatch_regional(
     return await handler()
 
 
-async def dispatch_global(
+async def dispatch_multi_region(
     ctx: Context,
     operation: str,
+    regions: List[str],
     event_id: Optional[str] = None,
     filters: Optional[str] = None,
     start_time: Optional[str] = None,
@@ -499,13 +477,11 @@ async def dispatch_global(
     max_pages: int = 10,
     next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Run a fan-out operation across all Compute Optimizer Automation regions."""
+    """Run a fan-out operation across the requested regions."""
     if operation == 'get_automation_event':
-        return await _get_automation_event_global(ctx, str(event_id))
+        return await _get_automation_event_multi_region(ctx, str(event_id), regions)
 
-    regions_tokens, token_error = parse_regional_next_token(
-        next_token, COMPUTE_OPTIMIZER_AUTOMATION_REGIONS
-    )
+    regions_tokens, token_error = parse_regional_next_token(next_token, regions)
     if token_error is not None:
         return token_error
 
@@ -587,7 +563,7 @@ async def dispatch_global(
         )
 
     list_key, collect, not_found_is_empty = spec
-    return await _run_global_list(
+    return await _run_multi_region_list(
         ctx, operation, list_key, regions_tokens, collect, not_found_is_empty
     )
 
@@ -609,7 +585,7 @@ def _partition_resource_not_found_errors(
     return other_errors, regions_not_found
 
 
-async def _run_global_list(
+async def _run_multi_region_list(
     ctx: Context,
     operation: str,
     list_key: str,
@@ -669,7 +645,7 @@ async def _run_global_list(
             message = f'All {len(region_errors)} region(s) failed for {operation}.'
         return format_response('error', data, message)
 
-    return await _finalize_global_list_response(
+    return await _finalize_multi_region_list_response(
         ctx,
         operation,
         list_key,
@@ -680,7 +656,7 @@ async def _run_global_list(
     )
 
 
-async def _finalize_global_list_response(
+async def _finalize_multi_region_list_response(
     ctx: Context,
     operation: str,
     list_key: str,
@@ -718,16 +694,18 @@ async def _finalize_global_list_response(
     return format_response('success', response_data)
 
 
-async def _get_automation_event_global(ctx: Context, event_id: str) -> Dict[str, Any]:
-    """Locate an automation event by ID across all Automation regions."""
+async def _get_automation_event_multi_region(
+    ctx: Context, event_id: str, regions: List[str]
+) -> Dict[str, Any]:
+    """Locate an automation event by ID across the requested regions."""
 
     async def worker(region: str, request_event_id: str) -> Optional[Dict[str, Any]]:
         client = await asyncio.to_thread(create_compute_optimizer_automation_client, region)
         return await asyncio.to_thread(client.get_automation_event, eventId=request_event_id)
 
-    await ctx.info(f'Searching all Automation regions for automation event {event_id}')
+    await ctx.info(f'Searching {len(regions)} region(s) for automation event {event_id}')
     outcomes = await fan_out_regions(
-        dict.fromkeys(COMPUTE_OPTIMIZER_AUTOMATION_REGIONS, event_id),
+        dict.fromkeys(regions, event_id),
         worker,
         ctx=ctx,
         operation='get_automation_event',
@@ -745,10 +723,7 @@ async def _get_automation_event_global(ctx: Context, event_id: str) -> Dict[str,
                 },
             )
 
-    data: Dict[str, Any] = {
-        'event_id': event_id,
-        'regions_queried': list(COMPUTE_OPTIMIZER_AUTOMATION_REGIONS),
-    }
+    data: Dict[str, Any] = {'event_id': event_id, 'regions_queried': list(regions)}
     region_errors, regions_not_found = _partition_resource_not_found_errors(outcomes.errors)
     if region_errors:
         data['region_errors'] = region_errors
@@ -757,11 +732,14 @@ async def _get_automation_event_global(ctx: Context, event_id: str) -> Dict[str,
             'error',
             data,
             f'Could not determine whether automation event {event_id} exists because '
-            f'{len(region_errors)} of {len(COMPUTE_OPTIMIZER_AUTOMATION_REGIONS)} region(s) '
-            'could not be searched. Review region_errors and retry.',
+            f'{len(region_errors)} of {len(regions)} region(s) could not be searched. '
+            'Review region_errors and retry.',
         )
     return format_response(
-        'error', data, f'Automation event {event_id} was not found in any region.'
+        'error',
+        data,
+        f'Automation event {event_id} was not found in any of the {len(regions)} '
+        'region(s) queried.',
     )
 
 
@@ -811,6 +789,57 @@ def _validate_operation_params(
         )
 
     return None
+
+
+def _resolve_requested_regions(
+    operation: str, regions: Optional[List[str]]
+) -> Tuple[List[str], Optional[Dict[str, Any]]]:
+    """Normalize the requested `regions` list, or return a validation response.
+
+    Duplicates collapse while preserving order. An empty or omitted list means a single
+    call to the default region.
+
+    Args:
+        operation: The requested operation.
+        regions: The raw `regions` value supplied by the caller, if any.
+
+    Returns:
+        The deduplicated regions and None, or an empty list and an error response.
+    """
+    if not regions:
+        return [], None
+
+    if isinstance(regions, str) or not isinstance(regions, (list, tuple)):
+        return [], format_response(
+            'error',
+            {'operation': operation, 'parameter': 'regions'},
+            'The regions parameter must be a list of AWS region names, e.g. '
+            '["us-east-1", "eu-west-1"].',
+        )
+
+    if any(not isinstance(region, str) or not region.strip() for region in regions):
+        return [], format_response(
+            'error',
+            {'operation': operation, 'parameter': 'regions', 'regions': list(regions)},
+            'Every entry in regions must be a non-empty AWS region name.',
+        )
+
+    deduplicated = list(dict.fromkeys(region.strip() for region in regions))
+
+    if operation in _SINGLE_REGION_OPERATIONS and len(deduplicated) > 1:
+        return [], format_response(
+            'error',
+            {
+                'operation': operation,
+                'parameter': 'regions',
+                'regions': deduplicated,
+                'account_global_operations': sorted(_SINGLE_REGION_OPERATIONS),
+            },
+            f'{operation} returns account-global data and accepts at most one region; '
+            f'{len(deduplicated)} were provided. Pass a single region or omit regions.',
+        )
+
+    return deduplicated, None
 
 
 def _validate_parseable_params(

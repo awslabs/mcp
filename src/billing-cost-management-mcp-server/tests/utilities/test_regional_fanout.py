@@ -14,6 +14,7 @@
 
 """Tests for generic regional fan-out utilities."""
 
+import base64
 import pytest
 from awslabs.billing_cost_management_mcp_server.utilities.regional_fanout import (
     RegionalTokenError,
@@ -21,6 +22,7 @@ from awslabs.billing_cost_management_mcp_server.utilities.regional_fanout import
     decode_regional_next_token,
     encode_regional_next_token,
     fan_out_regions,
+    is_regional_next_token,
 )
 from botocore.exceptions import ClientError
 from unittest.mock import AsyncMock, MagicMock
@@ -134,3 +136,20 @@ def test_regional_next_token_rejects_unsupported_region():
 
     assert exc_info.value.reason == 'unsupported_regions'
     assert exc_info.value.details['regions'] == ['moon-1']
+
+
+@pytest.mark.parametrize(
+    ('token', 'expected'),
+    [
+        (encode_regional_next_token({'moon-1': 'service-token'}), True),
+        (None, False),
+        ('', False),
+        ('native-service-token', False),
+        (base64.b64encode(b'["not-a-map"]').decode(), False),
+        (base64.b64encode(b'{}').decode(), False),
+        (base64.b64encode(b'{"us-east-1": ""}').decode(), False),
+    ],
+)
+def test_is_regional_next_token(token, expected):
+    """Regional tokens are recognized without knowing which regions are expected."""
+    assert is_regional_next_token(token) is expected

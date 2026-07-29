@@ -707,7 +707,7 @@ class TestDispatchRouting:
     """Tests for operation routing in the single dispatch tool."""
 
     async def test_routes_to_operation_with_client(self, mock_ctx):
-        """With an explicit region, the tool creates a client and routes to the handler."""
+        """With no regions, the tool creates a default-region client and routes to the handler."""
         with (
             patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create,
             patch(f'{_TOOLS_MODULE}.get_automation_event', new_callable=AsyncMock) as mock_op,
@@ -717,15 +717,15 @@ class TestDispatchRouting:
             mock_create.return_value = fake_client
 
             result = await automation_fn(
-                mock_ctx, operation='get_automation_event', event_id=EVENT_ID, region='us-east-1'
+                mock_ctx, operation='get_automation_event', event_id=EVENT_ID
             )
 
             assert result['status'] == STATUS_SUCCESS
-            mock_create.assert_called_once_with('us-east-1')
+            mock_create.assert_called_once_with(None)
             mock_op.assert_awaited_once_with(mock_ctx, fake_client, EVENT_ID)
 
-    async def test_passes_region_through(self, mock_ctx):
-        """The region parameter is forwarded to the client factory."""
+    async def test_single_region_forwarded_to_client_factory(self, mock_ctx):
+        """One region for an account-global op becomes that operation's endpoint."""
         with (
             patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create,
             patch(
@@ -736,7 +736,7 @@ class TestDispatchRouting:
             mock_create.return_value = MagicMock()
 
             await automation_fn(
-                mock_ctx, operation='get_enrollment_configuration', region='us-west-2'
+                mock_ctx, operation='get_enrollment_configuration', regions=['us-west-2']
             )
 
             mock_create.assert_called_once_with('us-west-2')
@@ -758,7 +758,6 @@ class TestDispatchRouting:
                 operation='list_automation_rule_preview',
                 rule_type='AccountRule',
                 recommended_action_types='["UpgradeEbsVolumeType"]',
-                region='us-east-1',
             )
 
             mock_op.assert_awaited_once_with(
@@ -820,7 +819,7 @@ class TestDispatchRouting:
     async def test_every_operation_routes_to_its_handler(
         self, mock_ctx, operation, handler, extra_kwargs
     ):
-        """With an explicit region, each operation dispatches to its named handler."""
+        """With no regions, each operation dispatches to its named single-region handler."""
         with (
             patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create,
             patch(f'{_TOOLS_MODULE}.{handler}', new_callable=AsyncMock) as mock_op,
@@ -828,9 +827,7 @@ class TestDispatchRouting:
             mock_op.return_value = {'status': STATUS_SUCCESS, 'data': {}}
             mock_create.return_value = MagicMock()
 
-            result = await automation_fn(
-                mock_ctx, operation=operation, region='us-east-1', **extra_kwargs
-            )
+            result = await automation_fn(mock_ctx, operation=operation, **extra_kwargs)
 
             assert result['status'] == STATUS_SUCCESS
             mock_op.assert_awaited_once()
@@ -845,16 +842,16 @@ class TestDispatchRouting:
             assert result['status'] == STATUS_ERROR
             assert result['data']['provided_operation'] == 'delete_everything'
 
-    async def test_unsupported_operation_with_explicit_region(self, mock_ctx):
-        """An unknown explicit-region operation follows the single-region error path."""
+    async def test_unsupported_operation_with_regions(self, mock_ctx):
+        """An unknown operation with regions follows the multi-region error path."""
         with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             result = await automation_fn(
-                mock_ctx, operation='delete_everything', region='us-east-1'
+                mock_ctx, operation='delete_everything', regions=['us-east-1', 'eu-west-1']
             )
 
         assert result['status'] == STATUS_ERROR
         assert result['data']['provided_operation'] == 'delete_everything'
-        mock_create.assert_called_once_with('us-east-1')
+        mock_create.assert_not_called()
 
     async def test_handles_exception(self, mock_ctx):
         """Exceptions are routed through handle_aws_error."""
@@ -866,7 +863,7 @@ class TestDispatchRouting:
             mock_handle.return_value = {'status': STATUS_ERROR, 'message': 'boom'}
 
             result = await automation_fn(
-                mock_ctx, operation='get_automation_event', event_id=EVENT_ID, region='us-east-1'
+                mock_ctx, operation='get_automation_event', event_id=EVENT_ID
             )
 
             assert result['status'] == STATUS_ERROR
@@ -960,7 +957,6 @@ class TestFilterValidation:
                 mock_ctx,
                 operation='list_automation_events',
                 filters='[{"name": "EventStatus", "values": ["Complete"]}]',
-                region='us-east-1',
             )
 
             assert result['status'] == STATUS_SUCCESS
@@ -981,7 +977,6 @@ class TestFilterValidation:
                 mock_ctx,
                 operation='list_automation_events',
                 filters='[{"name": "Bogus", "values": ["x"]}]',
-                region='us-east-1',
             )
 
             assert result['status'] == STATUS_SUCCESS
@@ -1170,6 +1165,11 @@ def test_partition_resource_not_found_errors():
     }
 
 
+# The regions passed as `regions` by the fan-out tests. Callers choose the set now, so
+# tests assert against this list rather than any list built into the tool.
+_REGIONS = ['us-east-1', 'eu-west-1', 'ap-south-1', 'sa-east-1', 'us-west-2']
+
+
 def _list_factory(method, list_key, region_pages, errors=()):
     """Build a per-region client factory for a fan-out list operation.
 
@@ -1196,8 +1196,8 @@ def _list_factory(method, list_key, region_pages, errors=()):
 
 
 @pytest.mark.asyncio
-class TestGlobalFanOut:
-    """Tests for the multi-region fan-out (no explicit region)."""
+class TestMultiRegionFanOut:
+    """Tests for the multi-region fan-out driven by an explicit `regions` list."""
 
     @pytest.mark.parametrize(
         ('operation', 'kwargs', 'parameter'),
@@ -1237,7 +1237,7 @@ class TestGlobalFanOut:
     ):
         """Malformed structured input returns one validation error and creates no clients."""
         with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
-            result = await automation_fn(mock_ctx, operation=operation, **kwargs)
+            result = await automation_fn(mock_ctx, operation=operation, regions=_REGIONS, **kwargs)
 
         assert result['status'] == STATUS_ERROR
         assert result['error_type'] == 'validation_error'
@@ -1248,7 +1248,7 @@ class TestGlobalFanOut:
         mock_ctx.error.assert_not_awaited()
 
     async def test_merges_items_across_regions(self, mock_ctx):
-        """With no region, a list op queries every region and merges the items."""
+        """A list op queries each requested region and merges the items."""
         factory = _list_factory(
             'list_recommended_actions',
             'recommendedActions',
@@ -1265,7 +1265,10 @@ class TestGlobalFanOut:
             mock_create.side_effect = factory
 
             result = await automation_fn(
-                mock_ctx, operation='list_recommended_actions', max_pages=1
+                mock_ctx,
+                operation='list_recommended_actions',
+                regions=_REGIONS,
+                max_pages=1,
             )
 
         data = result['data']
@@ -1273,11 +1276,65 @@ class TestGlobalFanOut:
         assert data['count'] == 2
         ids = sorted(item['recommended_action_id'] for item in data['recommended_actions'])
         assert ids == ['a1', 'a2']
-        assert set(data['regions_queried']) == set(
-            automation_tools.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS
-        )
+        assert data['regions_queried'] == _REGIONS
         assert 'region_next_tokens' not in data
         assert 'region_errors' not in data
+
+    async def test_queries_only_the_requested_regions(self, mock_ctx):
+        """Fan-out is scoped to the caller's list, not any built-in region set."""
+        factory = _list_factory('list_recommended_actions', 'recommendedActions', {})
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            mock_create.side_effect = factory
+
+            result = await automation_fn(
+                mock_ctx,
+                operation='list_recommended_actions',
+                regions=['eu-central-1', 'us-east-2'],
+                max_pages=1,
+            )
+
+        regions_called = [call.args[0] for call in mock_create.call_args_list]
+        assert regions_called == ['eu-central-1', 'us-east-2']
+        assert result['data']['regions_queried'] == ['eu-central-1', 'us-east-2']
+
+    async def test_single_element_list_uses_merged_shape(self, mock_ctx):
+        """A one-region list still merges: items are stamped and regions_queried is present."""
+        factory = _list_factory(
+            'list_recommended_actions',
+            'recommendedActions',
+            {'eu-west-1': {'recommendedActions': [{'recommendedActionId': 'a1'}]}},
+        )
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            mock_create.side_effect = factory
+
+            result = await automation_fn(
+                mock_ctx,
+                operation='list_recommended_actions',
+                regions=['eu-west-1'],
+                max_pages=1,
+            )
+
+        data = result['data']
+        assert result['status'] == STATUS_SUCCESS
+        assert data['regions_queried'] == ['eu-west-1']
+        assert data['recommended_actions'][0]['region'] == 'eu-west-1'
+
+    async def test_duplicate_regions_are_queried_once(self, mock_ctx):
+        """Repeated entries collapse so no region is queried twice."""
+        factory = _list_factory('list_recommended_actions', 'recommendedActions', {})
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            mock_create.side_effect = factory
+
+            result = await automation_fn(
+                mock_ctx,
+                operation='list_recommended_actions',
+                regions=['us-east-1', 'us-east-1', 'eu-west-1'],
+                max_pages=1,
+            )
+
+        regions_called = [call.args[0] for call in mock_create.call_args_list]
+        assert regions_called == ['us-east-1', 'eu-west-1']
+        assert result['data']['regions_queried'] == ['us-east-1', 'eu-west-1']
 
     @pytest.mark.parametrize(
         ('operation', 'method', 'service_key', 'result_key', 'item'),
@@ -1317,6 +1374,7 @@ class TestGlobalFanOut:
             result = await automation_fn(
                 mock_ctx,
                 operation=operation,
+                regions=_REGIONS,
                 rule_type='AccountRule',
                 recommended_action_types='["UpgradeEbsVolumeType"]',
                 organization_scope='{"accountIds": ["123456789012"]}',
@@ -1327,7 +1385,7 @@ class TestGlobalFanOut:
         assert result['status'] == STATUS_SUCCESS
         assert result['data']['count'] == 1
         assert result['data'][result_key][0]['region'] == 'eu-west-1'
-        assert mock_create.call_count == len(automation_tools.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS)
+        assert mock_create.call_count == len(_REGIONS)
 
         request = getattr(clients['eu-west-1'], method).call_args.kwargs
         assert request['recommendedActionTypes'] == ['UpgradeEbsVolumeType']
@@ -1347,7 +1405,10 @@ class TestGlobalFanOut:
             mock_create.side_effect = factory
 
             result = await automation_fn(
-                mock_ctx, operation='list_automation_event_summaries', max_pages=1
+                mock_ctx,
+                operation='list_automation_event_summaries',
+                regions=_REGIONS,
+                max_pages=1,
             )
 
         summaries = result['data']['automation_event_summaries']
@@ -1365,12 +1426,15 @@ class TestGlobalFanOut:
             mock_create.side_effect = factory
 
             result = await automation_fn(
-                mock_ctx, operation='list_recommended_actions', max_pages=1
+                mock_ctx,
+                operation='list_recommended_actions',
+                regions=_REGIONS,
+                max_pages=1,
             )
 
         assert result['data']['recommended_actions'][0]['region'] == 'us-west-2'
 
-    async def test_reports_opaque_global_next_token(self, mock_ctx):
+    async def test_reports_opaque_multi_region_next_token(self, mock_ctx):
         """Regional pagination state is returned as one schema-compatible string."""
         factory = _list_factory(
             'list_recommended_actions',
@@ -1386,20 +1450,21 @@ class TestGlobalFanOut:
             mock_create.side_effect = factory
 
             result = await automation_fn(
-                mock_ctx, operation='list_recommended_actions', max_pages=1
+                mock_ctx,
+                operation='list_recommended_actions',
+                regions=_REGIONS,
+                max_pages=1,
             )
 
         next_token = result['data']['next_token']
         assert isinstance(next_token, str)
-        regions_tokens, error = parse_regional_next_token(
-            next_token, automation_tools.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS
-        )
+        regions_tokens, error = parse_regional_next_token(next_token, _REGIONS)
         assert error is None
         assert regions_tokens == {'eu-west-1': 'MORE'}
         assert 'region_next_tokens' not in result['data']
 
     async def test_resume_queries_only_mapped_regions(self, mock_ctx):
-        """An opaque global token resumes only the regions represented in its state."""
+        """An opaque token resumes only the regions represented in its state."""
         seen = {}
 
         def factory(region=None):
@@ -1414,6 +1479,7 @@ class TestGlobalFanOut:
             await automation_fn(
                 mock_ctx,
                 operation='list_recommended_actions',
+                regions=_REGIONS,
                 next_token=encode_regional_next_token({'eu-west-1': 'abc'}),
                 max_pages=1,
             )
@@ -1423,17 +1489,31 @@ class TestGlobalFanOut:
         _, kwargs = seen['eu-west-1'].list_recommended_actions.call_args
         assert kwargs['nextToken'] == 'abc'
 
+    async def test_resume_rejects_token_region_outside_regions(self, mock_ctx):
+        """A token naming a region absent from `regions` is rejected, not silently resumed."""
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            result = await automation_fn(
+                mock_ctx,
+                operation='list_recommended_actions',
+                regions=['us-east-1'],
+                next_token=encode_regional_next_token({'eu-west-1': 'abc'}),
+            )
+
+        assert result['status'] == STATUS_ERROR
+        assert result['data']['unsupported_regions'] == ['eu-west-1']
+        mock_create.assert_not_called()
+
     @pytest.mark.parametrize(
         ('payload', 'message_fragment'),
         [
             ([], 'region-to-token map'),
             ({}, 'empty'),
-            ({'moon-1': 'abc'}, 'unsupported region'),
+            ({'moon-1': 'abc'}, 'absent from the'),
             ({'us-east-1': ''}, 'non-empty string'),
             ({'us-east-1': None}, 'non-empty string'),
         ],
     )
-    async def test_rejects_invalid_global_token_state(self, mock_ctx, payload, message_fragment):
+    async def test_rejects_invalid_token_state(self, mock_ctx, payload, message_fragment):
         """Invalid regional state is rejected before any clients are created."""
         next_token = base64.b64encode(json.dumps(payload, separators=(',', ':')).encode()).decode()
 
@@ -1441,6 +1521,7 @@ class TestGlobalFanOut:
             result = await automation_fn(
                 mock_ctx,
                 operation='list_recommended_actions',
+                regions=_REGIONS,
                 next_token=next_token,
             )
 
@@ -1460,7 +1541,10 @@ class TestGlobalFanOut:
             mock_create.side_effect = factory
 
             result = await automation_fn(
-                mock_ctx, operation='list_recommended_actions', max_pages=1
+                mock_ctx,
+                operation='list_recommended_actions',
+                regions=_REGIONS,
+                max_pages=1,
             )
 
         data = result['data']
@@ -1493,7 +1577,10 @@ class TestGlobalFanOut:
             mock_create.side_effect = factory
 
             result = await automation_fn(
-                mock_ctx, operation='list_recommended_actions', max_pages=1
+                mock_ctx,
+                operation='list_recommended_actions',
+                regions=_REGIONS,
+                max_pages=1,
             )
 
         error = result['data']['region_errors']['ap-south-1']
@@ -1509,29 +1596,33 @@ class TestGlobalFanOut:
             'list_recommended_actions',
             'recommendedActions',
             {},
-            errors=tuple(automation_tools.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS),
+            errors=tuple(_REGIONS),
         )
         with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             mock_create.side_effect = factory
 
             result = await automation_fn(
-                mock_ctx, operation='list_recommended_actions', max_pages=1
+                mock_ctx,
+                operation='list_recommended_actions',
+                regions=_REGIONS,
+                max_pages=1,
             )
 
         assert result['status'] == STATUS_ERROR
-        assert len(result['data']['region_errors']) == len(
-            automation_tools.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS
-        )
+        assert len(result['data']['region_errors']) == len(_REGIONS)
 
-    async def test_plain_token_rejected_in_global_mode(self, mock_ctx):
-        """A native single-region token is rejected with guidance to pass `region`."""
+    async def test_plain_token_rejected_in_multi_region_mode(self, mock_ctx):
+        """A native single-region token is rejected when a regions list is given."""
         with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             result = await automation_fn(
-                mock_ctx, operation='list_recommended_actions', next_token='plaintoken=='
+                mock_ctx,
+                operation='list_recommended_actions',
+                regions=_REGIONS,
+                next_token='plaintoken==',
             )
 
         assert result['status'] == STATUS_ERROR
-        assert 'pass `region`' in result['message']
+        assert 'invalid multi-region next_token' in result['message'].lower()
         mock_create.assert_not_called()
 
     async def test_event_steps_treats_not_found_as_empty(self, mock_ctx):
@@ -1553,6 +1644,7 @@ class TestGlobalFanOut:
             result = await automation_fn(
                 mock_ctx,
                 operation='list_automation_event_steps',
+                regions=_REGIONS,
                 event_id=EVENT_ID,
                 max_pages=1,
             )
@@ -1577,15 +1669,14 @@ class TestGlobalFanOut:
             result = await automation_fn(
                 mock_ctx,
                 operation='list_automation_event_steps',
+                regions=_REGIONS,
                 event_id=EVENT_ID,
                 max_pages=1,
             )
 
         assert result['status'] == STATUS_ERROR
         assert 'not found' in result['message'].lower()
-        assert len(result['data']['regions_not_found']) == len(
-            automation_tools.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS
-        )
+        assert len(result['data']['regions_not_found']) == len(_REGIONS)
 
     async def test_event_steps_empty_success_proves_event_exists(self, mock_ctx):
         """A successful empty step list is not confused with a regional miss."""
@@ -1604,6 +1695,7 @@ class TestGlobalFanOut:
             result = await automation_fn(
                 mock_ctx,
                 operation='list_automation_event_steps',
+                regions=_REGIONS,
                 event_id=EVENT_ID,
                 max_pages=1,
             )
@@ -1629,6 +1721,7 @@ class TestGlobalFanOut:
             result = await automation_fn(
                 mock_ctx,
                 operation='list_automation_event_steps',
+                regions=_REGIONS,
                 event_id=EVENT_ID,
                 max_pages=1,
             )
@@ -1641,8 +1734,8 @@ class TestGlobalFanOut:
 
 
 @pytest.mark.asyncio
-class TestGlobalGetAutomationEvent:
-    """Tests for locating an automation event by ID across regions."""
+class TestMultiRegionGetAutomationEvent:
+    """Tests for locating an automation event by ID across the requested regions."""
 
     async def test_found_in_one_region(self, mock_ctx):
         """The event is returned along with the region it was found in."""
@@ -1663,7 +1756,7 @@ class TestGlobalGetAutomationEvent:
             mock_create.side_effect = factory
 
             result = await automation_fn(
-                mock_ctx, operation='get_automation_event', event_id=EVENT_ID
+                mock_ctx, operation='get_automation_event', regions=_REGIONS, event_id=EVENT_ID
             )
 
         assert result['status'] == STATUS_SUCCESS
@@ -1682,14 +1775,12 @@ class TestGlobalGetAutomationEvent:
             mock_create.side_effect = factory
 
             result = await automation_fn(
-                mock_ctx, operation='get_automation_event', event_id=EVENT_ID
+                mock_ctx, operation='get_automation_event', regions=_REGIONS, event_id=EVENT_ID
             )
 
         assert result['status'] == STATUS_ERROR
         assert 'not found' in result['message'].lower()
-        assert set(result['data']['regions_queried']) == set(
-            automation_tools.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS
-        )
+        assert result['data']['regions_queried'] == _REGIONS
 
     async def test_all_regions_fail_does_not_report_not_found(self, mock_ctx):
         """An unavailable search is distinct from a definite absent event."""
@@ -1703,15 +1794,13 @@ class TestGlobalGetAutomationEvent:
             mock_create.side_effect = factory
 
             result = await automation_fn(
-                mock_ctx, operation='get_automation_event', event_id=EVENT_ID
+                mock_ctx, operation='get_automation_event', regions=_REGIONS, event_id=EVENT_ID
             )
 
         assert result['status'] == STATUS_ERROR
         assert 'could not determine' in result['message'].lower()
         assert 'not found' not in result['message'].lower()
-        assert len(result['data']['region_errors']) == len(
-            automation_tools.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS
-        )
+        assert len(result['data']['region_errors']) == len(_REGIONS)
 
     async def test_partial_search_failure_does_not_report_not_found(self, mock_ctx):
         """Not-found responses plus one failed region leave event existence unknown."""
@@ -1728,14 +1817,12 @@ class TestGlobalGetAutomationEvent:
             mock_create.side_effect = factory
 
             result = await automation_fn(
-                mock_ctx, operation='get_automation_event', event_id=EVENT_ID
+                mock_ctx, operation='get_automation_event', regions=_REGIONS, event_id=EVENT_ID
             )
 
         assert result['status'] == STATUS_ERROR
         assert 'could not determine' in result['message'].lower()
-        assert len(result['data']['regions_not_found']) == (
-            len(automation_tools.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS) - 1
-        )
+        assert len(result['data']['regions_not_found']) == len(_REGIONS) - 1
 
     async def test_none_response_is_not_treated_as_found(self, mock_ctx):
         """A defensive None response does not produce a false successful lookup."""
@@ -1752,49 +1839,101 @@ class TestGlobalGetAutomationEvent:
             mock_create.side_effect = factory
 
             result = await automation_fn(
-                mock_ctx, operation='get_automation_event', event_id=EVENT_ID
+                mock_ctx, operation='get_automation_event', regions=_REGIONS, event_id=EVENT_ID
             )
 
         assert result['status'] == STATUS_ERROR
         assert 'not found' in result['message'].lower()
 
+    async def test_searches_only_the_requested_regions(self, mock_ctx):
+        """The event search is scoped to the caller's regions."""
+
+        def factory(region=None):
+            client = MagicMock()
+            client.get_automation_event.side_effect = _NOT_FOUND
+            return client
+
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            mock_create.side_effect = factory
+
+            result = await automation_fn(
+                mock_ctx,
+                operation='get_automation_event',
+                regions=['eu-west-2', 'ca-central-1'],
+                event_id=EVENT_ID,
+            )
+
+        regions_called = [call.args[0] for call in mock_create.call_args_list]
+        assert sorted(regions_called) == ['ca-central-1', 'eu-west-2']
+        assert result['data']['regions_queried'] == ['eu-west-2', 'ca-central-1']
+
+    async def test_no_regions_uses_single_default_region_call(self, mock_ctx):
+        """With no regions, the event lookup is one plain default-region call."""
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            client = MagicMock()
+            client.get_automation_event.return_value = {
+                'eventId': EVENT_ID,
+                'eventStatus': 'Complete',
+            }
+            mock_create.return_value = client
+
+            result = await automation_fn(
+                mock_ctx, operation='get_automation_event', event_id=EVENT_ID
+            )
+
+        mock_create.assert_called_once_with(None)
+        assert result['status'] == STATUS_SUCCESS
+        assert 'found_in_region' not in result['data']
+        assert 'regions_queried' not in result['data']
+
 
 @pytest.mark.asyncio
 class TestRegionRouting:
-    """Tests for single-region vs global routing selection."""
+    """Tests for single-region vs multi-region routing selection."""
 
-    async def test_explicit_region_disables_fan_out(self, mock_ctx):
-        """With an explicit region, a fan-out op makes a single-region call, no fan-out."""
+    async def test_no_regions_makes_one_default_region_call(self, mock_ctx):
+        """Omitting regions keeps the pre-globalization single-region behavior."""
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            client = MagicMock()
+            client.list_recommended_actions.return_value = {'recommendedActions': []}
+            mock_create.return_value = client
+
+            result = await automation_fn(mock_ctx, operation='list_recommended_actions')
+
+        mock_create.assert_called_once_with(None)
+        assert 'regions_queried' not in result['data']
+
+    async def test_empty_regions_list_makes_one_default_region_call(self, mock_ctx):
+        """An empty list is treated the same as omitting regions."""
         with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             client = MagicMock()
             client.list_recommended_actions.return_value = {'recommendedActions': []}
             mock_create.return_value = client
 
             result = await automation_fn(
-                mock_ctx, operation='list_recommended_actions', region='us-west-2'
+                mock_ctx, operation='list_recommended_actions', regions=[]
             )
 
-        mock_create.assert_called_once_with('us-west-2')
+        mock_create.assert_called_once_with(None)
         assert 'regions_queried' not in result['data']
 
-    async def test_explicit_region_rejects_global_next_token(self, mock_ctx):
-        """A global token with an explicit region yields a corrective validation error."""
+    async def test_single_region_rejects_multi_region_next_token(self, mock_ctx):
+        """A multi-region token without a regions list yields a corrective error."""
         token = encode_regional_next_token({'us-west-2': 'native-token'})
 
         with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             result = await automation_fn(
                 mock_ctx,
                 operation='list_recommended_actions',
-                region='us-west-2',
                 next_token=token,
             )
 
         assert result['status'] == STATUS_ERROR
-        assert 'only valid when region is omitted' in result['message']
+        assert 'cannot be used for a single-region request' in result['message']
         mock_create.assert_not_called()
 
-    async def test_explicit_region_accepts_native_next_token(self, mock_ctx):
-        """A native service token proceeds through the explicit-region path."""
+    async def test_single_region_accepts_native_next_token(self, mock_ctx):
+        """A native service token proceeds through the single-region path."""
         with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             client = MagicMock()
             client.list_recommended_actions.return_value = {'recommendedActions': []}
@@ -1803,15 +1942,14 @@ class TestRegionRouting:
             result = await automation_fn(
                 mock_ctx,
                 operation='list_recommended_actions',
-                region='us-west-2',
                 next_token='native-token',
             )
 
         assert result['status'] == STATUS_SUCCESS
         assert client.list_recommended_actions.call_args.kwargs['nextToken'] == 'native-token'
 
-    async def test_account_global_op_uses_single_call_without_region(self, mock_ctx):
-        """An account-global op with no region makes one default-region call, no fan-out."""
+    async def test_account_global_op_uses_single_call_without_regions(self, mock_ctx):
+        """An account-global op with no regions makes one default-region call, no fan-out."""
         with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             client = MagicMock()
             client.list_automation_rules.return_value = {'automationRules': []}
@@ -1822,9 +1960,146 @@ class TestRegionRouting:
         mock_create.assert_called_once_with(None)
         assert 'regions_queried' not in result['data']
 
+    @pytest.mark.parametrize(
+        'operation,extra_kwargs',
+        [
+            ('get_automation_rule', {'rule_arn': RULE_ARN}),
+            ('get_enrollment_configuration', {}),
+            ('list_accounts', {}),
+            ('list_automation_rules', {}),
+            ('list_tags_for_resource', {'resource_arn': RESOURCE_ARN}),
+        ],
+    )
+    async def test_account_global_op_accepts_one_region(self, mock_ctx, operation, extra_kwargs):
+        """One region targets that endpoint and keeps the native single-region shape."""
+        with (
+            patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create,
+            patch(f'{_TOOLS_MODULE}.{operation}', new_callable=AsyncMock) as mock_op,
+        ):
+            mock_op.return_value = {'status': STATUS_SUCCESS, 'data': {}}
+            mock_create.return_value = MagicMock()
+
+            result = await automation_fn(
+                mock_ctx, operation=operation, regions=['eu-west-1'], **extra_kwargs
+            )
+
+        assert result['status'] == STATUS_SUCCESS
+        mock_create.assert_called_once_with('eu-west-1')
+
+    @pytest.mark.parametrize(
+        'operation,extra_kwargs',
+        [
+            ('get_automation_rule', {'rule_arn': RULE_ARN}),
+            ('get_enrollment_configuration', {}),
+            ('list_accounts', {}),
+            ('list_automation_rules', {}),
+            ('list_tags_for_resource', {'resource_arn': RESOURCE_ARN}),
+        ],
+    )
+    async def test_account_global_op_rejects_multiple_regions(
+        self, mock_ctx, operation, extra_kwargs
+    ):
+        """Account-global data would be repeated per region, so 2+ regions is an error."""
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            result = await automation_fn(
+                mock_ctx,
+                operation=operation,
+                regions=['us-east-1', 'eu-west-1'],
+                **extra_kwargs,
+            )
+
+        assert result['status'] == STATUS_ERROR
+        assert result['data']['parameter'] == 'regions'
+        assert 'account-global' in result['message']
+        mock_create.assert_not_called()
+
+    async def test_account_global_op_accepts_duplicates_of_one_region(self, mock_ctx):
+        """Duplicates collapse to one region, so they do not trip the at-most-one rule."""
+        with (
+            patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create,
+            patch(f'{_TOOLS_MODULE}.list_automation_rules', new_callable=AsyncMock) as mock_op,
+        ):
+            mock_op.return_value = {'status': STATUS_SUCCESS, 'data': {}}
+            mock_create.return_value = MagicMock()
+
+            result = await automation_fn(
+                mock_ctx,
+                operation='list_automation_rules',
+                regions=['eu-west-1', 'eu-west-1'],
+            )
+
+        assert result['status'] == STATUS_SUCCESS
+        mock_create.assert_called_once_with('eu-west-1')
+
+    @pytest.mark.parametrize(
+        'regions,message_fragment',
+        [
+            (['us-east-1', '  '], 'non-empty'),
+            (['', 'eu-west-1'], 'non-empty'),
+            ([None], 'non-empty'),
+            (['us-east-1', 5], 'non-empty'),
+            ('us-east-1', 'must be a list'),
+            ({'us-east-1': 'x'}, 'must be a list'),
+        ],
+    )
+    async def test_malformed_regions_rejected(self, mock_ctx, regions, message_fragment):
+        """Blank, non-string, and non-list region inputs error before any AWS call."""
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            result = await automation_fn(
+                mock_ctx, operation='list_recommended_actions', regions=regions
+            )
+
+        assert result['status'] == STATUS_ERROR
+        assert result['data']['parameter'] == 'regions'
+        assert message_fragment in result['message']
+        mock_create.assert_not_called()
+
+    async def test_region_names_are_stripped(self, mock_ctx):
+        """Surrounding whitespace is trimmed before the region reaches client creation."""
+        factory = _list_factory('list_recommended_actions', 'recommendedActions', {})
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            mock_create.side_effect = factory
+
+            result = await automation_fn(
+                mock_ctx,
+                operation='list_recommended_actions',
+                regions=[' us-east-1 ', 'eu-west-1'],
+                max_pages=1,
+            )
+
+        regions_called = [call.args[0] for call in mock_create.call_args_list]
+        assert regions_called == ['us-east-1', 'eu-west-1']
+        assert result['data']['regions_queried'] == ['us-east-1', 'eu-west-1']
+
+    async def test_unknown_region_surfaces_as_region_error(self, mock_ctx):
+        """Region names are not validated locally; failures surface per region."""
+
+        def factory(region=None):
+            client = MagicMock()
+            if region == 'moon-1':
+                client.list_recommended_actions.side_effect = EndpointConnectionError(
+                    endpoint_url='https://compute-optimizer-automation.moon-1.amazonaws.com'
+                )
+            else:
+                client.list_recommended_actions.return_value = {'recommendedActions': []}
+            return client
+
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            mock_create.side_effect = factory
+
+            result = await automation_fn(
+                mock_ctx,
+                operation='list_recommended_actions',
+                regions=['us-east-1', 'moon-1'],
+                max_pages=1,
+            )
+
+        assert result['status'] == STATUS_SUCCESS
+        assert result['data']['region_errors']['moon-1']['error_type'] == 'aws_connection_error'
+
 
 @pytest.mark.asyncio
-class TestGlobalSqlOffload:
+class TestMultiRegionSqlOffload:
     """A large merged multi-region response offloads to SQL and preserves region metadata."""
 
     async def test_large_merged_response_offloaded(self, mock_ctx):
@@ -1852,7 +2127,10 @@ class TestGlobalSqlOffload:
             mock_create.side_effect = factory
 
             result = await automation_fn(
-                mock_ctx, operation='list_recommended_actions', max_pages=1
+                mock_ctx,
+                operation='list_recommended_actions',
+                regions=_REGIONS,
+                max_pages=1,
             )
 
         data = result['data']
@@ -1862,11 +2140,7 @@ class TestGlobalSqlOffload:
         )
         assert data['row_count'] == 60
         # regions_queried is passed as offload metadata so it survives the SQL conversion.
-        assert set(data['regions_queried']) == set(
-            automation_tools.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS
-        )
-        regions_tokens, error = parse_regional_next_token(
-            data['next_token'], automation_tools.COMPUTE_OPTIMIZER_AUTOMATION_REGIONS
-        )
+        assert data['regions_queried'] == _REGIONS
+        regions_tokens, error = parse_regional_next_token(data['next_token'], _REGIONS)
         assert error is None
         assert regions_tokens == {'us-east-1': 'more-pages'}

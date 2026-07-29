@@ -195,19 +195,12 @@ def encode_regional_next_token(region_next_tokens: Mapping[str, str]) -> str:
     return base64.b64encode(payload.encode('utf-8')).decode('ascii')
 
 
-def decode_regional_next_token(
-    next_token: Optional[str], supported_regions: Sequence[str]
-) -> Dict[str, Optional[str]]:
-    """Decode and validate opaque per-region pagination state.
-
-    Omitting the token starts a request in every supported region.
+def _decode_region_map(next_token: str) -> Dict[str, str]:
+    """Decode an opaque token into its per-region pagination map.
 
     Raises:
         RegionalTokenError: If the token is malformed or contains invalid state.
     """
-    if not next_token:
-        return dict.fromkeys(supported_regions)
-
     try:
         decoded = base64.b64decode(next_token.encode('ascii'), validate=True).decode('utf-8')
         parsed = json.loads(decoded)
@@ -226,6 +219,39 @@ def decode_regional_next_token(
     )
     if invalid_regions:
         raise RegionalTokenError('invalid_region_tokens', regions=invalid_regions)
+
+    return dict(parsed)
+
+
+def is_regional_next_token(next_token: Optional[str]) -> bool:
+    """Report whether a token carries per-region pagination state.
+
+    Lets callers detect a multi-region token before they know which regions it
+    should be validated against.
+    """
+    if not next_token:
+        return False
+    try:
+        _decode_region_map(next_token)
+    except RegionalTokenError:
+        return False
+    return True
+
+
+def decode_regional_next_token(
+    next_token: Optional[str], supported_regions: Sequence[str]
+) -> Dict[str, Optional[str]]:
+    """Decode and validate opaque per-region pagination state.
+
+    Omitting the token starts a request in every supported region.
+
+    Raises:
+        RegionalTokenError: If the token is malformed or contains invalid state.
+    """
+    if not next_token:
+        return dict.fromkeys(supported_regions)
+
+    parsed = _decode_region_map(next_token)
 
     unsupported_regions = sorted(set(parsed) - set(supported_regions))
     if unsupported_regions:
@@ -247,33 +273,33 @@ def parse_regional_next_token(
         if error.reason == 'decode_error':
             data['supported_regions'] = supported_region_list
             message = (
-                'Invalid global next_token. If this token came from a global response, pass '
-                'it back unchanged. If it came from an explicit-region query, pass `region` '
-                f'along with it. Decode error: {error.details["cause"]}'
+                'Invalid multi-region next_token. Pass the next_token from the previous '
+                'response back unchanged, along with the same `regions` list. Decode error: '
+                f'{error.details["cause"]}'
             )
         elif error.reason == 'not_region_map':
             message = (
-                'Invalid global next_token: decoded pagination state must be a non-empty '
-                'region-to-token map. Pass the previous global response next_token unchanged.'
+                'Invalid multi-region next_token: decoded pagination state must be a non-empty '
+                'region-to-token map. Pass the previous response next_token unchanged.'
             )
         elif error.reason == 'empty_region_map':
             message = (
-                'Invalid global next_token: the regional pagination map is empty. Start a new '
-                'global query by omitting next_token.'
+                'Invalid multi-region next_token: the regional pagination map is empty. Start '
+                'a new query by omitting next_token.'
             )
         elif error.reason == 'invalid_region_tokens':
             data['invalid_regions'] = error.details['regions']
             message = (
-                'Invalid global next_token: every regional token must be a non-empty string. '
-                'Pass the previous global response next_token unchanged.'
+                'Invalid multi-region next_token: every regional token must be a non-empty '
+                'string. Pass the previous response next_token unchanged.'
             )
         else:
             unsupported_regions = error.details['regions']
             data['unsupported_regions'] = unsupported_regions
             data['supported_regions'] = supported_region_list
             message = (
-                'Invalid global next_token: it contains unsupported region key(s): '
-                f'{", ".join(unsupported_regions)}. Pass the previous global response '
-                'next_token unchanged.'
+                'Invalid multi-region next_token: it contains region key(s) absent from the '
+                f'`regions` list: {", ".join(unsupported_regions)}. Pass the same `regions` '
+                'list the token was produced with.'
             )
         return {}, format_response('error', data, message)
