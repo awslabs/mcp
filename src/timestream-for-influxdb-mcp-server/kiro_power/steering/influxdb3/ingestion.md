@@ -181,7 +181,7 @@ Telegraf automatically batches writes — default `metric_batch_size = 1000`. In
 | 400 | Malformed line protocol | Check syntax |
 | 401 | Invalid or expired token | Verify token has write permission |
 | 404 | Database not found | Verify names or IDs |
-| 413 | Payload too large | Reduce batch size |
+| 413 | Request entity too large | Reduce batch size |
 | 422 | Writing the line protocol points would exceed the maximum number of tables, databases, columns, tags, or fields | Check line protocol and existing data |
 | 429 | Too many requests | Back off and retry with exponential backoff |
 | 500 | Server error | Retry; check instance health via `/health` |
