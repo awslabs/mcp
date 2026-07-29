@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- **Code Interpreter `list_files`** — list files and directories in a sandbox session, so an agent can discover what a previous step wrote instead of guessing paths. Accepts an optional `directory_path` and returns structured file paths alongside the raw listing text
+
 ### Fixed
 
 - **Browser `browser_evaluate`** — preserve non-ASCII text (CJK, emoji) in object/array results instead of emitting `\uXXXX` escapes, matching the scalar-string return path (`ensure_ascii=False`)
