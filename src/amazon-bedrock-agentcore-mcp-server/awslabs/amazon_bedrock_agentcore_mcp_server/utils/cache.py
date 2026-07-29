@@ -14,7 +14,9 @@
 
 from ..config import doc_config
 from . import doc_fetcher, indexer, text_processor
+from loguru import logger
 from typing import Dict
+from urllib.error import URLError
 
 
 # Global state
@@ -45,7 +47,16 @@ def load_links_only() -> None:
         _INDEX = indexer.IndexSearch()
 
     for src in doc_config.llm_texts_url:
-        for title, url in doc_fetcher.parse_llms_txt(src):
+        try:
+            entries = doc_fetcher.parse_llms_txt(src)
+        except (URLError, OSError) as e:
+            logger.warning(
+                f'Failed to fetch llms.txt from {src}: {e}. '
+                f'Documentation search will be unavailable.'
+            )
+            continue
+
+        for title, url in entries:
             # Record curated display title and placeholder cache
             _URL_TITLES[url] = title
             _URL_CACHE.setdefault(url, None)

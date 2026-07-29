@@ -51,7 +51,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-aws-documentation-mcp-server"
-version = "1.1.27"
+version = "1.1.28"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -80,7 +80,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "loguru", specifier = ">=0.7.0" },
     { name = "markdownify", specifier = ">=1.1.0" },
-    { name = "mcp", extras = ["cli"], specifier = ">=1.23.0" },
+    { name = "mcp", extras = ["cli"], specifier = ">=1.23.0,<2.0.0" },
     { name = "pydantic", specifier = ">=2.10.6" },
 ]
 

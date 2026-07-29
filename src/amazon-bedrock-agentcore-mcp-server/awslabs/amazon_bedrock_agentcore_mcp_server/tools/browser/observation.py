@@ -328,7 +328,7 @@ class ObservationTools:
             if isinstance(result, (str, int, float, bool)):
                 return f'Result: {result}'
 
-            return f'Result:\n{json.dumps(result, indent=2, default=str)}'
+            return f'Result:\n{json.dumps(result, indent=2, default=str, ensure_ascii=False)}'
 
         except Exception as e:
             error_msg = f'Error evaluating JavaScript: {e}'
