@@ -158,7 +158,7 @@ Detection: use `SHOW FIELD KEYS FROM <measurement>` (InfluxQL) to check current 
 Resolution:
 - You **cannot change** a field's type after first write. Options:
   1. Write to a new field name (e.g., `temp_f` instead of `temp`) and update queries.
-  2. Delete all data in the measurement and rewrite with the correct type.
+  2. Delete all data in the measurement and rewrite with the correct type. ⚠️ irreversible — confirm with the user first.
   3. Create a new measurement with the correct schema and migrate data via a task.
 
 ## Series Cardinality
