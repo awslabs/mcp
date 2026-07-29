@@ -40,20 +40,19 @@ MCP servers enhance the capabilities of foundation models (FMs) in several key w
 ## Getting Started Essentials
 
 <div style={{
-  background: '#F9FAFB',
-  border: '1px solid #E5E7EB',
-  borderLeft: '4px solid #0078D4',
-  padding: '1.25rem',
+  background: '#FFF8EE',
+  border: '1px solid #FADFB5',
+  padding: '1.25rem 1.5rem',
   marginBottom: '2rem',
-  borderRadius: '4px',
+  borderRadius: '8px',
   display: 'flex',
   alignItems: 'center',
   gap: '1rem'
 }}>
 
   <div>
-    <div style={{ fontWeight: 600, color: '#111827', marginBottom: '0.25rem' }}>New from AWS re:Invent 2025!</div>
-    <div style={{ color: '#6B7280', fontSize: '0.875rem' }}>Essential MCP servers for AWS resource management</div>
+    <div style={{ fontWeight: 700, color: '#232F3E', marginBottom: '0.25rem' }}>New from AWS re:Invent 2025!</div>
+    <div style={{ color: '#5F6B7A', fontSize: '0.875rem' }}>Essential MCP servers for AWS resource management</div>
   </div>
 </div>
 
