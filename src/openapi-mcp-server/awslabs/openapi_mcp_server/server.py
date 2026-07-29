@@ -31,6 +31,7 @@ from awslabs.openapi_mcp_server.utils.openapi import load_openapi_spec
 from awslabs.openapi_mcp_server.utils.openapi_validator import validate_openapi_spec
 from fastmcp import FastMCP
 from fastmcp.server.providers.openapi import MCPType, OpenAPIProvider, RouteMap
+from fastmcp.utilities.openapi import format_description_with_responses
 from typing import Any, Dict
 
 
@@ -235,8 +236,6 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
             Request Body, Responses with examples) than the old
             ``desc | Returns: ... | Example: ...`` format.
             """
-            from fastmcp.utilities.openapi import format_description_with_responses
-
             component.description = format_description_with_responses(
                 component.description or '',
                 route.responses if getattr(route, 'responses', None) else {},

@@ -44,6 +44,50 @@ def mock_config():
 # (``FastMCP``/``OpenAPIProvider`` each called once) that ``from_openapi`` now
 # owns internally. End-to-end server construction is exercised behaviorally in
 # ``tests/test_new_features.py``.
+#
+# The one assertion in that test that was NOT a construction mechanic — that the
+# operator's SSRF opt-in flags are forwarded into ``load_openapi_spec`` — is kept
+# below as a focused, refactor-proof test. It references neither ``from_openapi``
+# nor ``OpenAPIProvider``, so it survives upstream construction changes while
+# still catching a regression that would silently opt every user into plaintext
+# and private-network spec fetching.
+
+
+@patch('awslabs.openapi_mcp_server.server.FastMCP')
+@patch('awslabs.openapi_mcp_server.server.load_openapi_spec')
+@patch('awslabs.openapi_mcp_server.server.validate_openapi_spec', return_value=True)
+@patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client')
+def test_create_mcp_server_forwards_ssrf_flags(
+    mock_create_client,
+    mock_validate,
+    mock_load_spec,
+    mock_fastmcp,
+    mock_config,
+):
+    """The operator's SSRF opt-in flags must reach ``load_openapi_spec``.
+
+    ``create_mcp_server`` is the only place that threads
+    ``allow_insecure_http`` / ``allow_private_networks`` from config into the
+    spec loader. Hardcoding either open at ``server.py`` would silently disable
+    the operator's SSRF protections; this assertion is the guard against that.
+    """
+    # Explicit, non-default values so the assertion pins forwarding, not defaults.
+    mock_config.allow_insecure_http = False
+    mock_config.allow_private_networks = False
+    mock_load_spec.return_value = {
+        'openapi': '3.0.0',
+        'info': {'title': 'Test API', 'version': '1.0.0'},
+        'paths': {},
+    }
+
+    create_mcp_server(mock_config)
+
+    mock_load_spec.assert_called_once_with(
+        url=mock_config.api_spec_url,
+        path=mock_config.api_spec_path,
+        allow_http=mock_config.allow_insecure_http,
+        allow_private_networks=mock_config.allow_private_networks,
+    )
 
 
 @patch('awslabs.openapi_mcp_server.server.FastMCP')

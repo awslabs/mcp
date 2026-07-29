@@ -22,7 +22,7 @@ Every feature of this wrapper is reachable today with FastMCP primitives:
 | Wrapper feature | FastMCP equivalent |
 |---|---|
 | Server construction | `FastMCP.from_openapi(spec, client=...)` |
-| Cognito auth | `fastmcp.server.auth.providers.aws.AWSCognitoProvider` |
+| Cognito auth (outbound, to the API) | acquire the token via boto3 `initiate_auth`, then set `Authorization` on the `httpx.AsyncClient` — glue, not native. `AWSCognitoProvider` is **inbound** (protects the MCP server), not the equivalent |
 | Tag filtering | `RouteMap(tags=...)` / `server.enable/disable(tags=...)` |
 | Description enrichment | `mcp_component_fn` + `format_description_with_responses` |
 | Multi-spec composition | `server.add_provider(...)` / `mount` / `import_server` |

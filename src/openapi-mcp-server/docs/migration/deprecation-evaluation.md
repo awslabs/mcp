@@ -6,7 +6,7 @@ _Prepared 2026-07-10_
 
 ## Executive Summary
 
-`awslabs.openapi-mcp-server` (hereafter "the wrapper") is a ~6,600-LOC curation layer that builds `FastMCP(providers=[OpenAPIProvider(...)])` and adds auth, tag filtering, description enrichment, multi-spec composition, SSRF-safe fetch, and Prometheus metrics (full description in Appendix G). `awslabs/mcp` is consolidating on **AWS Service-team-endorsed servers**, so a generic wrapper over FastMCP's Apache-2.0 `OpenAPIProvider` no longer fits. Source inspection confirms **every wrapper feature is reachable today** with existing FastMCP primitives — including the two that looked like gaps: SSRF-safe fetching already ships (`ssrf_safe_fetch`), and Prometheus metrics is a few lines on the existing middleware seam. **Nothing blocks deprecation. Recommendation: refactor the wrapper to FastMCP-native features only, publish a migration guide (with glue recipes for the SSRF-fetch and metrics cases), and deprecate — no external contribution is a prerequisite.** Both audiences stay in FastMCP/Python: in-process users call `FastMCP.from_openapi`; standalone (no-code) users run a small entrypoint via `fastmcp run`. Upstreaming the glue as `contrib/` modules is an optional community give-back, off the critical path.
+`awslabs.openapi-mcp-server` (hereafter "the wrapper") is a ~6,600-LOC curation layer that builds `FastMCP(providers=[OpenAPIProvider(...)])` and adds auth, tag filtering, description enrichment, multi-spec composition, SSRF-safe fetch, and Prometheus metrics (full description in Appendix G). `awslabs/mcp` is consolidating on **AWS Service-team-endorsed servers**, so a generic wrapper over FastMCP's Apache-2.0 `OpenAPIProvider` no longer fits. Source inspection confirms **every wrapper feature is reachable today** with existing FastMCP primitives — including the two that looked like gaps: SSRF-safe fetching already ships (`ssrf_safe_fetch`), and Prometheus metrics is a few lines on the existing middleware seam. **Nothing blocks deprecation. Recommendation: refactor the wrapper to FastMCP-native features only, publish a migration guide (with glue recipes for the outbound-Cognito, SSRF-fetch, and metrics cases), and deprecate — no external contribution is a prerequisite.** Both audiences stay in FastMCP/Python: in-process users call `FastMCP.from_openapi`; standalone (no-code) users run a small entrypoint via `fastmcp run`. Upstreaming the glue as `contrib/` modules is an optional community give-back, off the critical path.
 
 ---
 
@@ -17,21 +17,21 @@ Source inspection of FastMCP 3.4.4 shows **every wrapper feature is reachable to
 
 | Wrapper feature | Upstream today |
 |---|---|
-| Cognito auth | `AWSCognitoProvider` — native |
 | Tag filtering | `RouteMap.tags` — native |
 | Multi-spec composition | `mount` / `import_server` — native |
 | Enriched descriptions | reachable via the `mcp_component_fn` hook + shipped formatter |
+| Cognito auth (outbound, to the API) | reachable today as glue: acquire the token via boto3 `initiate_auth`, set `Authorization` on the caller-supplied `httpx.AsyncClient`. **Not** `AWSCognitoProvider` — that is *inbound* MCP-server auth (MRO ends in `TokenVerifier`); it validates JWTs from MCP clients, it does not authenticate calls out to the API. No upstream helper covers the token-acquisition/auto-refresh half |
 | SSRF-safe spec fetch | reachable today: `ssrf_safe_fetch` already ships (`server/auth/ssrf.py:242`) and is importable; call it before `from_openapi` |
 | Prometheus metrics | reachable today: subclass `Middleware` + `mcp.add_middleware(...)` (the `TimingMiddleware` seam, `server/middleware/timing.py:10`) |
 
-So **there is no hard capability gap** — every wrapper feature is reachable today with existing FastMCP primitives. SSRF-fetch and Prometheus are turnkey/packaging conveniences (a few lines of glue), not missing capabilities. (Swagger 2.0: FastMCP is 3.x-only; 2.0 users convert specs first — one documented step.)
+So **there is no hard capability gap** — every wrapper feature is reachable today with existing FastMCP primitives. Cognito (outbound), SSRF-fetch, and Prometheus are turnkey/packaging conveniences (a few lines of glue), not missing capabilities. (Swagger 2.0: FastMCP is 3.x-only; 2.0 users convert specs first — one documented step.)
 
 ### Why deprecate
 - **Strategic (primary):** duplicates FastMCP; does not fit the Service-team-endorsed direction.
 - **Low-risk:** same Apache-2.0 engine; no copyleft exposure; removes ~6.6k LOC of maintenance.
 
 ### Risks
-- **SSRF-fetch / Prometheus users** must adopt a few lines of glue (import `ssrf_safe_fetch`; add a metrics middleware) — recipes go in the migration guide. No capability is lost.
+- **Cognito / SSRF-fetch / Prometheus users** must adopt a few lines of glue (Cognito: acquire the token via boto3 and set the `Authorization` header on the `httpx.AsyncClient`; SSRF: import `ssrf_safe_fetch`; Prometheus: add a metrics middleware) — recipes go in the migration guide. No capability is lost.
 - **Standalone (no-code) users** must move from CLI flags to a small Python entrypoint run via `fastmcp run` — same ecosystem, small one-time change.
 
 ### Actions
@@ -53,9 +53,9 @@ Deprecation gates only on work **fully in our control** — no external PR is a 
 ---
 
 ## Appendix B — Open Questions
-1. How many users depend on SSRF-fetch or Prometheus metrics? Cognito, tag filtering, and multi-spec are already upstream; only these two need sizing for the migration guide (not as a gate).
+1. How many users depend on Cognito auth, SSRF-fetch, or Prometheus metrics? Tag filtering and multi-spec are already native upstream; these three reach the capability via a few lines of glue, so they need sizing for the migration guide (not as a gate). Cognito is plausibly the most-used of the three.
 
-_NOTE: adoption metrics for these two features aren't available, so sizing stays an open item — but it does not gate deprecation (users keep the capability via the migration-guide recipes); it only informs how much migration-support effort to budget._
+_NOTE: adoption metrics for these three features aren't available, so sizing stays an open item — but it does not gate deprecation (users keep the capability via the migration-guide recipes); it only informs how much migration-support effort to budget._
 
 ---
 
@@ -102,7 +102,8 @@ If pursued, sequence #3 first — it's the smallest/highest-accept change and es
 
 | Bespoke (our wrapper) | Native FastMCP convention to adopt |
 |---|---|
-| Custom auth adapters (`auth/*_auth.py`, incl. `cognito_auth.py`) | `server/auth/providers/*` (`aws.py` for Cognito, `bearer.py`, `jwt.py`, …) |
+| Custom auth adapters (`auth/basic_auth.py`, `bearer_auth.py`, `api_key_auth.py`) | set the corresponding header on the caller-supplied `httpx.AsyncClient` passed to `from_openapi` (these are **outbound**, to the API) |
+| `cognito_auth.py` (outbound: acquires a Cognito token, sets `Authorization` on the API client) | glue: acquire the token via boto3 `initiate_auth`, set `Authorization` on the `httpx.AsyncClient`. **Not** `server/auth/providers/aws.py` (`AWSCognitoProvider`) — that is *inbound* MCP-server auth (validates JWTs from MCP clients), a different direction |
 | Hand-rolled `--include-tags`/`--exclude-tags` | `RouteMap(tags=…)` route mapping |
 | `enrich_component` description builder | `mcp_component_fn` calling `format_description_with_responses` (native today; DX PR would make it default) |
 | `HttpClientFactory` | caller-supplied `httpx.AsyncClient` passed to `from_openapi` |

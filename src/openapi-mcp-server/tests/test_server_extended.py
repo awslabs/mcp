@@ -42,9 +42,12 @@ def mock_config():
 # NOTE: ``test_create_mcp_server_with_query_params_routes`` was removed in the
 # FastMCP-native migration. Its only assertion inspected
 # ``OpenAPIProvider.call_args[1]`` for a ``route_maps`` kwarg — a low-level
-# construction detail now passed through to ``FastMCP.from_openapi``. The
-# route-map builder itself is exercised behaviorally by the GET-with-query-params
-# → TOOL mapping tests in ``tests/test_new_features.py``.
+# construction detail now passed through to ``FastMCP.from_openapi``.
+# ``_build_route_maps`` is unit-tested directly in ``tests/test_new_features.py``
+# (``test_build_route_maps_*``). Note that its *forwarding* into the provider is
+# not asserted on either branch: FastMCP's ``DEFAULT_ROUTE_MAPPINGS`` already
+# maps every operation to a TOOL, so a GET-with-query-params → TOOL test passes
+# whether or not the builder's output actually reaches the provider.
 
 
 @patch('awslabs.openapi_mcp_server.server.FastMCP')

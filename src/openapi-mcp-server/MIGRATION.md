@@ -17,8 +17,8 @@ own primitives, so the wrapper can be deprecated without loss of function.
 | Wrapper feature | Native FastMCP equivalent |
 |---|---|
 | Server construction | `FastMCP.from_openapi(spec_dict, client=httpx_client)` |
-| Cognito auth | `fastmcp.server.auth.providers.aws.AWSCognitoProvider` |
-| Basic / Bearer / API-key auth | `fastmcp.server.auth.providers.*` (or set headers on the `httpx.AsyncClient`) |
+| Basic / Bearer / API-key auth (outbound, to the API) | set headers on the `httpx.AsyncClient` passed to `from_openapi` |
+| Cognito auth (outbound, to the API) | acquire the token yourself (boto3 `initiate_auth`), then set `Authorization` on the `httpx.AsyncClient`. `AWSCognitoProvider` is **not** the equivalent — it protects the MCP server's own *inbound* connections, not calls out to the API. No upstream helper covers the token-acquisition/auto-refresh half. |
 | Tag filtering (`--include/--exclude-tags`) | `RouteMap(tags=...)` and `server.enable/disable(tags=...)` |
 | Description enrichment | `mcp_component_fn` calling `fastmcp.utilities.openapi.format_description_with_responses` |
 | `HttpClientFactory` | a caller-supplied `httpx.AsyncClient` |
