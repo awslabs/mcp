@@ -294,3 +294,44 @@ class TestValidateWritePath:
                 assert result == os.path.join(os.path.realpath(subdir), 'output.zip')
             finally:
                 file_validation._ALLOWED_WRITE_BASE = original_base
+
+    def test_write_rejected_when_base_is_filesystem_root(self):
+        """When the base is '/', every write is refused with a clear error.
+
+        Regression test for D464432980: if the server is spawned with the
+        filesystem root as its working directory, confining to '/' would place
+        no bound on writes. Rather than fall back to allowing writes, the
+        request is refused and the caller is told to set the write-dir env var.
+        """
+        from awslabs.aws_transform_mcp_server import file_validation
+        from awslabs.aws_transform_mcp_server.file_validation import validate_write_path
+
+        original_base = file_validation._ALLOWED_WRITE_BASE
+        try:
+            file_validation._ALLOWED_WRITE_BASE = os.sep
+            for save_path, name in [
+                (os.path.join(os.sep, 'tmp', 'x'), 'artifact.json'),
+                ('/etc/cron.d', 'evil.sh'),
+                (file_validation._HOME, '.bashrc'),
+            ]:
+                with pytest.raises(ValueError, match=file_validation.WRITE_BASE_ENV_VAR):
+                    validate_write_path(save_path, name)
+        finally:
+            file_validation._ALLOWED_WRITE_BASE = original_base
+
+    def test_write_base_defaults_to_cwd(self, monkeypatch):
+        """Without the env var set, the base is the current working directory."""
+        from awslabs.aws_transform_mcp_server import file_validation
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            monkeypatch.delenv(file_validation.WRITE_BASE_ENV_VAR, raising=False)
+            monkeypatch.setattr(os, 'getcwd', lambda: tmpdir)
+            assert file_validation._resolve_write_base() == os.path.realpath(tmpdir)
+
+    def test_write_base_honors_env_override(self, monkeypatch):
+        """An operator-set write dir env var pins the base explicitly."""
+        from awslabs.aws_transform_mcp_server import file_validation
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            monkeypatch.setenv(file_validation.WRITE_BASE_ENV_VAR, tmpdir)
+            assert file_validation._resolve_write_base() == os.path.realpath(tmpdir)

@@ -35,6 +35,8 @@ from awslabs.redshift_mcp_server.redshift import (
     discover_tables,
     execute_query,
 )
+from awslabs.redshift_mcp_server.review.executor import review_cluster
+from awslabs.redshift_mcp_server.review.models import ReviewResult
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
@@ -80,6 +82,11 @@ This tool runs the SHOW COLUMNS command to discover available columns.
 ### execute_query
 Executes SQL queries against a Redshift cluster or serverless workgroup.
 This tool uses the Redshift Data API to run queries and return results.
+
+### review_cluster
+Runs a diagnostic review of a Redshift cluster or serverless workgroup.
+Returns identified potential issues and respective recommendations ordered by required mitigation effort.
+Requires superuser (CREATEUSER) privileges.
 
 ## Getting Started
 
@@ -178,13 +185,7 @@ async def list_clusters_tool(ctx: Context) -> list[RedshiftCluster]:
     """
     try:
         logger.info('Discovering Redshift clusters and serverless workgroups')
-        clusters_data = await discover_clusters()
-
-        # Convert to RedshiftCluster models
-        clusters = []
-        for cluster_data in clusters_data:
-            cluster = RedshiftCluster(**cluster_data)
-            clusters.append(cluster)
+        clusters = await discover_clusters()
 
         logger.info(f'Successfully retrieved {len(clusters)} clusters')
         return clusters
@@ -234,7 +235,7 @@ async def list_databases_tool(
     - database_owner: The database owner user ID.
     - database_type: The type of database (local or shared).
     - database_acl: Access control information (for internal use).
-    - database_options: The properties of the database.
+    - parameters: The properties of the database.
     - database_isolation_level: The isolation level (Snapshot Isolation or Serializable).
 
     ## Usage Tips
@@ -243,6 +244,7 @@ async def list_databases_tool(
     2. Ensure the cluster status is 'available' before querying databases.
     3. Use the default database name unless you know a specific database exists.
     4. Note database types to understand if they are local or shared from datashares.
+    5. Shared (datashare) databases appear only if the connecting principal has been granted access to the consumer database (e.g. GRANT USAGE ON DATABASE <db> TO <principal>); otherwise they are omitted even though the datashare exists.
 
     ## Interpretation Best Practices
 
@@ -253,15 +255,9 @@ async def list_databases_tool(
     """
     try:
         logger.info(f'Discovering databases on cluster: {cluster_identifier}')
-        databases_data = await discover_databases(
+        databases = await discover_databases(
             cluster_identifier=cluster_identifier, database_name=database_name
         )
-
-        # Convert to RedshiftDatabase models
-        databases = []
-        for database_data in databases_data:
-            database = RedshiftDatabase(**database_data)
-            databases.append(database)
 
         logger.info(
             f'Successfully retrieved {len(databases)} databases from cluster {cluster_identifier}'
@@ -325,6 +321,7 @@ async def list_schemas_tool(
     3. Ensure the cluster status is 'available' before querying schemas.
     4. Note schema types to understand if they are local, external, or shared.
     5. External schemas connect to external data sources like S3 or other databases.
+    6. Schemas in a shared (datashare) database appear only if the connecting principal has been granted access to the consumer database (e.g. GRANT USAGE ON DATABASE <db> TO <principal>); otherwise they are omitted even though the datashare exists.
 
     ## Interpretation Best Practices
 
@@ -338,15 +335,9 @@ async def list_schemas_tool(
         logger.info(
             f'Discovering schemas in database {schema_database_name} on cluster {cluster_identifier}'
         )
-        schemas_data = await discover_schemas(
+        schemas = await discover_schemas(
             cluster_identifier=cluster_identifier, schema_database_name=schema_database_name
         )
-
-        # Convert to RedshiftSchema models
-        schemas = []
-        for schema_data in schemas_data:
-            schema = RedshiftSchema(**schema_data)
-            schemas.append(schema)
 
         logger.info(
             f'Successfully retrieved {len(schemas)} schemas from database {schema_database_name} on cluster {cluster_identifier}'
@@ -431,17 +422,11 @@ async def list_tables_tool(
         logger.info(
             f'Discovering tables in schema {table_schema_name} in database {table_database_name} on cluster {cluster_identifier}'
         )
-        tables_data = await discover_tables(
+        tables = await discover_tables(
             cluster_identifier=cluster_identifier,
             table_database_name=table_database_name,
             table_schema_name=table_schema_name,
         )
-
-        # Convert to RedshiftTable models
-        tables = []
-        for table_data in tables_data:
-            table = RedshiftTable(**table_data)
-            tables.append(table)
 
         logger.info(
             f'Successfully retrieved {len(tables)} tables from schema {table_schema_name} in database {table_database_name} on cluster {cluster_identifier}'
@@ -539,18 +524,12 @@ async def list_columns_tool(
         logger.info(
             f'Discovering columns in table {column_table_name} in schema {column_schema_name} in database {column_database_name} on cluster {cluster_identifier}'
         )
-        columns_data = await discover_columns(
+        columns = await discover_columns(
             cluster_identifier=cluster_identifier,
             column_database_name=column_database_name,
             column_schema_name=column_schema_name,
             column_table_name=column_table_name,
         )
-
-        # Convert to RedshiftColumn models
-        columns = []
-        for column_data in columns_data:
-            column = RedshiftColumn(**column_data)
-            columns.append(column)
 
         logger.info(
             f'Successfully retrieved {len(columns)} columns from table {column_table_name} in schema {column_schema_name} in database {column_database_name} on cluster {cluster_identifier}'
@@ -608,7 +587,6 @@ async def execute_query_tool(
     - columns: List of column names in the result set.
     - rows: List of rows, where each row is a list of values.
     - row_count: Number of rows returned.
-    - execution_time_ms: Query execution time in milliseconds.
     - query_id: Unique identifier for the query execution.
 
     ## Usage Tips
@@ -645,7 +623,7 @@ async def execute_query_tool(
         query_result = QueryResult(**query_result_data)
 
         logger.info(
-            f'Successfully executed query on cluster {cluster_identifier}: {query_result.row_count} rows returned in {query_result.execution_time_ms}ms'
+            f'Successfully executed query on cluster {cluster_identifier}: {query_result.row_count} rows returned'
         )
         return query_result
 
@@ -654,6 +632,108 @@ async def execute_query_tool(
         await ctx.error(
             f'Failed to execute query on cluster {cluster_identifier} in database {database_name}: {str(e)}'
         )
+        raise
+
+
+@mcp.tool(name='review_cluster')
+async def review_cluster_tool(
+    ctx: Context,
+    cluster_identifier: str = Field(
+        ...,
+        description='The cluster identifier to run the review on. Must be a valid cluster identifier from the list_clusters tool.',
+    ),
+    database_name: str = Field(
+        'dev',
+        description='The database to connect to for querying system views. Defaults to "dev".',
+    ),
+) -> ReviewResult:
+    """Run a diagnostic review of a Redshift cluster or serverless workgroup.
+
+    Returns identified potential issues and respective recommendations
+    ordered by required mitigation effort.
+
+    ## Usage Requirements
+
+    - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
+    - The cluster must be available and accessible.
+    - Required IAM permissions: redshift-data:ExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
+    - The connected user must have superuser (CREATEUSER) privileges to access the required system views.
+      If it does not, the review fails fast with "Review requires superuser (CREATEUSER) privileges"
+      (for example "permission denied for relation sys_auto_table_optimization"). This is by design -
+      an expected signal, not a tool defect - so the review never returns partial or misleading
+      results. Run the review as a superuser to get a complete assessment.
+
+    ## Parameters
+
+    - cluster_identifier: The unique identifier of the Redshift cluster to review.
+                         IMPORTANT: Use a valid cluster identifier from the list_clusters tool.
+    - database_name: The database to connect to for querying system views. Defaults to "dev".
+
+    ## Response Structure
+
+    Returns a ReviewResult object with the following structure:
+
+    - signals_evaluated: Total number of diagnostic signals evaluated.
+    - findings: List of triggered findings (one per triggered signal branch). The
+      number of findings is len(findings) - do NOT derive it from affected_row_count.
+      Each finding contains:
+        - signal_name: The specific signal (condition) that was triggered.
+        - section: The diagnostic query section this finding belongs to.
+        - affected_row_count: How many objects match the signal, counted in `unit`
+          (for example, 7 tables). This is the number of affected objects, NOT a
+          count of findings, and values are NOT comparable across different units.
+          Each signal is an independent count(*); the same object (a table, node, ...)
+          may match several signals, so do NOT sum affected_row_count across findings
+          or recommendations - the totals overlap and would over-count distinct objects.
+        - unit: Unit of affected_row_count (e.g. tables, nodes, queues, queries).
+        - recommendation_ids: List of recommendation IDs associated with this finding.
+    - recommendations: Deduplicated list of recommendations ordered by effort, each containing:
+        - id: Unique identifier for the recommendation.
+        - text: Markdown text with description and documentation links.
+        - triggered_by_signals: Names of signals that triggered this recommendation.
+    - queries_executed: Names of diagnostic queries that were executed.
+
+    ## Usage Tips
+
+    1. First use list_clusters to get valid cluster identifiers.
+    2. Then use list_databases to get valid database names for the cluster.
+    3. Ensure the cluster status is 'available' before running the review.
+    4. Provisioned-only diagnostics are automatically skipped for serverless workgroups.
+    5. Review runs read-only diagnostic queries against system views and tables.
+
+    ## Interpretation Best Practices
+
+    1. When counting findings, use the number of entries in `findings` (for example,
+       two findings each affecting 7 tables = "2 findings across 7 tables", not 14).
+       Rank by affected_row_count only within the same unit; counts in different
+       units (tables vs nodes vs queues) are not comparable.
+    2. Each recommendation includes documentation links — always follow these links for detailed guidance.
+    3. Use triggered_by_signals to understand which diagnostics surfaced each recommendation.
+    4. A review with zero findings indicates the cluster is healthy across all evaluated signals.
+    5. Findings are independent per-signal diagnostics; do NOT sum affected_row_count
+       across findings or recommendations. The same object can match several signals,
+       so the counts overlap and are not additive.
+    6. Close with a call to action: when there are findings, end the response by
+       offering to help act on them - suggest starting with the lowest-effort,
+       highest-impact items and ask whether to proceed.
+       When there are no findings, state that the cluster is healthy across the evaluated signals.
+    """
+    try:
+        logger.info(f'Running review on cluster {cluster_identifier}, database {database_name}')
+
+        result = await review_cluster(
+            cluster_identifier=cluster_identifier,
+            execute_query_func=execute_query,
+            discover_clusters_func=discover_clusters,
+            database_name=database_name,
+            progress_reporter_func=ctx.report_progress,
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(f'Error in review_cluster_tool: {str(e)}')
+        await ctx.error(f'Failed to review cluster {cluster_identifier}: {str(e)}')
         raise
 
 

@@ -16,7 +16,40 @@
 
 from datetime import datetime
 from pydantic import BaseModel, Field
-from typing import Dict, Optional
+from typing import Any, Dict, Optional, TypeVar
+
+
+RedshiftDataModelT = TypeVar('RedshiftDataModelT', bound='RedshiftDataModel')
+
+
+class RedshiftDataModel(BaseModel):
+    """Base for models built from a Redshift Data API result set.
+
+    Subclasses declare their fields named to match the SHOW result columns.
+    `from_redshift_response` maps result columns to those fields by name, so
+    parsing is independent of column order; unknown columns are ignored.
+    """
+
+    @staticmethod
+    def cell_value(cell: dict) -> Any:
+        """Unwrap a single Redshift Data API result cell to a Python scalar."""
+        if cell.get('isNull'):
+            return None
+        for key in ('stringValue', 'longValue', 'doubleValue', 'booleanValue'):
+            if key in cell:
+                return cell[key]
+        return str(cell)
+
+    @classmethod
+    def from_redshift_response(
+        cls: type[RedshiftDataModelT], results_response: dict
+    ) -> list[RedshiftDataModelT]:
+        """Build a list of model instances from a Data API result set."""
+        names = [col.get('name') for col in results_response.get('ColumnMetadata', [])]
+        return [
+            cls.model_validate({name: cls.cell_value(cell) for name, cell in zip(names, record)})
+            for record in results_response.get('Records', [])
+        ]
 
 
 class RedshiftCluster(BaseModel):
@@ -40,7 +73,7 @@ class RedshiftCluster(BaseModel):
     )
 
 
-class RedshiftDatabase(BaseModel):
+class RedshiftDatabase(RedshiftDataModel):
     """Information about a database in a Redshift cluster."""
 
     database_name: str = Field(..., description='The name of the database')
@@ -51,14 +84,14 @@ class RedshiftDatabase(BaseModel):
     database_acl: Optional[str] = Field(
         None, description='Access control information (for internal use)'
     )
-    database_options: Optional[str] = Field(None, description='The properties of the database')
+    parameters: Optional[str] = Field(None, description='The properties of the database')
     database_isolation_level: Optional[str] = Field(
         None,
         description='The isolation level of the database (Snapshot Isolation or Serializable)',
     )
 
 
-class RedshiftSchema(BaseModel):
+class RedshiftSchema(RedshiftDataModel):
     """Information about a schema in a Redshift database."""
 
     database_name: str = Field(..., description='The name of the database where the schema exists')
@@ -78,7 +111,7 @@ class RedshiftSchema(BaseModel):
     )
 
 
-class RedshiftTable(BaseModel):
+class RedshiftTable(RedshiftDataModel):
     """Information about a table in a Redshift database."""
 
     database_name: str = Field(..., description='The name of the database where the table exists')
@@ -94,7 +127,7 @@ class RedshiftTable(BaseModel):
     remarks: Optional[str] = Field(None, description='Remarks about the table')
 
 
-class RedshiftColumn(BaseModel):
+class RedshiftColumn(RedshiftDataModel):
     """Information about a column in a Redshift table."""
 
     database_name: str = Field(..., description='The name of the database')
@@ -123,7 +156,4 @@ class QueryResult(BaseModel):
     columns: list[str] = Field(..., description='List of column names in the result set')
     rows: list[list] = Field(..., description='List of rows, where each row is a list of values')
     row_count: int = Field(..., description='Number of rows returned')
-    execution_time_ms: Optional[int] = Field(
-        None, description='Query execution time in milliseconds'
-    )
     query_id: str = Field(..., description='Unique identifier for the query execution')
