@@ -96,8 +96,8 @@ async def review_cluster(
             logger.error('Review query {} failed: {}', query_name, str(e))
             if 'permission denied' in str(e).lower():
                 raise Exception(
-                    f'Review requires read access to Redshift system views. Ask a superuser '
-                    f'(for example the cluster admin user) to run: '
+                    f'Review requires superuser or sys:monitor access. Request an administrator '
+                    f'to run: '
                     f'GRANT ROLE sys:monitor TO "<database_user>"; where <database_user> is the '
                     f'output of SELECT current_user - for IAM identities it looks like '
                     f'IAM:alice or IAMR:MyRole and the quotes are required. '

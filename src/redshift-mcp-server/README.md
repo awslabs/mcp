@@ -459,7 +459,7 @@ In addition to AWS IAM permissions, you need appropriate database-level permissi
 - **Read Access**: `SELECT` permissions on tables/views you want to query
 - **Schema Access**: `USAGE` permissions on schemas you want to explore
 - **Database Access**: Connection permissions to databases you want to access
-- **Review Access**: The `review_cluster` tool reads system views such as `SYS_AUTO_TABLE_OPTIMIZATION`, `STV_NODE_STORAGE_CAPACITY`, and `SVV_TABLE_INFO`, some of which Redshift makes visible only to superusers. Grant the connecting database user the `sys:monitor` role, which is the narrowest grant that covers them:
+- **Review Access**: The `review_cluster` tool reads system views such as `SYS_AUTO_TABLE_OPTIMIZATION`, `STV_NODE_STORAGE_CAPACITY`, and `SVV_TABLE_INFO`, which require superuser or `sys:monitor` access. Grant the connecting database user the `sys:monitor` role, which is the narrowest grant that covers them:
 
   ```sql
   GRANT ROLE sys:monitor TO "<database_user>";

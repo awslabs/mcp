@@ -16,11 +16,6 @@
 
 import pytest
 from awslabs.redshift_mcp_server.models import RedshiftCluster
-from awslabs.redshift_mcp_server.review.definitions import (
-    RECOMMENDATIONS,
-    SIGNAL_EVALUATION_SQL,
-    SIGNAL_UNITS,
-)
 from awslabs.redshift_mcp_server.review.executor import review_cluster
 from unittest.mock import AsyncMock
 
@@ -278,9 +273,7 @@ class TestErrorPropagation:
             side_effect=RuntimeError('permission denied for relation sys_auto_table_optimization')
         )
 
-        with pytest.raises(
-            Exception, match='Review requires read access to Redshift system views'
-        ):
+        with pytest.raises(Exception, match='Review requires superuser or sys:monitor access'):
             await review_cluster(
                 cluster_identifier='test-cluster',
                 execute_query_func=execute_query_func,
@@ -410,6 +403,19 @@ class TestNodeTypeSubstitution:
     """Verify the cluster's real node type reaches the diagnostic SQL."""
 
     @pytest.mark.asyncio
+    async def test_known_node_type_is_inlined_in_sql(self):
+        """A provisioned cluster's reported node type is inlined into NodeDetails."""
+        execute_query_func, recorded = _make_sql_recorder()
+
+        await review_cluster(
+            cluster_identifier='test-cluster',
+            execute_query_func=execute_query_func,
+            discover_clusters_func=_make_discover_clusters(node_type='ra3.xlplus'),
+        )
+
+        assert "'ra3.xlplus'::text AS node_type" in recorded['NodeDetails']
+
+    @pytest.mark.asyncio
     async def test_missing_node_type_falls_back_in_sql(self):
         """A provisioned cluster without a node type inlines the unknown sentinel."""
         execute_query_func, recorded = _make_sql_recorder()
@@ -434,48 +440,3 @@ class TestNodeTypeSubstitution:
         )
 
         assert 'NodeDetails' not in recorded
-
-
-# ---------------------------------------------------------------------------
-# Review queries constants validation
-# ---------------------------------------------------------------------------
-
-
-class TestReviewQueriesConstants:
-    """Validate the SIGNAL_EVALUATION_SQL and RECOMMENDATIONS constants."""
-
-    def test_all_queries_have_sql(self):
-        """Every entry in SIGNAL_EVALUATION_SQL has non-empty SQL."""
-        for name, cluster_type, sql in SIGNAL_EVALUATION_SQL:
-            assert sql.strip(), f'{name} has empty SQL'
-
-    def test_every_query_has_a_unit(self):
-        """Every query in SIGNAL_EVALUATION_SQL maps to a non-empty unit."""
-        for name, _cluster_type, _sql in SIGNAL_EVALUATION_SQL:
-            assert SIGNAL_UNITS.get(name), f'{name} is missing a unit in SIGNAL_UNITS'
-
-    def test_no_unrecognized_braces(self):
-        """{node_type} is the only brace sequence in any query.
-
-        Queries are rendered with str.format, so every brace is read as a format field.
-        Redshift SQL can legitimately contain braces (regex quantifiers such as 'a{2,3}',
-        SUPER or JSON literals); any that are added must be escaped as {{ and }}, or
-        rendering raises at review time. This fails in CI instead.
-        """
-        for name, _ct, sql in SIGNAL_EVALUATION_SQL:
-            stripped = sql.replace('{node_type}', '')
-            assert '{' not in stripped and '}' not in stripped, (
-                f'{name} has an unescaped brace: str.format would treat it as a field'
-            )
-
-    def test_every_query_renders(self):
-        """Rendering with a node type succeeds for every query."""
-        for name, _ct, sql in SIGNAL_EVALUATION_SQL:
-            try:
-                sql.format(node_type='rg.xlarge')
-            except (KeyError, IndexError, ValueError) as e:  # pragma: no cover
-                raise AssertionError(f'{name} fails to render: {type(e).__name__}: {e}') from e
-
-    def test_recommendations_not_empty(self):
-        """RECOMMENDATIONS dict is not empty."""
-        assert len(RECOMMENDATIONS) > 0

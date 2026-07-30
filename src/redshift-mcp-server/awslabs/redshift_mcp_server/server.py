@@ -657,8 +657,9 @@ async def review_cluster_tool(
     - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
     - The cluster must be available and accessible.
     - Required IAM permissions: redshift-data:ExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
-    - The connected database user must be able to read Redshift system views, some of
-      which are superuser-visible. A superuser must grant the sys:monitor role:
+    - The connected database user must be able to read Redshift system views, which
+      require superuser or sys:monitor access. If the current user is not a superuser,
+      it must be granted the sys:monitor role:
       GRANT ROLE sys:monitor TO "<database_user>"; where <database_user> is the output
       of SELECT current_user, quoted because IAM identities contain a colon
       (IAM:<user> or IAMR:<role>).
