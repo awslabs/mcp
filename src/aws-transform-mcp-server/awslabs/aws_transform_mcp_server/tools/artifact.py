@@ -25,6 +25,10 @@ import os
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
 from awslabs.aws_transform_mcp_server.file_validation import validate_read_path
+from awslabs.aws_transform_mcp_server.guidance_nudge import (
+    matches_instruction_label,
+    unmark_job,
+)
 from awslabs.aws_transform_mcp_server.tool_utils import (
     MUTATE,
     error_result,
@@ -199,6 +203,12 @@ class ArtifactHandler:
                     artifactId=init_result['artifactId'],
                 ),
             )
+
+            # A newly uploaded instruction document must be discoverable:
+            # forget the one-shot check so the next job-scoped call nudges
+            # the agent into re-running load_instructions.
+            if resolved_file_name and matches_instruction_label(resolved_file_name):
+                unmark_job(jobId)
 
             return success_result({'artifactId': init_result['artifactId']})
 
