@@ -49,6 +49,25 @@ from typing import Annotated, Any, List, Optional
 MAX_IDENTIFIER_BYTES = 128
 MAX_PARTS = 2
 
+
+def _non_negative_int(value: str) -> int:
+    """Argparse type: reject negative integers.
+
+    --max_rows and --query_timeout_s are documented as "0 = no limit/none", and the
+    downstream guards in run_query/_execute_sync are both `> 0` checks. A negative
+    value (which argparse's plain `type=int` would otherwise accept) silently takes
+    the same "unbounded" branch as 0 -- for query_timeout_s that means set_option is
+    never called and the query runs with no timeout, holding the single serialized
+    connection lock indefinitely (the exact self-DoS the timeout-refusal logic exists
+    to prevent). Reject at parse time so only the documented {0, positive} contract
+    is reachable.
+    """
+    parsed = int(value)
+    if parsed < 0:
+        raise argparse.ArgumentTypeError(f'must be a non-negative integer, got {parsed}')
+    return parsed
+
+
 db_connection_map = DBConnectionMap()
 write_query_prohibited_key = (
     'Your MCP tool only allows readonly query. If you want to write, change the MCP '
@@ -68,6 +87,7 @@ class ServerConfig:
     configured_port: int = DEFAULT_DB2_SSL_PORT
     max_rows: int = 1000
     query_timeout_s: int = 30
+    login_timeout_s: int = 15
 
 
 server_config = ServerConfig()
@@ -335,8 +355,11 @@ async def connect_to_database(
     description=(
         'Check if a connection is present in the cache for this endpoint/database. '
         'This reports cache presence, not live health: a cached connection to an '
-        'endpoint that has since gone unreachable still reports True here (run_query '
-        'independently re-checks liveness and reconnects as needed).'
+        'endpoint that has since gone unreachable still reports True here. run_query '
+        'reconnects on its next call only if the client-side handle was detected '
+        'closed/inactive -- it does not detect a connection that server-side has gone '
+        'stale (e.g. an RDS idle timeout or a NAT/firewall reap) while the local '
+        'handle still looks active; a query on such a connection will simply error.'
     ),
 )
 def is_database_connected(
@@ -441,7 +464,20 @@ def internal_create_connection(
         ssl_server_certificate=server_config.ssl_server_certificate,
         ssl_hostname_validation=server_config.ssl_hostname_validation,
         query_timeout_s=server_config.query_timeout_s,
+        login_timeout_s=server_config.login_timeout_s,
     )
+    # Validate connectivity BEFORE publishing to the map, not after. Tools are
+    # offloaded via asyncio.to_thread, so publishing first would let a concurrent
+    # run_query on the same key fetch and start using a not-yet-validated
+    # connection; if validation then failed, remove() would evict an entry an
+    # in-flight query still holds, orphaning it outside close_all's reach (a
+    # leaked server-side session with no tracking). Validating first means a
+    # connection only ever becomes visible via get() once it's known-good, and a
+    # validation failure has nothing to unwind in the map.
+    try:
+        db_connection.validate_sync()
+    except Exception as e:
+        raise ValueError(f'Failed to validate connection: {e}') from e
     db_connection_map.set(
         ConnectionMethod.DB2_PASSWORD,
         instance_identifier,
@@ -450,21 +486,6 @@ def internal_create_connection(
         db_connection,
         port,
     )
-    # Validate connectivity now so the tool reports a real failure at connect time
-    # (unreachable endpoint, bad secret, SSL error) instead of returning "Connected"
-    # and only surfacing the error on the first query. Evict the cached entry on
-    # failure so a broken connection is not left behind.
-    try:
-        db_connection.validate_sync()
-    except Exception as e:
-        db_connection_map.remove(
-            ConnectionMethod.DB2_PASSWORD,
-            instance_identifier,
-            db_endpoint,
-            database,
-            port,
-        )
-        raise ValueError(f'Failed to validate connection: {e}') from e
     return db_connection, {
         'status': 'Connected',
         'instance_identifier': instance_identifier,
@@ -597,12 +618,21 @@ def main():
     )
     parser.add_argument(
         '--max_rows',
-        type=int,
+        type=_non_negative_int,
         default=1000,
         help='Max rows per query (default 1000, 0 = no limit)',
     )
     parser.add_argument(
-        '--query_timeout_s', type=int, default=30, help='Per-query timeout in seconds (0 = none)'
+        '--query_timeout_s',
+        type=_non_negative_int,
+        default=30,
+        help='Per-query timeout in seconds (0 = none)',
+    )
+    parser.add_argument(
+        '--login_timeout_s',
+        type=_non_negative_int,
+        default=15,
+        help='Per-connect (TCP/TLS handshake + auth) timeout in seconds (0 = none)',
     )
     args = parser.parse_args()
 
@@ -613,6 +643,7 @@ def main():
     server_config.configured_port = _resolve_port(args.port)
     server_config.max_rows = args.max_rows
     server_config.query_timeout_s = args.query_timeout_s
+    server_config.login_timeout_s = args.login_timeout_s
     if args.secret_arn:
         server_config.default_secret_arn = args.secret_arn
 
@@ -637,7 +668,11 @@ def main():
         )
         for tool_name in ('run_query', 'get_table_schema'):
             tool = mcp._tool_manager.get_tool(tool_name)
-            if tool:
+            # Guard against appending twice: tool.description mutates the shared,
+            # module-global mcp tool objects, so a second main() call in the same
+            # process (e.g. across tests, or a future re-entrant caller) would
+            # otherwise accumulate duplicate notices.
+            if tool and readonly_notice not in tool.description:
                 tool.description += readonly_notice
 
     try:

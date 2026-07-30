@@ -123,6 +123,24 @@ class TestNormalize:
         assert IbmDbConnection._normalize('x') == 'x'
         assert IbmDbConnection._normalize(None) is None
 
+    def test_bytes_and_bytearray_decode(self):
+        """bytes/bytearray (e.g. BINARY/BLOB columns) decode to text."""
+        assert IbmDbConnection._normalize(b'hello') == 'hello'
+        assert IbmDbConnection._normalize(bytearray(b'hello')) == 'hello'
+
+    def test_memoryview_decodes_like_bytes(self):
+        """A memoryview must decode the same way as bytes/bytearray, not fall through to str().
+
+        ibm_db can return BINARY/BLOB columns as memoryview. Before the fix, that
+        fell through to str(value), which serializes as the per-run,
+        address-dependent '<memory at 0x...>' -- silently corrupting the row with
+        no error raised.
+        """
+        mv = memoryview(b'hello')
+        out = IbmDbConnection._normalize(mv)
+        assert out == 'hello'
+        assert '<memory at' not in out
+
 
 class TestCredentials:
     """Tests for Secrets Manager credential extraction."""
@@ -166,6 +184,7 @@ def _fake_ibm_db(mocker, *, rows, active=False, prepare_ok=True, execute_ok=True
     fake.SQL_ATTR_AUTOCOMMIT = 0
     fake.SQL_AUTOCOMMIT_OFF = 0
     fake.SQL_ATTR_QUERY_TIMEOUT = 1
+    fake.SQL_ATTR_LOGIN_TIMEOUT = 2
     fake.connect.return_value = 'CONN' if connect_ok else 0
     fake.autocommit.return_value = 0  # matches SQL_AUTOCOMMIT_OFF above by default
     fake.active.return_value = active
@@ -332,6 +351,39 @@ def test_validate_sync_failure(mocker):
     fake = _fake_ibm_db(mocker, rows=[])
     fake.exec_immediate.return_value = 0
     with pytest.raises(ValueError, match='Validation query failed'):
+        _conn(readonly=True).validate_sync()
+
+
+def test_validate_sync_fetch_midstream_error_raises(mocker):
+    """validate_sync mirrors _execute_sync's fetch_assoc EOF-vs-error distinction.
+
+    A falsy fetch_assoc with a non-'02000' SQLSTATE means the probe fetch failed
+    mid-stream, not that it cleanly ran out of rows -- must raise, not report a
+    successful validation.
+    """
+    fake = _fake_ibm_db(mocker, rows=[])
+    fake.stmt_error.return_value = '08001'  # non-end-of-data SQLSTATE
+    with pytest.raises(ValueError, match='Validation fetch failed'):
+        _conn(readonly=True).validate_sync()
+
+
+def test_validate_sync_clean_eof_does_not_raise(mocker):
+    """A clean end-of-data ('02000') during the probe fetch is not a fetch error."""
+    fake = _fake_ibm_db(mocker, rows=[{'1': 1}])
+    fake.stmt_error.return_value = '02000'
+    _conn(readonly=True).validate_sync()  # must not raise
+    fake.rollback.assert_called_once()
+
+
+def test_validate_sync_rollback_falsy_return_raises(mocker):
+    """A falsy rollback() during validate_sync must raise, not report success.
+
+    Mirrors the same falsy-return check _execute_sync applies to rollback/commit --
+    a probe that fails to roll back must not be reported as a successful validation.
+    """
+    fake = _fake_ibm_db(mocker, rows=[{'1': 1}])
+    fake.rollback.return_value = False
+    with pytest.raises(ValueError, match='Validation rollback failed'):
         _conn(readonly=True).validate_sync()
 
 
@@ -567,6 +619,29 @@ async def test_connect_accepts_when_autocommit_confirmed_off(mocker):
     c = _conn(readonly=True)
     out = await c.execute_query('SELECT A FROM T')
     assert out == [{'A': 1}]
+
+
+async def test_connect_passes_login_timeout_option(mocker):
+    """A configured login_timeout_s is passed via SQL_ATTR_LOGIN_TIMEOUT at connect.
+
+    query_timeout_s only bounds query execution; without a connect-time timeout, a
+    reconnect to a black-holed endpoint would block for the full OS TCP timeout
+    while holding self._lock, stalling every other query on this connection.
+    """
+    fake = _fake_ibm_db(mocker, rows=[{'A': 1}])
+    c = _conn(readonly=True, login_timeout_s=20)
+    await c.execute_query('SELECT A FROM T')
+    options = fake.connect.call_args.args[3]
+    assert options[fake.SQL_ATTR_LOGIN_TIMEOUT] == 20
+
+
+async def test_connect_omits_login_timeout_when_zero(mocker):
+    """login_timeout_s=0 means no connect-time timeout, matching query_timeout_s=0."""
+    fake = _fake_ibm_db(mocker, rows=[{'A': 1}])
+    c = _conn(readonly=True, login_timeout_s=0)
+    await c.execute_query('SELECT A FROM T')
+    options = fake.connect.call_args.args[3]
+    assert fake.SQL_ATTR_LOGIN_TIMEOUT not in options
 
 
 async def test_autocommit_rejection_logs_warning_on_close_failure(mocker):

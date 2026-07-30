@@ -38,10 +38,24 @@ DUMMY_RDS_SECRET_ARN = 'arn:rds'  # pragma: allowlist secret
 
 @pytest.fixture(autouse=True)
 def restore_server_config():
-    """Snapshot and restore the global server_config around each test."""
+    """Snapshot and restore the global server_config and mutated tool descriptions.
+
+    main() appends a read-only notice to the shared, module-global mcp tool objects
+    (not to any per-instance state), so without restoring them here, tests that call
+    main() would leak the mutation across the suite.
+    """
     snapshot = dict(server.server_config.__dict__)
+    tool_descriptions = {}
+    for name in ('run_query', 'get_table_schema'):
+        tool = server.mcp._tool_manager.get_tool(name)
+        if tool:
+            tool_descriptions[name] = tool.description
     yield
     server.server_config.__dict__.update(snapshot)
+    for name, description in tool_descriptions.items():
+        tool = server.mcp._tool_manager.get_tool(name)
+        if tool:
+            tool.description = description
 
 
 class FakeCtx:
@@ -449,6 +463,61 @@ class TestMain:
         assert server.server_config.readonly_query is False
         assert server.server_config.ssl_hostname_validation is False
 
+    @pytest.mark.parametrize('flag', ['--max_rows', '--query_timeout_s', '--login_timeout_s'])
+    def test_main_rejects_negative_int_args(self, mocker, monkeypatch, flag):
+        """A negative --max_rows/--query_timeout_s/--login_timeout_s is rejected at parse time.
+
+        Both are documented as "0 = no limit/none" with '> 0' downstream guards; a
+        negative value would otherwise silently take the same unbounded branch as 0
+        (for query_timeout_s, that re-opens the self-DoS the timeout-refusal logic
+        exists to prevent).
+        """
+        monkeypatch.setattr(sys, 'argv', ['prog', '--region', 'us-east-1', flag, '-1'])
+        mocker.patch.object(server.mcp, 'run')
+        mocker.patch.object(server.db_connection_map, 'close_all')
+        with pytest.raises(SystemExit):
+            server.main()
+
+    def test_main_accepts_zero_for_int_args(self, mocker, monkeypatch):
+        """0 is a valid, documented value for max_rows/query_timeout_s/login_timeout_s."""
+        monkeypatch.setattr(
+            sys,
+            'argv',
+            [
+                'prog',
+                '--region',
+                'us-east-1',
+                '--max_rows',
+                '0',
+                '--query_timeout_s',
+                '0',
+                '--login_timeout_s',
+                '0',
+            ],
+        )
+        mocker.patch.object(server.mcp, 'run')
+        mocker.patch.object(server.db_connection_map, 'close_all')
+        server.main()
+        assert server.server_config.max_rows == 0
+        assert server.server_config.query_timeout_s == 0
+        assert server.server_config.login_timeout_s == 0
+
+    def test_main_readonly_notice_not_duplicated_on_repeat_call(self, mocker, monkeypatch):
+        """Calling main() twice in read-only mode must not append the notice twice.
+
+        tool.description mutates the shared, module-global mcp tool objects; without
+        the idempotency guard, a second main() call in the same process would
+        accumulate duplicate notices.
+        """
+        monkeypatch.setattr(sys, 'argv', ['prog', '--region', 'us-east-1'])
+        mocker.patch.object(server.mcp, 'run')
+        mocker.patch.object(server.db_connection_map, 'close_all')
+        server.main()
+        server.main()
+        tool = server.mcp._tool_manager.get_tool('run_query')
+        assert tool is not None
+        assert tool.description.count('READ-ONLY mode') == 1
+
     def test_main_startup_connect_validates(self, mocker, monkeypatch):
         """With --db_endpoint, main() creates and validates a connection at startup."""
         monkeypatch.setattr(
@@ -624,11 +693,15 @@ def test_main_dotless_endpoint_without_secret_exits(mocker, monkeypatch):
         server.main()
 
 
-def test_internal_create_connection_validates_and_evicts_on_failure(mocker):
-    """internal_create_connection validates connectivity and evicts broken connections.
+def test_internal_create_connection_validates_before_publishing(mocker):
+    """internal_create_connection validates connectivity BEFORE publishing to the map.
 
     When validate_sync fails (unreachable endpoint, bad secret, SSL error), the
-    tool must remove the cached entry so a broken connection is not left behind.
+    connection must never become visible via get() -- validating first (rather
+    than set() then remove()-on-failure) means there's nothing to evict, and a
+    concurrent run_query on the same key can never observe a not-yet-validated
+    connection. See the review discussion at connect_to_database's set()/validate
+    ordering.
     """
     mocker.patch.object(server.db_connection_map, 'get', return_value=None)
     set_spy = mocker.patch.object(server.db_connection_map, 'set')
@@ -646,9 +719,30 @@ def test_internal_create_connection_validates_and_evicts_on_failure(mocker):
             'DB2DB',
             secret_arn='arn:explicit',  # pragma: allowlist secret
         )
-    # Cached the connection then removed it on validation failure.
+    # Validation happens before set(), so a failed validation never publishes the
+    # connection -- nothing was cached, so nothing needs to be evicted either.
+    set_spy.assert_not_called()
+    remove_spy.assert_not_called()
+
+
+def test_internal_create_connection_publishes_only_after_successful_validation(mocker):
+    """A successful validate_sync is followed by publishing the connection to the map."""
+    mocker.patch.object(server.db_connection_map, 'get', return_value=None)
+    set_spy = mocker.patch.object(server.db_connection_map, 'set')
+    good = MagicMock()
+    good.validate_sync.return_value = None
+    mocker.patch.object(server, 'IbmDbConnection', return_value=good)
+    conn, response = server.internal_create_connection(
+        'us-east-1',
+        'id',
+        'host',
+        50443,
+        'DB2DB',
+        secret_arn='arn:explicit',  # pragma: allowlist secret
+    )
+    good.validate_sync.assert_called_once()
     set_spy.assert_called_once()
-    remove_spy.assert_called_once()
+    assert response['status'] == 'Connected'
 
 
 async def test_connect_to_database_validation_failure_returns_failed(mocker):

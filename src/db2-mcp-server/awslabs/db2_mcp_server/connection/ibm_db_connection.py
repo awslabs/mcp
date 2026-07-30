@@ -59,6 +59,7 @@ class IbmDbConnection(AbstractDBConnection):
         ssl_server_certificate: Optional[str] = None,
         ssl_hostname_validation: bool = True,
         query_timeout_s: int = 30,
+        login_timeout_s: int = 15,
         is_test: bool = False,
     ):
         """Initialize an ibm_db connection configuration.
@@ -80,6 +81,12 @@ class IbmDbConnection(AbstractDBConnection):
                 through a tunnel/port-forward where the local hostname
                 (e.g. 127.0.0.1) cannot match the certificate CN.
             query_timeout_s: Per-query timeout in seconds (0 = no timeout).
+            login_timeout_s: Per-connect (TCP/TLS handshake + auth) timeout in
+                seconds (0 = no timeout). query_timeout_s only bounds query
+                execution; without this, a reconnect to an unreachable/black-holed
+                endpoint blocks for the full OS TCP timeout while holding the
+                single serialized connection lock, stalling every other query on
+                this connection.
             is_test: When True, skips real Secrets Manager / driver calls.
         """
         super().__init__(readonly)
@@ -114,6 +121,7 @@ class IbmDbConnection(AbstractDBConnection):
         self.ssl_server_certificate = ssl_server_certificate
         self.ssl_hostname_validation = ssl_hostname_validation
         self.query_timeout_s = query_timeout_s
+        self.login_timeout_s = login_timeout_s
         self.is_test = is_test
 
         # ibm_db connection handles are NOT safe for concurrent use; serialize.
@@ -199,6 +207,14 @@ class IbmDbConnection(AbstractDBConnection):
         options: Dict[int, Union[int, str]] = {
             ibm_db.SQL_ATTR_AUTOCOMMIT: ibm_db.SQL_AUTOCOMMIT_OFF
         }
+        # query_timeout_s only bounds query execution (SQL_ATTR_QUERY_TIMEOUT, set
+        # per-statement in _execute_sync); nothing bounds the connect-time TCP/TLS
+        # handshake without this. A reconnect (_ensure_conn_sync) happens while
+        # self._lock is held, so an unbounded connect to a black-holed endpoint
+        # would stall every other query on this connection for the full OS TCP
+        # timeout (tens of seconds to minutes).
+        if self.login_timeout_s and self.login_timeout_s > 0:
+            options[ibm_db.SQL_ATTR_LOGIN_TIMEOUT] = self.login_timeout_s
         logger.info(
             f'Connecting to Db2 host={self.host} port={self.port} db={self.database} '
             f'ssl={self.ssl_encryption}'
@@ -276,8 +292,13 @@ class IbmDbConnection(AbstractDBConnection):
             return float(value)
         if isinstance(value, (datetime, date, time)):
             return value.isoformat()
-        if isinstance(value, (bytes, bytearray)):
-            return value.decode('utf-8', errors='replace')
+        if isinstance(value, (bytes, bytearray, memoryview)):
+            # ibm_db can return BINARY/BLOB columns as memoryview, which -- unlike
+            # bytes/bytearray -- has no meaningful str() representation (it would
+            # serialize as the per-run, address-dependent '<memory at 0x...>' and
+            # silently corrupt the row with no error raised). Convert to bytes first
+            # so all three binary types decode the same way.
+            return bytes(value).decode('utf-8', errors='replace')
         return str(value)
 
     def _execute_sync(
@@ -358,14 +379,28 @@ class IbmDbConnection(AbstractDBConnection):
         return await asyncio.to_thread(self._execute_sync, sql, parameters, max_rows)
 
     def validate_sync(self) -> None:
-        """Validate connectivity synchronously with a lightweight probe."""
+        """Validate connectivity synchronously with a lightweight probe.
+
+        Mirrors the same return-value rigor _execute_sync applies to fetch_assoc
+        and rollback (both driver calls signal failure via falsy return as well as
+        by raising): a probe that fails mid-fetch or fails to roll back must not be
+        reported as a successful validation, or connect_to_database would cache a
+        connection that didn't actually complete its check.
+        """
         with self._lock:
             conn = self._ensure_conn_sync()
             stmt = cast(Any, ibm_db.exec_immediate(conn, 'SELECT 1 FROM SYSIBM.SYSDUMMY1'))
             if not stmt:
                 raise ValueError(f'Validation query failed: {ibm_db.stmt_errormsg()}')
-            ibm_db.fetch_assoc(stmt)
-            ibm_db.rollback(conn)
+            row = cast(Any, ibm_db.fetch_assoc(stmt))
+            if not row:
+                sqlstate = ibm_db.stmt_error(stmt)
+                if sqlstate and sqlstate != '02000':
+                    raise ValueError(
+                        f'Validation fetch failed (SQLSTATE {sqlstate}): {ibm_db.stmt_errormsg()}'
+                    )
+            if not ibm_db.rollback(conn):
+                raise ValueError(f'Validation rollback failed: {ibm_db.conn_errormsg()}')
 
     async def check_connection_health(self) -> bool:
         """Return True if a SELECT against SYSIBM.SYSDUMMY1 succeeds."""

@@ -129,8 +129,9 @@ To pre-connect a single instance at startup, pass arguments after the package na
 | `--ssl_server_certificate` | — | Path to the RDS regional PEM bundle (required when `--ssl_encryption require`) |
 | `--ssl_hostname_validation` | `basic` | `basic` validates the cert hostname; `off` disables it (tunnel testing only) |
 | `--allow_write_query` | off | Permit non-SELECT statements |
-| `--max_rows` | `1000` | Max rows per query (0 = no limit) |
-| `--query_timeout_s` | `30` | Per-query timeout in seconds (0 = none) |
+| `--max_rows` | `1000` | Max rows per query (0 = no limit; negative values are rejected) |
+| `--query_timeout_s` | `30` | Per-query timeout in seconds (0 = none; negative values are rejected) |
+| `--login_timeout_s` | `15` | Per-connect (TCP/TLS handshake + auth) timeout in seconds (0 = none; negative values are rejected) |
 
 ## The deploy → connect → query journey
 
