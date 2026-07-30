@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `load_instructions` now discovers instruction documents stored inside
+  artifact-store folders. Customer uploads (the `upload_artifact` tool and the
+  AWS Transform web console) are stored under the store's `User Uploads/`
+  folder, and the unprefixed `ListArtifacts` discovery listing does not descend
+  into folders, so uploaded instruction documents were never found regardless
+  of file name. Discovery now re-scans each folder the root listing reports
+  (plus the canonical `User Uploads/` prefix as a fallback) and matches the
+  instruction label against the path basename. A folder whose scan fails is
+  skipped rather than failing the call.
+- `upload_artifact` re-arms the one-shot instructions check when the uploaded
+  file matches an instruction label, so a document uploaded mid-session is
+  picked up by the next `load_instructions` call.
 - Artifact downloads now return a clear, actionable error when the server is
   spawned with the filesystem root (`/`) as its working directory. The
   write-path confinement added for the arbitrary-file-write fix pinned the
