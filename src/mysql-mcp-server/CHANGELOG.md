@@ -14,11 +14,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   treated any non-empty `cluster_identifier` as an RDS cluster name and
   always called `describe_db_clusters`, even for `database_type=mysql`
   / `mariadb`, which can be standalone instances with no cluster at all.
-  Cluster resolution is now scoped to `database_type=aurora-mysql`; RDS
-  MySQL / MariaDB resolve via a new `internal_get_instance_properties_by_identifier`
+  Aurora MySQL still resolves via `describe_db_clusters`; RDS MySQL /
+  MariaDB now try a new `internal_get_instance_properties_by_identifier`
   (looks up a standalone instance directly by identifier) when only
-  `cluster_identifier` is given, or via the existing endpoint-based lookup
+  `cluster_identifier` is given, or the existing endpoint-based lookup
   when `db_endpoint` is given.
+
+### Changed
+
+- RDS MySQL identifiers that name an [RDS Multi-AZ DB cluster](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/multi-az-db-clusters-concepts.html)
+  keep working. A Multi-AZ DB cluster reports `Engine='mysql'` but is a
+  cluster resource with no DB instance carrying the cluster's identifier,
+  so `database_type=mysql` falls back to `describe_db_clusters` when RDS
+  reports no matching instance. The fallback is scoped to `DBInstanceNotFound`
+  (and the endpoint scan's no-match error) so that `AccessDenied` and
+  throttling errors still surface directly, and to `database_type=mysql`
+  because Multi-AZ DB clusters support only MySQL and PostgreSQL — RDS
+  MariaDB remains instance-only.
 
 ## 1.0.22
 

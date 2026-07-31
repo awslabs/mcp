@@ -20,7 +20,11 @@ from awslabs.mysql_mcp_server.connection.db_connection_map import (
     ConnectionMethod,
     DatabaseType,
 )
-from awslabs.mysql_mcp_server.server import internal_connect_to_database
+from awslabs.mysql_mcp_server.server import (
+    internal_connect_to_database,
+    is_db_instance_not_found,
+)
+from botocore.exceptions import ClientError
 from unittest.mock import MagicMock, patch
 
 
@@ -550,3 +554,183 @@ class TestInternalConnectToDatabaseStandaloneInstanceByIdentifier:
 
         mock_get_inst_by_id.assert_called_once_with('standalone-mariadb', 'us-east-1')
         mock_get_cluster.assert_not_called()
+
+
+class TestInternalConnectToDatabaseMultiAzDbCluster:
+    """RDS Multi-AZ DB cluster resolution for database_type=mysql.
+
+    An RDS Multi-AZ DB cluster reports ``Engine='mysql'`` but is a
+    cluster resource, so it resolves through ``describe_db_clusters``
+    and has no DB instance carrying the cluster's identifier. Routing
+    every ``mysql`` deployment to an instance lookup would break it, so
+    the instance lookup falls back to the cluster lookup on "not found".
+
+    Multi-AZ DB clusters support only MySQL and PostgreSQL, so RDS
+    MariaDB gets no such fallback.
+    """
+
+    INSTANCE_NOT_FOUND = ClientError(
+        {'Error': {'Code': 'DBInstanceNotFound', 'Message': 'not found'}},
+        'DescribeDBInstances',
+    )
+
+    MULTI_AZ_CLUSTER = {
+        # No HttpEndpointEnabled: Multi-AZ DB clusters have no Data API.
+        'MasterUsername': 'admin',
+        'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:multiaz-mysql',
+        'MasterUserSecret': {'SecretArn': 'arn:secret'},
+        'Endpoint': 'multiaz-mysql.cluster-abc123.us-east-1.rds.amazonaws.com',
+        'Port': '3306',
+    }
+
+    @patch('awslabs.mysql_mcp_server.server.AsyncmyPoolConnection')
+    @patch('awslabs.mysql_mcp_server.server.internal_get_instance_properties_by_identifier')
+    @patch('awslabs.mysql_mcp_server.server.internal_get_cluster_properties')
+    @patch('awslabs.mysql_mcp_server.server.db_connection_map')
+    def test_falls_back_to_cluster_lookup_by_identifier(
+        self, mock_map, mock_get_cluster, mock_get_inst_by_id, mock_asyncmy_cls
+    ):
+        """Identifier naming a Multi-AZ DB cluster resolves via the cluster API."""
+        mock_map.get.return_value = None
+        mock_get_inst_by_id.side_effect = self.INSTANCE_NOT_FOUND
+        mock_get_cluster.return_value = self.MULTI_AZ_CLUSTER
+
+        mock_conn = MagicMock()
+        mock_asyncmy_cls.return_value = mock_conn
+
+        result_conn, result_json = internal_connect_to_database(
+            region='us-east-1',
+            database_type=DatabaseType.RDS_MYSQL,
+            connection_method=ConnectionMethod.MYSQL_WIRE_PROTOCOL,
+            cluster_identifier='multiaz-mysql',
+            db_endpoint='',
+            port=3306,
+            database='testdb',
+        )
+
+        mock_get_inst_by_id.assert_called_once_with('multiaz-mysql', 'us-east-1')
+        mock_get_cluster.assert_called_once_with(
+            cluster_identifier='multiaz-mysql', region='us-east-1'
+        )
+        assert result_conn is mock_conn
+
+        # Endpoint and port come off the cluster, as they do for Aurora.
+        parsed = json.loads(result_json)
+        assert parsed['db_endpoint'] == self.MULTI_AZ_CLUSTER['Endpoint']
+        assert mock_asyncmy_cls.call_args[1]['host'] == self.MULTI_AZ_CLUSTER['Endpoint']
+        assert mock_asyncmy_cls.call_args[1]['port'] == 3306
+
+    @patch('awslabs.mysql_mcp_server.server.AsyncmyPoolConnection')
+    @patch('awslabs.mysql_mcp_server.server.internal_get_instance_properties')
+    @patch('awslabs.mysql_mcp_server.server.internal_get_cluster_properties')
+    @patch('awslabs.mysql_mcp_server.server.db_connection_map')
+    def test_falls_back_to_cluster_lookup_when_endpoint_given(
+        self, mock_map, mock_get_cluster, mock_get_inst_by_endpoint, mock_asyncmy_cls
+    ):
+        """The endpoint scan can't match a cluster endpoint, so it falls back too.
+
+        ``internal_get_instance_properties`` scans DB instances for a
+        matching endpoint address; a Multi-AZ DB cluster's writer
+        endpoint belongs to no instance, so the scan raises ValueError
+        and the caller-supplied endpoint is kept as-is.
+        """
+        mock_map.get.return_value = None
+        mock_get_inst_by_endpoint.side_effect = ValueError(
+            'AWS error fetching instance by endpoint'
+        )
+        mock_get_cluster.return_value = self.MULTI_AZ_CLUSTER
+
+        mock_asyncmy_cls.return_value = MagicMock()
+
+        internal_connect_to_database(
+            region='us-east-1',
+            database_type=DatabaseType.RDS_MYSQL,
+            connection_method=ConnectionMethod.MYSQL_WIRE_PROTOCOL,
+            cluster_identifier='multiaz-mysql',
+            db_endpoint=self.MULTI_AZ_CLUSTER['Endpoint'],
+            port=3306,
+            database='testdb',
+        )
+
+        mock_get_cluster.assert_called_once_with(
+            cluster_identifier='multiaz-mysql', region='us-east-1'
+        )
+        assert mock_asyncmy_cls.call_args[1]['host'] == self.MULTI_AZ_CLUSTER['Endpoint']
+
+    @patch('awslabs.mysql_mcp_server.server.internal_get_instance_properties_by_identifier')
+    @patch('awslabs.mysql_mcp_server.server.internal_get_cluster_properties')
+    @patch('awslabs.mysql_mcp_server.server.db_connection_map')
+    def test_no_cluster_fallback_for_mariadb(
+        self, mock_map, mock_get_cluster, mock_get_inst_by_id
+    ):
+        """MariaDB can't be a Multi-AZ DB cluster, so the error propagates."""
+        mock_map.get.return_value = None
+        mock_get_inst_by_id.side_effect = self.INSTANCE_NOT_FOUND
+
+        with pytest.raises(ClientError):
+            internal_connect_to_database(
+                region='us-east-1',
+                database_type=DatabaseType.RDS_MARIADB,
+                connection_method=ConnectionMethod.MYSQL_WIRE_PROTOCOL,
+                cluster_identifier='not-a-cluster',
+                db_endpoint='',
+                port=3306,
+                database='testdb',
+            )
+
+        mock_get_cluster.assert_not_called()
+
+    @patch('awslabs.mysql_mcp_server.server.internal_get_instance_properties_by_identifier')
+    @patch('awslabs.mysql_mcp_server.server.internal_get_cluster_properties')
+    @patch('awslabs.mysql_mcp_server.server.db_connection_map')
+    def test_no_cluster_fallback_on_access_denied(
+        self, mock_map, mock_get_cluster, mock_get_inst_by_id
+    ):
+        """A permissions error must surface, not be retried as a cluster lookup."""
+        mock_map.get.return_value = None
+        mock_get_inst_by_id.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'denied'}},
+            'DescribeDBInstances',
+        )
+
+        with pytest.raises(ClientError) as excinfo:
+            internal_connect_to_database(
+                region='us-east-1',
+                database_type=DatabaseType.RDS_MYSQL,
+                connection_method=ConnectionMethod.MYSQL_WIRE_PROTOCOL,
+                cluster_identifier='some-instance',
+                db_endpoint='',
+                port=3306,
+                database='testdb',
+            )
+
+        assert excinfo.value.response['Error']['Code'] == 'AccessDenied'
+        mock_get_cluster.assert_not_called()
+
+
+class TestIsDbInstanceNotFound:
+    """Tests for the is_db_instance_not_found predicate."""
+
+    def test_value_error_is_not_found(self):
+        """The endpoint scan signals "no match" with ValueError."""
+        assert is_db_instance_not_found(ValueError('no instance matched')) is True
+
+    def test_db_instance_not_found_client_error(self):
+        """RDS's own DBInstanceNotFound code counts as not found."""
+        error = ClientError(
+            {'Error': {'Code': 'DBInstanceNotFound', 'Message': 'nope'}},
+            'DescribeDBInstances',
+        )
+        assert is_db_instance_not_found(error) is True
+
+    def test_other_client_error_is_not_not_found(self):
+        """Any other AWS error code must not be treated as not found."""
+        error = ClientError(
+            {'Error': {'Code': 'Throttling', 'Message': 'slow down'}},
+            'DescribeDBInstances',
+        )
+        assert is_db_instance_not_found(error) is False
+
+    def test_unrelated_exception_is_not_not_found(self):
+        """Unrelated exception types are not not-found signals."""
+        assert is_db_instance_not_found(RuntimeError('boom')) is False
