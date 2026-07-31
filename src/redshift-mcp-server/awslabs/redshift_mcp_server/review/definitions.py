@@ -351,6 +351,11 @@ SIGNAL_UNITS: dict[str, str] = {
 }
 
 
+# Queries are rendered with str.format(node_type=...) before they run: a {node_type}
+# field takes the cluster's node type from the Redshift DescribeClusters API, and any
+# other brace must be escaped as {{ or }}.
+
+
 SIGNAL_EVALUATION_SQL: list[tuple[str, str, str]] = [
     (
         'ATOWorkerActions',
@@ -549,24 +554,14 @@ WHERE is_stale = 't' AND state IN (0, 1)
         """\
 -- NodeDetails
 WITH data AS (
-SELECT CASE
-       WHEN capacity = 190633 THEN 'dc2.large'
-       WHEN capacity = 760956 THEN 'dc2.8xlarge'
-       WHEN capacity = 726296 THEN 'dc2.8xlarge'
-       WHEN capacity = 952455 THEN 'ds2.xlarge'
-       WHEN capacity = 945026 THEN 'ds2.8xlarge'
-       WHEN capacity < 2002943 THEN 'ra3.large'
-       WHEN capacity = 2002943 AND part_count = 1 THEN 'ra3.xlplus'
-       WHEN capacity > 2002943 AND part_count = 1 THEN 'ra3.4xlarge'
-       WHEN capacity > 2002943 AND part_count = 4 THEN 'ra3.16xlarge'
-       ELSE 'unknown'
-       END AS node_type,
+-- node_type is substituted from the cluster's actual node type as reported by the Redshift DescribeClusters API.
+SELECT '{node_type}'::text AS node_type,
        s.node,
        slice_count,
        storage_utilization_pct,
        storage_capacity_gb,
        storage_used_gb
-FROM (SELECT distinct p.host node, p.capacity, count(1) part_count FROM stv_partitions p WHERE host = owner GROUP BY 1,2) AS s
+FROM (SELECT p.host node FROM stv_partitions p WHERE host = owner GROUP BY 1) AS s
 INNER JOIN (SELECT node,COUNT(1) AS slice_count FROM stv_slices WHERE type='D' GROUP BY node) n ON (s.node = n.node)
 INNER JOIN (SELECT node,
        ROUND((used::decimal(18,2)/capacity)*100,2) AS storage_utilization_pct,
@@ -967,9 +962,11 @@ FROM data
 WHERE service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select count(1) from data where coalesce(qmr_rule,'') not like '%query_temp_blocks_to_disk%') = (select count(1) from data))
 UNION ALL
 -- Signal: no QMR defined for spectrum_scan_size_mb or spectrum_scan_row_count metric
+-- Gated on recent Spectrum activity (source_type 'S3'), since these metrics only bound
+-- queries that scan S3 external data.
 SELECT count(*), 'REC_019', 'no QMR defined for spectrum_scan_size_mb or spectrum_scan_row_count metric'
 FROM data
-WHERE service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select count(1) from data where coalesce(qmr_rule,'') not like '%spectrum_scan%') = (select count(1) from data))
+WHERE service_class_id <> 5 and service_class_id <> 14 and service_class_id <> 15 AND ((select count(1) from data where coalesce(qmr_rule,'') not like '%spectrum_scan%') = (select count(1) from data)) AND EXISTS (SELECT 1 FROM SYS_EXTERNAL_QUERY_DETAIL WHERE trim(source_type) = 'S3' AND start_time >= dateadd(day, -7, getdate()))
 """,
     ),
     (

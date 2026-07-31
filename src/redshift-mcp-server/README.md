@@ -421,7 +421,7 @@ review_cluster(cluster_identifier: str, database_name: str = 'dev') -> ReviewRes
 - Deduplicated recommendations with documentation links
 - List of diagnostic queries executed
 
-**Note**: Requires superuser (CREATEUSER) privileges. Provisioned-only diagnostics are automatically skipped for serverless workgroups.
+**Note**: Requires the connecting database user to hold the `sys:monitor` role (or be a superuser), see [Database Permissions](#database-permissions). Provisioned-only diagnostics are automatically skipped for serverless workgroups.
 
 ## Permissions
 
@@ -459,6 +459,12 @@ In addition to AWS IAM permissions, you need appropriate database-level permissi
 - **Read Access**: `SELECT` permissions on tables/views you want to query
 - **Schema Access**: `USAGE` permissions on schemas you want to explore
 - **Database Access**: Connection permissions to databases you want to access
-- **Review Access**: The `review_cluster` tool requires superuser (CREATEUSER) privileges to read system views such as `SYS_AUTO_TABLE_OPTIMIZATION`, `SYS_QUERY_HISTORY`, and `SVV_TABLE_INFO`. Grant via `ALTER USER <username> CREATEUSER;` or `GRANT ROLE sys:monitor TO <username>;` for a narrower scope.
+- **Review Access**: The `review_cluster` tool reads system views such as `SYS_AUTO_TABLE_OPTIMIZATION`, `STV_NODE_STORAGE_CAPACITY`, and `SVV_TABLE_INFO`, which require superuser or `sys:monitor` access. Grant the connecting database user the `sys:monitor` role, which is the narrowest grant that covers them:
+
+  ```sql
+  GRANT ROLE sys:monitor TO "<database_user>";
+  ```
+
+  `<database_user>` is the output of `SELECT current_user`. When the server authenticates with IAM credentials it is `IAM:<user>` or `IAMR:<role>`, and the double quotes are required for those names. The grant must be issued by a superuser, such as the cluster's admin user.
 
 For the strongest protection, grant these to a **least-privilege, read-only role** rather than a broad or write-capable one.
