@@ -66,7 +66,7 @@ Design principle: same as V2 — **one database per retention period**.
 Guidance:
 - Create databases via `POST /api/v3/configure/database`.
 - Retention is set via `retention_period` (e.g. `"7d"`, `"90d"`, `"1y"`). Null or omitted = infinite.
-- Tables are limited to **10,000 across all databases** (default) — plan measurement names accordingly.
+- Tables are limited to **2,000** for Core and **10,000** for Enterprise across all databases (default) — plan measurement names accordingly.
 - Each table is limited to **500 columns** (1 timestamp + up to 499 tag/field keys).
 
 ### Database creation example
@@ -85,7 +85,26 @@ curl -X POST "https://<endpoint>:8181/api/v3/configure/database" \
 
 Retention is configured per database via `retention_period` using human-readable durations (`"7d"`, `"30d"`, `"1y"`). Null = infinite.
 
-Update retention via `PATCH /api/v3/configure/database/{name}`. To clear retention (keep data indefinitely), use `DELETE /api/v3/configure/database/retention?db=<name>`.
+Update retention via `PUT /api/v3/configure/database`. For example:
+
+```bash
+curl --request PUT \
+  "https://localhost:8181/api/v3/configure/database" \
+  --header "Authorization: Bearer INFLUX_TOKEN" \
+  --header "Content-Type: application/json" \
+  --data-raw '{
+    "db": "test-db"
+    "retention_period": "7d"
+}'
+```
+
+To clear retention (keep data indefinitely), use `DELETE /api/v3/configure/database/retention_period?db=DB`. For example:
+
+```bash
+curl --request DELETE \
+  "https://localhost:8181/api/v3/configure/database/retention_period?db=DB" \
+  --header "Authorization: Bearer INFLUX_TOKEN"
+```
 
 ## Field Type Conflicts
 
@@ -110,7 +129,7 @@ Detection: use `SHOW COLUMNS FROM <table>` or query `information_schema.columns`
 Resolution:
 - You **cannot change** a field's type after first write. Options:
   1. Write to a new field name (e.g., `temp_f` instead of `temp`) and update queries.
-  2. Delete all data in the measurement and rewrite with the correct type.
+  2. Delete all data in the measurement and rewrite with the correct type. ⚠️ irreversible — confirm with the user first.
   3. Create a new measurement with the correct schema and migrate data via a task.
 
 ## Series Cardinality

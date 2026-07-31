@@ -183,7 +183,7 @@ When a user asks how to write data — read `development-guide.md`. Key facts:
 When a user asks about databases, tables, retention, or cardinality — read `schema-design.md`. Key facts:
 - Design databases by retention period
 - Measurements become tables automatically on first write
-- Virtually unlimited cardinality; watch the **10,000-table** limit (across all databases) and the **500-column-per-table** limit ([docs](https://docs.influxdata.com/influxdb3/enterprise/admin/databases/#database-table-and-column-limits))
+- Virtually unlimited cardinality; watch the table limit, **2,000** for Core and **10,000** for Enterprise, (across all databases) and the **500-column-per-table** limit ([docs](https://docs.influxdata.com/influxdb3/enterprise/admin/databases/#database-table-and-column-limits))
 
 ### Querying
 
@@ -228,4 +228,4 @@ aws timestream-influxdb untag-resource --resource-arn <arn> --tag-keys Env --reg
 | Get param group | `get-db-parameter-group --identifier ID` |
 | Tag resource | `tag-resource --resource-arn ARN --tags Key=K,Value=V` |
 
-All commands require `--region` and are prefixed with `aws timestream-influxdb`. There is no `delete-db-parameter-group` operation.
+All commands require a region. Specify it with `--region` or configure a default via the AWS_REGION environment variable or your AWS CLI profile. All commands are prefixed with `aws timestream-influxdb`. There is no `delete-db-parameter-group` operation.

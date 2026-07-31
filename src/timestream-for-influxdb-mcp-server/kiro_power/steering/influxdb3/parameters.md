@@ -96,11 +96,11 @@ These parameters are **only** available in `InfluxDBv3Enterprise`, in addition t
 
 ### Cluster Topology (all required in Enterprise)
 
-| Parameter | Type | Range | Description |
-|-----------|------|-------|-------------|
-| `ingestQueryInstances` | integer **[required]** | — | Number of combined ingest+query instances (primary write-and-read nodes) |
-| `queryOnlyInstances` | integer **[required]** | — | Number of query-only (read) instances. Populates `readerEndpoint`. |
-| `dedicatedCompactor` | boolean **[required]** | — | Whether to run a dedicated compactor instance |
+| Parameter              | Type                   | Range | Description                                                               | InfluxDBV3Enterprise default |
+|------------------------|------------------------|-------|---------------------------------------------------------------------------|------------------------------|
+| `ingestQueryInstances` | integer **[required]** | 1—4   | Number of combined ingest+query instances (primary write-and-read nodes). | 2                            |
+| `queryOnlyInstances`   | integer **[required]** | 0—13  | Number of query-only (read) instances. Populates `readerEndpoint`.        | 0                            |
+| `dedicatedCompactor`   | boolean **[required]** | -     | Whether to run a dedicated compactor instance.                            | true                         |
 
 **Horizontal scaling workflow:** Parameter groups are immutable, so to change topology you **MUST** create a new parameter group with updated values for these fields, then run `update-db-cluster --db-parameter-group-identifier NEW_ID` (the cluster reboots automatically).
 

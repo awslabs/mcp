@@ -111,7 +111,7 @@ MemoryUtilization:
 
 DiskUtilization:
 - Threshold: > 85%
-- Action: Try to free up space by deleting old buckets, updating retention configurations or Storage Scaling
+- Action: Try to free up space by deleting old buckets, updating retention configurations or Storage Scaling. ⚠️ irreversible — confirm with the user first.
 
 TotalIOpsPerSec:
 - Threshold: > 90% of provisioned for 10 minutes

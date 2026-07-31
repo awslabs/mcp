@@ -20,7 +20,7 @@
 
 ## Operational — Will Cause Scaling Issues
 
-**10K Tables Limit**: Default is **10,000 tables across all databases** (not per database), set by the `--num-table-limit` server config and **not exposed in the Timestream parameter group**. Each unique measurement is a table. Also note the **500-columns-per-table** limit (1 timestamp + up to 499 tag/field columns). More tables means more compaction work and more object-store PUTs — review compaction/query implications before relying on a high table count. See [Database, table, and column limits](https://docs.influxdata.com/influxdb3/enterprise/admin/databases/#database-table-and-column-limits).
+**Table Limits**: Across all databases, the default table limits are **2,000** for Core and **10,000** for Enterprise. This is set by the `--num-table-limit` server config and **not exposed in the Timestream parameter group**. Each unique measurement is a table. Also note the **500-columns-per-table** limit (1 timestamp + up to 499 tag/field columns). More tables means more compaction work and more object-store PUTs — review compaction/query implications before relying on a high table count. See [Database, table, and column limits](https://docs.influxdata.com/influxdb3/enterprise/admin/databases/#database-table-and-column-limits).
 
 **Compactor Node OOM**: In V3 Enterprise, uneven load distribution can cause compactor nodes to OOM. Monitor `system.parquet_files` for growing file counts. Consider dedicated compactor nodes.
 

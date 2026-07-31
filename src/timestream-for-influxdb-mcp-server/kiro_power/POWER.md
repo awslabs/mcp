@@ -15,7 +15,7 @@ This Power enables you to deploy and operate Timestream for InfluxDB instances a
 
 - **Dual Version Support**: Deploy and manage both InfluxDB 2 and InfluxDB 3 instances and clusters
 
-- **Multi-Protocol Query Support**: Run Flux, InfluxQL, or SQL queries directly against your Timestream for InfluxDB instance
+- **Multi-Protocol Query Support**: Run Flux (v2), InfluxQL (v2 and v3), or SQL (v3) queries directly against your Timestream for InfluxDB instance or cluster
 
 - **Ingest Line Protocol**: Write high-throughput time-series data using InfluxDB's native line protocol
 
@@ -97,7 +97,7 @@ The Timestream for InfluxDB MCP server provides tools for managing Amazon Timest
 
 2. [InfluxDB 3 MCP Server](https://github.com/influxdata/influxdb3_mcp_server?tab=readme-ov-file#available-tools)
 
-The InfluxDB 3 MCP Server provides tools for data operations (read/write), database lifecycle management (create/update/delete), schema inspection, and authentication token management across all InfluxDB versions (Core, Enterprise, Cloud).
+The InfluxDB 3 MCP Server provides tools for data operations (read/write), database lifecycle management (create/update/delete), schema inspection, and authentication token management across all InfluxDB 3 editions (Core, Enterprise, Cloud).
 
 
 ## Configuration

@@ -48,6 +48,6 @@ Both engines expose a `GET /health`. Use it to separate
 curl https://<endpoint>:<port>/health
 ```
 
-A healthy response (`OK`) means the engine is reachable, so the problem is most likely
-auth (steps 2–3), networking to a private resource (step 5), or the namespace/payload —
+A healthy response means the engine is reachable, so the problem is most likely
+auth (steps 2–3), networking to a private resource (step 4), or the namespace/payload —
 not the endpoint itself.

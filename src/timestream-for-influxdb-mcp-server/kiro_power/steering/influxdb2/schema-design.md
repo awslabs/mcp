@@ -163,9 +163,9 @@ Resolution:
 
 ## Series Cardinality
 
-A **series** is a unique combination of measurement name + tag set. Series cardinality = total number of unique series across all measurements.
+**Series cardinality** is the number of unique measurement, tag set, and field key combinations in an InfluxDB bucket.
 
-Example: `cpu,host=A,region=us` and `cpu,host=B,region=us` are 2 series.
+Example: `cpu,host=A,region=us value=22.5 1709251200000000000` and `cpu,host=B,region=us value=45.2 1709251200000000000` are 2 series, meaning the dataset has a series cardinality of 2.
 
 V2 TSM engine: performance typically degrades above **~10M series**, depending on instance size and workload. Symptoms: slow queries, high memory, compaction stalls.
 

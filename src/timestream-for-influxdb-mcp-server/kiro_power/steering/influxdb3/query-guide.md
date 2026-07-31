@@ -66,6 +66,9 @@ SELECT [ ALL | DISTINCT ] select_expr [, …]
 ```
 
 **Keywords**
+
+The following reserved keywords cannot be used as identifiers.
+
 ```sql
 AND
 ALL
@@ -274,8 +277,6 @@ The `query` endpoint supports the following query parameters:
 - `chunk_size`: Specifies the number of points to include in a chunk, if `chunked` is `true`.
 - `db`: Required. Database name.
 - `epoch`: Timestamp precision. Valid values are: `h`, `m`, `s`, `ms`, `us`, and `ns`.
-- `u`: For query string authentication, the user's username.
-- `p`: For query string authentication, the user's password. InfluxDB v3 enterprise expects this to be a token with read access to the database and will ignore `u`.
 - `q`: The InfluxQL query to execute.
 
 **Example**

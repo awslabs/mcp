@@ -218,13 +218,13 @@ The secret contains `username` and `password`. The token is **not** stored here 
 
 ## Step 3 — Create an All-Access Token
 
-The Secrets Manager secret contains `username` and `password` only — no token. Use them to sign in, then create an all-access token for all future data plane operations.
+The Secrets Manager secret contains `username` and `password` only — no token. Use them to sign in, then create an all-access token for all future data plane operations. In the below command, replace <username> with the username and <password> with the password.
 
 ```bash
 # 1. Sign in with Basic auth (Authorization header, not Cookie)
 SESSION=$(curl -si -X POST \
   "https://<endpoint>:8086/api/v2/signin" \
-  -H "Authorization: Basic $(echo -n 'username:password' | base64)" \
+  -H "Authorization: Basic $(echo -n '<username>:<password>' | base64)" \
   | grep -i set-cookie | sed 's/.*set-cookie: //' | sed 's/;.*//' | tr -d '\r')
 
 # 2. Get org ID and user ID (org name comes from the secret)
@@ -330,12 +330,6 @@ curl -X POST "https://<endpoint>:8086/api/v2/query?org=my-org" \
     "query": "from(bucket: \"my-bucket\") |> range(start: -1h) |> filter(fn: (r) => r._measurement == \"cpu\")",
     "type": "flux"
   }'
-```
-
-**InfluxQL (V1 compatibility endpoint):**
-```bash
-curl "https://<endpoint>:8086/query?db=my-bucket&q=SELECT+*+FROM+cpu+WHERE+time+>+now()+-+1h" \
-  -H "Authorization: Bearer $TOKEN"
 ```
 
 ## What's Created by `create-db-instance`
