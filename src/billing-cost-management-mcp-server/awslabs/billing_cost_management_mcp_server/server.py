@@ -64,7 +64,13 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_optimization_hub_tool
 from awslabs.billing_cost_management_mcp_server.tools.free_tier_usage_tools import (
     free_tier_usage_server,
 )
+from awslabs.billing_cost_management_mcp_server.tools.invoice_units_tools import (
+    invoice_units_server,
+)
 from awslabs.billing_cost_management_mcp_server.tools.invoicing_tools import invoicing_server
+from awslabs.billing_cost_management_mcp_server.tools.procurement_preferences_tools import (
+    procurement_preferences_server,
+)
 from awslabs.billing_cost_management_mcp_server.tools.recommendation_details_tools import (
     recommendation_details_server,
 )
@@ -219,6 +225,8 @@ async def setup():
     await mcp.import_server(cost_allocation_tags_server)
     await mcp.import_server(cost_category_server)
     await mcp.import_server(invoicing_server)
+    await mcp.import_server(invoice_units_server)
+    await mcp.import_server(procurement_preferences_server)
 
     await register_prompts()
 
