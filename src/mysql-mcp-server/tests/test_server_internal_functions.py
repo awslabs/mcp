@@ -707,6 +707,50 @@ class TestInternalConnectToDatabaseMultiAzDbCluster:
         assert excinfo.value.response['Error']['Code'] == 'AccessDenied'
         mock_get_cluster.assert_not_called()
 
+    @patch('awslabs.mysql_mcp_server.server.AsyncmyPoolConnection')
+    @patch('awslabs.mysql_mcp_server.server.internal_get_instance_properties_by_identifier')
+    @patch('awslabs.mysql_mcp_server.server.internal_get_cluster_properties')
+    @patch('awslabs.mysql_mcp_server.server.db_connection_map')
+    def test_aurora_identifier_under_mysql_type_now_resolves(
+        self, mock_map, mock_get_cluster, mock_get_inst_by_id, mock_asyncmy_cls
+    ):
+        """An Aurora cluster identifier passed under database_type=mysql resolves.
+
+        Not a supported configuration, but the cluster fallback reaches any
+        DBCluster, so this misuse now connects over the wire protocol instead
+        of erroring. Both wire methods valid for mysql are also valid for
+        Aurora, and the Aurora-only Data API wiring stays unreachable because
+        is_connection_method_supported rejects rdsapi for mysql.
+        """
+        mock_map.get.return_value = None
+        mock_get_inst_by_id.side_effect = self.INSTANCE_NOT_FOUND
+        mock_get_cluster.return_value = {
+            # An Aurora DBCluster, unlike a Multi-AZ one, reports this field.
+            'HttpEndpointEnabled': True,
+            'MasterUsername': 'admin',
+            'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:aurora-1',
+            'MasterUserSecret': {'SecretArn': 'arn:secret'},
+            'Endpoint': 'aurora-1.cluster-abc123.us-east-1.rds.amazonaws.com',
+            'Port': '3306',
+        }
+        mock_asyncmy_cls.return_value = MagicMock()
+
+        internal_connect_to_database(
+            region='us-east-1',
+            database_type=DatabaseType.RDS_MYSQL,
+            connection_method=ConnectionMethod.MYSQL_WIRE_PROTOCOL,
+            cluster_identifier='aurora-1',
+            db_endpoint='',
+            port=3306,
+            database='testdb',
+        )
+
+        mock_get_cluster.assert_called_once_with(cluster_identifier='aurora-1', region='us-east-1')
+        assert (
+            mock_asyncmy_cls.call_args[1]['host']
+            == 'aurora-1.cluster-abc123.us-east-1.rds.amazonaws.com'
+        )
+
 
 class TestIsDbInstanceNotFound:
     """Tests for the is_db_instance_not_found predicate."""
