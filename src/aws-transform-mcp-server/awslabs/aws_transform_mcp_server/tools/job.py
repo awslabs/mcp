@@ -74,14 +74,12 @@ class JobHandler:
         jobName: Annotated[str, Field(description='Name for the job')],
         objective: Annotated[str, Field(description='The transformation objective')],
         intent: Annotated[str, Field(description='The transformation intent')],
-        jobType: Annotated[Optional[str], Field(description='The type of transformation')] = None,
         orchestratorAgent: Annotated[
             Optional[str],
             Field(
                 description=(
                     'The orchestrator agent name (alphanumeric, hyphens, underscores). '
-                    'Only orchestrator agents can be used here -- not sub-agents. '
-                    'If the request fails with jobType, retry using orchestratorAgent instead.'
+                    'Only orchestrator agents can be used here -- not sub-agents.'
                 ),
             ),
         ] = None,
@@ -103,7 +101,6 @@ class JobHandler:
             create_req = CreateJobRequest(
                 workspaceId=workspaceId,
                 jobName=jobName,
-                jobType=jobType,
                 objective=objective,
                 intent=intent,
                 idempotencyToken=str(uuid.uuid4()),
