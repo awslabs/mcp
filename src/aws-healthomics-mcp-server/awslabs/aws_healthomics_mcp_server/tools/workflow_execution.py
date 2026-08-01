@@ -190,6 +190,15 @@ async def start_run(
             'API default is SHARED).'
         ),
     ),
+    tags: Optional[Dict[str, str]] = Field(
+        None,
+        description=(
+            'Optional tags to associate with the run at creation time. '
+            'Tags are key-value string pairs attached to the run before it '
+            'begins execution. Useful for cost allocation, organizing runs, '
+            'and routing event notifications to the correct consumer.'
+        ),
+    ),
     aws_profile: Optional[str] = Field(
         None,
         description='AWS profile name for this operation. Overrides the default credential chain.',
@@ -222,6 +231,7 @@ async def start_run(
         networking_mode: Optional networking mode (RESTRICTED or VPC)
         configuration_name: Optional configuration name (required when networking_mode is VPC)
         scratch_storage_mode: Optional scratch storage mode (LOCAL or SHARED); defaults to LOCAL
+        tags: Optional tags to associate with the run at creation time
         aws_profile: Optional AWS profile name override
         aws_region: Optional AWS region override
 
@@ -337,6 +347,9 @@ async def start_run(
     if networking_mode == NETWORKING_MODE_VPC:
         params['networkingMode'] = networking_mode
         params['configurationName'] = configuration_name
+
+    if tags and isinstance(tags, dict):
+        params['tags'] = tags
 
     try:
         response = client.start_run(**params)
