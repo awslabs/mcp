@@ -13,10 +13,9 @@
 # limitations under the License.
 """Tests for broker ID to hostname lookup functionality."""
 
-from unittest.mock import MagicMock
-
 import pytest
 from awslabs.amazon_mq_mcp_server.rabbitmq.connection import get_broker_hostname_from_id
+from unittest.mock import MagicMock
 
 
 class TestGetBrokerHostnameFromId:
@@ -120,9 +119,7 @@ class TestGetBrokerHostnameFromId:
         """Test error when broker instance has no endpoints."""
         # Setup mock
         mock_client = MagicMock()
-        mock_client.describe_broker.return_value = {
-            'BrokerInstances': [{'Endpoints': []}]
-        }
+        mock_client.describe_broker.return_value = {'BrokerInstances': [{'Endpoints': []}]}
 
         # Execute and verify
         with pytest.raises(ValueError) as exc_info:
@@ -135,9 +132,7 @@ class TestGetBrokerHostnameFromId:
         # Setup mock
         mock_client = MagicMock()
         mock_client.describe_broker.return_value = {
-            'BrokerInstances': [
-                {'Endpoints': ['https://b-abc123.mq.us-east-1.on.aws:443']}
-            ]
+            'BrokerInstances': [{'Endpoints': ['https://b-abc123.mq.us-east-1.on.aws:443']}]
         }
 
         # Execute and verify
@@ -176,13 +171,7 @@ class TestGetBrokerHostnameFromId:
         # Setup mock
         mock_client = MagicMock()
         mock_client.describe_broker.return_value = {
-            'BrokerInstances': [
-                {
-                    'Endpoints': [
-                        'amqps://b-abc123.mq.eu-west-1.on.aws:5671'
-                    ]
-                }
-            ]
+            'BrokerInstances': [{'Endpoints': ['amqps://b-abc123.mq.eu-west-1.on.aws:5671']}]
         }
 
         # Execute

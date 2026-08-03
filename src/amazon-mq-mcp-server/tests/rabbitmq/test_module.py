@@ -216,7 +216,9 @@ class TestRabbitMQBrokerInitializeConnection:
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.get_broker_hostname_from_id')
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.RabbitMQConnection')
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.RabbitMQAdmin')
-    def test_rabbimq_broker_initialize_connection_success(self, mock_admin_class, mock_conn_class, mock_get_hostname):
+    def test_rabbimq_broker_initialize_connection_success(
+        self, mock_admin_class, mock_conn_class, mock_get_hostname
+    ):
         """Test successful broker connection initialization.
 
         Verifies successful connection with username/password authentication.
@@ -252,7 +254,9 @@ class TestRabbitMQBrokerInitializeConnection:
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.get_broker_hostname_from_id')
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.RabbitMQConnection')
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.RabbitMQAdmin')
-    def test_rabbimq_broker_initialize_connection_failure(self, mock_admin_class, mock_conn_class, mock_get_hostname):
+    def test_rabbimq_broker_initialize_connection_failure(
+        self, mock_admin_class, mock_conn_class, mock_get_hostname
+    ):
         """Test broker connection initialization failure handling.
 
         Verifies proper exception handling when connection fails.

@@ -1,9 +1,8 @@
 """Integration tests for RabbitMQ module with broker_id parameter."""
 
-from unittest.mock import MagicMock, Mock, patch
-
 import pytest
 from awslabs.amazon_mq_mcp_server.rabbitmq.module import RabbitMQModule
+from unittest.mock import MagicMock, Mock, patch
 
 
 class TestRabbitMQModuleBrokerId:
@@ -14,7 +13,7 @@ class TestRabbitMQModuleBrokerId:
         self.mock_mcp = Mock()
         self.captured_functions = {}
         self.mock_mq_client = MagicMock()
-        
+
         def mock_mq_client_getter(region: str):
             return self.mock_mq_client
 
@@ -31,13 +30,7 @@ class TestRabbitMQModuleBrokerId:
         """Test that initialize_connection accepts broker_id and retrieves hostname."""
         # Mock AWS API response
         self.mock_mq_client.describe_broker.return_value = {
-            'BrokerInstances': [
-                {
-                    'Endpoints': [
-                        'amqps://b-test-broker.mq.us-east-1.on.aws:5671'
-                    ]
-                }
-            ]
+            'BrokerInstances': [{'Endpoints': ['amqps://b-test-broker.mq.us-east-1.on.aws:5671']}]
         }
         mock_test_conn.return_value = None
 
@@ -62,13 +55,7 @@ class TestRabbitMQModuleBrokerId:
         """Test that initialize_connection_with_oauth accepts broker_id."""
         # Mock AWS API response
         self.mock_mq_client.describe_broker.return_value = {
-            'BrokerInstances': [
-                {
-                    'Endpoints': [
-                        'amqps://b-oauth-broker.mq.us-west-2.on.aws:5671'
-                    ]
-                }
-            ]
+            'BrokerInstances': [{'Endpoints': ['amqps://b-oauth-broker.mq.us-west-2.on.aws:5671']}]
         }
         mock_test_conn.return_value = None
 
@@ -123,13 +110,7 @@ class TestRabbitMQModuleBrokerId:
         """Test that empty region parameter is accepted (region validation removed)."""
         # Mock AWS API response
         self.mock_mq_client.describe_broker.return_value = {
-            'BrokerInstances': [
-                {
-                    'Endpoints': [
-                        'amqps://b-test-broker.mq.us-east-1.on.aws:5671'
-                    ]
-                }
-            ]
+            'BrokerInstances': [{'Endpoints': ['amqps://b-test-broker.mq.us-east-1.on.aws:5671']}]
         }
 
         # Get the captured function
@@ -172,9 +153,10 @@ class TestRabbitMQModuleBrokerId:
         init_func = self.captured_functions['rabbimq_broker_initialize_connection']
         # Get the actual function parameters (not all local variables)
         import inspect
+
         sig = inspect.signature(init_func)
         param_names = list(sig.parameters.keys())
-        
+
         assert 'broker_id' in param_names
         assert 'region' in param_names
         assert 'broker_hostname' not in param_names  # Should not be a parameter
@@ -185,7 +167,7 @@ class TestRabbitMQModuleBrokerId:
         oauth_func = self.captured_functions['rabbimq_broker_initialize_connection_with_oauth']
         sig = inspect.signature(oauth_func)
         param_names = list(sig.parameters.keys())
-        
+
         assert 'broker_id' in param_names
         assert 'region' in param_names
         assert 'broker_hostname' not in param_names  # Should not be a parameter

@@ -39,8 +39,10 @@ from .handlers import (
 from mcp.server.fastmcp import FastMCP
 from typing import Any, Callable
 
+
 # Type alias for boto3 client getter function
 BOTO3_CLIENT_GETTER = Callable[[str], Any]
+
 
 class RabbitMQModule:
     """A module that contains RabbitMQ API."""
@@ -77,7 +79,7 @@ class RabbitMQModule:
             try:
                 # Get MQ client for the specified region using the client getter
                 mq_client = self.mq_client_getter(region)
-                
+
                 # Get broker hostname from AWS API using the properly configured client
                 broker_hostname = get_broker_hostname_from_id(mq_client, broker_id)
 
@@ -111,7 +113,7 @@ class RabbitMQModule:
             try:
                 # Get MQ client for the specified region using the client getter
                 mq_client = self.mq_client_getter(region)
-                
+
                 # Get broker hostname from AWS API using the properly configured client
                 broker_hostname = get_broker_hostname_from_id(mq_client, broker_id)
 
