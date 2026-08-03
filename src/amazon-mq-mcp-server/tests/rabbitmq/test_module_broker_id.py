@@ -142,7 +142,7 @@ class TestRabbitMQModuleBrokerId:
                 broker_id='b-test-broker',
                 region='us-east-1',
                 username='admin',
-                password='password123',
+                password='password123',  # pragma: allowlist secret
             )
         assert 'Failed to retrieve broker hostname' in str(exc_info.value)
         assert 'AccessDenied' in str(exc_info.value)
