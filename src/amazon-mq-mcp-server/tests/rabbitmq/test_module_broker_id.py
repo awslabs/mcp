@@ -102,7 +102,7 @@ class TestRabbitMQModuleBrokerId:
                 broker_id='',
                 region='us-east-1',
                 username='admin',
-                password='password123',
+                password='password123',  # pragma: allowlist secret
             )
         assert 'broker_id cannot be empty' in str(exc_info.value)
 
