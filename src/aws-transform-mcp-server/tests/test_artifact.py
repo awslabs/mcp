@@ -403,3 +403,107 @@ class TestUploadArtifactConnector:
         # Verify CompleteArtifactUpload was NOT called (only 1 FES call: CreateArtifactUploadUrl)
         assert mock_fes.call_count == 1
         assert mock_fes.call_args_list[0][0][0] == 'CreateArtifactUploadUrl'
+
+
+class TestUploadInstructionInvalidatesCheck:
+    """Uploading an instruction document re-arms the load_instructions nudge."""
+
+    @patch('awslabs.aws_transform_mcp_server.tools.artifact.httpx.AsyncClient')
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.artifact.call_transform_api',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.artifact.is_fes_available',
+        return_value=True,
+    )
+    async def test_job_instructions_upload_unmarks_job(
+        self, _mock_cfg, mock_fes, mock_httpx_cls, handler, ctx
+    ):
+        from awslabs.aws_transform_mcp_server.guidance_nudge import (
+            _checked_jobs,
+            job_needs_check,
+            mark_job_checked,
+        )
+
+        _checked_jobs.clear()
+        mark_job_checked('job-1')
+
+        mock_fes.side_effect = [
+            {'s3PreSignedUrl': 'https://s3.example.com/upload', 'artifactId': 'art-ji-1'},
+            {},
+        ]
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_client = AsyncMock()
+        mock_client.put = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_httpx_cls.return_value = mock_client
+
+        result = await handler.upload_artifact(
+            ctx,
+            workspaceId='ws-1',
+            jobId='job-1',
+            content='# steering rules',
+            encoding='utf-8',
+            categoryType='CUSTOMER_INPUT',
+            fileType='MARKDOWN',
+            fileName='JOB_INSTRUCTIONS',
+            planStepId=None,
+        )
+        parsed = _parse(result)
+
+        assert parsed['success'] is True
+        assert job_needs_check('job-1') is not None
+        _checked_jobs.clear()
+
+    @patch('awslabs.aws_transform_mcp_server.tools.artifact.httpx.AsyncClient')
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.artifact.call_transform_api',
+        new_callable=AsyncMock,
+    )
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.artifact.is_fes_available',
+        return_value=True,
+    )
+    async def test_ordinary_upload_leaves_check_alone(
+        self, _mock_cfg, mock_fes, mock_httpx_cls, handler, ctx
+    ):
+        from awslabs.aws_transform_mcp_server.guidance_nudge import (
+            _checked_jobs,
+            job_needs_check,
+            mark_job_checked,
+        )
+
+        _checked_jobs.clear()
+        mark_job_checked('job-1')
+
+        mock_fes.side_effect = [
+            {'s3PreSignedUrl': 'https://s3.example.com/upload', 'artifactId': 'art-x'},
+            {},
+        ]
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_client = AsyncMock()
+        mock_client.put = AsyncMock(return_value=mock_response)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_httpx_cls.return_value = mock_client
+
+        result = await handler.upload_artifact(
+            ctx,
+            workspaceId='ws-1',
+            jobId='job-1',
+            content='hello',
+            encoding='utf-8',
+            categoryType='CUSTOMER_INPUT',
+            fileType='TXT',
+            fileName='notes.txt',
+            planStepId=None,
+        )
+        parsed = _parse(result)
+
+        assert parsed['success'] is True
+        assert job_needs_check('job-1') is None
+        _checked_jobs.clear()
