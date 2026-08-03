@@ -1535,6 +1535,12 @@ class TestDiscoverFunctions:
                     {'name': 'table_type'},
                     {'name': 'table_acl'},
                     {'name': 'remarks'},
+                    # SHOW TABLES also returns these; only dist_style is modelled.
+                    {'name': 'owner'},
+                    {'name': 'last_altered_time'},
+                    {'name': 'last_modified_time'},
+                    {'name': 'dist_style'},
+                    {'name': 'table_subtype'},
                 ],
                 'Records': [
                     [
@@ -1544,6 +1550,11 @@ class TestDiscoverFunctions:
                         {'stringValue': 'TABLE'},
                         {'stringValue': 'user=admin'},
                         {'stringValue': 'User data table'},
+                        {'stringValue': 'admin'},
+                        {'stringValue': '2026-03-31 04:47:07.525940'},
+                        {'stringValue': '2026-03-31 04:47:07.525936'},
+                        {'stringValue': 'AUTO (ALL)'},
+                        {'stringValue': 'REGULAR TABLE'},
                     ]
                 ],
             },
@@ -1560,6 +1571,8 @@ class TestDiscoverFunctions:
         assert result[0].table_type == 'TABLE'
         assert result[0].table_acl == 'user=admin'
         assert result[0].remarks == 'User data table'
+        # Distribution style explains redistribution decisions in a plan.
+        assert result[0].dist_style == 'AUTO (ALL)'
 
         # db.schema is embedded as quoted identifiers (no bind params).
         mock_execute_protected.assert_called_once()
@@ -1608,6 +1621,12 @@ class TestDiscoverFunctions:
                     {'name': 'numeric_precision'},
                     {'name': 'numeric_scale'},
                     {'name': 'remarks'},
+                    # Design columns SHOW COLUMNS also returns; collation is not modelled.
+                    {'name': 'sort_key_type'},
+                    {'name': 'sort_key'},
+                    {'name': 'dist_key'},
+                    {'name': 'encoding'},
+                    {'name': 'collation'},
                 ],
                 'Records': [
                     [
@@ -1623,6 +1642,11 @@ class TestDiscoverFunctions:
                         {'longValue': 32},
                         {'longValue': 0},
                         {'stringValue': 'Primary key'},
+                        {'stringValue': 'COMPOUND'},
+                        {'longValue': 1},
+                        {'longValue': 1},
+                        {'stringValue': 'az64'},
+                        {'stringValue': ''},
                     ]
                 ],
             },
@@ -1638,6 +1662,12 @@ class TestDiscoverFunctions:
         assert result[0].column_name == 'id'
         assert result[0].ordinal_position == 1
         assert result[0].data_type == 'integer'
+
+        # Design metadata explains redistribution and zone-map pruning in a plan.
+        assert result[0].sort_key_type == 'COMPOUND'
+        assert result[0].sort_key == 1
+        assert result[0].dist_key == 1
+        assert result[0].encoding == 'az64'
 
         # db.schema.table is embedded as quoted identifiers (no bind params).
         mock_execute_protected.assert_called_once()

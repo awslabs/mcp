@@ -125,6 +125,13 @@ class RedshiftTable(RedshiftDataModel):
         description='The type of the table (views, base tables, external tables, shared tables)',
     )
     remarks: Optional[str] = Field(None, description='Remarks about the table')
+    dist_style: Optional[str] = Field(
+        None,
+        description=(
+            'The distribution style of the table (for example EVEN, KEY, ALL, '
+            'AUTO (ALL), AUTO (EVEN), or AUTO (KEY))'
+        ),
+    )
 
 
 class RedshiftColumn(RedshiftDataModel):
@@ -148,6 +155,28 @@ class RedshiftColumn(RedshiftDataModel):
     numeric_precision: Optional[int] = Field(None, description='The numeric precision')
     numeric_scale: Optional[int] = Field(None, description='The numeric scale')
     remarks: Optional[str] = Field(None, description='Remarks about the column')
+    sort_key_type: Optional[str] = Field(
+        None,
+        description=(
+            'The sort key type on a sort key column (for example COMPOUND or INTERLEAVED), '
+            'or null when the column is not part of the sort key; tables with an AUTO sort '
+            'key report AUTO on every column'
+        ),
+    )
+    sort_key: Optional[int] = Field(
+        None,
+        description=(
+            'The 1-based position of the column within the sort key, '
+            'or 0 when it is not part of the sort key'
+        ),
+    )
+    dist_key: Optional[int] = Field(
+        None,
+        description='Set to 1 on the distribution key column, or null on other columns',
+    )
+    encoding: Optional[str] = Field(
+        None, description='The compression encoding of the column (for example az64, lzo, raw)'
+    )
 
 
 class QueryResult(BaseModel):

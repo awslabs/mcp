@@ -296,21 +296,25 @@ class TestListTablesTool:
         """Test successful table discovery."""
         mock_discover_tables = mocker.patch('awslabs.redshift_mcp_server.server.discover_tables')
         mock_discover_tables.return_value = [
-            RedshiftTable(
-                database_name='dev',
-                schema_name='public',
-                table_name='users',
-                table_acl='user=admin',
-                table_type='TABLE',
-                remarks='User data table',
+            RedshiftTable.model_validate(
+                {
+                    'database_name': 'dev',
+                    'schema_name': 'public',
+                    'table_name': 'users',
+                    'table_acl': 'user=admin',
+                    'table_type': 'TABLE',
+                    'remarks': 'User data table',
+                }
             ),
-            RedshiftTable(
-                database_name='dev',
-                schema_name='public',
-                table_name='user_view',
-                table_acl='user=admin',
-                table_type='VIEW',
-                remarks='User view',
+            RedshiftTable.model_validate(
+                {
+                    'database_name': 'dev',
+                    'schema_name': 'public',
+                    'table_name': 'user_view',
+                    'table_acl': 'user=admin',
+                    'table_type': 'VIEW',
+                    'remarks': 'User view',
+                }
             ),
         ]
 
@@ -369,33 +373,37 @@ class TestListColumnsTool:
         """Test successful column discovery."""
         mock_discover_columns = mocker.patch('awslabs.redshift_mcp_server.server.discover_columns')
         mock_discover_columns.return_value = [
-            RedshiftColumn(
-                database_name='dev',
-                schema_name='public',
-                table_name='users',
-                column_name='id',
-                ordinal_position=1,
-                column_default=None,
-                is_nullable='NO',
-                data_type='integer',
-                character_maximum_length=None,
-                numeric_precision=None,
-                numeric_scale=None,
-                remarks='Primary key',
+            RedshiftColumn.model_validate(
+                {
+                    'database_name': 'dev',
+                    'schema_name': 'public',
+                    'table_name': 'users',
+                    'column_name': 'id',
+                    'ordinal_position': 1,
+                    'column_default': None,
+                    'is_nullable': 'NO',
+                    'data_type': 'integer',
+                    'character_maximum_length': None,
+                    'numeric_precision': None,
+                    'numeric_scale': None,
+                    'remarks': 'Primary key',
+                }
             ),
-            RedshiftColumn(
-                database_name='dev',
-                schema_name='public',
-                table_name='users',
-                column_name='name',
-                ordinal_position=2,
-                column_default=None,
-                is_nullable='YES',
-                data_type='varchar',
-                character_maximum_length=255,
-                numeric_precision=None,
-                numeric_scale=None,
-                remarks='User name',
+            RedshiftColumn.model_validate(
+                {
+                    'database_name': 'dev',
+                    'schema_name': 'public',
+                    'table_name': 'users',
+                    'column_name': 'name',
+                    'ordinal_position': 2,
+                    'column_default': None,
+                    'is_nullable': 'YES',
+                    'data_type': 'varchar',
+                    'character_maximum_length': 255,
+                    'numeric_precision': None,
+                    'numeric_scale': None,
+                    'remarks': 'User name',
+                }
             ),
         ]
 
