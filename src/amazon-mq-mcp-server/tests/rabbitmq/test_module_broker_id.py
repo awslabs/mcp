@@ -87,7 +87,7 @@ class TestRabbitMQModuleBrokerId:
                 broker_id='b-nonexistent',
                 region='us-east-1',
                 username='admin',
-                password='password123',
+                password='password123',  # pragma: allowlist secret
             )
         assert 'No broker instances found' in str(exc_info.value)
 
