@@ -86,7 +86,7 @@ This tool uses the Redshift Data API to run queries and return results.
 ### review_cluster
 Runs a diagnostic review of a Redshift cluster or serverless workgroup.
 Returns identified potential issues and respective recommendations ordered by required mitigation effort.
-Requires superuser (CREATEUSER) privileges.
+Requires the connected database user to hold the sys:monitor role (or be a superuser).
 
 ## Getting Started
 
@@ -657,11 +657,13 @@ async def review_cluster_tool(
     - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
     - The cluster must be available and accessible.
     - Required IAM permissions: redshift-data:ExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
-    - The connected user must have superuser (CREATEUSER) privileges to access the required system views.
-      If it does not, the review fails fast with "Review requires superuser (CREATEUSER) privileges"
-      (for example "permission denied for relation sys_auto_table_optimization"). This is by design -
-      an expected signal, not a tool defect - so the review never returns partial or misleading
-      results. Run the review as a superuser to get a complete assessment.
+    - The connected database user must be able to read Redshift system views, which
+      require superuser or sys:monitor access. If the current user is not a superuser,
+      it must be granted the sys:monitor role:
+      GRANT ROLE sys:monitor TO "<database_user>"; where <database_user> is the output
+      of SELECT current_user, quoted because IAM identities contain a colon
+      (IAM:<user> or IAMR:<role>).
+    - Without that access the review fails fast rather than returning partial results.
 
     ## Parameters
 

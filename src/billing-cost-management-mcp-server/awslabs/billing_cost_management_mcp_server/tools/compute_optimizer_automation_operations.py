@@ -18,10 +18,10 @@ This module contains the individual operation handlers for the Compute Optimizer
 Automation tool. Each operation handles the AWS API call and response formatting.
 """
 
+import asyncio
 from ..utilities.aws_service_base import (
     create_aws_client,
     format_response,
-    handle_aws_error,
     parse_json,
 )
 from ..utilities.sql_utils import convert_response_if_needed
@@ -31,7 +31,7 @@ from ..utilities.time_utils import (
 )
 from datetime import datetime, timezone
 from fastmcp import Context
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 
 # ===== Formatting helpers =====
@@ -309,7 +309,7 @@ async def get_automation_event(
         Dict containing the formatted automation event.
     """
     await ctx.info(f'Fetching automation event {event_id}')
-    response = client.get_automation_event(eventId=event_id)
+    response = await asyncio.to_thread(client.get_automation_event, eventId=event_id)
 
     return format_response('success', {'automation_event': _format_automation_event(response)})
 
@@ -330,7 +330,7 @@ async def get_automation_rule(
         Dict containing the formatted automation rule.
     """
     await ctx.info(f'Fetching automation rule {rule_arn}')
-    response = client.get_automation_rule(ruleArn=rule_arn)
+    response = await asyncio.to_thread(client.get_automation_rule, ruleArn=rule_arn)
 
     return format_response('success', {'automation_rule': _format_automation_rule(response)})
 
@@ -349,7 +349,7 @@ async def get_enrollment_configuration(
         Dict containing the formatted enrollment configuration.
     """
     await ctx.info('Fetching enrollment configuration')
-    response = client.get_enrollment_configuration()
+    response = await asyncio.to_thread(client.get_enrollment_configuration)
 
     enrollment = {
         'status': response.get('status'),
@@ -394,7 +394,7 @@ async def list_accounts(
             request_params['nextToken'] = current_token
 
         await ctx.info(f'Fetching accounts page {page_count}')
-        response = client.list_accounts(**request_params)
+        response = await asyncio.to_thread(client.list_accounts, **request_params)
 
         for account in response.get('accounts', []):
             all_accounts.append(
@@ -445,37 +445,9 @@ async def list_automation_events(
     Returns:
         Dict containing the list of automation events.
     """
-    request_params: Dict[str, Any] = {}
-
-    parsed_filters = parse_json(filters, 'filters')
-    if parsed_filters:
-        request_params['filters'] = parsed_filters
-    if start_time:
-        request_params['startTimeInclusive'] = _parse_datetime(start_time, 'start_time')
-    if end_time:
-        request_params['endTimeExclusive'] = _parse_datetime(end_time, 'end_time')
-    if max_results is not None:
-        request_params['maxResults'] = max_results
-
-    all_events: List[Dict[str, Any]] = []
-    current_token = next_token
-    page_count = 0
-
-    while page_count < max_pages:
-        page_count += 1
-        if current_token:
-            request_params['nextToken'] = current_token
-
-        await ctx.info(f'Fetching automation events page {page_count}')
-        response = client.list_automation_events(**request_params)
-
-        all_events.extend(
-            _format_automation_event(event) for event in response.get('automationEvents', [])
-        )
-
-        current_token = response.get('nextToken')
-        if not current_token:
-            break
+    all_events, current_token = await _collect_automation_events(
+        ctx, client, filters, start_time, end_time, max_results, max_pages, next_token
+    )
 
     return await _finalize_list_response(
         ctx, 'list_automation_events', 'automation_events', all_events, current_token
@@ -503,30 +475,9 @@ async def list_automation_event_steps(
     Returns:
         Dict containing the list of automation event steps.
     """
-    request_params: Dict[str, Any] = {'eventId': event_id}
-    if max_results is not None:
-        request_params['maxResults'] = max_results
-
-    all_steps: List[Dict[str, Any]] = []
-    current_token = next_token
-    page_count = 0
-
-    while page_count < max_pages:
-        page_count += 1
-        if current_token:
-            request_params['nextToken'] = current_token
-
-        await ctx.info(f'Fetching automation event steps page {page_count} for event {event_id}')
-        response = client.list_automation_event_steps(**request_params)
-
-        all_steps.extend(
-            _format_automation_event_step(step)
-            for step in response.get('automationEventSteps', [])
-        )
-
-        current_token = response.get('nextToken')
-        if not current_token:
-            break
+    all_steps, current_token = await _collect_automation_event_steps(
+        ctx, client, event_id, max_results, max_pages, next_token
+    )
 
     return await _finalize_list_response(
         ctx, 'list_automation_event_steps', 'automation_event_steps', all_steps, current_token
@@ -559,38 +510,9 @@ async def list_automation_event_summaries(
     Returns:
         Dict containing the list of automation event summaries.
     """
-    request_params: Dict[str, Any] = {}
-
-    parsed_filters = parse_json(filters, 'filters')
-    if parsed_filters:
-        request_params['filters'] = parsed_filters
-    if start_date:
-        request_params['startDateInclusive'] = start_date
-    if end_date:
-        request_params['endDateExclusive'] = end_date
-    if max_results is not None:
-        request_params['maxResults'] = max_results
-
-    all_summaries: List[Dict[str, Any]] = []
-    current_token = next_token
-    page_count = 0
-
-    while page_count < max_pages:
-        page_count += 1
-        if current_token:
-            request_params['nextToken'] = current_token
-
-        await ctx.info(f'Fetching automation event summaries page {page_count}')
-        response = client.list_automation_event_summaries(**request_params)
-
-        all_summaries.extend(
-            _format_event_summary(summary)
-            for summary in response.get('automationEventSummaries', [])
-        )
-
-        current_token = response.get('nextToken')
-        if not current_token:
-            break
+    all_summaries, current_token = await _collect_automation_event_summaries(
+        ctx, client, filters, start_date, end_date, max_results, max_pages, next_token
+    )
 
     return await _finalize_list_response(
         ctx,
@@ -670,7 +592,7 @@ async def list_automation_rules(
             request_params['nextToken'] = current_token
 
         await ctx.info(f'Fetching automation rules page {page_count}')
-        response = client.list_automation_rules(**request_params)
+        response = await asyncio.to_thread(client.list_automation_rules, **request_params)
 
         all_rules.extend(
             _format_automation_rule(rule) for rule in response.get('automationRules', [])
@@ -709,33 +631,9 @@ async def list_recommended_actions(
     Returns:
         Dict containing the list of recommended actions.
     """
-    request_params: Dict[str, Any] = {}
-
-    parsed_filters = parse_json(filters, 'filters')
-    if parsed_filters:
-        request_params['filters'] = parsed_filters
-    if max_results is not None:
-        request_params['maxResults'] = max_results
-
-    all_actions: List[Dict[str, Any]] = []
-    current_token = next_token
-    page_count = 0
-
-    while page_count < max_pages:
-        page_count += 1
-        if current_token:
-            request_params['nextToken'] = current_token
-
-        await ctx.info(f'Fetching recommended actions page {page_count}')
-        response = client.list_recommended_actions(**request_params)
-
-        all_actions.extend(
-            _format_recommended_action(action) for action in response.get('recommendedActions', [])
-        )
-
-        current_token = response.get('nextToken')
-        if not current_token:
-            break
+    all_actions, current_token = await _collect_recommended_actions(
+        ctx, client, filters, max_results, max_pages, next_token
+    )
 
     return await _finalize_list_response(
         ctx, 'list_recommended_actions', 'recommended_actions', all_actions, current_token
@@ -764,33 +662,9 @@ async def list_recommended_action_summaries(
     Returns:
         Dict containing the list of recommended action summaries.
     """
-    request_params: Dict[str, Any] = {}
-
-    parsed_filters = parse_json(filters, 'filters')
-    if parsed_filters:
-        request_params['filters'] = parsed_filters
-    if max_results is not None:
-        request_params['maxResults'] = max_results
-
-    all_summaries: List[Dict[str, Any]] = []
-    current_token = next_token
-    page_count = 0
-
-    while page_count < max_pages:
-        page_count += 1
-        if current_token:
-            request_params['nextToken'] = current_token
-
-        await ctx.info(f'Fetching recommended action summaries page {page_count}')
-        response = client.list_recommended_action_summaries(**request_params)
-
-        all_summaries.extend(
-            _format_summary(summary) for summary in response.get('recommendedActionSummaries', [])
-        )
-
-        current_token = response.get('nextToken')
-        if not current_token:
-            break
+    all_summaries, current_token = await _collect_recommended_action_summaries(
+        ctx, client, filters, max_results, max_pages, next_token
+    )
 
     return await _finalize_list_response(
         ctx,
@@ -829,39 +703,17 @@ async def list_automation_rule_preview(
     Returns:
         Dict containing the rule preview results.
     """
-    request_params: Dict[str, Any] = {
-        'ruleType': rule_type,
-        'recommendedActionTypes': parse_json(recommended_action_types, 'recommended_action_types'),
-    }
-
-    parsed_scope = parse_json(organization_scope, 'organization_scope')
-    if parsed_scope:
-        request_params['organizationScope'] = parsed_scope
-    parsed_criteria = parse_json(criteria, 'criteria')
-    if parsed_criteria:
-        request_params['criteria'] = parsed_criteria
-    if max_results is not None:
-        request_params['maxResults'] = max_results
-
-    all_results: List[Dict[str, Any]] = []
-    current_token = next_token
-    page_count = 0
-
-    while page_count < max_pages:
-        page_count += 1
-        if current_token:
-            request_params['nextToken'] = current_token
-
-        await ctx.info(f'Fetching automation rule preview page {page_count}')
-        response = client.list_automation_rule_preview(**request_params)
-
-        all_results.extend(
-            _format_recommended_action(result) for result in response.get('previewResults', [])
-        )
-
-        current_token = response.get('nextToken')
-        if not current_token:
-            break
+    all_results, current_token = await _collect_automation_rule_preview(
+        ctx,
+        client,
+        rule_type,
+        recommended_action_types,
+        organization_scope,
+        criteria,
+        max_results,
+        max_pages,
+        next_token,
+    )
 
     return await _finalize_list_response(
         ctx, 'list_automation_rule_preview', 'preview_results', all_results, current_token
@@ -896,39 +748,17 @@ async def list_automation_rule_preview_summaries(
     Returns:
         Dict containing the rule preview result summaries.
     """
-    request_params: Dict[str, Any] = {
-        'ruleType': rule_type,
-        'recommendedActionTypes': parse_json(recommended_action_types, 'recommended_action_types'),
-    }
-
-    parsed_scope = parse_json(organization_scope, 'organization_scope')
-    if parsed_scope:
-        request_params['organizationScope'] = parsed_scope
-    parsed_criteria = parse_json(criteria, 'criteria')
-    if parsed_criteria:
-        request_params['criteria'] = parsed_criteria
-    if max_results is not None:
-        request_params['maxResults'] = max_results
-
-    all_summaries: List[Dict[str, Any]] = []
-    current_token = next_token
-    page_count = 0
-
-    while page_count < max_pages:
-        page_count += 1
-        if current_token:
-            request_params['nextToken'] = current_token
-
-        await ctx.info(f'Fetching automation rule preview summaries page {page_count}')
-        response = client.list_automation_rule_preview_summaries(**request_params)
-
-        all_summaries.extend(
-            _format_summary(summary) for summary in response.get('previewResultSummaries', [])
-        )
-
-        current_token = response.get('nextToken')
-        if not current_token:
-            break
+    all_summaries, current_token = await _collect_automation_rule_preview_summaries(
+        ctx,
+        client,
+        rule_type,
+        recommended_action_types,
+        organization_scope,
+        criteria,
+        max_results,
+        max_pages,
+        next_token,
+    )
 
     return await _finalize_list_response(
         ctx,
@@ -955,9 +785,293 @@ async def list_tags_for_resource(
         Dict containing the list of tags.
     """
     await ctx.info(f'Fetching tags for resource {resource_arn}')
-    response = client.list_tags_for_resource(resourceArn=resource_arn)
+    response = await asyncio.to_thread(client.list_tags_for_resource, resourceArn=resource_arn)
 
     return format_response('success', {'tags': _format_tags(response.get('tags'))})
+
+
+# ===== Multi-region collection helpers =====
+
+
+async def _collect_paginated(
+    ctx: Context,
+    api_call: Callable[..., Dict[str, Any]],
+    request_params: Dict[str, Any],
+    response_key: str,
+    formatter: Callable[[Dict[str, Any]], Dict[str, Any]],
+    item_name: str,
+    max_pages: int,
+    next_token: Optional[str],
+    log_suffix: str = '',
+) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+    """Collect and format a bounded number of pages from a regional list API."""
+    items: List[Dict[str, Any]] = []
+    current_token = next_token
+
+    for page_number in range(1, max_pages + 1):
+        if current_token:
+            request_params['nextToken'] = current_token
+
+        await ctx.info(f'Fetching {item_name} page {page_number}{log_suffix}')
+        response = await asyncio.to_thread(api_call, **request_params)
+
+        items.extend(formatter(item) for item in response.get(response_key, []))
+        current_token = response.get('nextToken')
+        if not current_token:
+            break
+
+    return items, current_token
+
+
+async def _collect_automation_events(
+    ctx: Context,
+    client: Any,
+    filters: Optional[str] = None,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    max_results: Optional[int] = None,
+    max_pages: int = 10,
+    next_token: Optional[str] = None,
+) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+    """Paginate automation events, returning the items and any leftover token.
+
+    See list_automation_events for argument semantics.
+    """
+    request_params: Dict[str, Any] = {}
+
+    parsed_filters = parse_json(filters, 'filters')
+    if parsed_filters:
+        request_params['filters'] = parsed_filters
+    if start_time:
+        request_params['startTimeInclusive'] = _parse_datetime(start_time, 'start_time')
+    if end_time:
+        request_params['endTimeExclusive'] = _parse_datetime(end_time, 'end_time')
+    if max_results is not None:
+        request_params['maxResults'] = max_results
+
+    return await _collect_paginated(
+        ctx,
+        client.list_automation_events,
+        request_params,
+        'automationEvents',
+        _format_automation_event,
+        'automation events',
+        max_pages,
+        next_token,
+    )
+
+
+async def _collect_automation_event_steps(
+    ctx: Context,
+    client: Any,
+    event_id: str,
+    max_results: Optional[int] = None,
+    max_pages: int = 10,
+    next_token: Optional[str] = None,
+) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+    """Paginate automation event steps, returning the items and any leftover token.
+
+    See list_automation_event_steps for argument semantics.
+    """
+    request_params: Dict[str, Any] = {'eventId': event_id}
+    if max_results is not None:
+        request_params['maxResults'] = max_results
+
+    return await _collect_paginated(
+        ctx,
+        client.list_automation_event_steps,
+        request_params,
+        'automationEventSteps',
+        _format_automation_event_step,
+        'automation event steps',
+        max_pages,
+        next_token,
+        f' for event {event_id}',
+    )
+
+
+async def _collect_automation_event_summaries(
+    ctx: Context,
+    client: Any,
+    filters: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    max_results: Optional[int] = None,
+    max_pages: int = 10,
+    next_token: Optional[str] = None,
+) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+    """Paginate automation event summaries, returning items and any leftover token.
+
+    See list_automation_event_summaries for argument semantics.
+    """
+    request_params: Dict[str, Any] = {}
+
+    parsed_filters = parse_json(filters, 'filters')
+    if parsed_filters:
+        request_params['filters'] = parsed_filters
+    if start_date:
+        request_params['startDateInclusive'] = start_date
+    if end_date:
+        request_params['endDateExclusive'] = end_date
+    if max_results is not None:
+        request_params['maxResults'] = max_results
+
+    return await _collect_paginated(
+        ctx,
+        client.list_automation_event_summaries,
+        request_params,
+        'automationEventSummaries',
+        _format_event_summary,
+        'automation event summaries',
+        max_pages,
+        next_token,
+    )
+
+
+async def _collect_recommended_actions(
+    ctx: Context,
+    client: Any,
+    filters: Optional[str] = None,
+    max_results: Optional[int] = None,
+    max_pages: int = 10,
+    next_token: Optional[str] = None,
+) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+    """Paginate recommended actions, returning the items and any leftover token.
+
+    See list_recommended_actions for argument semantics.
+    """
+    request_params: Dict[str, Any] = {}
+
+    parsed_filters = parse_json(filters, 'filters')
+    if parsed_filters:
+        request_params['filters'] = parsed_filters
+    if max_results is not None:
+        request_params['maxResults'] = max_results
+
+    return await _collect_paginated(
+        ctx,
+        client.list_recommended_actions,
+        request_params,
+        'recommendedActions',
+        _format_recommended_action,
+        'recommended actions',
+        max_pages,
+        next_token,
+    )
+
+
+async def _collect_recommended_action_summaries(
+    ctx: Context,
+    client: Any,
+    filters: Optional[str] = None,
+    max_results: Optional[int] = None,
+    max_pages: int = 10,
+    next_token: Optional[str] = None,
+) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+    """Paginate recommended action summaries, returning items and any leftover token.
+
+    See list_recommended_action_summaries for argument semantics.
+    """
+    request_params: Dict[str, Any] = {}
+
+    parsed_filters = parse_json(filters, 'filters')
+    if parsed_filters:
+        request_params['filters'] = parsed_filters
+    if max_results is not None:
+        request_params['maxResults'] = max_results
+
+    return await _collect_paginated(
+        ctx,
+        client.list_recommended_action_summaries,
+        request_params,
+        'recommendedActionSummaries',
+        _format_summary,
+        'recommended action summaries',
+        max_pages,
+        next_token,
+    )
+
+
+async def _collect_automation_rule_preview(
+    ctx: Context,
+    client: Any,
+    rule_type: str,
+    recommended_action_types: str,
+    organization_scope: Optional[str] = None,
+    criteria: Optional[str] = None,
+    max_results: Optional[int] = None,
+    max_pages: int = 10,
+    next_token: Optional[str] = None,
+) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+    """Paginate automation rule preview results, returning items and any leftover token.
+
+    See list_automation_rule_preview for argument semantics.
+    """
+    request_params: Dict[str, Any] = {
+        'ruleType': rule_type,
+        'recommendedActionTypes': parse_json(recommended_action_types, 'recommended_action_types'),
+    }
+
+    parsed_scope = parse_json(organization_scope, 'organization_scope')
+    if parsed_scope:
+        request_params['organizationScope'] = parsed_scope
+    parsed_criteria = parse_json(criteria, 'criteria')
+    if parsed_criteria:
+        request_params['criteria'] = parsed_criteria
+    if max_results is not None:
+        request_params['maxResults'] = max_results
+
+    return await _collect_paginated(
+        ctx,
+        client.list_automation_rule_preview,
+        request_params,
+        'previewResults',
+        _format_recommended_action,
+        'automation rule preview',
+        max_pages,
+        next_token,
+    )
+
+
+async def _collect_automation_rule_preview_summaries(
+    ctx: Context,
+    client: Any,
+    rule_type: str,
+    recommended_action_types: str,
+    organization_scope: Optional[str] = None,
+    criteria: Optional[str] = None,
+    max_results: Optional[int] = None,
+    max_pages: int = 10,
+    next_token: Optional[str] = None,
+) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+    """Paginate rule preview summaries, returning the items and any leftover token.
+
+    See list_automation_rule_preview_summaries for argument semantics.
+    """
+    request_params: Dict[str, Any] = {
+        'ruleType': rule_type,
+        'recommendedActionTypes': parse_json(recommended_action_types, 'recommended_action_types'),
+    }
+
+    parsed_scope = parse_json(organization_scope, 'organization_scope')
+    if parsed_scope:
+        request_params['organizationScope'] = parsed_scope
+    parsed_criteria = parse_json(criteria, 'criteria')
+    if parsed_criteria:
+        request_params['criteria'] = parsed_criteria
+    if max_results is not None:
+        request_params['maxResults'] = max_results
+
+    return await _collect_paginated(
+        ctx,
+        client.list_automation_rule_preview_summaries,
+        request_params,
+        'previewResultSummaries',
+        _format_summary,
+        'automation rule preview summaries',
+        max_pages,
+        next_token,
+    )
 
 
 # ===== Shared helpers =====
@@ -1040,7 +1154,6 @@ def create_compute_optimizer_automation_client(region: Optional[str] = None) -> 
     return create_aws_client('compute-optimizer-automation', region_name=region)
 
 
-# Re-export for tools module to catch broad errors uniformly.
 __all__ = [
     'create_compute_optimizer_automation_client',
     'get_automation_event',
@@ -1056,5 +1169,11 @@ __all__ = [
     'list_automation_rule_preview',
     'list_automation_rule_preview_summaries',
     'list_tags_for_resource',
-    'handle_aws_error',
+    '_collect_automation_events',
+    '_collect_automation_event_steps',
+    '_collect_automation_event_summaries',
+    '_collect_recommended_actions',
+    '_collect_recommended_action_summaries',
+    '_collect_automation_rule_preview',
+    '_collect_automation_rule_preview_summaries',
 ]
