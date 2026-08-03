@@ -124,7 +124,7 @@ class TestRabbitMQModuleBrokerId:
                 broker_id='b-test-broker',
                 region='',
                 username='admin',
-                password='password123',
+                password='password123',  # pragma: allowlist secret
             )
             assert result == 'successfully connected'
 
