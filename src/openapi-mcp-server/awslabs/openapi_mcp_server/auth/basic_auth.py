@@ -102,13 +102,13 @@ class BasicAuthProvider(BaseAuthProvider):
         """
         # Create a hash of the credentials to use as a cache key
         # This avoids storing the actual credentials in the cache key
-        # Use SHA-256 instead of bcrypt: bcrypt raises ValueError for
+        # Use BLAKE2 instead of bcrypt: bcrypt raises ValueError for
         # inputs longer than 72 bytes, which is common with bearer
         # tokens, ProxMox tickets, and LDAP tokens.
         import hashlib
 
         credentials = f'{username}:{password}'
-        return hashlib.sha256(credentials.encode('utf-8')).hexdigest()
+        return hashlib.blake2b(credentials.encode('utf-8'), digest_size=32).hexdigest()
 
     @cached_auth_data(ttl=3600)  # Cache for 1 hour by default
     def _generate_auth_headers(self, credentials_hash: str) -> Dict[str, str]:

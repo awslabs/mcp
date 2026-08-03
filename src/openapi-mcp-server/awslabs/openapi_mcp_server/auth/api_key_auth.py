@@ -115,11 +115,11 @@ class ApiKeyAuthProvider(BaseAuthProvider):
 
         """
         # Create a hash of the API key to use as a cache key.
-        # Use SHA-256 instead of bcrypt: bcrypt raises ValueError for
+        # Use BLAKE2 instead of bcrypt: bcrypt raises ValueError for
         # inputs longer than 72 bytes, which is common with bearer
-        # tokens, ProxMox tickets, and LDAP tokens.  SHA-256 is
-        # collision-resistant enough for a cache key (not a password).
-        return hashlib.sha256(api_key.encode('utf-8')).hexdigest()
+        # tokens, ProxMox tickets, and LDAP tokens.  BLAKE2 is
+        # fast, collision-resistant, and suitable for cache keys.
+        return hashlib.blake2b(api_key.encode('utf-8'), digest_size=32).hexdigest()
 
     @cached_auth_data(ttl=3600)  # Cache for 1 hour by default
     def _generate_auth_headers(self, api_key_hash: str, api_key_name: str) -> Dict[str, str]:

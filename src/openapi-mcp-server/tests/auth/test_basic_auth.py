@@ -82,7 +82,7 @@ class TestBasicAuthProvider:
         hash_method = BasicAuthProvider._hash_credentials
 
         # Test that the same credentials produce the same hash
-        # SHA-256 is deterministic, so same input always yields the same output
+        # BLAKE2 is deterministic, so same input always yields the same output
         hash1 = hash_method('testuser', 'testpass')
         assert hash1 is not None
         assert len(hash1) > 0
@@ -111,7 +111,7 @@ class TestBasicAuthProvider:
         # Should not raise ValueError
         hash1 = BasicAuthProvider._hash_credentials('longuser', long_password)
         assert hash1 is not None
-        assert len(hash1) == 64  # SHA-256 hex digest length
+        assert len(hash1) == 64  # BLAKE2 hex digest length
 
         # Deterministic
         hash2 = BasicAuthProvider._hash_credentials('longuser', long_password)

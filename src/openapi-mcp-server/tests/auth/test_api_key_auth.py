@@ -197,7 +197,7 @@ class TestApiKeyAuthProvider:
         # Should not raise ValueError (which bcrypt did for >72 bytes)
         hash1 = ApiKeyAuthProvider._hash_api_key(long_key)
         assert hash1 is not None
-        assert len(hash1) == 64  # SHA-256 hex digest length
+        assert len(hash1) == 64  # BLAKE2 hex digest length
 
         # Deterministic: same input always yields the same output
         hash2 = ApiKeyAuthProvider._hash_api_key(long_key)
