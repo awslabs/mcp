@@ -39,6 +39,9 @@ from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_tools im
 )
 from awslabs.billing_cost_management_mcp_server.tools.budget_tools import budget_server
 from awslabs.billing_cost_management_mcp_server.tools.bvs_tools import bvs_server
+from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_automation_tools import (
+    compute_optimizer_automation_server,
+)
 from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools import (
     compute_optimizer_server,
 )
@@ -61,7 +64,13 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_optimization_hub_tool
 from awslabs.billing_cost_management_mcp_server.tools.free_tier_usage_tools import (
     free_tier_usage_server,
 )
+from awslabs.billing_cost_management_mcp_server.tools.invoice_units_tools import (
+    invoice_units_server,
+)
 from awslabs.billing_cost_management_mcp_server.tools.invoicing_tools import invoicing_server
+from awslabs.billing_cost_management_mcp_server.tools.procurement_preferences_tools import (
+    procurement_preferences_server,
+)
 from awslabs.billing_cost_management_mcp_server.tools.recommendation_details_tools import (
     recommendation_details_server,
 )
@@ -136,6 +145,7 @@ Available components:
 TOOLS:
 - cost-explorer: Historical cost and usage data with flexible filtering
 - compute-optimizer: Performance optimization recommendations to identify under provisioned AWS compute resources like EC2, Lambda, ASG, RDS, ECS
+- compute-optimizer-automation: Compute Optimizer Automation rules, events, recommended actions, and rule previews (implementing Compute Optimizer recommendations automatically via rules or on demand)
 - cost-optimization: Cost optimization recommendations across AWS services
 - storage-lens: Query S3 Storage Lens metrics data using Athena SQL
 - athena-cur: Query Cost and Usage Report data through Athena
@@ -197,6 +207,7 @@ async def setup():
     """Initialize the MCP server by importing all tool servers."""
     await mcp.import_server(cost_explorer_server)
     await mcp.import_server(compute_optimizer_server)
+    await mcp.import_server(compute_optimizer_automation_server)
     await mcp.import_server(cost_optimization_hub_server)
     await mcp.import_server(storage_lens_server)
     await mcp.import_server(aws_pricing_server)
@@ -214,6 +225,8 @@ async def setup():
     await mcp.import_server(cost_allocation_tags_server)
     await mcp.import_server(cost_category_server)
     await mcp.import_server(invoicing_server)
+    await mcp.import_server(invoice_units_server)
+    await mcp.import_server(procurement_preferences_server)
 
     await register_prompts()
 
@@ -223,6 +236,7 @@ async def setup():
     tools = [
         'cost-explorer',
         'compute-optimizer',
+        'compute-optimizer-automation',
         'cost-optimization',
         'storage-lens',
         'pricing',

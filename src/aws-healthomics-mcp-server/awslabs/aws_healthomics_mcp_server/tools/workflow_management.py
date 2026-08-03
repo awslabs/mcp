@@ -20,14 +20,12 @@ from awslabs.aws_healthomics_mcp_server.consts import (
     ERROR_INVALID_ENGINE,
     ERROR_INVALID_EXPORT_TYPE,
     ERROR_INVALID_STORAGE_TYPE,
-    ERROR_INVALID_WORKFLOW_TYPE,
     ERROR_STATIC_STORAGE_REQUIRES_CAPACITY,
     STORAGE_TYPES,
 )
 from awslabs.aws_healthomics_mcp_server.models.core import (
     AcceleratorType,
     ExportType,
-    GetWorkflowType,
     StorageType,
     WorkflowEngine,
 )
@@ -44,6 +42,7 @@ from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
     validate_path_to_main,
     validate_readme_input,
     validate_repository_path_params,
+    validate_workflow_type,
 )
 from loguru import logger
 from mcp.server.fastmcp import Context
@@ -63,6 +62,10 @@ async def list_workflows(
         None,
         description='Token for pagination from a previous response',
     ),
+    workflow_type: Optional[str] = Field(
+        None,
+        description='Workflow type filter (PRIVATE or READY2RUN). Use READY2RUN to list AWS-provided workflows',
+    ),
     aws_profile: Optional[str] = Field(
         None,
         description='AWS profile name for this operation. Overrides the default credential chain.',
@@ -78,19 +81,31 @@ async def list_workflows(
         ctx: MCP context for error reporting
         max_results: Maximum number of results to return (default: 10)
         next_token: Token for pagination
+        workflow_type: Optional workflow type filter (PRIVATE or READY2RUN)
         aws_profile: Optional AWS profile name override
         aws_region: Optional AWS region override
 
     Returns:
         Dictionary containing workflow information and next token if available
     """
-    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
-
-    params: dict[str, Any] = {'maxResults': max_results}
-    if next_token:
-        params['startingToken'] = next_token
-
     try:
+        # Handle Field objects for optional parameters (FastMCP compatibility)
+        if hasattr(workflow_type, 'default') and not isinstance(workflow_type, (str, type(None))):
+            workflow_type = getattr(workflow_type, 'default', None)
+
+        # Validate workflow_type parameter
+        validation_result = await validate_workflow_type(ctx, workflow_type)
+        if isinstance(validation_result, dict):
+            return validation_result
+
+        client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
+
+        params: dict[str, Any] = {'maxResults': max_results}
+        if next_token:
+            params['startingToken'] = next_token
+        if workflow_type is not None:
+            params['type'] = workflow_type
+
         response = client.list_workflows(**params)
 
         # Transform the response to a more user-friendly format
@@ -475,16 +490,9 @@ async def get_workflow(
             export = getattr(export, 'default', None)
 
         # Validate workflow_type parameter
-        if workflow_type is not None:
-            try:
-                GetWorkflowType(workflow_type)
-            except ValueError:
-                error_message = ERROR_INVALID_WORKFLOW_TYPE.format(
-                    ', '.join(e.value for e in GetWorkflowType)
-                )
-                logger.error(error_message)
-                await ctx.error(error_message)
-                raise ValueError(error_message)
+        validation_result = await validate_workflow_type(ctx, workflow_type)
+        if isinstance(validation_result, dict):
+            return validation_result
 
         # Validate export list parameter
         if export is not None:

@@ -32,6 +32,14 @@ from awslabs.redshift_mcp_server.consts import (
     SESSION_KEEPALIVE,
     TABLES_SQL,
 )
+from awslabs.redshift_mcp_server.models import (
+    RedshiftCluster,
+    RedshiftColumn,
+    RedshiftDatabase,
+    RedshiftDataModel,
+    RedshiftSchema,
+    RedshiftTable,
+)
 from awslabs.redshift_mcp_server.sql_guard import assert_executable
 from botocore.config import Config
 from botocore.exceptions import ClientError
@@ -147,14 +155,14 @@ class RedshiftSessionManager:
         return existing
 
     async def session(
-        self, cluster_identifier: str, database_name: str, cluster_info: dict
+        self, cluster_identifier: str, database_name: str, cluster_info: RedshiftCluster
     ) -> str:
         """Get or create a session for the given cluster and database.
 
         Args:
             cluster_identifier: The cluster identifier to get session for.
             database_name: The database name to get session for.
-            cluster_info: Cluster information dictionary from discover_clusters.
+            cluster_info: Cluster information model from discover_clusters.
 
         Returns:
             Session ID for use in ExecuteStatement calls.
@@ -182,14 +190,14 @@ class RedshiftSessionManager:
         return session_id
 
     async def _create_session_with_app_name(
-        self, cluster_identifier: str, database_name: str, cluster_info: dict
+        self, cluster_identifier: str, database_name: str, cluster_info: RedshiftCluster
     ) -> str:
         """Create a new session by executing SET application_name.
 
         Args:
             cluster_identifier: The cluster identifier.
             database_name: The database name.
-            cluster_info: Cluster information dictionary.
+            cluster_info: Cluster information model.
 
         Returns:
             Session ID from the ExecuteStatement response.
@@ -272,7 +280,7 @@ async def _execute_protected_statement(
     clusters = await discover_clusters()
     cluster_info = None
     for cluster in clusters:
-        if cluster['identifier'] == cluster_identifier:
+        if cluster.identifier == cluster_identifier:
             cluster_info = cluster
             break
 
@@ -364,7 +372,7 @@ async def _execute_protected_statement(
 
 
 async def _execute_statement(
-    cluster_info: dict,
+    cluster_info: RedshiftCluster,
     cluster_identifier: str,
     database_name: str,
     sql: str,
@@ -377,7 +385,7 @@ async def _execute_statement(
     """Execute a single statement with optional session support and parameters.
 
     Args:
-        cluster_info: Cluster information dictionary.
+        cluster_info: Cluster information model.
         cluster_identifier: The cluster identifier.
         database_name: The database name.
         sql: The SQL statement to execute.
@@ -398,12 +406,12 @@ async def _execute_statement(
     # Add database and cluster/workgroup identifier only if not using session
     if not session_id:
         request_params['Database'] = database_name
-        if cluster_info['type'] == 'provisioned':
+        if cluster_info.type == 'provisioned':
             request_params['ClusterIdentifier'] = cluster_identifier
-        elif cluster_info['type'] == 'serverless':
+        elif cluster_info.type == 'serverless':
             request_params['WorkgroupName'] = cluster_identifier
         else:
-            raise Exception(f'Unknown cluster type: {cluster_info["type"]}')
+            raise Exception(f'Unknown cluster type: {cluster_info.type}')
 
     # Add parameters if provided
     if parameters:
@@ -446,7 +454,7 @@ async def _execute_statement(
     return statement_id
 
 
-async def discover_clusters() -> list[dict]:
+async def discover_clusters() -> list[RedshiftCluster]:
     """Discover all Redshift clusters and serverless workgroups.
 
     Discovery is best-effort for each type: if either provisioned or serverless
@@ -454,7 +462,7 @@ async def discover_clusters() -> list[dict]:
     if both fail (i.e., no clusters could be discovered at all).
 
     Returns:
-        List of cluster information dictionaries.
+        List of RedshiftCluster models.
 
     Raises:
         Exception: If both provisioned and serverless discovery fail.
@@ -488,7 +496,7 @@ async def discover_clusters() -> list[dict]:
                     'encrypted': cluster.get('Encrypted'),
                     'tags': {tag['Key']: tag['Value'] for tag in cluster.get('Tags', [])},
                 }
-                clusters.append(cluster_info)
+                clusters.append(RedshiftCluster(**cluster_info))
 
         logger.info(f'Found {len(clusters)} provisioned clusters')
 
@@ -516,14 +524,10 @@ async def discover_clusters() -> list[dict]:
                     'identifier': workgroup['workgroupName'],
                     'type': 'serverless',
                     'status': workgroup['status'],
-                    'database_name': next(
-                        (
-                            p['parameterValue']
-                            for p in workgroup_detail.get('configParameters', [])
-                            if p.get('parameterKey') == 'default_database'
-                        ),
-                        'dev',
-                    ),
+                    # Serverless always exposes the built-in 'dev' database. Reporting the
+                    # namespace's configured default would require redshift-serverless:GetNamespace;
+                    # callers can pass an explicit database_name to the other tools instead.
+                    'database_name': 'dev',
                     'endpoint': workgroup_detail.get('endpoint', {}).get('address'),
                     'port': workgroup_detail.get('endpoint', {}).get('port'),
                     'vpc_id': (workgroup_detail.get('subnetIds') or [None])[
@@ -537,9 +541,9 @@ async def discover_clusters() -> list[dict]:
                     'encrypted': True,  # Serverless is always encrypted
                     'tags': {tag['key']: tag['value'] for tag in workgroup_detail.get('tags', [])},
                 }
-                clusters.append(cluster_info)
+                clusters.append(RedshiftCluster(**cluster_info))
 
-        serverless_count = len([c for c in clusters if c['type'] == 'serverless'])
+        serverless_count = len([c for c in clusters if c.type == 'serverless'])
         logger.info(f'Found {serverless_count} serverless workgroups')
 
     except ClientError as e:
@@ -562,7 +566,9 @@ async def discover_clusters() -> list[dict]:
     return clusters
 
 
-async def discover_databases(cluster_identifier: str, database_name: str = 'dev') -> list[dict]:
+async def discover_databases(
+    cluster_identifier: str, database_name: str = 'dev'
+) -> list[RedshiftDatabase]:
     """Discover databases in a Redshift cluster using the Data API.
 
     Args:
@@ -570,33 +576,18 @@ async def discover_databases(cluster_identifier: str, database_name: str = 'dev'
         database_name: The database to connect to for querying system views.
 
     Returns:
-        List of database information dictionaries.
+        List of RedshiftDatabase models.
     """
     try:
         logger.info(f'Discovering databases in cluster {cluster_identifier}')
 
-        # Execute the query using the common function
         results_response, _ = await _execute_protected_statement(
             cluster_identifier=cluster_identifier,
             database_name=database_name,
             sql=DATABASES_SQL,
         )
 
-        databases = []
-        records = results_response.get('Records', [])
-
-        for record in records:
-            # Extract values from the record
-            database_info = {
-                'database_name': record[0].get('stringValue'),
-                'database_owner': record[1].get('longValue'),
-                'database_type': record[2].get('stringValue'),
-                'database_acl': record[3].get('stringValue'),
-                'database_options': record[4].get('stringValue'),
-                'database_isolation_level': record[5].get('stringValue'),
-            }
-            databases.append(database_info)
-
+        databases = RedshiftDatabase.from_redshift_response(results_response)
         logger.info(f'Found {len(databases)} databases in cluster {cluster_identifier}')
         return databases
 
@@ -605,7 +596,9 @@ async def discover_databases(cluster_identifier: str, database_name: str = 'dev'
         raise
 
 
-async def discover_schemas(cluster_identifier: str, schema_database_name: str) -> list[dict]:
+async def discover_schemas(
+    cluster_identifier: str, schema_database_name: str
+) -> list[RedshiftSchema]:
     """Discover schemas in a Redshift database using the Data API.
 
     Args:
@@ -613,36 +606,20 @@ async def discover_schemas(cluster_identifier: str, schema_database_name: str) -
         schema_database_name: The database name to filter schemas for. Also used to connect to.
 
     Returns:
-        List of schema information dictionaries.
+        List of RedshiftSchema models.
     """
     try:
         logger.info(
             f'Discovering schemas in database {schema_database_name} in cluster {cluster_identifier}'
         )
 
-        # Execute the query using the common function
         results_response, _ = await _execute_protected_statement(
             cluster_identifier=cluster_identifier,
             database_name=schema_database_name,
             sql=SCHEMAS_SQL.format(database=_sql_identifier(schema_database_name)),
         )
 
-        schemas = []
-        records = results_response.get('Records', [])
-
-        for record in records:
-            # Extract values from the record
-            schema_info = {
-                'database_name': record[0].get('stringValue'),
-                'schema_name': record[1].get('stringValue'),
-                'schema_owner': record[2].get('longValue'),
-                'schema_type': record[3].get('stringValue'),
-                'schema_acl': record[4].get('stringValue'),
-                'source_database': record[5].get('stringValue'),
-                'schema_option': record[6].get('stringValue'),
-            }
-            schemas.append(schema_info)
-
+        schemas = RedshiftSchema.from_redshift_response(results_response)
         logger.info(
             f'Found {len(schemas)} schemas in database {schema_database_name} in cluster {cluster_identifier}'
         )
@@ -657,7 +634,7 @@ async def discover_schemas(cluster_identifier: str, schema_database_name: str) -
 
 async def discover_tables(
     cluster_identifier: str, table_database_name: str, table_schema_name: str
-) -> list[dict]:
+) -> list[RedshiftTable]:
     """Discover tables in a Redshift schema using the Data API.
 
     Args:
@@ -666,14 +643,13 @@ async def discover_tables(
         table_schema_name: The schema name to filter tables for.
 
     Returns:
-        List of table information dictionaries.
+        List of RedshiftTable models.
     """
     try:
         logger.info(
             f'Discovering tables in schema {table_schema_name} in database {table_database_name} in cluster {cluster_identifier}'
         )
 
-        # Execute the query using the common function
         results_response, _ = await _execute_protected_statement(
             cluster_identifier=cluster_identifier,
             database_name=table_database_name,
@@ -683,22 +659,7 @@ async def discover_tables(
             ),
         )
 
-        tables = []
-        records = results_response.get('Records', [])
-
-        for record in records:
-            # Extract values from the record. SHOW TABLES returns table_type
-            # before table_acl.
-            table_info = {
-                'database_name': record[0].get('stringValue'),
-                'schema_name': record[1].get('stringValue'),
-                'table_name': record[2].get('stringValue'),
-                'table_type': record[3].get('stringValue'),
-                'table_acl': record[4].get('stringValue'),
-                'remarks': record[5].get('stringValue'),
-            }
-            tables.append(table_info)
-
+        tables = RedshiftTable.from_redshift_response(results_response)
         logger.info(
             f'Found {len(tables)} tables in schema {table_schema_name} in database {table_database_name} in cluster {cluster_identifier}'
         )
@@ -716,7 +677,7 @@ async def discover_columns(
     column_database_name: str,
     column_schema_name: str,
     column_table_name: str,
-) -> list[dict]:
+) -> list[RedshiftColumn]:
     """Discover columns in a Redshift table using the Data API.
 
     Args:
@@ -726,14 +687,13 @@ async def discover_columns(
         column_table_name: The table name to filter columns for.
 
     Returns:
-        List of column information dictionaries.
+        List of RedshiftColumn models.
     """
     try:
         logger.info(
             f'Discovering columns in table {column_table_name} in schema {column_schema_name} in database {column_database_name} in cluster {cluster_identifier}'
         )
 
-        # Execute the query using the common function
         results_response, _ = await _execute_protected_statement(
             cluster_identifier=cluster_identifier,
             database_name=column_database_name,
@@ -744,27 +704,7 @@ async def discover_columns(
             ),
         )
 
-        columns = []
-        records = results_response.get('Records', [])
-
-        for record in records:
-            # Extract values from the record
-            column_info = {
-                'database_name': record[0].get('stringValue'),
-                'schema_name': record[1].get('stringValue'),
-                'table_name': record[2].get('stringValue'),
-                'column_name': record[3].get('stringValue'),
-                'ordinal_position': record[4].get('longValue'),
-                'column_default': record[5].get('stringValue'),
-                'is_nullable': record[6].get('stringValue'),
-                'data_type': record[7].get('stringValue'),
-                'character_maximum_length': record[8].get('longValue'),
-                'numeric_precision': record[9].get('longValue'),
-                'numeric_scale': record[10].get('longValue'),
-                'remarks': record[11].get('stringValue'),
-            }
-            columns.append(column_info)
-
+        columns = RedshiftColumn.from_redshift_response(results_response)
         logger.info(
             f'Found {len(columns)} columns in table {column_table_name} in schema {column_schema_name} in database {column_database_name} in cluster {cluster_identifier}'
         )
@@ -795,11 +735,6 @@ async def execute_query(
         logger.info(f'Executing query on cluster {cluster_identifier} in database {database_name}')
         logger.debug(f'SQL: {sql}')
 
-        # Record start time for execution time calculation
-        import time
-
-        start_time = time.time()
-
         # Execute the query using the common function
         results_response, query_id = await _execute_protected_statement(
             cluster_identifier=cluster_identifier,
@@ -808,50 +743,23 @@ async def execute_query(
             allow_read_write=allow_read_write,
         )
 
-        # Calculate execution time
-        end_time = time.time()
-        execution_time_ms = int((end_time - start_time) * 1000)
-
         # Extract column names
-        columns = []
-        column_metadata = results_response.get('ColumnMetadata', [])
-        for col_meta in column_metadata:
-            columns.append(col_meta.get('name'))
+        columns = [col.get('name') for col in results_response.get('ColumnMetadata', [])]
 
         # Extract rows
-        rows = []
-        records = results_response.get('Records', [])
-
-        for record in records:
-            row = []
-            for field in record:
-                # Extract the actual value from the field based on its type
-                if 'stringValue' in field:
-                    row.append(field['stringValue'])
-                elif 'longValue' in field:
-                    row.append(field['longValue'])
-                elif 'doubleValue' in field:
-                    row.append(field['doubleValue'])
-                elif 'booleanValue' in field:
-                    row.append(field['booleanValue'])
-                elif 'isNull' in field and field['isNull']:
-                    row.append(None)
-                else:
-                    # Fallback for unknown field types
-                    row.append(str(field))
-            rows.append(row)
+        rows = [
+            [RedshiftDataModel.cell_value(cell) for cell in record]
+            for record in results_response.get('Records', [])
+        ]
 
         query_result = {
             'columns': columns,
             'rows': rows,
             'row_count': len(rows),
-            'execution_time_ms': execution_time_ms,
             'query_id': query_id,
         }
 
-        logger.info(
-            f'Query executed successfully: {query_id}, returned {len(rows)} rows in {execution_time_ms}ms'
-        )
+        logger.info(f'Query executed successfully: {query_id}, returned {len(rows)} rows')
         return query_result
 
     except Exception as e:

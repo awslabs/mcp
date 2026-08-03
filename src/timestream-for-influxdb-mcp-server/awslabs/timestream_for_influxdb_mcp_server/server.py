@@ -39,6 +39,7 @@ _config = Config(user_agent_extra=USER_AGENT_EXTRA)
 INFLUXDB_TOKEN = os.environ.get('INFLUXDB_TOKEN')
 INFLUXDB_URL = os.environ.get('INFLUXDB_URL')
 INFLUXDB_ORG = os.environ.get('INFLUXDB_ORG')
+INFLUXDB_ALLOWED_URLS = os.environ.get('INFLUXDB_ALLOWED_URLS', '')
 
 # Define Field parameters as global variables to avoid duplication
 # Common fields
@@ -194,16 +195,22 @@ REQUIRED_FIELD_STATUS_CLUSTER = Field(
 # InfluxDB fields
 OPTIONAL_FIELD_URL = Field(
     None,
-    description='The URL of the InfluxDB server. Falls back to INFLUXDB_URL env var if not provided.',
+    description='Optional InfluxDB server URL override. The URL must match INFLUXDB_URL or '
+    'an entry in INFLUXDB_ALLOWED_URLS, and all required connection parameters must be provided '
+    'together. Omit all connection parameters to use the server environment configuration.',
 )
 OPTIONAL_FIELD_TOKEN = Field(
     None,
-    description='The authentication token. Falls back to INFLUXDB_TOKEN env var if not provided.',
+    description='Optional authentication token override. If any connection parameter is provided, '
+    'all required connection parameters must be provided together; environment values are not mixed '
+    'with caller-supplied values.',
 )
 REQUIRED_FIELD_BUCKET_INFLUX = Field(..., description='The destination bucket for writes.')
 OPTIONAL_FIELD_ORG = Field(
     None,
-    description='The organization name. Falls back to INFLUXDB_ORG env var if not provided.',
+    description='Optional organization override. If any connection parameter is provided, all '
+    'required connection parameters must be provided together; environment values are not mixed '
+    'with caller-supplied values.',
 )
 REQUIRED_FIELD_POINTS = Field(
     ...,
@@ -273,36 +280,128 @@ def resolve_influxdb_config(
 ) -> tuple:
     """Resolve InfluxDB configuration from parameters or environment variables.
 
+    Caller-supplied connection parameters and server environment credentials are
+    never mixed. Caller-supplied URLs must also be approved by the operator through
+    INFLUXDB_URL or INFLUXDB_ALLOWED_URLS.
+
     Args:
-        url: The URL of the InfluxDB server (optional, falls back to INFLUXDB_URL env var).
-        token: The authentication token (optional, falls back to INFLUXDB_TOKEN env var).
-        org: The organization name (optional, falls back to INFLUXDB_ORG env var).
+        url: Optional operator-approved URL override for the InfluxDB server.
+        token: Optional authentication token override.
+        org: Optional organization name override.
         require_org: Whether the organization is required (default True).
 
     Returns:
         A tuple of (resolved_url, resolved_token, resolved_org).
 
     Raises:
-        ValueError: If required parameters are not provided.
+        ValueError: If required parameters are not provided or if caller-supplied
+            and server credentials are mixed.
     """
-    resolved_url = url or INFLUXDB_URL
-    resolved_token = token or INFLUXDB_TOKEN
-    resolved_org = org or INFLUXDB_ORG
+    # Any caller-supplied parameter signals a custom connection. In that case,
+    # all required values must come from the caller.
+    caller_supplied = any(p is not None for p in (url, token, org))
 
-    if not resolved_url:
-        raise ValueError(
-            'URL must be provided either as parameter or via INFLUXDB_URL environment variable'
-        )
-    if not resolved_token:
-        raise ValueError(
-            'Token must be provided either as parameter or via INFLUXDB_TOKEN environment variable'
-        )
-    if require_org and not resolved_org:
-        raise ValueError(
-            'Organization must be provided either as parameter or via INFLUXDB_ORG environment variable'
-        )
+    if caller_supplied:
+        resolved_url = url
+        resolved_token = token
+        resolved_org = org
+
+        if not resolved_url:
+            raise ValueError(
+                'When custom connection parameters are provided, url is required. '
+                'Server credentials cannot be mixed with caller-supplied parameters.'
+            )
+        if not resolved_token:
+            raise ValueError(
+                'When custom connection parameters are provided, token is required. '
+                'Server credentials cannot be mixed with caller-supplied parameters.'
+            )
+        if require_org and not resolved_org:
+            raise ValueError(
+                'When custom connection parameters are provided, org is required. '
+                'Server credentials cannot be mixed with caller-supplied parameters.'
+            )
+        resolved_url = validate_influxdb_url(resolved_url, require_approved=True)
+    else:
+        resolved_url = INFLUXDB_URL
+        resolved_token = INFLUXDB_TOKEN
+        resolved_org = INFLUXDB_ORG
+
+        if not resolved_url:
+            raise ValueError(
+                'URL must be provided either as parameter or via INFLUXDB_URL environment variable'
+            )
+        if not resolved_token:
+            raise ValueError(
+                'Token must be provided either as parameter or via INFLUXDB_TOKEN environment variable'
+            )
+        if require_org and not resolved_org:
+            raise ValueError(
+                'Organization must be provided either as parameter or via INFLUXDB_ORG environment variable'
+            )
+        resolved_url = validate_influxdb_url(resolved_url, require_approved=False)
 
     return resolved_url, resolved_token, resolved_org
+
+
+def normalize_influxdb_url(url: str) -> str:
+    """Validate and normalize an InfluxDB base URL."""
+    if not isinstance(url, str) or not url or url != url.strip():
+        raise ValueError('InfluxDB URL must be a non-empty string without surrounding whitespace')
+
+    try:
+        parsed_url = urlparse(url)
+        scheme = parsed_url.scheme.lower()
+        hostname = parsed_url.hostname
+        port = parsed_url.port
+    except ValueError as e:
+        raise ValueError(f'Invalid InfluxDB URL: {str(e)}') from e
+
+    if scheme not in {'https', 'http'}:
+        raise ValueError('InfluxDB URL must use HTTP(S) protocol')
+    if not hostname:
+        raise ValueError('InfluxDB URL must include a host')
+    if parsed_url.username or parsed_url.password:
+        raise ValueError('InfluxDB URL must not include user information')
+    if parsed_url.params or parsed_url.query or parsed_url.fragment:
+        raise ValueError('InfluxDB URL must not include parameters, a query string, or a fragment')
+
+    normalized_hostname = hostname.lower()
+    if ':' in normalized_hostname:
+        normalized_hostname = f'[{normalized_hostname}]'
+    normalized_netloc = (
+        f'{normalized_hostname}:{port}' if port is not None else normalized_hostname
+    )
+
+    return parsed_url._replace(
+        scheme=scheme,
+        netloc=normalized_netloc,
+        path=parsed_url.path.rstrip('/'),
+        params='',
+        query='',
+        fragment='',
+    ).geturl()
+
+
+def validate_influxdb_url(url: str, *, require_approved: bool) -> str:
+    """Validate an InfluxDB URL and optionally require operator approval."""
+    normalized_url = normalize_influxdb_url(url)
+    if not require_approved:
+        return normalized_url
+
+    configured_urls = [INFLUXDB_URL] if INFLUXDB_URL else []
+    configured_urls.extend(
+        candidate.strip() for candidate in INFLUXDB_ALLOWED_URLS.split(',') if candidate.strip()
+    )
+    approved_urls = {normalize_influxdb_url(candidate) for candidate in configured_urls}
+
+    if normalized_url not in approved_urls:
+        raise ValueError(
+            'Caller-supplied InfluxDB URL is not approved by the server operator. '
+            'Configure it through INFLUXDB_URL or INFLUXDB_ALLOWED_URLS.'
+        )
+
+    return normalized_url
 
 
 def get_influxdb_client(url, token, org=None, timeout=10000, verify_ssl: bool = True):
@@ -322,11 +421,8 @@ def get_influxdb_client(url, token, org=None, timeout=10000, verify_ssl: bool = 
         ValueError: If the URL does not use HTTPS protocol or is not properly formatted.
     """
     try:
-        parsed_url = urlparse(url)
-        url_scheme = parsed_url.scheme
-        if url_scheme != 'https' and url_scheme != 'http':
-            raise ValueError('URL must use HTTP(S) protocol')
-    except Exception as e:
+        url = validate_influxdb_url(url, require_approved=True)
+    except ValueError as e:
         logger.error(f'Error parsing URL: {str(e)}')
         raise
 

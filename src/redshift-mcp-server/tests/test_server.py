@@ -37,6 +37,7 @@ from awslabs.redshift_mcp_server.server import (
     list_tables_tool,
     review_cluster_tool,
 )
+from datetime import datetime
 from mcp.server.fastmcp import Context
 
 
@@ -50,38 +51,38 @@ class TestListClustersTool:
             'awslabs.redshift_mcp_server.server.discover_clusters'
         )
         mock_discover_clusters.return_value = [
-            {
-                'identifier': 'test-cluster',
-                'type': 'provisioned',
-                'status': 'available',
-                'database_name': 'dev',
-                'endpoint': 'test-cluster.abc123.us-east-1.redshift.amazonaws.com',
-                'port': 5439,
-                'vpc_id': 'vpc-12345',
-                'node_type': 'dc2.large',
-                'number_of_nodes': 2,
-                'creation_time': '2023-01-01T00:00:00Z',
-                'master_username': 'testuser',
-                'publicly_accessible': False,
-                'encrypted': True,
-                'tags': {'Environment': 'test'},
-            },
-            {
-                'identifier': 'test-workgroup',
-                'type': 'serverless',
-                'status': 'AVAILABLE',
-                'database_name': 'dev',
-                'endpoint': 'test-workgroup.123456.us-east-1.redshift-serverless.amazonaws.com',
-                'port': 5439,
-                'vpc_id': 'subnet-12345',
-                'node_type': None,
-                'number_of_nodes': None,
-                'creation_time': '2023-01-01T00:00:00Z',
-                'master_username': None,
-                'publicly_accessible': False,
-                'encrypted': True,
-                'tags': {},
-            },
+            RedshiftCluster(
+                identifier='test-cluster',
+                type='provisioned',
+                status='available',
+                database_name='dev',
+                endpoint='test-cluster.abc123.us-east-1.redshift.amazonaws.com',
+                port=5439,
+                vpc_id='vpc-12345',
+                node_type='dc2.large',
+                number_of_nodes=2,
+                creation_time=datetime(2023, 1, 1),
+                master_username='testuser',
+                publicly_accessible=False,
+                encrypted=True,
+                tags={'Environment': 'test'},
+            ),
+            RedshiftCluster(
+                identifier='test-workgroup',
+                type='serverless',
+                status='AVAILABLE',
+                database_name='dev',
+                endpoint='test-workgroup.123456.us-east-1.redshift-serverless.amazonaws.com',
+                port=5439,
+                vpc_id='subnet-12345',
+                node_type=None,
+                number_of_nodes=None,
+                creation_time=datetime(2023, 1, 1),
+                master_username=None,
+                publicly_accessible=False,
+                encrypted=True,
+                tags={},
+            ),
         ]
 
         result = await list_clusters_tool(Context())
@@ -145,22 +146,22 @@ class TestListDatabasesTool:
             'awslabs.redshift_mcp_server.server.discover_databases'
         )
         mock_discover_databases.return_value = [
-            {
-                'database_name': 'dev',
-                'database_owner': 100,
-                'database_type': 'local',
-                'database_acl': 'user=admin',
-                'database_options': 'encoding=utf8',
-                'database_isolation_level': 'Snapshot Isolation',
-            },
-            {
-                'database_name': 'test',
-                'database_owner': 101,
-                'database_type': 'shared',
-                'database_acl': 'user=readonly',
-                'database_options': 'encoding=utf8',
-                'database_isolation_level': 'Serializable',
-            },
+            RedshiftDatabase(
+                database_name='dev',
+                database_owner=100,
+                database_type='local',
+                database_acl='user=admin',
+                parameters='encoding=utf8',
+                database_isolation_level='Snapshot Isolation',
+            ),
+            RedshiftDatabase(
+                database_name='test',
+                database_owner=101,
+                database_type='shared',
+                database_acl='user=readonly',
+                parameters='encoding=utf8',
+                database_isolation_level='Serializable',
+            ),
         ]
 
         result = await list_databases_tool(Context(), 'test-cluster', 'dev')
@@ -220,24 +221,24 @@ class TestListSchemasTool:
         """Test successful schema discovery."""
         mock_discover_schemas = mocker.patch('awslabs.redshift_mcp_server.server.discover_schemas')
         mock_discover_schemas.return_value = [
-            {
-                'database_name': 'dev',
-                'schema_name': 'public',
-                'schema_owner': 100,
-                'schema_type': 'local',
-                'schema_acl': 'user=admin',
-                'source_database': None,
-                'schema_option': None,
-            },
-            {
-                'database_name': 'dev',
-                'schema_name': 'external_schema',
-                'schema_owner': 100,
-                'schema_type': 'external',
-                'schema_acl': 'user=admin',
-                'source_database': 's3_source',
-                'schema_option': 'IAM_ROLE arn:aws:iam::123456789012:role/RedshiftRole',
-            },
+            RedshiftSchema(
+                database_name='dev',
+                schema_name='public',
+                schema_owner=100,
+                schema_type='local',
+                schema_acl='user=admin',
+                source_database=None,
+                schema_option=None,
+            ),
+            RedshiftSchema(
+                database_name='dev',
+                schema_name='external_schema',
+                schema_owner=100,
+                schema_type='external',
+                schema_acl='user=admin',
+                source_database='s3_source',
+                schema_option='IAM_ROLE arn:aws:iam::123456789012:role/RedshiftRole',
+            ),
         ]
 
         result = await list_schemas_tool(Context(), 'test-cluster', 'dev')
@@ -295,22 +296,22 @@ class TestListTablesTool:
         """Test successful table discovery."""
         mock_discover_tables = mocker.patch('awslabs.redshift_mcp_server.server.discover_tables')
         mock_discover_tables.return_value = [
-            {
-                'database_name': 'dev',
-                'schema_name': 'public',
-                'table_name': 'users',
-                'table_acl': 'user=admin',
-                'table_type': 'TABLE',
-                'remarks': 'User data table',
-            },
-            {
-                'database_name': 'dev',
-                'schema_name': 'public',
-                'table_name': 'user_view',
-                'table_acl': 'user=admin',
-                'table_type': 'VIEW',
-                'remarks': 'User view',
-            },
+            RedshiftTable(
+                database_name='dev',
+                schema_name='public',
+                table_name='users',
+                table_acl='user=admin',
+                table_type='TABLE',
+                remarks='User data table',
+            ),
+            RedshiftTable(
+                database_name='dev',
+                schema_name='public',
+                table_name='user_view',
+                table_acl='user=admin',
+                table_type='VIEW',
+                remarks='User view',
+            ),
         ]
 
         result = await list_tables_tool(Context(), 'test-cluster', 'dev', 'public')
@@ -368,34 +369,34 @@ class TestListColumnsTool:
         """Test successful column discovery."""
         mock_discover_columns = mocker.patch('awslabs.redshift_mcp_server.server.discover_columns')
         mock_discover_columns.return_value = [
-            {
-                'database_name': 'dev',
-                'schema_name': 'public',
-                'table_name': 'users',
-                'column_name': 'id',
-                'ordinal_position': 1,
-                'column_default': None,
-                'is_nullable': 'NO',
-                'data_type': 'integer',
-                'character_maximum_length': None,
-                'numeric_precision': None,
-                'numeric_scale': None,
-                'remarks': 'Primary key',
-            },
-            {
-                'database_name': 'dev',
-                'schema_name': 'public',
-                'table_name': 'users',
-                'column_name': 'name',
-                'ordinal_position': 2,
-                'column_default': None,
-                'is_nullable': 'YES',
-                'data_type': 'varchar',
-                'character_maximum_length': 255,
-                'numeric_precision': None,
-                'numeric_scale': None,
-                'remarks': 'User name',
-            },
+            RedshiftColumn(
+                database_name='dev',
+                schema_name='public',
+                table_name='users',
+                column_name='id',
+                ordinal_position=1,
+                column_default=None,
+                is_nullable='NO',
+                data_type='integer',
+                character_maximum_length=None,
+                numeric_precision=None,
+                numeric_scale=None,
+                remarks='Primary key',
+            ),
+            RedshiftColumn(
+                database_name='dev',
+                schema_name='public',
+                table_name='users',
+                column_name='name',
+                ordinal_position=2,
+                column_default=None,
+                is_nullable='YES',
+                data_type='varchar',
+                character_maximum_length=255,
+                numeric_precision=None,
+                numeric_scale=None,
+                remarks='User name',
+            ),
         ]
 
         result = await list_columns_tool(Context(), 'test-cluster', 'dev', 'public', 'users')
@@ -463,7 +464,6 @@ class TestExecuteQueryTool:
                 [2, 'Max', 42, False, None],
             ],
             'row_count': 2,
-            'execution_time_ms': 123,
             'query_id': 'query-123',
         }
 
@@ -483,7 +483,6 @@ class TestExecuteQueryTool:
         assert result.rows[0] == [1, 'Sergey', 54, True, 95.5]
         assert result.rows[1] == [2, 'Max', 42, False, None]
         assert result.row_count == 2
-        assert result.execution_time_ms == 123
         assert result.query_id == 'query-123'
 
     @pytest.mark.asyncio
@@ -494,7 +493,6 @@ class TestExecuteQueryTool:
             'columns': ['count'],
             'rows': [],
             'row_count': 0,
-            'execution_time_ms': 45,
             'query_id': 'query-456',
         }
 
@@ -512,7 +510,6 @@ class TestExecuteQueryTool:
         assert result.columns == ['count']
         assert len(result.rows) == 0
         assert result.row_count == 0
-        assert result.execution_time_ms == 45
         assert result.query_id == 'query-456'
 
     @pytest.mark.asyncio

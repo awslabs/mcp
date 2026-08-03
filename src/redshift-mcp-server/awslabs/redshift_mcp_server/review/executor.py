@@ -51,7 +51,7 @@ async def review_cluster(
     clusters = await discover_clusters_func()
     cluster_info = None
     for cluster in clusters:
-        if cluster['identifier'] == cluster_identifier:
+        if cluster.identifier == cluster_identifier:
             cluster_info = cluster
             break
 
@@ -60,11 +60,13 @@ async def review_cluster(
             f'Cluster {cluster_identifier} not found. Please use list_clusters to get valid cluster identifiers.'
         )
 
-    is_serverless = cluster_info.get('type') == 'serverless'
+    is_serverless = cluster_info.type == 'serverless'
 
-    # Stage 1: Select queries, filtering by cluster type scope
+    # Stage 1: select queries in this cluster's type scope and render each with the
+    # node type from the Redshift API so node-type signals evaluate it directly.
+    node_type = cluster_info.node_type or 'unknown'
     queries = [
-        (name, sql)
+        (name, sql.format(node_type=node_type))
         for name, cluster_type, sql in SIGNAL_EVALUATION_SQL
         if cluster_type == 'all'
         or (is_serverless and cluster_type == 'serverless')
@@ -94,7 +96,11 @@ async def review_cluster(
             logger.error('Review query {} failed: {}', query_name, str(e))
             if 'permission denied' in str(e).lower():
                 raise Exception(
-                    f'Review requires superuser (CREATEUSER) privileges. '
+                    f'Review requires superuser or sys:monitor access. Request an administrator '
+                    f'to run: '
+                    f'GRANT ROLE sys:monitor TO "<database_user>"; where <database_user> is the '
+                    f'output of SELECT current_user - for IAM identities it looks like '
+                    f'IAM:alice or IAMR:MyRole and the quotes are required. '
                     f'Query {query_name} failed with: {e}'
                 ) from e
             raise
