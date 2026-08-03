@@ -13,7 +13,6 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
     cooldown:
       default-days: 7
     commit-message:
@@ -22,17 +21,23 @@ updates:
       github-actions-version-updates:
         patterns:
           - "*"
+      github-actions-security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
 
   - package-ecosystem: "uv"
     directories:
       - "**/*"
     schedule:
       interval: "weekly"
-    # Cap the open PR queue and let fresh releases settle before a PR is
-    # raised. These are the effective throttles while cross-directory
-    # grouping (group-by: dependency-name below) is broken upstream:
-    # dependabot-core#14286 still opens one PR per directory per dependency.
-    open-pull-requests-limit: 10
+    # `cooldown` lets a fresh release settle before a version-update PR is
+    # raised (7 days here; the built-in default is 3). Cooldown and the
+    # open-PR limit both apply to VERSION updates only — security updates are
+    # exempt from both, so the security-advisory fan-out is instead bounded by
+    # the *-security-updates group below, which collapses a directory's
+    # security bumps into one PR. `open-pull-requests-limit` is left at its
+    # default (5); lower it here if version-update volume needs a harder cap.
     cooldown:
       default-days: 7
     commit-message:
@@ -41,8 +46,15 @@ updates:
       uv-version-updates:
         # Collapse this dependency's bump across every matched directory into a
         # single PR. Without this, `directories: ["**/*"]` groups only WITHIN
-        # each directory.
+        # each directory. (Currently blocked by dependabot-core#14286 — see #4370.)
         group-by: dependency-name
+        patterns:
+          - "*"
+      uv-security-updates:
+        # Security updates ignore the PR limit and cooldown, so group them (per
+        # directory) to keep the advisory fan-out reviewable. No group-by:
+        # cross-directory grouping is the feature broken by #14286.
+        applies-to: security-updates
         patterns:
           - "*"
 
@@ -51,7 +63,6 @@ updates:
       - "**/*"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
     cooldown:
       default-days: 7
     commit-message:
@@ -62,13 +73,16 @@ updates:
         group-by: dependency-name
         patterns:
           - "*"
+      npm-security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
 
   - package-ecosystem: "docker"
     directories:
       - "**/*"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
     cooldown:
       default-days: 7
     commit-message:
@@ -77,5 +91,9 @@ updates:
       docker-version-updates:
         # One PR per image across all directories (see uv note above).
         group-by: dependency-name
+        patterns:
+          - "*"
+      docker-security-updates:
+        applies-to: security-updates
         patterns:
           - "*"
