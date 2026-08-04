@@ -55,6 +55,7 @@ def mock_co_client():
                 'accountId': '123456789012',
                 'currentInstanceType': 't3.micro',
                 'finding': 'OVERPROVISIONED',
+                'idle': 'False',
                 'instanceArn': 'arn:aws:ec2:us-east-1:123456789012:instance/i-0abcdef1234567890',
                 'instanceName': 'test-instance',
                 'lastRefreshTimestamp': datetime(2023, 1, 1),
@@ -62,9 +63,12 @@ def mock_co_client():
                     {
                         'instanceType': 't2.nano',
                         'performanceRisk': 'LOW',
-                        'projectedUtilization': 45.0,
+                        'rank': 1,
+                        'projectedUtilizationMetrics': [
+                            {'name': 'CPU', 'statistic': 'MAXIMUM', 'value': 45.0}
+                        ],
                         'savingsOpportunity': {
-                            'savingsPercentage': 30.0,
+                            'savingsOpportunityPercentage': 30.0,
                             'estimatedMonthlySavings': {
                                 'currency': 'USD',
                                 'value': 10.50,
@@ -83,16 +87,23 @@ def mock_co_client():
                 'accountId': '123456789012',
                 'autoScalingGroupArn': 'arn:aws:autoscaling:us-east-1:123456789012:autoScalingGroup:123',
                 'autoScalingGroupName': 'test-asg',
-                'currentInstanceType': 't3.medium',
+                'currentConfiguration': {
+                    'instanceType': 't3.medium',
+                },
                 'finding': 'NOT_OPTIMIZED',
                 'lastRefreshTimestamp': datetime(2023, 1, 1),
                 'recommendationOptions': [
                     {
-                        'instanceType': 't3.small',
+                        'configuration': {
+                            'instanceType': 't3.small',
+                        },
                         'performanceRisk': 'MEDIUM',
-                        'projectedUtilization': 60.0,
+                        'rank': 1,
+                        'projectedUtilizationMetrics': [
+                            {'name': 'CPU', 'statistic': 'MAXIMUM', 'value': 60.0}
+                        ],
                         'savingsOpportunity': {
-                            'savingsPercentage': 25.0,
+                            'savingsOpportunityPercentage': 25.0,
                             'estimatedMonthlySavings': {
                                 'currency': 'USD',
                                 'value': 15.75,
@@ -126,7 +137,7 @@ def mock_co_client():
                         },
                         'performanceRisk': 'LOW',
                         'savingsOpportunity': {
-                            'savingsPercentage': 40.0,
+                            'savingsOpportunityPercentage': 40.0,
                             'estimatedMonthlySavings': {
                                 'currency': 'USD',
                                 'value': 8.20,
@@ -152,9 +163,11 @@ def mock_co_client():
                     {
                         'memorySize': 512,
                         'rank': 1,
-                        'projectedUtilization': 60.0,
+                        'projectedUtilizationMetrics': [
+                            {'name': 'Duration', 'statistic': 'Average', 'value': 60.0}
+                        ],
                         'savingsOpportunity': {
-                            'savingsPercentage': 50.0,
+                            'savingsOpportunityPercentage': 50.0,
                             'estimatedMonthlySavings': {
                                 'currency': 'USD',
                                 'value': 5.20,
@@ -171,17 +184,21 @@ def mock_co_client():
         'rdsDBRecommendations': [
             {
                 'accountId': '123456789012',
-                'instanceArn': 'arn:aws:rds:us-east-1:123456789012:db:test-db',
-                'instanceName': 'test-db',
-                'currentInstanceClass': 'db.r5.large',
-                'finding': 'OVER_PROVISIONED',
+                'resourceArn': 'arn:aws:rds:us-east-1:123456789012:db:test-db',
+                'engine': 'mysql',
+                'engineVersion': '8.0.45',
+                'currentDBInstanceClass': 'db.r5.large',
+                'idle': 'False',
+                'instanceFinding': 'OVER_PROVISIONED',
+                'storageFinding': 'Optimized',
                 'lastRefreshTimestamp': datetime(2023, 1, 1),
-                'recommendationOptions': [
+                'instanceRecommendationOptions': [
                     {
-                        'instanceClass': 'db.r5.medium',
+                        'dbInstanceClass': 'db.r5.medium',
                         'performanceRisk': 'LOW',
+                        'rank': 1,
                         'savingsOpportunity': {
-                            'savingsPercentage': 35.0,
+                            'savingsOpportunityPercentage': 35.0,
                             'estimatedMonthlySavings': {
                                 'currency': 'USD',
                                 'value': 25.80,
@@ -189,6 +206,11 @@ def mock_co_client():
                         },
                     }
                 ],
+                'effectiveRecommendationPreferences': {
+                    'lookBackPeriod': 'DAYS_14',
+                    'savingsEstimationMode': {'source': 'CostOptimizationHub'},
+                },
+                'lookbackPeriodInDays': 14.0,
             }
         ],
         'nextToken': 'next-token-rds',
@@ -208,7 +230,7 @@ def mock_co_client():
                         'instanceClass': 'db.r5.medium',
                         'performanceRisk': 'LOW',
                         'savingsOpportunity': {
-                            'savingsPercentage': 35.0,
+                            'savingsOpportunityPercentage': 35.0,
                             'estimatedMonthlySavings': {
                                 'currency': 'USD',
                                 'value': 25.80,
@@ -272,6 +294,15 @@ class TestGetEC2InstanceRecommendations:
         assert len(result['data']['recommendations']) == 1
         assert result['data']['next_token'] == 'next-token-123'
 
+        recommendation = result['data']['recommendations'][0]
+        assert recommendation['current_instance']['instance_type'] == 't3.micro'
+        assert recommendation['current_instance']['idle'] == 'False'
+
+        option = recommendation['recommendation_options'][0]
+        assert option['instance_type'] == 't2.nano'
+        assert option['projected_utilization_metrics'][0]['value'] == 45.0
+        assert option['savings_opportunity']['savings_percentage'] == 30.0
+
 
 @pytest.mark.asyncio
 class TestGetAutoScalingGroupRecommendations:
@@ -310,6 +341,11 @@ class TestGetAutoScalingGroupRecommendations:
         assert recommendation['account_id'] == '123456789012'
         assert recommendation['current_configuration']['instance_type'] == 't3.medium'
         assert recommendation['current_configuration']['finding'] == 'NOT_OPTIMIZED'
+
+        option = recommendation['recommendation_options'][0]
+        assert option['instance_type'] == 't3.small'
+        assert option['projected_utilization_metrics'][0]['value'] == 60.0
+        assert option['savings_opportunity']['savings_percentage'] == 25.0
 
 
 @pytest.mark.asyncio
@@ -379,7 +415,7 @@ class TestGetLambdaFunctionRecommendations:
         assert len(recommendation['recommendation_options']) == 1
         option = recommendation['recommendation_options'][0]
         assert option['memory_size'] == 512
-        assert option['projected_utilization'] == 60.0
+        assert option['projected_utilization_metrics'][0]['value'] == 60.0
         assert option['rank'] == 1
         assert option['savings_opportunity']['savings_percentage'] == 50.0
         assert option['savings_opportunity']['estimated_monthly_savings']['currency'] == 'USD'
@@ -454,7 +490,7 @@ class TestGetRDSRecommendations:
         assert recommendation['instance_name'] == 'test-db'
         assert recommendation['account_id'] == '123456789012'
         assert recommendation['current_configuration']['instance_class'] == 'db.r5.large'
-        assert recommendation['current_configuration']['finding'] == 'OVER_PROVISIONED'
+        assert recommendation['current_configuration']['instance_finding'] == 'OVER_PROVISIONED'
 
         # Verify the recommendation options
         assert len(recommendation['recommendation_options']) == 1
@@ -508,7 +544,7 @@ class TestHelperFunctions:
         """Test format_savings_opportunity function."""
         # Test with complete data
         savings = {
-            'savingsPercentage': 50.0,
+            'savingsOpportunityPercentage': 50.0,
             'estimatedMonthlySavings': {
                 'currency': 'USD',
                 'value': 100.0,
@@ -1149,18 +1185,22 @@ class TestComputeOptimizerCoverageGaps:
         mock_co_client.get_rds_database_recommendations.return_value = {
             'rdsDBRecommendations': [
                 {
-                    'instanceArn': 'arn:aws:rds:us-east-1:123456789012:db:test-db',
-                    'instanceName': 'test-db',
+                    'resourceArn': 'arn:aws:rds:us-east-1:123456789012:db:test-db',
                     'accountId': '123456789012',
-                    'currentInstanceClass': 'db.r5.large',
-                    'finding': 'OVER_PROVISIONED',
+                    'engine': 'mysql',
+                    'engineVersion': '8.0.45',
+                    'currentDBInstanceClass': 'db.r5.large',
+                    'idle': 'False',
+                    'instanceFinding': 'OVER_PROVISIONED',
+                    'storageFinding': 'Optimized',
                     'lastRefreshTimestamp': None,
-                    'recommendationOptions': [
+                    'instanceRecommendationOptions': [
                         {
-                            'instanceClass': 'db.r5.medium',
+                            'dbInstanceClass': 'db.r5.medium',
                             'performanceRisk': 'LOW',
+                            'rank': 1,
                             'savingsOpportunity': {
-                                'savingsPercentage': 35.0,
+                                'savingsOpportunityPercentage': 35.0,
                                 'estimatedMonthlySavings': {
                                     'currency': 'USD',
                                     'value': 25.80,
@@ -1233,7 +1273,7 @@ class TestGetECSServiceRecommendations:
                             ],
                             'projectedPerformance': None,
                             'savingsOpportunity': {
-                                'savingsPercentage': None,
+                                'savingsOpportunityPercentage': None,
                                 'estimatedMonthlySavings': {'currency': 'USD', 'value': 30.275},
                             },
                         }
