@@ -252,6 +252,36 @@ def test_security_policy_operation_name_conversion():
         assert decision == PolicyDecision.DENY
 
 
+def test_security_policy_acronym_operation_names():
+    """Test that operations with acronyms (SAML, MFA, SSH, OpenID) are correctly matched."""
+    with patch.object(Path, 'exists', return_value=False):
+        policy = SecurityPolicy(create_mock_ctx())
+        policy.denylist = {
+            'aws iam create-saml-provider',
+            'aws iam create-virtual-mfa-device',
+            'aws iam upload-ssh-public-key',
+            'aws iam add-client-id-to-open-id-connect-provider',
+        }
+
+        decision = policy.determine_policy_effect('iam', 'CreateSAMLProvider', False)
+        assert decision == PolicyDecision.DENY
+
+        decision = policy.determine_policy_effect('iam', 'CreateVirtualMFADevice', False)
+        assert decision == PolicyDecision.DENY
+
+        decision = policy.determine_policy_effect('iam', 'UploadSSHPublicKey', False)
+        assert decision == PolicyDecision.DENY
+
+        decision = policy.determine_policy_effect(
+            'iam', 'AddClientIDToOpenIDConnectProvider', False
+        )
+        assert decision == PolicyDecision.DENY
+
+        # Verify a non-denied acronym operation is allowed
+        decision = policy.determine_policy_effect('iam', 'DeleteSAMLProvider', False)
+        assert decision == PolicyDecision.ALLOW
+
+
 # Customization Tests
 def test_security_policy_customization_parent_deny():
     """Test customization when parent command is in denylist."""
