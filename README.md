@@ -1,5 +1,7 @@
 # Open source MCP servers for AWS
 
+[![MCP Toplist](https://mcptoplist.com/badge/glama%2Fawslabs%2Fmcp.svg)](https://mcptoplist.com/server/glama%2Fawslabs%2Fmcp)
+
 A suite of specialized MCP servers that help you get the most out of AWS, wherever you use MCP.
 
 [![GitHub](https://img.shields.io/badge/github-awslabs/mcp-blue.svg?style=flat&logo=github)](https://github.com/awslabs/mcp)
