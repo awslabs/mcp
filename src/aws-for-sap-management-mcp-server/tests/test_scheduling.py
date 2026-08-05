@@ -561,12 +561,12 @@ class TestSchedulingRequestConsent:
     async def test_consent_no_elicitation_support(self):
         """Test request_consent when client doesn't support elicitation."""
         from awslabs.aws_for_sap_management_mcp_server.common import request_consent
-        from mcp.shared.exceptions import McpError
-        from mcp.types import METHOD_NOT_FOUND, ErrorData
+        from mcp.shared.exceptions import MCPError
+        from mcp.types import METHOD_NOT_FOUND
 
         mock_ctx = MagicMock()
         mock_ctx.elicit = AsyncMock(
-            side_effect=McpError(ErrorData(code=METHOD_NOT_FOUND, message='Not supported'))
+            side_effect=MCPError(code=METHOD_NOT_FOUND, message='Not supported')
         )
 
         with pytest.raises(ValueError, match='does not support elicitation'):
@@ -574,17 +574,14 @@ class TestSchedulingRequestConsent:
 
     @pytest.mark.asyncio
     async def test_consent_other_mcp_error(self):
-        """Test request_consent re-raises non-METHOD_NOT_FOUND McpError."""
+        """Test request_consent re-raises non-METHOD_NOT_FOUND MCPError."""
         from awslabs.aws_for_sap_management_mcp_server.common import request_consent
-        from mcp.shared.exceptions import McpError
-        from mcp.types import ErrorData
+        from mcp.shared.exceptions import MCPError
 
         mock_ctx = MagicMock()
-        mock_ctx.elicit = AsyncMock(
-            side_effect=McpError(ErrorData(code=-32000, message='Other error'))
-        )
+        mock_ctx.elicit = AsyncMock(side_effect=MCPError(code=-32000, message='Other error'))
 
-        with pytest.raises(McpError):
+        with pytest.raises(MCPError):
             await request_consent('Test op', 'I acknowledge', mock_ctx)
 
 

@@ -28,14 +28,14 @@ from awslabs.aws_documentation_mcp_server.util import (
     is_html_content,
 )
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import AnyUrl, Field
 from typing import Union
 
 
 SESSION_UUID = str(uuid.uuid4())
 
-mcp = FastMCP(
+mcp = MCPServer(
     'awslabs.aws-documentation-mcp-server',
     instructions="""
     # AWS China Documentation MCP Server

@@ -11,7 +11,7 @@ from awslabs.aws_location_server.server import (
     search_places,
     search_places_open_now,
 )
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 
 
 # Set up a logger instead of using print for sensitive data

@@ -103,7 +103,7 @@ class TestCrawlerHandler:
             result = CallToolResultWrapper(raw_result)
 
             # Assertions
-            assert result.isError is False
+            assert result.is_error is False
             assert result.crawler_name == 'test-crawler'
             assert result.operation == 'create-crawler'
             handler.glue_client.create_crawler.assert_called_once()
@@ -124,7 +124,7 @@ class TestCrawlerHandler:
             },
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.content[0].text
         no_write_handler.glue_client.create_crawler.assert_not_called()
 
@@ -172,7 +172,7 @@ class TestCrawlerHandler:
             result = CallToolResultWrapper(raw_result)
 
             # Assertions
-            assert result.isError is False
+            assert result.is_error is False
             assert result.crawler_name == 'test-crawler'
             assert result.operation == 'delete-crawler'
             handler.glue_client.delete_crawler.assert_called_once_with(Name='test-crawler')
@@ -197,7 +197,7 @@ class TestCrawlerHandler:
             )
 
             # Assertions
-            assert result.isError is True
+            assert result.is_error is True
             assert 'not managed by the MCP server' in result.content[0].text
             handler.glue_client.delete_crawler.assert_not_called()
 
@@ -210,7 +210,7 @@ class TestCrawlerHandler:
             mock_context, operation='delete-crawler', crawler_name='test-crawler'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.content[0].text
         no_write_handler.glue_client.delete_crawler.assert_not_called()
 
@@ -234,7 +234,7 @@ class TestCrawlerHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Assertions
-        assert result.isError is False
+        assert result.is_error is False
         assert result.crawler_name == 'test-crawler'
         assert result.crawler_details == crawler_details
         assert result.operation == 'get-crawler'
@@ -262,7 +262,7 @@ class TestCrawlerHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Assertions
-        assert result.isError is False
+        assert result.is_error is False
         assert result.crawler_name == 'test-crawler'
         assert result.crawler_details == crawler_details
         assert result.operation == 'get-crawler'
@@ -287,7 +287,7 @@ class TestCrawlerHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Assertions
-        assert result.isError is False
+        assert result.is_error is False
         assert result.crawlers == crawlers
         assert result.count == 2
         assert result.next_token == 'next-token'
@@ -307,7 +307,7 @@ class TestCrawlerHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Assertions
-        assert result.isError is False
+        assert result.is_error is False
         assert result.crawler_name == 'test-crawler'
         assert result.operation == 'start-crawler'
         handler.glue_client.start_crawler.assert_called_once_with(Name='test-crawler')
@@ -321,7 +321,7 @@ class TestCrawlerHandler:
             mock_context, operation='start-crawler', crawler_name='test-crawler'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.content[0].text
         no_write_handler.glue_client.start_crawler.assert_not_called()
 
@@ -338,7 +338,7 @@ class TestCrawlerHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Assertions
-        assert result.isError is False
+        assert result.is_error is False
         assert result.crawler_name == 'test-crawler'
         assert result.operation == 'stop-crawler'
         handler.glue_client.stop_crawler.assert_called_once_with(Name='test-crawler')
@@ -352,7 +352,7 @@ class TestCrawlerHandler:
             mock_context, operation='stop-crawler', crawler_name='test-crawler'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.content[0].text
         no_write_handler.glue_client.stop_crawler.assert_not_called()
 
@@ -380,7 +380,7 @@ class TestCrawlerHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Assertions
-        assert result.isError is False
+        assert result.is_error is False
         assert result.crawlers == crawlers
         assert result.crawlers_not_found == ['test-crawler-3']
         assert result.operation == 'batch-get-crawlers'
@@ -408,7 +408,7 @@ class TestCrawlerHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Assertions
-        assert result.isError is False
+        assert result.is_error is False
         assert result.crawlers == ['test-crawler-1', 'test-crawler-2']
         assert result.count == 2
         assert result.next_token == 'next-token'
@@ -440,7 +440,7 @@ class TestCrawlerHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Assertions
-        assert result.isError is False
+        assert result.is_error is False
         assert result.crawler_name == 'test-crawler'
         assert result.operation == 'update-crawler'
         handler.glue_client.update_crawler.assert_called_once()
@@ -460,7 +460,7 @@ class TestCrawlerHandler:
             },
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.content[0].text
         no_write_handler.glue_client.update_crawler.assert_not_called()
 
@@ -471,7 +471,7 @@ class TestCrawlerHandler:
             mock_context, operation='invalid-operation', crawler_name='test-crawler'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Invalid operation' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -539,7 +539,7 @@ class TestCrawlerHandler:
         )
 
         # Assertions
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Test error' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -555,7 +555,7 @@ class TestCrawlerHandler:
         )
 
         # Assertions
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Error in manage_aws_glue_crawlers' in result.content[0].text
         assert 'Invalid input' in result.content[0].text
 
@@ -581,7 +581,7 @@ class TestCrawlerHandler:
             )
 
             # Assertions
-            assert result.isError is True
+            assert result.is_error is True
             assert 'Error in manage_aws_glue_crawlers' in result.content[0].text
             assert 'Crawler not found' in result.content[0].text
 
@@ -609,7 +609,7 @@ class TestCrawlerHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Assertions
-        assert result.isError is False
+        assert result.is_error is False
         assert result.classifier_name == 'test-csv-classifier'
         assert result.operation == 'create-classifier'
         handler.glue_client.create_classifier.assert_called_once()
@@ -627,7 +627,7 @@ class TestCrawlerHandler:
             },
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.content[0].text
         no_write_handler.glue_client.create_classifier.assert_not_called()
 
@@ -666,7 +666,7 @@ class TestCrawlerHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Assertions
-        assert result.isError is False
+        assert result.is_error is False
         assert result.classifier_name == 'test-classifier'
         assert result.operation == 'delete-classifier'
         handler.glue_client.delete_classifier.assert_called_once_with(Name='test-classifier')
@@ -680,7 +680,7 @@ class TestCrawlerHandler:
             mock_context, operation='delete-classifier', classifier_name='test-classifier'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.content[0].text
         no_write_handler.glue_client.delete_classifier.assert_not_called()
 
@@ -700,7 +700,7 @@ class TestCrawlerHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Assertions
-        assert result.isError is False
+        assert result.is_error is False
         assert result.classifier_name == 'test-classifier'
         assert result.classifier_details == classifier_details
         assert result.operation == 'get-classifier'
@@ -728,7 +728,7 @@ class TestCrawlerHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Assertions
-        assert result.isError is False
+        assert result.is_error is False
         assert result.classifiers == classifiers
         assert result.count == 2
         assert result.next_token == 'next-token'
@@ -758,7 +758,7 @@ class TestCrawlerHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Assertions
-        assert result.isError is False
+        assert result.is_error is False
         assert result.classifier_name == 'test-csv-classifier'
         assert result.operation == 'update-classifier'
         handler.glue_client.update_classifier.assert_called_once()
@@ -776,7 +776,7 @@ class TestCrawlerHandler:
             },
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.content[0].text
         no_write_handler.glue_client.update_classifier.assert_not_called()
 
@@ -787,7 +787,7 @@ class TestCrawlerHandler:
             mock_context, operation='invalid-operation', classifier_name='test-classifier'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Invalid operation' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -817,7 +817,7 @@ class TestCrawlerHandler:
         )
 
         # Assertions
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Test error' in result.content[0].text
 
     # Tests for manage_aws_glue_crawler_management method
@@ -856,7 +856,7 @@ class TestCrawlerHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Assertions
-        assert result.isError is False
+        assert result.is_error is False
         assert result.crawler_metrics == metrics
         assert result.count == 2
         assert result.next_token == 'next-token'
@@ -880,7 +880,7 @@ class TestCrawlerHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Assertions
-        assert result.isError is False
+        assert result.is_error is False
         assert result.crawler_name == 'test-crawler'
         assert result.operation == 'start-crawler-schedule'
         handler.glue_client.start_crawler_schedule.assert_called_once_with(
@@ -896,7 +896,7 @@ class TestCrawlerHandler:
             mock_context, operation='start-crawler-schedule', crawler_name='test-crawler'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.content[0].text
         no_write_handler.glue_client.start_crawler_schedule.assert_not_called()
 
@@ -915,7 +915,7 @@ class TestCrawlerHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Assertions
-        assert result.isError is False
+        assert result.is_error is False
         assert result.crawler_name == 'test-crawler'
         assert result.operation == 'stop-crawler-schedule'
         handler.glue_client.stop_crawler_schedule.assert_called_once_with(
@@ -931,7 +931,7 @@ class TestCrawlerHandler:
             mock_context, operation='stop-crawler-schedule', crawler_name='test-crawler'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.content[0].text
         no_write_handler.glue_client.stop_crawler_schedule.assert_not_called()
 
@@ -953,7 +953,7 @@ class TestCrawlerHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Assertions
-        assert result.isError is False
+        assert result.is_error is False
         assert result.crawler_name == 'test-crawler'
         assert result.operation == 'update-crawler-schedule'
         handler.glue_client.update_crawler_schedule.assert_called_once_with(
@@ -982,7 +982,7 @@ class TestCrawlerHandler:
             mock_context, operation='invalid-operation', crawler_name='test-crawler'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Invalid operation' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1020,7 +1020,7 @@ class TestCrawlerHandler:
         )
 
         # Assertions
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Test error' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1035,7 +1035,7 @@ class TestCrawlerHandler:
             schedule='cron(0 12 * * ? *)',
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.content[0].text
         no_write_handler.glue_client.update_crawler_schedule.assert_not_called()
 
@@ -1063,7 +1063,7 @@ class TestCrawlerHandler:
             result = CallToolResultWrapper(raw_result)
 
             # Assertions
-            assert result.isError is False
+            assert result.is_error is False
             assert result.crawler_name == 'test-crawler'
             assert result.operation == 'delete-crawler'
             handler.glue_client.delete_crawler.assert_called_once_with(Name='test-crawler')
@@ -1101,7 +1101,7 @@ class TestCrawlerHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Assertions
-        assert result.isError is False
+        assert result.is_error is False
         assert result.classifier_name == 'test-grok-classifier'
         assert result.operation == 'create-classifier'
         handler.glue_client.create_classifier.assert_called_once()
@@ -1127,7 +1127,7 @@ class TestCrawlerHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Assertions
-        assert result.isError is False
+        assert result.is_error is False
         assert result.classifier_name == 'test-xml-classifier'
         assert result.operation == 'create-classifier'
         handler.glue_client.create_classifier.assert_called_once()
@@ -1149,7 +1149,7 @@ class TestCrawlerHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Assertions
-        assert result.isError is False
+        assert result.is_error is False
         assert result.classifier_name == 'test-json-classifier'
         assert result.operation == 'create-classifier'
         handler.glue_client.create_classifier.assert_called_once()
@@ -1175,7 +1175,7 @@ class TestCrawlerHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Assertions
-        assert result.isError is False
+        assert result.is_error is False
         assert result.classifier_name == 'test-grok-classifier'
         assert result.operation == 'update-classifier'
         handler.glue_client.update_classifier.assert_called_once()
@@ -1201,7 +1201,7 @@ class TestCrawlerHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Assertions
-        assert result.isError is False
+        assert result.is_error is False
         assert result.classifier_name == 'test-xml-classifier'
         assert result.operation == 'update-classifier'
         handler.glue_client.update_classifier.assert_called_once()
@@ -1223,7 +1223,7 @@ class TestCrawlerHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Assertions
-        assert result.isError is False
+        assert result.is_error is False
         assert result.classifier_name == 'test-json-classifier'
         assert result.operation == 'update-classifier'
         handler.glue_client.update_classifier.assert_called_once()
@@ -1243,7 +1243,7 @@ class TestCrawlerHandler:
         )
 
         # Assertions
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Error in manage_aws_glue_classifiers' in result.content[0].text
         assert 'Invalid input' in result.content[0].text
 
@@ -1259,7 +1259,7 @@ class TestCrawlerHandler:
             schedule='cron(0 12 * * ? *)',
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.content[0].text
         no_write_handler.glue_client.update_crawler_schedule.assert_not_called()
 
@@ -1278,6 +1278,6 @@ class TestCrawlerHandler:
         )
 
         # Assertions
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Error in manage_aws_glue_crawler_management' in result.content[0].text
         assert 'Invalid input' in result.content[0].text

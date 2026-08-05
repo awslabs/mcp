@@ -23,7 +23,7 @@ from awslabs.aws_documentation_mcp_server.server_utils import (
     get_query_id_from_cache,
     read_documentation_impl,
 )
-from mcp.server.fastmcp.server import Context
+from mcp.server.mcpserver.server import Context
 from unittest.mock import AsyncMock, MagicMock, patch
 
 

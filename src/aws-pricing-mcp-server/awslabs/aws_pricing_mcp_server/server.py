@@ -48,7 +48,7 @@ from awslabs.aws_pricing_mcp_server.static.patterns import BEDROCK
 from awslabs.aws_pricing_mcp_server.terraform_analyzer import analyze_terraform_project
 from datetime import datetime, timezone
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 from pydantic.fields import FieldInfo
@@ -79,7 +79,7 @@ async def create_error_response(
     return error_response.model_dump()
 
 
-mcp = FastMCP(
+mcp = MCPServer(
     name='awslabs.aws-pricing-mcp-server',
     instructions="""This server provides two primary functionalities:
 

@@ -72,7 +72,7 @@ class TestCustomTagsEmrServerless:
         """Test that create application operation respects CUSTOM_TAGS when enabled."""
         # Mock the manage_aws_emr_serverless_applications method to return a response
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.application_id = 'app-12345ABCDEF'
         mock_response.name = 'Test Application'
@@ -118,7 +118,7 @@ class TestCustomTagsEmrServerless:
         """Test that update application operation respects CUSTOM_TAGS when enabled."""
         # Mock the manage_aws_emr_serverless_applications method to return a response
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.application_id = 'app-12345ABCDEF'
         mock_response.operation = 'update-application'
@@ -154,7 +154,7 @@ class TestCustomTagsEmrServerless:
         """Test that delete application operation respects CUSTOM_TAGS when enabled."""
         # Mock the manage_aws_emr_serverless_applications method to return a response
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.application_id = 'app-12345ABCDEF'
         mock_response.operation = 'delete-application'
@@ -187,7 +187,7 @@ class TestCustomTagsEmrServerless:
         """Test that get application operation respects CUSTOM_TAGS when enabled."""
         # Mock the manage_aws_emr_serverless_applications method to return a response
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.application = {
             'applicationId': 'app-12345ABCDEF',
@@ -225,7 +225,7 @@ class TestCustomTagsEmrServerless:
         """Test that list applications operation respects CUSTOM_TAGS when enabled."""
         # Mock the manage_aws_emr_serverless_applications method to return a response
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.applications = [
             {'applicationId': 'app-12345ABCDEF', 'name': 'App 1', 'state': 'CREATED'},
@@ -263,7 +263,7 @@ class TestCustomTagsEmrServerless:
         """Test that start application operation respects CUSTOM_TAGS when enabled."""
         # Mock the manage_aws_emr_serverless_applications method to return a response
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.application_id = 'app-12345ABCDEF'
         mock_response.operation = 'start-application'
@@ -296,7 +296,7 @@ class TestCustomTagsEmrServerless:
         """Test that stop application operation respects CUSTOM_TAGS when enabled."""
         # Mock the manage_aws_emr_serverless_applications method to return a response
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.application_id = 'app-12345ABCDEF'
         mock_response.operation = 'stop-application'
@@ -329,7 +329,7 @@ class TestCustomTagsEmrServerless:
         """Test that start job run operation respects CUSTOM_TAGS when enabled."""
         # Mock the manage_aws_emr_serverless_job_runs method to return a response
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.job_run_id = 'job-12345ABCDEF'
         mock_response.application_id = 'app-12345ABCDEF'
@@ -374,7 +374,7 @@ class TestCustomTagsEmrServerless:
         """Test that get job run operation respects CUSTOM_TAGS when enabled."""
         # Mock the manage_aws_emr_serverless_job_runs method to return a response
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.job_run = {
             'jobRunId': 'job-12345ABCDEF',
@@ -411,7 +411,7 @@ class TestCustomTagsEmrServerless:
         """Test that cancel job run operation respects CUSTOM_TAGS when enabled."""
         # Mock the manage_aws_emr_serverless_job_runs method to return a response
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.job_run_id = 'job-12345ABCDEF'
         mock_response.application_id = 'app-12345ABCDEF'
@@ -445,7 +445,7 @@ class TestCustomTagsEmrServerless:
         """Test that list job runs operation respects CUSTOM_TAGS when enabled."""
         # Mock the manage_aws_emr_serverless_job_runs method to return a response
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.job_runs = [
             {'jobRunId': 'job-12345ABCDEF', 'state': 'RUNNING'},
@@ -482,7 +482,7 @@ class TestCustomTagsEmrServerless:
         """Test that get dashboard for job run operation respects CUSTOM_TAGS when enabled."""
         # Mock the manage_aws_emr_serverless_job_runs method to return a response
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.url = (
             'https://console.aws.amazon.com/emr/serverless/dashboard/job-12345ABCDEF'

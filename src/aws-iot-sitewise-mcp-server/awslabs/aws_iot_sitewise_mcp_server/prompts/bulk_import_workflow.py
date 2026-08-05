@@ -14,7 +14,7 @@
 
 """AWS IoT SiteWise Bulk Import Workflow Helper Prompt."""
 
-from mcp.server.fastmcp.prompts import Prompt
+from mcp.server.mcpserver.prompts import Prompt
 
 
 def bulk_import_workflow_helper() -> str:

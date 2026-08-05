@@ -8,6 +8,9 @@ dependencies = [
     "boto3>=1.42.0,<1.43.0",
     "jinja2==3.1.6",
     "loguru==0.7.3",
+    # Left on v1 deliberately. awslabs-aws-api-mcp-server (below) depends on fastmcp 3.x,
+    # which pins mcp>=1.24.0,<2.0 through fastmcp-slim, so mcp>=2.0.0 is unsatisfiable here --
+    # only the unreleased fastmcp 4.0 lifts that ceiling. See awslabs/mcp#4448.
     "mcp[cli]==1.26.0",
     "psutil==7.2.2",
     "pydantic==2.12.5",

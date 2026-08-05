@@ -32,7 +32,7 @@ from awslabs.mssql_mcp_server.server import (
 from awslabs.mssql_mcp_server.server import (
     mcp as server_mcp,
 )
-from mcp.shared.exceptions import McpError
+from mcp.shared.exceptions import MCPError
 from unittest.mock import MagicMock
 
 
@@ -250,7 +250,7 @@ async def test_run_query_blocks_drop(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='DROP TABLE users',
             ctx=ctx,
@@ -271,7 +271,7 @@ async def test_run_query_blocks_exec(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='EXEC sp_who',
             ctx=ctx,
@@ -292,7 +292,7 @@ async def test_run_query_blocks_execute_keyword(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='EXECUTE sp_who',
             ctx=ctx,
@@ -313,7 +313,7 @@ async def test_run_query_blocks_exec_with_params(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql="EXEC sp_addrolemember 'db_owner', 'attacker'",
             ctx=ctx,
@@ -334,7 +334,7 @@ async def test_run_query_blocks_exec_schema_qualified(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='EXEC dbo.usp_delete_all_users',
             ctx=ctx,
@@ -355,7 +355,7 @@ async def test_run_query_blocks_exec_case_insensitive(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='exec sp_who',
             ctx=ctx,
@@ -376,7 +376,7 @@ async def test_run_query_blocks_exec_dynamic_sql(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql="EXEC('DROP TABLE users')",
             ctx=ctx,
@@ -397,7 +397,7 @@ async def test_run_query_blocks_commit(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='SELECT 1;\n--\nCOMMIT TRANSACTION',
             ctx=ctx,
@@ -418,7 +418,7 @@ async def test_run_query_blocks_use(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='USE tempdb',
             ctx=ctx,
@@ -439,7 +439,7 @@ async def test_run_query_blocks_implicit_proc_call(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='usp_delete_all_records',
             ctx=ctx,
@@ -460,7 +460,7 @@ async def test_run_query_blocks_checkpoint(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='CHECKPOINT',
             ctx=ctx,
@@ -481,7 +481,7 @@ async def test_run_query_blocks_begin_dialog(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql="DECLARE @h UNIQUEIDENTIFIER\nBEGIN DIALOG @h FROM SERVICE [//svc] TO SERVICE '//t'",
             ctx=ctx,
@@ -502,7 +502,7 @@ async def test_run_query_blocks_end_conversation(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='END CONVERSATION @handle',
             ctx=ctx,
@@ -523,7 +523,7 @@ async def test_run_query_blocks_set_noexec(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='SET NOEXEC ON',
             ctx=ctx,
@@ -544,7 +544,7 @@ async def test_run_query_blocks_raiserror_with_log(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql="RAISERROR('test', 16, 1) WITH LOG",
             ctx=ctx,
@@ -565,7 +565,7 @@ async def test_run_query_blocks_select_into(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
 
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='SELECT * INTO #newtable FROM sys.databases',
             ctx=ctx,
@@ -639,13 +639,13 @@ async def test_run_query_write_mode_no_readonly_message(mocker):
 
 @pytest.mark.asyncio
 async def test_run_query_no_connection(mocker):
-    """run_query raises McpError when no connection is found."""
+    """run_query raises MCPError when no connection is found."""
     from awslabs.mssql_mcp_server.server import run_query
 
     mocker.patch.object(db_connection_map, 'get', return_value=None)
 
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='SELECT 1',
             ctx=ctx,

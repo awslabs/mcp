@@ -33,7 +33,7 @@ from awslabs.mssql_mcp_server.server import (
 )
 from awslabs.mssql_mcp_server.server import mcp as server_mcp
 from botocore.exceptions import ClientError
-from mcp.shared.exceptions import McpError
+from mcp.shared.exceptions import MCPError
 from unittest.mock import AsyncMock, MagicMock
 
 
@@ -240,7 +240,7 @@ async def test_run_query_injection_risk_blocked(mocker):
     mock_conn = MagicMock()
     mock_conn.readonly_query = False  # write mode
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql="EXEC xp_cmdshell 'whoami'",
             ctx=DummyCtx(),
@@ -256,8 +256,8 @@ async def test_run_query_injection_risk_blocked(mocker):
 
 @pytest.mark.asyncio
 async def test_get_table_schema_invalid_table_name():
-    """An invalid table name raises McpError with INVALID_PARAMS."""
-    with pytest.raises(McpError):
+    """An invalid table name raises MCPError with INVALID_PARAMS."""
+    with pytest.raises(MCPError):
         await get_table_schema(
             connection_method=ConnectionMethod.MSSQL_PASSWORD,
             instance_identifier='i',
@@ -270,8 +270,8 @@ async def test_get_table_schema_invalid_table_name():
 
 @pytest.mark.asyncio
 async def test_get_table_schema_invalid_schema_name():
-    """An invalid schema name raises McpError with INVALID_PARAMS."""
-    with pytest.raises(McpError):
+    """An invalid schema name raises MCPError with INVALID_PARAMS."""
+    with pytest.raises(MCPError):
         await get_table_schema(
             connection_method=ConnectionMethod.MSSQL_PASSWORD,
             instance_identifier='i',

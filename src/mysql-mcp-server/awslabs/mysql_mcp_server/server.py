@@ -41,7 +41,7 @@ from awslabs.mysql_mcp_server.mutable_sql_detector import (
 from botocore.exceptions import ClientError
 from datetime import datetime
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Annotated, Any, Dict, List, Optional, Tuple
 
@@ -98,7 +98,7 @@ def parse_execute_response(response: dict) -> list[dict]:
     return records
 
 
-mcp = FastMCP(
+mcp = MCPServer(
     'mysql-mcp MCP server. This is the starting point for all solutions created',
     dependencies=[
         'loguru',

@@ -39,7 +39,7 @@ from awslabs.oracle_mcp_server.server import (
     mcp as server_mcp,
 )
 from botocore.exceptions import ClientError
-from mcp.shared.exceptions import McpError
+from mcp.shared.exceptions import MCPError
 from unittest.mock import AsyncMock, MagicMock
 
 
@@ -209,7 +209,7 @@ async def test_run_query_blocks_drop(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='DROP TABLE HR.EMPLOYEES',
             ctx=ctx,
@@ -229,7 +229,7 @@ async def test_run_query_blocks_audit(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='AUDIT SELECT TABLE BY ACCESS',
             ctx=ctx,
@@ -898,7 +898,7 @@ async def test_run_query_blocks_commit_in_readonly(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='COMMIT',
             ctx=ctx,
@@ -918,7 +918,7 @@ async def test_run_query_blocks_plsql_begin_in_readonly(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='BEGIN my_pkg.delete_all; END;',
             ctx=ctx,
@@ -938,7 +938,7 @@ async def test_run_query_blocks_plsql_declare_in_readonly(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='DECLARE v_x NUMBER; BEGIN NULL; END;',
             ctx=ctx,
@@ -958,7 +958,7 @@ async def test_run_query_blocks_set_role_in_readonly(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='SET ROLE DBA',
             ctx=ctx,
@@ -978,7 +978,7 @@ async def test_run_query_blocks_explain_plan_in_readonly(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='EXPLAIN PLAN FOR SELECT * FROM HR.EMPLOYEES',
             ctx=ctx,
@@ -998,7 +998,7 @@ async def test_run_query_blocks_set_transaction_in_readonly(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='SET TRANSACTION READ WRITE',
             ctx=ctx,
@@ -1521,7 +1521,7 @@ async def test_run_query_readonly_rejects_v_dollar_view(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='SELECT sql_text FROM v$sql',
             ctx=ctx,

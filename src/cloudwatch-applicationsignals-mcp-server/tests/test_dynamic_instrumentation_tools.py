@@ -1485,7 +1485,7 @@ class TestToolRegistration:
             'search_snapshots_for_status_event',
             'get_sample_snapshot_for_breakpoint',
         ):
-            assert recorder.annotations[name].readOnlyHint is True
+            assert recorder.annotations[name].read_only_hint is True
 
     def test_destructive_tools_are_annotated_destructive(self):
         """Delete tools carry ``destructiveHint=True`` so clients can warn first."""
@@ -1499,9 +1499,9 @@ class TestToolRegistration:
             'batch_delete_instrumentations_by_arns',
         ):
             annotations = recorder.annotations[name]
-            assert annotations.readOnlyHint is False
-            assert annotations.destructiveHint is True
-            assert annotations.idempotentHint is True
+            assert annotations.read_only_hint is False
+            assert annotations.destructive_hint is True
+            assert annotations.idempotent_hint is True
 
     def test_create_tool_is_state_changing_but_not_destructive(self):
         """create_instrumentation is a write, not a read and not destructive."""
@@ -1510,9 +1510,9 @@ class TestToolRegistration:
         registration.register_tools(recorder)
 
         annotations = recorder.annotations['create_instrumentation']
-        assert annotations.readOnlyHint is False
-        assert annotations.destructiveHint is False
-        assert annotations.idempotentHint is False
+        assert annotations.read_only_hint is False
+        assert annotations.destructive_hint is False
+        assert annotations.idempotent_hint is False
 
     def test_every_tool_is_annotated_open_world(self):
         """Every tool calls the AWS API, so all carry ``openWorldHint=True``."""
@@ -1521,7 +1521,7 @@ class TestToolRegistration:
         registration.register_tools(recorder)
 
         for name in recorder.registered:
-            assert recorder.annotations[name].openWorldHint is True
+            assert recorder.annotations[name].open_world_hint is True
 
 
 class TestSnapshotLogGroupResolution:

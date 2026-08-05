@@ -35,7 +35,7 @@ from awslabs.eks_mcp_server.models import (
     ManageEksStacksData,
 )
 from awslabs.eks_mcp_server.path_validation import validate_file_path
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from mcp.types import CallToolResult, TextContent
 from pydantic import Field
 from typing import Any, Dict, Optional, Tuple

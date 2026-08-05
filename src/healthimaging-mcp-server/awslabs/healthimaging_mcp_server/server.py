@@ -61,7 +61,7 @@ from .models import (
     UpdateImageSetMetadataRequest,
     UpdateImageSetMetadataResponse,
 )
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 from pydantic.fields import FieldInfo
 from typing import Any, Dict, List, Optional
@@ -160,7 +160,7 @@ Available Tools:
 
 def create_server():
     """Create and configure the MCP server instance."""
-    return FastMCP(
+    return MCPServer(
         'awslabs.healthimaging-mcp-server',
         instructions=SERVER_INSTRUCTIONS,
     )

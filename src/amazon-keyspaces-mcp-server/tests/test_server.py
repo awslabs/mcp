@@ -23,7 +23,7 @@ from awslabs.amazon_keyspaces_mcp_server.server import (
     list_keyspaces,
     list_tables,
 )
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from unittest.mock import AsyncMock, Mock, patch
 
 

@@ -46,9 +46,9 @@ from awslabs.postgres_mcp_server.mutable_sql_detector import (
 from botocore.exceptions import ClientError
 from datetime import datetime
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
-from mcp.shared.exceptions import McpError
-from mcp.types import INVALID_PARAMS, ErrorData
+from mcp.server.mcpserver import Context, MCPServer
+from mcp.shared.exceptions import MCPError
+from mcp.types import INVALID_PARAMS
 from pydantic import Field
 from typing import Annotated, Any, Dict, List, Optional, Tuple
 
@@ -127,7 +127,7 @@ def parse_execute_response(response: dict) -> list[dict]:
     return records
 
 
-mcp = FastMCP(
+mcp = MCPServer(
     'pg-mcp MCP server. This is the starting point for all solutions created',
     dependencies=[
         'loguru',
@@ -266,9 +266,7 @@ async def get_table_schema(
     )
 
     if not validate_table_name(table_name):
-        raise McpError(
-            ErrorData(code=INVALID_PARAMS, message=(f"Invalid table name: '{table_name}'. "))
-        )
+        raise MCPError(code=INVALID_PARAMS, message=(f"Invalid table name: '{table_name}'. "))
 
     sql = """
         SELECT

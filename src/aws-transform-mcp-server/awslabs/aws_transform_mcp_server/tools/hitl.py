@@ -43,7 +43,7 @@ from awslabs.aws_transform_mcp_server.upload_helper import (
     upload_json_artifact,
 )
 from loguru import logger
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from pydantic import BeforeValidator, Field
 from typing import Annotated, Any, Dict, Optional
 

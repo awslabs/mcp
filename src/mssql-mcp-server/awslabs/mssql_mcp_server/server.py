@@ -32,9 +32,9 @@ from awslabs.mssql_mcp_server.mutable_sql_detector import (
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
-from mcp.shared.exceptions import McpError
-from mcp.types import INVALID_PARAMS, ErrorData
+from mcp.server.mcpserver import Context, MCPServer
+from mcp.shared.exceptions import MCPError
+from mcp.types import INVALID_PARAMS
 from pydantic import Field
 from typing import Annotated, Any, Dict, List, Optional, Set, Tuple
 
@@ -120,7 +120,7 @@ def _wrap_untrusted_data(data: Any) -> str:
     )
 
 
-mcp = FastMCP(
+mcp = MCPServer(
     'mssql-mcp MCP server for Microsoft SQL Server on AWS RDS',
     dependencies=['loguru'],
 )
@@ -161,18 +161,18 @@ async def run_query(
             f'instance_identifier:{instance_identifier}, db_endpoint:{db_endpoint}, database:{database}'
         )
         logger.error(err)
-        raise McpError(ErrorData(code=INVALID_PARAMS, message=err))
+        raise MCPError(code=INVALID_PARAMS, message=err)
 
     if db_connection.readonly_query:
         matches = detect_mutating_keywords(sql)
         if matches:
             logger.info(f'query rejected: readonly mode, detected keywords: {matches}')
-            raise McpError(ErrorData(code=INVALID_PARAMS, message=write_query_prohibited_key))
+            raise MCPError(code=INVALID_PARAMS, message=write_query_prohibited_key)
 
     issues = check_sql_injection_risk(sql)
     if issues:
         logger.info(f'query rejected: injection risk, reasons:{issues}')
-        raise McpError(ErrorData(code=INVALID_PARAMS, message=query_injection_risk_key))
+        raise MCPError(code=INVALID_PARAMS, message=query_injection_risk_key)
 
     try:
         response = await db_connection.execute_query(sql, query_parameters)
@@ -223,14 +223,10 @@ async def get_table_schema(
     )
 
     if not validate_table_name(table_name):
-        raise McpError(
-            ErrorData(code=INVALID_PARAMS, message=f"Invalid table name: '{table_name}'.")
-        )
+        raise MCPError(code=INVALID_PARAMS, message=f"Invalid table name: '{table_name}'.")
 
     if schema_name and not validate_table_name(schema_name):
-        raise McpError(
-            ErrorData(code=INVALID_PARAMS, message=f"Invalid schema name: '{schema_name}'.")
-        )
+        raise MCPError(code=INVALID_PARAMS, message=f"Invalid schema name: '{schema_name}'.")
 
     db_connection = db_connection_map.get(
         method=connection_method,

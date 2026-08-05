@@ -140,7 +140,7 @@ class TestTranslationTools:
 
     def test_server_tools_exist(self):
         """Test that all expected MCP tools are defined."""
-        # Check that the FastMCP instance has the expected tools
+        # Check that the MCPServer instance has the expected tools
         assert hasattr(server, 'translate_text')
         assert hasattr(server, 'detect_language')
         assert hasattr(server, 'validate_translation')
@@ -693,10 +693,10 @@ class TestAdditionalParameterValidation:
 # MCP Framework Compatibility Note:
 # The aws-location-mcp-server pattern does NOT work for amazon-translate-mcp-server
 # because they use different MCP frameworks:
-# - aws-location-mcp-server uses: from mcp.server.fastmcp import FastMCP
-# - amazon-translate-mcp-server uses: from fastmcp import FastMCP
+# - aws-location-mcp-server uses: from mcp.server.mcpserver import MCPServer
+# - amazon-translate-mcp-server uses: from fastmcp import MCPServer
 #
-# The amazon-translate-mcp-server's FastMCP wraps functions as FunctionTool objects
+# The amazon-translate-mcp-server's MCPServer wraps functions as FunctionTool objects
 # that cannot be called directly in tests, hence we use parameter validation and
 # service integration testing instead.
 
