@@ -79,7 +79,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-amazon-translate-mcp-server"
-version = "1.0.3"
+version = "1.0.4"
 source = { editable = "." }
 dependencies = [
     { name = "authlib" },
