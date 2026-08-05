@@ -97,7 +97,7 @@ def test_setup_function(mock_register_prompts, mock_mcp):
 
     setup()
 
-    assert mock_mcp.mount.call_count == 22
+    assert mock_mcp.mount.call_count == 23
     mock_register_prompts.assert_called_once()
 
 

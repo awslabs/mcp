@@ -60,6 +60,7 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_tools import
 from awslabs.billing_cost_management_mcp_server.tools.cost_optimization_hub_tools import (
     cost_optimization_hub_server,
 )
+from awslabs.billing_cost_management_mcp_server.tools.credits_tools import credits_server
 from awslabs.billing_cost_management_mcp_server.tools.free_tier_usage_tools import (
     free_tier_usage_server,
 )
@@ -226,6 +227,7 @@ def setup():
     mcp.mount(invoicing_server)
     mcp.mount(invoice_units_server)
     mcp.mount(procurement_preferences_server)
+    mcp.mount(credits_server)
 
     register_prompts()
 
