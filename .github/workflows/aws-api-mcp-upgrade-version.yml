@@ -5,8 +5,6 @@ description: |
   and creates a pull request with the changes.
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 5 * * *'  # Daily at 6 AM Amsterdam time (UTC+1)
 env:
   BOT_USER_EMAIL: ${{ vars.BOT_USER_EMAIL || '203918161+awslabs-mcp@users.noreply.github.com' }}
   BOT_USER_NAME: ${{ vars.BOT_USER_NAME || 'awslabs-mcp' }}
