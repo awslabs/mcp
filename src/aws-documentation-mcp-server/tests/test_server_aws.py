@@ -24,16 +24,22 @@ from awslabs.aws_documentation_mcp_server.server_aws import (
     search_documentation,
     search_table,
 )
+from mcp.server.mcpserver import Context
+from typing import Any, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.parse import parse_qs, unquote, urlparse
 
 
-class MockContext:
+class MockContext(Context):
     """Mock context for testing."""
 
-    async def error(self, message):
+    def __init__(self) -> None:
+        """Initialize with no request context; nothing here needs one."""
+        super().__init__()
+
+    async def error(self, data: Any, *, logger_name: Optional[str] = None):
         """Mock error method."""
-        print(f'Error: {message}')
+        print(f'Error: {data}')
 
 
 class TestReadDocumentation:

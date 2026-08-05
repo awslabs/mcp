@@ -49,12 +49,25 @@ matching test change, so affected files are reported rather than rewritten. Note
 intercepts the assignment: the symptom is `ValueError: "Settings" object has no field "port"`,
 not `AttributeError`.
 
-Three servers are **skipped entirely** (`BLOCKED_SERVERS`), blocked upstream rather than by
-anything here: `fastmcp` 3.x pins `mcp>=1.24.0,<2.0` through `fastmcp-slim`, so `aws-api` and
-`billing-cost-management` (direct `fastmcp>=3` dependents) and `dynamodb` (which inherits it
-via `awslabs-aws-api-mcp-server`) cannot resolve `mcp>=2.0.0` at all. Only the unreleased
-`fastmcp` 4.0 lifts that ceiling. Naming one with `--server` is a hard error, because a
-half-migrated blocked server is broken against both SDKs.
+Six servers are **skipped entirely** (`BLOCKED_SERVERS`), blocked upstream rather than by
+anything here. `fastmcp` 3.x pins `mcp>=1.24.0,<2.0` through `fastmcp-slim`, and only the
+unreleased `fastmcp` 4.0 lifts that ceiling. It bites in two ways, and the second is the
+dangerous one:
+
+1. **Loud.** The server's `fastmcp` floor is already `>=3`, so `mcp>=2.0.0` has no solution
+   and `uv lock` fails outright: `aws-api` and `billing-cost-management` (direct `fastmcp>=3`
+   dependents) and `dynamodb` (which inherits it via `awslabs-aws-api-mcp-server`).
+2. **Silent.** The server's `fastmcp` floor *predates* that pin (`>=2.14.0`, `>=2.13.1`), so
+   the resolver does not fail — it walks **backward** to a `fastmcp` old enough to accept
+   mcp 2.x. In practice that is 2.14.1, which carries 4 known advisories, one CRITICAL. The
+   result is a green test suite and a security regression at the same time:
+   `amazon-keyspaces`, `amazon-translate`, `aws-iot-sitewise`.
+
+Case 2 is exactly what `verify-mcp-v2-locks.py` is for; case 1 catches itself. A raised
+dependency floor is not automatically a raised *resolved* version — always diff the lock.
+
+Naming a blocked server with `--server` is a hard error, because a half-migrated blocked
+server is broken against both SDKs.
 
 ### The field renames are the hard part
 
@@ -72,8 +85,17 @@ That asymmetry is why this surfaces as a pile of test failures rather than an im
 and why it dwarfs the rename itself: 964 reads across 9 servers, ~800 of them in
 `aws-dataprocessing-mcp-server` and `eks-mcp-server` alone.
 
-Only attribute access is rewritten — keyword arguments still resolve via the alias, and a
-same-named dict key is unrelated data. Three servers are excluded because they declare
+Keyword *construction* is rewritten too, but only for servers actually on v2. It is not a
+correctness fix — `CallToolResult(isError=True)` resolves through the alias and serializes
+identically — it is a type-checking fix, because pydantic's stubs synthesize `__init__` from
+field *names*, so pyright rejects the alias spelling. The gate matters: under v1,
+`Tool.model_fields` literally contains `inputSchema` as the real field name, so renaming it in
+a server still on v1 breaks it. `healthlake-mcp-server` is exactly that case — still on
+`mcp>=1.23.0`, constructing `Tool(inputSchema=…)` 11 times — and is left alone. A server
+being migrated in the same pass counts as v2, since the cap bump lands with the rename.
+
+Attribute *reads* are always rewritten; a same-named dict key is unrelated data and is left
+alone. Three servers are excluded because they declare
 their *own* attribute of a renamed name (`sagemaker-ai-mcp-server` defines its own
 `CallToolResult.isError`, `aws-healthomics-mcp-server` reads the HealthOmics API's `taskId`,
 `cloudwatch-mcp-server` has a PromQL `resultType`), as are servers with no `mcp` SDK
@@ -94,6 +116,29 @@ The rename and the cap bump must land in the same commit — v2-only imports bre
 Classify every failure against unmodified `origin/main` before calling it a regression: this
 repo has a steady background of environment-dependent failures, and a suite that fails
 identically on both sides is not this migration's doing.
+
+### Expect a wall of pyright errors that the codemod cannot fix
+
+v1 typed `tool()` as `Callable[[AnyFunction], AnyFunction]` where `AnyFunction =
+Callable[..., Any]`, which erased every decorated tool's signature to `(...) -> Any`. v2 uses
+a TypeVar and preserves it. **No call site changes** — v2 just stops hiding errors that were
+always there. The fleet rollout surfaced 371 of them, and every one was a pre-existing defect:
+mock contexts that never structurally matched `Context`, `None` passed to `str` parameters,
+tuples passed to `List[str]`, a pytest fixture *function* passed where an instance was
+expected, and four tests whose `pytest.raises(Exception)` was actually catching
+`TypeError: missing 1 required positional argument` rather than the AWS error they claimed to
+assert.
+
+`pyright` runs at pre-commit **`stages: [pre-push]`**, so `pre-commit run --files …` never
+exercises it. Run it per server directly:
+
+```bash
+cd src/<name> && uv run pyright          # some servers declare dev tools as an
+                                         # optional extra: add --extra dev
+```
+
+Per-server config can also hide real errors — `aws-dataprocessing-mcp-server` sets
+`reportCallIssue = false`, which masks 354 alias-spelled keyword arguments.
 
 See https://github.com/awslabs/mcp/issues/4448 for the full migration plan and the list of
 servers needing individual review.

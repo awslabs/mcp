@@ -32,14 +32,20 @@ from awslabs.mssql_mcp_server.server import (
 from awslabs.mssql_mcp_server.server import (
     mcp as server_mcp,
 )
+from mcp.server.mcpserver import Context
 from mcp.shared.exceptions import MCPError
+from typing import Any, Optional
 from unittest.mock import MagicMock
 
 
-class DummyCtx:
+class DummyCtx(Context):
     """Dummy MCP context for testing."""
 
-    async def error(self, message):
+    def __init__(self) -> None:
+        """Initialize with no request context; nothing here needs one."""
+        super().__init__()
+
+    async def error(self, data: Any, *, logger_name: Optional[str] = None):
         """No-op error handler."""
         pass
 

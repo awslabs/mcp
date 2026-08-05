@@ -63,12 +63,16 @@ class ServerConfig:
 server_config = ServerConfig()
 
 
-class DummyCtx:
+class DummyCtx(Context):
     """Dummy MCP context for standalone server invocation."""
 
-    async def error(self, message):
-        """Log error message."""
-        logger.error(f'DummyCtx error: {message}')
+    def __init__(self) -> None:
+        """Initialize with no request context; nothing here needs one."""
+        super().__init__()
+
+    async def error(self, data: Any, *, logger_name: Optional[str] = None):
+        """Log the error message."""
+        logger.error(f'DummyCtx error: {data}')
 
 
 def extract_cell(cell: dict):

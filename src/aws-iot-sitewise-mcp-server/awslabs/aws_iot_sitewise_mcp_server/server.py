@@ -122,8 +122,8 @@ from awslabs.aws_iot_sitewise_mcp_server.tools.timestamp_tools import (
     create_timestamp_range_tool,
     get_current_timestamp_tool,
 )
-from mcp.server.mcpserver import MCPServer
-from mcp.server.mcpserver.tools import Tool
+from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp.tools import Tool
 from typing import Any, Dict
 
 
@@ -285,7 +285,7 @@ async def run_server():
     # Update instructions based on mode
     instructions = WRITE_ENABLED_INSTRUCTIONS if allow_writes else READ_ONLY_INSTRUCTIONS
 
-    mcp = MCPServer(
+    mcp = FastMCP(
         name='sitewise',
         instructions=instructions,
     )

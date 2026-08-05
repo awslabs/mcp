@@ -122,7 +122,7 @@ class IAMHandler:
             )
 
             return CallToolResult(
-                isError=False,
+                is_error=False,
                 content=[
                     TextContent(
                         type='text',
@@ -140,7 +140,7 @@ class IAMHandler:
 
             # Return a response with error status
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -207,7 +207,7 @@ class IAMHandler:
                 error_message = 'Adding inline policies requires --allow-write flag'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
                 return CallToolResult(
-                    isError=True,
+                    is_error=True,
                     content=[TextContent(type='text', text=error_message)],
                 )
 
@@ -223,7 +223,7 @@ class IAMHandler:
 
             # Return a response with error status
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -321,7 +321,7 @@ class IAMHandler:
             error_message = f'Policy {policy_name} already exists in role {role_name}. Cannot modify existing policies.'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[TextContent(type='text', text=error_message)],
             )
         except iam_client.exceptions.NoSuchEntityException:
@@ -346,7 +346,7 @@ class IAMHandler:
         )
 
         return CallToolResult(
-            isError=False,
+            is_error=False,
             content=[
                 TextContent(
                     type='text',

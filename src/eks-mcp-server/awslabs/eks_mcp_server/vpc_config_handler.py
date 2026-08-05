@@ -347,7 +347,7 @@ class VpcConfigHandler:
                 error_message = f'Error getting cluster information: {str(eks_error)}'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
                 return CallToolResult(
-                    isError=True,
+                    is_error=True,
                     content=[TextContent(type='text', text=error_message)],
                 )
 
@@ -385,7 +385,7 @@ class VpcConfigHandler:
                 )
 
                 return CallToolResult(
-                    isError=False,
+                    is_error=False,
                     content=[
                         TextContent(type='text', text=success_message),
                         TextContent(type='text', text=json.dumps(data.model_dump())),
@@ -395,7 +395,7 @@ class VpcConfigHandler:
                 error_message = f'Error retrieving VPC configuration: {str(e)}'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
                 return CallToolResult(
-                    isError=True,
+                    is_error=True,
                     content=[TextContent(type='text', text=error_message)],
                 )
 
@@ -403,6 +403,6 @@ class VpcConfigHandler:
             error_message = f'Error retrieving VPC configuration: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[TextContent(type='text', text=error_message)],
             )

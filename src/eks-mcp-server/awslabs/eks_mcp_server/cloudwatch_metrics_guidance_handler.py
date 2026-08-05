@@ -113,7 +113,7 @@ class CloudWatchMetricsHandler:
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -132,7 +132,7 @@ class CloudWatchMetricsHandler:
         )
 
         return CallToolResult(
-            isError=False,
+            is_error=False,
             content=[
                 TextContent(
                     type='text',

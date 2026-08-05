@@ -34,7 +34,7 @@ class TestServer:
 
     @patch.dict(os.environ, {'SITEWISE_MCP_ALLOW_WRITES': 'True'})
     @patch('awslabs.aws_iot_sitewise_mcp_server.server.create_task_group')
-    @patch('awslabs.aws_iot_sitewise_mcp_server.server.MCPServer')
+    @patch('awslabs.aws_iot_sitewise_mcp_server.server.FastMCP')
     @patch('awslabs.aws_iot_sitewise_mcp_server.server.__version__', '1.0.0')
     @pytest.mark.asyncio
     async def test_run_server_setup(self, mock_fastmcp, mock_task_group):
@@ -83,7 +83,7 @@ class TestServer:
 
     @patch.dict(os.environ, {'SITEWISE_MCP_ALLOW_WRITES': 'True'})
     @patch('awslabs.aws_iot_sitewise_mcp_server.server.create_task_group')
-    @patch('awslabs.aws_iot_sitewise_mcp_server.server.MCPServer')
+    @patch('awslabs.aws_iot_sitewise_mcp_server.server.FastMCP')
     @patch('awslabs.aws_iot_sitewise_mcp_server.server.__version__', '1.0.0')
     @pytest.mark.asyncio
     async def test_run_server_tool_categories(self, mock_fastmcp, mock_task_group):
@@ -118,7 +118,7 @@ class TestServer:
 
     @patch.dict(os.environ, {'SITEWISE_MCP_ALLOW_WRITES': 'True'})
     @patch('awslabs.aws_iot_sitewise_mcp_server.server.create_task_group')
-    @patch('awslabs.aws_iot_sitewise_mcp_server.server.MCPServer')
+    @patch('awslabs.aws_iot_sitewise_mcp_server.server.FastMCP')
     @patch('awslabs.aws_iot_sitewise_mcp_server.server.__version__', '1.0.0')
     @pytest.mark.asyncio
     async def test_run_server_prompts(self, mock_fastmcp, mock_task_group):
@@ -154,7 +154,7 @@ class TestServer:
         mock_run.assert_called_once_with(run_server)
 
     @patch('awslabs.aws_iot_sitewise_mcp_server.server.create_task_group')
-    @patch('awslabs.aws_iot_sitewise_mcp_server.server.MCPServer')
+    @patch('awslabs.aws_iot_sitewise_mcp_server.server.FastMCP')
     @patch('awslabs.aws_iot_sitewise_mcp_server.server.__version__', '1.0.0')
     @pytest.mark.asyncio
     async def test_run_server_version_setting(self, mock_fastmcp, mock_task_group):
@@ -180,7 +180,7 @@ class TestServer:
 
     @patch.dict(os.environ, {'SITEWISE_MCP_ALLOW_WRITES': 'True'})
     @patch('awslabs.aws_iot_sitewise_mcp_server.server.create_task_group')
-    @patch('awslabs.aws_iot_sitewise_mcp_server.server.MCPServer')
+    @patch('awslabs.aws_iot_sitewise_mcp_server.server.FastMCP')
     @patch('awslabs.aws_iot_sitewise_mcp_server.server.__version__', '1.0.0')
     @pytest.mark.asyncio
     async def test_run_server_error_handling(self, mock_fastmcp, mock_task_group):

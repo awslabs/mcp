@@ -109,12 +109,25 @@ V2_BOUNDS = '>=2.0.0,<3.0.0'
 # `fastmcp` 4.0 lifts that ceiling. Declaring `mcp>=2.0.0` alongside `fastmcp>=3` makes the
 # resolution unsatisfiable, and migrating the *code* would break these servers against the v1
 # SDK they are stuck on -- so they are skipped entirely, not partially converted.
-#   aws-api, billing-cost-management: depend on `fastmcp>=3` directly
-#   dynamodb: inherits it through `awslabs-aws-api-mcp-server`
+#
+# Two ways that ceiling bites, and the second one is the dangerous one:
+#   1. Loud. The server's `fastmcp` floor is already >=3, so `mcp>=2.0.0` has no solution and
+#      `uv lock` fails outright.
+#        aws-api, billing-cost-management: depend on `fastmcp>=3` directly
+#        dynamodb: inherits it through `awslabs-aws-api-mcp-server`
+#   2. Silent. The server's `fastmcp` floor predates the `mcp` pin (>=2.14.0, >=2.13.1), so the
+#      resolver does not fail -- it walks *backward* to a `fastmcp` old enough to accept mcp 2.x.
+#      In practice that is 2.14.1, which carries 4 known advisories (one CRITICAL). A downgrade
+#      like this produces a green test suite and a security regression at the same time.
+#        amazon-keyspaces, amazon-translate, aws-iot-sitewise
+# `scripts/verify-mcp-v2-locks.py` exists to catch case 2; case 1 catches itself.
 # Remove entries here once `fastmcp` 4.0 ships stable. Tracking: awslabs/mcp#4448.
 BLOCKED_SERVERS = frozenset(
     {
+        'amazon-keyspaces-mcp-server',
+        'amazon-translate-mcp-server',
         'aws-api-mcp-server',
+        'aws-iot-sitewise-mcp-server',
         'billing-cost-management-mcp-server',
         'dynamodb-mcp-server',
     }
@@ -244,14 +257,126 @@ FIELD_RENAMES = {
     'websiteUrl': 'website_url',
 }
 
-# Attribute access only — `result.isError`, not the keyword form `CallToolResult(isError=...)`
-# (which the alias still accepts) nor a quoted dict key `{'isError': ...}` (unrelated data).
+# Attribute access only — `result.isError`, not a quoted dict key `{'isError': ...}`
+# (unrelated data). The keyword form `CallToolResult(isError=...)` is a separate pass; see
+# `rename_field_kwargs`.
 FIELD_READ_RE = re.compile(r'\.(' + '|'.join(FIELD_RENAMES) + r')\b')
+
+# Any renamed field name appearing as a keyword argument. A cheap pre-filter so
+# `rename_field_kwargs` only pays for an AST parse on files that could possibly match.
+FIELD_KWARG_RE = re.compile(r'\b(' + '|'.join(FIELD_RENAMES) + r')\s*=')
 
 # A pydantic/dataclass field declaration at class-body indentation, e.g. `    isError: bool`.
 # A server declaring its own field of a renamed name is excluded from that rename: the
 # attribute belongs to its model, not to `mcp.types`.
 OWN_FIELD_RE = re.compile(r'^\s{2,8}(' + '|'.join(FIELD_RENAMES) + r')\s*:\s*\S', re.MULTILINE)
+
+# Names pulled in from `mcp.types`, in either the `from ... import X, Y` or the
+# `import mcp.types as t` / `from mcp import types` form. Used to confirm that a keyword
+# argument really is being passed to an SDK model before its spelling is changed.
+TYPES_FROM_IMPORT_RE = re.compile(
+    r'^[ \t]*from[ \t]+mcp\.types[ \t]+import[ \t]+\(?(?P<names>[^)\n]+)', re.MULTILINE
+)
+TYPES_MODULE_ALIAS_RE = re.compile(
+    r'^[ \t]*(?:import[ \t]+mcp\.types[ \t]+as[ \t]+(?P<a>\w+)'
+    r'|from[ \t]+mcp[ \t]+import[ \t]+types(?:[ \t]+as[ \t]+(?P<b>\w+))?)',
+    re.MULTILINE,
+)
+
+
+def line_offsets(text: str) -> List[int]:
+    """Return the absolute character index at which each line of `text` starts.
+
+    AST nodes carry (lineno, col_offset) pairs; slicing `text` needs flat indices. Index 0 is
+    unused padding so `offsets[lineno - 1]` reads naturally for 1-based line numbers.
+    """
+    offsets = [0]
+    for line in text.splitlines(keepends=True):
+        offsets.append(offsets[-1] + len(line))
+    return offsets
+
+
+def sdk_type_names(text: str) -> Tuple[set, set]:
+    """Return (directly imported `mcp.types` names, aliases the module is bound to).
+
+    Two forms in this repo: `from mcp.types import CallToolResult, ToolAnnotations` and
+    `from mcp import types`. Both are needed to tell `CallToolResult(isError=...)` — an SDK
+    model whose keyword must be renamed — apart from a same-named local class, of which this
+    repo has one (`sagemaker-ai-mcp-server` declares its own `CallToolResult`).
+    """
+    names = set()
+    for match in TYPES_FROM_IMPORT_RE.finditer(text):
+        for raw in match.group('names').split(','):
+            name = raw.strip().split(' as ')[-1].strip()
+            if name.isidentifier():
+                names.add(name)
+    aliases = {
+        m.group('a') or m.group('b') or 'types' for m in TYPES_MODULE_ALIAS_RE.finditer(text)
+    }
+    return names, aliases
+
+
+def rename_field_kwargs(text: str, renamable: set) -> Tuple[str, int, set]:
+    """Rewrite camelCase *keyword arguments* to SDK models: `CallToolResult(isError=True)`.
+
+    Returns (new_text, rewrites, skipped_field_names).
+
+    Why this is needed even though the code runs fine: v2 gives every `mcp.types` model a
+    camelCase alias generator with `populate_by_name=True`, so the old spelling constructs the
+    right object and serializes to the same wire format. But pydantic's type stubs synthesize
+    `__init__` from *field* names, not aliases, so pyright rejects `isError=` as
+    `reportCallIssue: No parameter named "isError"` — 136 times across this repo. That is a
+    type-checker-only failure, invisible to the test suite, which is why it survived the first
+    pass of this migration: `pyright` runs at pre-commit's `pre-push` stage, so a local
+    `pre-commit run --files ...` never exercises it.
+
+    Only keywords on a call whose callee is a confirmed `mcp.types` name are touched. A bare
+    `SomeLocalModel(isError=True)` is left alone: its author chose that spelling and v2 has no
+    opinion about it. The callee test accepts `CallToolResult(...)`, `types.CallToolResult(...)`
+    and `mcp.types.CallToolResult(...)`.
+
+    Rewrites are byte-exact splices at each keyword's own offset, not an unparse, so the
+    author's formatting, comments, and line breaks survive untouched.
+    """
+    if not FIELD_KWARG_RE.search(text):
+        return text, 0, set()
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return text, 0, set()
+
+    imported, aliases = sdk_type_names(text)
+    if not imported and not aliases:
+        return text, 0, set()
+
+    def is_sdk_call(func: ast.expr) -> bool:
+        """True when this callee names a class imported from `mcp.types`."""
+        if isinstance(func, ast.Name):
+            return func.id in imported
+        if isinstance(func, ast.Attribute):
+            # `types.CallToolResult` / `mcp.types.CallToolResult`
+            base = ast.unparse(func.value)
+            return base in aliases or base == 'mcp.types'
+        return False
+
+    offsets = line_offsets(text)
+    edits, skipped = [], set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not is_sdk_call(node.func):
+            continue
+        for keyword in node.keywords:
+            if keyword.arg not in FIELD_RENAMES:
+                continue
+            if keyword.arg not in renamable:
+                skipped.add(keyword.arg)
+                continue
+            start = offsets[keyword.lineno - 1] + keyword.col_offset
+            edits.append((start, start + len(keyword.arg), FIELD_RENAMES[keyword.arg]))
+
+    # Apply back-to-front so earlier offsets stay valid.
+    for start, end, replacement in sorted(edits, reverse=True):
+        text = text[:start] + replacement + text[end:]
+    return text, len(edits), skipped
 
 
 def unwrap_errordata(text: str) -> Tuple[str, int, bool]:
@@ -282,12 +407,7 @@ def unwrap_errordata(text: str) -> Tuple[str, int, bool]:
     except SyntaxError:
         return text, 0, True
 
-    # Cumulative character offset of the start of each line, so AST (lineno, col) pairs can be
-    # turned into absolute indices into `text`.
-    offsets = [0]
-    for line in text.splitlines(keepends=True):
-        offsets.append(offsets[-1] + len(line))
-
+    offsets = line_offsets(text)
     edits, needs_review = [], False
     for node in ast.walk(tree):
         if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)):
@@ -390,6 +510,12 @@ def find_servers(src_dir: Path) -> List[str]:
     `mcp.server.fastmcp` yet still read `result.isError`, and they break under v2 just the
     same. Whether a given patch target actually needs rewriting is settled later by
     `mcpserver_exporters`; this pass only needs to avoid skipping the server outright.
+
+    A camelCase *keyword* is deliberately NOT a qualifier. It is legal v1 source (the alias is
+    the field name there), so it only needs rewriting in a server that is on -- or is being
+    moved to -- v2, and every such server is already caught by one of the tests above. Letting
+    it qualify on its own would drag purely-v1 servers into scope and break them; see
+    `field_policy`.
     """
     servers = set()
     for path in src_dir.glob('*/**/*.py'):
@@ -409,6 +535,15 @@ def find_servers(src_dir: Path) -> List[str]:
             or OWN_MODULE_PATCH_RE.search(text)
         ):
             servers.add(path.relative_to(src_dir).parts[0])
+    # Servers already migrated to v2 by an earlier run may have nothing left but keyword
+    # spellings to fix, so they need a second way in: the manifest bound.
+    for pyproject in src_dir.glob('*/pyproject.toml'):
+        name = pyproject.parent.name
+        if name in BLOCKED_SERVERS or name in servers:
+            continue
+        dep = DEP_RE.search(pyproject.read_text(encoding='utf-8'))
+        if dep and V2_BOUNDS in dep.group(0):
+            servers.add(name)
     return sorted(servers)
 
 
@@ -453,12 +588,25 @@ def field_policy(root: Path) -> Dict[str, object]:
       package; their camelCase attributes are their own and v2 does not touch them.
     - The server declares its own attribute of the same name, in which case the read
       resolves to that model rather than to `mcp.types`.
+
+    `kwargs_renamable` is narrower than `renamable`, and deliberately so. An attribute read of
+    the camelCase spelling is wrong under v2 whichever SDK the server is *currently* pinned to,
+    because the rename is the thing this script is performing. A camelCase *keyword* is
+    different: under v1 that spelling is the model's actual field name, not an alias
+    (`Tool.model_fields` in v1 literally contains `inputSchema`), so rewriting it in a server
+    that stays on v1 breaks a working call. `healthlake-mcp-server` is exactly this case -- it
+    is built on the low-level `mcp.server.Server`, is not part of this migration, and passes
+    `Tool(inputSchema=...)` eleven times. So keyword renames apply only where the manifest is
+    already at v2, i.e. where the pyright error actually exists.
     """
     pyproject = root / 'pyproject.toml'
     try:
-        depends_on_sdk = bool(DEP_RE.search(pyproject.read_text(encoding='utf-8')))
+        manifest = pyproject.read_text(encoding='utf-8')
     except OSError:
-        depends_on_sdk = False
+        manifest = ''
+    dep = DEP_RE.search(manifest)
+    depends_on_sdk = bool(dep)
+    on_v2 = bool(dep) and V2_BOUNDS in dep.group(0)
 
     own = set()
     if depends_on_sdk:
@@ -468,21 +616,33 @@ def field_policy(root: Path) -> Dict[str, object]:
             except (UnicodeDecodeError, OSError):
                 continue
 
+    renamable = set() if not depends_on_sdk else set(FIELD_RENAMES) - own
+    # A server this run is actively migrating counts as v2 even though its manifest still says
+    # otherwise: the cap bump lands in the same pass, so the keyword rename must land with it.
+    migrating = any(V1_MODULE in p.read_text('utf-8', errors='ignore') for p in iter_py(root))
     return {
-        'renamable': set() if not depends_on_sdk else set(FIELD_RENAMES) - own,
+        'renamable': renamable,
+        'kwargs_renamable': renamable if (on_v2 or migrating) else set(),
         'no_sdk_dep': not depends_on_sdk,
         'shadowed': sorted(own),
     }
 
 
-def plan_file(path: Path, renamable: set, exporters: set) -> Optional[Dict]:
+def plan_file(
+    path: Path, renamable: set, exporters: set, kwargs_renamable: Optional[set] = None
+) -> Optional[Dict]:
     """Compute the rewrite for one Python file, or None if it needs no change.
 
-    `renamable` is the set of camelCase field names this server may safely rewrite and
-    `exporters` the modules whose `FastMCP` becomes `MCPServer`, both decided per server by
+    `renamable` is the set of camelCase field names this server may safely rewrite in attribute
+    position, `kwargs_renamable` the (never larger) set safe to rewrite in keyword position, and
+    `exporters` the modules whose `FastMCP` becomes `MCPServer` — all decided per server by
     `field_policy` and `mcpserver_exporters`. Returns a dict with the new text plus per-file
     counts and any human-review flags.
+
+    `kwargs_renamable` defaults to `renamable` for callers that do not distinguish the two.
     """
+    if kwargs_renamable is None:
+        kwargs_renamable = renamable
     try:
         original = path.read_text(encoding='utf-8')
     except (UnicodeDecodeError, OSError):
@@ -491,6 +651,7 @@ def plan_file(path: Path, renamable: set, exporters: set) -> Optional[Dict]:
     if (
         V1_MODULE not in original
         and not FIELD_READ_RE.search(original)
+        and not FIELD_KWARG_RE.search(original)
         and not MCPERROR_RE.search(original)
         # Also match the v2 spelling: the constructor flattening is a separate change, so a
         # file already past the rename can still need it. Harmless when it is already
@@ -538,8 +699,8 @@ def plan_file(path: Path, renamable: set, exporters: set) -> Optional[Dict]:
     if imported_v1_class and not uses_standalone:
         updated, ident_hits = IDENT_RE.subn('MCPServer', updated)
 
-    # Renamed `mcp.types` field reads. Only attribute access is touched: keyword arguments
-    # still resolve through the camelCase alias, and a same-named dict key is unrelated data.
+    # Renamed `mcp.types` field reads. Only attribute access is touched here; a same-named dict
+    # key is unrelated data, and keyword arguments are handled by the separate pass below.
     # Counted by hand rather than from `subn`, which tallies every *match* — including the
     # ones this function deliberately returns unchanged — and so overstates the diff.
     field_hits = 0
@@ -555,6 +716,13 @@ def plan_file(path: Path, renamable: set, exporters: set) -> Optional[Dict]:
         return f'.{FIELD_RENAMES[field]}'
 
     updated = FIELD_READ_RE.sub(_rename_field, updated)
+
+    # Renamed fields in *keyword* position. Split from the read pass above because the two
+    # need different evidence: an attribute read is renamable per server, but a keyword only
+    # moves when its callee is provably an `mcp.types` class in this file.
+    updated, kwarg_hits, skipped_kwargs = rename_field_kwargs(updated, kwargs_renamable)
+    field_hits += kwarg_hits
+    skipped_fields |= skipped_kwargs
 
     updated, mcperror_hits = MCPERROR_RE.subn('MCPError', updated)
     ident_hits += mcperror_hits
@@ -653,7 +821,14 @@ def plan_server(src_dir: Path, name: str) -> Dict:
     root = src_dir / name
     policy = field_policy(root)
     exporters = mcpserver_exporters(root)
-    files = [p for p in (plan_file(f, policy['renamable'], exporters) for f in iter_py(root)) if p]
+    files = [
+        p
+        for p in (
+            plan_file(f, policy['renamable'], exporters, policy['kwargs_renamable'])
+            for f in iter_py(root)
+        )
+        if p
+    ]
     return {
         'server': name,
         'files': files,

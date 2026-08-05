@@ -39,7 +39,9 @@ from awslabs.oracle_mcp_server.server import (
     mcp as server_mcp,
 )
 from botocore.exceptions import ClientError
+from mcp.server.mcpserver import Context
 from mcp.shared.exceptions import MCPError
+from typing import Any, Optional
 from unittest.mock import AsyncMock, MagicMock
 
 
@@ -57,10 +59,14 @@ def test_connect_to_database_tool_schema_does_not_expose_secret_arn():
     )
 
 
-class DummyCtx:
+class DummyCtx(Context):
     """Minimal context stub for testing server tools."""
 
-    async def error(self, message):
+    def __init__(self) -> None:
+        """Initialize with no request context; nothing here needs one."""
+        super().__init__()
+
+    async def error(self, data: Any, *, logger_name: Optional[str] = None):
         """Record an error message (no-op for tests)."""
         pass
 
@@ -1134,6 +1140,7 @@ async def test_connect_to_database_both_service_and_sid():
         service_name='ORCL',
         sid='ORCL',
     )
+    assert isinstance(result, dict)
     assert result['status'] == 'Failed'
     assert 'not both' in result['error']
 
@@ -1148,6 +1155,7 @@ async def test_connect_to_database_neither_service_nor_sid():
         connection_method=ConnectionMethod.ORACLE_PASSWORD,
         db_endpoint='ep1',
     )
+    assert isinstance(result, dict)
     assert result['status'] == 'Failed'
     assert 'must be provided' in result['error']
 
@@ -1174,6 +1182,7 @@ async def test_connect_to_database_pool_init_failure(mocker):
         service_name='ORCL',
     )
 
+    assert isinstance(result, dict)
     assert result['status'] == 'Failed'
     assert 'pool init failed' in result['error']
     remove_mock.assert_called_once()

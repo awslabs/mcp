@@ -31,7 +31,7 @@ from .llm_context import (
 )
 from .services import DataService, QueryAnalysisService, SchemaService
 from loguru import logger
-from mcp.server.mcpserver import Context, MCPServer
+from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 from typing import Any, Optional
 
@@ -40,7 +40,7 @@ from typing import Any, Optional
 logger.remove()
 logger.add(sys.stderr, level='INFO')
 
-mcp = MCPServer(
+mcp = FastMCP(
     name=SERVER_NAME,
 )
 

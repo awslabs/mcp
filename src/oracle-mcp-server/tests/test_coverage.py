@@ -38,19 +38,23 @@ from awslabs.oracle_mcp_server.server import (
     server_config,
 )
 from botocore.exceptions import ClientError
+from mcp.server.mcpserver import Context
+from typing import Any, List, Optional
 from unittest.mock import AsyncMock, MagicMock
 
 
-class DummyCtx:
+class DummyCtx(Context):
     """Minimal context stub used to capture error messages."""
 
-    def __init__(self):
-        """Record messages emitted via ctx.error for assertions."""
-        self.errors = []
+    errors: List[Any] = []
 
-    async def error(self, message):
+    def __init__(self) -> None:
+        """Initialize with no request context; nothing here needs one."""
+        super().__init__()
+
+    async def error(self, data: Any, *, logger_name: Optional[str] = None):
         """Capture the error message."""
-        self.errors.append(message)
+        self.errors.append(data)
 
 
 @pytest.fixture(autouse=True)

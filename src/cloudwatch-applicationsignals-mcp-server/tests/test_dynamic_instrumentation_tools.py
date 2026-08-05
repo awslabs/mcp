@@ -1472,7 +1472,7 @@ class TestToolRegistration:
         ]
 
     def test_read_only_tools_are_annotated_read_only(self):
-        """Read-only tools carry ``readOnlyHint=True`` for MCP clients."""
+        """Read-only tools carry ``read_only_hint=True`` for MCP clients."""
         recorder = RecorderMCP()
 
         registration.register_tools(recorder)
@@ -1488,7 +1488,7 @@ class TestToolRegistration:
             assert recorder.annotations[name].read_only_hint is True
 
     def test_destructive_tools_are_annotated_destructive(self):
-        """Delete tools carry ``destructiveHint=True`` so clients can warn first."""
+        """Delete tools carry ``destructive_hint=True`` so clients can warn first."""
         recorder = RecorderMCP()
 
         registration.register_tools(recorder)
@@ -1515,7 +1515,7 @@ class TestToolRegistration:
         assert annotations.idempotent_hint is False
 
     def test_every_tool_is_annotated_open_world(self):
-        """Every tool calls the AWS API, so all carry ``openWorldHint=True``."""
+        """Every tool calls the AWS API, so all carry ``open_world_hint=True``."""
         recorder = RecorderMCP()
 
         registration.register_tools(recorder)

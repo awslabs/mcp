@@ -61,10 +61,14 @@ readonly_query = True
 ca_bundle_path: Optional[str] = None
 
 
-class DummyCtx:
+class DummyCtx(Context):
     """A dummy context class for error handling in MCP tools."""
 
-    async def error(self, message):
+    def __init__(self) -> None:
+        """Initialize with no request context; nothing here needs one."""
+        super().__init__()
+
+    async def error(self, data: Any, *, logger_name: Optional[str] = None):
         """Raise a runtime error with the given message."""
         pass
 

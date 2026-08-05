@@ -43,7 +43,7 @@ from .translation_service import TranslationService
 from .workflow_orchestrator import WorkflowOrchestrator
 from botocore.exceptions import ClientError
 from datetime import datetime
-from mcp.server.mcpserver import Context, MCPServer
+from mcp.server.fastmcp import Context, FastMCP
 from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional
 
@@ -51,8 +51,8 @@ from typing import Any, Dict, List, Optional
 # Initialize logging
 logger = logging.getLogger(__name__)
 
-# Initialize MCPServer server
-mcp = MCPServer('Amazon Translate MCP Server')
+# Initialize FastMCP server
+mcp = FastMCP('Amazon Translate MCP Server')
 
 
 # Pydantic models for tool parameters
