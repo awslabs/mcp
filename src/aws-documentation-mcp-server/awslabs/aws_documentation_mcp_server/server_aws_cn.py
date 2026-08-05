@@ -14,7 +14,6 @@
 """awslabs AWS China Documentation MCP Server implementation."""
 
 import httpx
-import re
 import uuid
 from awslabs.aws_documentation_mcp_server.server_utils import (
     DEFAULT_USER_AGENT,
@@ -23,9 +22,11 @@ from awslabs.aws_documentation_mcp_server.server_utils import (
 
 # Import utility functions
 from awslabs.aws_documentation_mcp_server.util import (
+    enforce_redirect_allowlist,
     extract_content_from_html,
     format_documentation_result,
     is_html_content,
+    url_matches_allowlist,
 )
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
@@ -34,6 +35,9 @@ from typing import Union
 
 
 SESSION_UUID = str(uuid.uuid4())
+
+# China partition domain allowlist
+CN_ALLOWED_DOMAIN_REGEXES = (r'^https?://docs\.amazonaws\.cn/',)
 
 mcp = FastMCP(
     'awslabs.aws-documentation-mcp-server',
@@ -122,7 +126,7 @@ async def read_documentation(
     """
     # Validate that URL is from docs.amazonaws.cn and ends with .html
     url_str = str(url)
-    if not re.match(r'^https?://docs\.amazonaws\.cn/', url_str):
+    if not url_matches_allowlist(url_str, CN_ALLOWED_DOMAIN_REGEXES):
         error_msg = f'Invalid URL: {url_str}. URL must be from the docs.amazonaws.cn domain'
         await ctx.error(error_msg)
         return error_msg
@@ -131,7 +135,9 @@ async def read_documentation(
         await ctx.error(error_msg)
         return error_msg
 
-    return await read_documentation_impl(ctx, url_str, max_length, start_index, SESSION_UUID)
+    return await read_documentation_impl(
+        ctx, url_str, max_length, start_index, SESSION_UUID, CN_ALLOWED_DOMAIN_REGEXES
+    )
 
 
 @mcp.tool()
@@ -163,7 +169,9 @@ async def get_available_services(
 
     toc_url_str = 'https://docs.amazonaws.cn/en_us/aws/latest/userguide/toc-contents.json'
     toc_url_with_session = f'{toc_url_str}?session={SESSION_UUID}'
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(
+        event_hooks={'response': [enforce_redirect_allowlist(CN_ALLOWED_DOMAIN_REGEXES)]}
+    ) as client:
         try:
             response = await client.get(
                 url_with_session,

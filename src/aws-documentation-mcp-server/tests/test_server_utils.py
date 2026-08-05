@@ -17,11 +17,15 @@ import httpx
 import pytest
 from awslabs.aws_documentation_mcp_server.models import SearchResponse, SearchResult
 from awslabs.aws_documentation_mcp_server.server_utils import (
+    COMMERCIAL_ALLOWED_DOMAIN_REGEXES,
     DEFAULT_USER_AGENT,
     SEARCH_RESULT_CACHE,
+    _docs_client,
     add_search_result_cache_item,
     get_query_id_from_cache,
     read_documentation_impl,
+    read_sections_impl,
+    search_table_impl,
 )
 from mcp.server.fastmcp.server import Context
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -409,6 +413,131 @@ class TestReadDocumentationImpl:
             # The large table should have been truncated
             assert 'Table truncated' in result
             assert 'search_table' in result
+
+
+def _install_mock_transport(monkeypatch, routes, target_module):
+    """Force AsyncClient in target_module to use a MockTransport, preserving real event_hooks.
+
+    The impl builds its client via the real _docs_client (which attaches the redirect hook);
+    we only swap in a MockTransport so no network call happens. Because the real hook is
+    preserved, a regression that reverted the impl to a plain httpx.AsyncClient() (no hook)
+    would leak the redirect body and fail these tests.
+    """
+    real_async_client = httpx.AsyncClient
+
+    def patched(*args, **kwargs):
+        kwargs['transport'] = httpx.MockTransport(routes)
+        kwargs.setdefault('follow_redirects', True)
+        return real_async_client(*args, **kwargs)
+
+    monkeypatch.setattr(f'{target_module}.httpx.AsyncClient', patched)
+
+
+def _imds_redirect_routes(docs_host):
+    """Routes where the docs host 302s to IMDS; IMDS would leak a marker if wrongly followed."""
+
+    def routes(request: httpx.Request) -> httpx.Response:
+        if request.url.host == docs_host:
+            return httpx.Response(
+                302, headers={'location': 'http://169.254.169.254/latest/meta-data/'}
+            )
+        return httpx.Response(200, text='SENSITIVE-IMDS-DATA')
+
+    return routes
+
+
+def _onsite_redirect_routes(docs_host):
+    """Routes where the docs host 301s to another same-host page that returns real content."""
+
+    def routes(request: httpx.Request) -> httpx.Response:
+        if request.url.path == '/test.html':
+            return httpx.Response(301, headers={'location': f'https://{docs_host}/final.html'})
+        return httpx.Response(
+            200,
+            text='<html><body><h1>Final</h1><table><tr><td>x</td></tr></table></body></html>',
+            headers={'content-type': 'text/html'},
+        )
+
+    return routes
+
+
+class TestRedirectAllowlistEnforcement:
+    """End-to-end tests that all three read impls re-validate redirect targets (SSRF-class fix).
+
+    These use httpx.MockTransport with the real _docs_client + redirect event hook, so they
+    exercise the actual follow-redirects path and would fail if an impl stopped routing its
+    fetch through the guarded client.
+    """
+
+    def test_docs_client_wires_the_redirect_hook(self):
+        """_docs_client must attach a response event hook; catches a dropped-hook regression."""
+        client = _docs_client(COMMERCIAL_ALLOWED_DOMAIN_REGEXES)
+        assert client.event_hooks.get('response'), (
+            '_docs_client must register a response event hook to re-validate redirects'
+        )
+
+    @pytest.mark.asyncio
+    async def test_read_documentation_offsite_redirect_blocked(self, monkeypatch):
+        """read_documentation: a docs page that 302s to IMDS is refused, body never leaks."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        _install_mock_transport(
+            monkeypatch,
+            _imds_redirect_routes('docs.aws.amazon.com'),
+            'awslabs.aws_documentation_mcp_server.server_utils',
+        )
+        result = await read_documentation_impl(
+            ctx, 'https://docs.aws.amazon.com/test.html', 1000, 0, 'uuid'
+        )
+        assert 'SENSITIVE-IMDS-DATA' not in result
+        assert 'Failed to fetch' in result
+
+    @pytest.mark.asyncio
+    async def test_read_documentation_onsite_redirect_followed(self, monkeypatch):
+        """read_documentation: a same-domain redirect is followed and content returned."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        _install_mock_transport(
+            monkeypatch,
+            _onsite_redirect_routes('docs.aws.amazon.com'),
+            'awslabs.aws_documentation_mcp_server.server_utils',
+        )
+        result = await read_documentation_impl(
+            ctx, 'https://docs.aws.amazon.com/test.html', 1000, 0, 'uuid'
+        )
+        assert 'Final' in result
+
+    @pytest.mark.asyncio
+    async def test_read_sections_offsite_redirect_blocked(self, monkeypatch):
+        """read_sections: an IMDS redirect is refused and the body never leaks."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        _install_mock_transport(
+            monkeypatch,
+            _imds_redirect_routes('docs.aws.amazon.com'),
+            'awslabs.aws_documentation_mcp_server.server_utils',
+        )
+        result = await read_sections_impl(
+            ctx, 'https://docs.aws.amazon.com/test.html', ['Intro'], 'uuid'
+        )
+        assert 'SENSITIVE-IMDS-DATA' not in result
+        assert 'Failed to fetch' in result
+
+    @pytest.mark.asyncio
+    async def test_search_table_offsite_redirect_blocked(self, monkeypatch):
+        """search_table: an IMDS redirect is refused and the body never leaks."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        _install_mock_transport(
+            monkeypatch,
+            _imds_redirect_routes('docs.aws.amazon.com'),
+            'awslabs.aws_documentation_mcp_server.server_utils',
+        )
+        result = await search_table_impl(
+            ctx, 'https://docs.aws.amazon.com/test.html', None, 'query', 20, 'uuid'
+        )
+        assert 'SENSITIVE-IMDS-DATA' not in (result.error or '')
+        assert result.error and 'Failed to fetch' in result.error
 
 
 class TestUserAgentCustomization:
