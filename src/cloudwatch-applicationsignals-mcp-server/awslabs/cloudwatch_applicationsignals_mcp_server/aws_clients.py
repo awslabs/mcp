@@ -167,3 +167,8 @@ def get_applicationsignals_client():
 def get_cloudwatch_client():
     """Return the module-level CloudWatch client (lazy accessor; see above)."""
     return cloudwatch_client
+
+
+def get_logs_client():
+    """Return the module-level CloudWatch Logs client (lazy accessor; see above)."""
+    return logs_client

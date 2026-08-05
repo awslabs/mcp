@@ -1335,6 +1335,75 @@
         "autonomous",
         "conversational"
       ]
+    },
+    {
+      "category": "AI & Machine Learning",
+      "description": "Discover, explore, and evaluate open datasets on Registry of Open Data on AWS (RODA)",
+      "icon": "\ud83c\udf10",
+      "id": "roda-mcp-server",
+      "name": "Registry of Open Data on AWS (RODA) MCP Server",
+      "source_path": "src/roda-mcp-server/",
+      "subcategory": "Open Data",
+      "tags": [
+        "ai4good",
+        "open-data",
+        "health",
+        "climate",
+        "research",
+        "genomics",
+        "satellite-imagery",
+        "geospatial"
+      ],
+      "workflows": [
+        "autonomous",
+        "conversational"
+      ]
+    },
+    {
+      "category": "Data & Analytics",
+      "description": "Discover, explore, and evaluate open datasets on Registry of Open Data on AWS (RODA)",
+      "icon": "\ud83d\udcca",
+      "id": "roda-mcp-server",
+      "name": "Registry of Open Data on AWS (RODA) MCP Server",
+      "source_path": "src/roda-mcp-server/",
+      "subcategory": "Open Data",
+      "tags": [
+        "ai4good",
+        "open-data",
+        "health",
+        "climate",
+        "research",
+        "genomics",
+        "satellite-imagery",
+        "geospatial"
+      ],
+      "workflows": [
+        "autonomous",
+        "conversational"
+      ]
+    },
+    {
+      "category": "Healthcare & Lifesciences",
+      "description": "Discover, explore, and evaluate open datasets on Registry of Open Data on AWS (RODA)",
+      "icon": "\ud83e\uddc0",
+      "id": "roda-mcp-server",
+      "name": "Registry of Open Data on AWS (RODA) MCP Server",
+      "source_path": "src/roda-mcp-server/",
+      "subcategory": "Open Data",
+      "tags": [
+        "ai4good",
+        "open-data",
+        "health",
+        "climate",
+        "research",
+        "genomics",
+        "satellite-imagery",
+        "geospatial"
+      ],
+      "workflows": [
+        "autonomous",
+        "conversational"
+      ]
     }
   ],
   "workflows": [

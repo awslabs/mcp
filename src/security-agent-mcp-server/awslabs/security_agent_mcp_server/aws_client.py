@@ -67,16 +67,10 @@ class SecurityAgentClient:
         self,
         agent_space_id: str,
         name: str,
-        iam_roles: Optional[list[str]] = None,
-        s3_buckets: Optional[list[str]] = None,
+        aws_resources: Optional[dict] = None,
     ) -> dict:
-        """Update an agent space with roles and buckets."""
+        """Update an agent space, replacing its awsResources with the provided dict."""
         kwargs: dict[str, Any] = {'agentSpaceId': agent_space_id, 'name': name}
-        aws_resources: dict[str, Any] = {}
-        if iam_roles:
-            aws_resources['iamRoles'] = iam_roles
-        if s3_buckets:
-            aws_resources['s3Buckets'] = s3_buckets
         if aws_resources:
             kwargs['awsResources'] = aws_resources
         return self._client().update_agent_space(**kwargs)

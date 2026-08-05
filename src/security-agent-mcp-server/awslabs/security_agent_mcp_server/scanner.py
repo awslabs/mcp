@@ -532,7 +532,7 @@ class Scanner:
                 min_idx = severity_order.index(severity_upper)
                 allowed = set(severity_order[: min_idx + 1])
                 findings_summaries = [
-                    f for f in findings_summaries if f.get('riskLevel', '').upper() in allowed
+                    f for f in findings_summaries if (f.get('riskLevel') or '').upper() in allowed
                 ]
 
         # Batch get full details (including remediationCode and codeLocations)
@@ -581,7 +581,7 @@ class Scanner:
             severity_upper = severity.upper()
             if severity_upper in severity_order:
                 allowed = set(severity_order[: severity_order.index(severity_upper) + 1])
-                summaries = [t for t in summaries if t.get('severity', '').upper() in allowed]
+                summaries = [t for t in summaries if (t.get('severity') or '').upper() in allowed]
 
         threat_ids = [t.get('threatId') for t in summaries if t.get('threatId')]
         threats = []

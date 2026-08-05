@@ -13,14 +13,18 @@
 # limitations under the License.
 """Gateway to the AWS application-signals API.
 
-The single seam where dynamic-instrumentation tools touch botocore. Each
-operation here issues one boto3 call, wraps any raised exception in a
-``GatewayError``, and lets the caller render the failure through
-``render_error``. Tool functions never import ``botocore.exceptions`` — that
-contract belongs to this module.
+The single seam where dynamic-instrumentation tools touch botocore. ``call``
+issues one boto3 call, wraps any raised exception in a ``GatewayError``, and
+lets the caller render the failure through ``render_error``. Tool functions
+never import ``botocore.exceptions`` — that contract belongs to this module.
+
+The ``application-signals`` client is the parent package's shared client
+(``aws_clients.get_applicationsignals_client``); the dynamic-instrumentation
+operations are part of the public model (botocore >= 1.43.35), so there is no
+separate client to build.
 """
 
-from .aws_clients import get_application_signals_client
+from ..aws_clients import get_applicationsignals_client
 from .error_translation import render_client_error, translate_aws_error
 from botocore.exceptions import BotoCoreError, ClientError
 from typing import Any, Dict, Mapping, Optional, Sequence
@@ -40,8 +44,13 @@ class GatewayError(Exception):
         self.original_exc = original_exc
 
 
-def _call(method_name: str, **kwargs: Any) -> Dict[str, Any]:
-    client = get_application_signals_client()
+def call(method_name: str, **kwargs: Any) -> Dict[str, Any]:
+    """Invoke one ``application-signals`` operation, wrapping AWS failures.
+
+    ``method_name`` is the boto3 client method to call (e.g.
+    ``create_instrumentation_configuration``).
+    """
+    client = get_applicationsignals_client()
     method = getattr(client, method_name)
     try:
         return method(**kwargs)
@@ -53,36 +62,6 @@ def _call(method_name: str, **kwargs: Any) -> Dict[str, Any]:
         # propagate unwrapped so they surface as themselves in tracebacks
         # instead of masquerading as AWS failures.
         raise GatewayError(exc) from exc
-
-
-def create_instrumentation_configuration(**kwargs: Any) -> Dict[str, Any]:
-    """Call ``CreateInstrumentationConfiguration`` through the gateway."""
-    return _call('create_instrumentation_configuration', **kwargs)
-
-
-def list_instrumentation_configurations(**kwargs: Any) -> Dict[str, Any]:
-    """Call ``ListInstrumentationConfigurations`` through the gateway."""
-    return _call('list_instrumentation_configurations', **kwargs)
-
-
-def get_instrumentation_configuration(**kwargs: Any) -> Dict[str, Any]:
-    """Call ``GetInstrumentationConfiguration`` through the gateway."""
-    return _call('get_instrumentation_configuration', **kwargs)
-
-
-def delete_instrumentation_configuration(**kwargs: Any) -> Dict[str, Any]:
-    """Call ``DeleteInstrumentationConfiguration`` through the gateway."""
-    return _call('delete_instrumentation_configuration', **kwargs)
-
-
-def batch_delete_instrumentation_configurations(**kwargs: Any) -> Dict[str, Any]:
-    """Call ``BatchDeleteInstrumentationConfigurations`` through the gateway."""
-    return _call('batch_delete_instrumentation_configurations', **kwargs)
-
-
-def get_instrumentation_configuration_status(**kwargs: Any) -> Dict[str, Any]:
-    """Call ``GetInstrumentationConfigurationStatus`` through the gateway."""
-    return _call('get_instrumentation_configuration_status', **kwargs)
 
 
 def render_error(

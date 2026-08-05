@@ -66,6 +66,7 @@ def create_aws_client(service_name: str, region_name: Optional[str] = None) -> A
         'pricing',  # AWS Pricing
         'athena',  # Amazon Athena (for CUR queries)
         'compute-optimizer',  # Compute Optimizer
+        'compute-optimizer-automation',  # Compute Optimizer Automation
         'cost-optimization-hub',  # Cost Optimization Hub
         'sts',  # STS (for account validation)
         'freetier',  # AWS Free Tier Usage
@@ -73,6 +74,7 @@ def create_aws_client(service_name: str, region_name: Optional[str] = None) -> A
         'bcm-pricing-calculator',  # BCM Pricing Calculator
         'billingconductor',  # AWS Billing Conductor
         'billing',  # AWS Billing
+        'invoicing',  # AWS Invoicing
     ]
 
     # Validate requested service

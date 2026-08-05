@@ -19,7 +19,7 @@ from awslabs.billing_cost_management_mcp_server.server import (
     ErrorSignalingMiddleware,
     _ErrorToolResult,
 )
-from fastmcp.tools.tool import ToolResult
+from fastmcp.tools import ToolResult
 from mcp.types import CallToolResult, TextContent
 from unittest.mock import AsyncMock, MagicMock
 

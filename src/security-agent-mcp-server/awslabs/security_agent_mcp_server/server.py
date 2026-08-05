@@ -160,14 +160,15 @@ def _ensure_s3_bucket(config: dict, kind: str = 'scans') -> None:
     # Register bucket on agent space so the service can access it
     agent_space_id = config['agent_space_id']
     space = _client.get_agent_space(agent_space_id)
-    existing_buckets = space.get('awsResources', {}).get('s3Buckets', [])
+    aws_resources = dict(space.get('awsResources', {}))
+    existing_buckets = list(aws_resources.get('s3Buckets', []))
     if bucket not in existing_buckets:
         existing_buckets.append(bucket)
+        aws_resources['s3Buckets'] = existing_buckets
         _client.update_agent_space(
             agent_space_id,
             space.get('name', 'security-scans'),
-            space.get('awsResources', {}).get('iamRoles', []),
-            existing_buckets,
+            aws_resources,
         )
 
     _state.update_config(**{config_key: bucket})
@@ -292,11 +293,13 @@ async def setup(
             # Ensure role is registered on existing space
             space_details = _client.get_agent_space(agent_space_id)
             space_name = space_details.get('name', name or 'security-scans')
-            existing_roles = space_details.get('awsResources', {}).get('iamRoles', [])
+            aws_resources = dict(space_details.get('awsResources', {}))
+            existing_roles = list(aws_resources.get('iamRoles', []))
 
             if service_role not in existing_roles:
                 existing_roles.append(service_role)
-                _client.update_agent_space(agent_space_id, space_name, existing_roles, None)
+                aws_resources['iamRoles'] = existing_roles
+                _client.update_agent_space(agent_space_id, space_name, aws_resources)
 
         _state.update_config(agent_space_id=agent_space_id)
 
@@ -626,12 +629,13 @@ async def get_api_guide(ctx: Context) -> str:
             _cached_operations = sorted(client.meta.service_model.operation_names)
         except Exception as load_err:
             logger.warning(f'Could not load SecurityAgent service model: {load_err}')
-            _cached_operations = ['(Could not load service model — use documentation link)']
+
+    operations = _cached_operations or ['(Could not load service model — use documentation link)']
 
     return json.dumps(
         {
             'documentation': 'https://docs.aws.amazon.com/securityagent/latest/APIReference/API_Operations.html',
-            'operations': _cached_operations,
+            'operations': operations,
             'usage': 'Call call_api(operation="OperationName", params={...}). See documentation link for parameter details.',
             'examples': {
                 'ListAgentSpaces': {},

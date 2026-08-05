@@ -160,6 +160,35 @@ class TestSetup:
         assert 'ready' in result
         assert 'arn:my-role' in result
 
+    @pytest.mark.asyncio
+    @patch('awslabs.security_agent_mcp_server.server._state')
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    async def test_preserves_existing_resources_when_adding_role(self, mock_client, mock_state):
+        """All existing awsResources are preserved when registering a new role on the space."""
+        mock_client.get_caller_identity.return_value = {'Account': '123456789012'}
+        mock_client.get_agent_space.return_value = {
+            'name': 'existing',
+            'awsResources': {
+                'iamRoles': ['arn:other-role'],
+                's3Buckets': ['pentest-bucket', 'code-review-bucket'],
+            },
+        }
+        mock_client.update_agent_space.return_value = {}
+        mock_state.get_config.return_value = {}
+        mock_state.update_config = MagicMock()
+        ctx = MagicMock()
+        ctx.error = AsyncMock()
+
+        from awslabs.security_agent_mcp_server.server import setup
+
+        await setup(ctx, name=None, agent_space_id='as-exist', service_role_arn='arn:my-role')
+
+        # Verify the update call preserved buckets AND merged the new role
+        aws_resources_arg = mock_client.update_agent_space.call_args[0][2]
+        assert aws_resources_arg['s3Buckets'] == ['pentest-bucket', 'code-review-bucket']
+        assert 'arn:other-role' in aws_resources_arg['iamRoles']
+        assert 'arn:my-role' in aws_resources_arg['iamRoles']
+
 
 class TestCallApi:
     """Tests for call_api tool."""
@@ -410,6 +439,10 @@ class TestStartSecurityScanBucketRegistration:
 
         await start_security_scan(ctx, path='.', title='t')
         mock_client.update_agent_space.assert_called_once()
+        # Existing iamRoles preserved when the new bucket is registered
+        aws_resources_arg = mock_client.update_agent_space.call_args[0][2]
+        assert aws_resources_arg['iamRoles'] == ['arn:role']
+        assert any('security-agent-scans-' in b for b in aws_resources_arg['s3Buckets'])
 
     @pytest.mark.asyncio
     @patch('awslabs.security_agent_mcp_server.server._scanner')

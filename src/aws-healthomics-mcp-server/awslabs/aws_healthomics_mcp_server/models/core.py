@@ -38,6 +38,13 @@ class StorageType(str, Enum):
     DYNAMIC = 'DYNAMIC'
 
 
+class ScratchStorageMode(str, Enum):
+    """Enum for scratch storage modes."""
+
+    LOCAL = 'LOCAL'
+    SHARED = 'SHARED'
+
+
 class CacheBehavior(str, Enum):
     """Enum for cache behaviors."""
 

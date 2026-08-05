@@ -8,7 +8,7 @@ This MCP server provides tools to discover, explore, and query Amazon Redshift c
 
 - **Cluster Discovery**: Automatically discover both provisioned Redshift clusters and serverless workgroups
 - **Metadata Exploration**: Browse databases, schemas, tables, and columns
-- **Safe Query Execution**: Execute SQL queries in a READ ONLY mode (a safe READ WRITE support is planned to be implemnted in the future versions)
+- **Safe Query Execution**: Run SQL queries in a read-only mode (single statement; writes rejected)
 - **Multi-Cluster Support**: Work with multiple clusters and workgroups simultaneously
 
 ## Prerequisites
@@ -398,8 +398,30 @@ execute_query(cluster_identifier: str, database_name: str, sql: str) -> QueryRes
 
 - Column names and data types
 - Result rows with proper type conversion
-- Row count and execution time
+- Row count
 - Query ID for reference
+
+### review_cluster
+
+Runs a diagnostic review of a Redshift cluster or serverless workgroup. Returns identified potential issues and respective recommendations ordered by required mitigation effort.
+
+```python
+review_cluster(cluster_identifier: str, database_name: str = 'dev') -> ReviewResult
+```
+
+**Parameters**:
+
+- `cluster_identifier`: The cluster identifier from `list_clusters`
+- `database_name`: Database to connect to for querying system views (defaults to `dev`)
+
+**Returns**: Review result including:
+
+- Number of signals evaluated
+- Findings with affected row counts and recommendation IDs
+- Deduplicated recommendations with documentation links
+- List of diagnostic queries executed
+
+**Note**: Requires the connecting database user to hold the `sys:monitor` role (or be a superuser), see [Database Permissions](#database-permissions). Provisioned-only diagnostics are automatically skipped for serverless workgroups.
 
 ## Permissions
 
@@ -437,3 +459,12 @@ In addition to AWS IAM permissions, you need appropriate database-level permissi
 - **Read Access**: `SELECT` permissions on tables/views you want to query
 - **Schema Access**: `USAGE` permissions on schemas you want to explore
 - **Database Access**: Connection permissions to databases you want to access
+- **Review Access**: The `review_cluster` tool reads system views such as `SYS_AUTO_TABLE_OPTIMIZATION`, `STV_NODE_STORAGE_CAPACITY`, and `SVV_TABLE_INFO`, which require superuser or `sys:monitor` access. Grant the connecting database user the `sys:monitor` role, which is the narrowest grant that covers them:
+
+  ```sql
+  GRANT ROLE sys:monitor TO "<database_user>";
+  ```
+
+  `<database_user>` is the output of `SELECT current_user`. When the server authenticates with IAM credentials it is `IAM:<user>` or `IAMR:<role>`, and the double quotes are required for those names. The grant must be issued by a superuser, such as the cluster's admin user.
+
+For the strongest protection, grant these to a **least-privilege, read-only role** rather than a broad or write-capable one.

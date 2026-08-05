@@ -1728,7 +1728,7 @@ mcp.tool()(query_rum_events)
 # ServiceEvents ServiceEvents data tools (function/endpoint/incident/deployment telemetry)
 register_service_events_tools(mcp)
 
-# Dynamic instrumentation tools (preview - see dynamic_instrumentation/aws_data/README.md)
+# Dynamic instrumentation tools
 register_dynamic_instrumentation_tools(mcp)
 
 

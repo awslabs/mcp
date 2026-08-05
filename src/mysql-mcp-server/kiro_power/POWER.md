@@ -92,7 +92,7 @@ Call mcp_mysql_run_query with:
 ```
 
 **Safety Guidelines:**
-- Read-only by default — writes require adding `--allow_write_query` to mcp.json and explicit user confirmation ("RUN IT")
+- Read-only by default — writes require adding `--allow_write_query` to mcp.json and explicit user confirmation ("RUN IT"). The read-only mode is a best-effort SQL-text safeguard, not a security boundary — operators should connect with a least-privilege MySQL user / IAM role with only `SELECT` granted (see the "Security model" section of the package README).
 - When writes are enabled, show the SQL and explain its impact before executing
 - Always use LIMIT on browsing queries
 - Run EXPLAIN ANALYZE plans before heavy queries
