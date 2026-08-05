@@ -61,6 +61,7 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_tools import
 from awslabs.billing_cost_management_mcp_server.tools.cost_optimization_hub_tools import (
     cost_optimization_hub_server,
 )
+from awslabs.billing_cost_management_mcp_server.tools.credits_tools import credits_server
 from awslabs.billing_cost_management_mcp_server.tools.free_tier_usage_tools import (
     free_tier_usage_server,
 )
@@ -227,6 +228,7 @@ async def setup():
     await mcp.import_server(invoicing_server)
     await mcp.import_server(invoice_units_server)
     await mcp.import_server(procurement_preferences_server)
+    await mcp.import_server(credits_server)
 
     await register_prompts()
 
