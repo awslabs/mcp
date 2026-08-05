@@ -18,8 +18,7 @@
 MCP Python SDK 2.0.0 removed the vendored `mcp.server.fastmcp` module outright (it is
 gone, not deprecated) and renamed `FastMCP` -> `MCPServer`. PR #4360 capped 44 servers
 at `mcp[cli]<2.0.0` as a stopgap. This script performs the mechanical half of reversing
-that cap, per the design in
-`docs/superpowers/specs/2026-07-29-mcp-v2-unceiling-design.md`.
+that cap. Tracking issue: https://github.com/awslabs/mcp/issues/4448
 
 What it rewrites:
   1. Import module paths   `mcp.server.fastmcp[.sub]` -> `mcp.server.mcpserver[.sub]`

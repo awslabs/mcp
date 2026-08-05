@@ -42,7 +42,8 @@ cd src/<name> && uv lock && uv run pytest
 The rename and the cap bump must land in the same commit — v2-only imports break under a
 1.x resolution.
 
-See `docs/superpowers/specs/2026-07-29-mcp-v2-unceiling-design.md` for the full design.
+See https://github.com/awslabs/mcp/issues/4448 for the full migration plan and the list of
+servers needing individual review.
 
 ## verify_package_name.py
 
