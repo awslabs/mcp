@@ -627,8 +627,29 @@ def test_tool_decorator_optional_type_hints():
     assert props['d']['type'] == 'boolean'
     assert props['e']['type'] == 'array'
     assert props['e']['items'] == {'type': 'string'}
-    # Optional parameters should NOT appear in required list
-    assert schema['inputSchema']['required'] == []
+    # Optional[X] params WITHOUT defaults are still mandatory at call time,
+    # so they must appear in the required list
+    assert sorted(schema['inputSchema']['required']) == ['a', 'b', 'c', 'd', 'e']
+
+
+def test_tool_decorator_optional_type_with_default_not_required():
+    """Test that an Optional[X] param WITH a default value is not required."""
+    handler = MCPLambdaHandler('test-server')
+
+    @handler.tool()
+    def foo(a: Optional[int], b: Optional[str] = None) -> str:
+        """Test tool.
+
+        Args:
+            a: An optional integer with no default (still required)
+            b: An optional string with a default (not required)
+        """
+        return 'ok'
+
+    schema = handler.tools['foo']
+    required = schema['inputSchema']['required']
+    assert 'a' in required
+    assert 'b' not in required
 
 
 def test_tool_decorator_required_vs_optional_params():
@@ -656,10 +677,10 @@ def test_tool_decorator_required_vs_optional_params():
 
     schema = handler.tools['search']
     required = schema['inputSchema']['required']
-    # Only params without Optional type AND without default values are required
+    # Only params without default values are required
     assert 'query' in required
     assert 'filter_type' in required
-    # These have defaults or are Optional, so should NOT be required
+    # These have default values, so should NOT be required
     assert 'limit' not in required
     assert 'offset' not in required
     assert 'include_deleted' not in required

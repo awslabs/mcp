@@ -265,17 +265,14 @@ class MCPLambdaHandler:
 
                 properties[param_name] = param_schema
 
-                # Determine if the parameter is required:
-                # - Not required if type is Optional (Union[X, None])
-                # - Not required if it has a default value in the signature
-                is_optional_type = get_origin(param_type) is Union and type(None) in get_args(
-                    param_type
-                )
+                # A parameter is required if and only if it has no default value.
+                # Optional[X] without a default is still mandatory at call time,
+                # so it must stay in the required list.
                 has_default = (
                     param_name in sig.parameters
                     and sig.parameters[param_name].default is not inspect.Parameter.empty
                 )
-                if not is_optional_type and not has_default:
+                if not has_default:
                     required.append(param_name)
 
             # Create tool schema
