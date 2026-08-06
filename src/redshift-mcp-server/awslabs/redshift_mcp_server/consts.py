@@ -24,8 +24,8 @@ QUERY_TIMEOUT = 3600
 QUERY_POLL_INTERVAL = 1
 SESSION_KEEPALIVE = 600
 
-# SQL discovery commands. Results are read positionally; {placeholders} are
-# filled with quoted identifiers by the caller.
+# SQL discovery commands. Results are mapped to model fields by column name, so
+# columns the models do not declare are ignored;
 DATABASES_SQL = 'SHOW DATABASES;'
 SCHEMAS_SQL = 'SHOW SCHEMAS FROM DATABASE {database};'
 TABLES_SQL = 'SHOW TABLES FROM SCHEMA {database}.{schema};'
