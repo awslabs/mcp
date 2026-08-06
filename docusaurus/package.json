@@ -26,7 +26,7 @@
     "@docusaurus/tsconfig": "^3.10.2",
     "@docusaurus/types": "^3.10.2",
     "baseline-browser-mapping": "^2.9.19",
-    "typescript": "~5.9.2"
+    "typescript": "~7.0.2"
   },
   "engines": {
     "node": ">=20.0"
