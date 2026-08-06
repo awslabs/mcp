@@ -17,6 +17,7 @@
 import pika
 import ssl
 from typing import Any
+from urllib.parse import urlparse
 
 
 class RabbitMQConnection:
@@ -49,3 +50,56 @@ def validate_rabbitmq_name(name: str, field_name: str) -> None:
         )
     if len(name) > 255:
         raise ValueError(f'{field_name} must be less than 255 characters')
+
+
+def get_broker_hostname_from_id(mq_client: Any, broker_id: str) -> str:
+    """Retrieve the broker hostname from Amazon MQ DescribeBroker API using the broker ID."""
+    if not broker_id or not broker_id.strip():
+        raise ValueError('broker_id cannot be empty')
+
+    try:
+        # Call DescribeBroker API using the provided client
+        response = mq_client.describe_broker(BrokerId=broker_id)
+
+        # Extract broker instances
+        broker_instances = response.get('BrokerInstances', [])
+        if not broker_instances:
+            raise ValueError(
+                f'No broker instances found for broker_id: {broker_id}. '
+                f'The broker may not exist or may not be in a running state.'
+            )
+
+        # Get the first broker instance
+        broker_instance = broker_instances[0]
+
+        # Extract endpoints
+        endpoints = broker_instance.get('Endpoints', [])
+        if not endpoints:
+            raise ValueError(
+                f'No endpoints found for broker_id: {broker_id}. '
+                f'The broker may not be fully provisioned yet.'
+            )
+
+        # Find the AMQPS endpoint (format: amqps://hostname:5671)
+        amqps_endpoint = None
+        for endpoint in endpoints:
+            if endpoint.startswith('amqps://'):
+                amqps_endpoint = endpoint
+                break
+
+        if not amqps_endpoint:
+            raise ValueError(
+                f'No AMQPS endpoint found for broker_id: {broker_id}. '
+                f'Available endpoints: {endpoints}'
+            )
+
+        hostname = urlparse(amqps_endpoint).hostname
+
+        return hostname
+
+    except ValueError:
+        # Re-raise ValueError as-is
+        raise
+    except Exception as e:
+        # Wrap other exceptions with context
+        raise Exception(f'Failed to retrieve broker hostname for {broker_id}: {str(e)}') from e

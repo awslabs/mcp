@@ -16,12 +16,14 @@
 import httpx
 import pytest
 from awslabs.aws_documentation_mcp_server.server_aws_cn import (
+    CN_ALLOWED_DOMAIN_REGEXES,
     get_available_services,
     main,
 )
 from awslabs.aws_documentation_mcp_server.server_aws_cn import (
     read_documentation as read_documentation_china,
 )
+from awslabs.aws_documentation_mcp_server.util import url_matches_allowlist
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -278,6 +280,109 @@ class TestGetAvailableServices:
                 mock_extract.assert_not_called()
                 called_url = mock_get.call_args[0][0]
                 assert '?session=' in called_url
+
+
+def _install_cn_mock_transport(monkeypatch, routes, target_module):
+    """Force AsyncClient in target_module to use a MockTransport, preserving real event_hooks.
+
+    Preserving the real hooks means a regression that dropped the redirect guard would leak
+    the redirect body and fail these tests.
+    """
+    real_async_client = httpx.AsyncClient
+
+    def patched(*args, **kwargs):
+        kwargs['transport'] = httpx.MockTransport(routes)
+        kwargs.setdefault('follow_redirects', True)
+        return real_async_client(*args, **kwargs)
+
+    monkeypatch.setattr(f'{target_module}.httpx.AsyncClient', patched)
+
+
+def _cn_imds_redirect_routes(request: httpx.Request) -> httpx.Response:
+    """docs.amazonaws.cn 302s to IMDS; IMDS would leak a marker if the redirect were followed."""
+    if request.url.host == 'docs.amazonaws.cn':
+        return httpx.Response(
+            302, headers={'location': 'http://169.254.169.254/latest/meta-data/'}
+        )
+    return httpx.Response(200, text='SENSITIVE-IMDS-DATA')
+
+
+class TestCnAllowlist:
+    """The CN allowlist gates only docs.amazonaws.cn."""
+
+    def test_cn_host_allowed(self):
+        """docs.amazonaws.cn is on the CN allowlist."""
+        assert url_matches_allowlist(
+            'https://docs.amazonaws.cn/en_us/x.html', CN_ALLOWED_DOMAIN_REGEXES
+        )
+
+    def test_commercial_host_rejected(self):
+        """The commercial docs host is not on the CN allowlist."""
+        assert not url_matches_allowlist(
+            'https://docs.aws.amazon.com/x.html', CN_ALLOWED_DOMAIN_REGEXES
+        )
+
+    def test_imds_rejected(self):
+        """IMDS is not on the CN allowlist."""
+        assert not url_matches_allowlist(
+            'http://169.254.169.254/latest/meta-data/', CN_ALLOWED_DOMAIN_REGEXES
+        )
+
+
+class TestCnRedirectEnforcement:
+    """Both CN fetch sites re-validate redirect targets against CN_ALLOWED_DOMAIN_REGEXES."""
+
+    @pytest.mark.asyncio
+    async def test_read_documentation_offsite_redirect_blocked(self, monkeypatch):
+        """read_documentation (via read_documentation_impl) refuses an IMDS redirect."""
+        ctx = MockContext()
+        _install_cn_mock_transport(
+            monkeypatch,
+            _cn_imds_redirect_routes,
+            'awslabs.aws_documentation_mcp_server.server_utils',
+        )
+        result = await read_documentation_china(
+            ctx, url='https://docs.amazonaws.cn/en_us/test.html', max_length=1000, start_index=0
+        )
+        assert 'SENSITIVE-IMDS-DATA' not in result
+        assert 'Failed to fetch' in result
+
+    @pytest.mark.asyncio
+    async def test_get_available_services_offsite_redirect_blocked(self, monkeypatch):
+        """get_available_services (its own inline client) refuses an IMDS redirect."""
+        ctx = MockContext()
+        _install_cn_mock_transport(
+            monkeypatch,
+            _cn_imds_redirect_routes,
+            'awslabs.aws_documentation_mcp_server.server_aws_cn',
+        )
+        result = await get_available_services(ctx)
+        assert 'SENSITIVE-IMDS-DATA' not in result
+        assert 'Failed to fetch' in result
+
+    @pytest.mark.asyncio
+    async def test_read_documentation_onsite_redirect_followed(self, monkeypatch):
+        """A same-domain (docs.amazonaws.cn) redirect is followed and content returned."""
+
+        def routes(request: httpx.Request) -> httpx.Response:
+            if request.url.path == '/en_us/test.html':
+                return httpx.Response(
+                    301, headers={'location': 'https://docs.amazonaws.cn/en_us/final.html'}
+                )
+            return httpx.Response(
+                200,
+                text='<html><body><h1>Final CN</h1></body></html>',
+                headers={'content-type': 'text/html'},
+            )
+
+        ctx = MockContext()
+        _install_cn_mock_transport(
+            monkeypatch, routes, 'awslabs.aws_documentation_mcp_server.server_utils'
+        )
+        result = await read_documentation_china(
+            ctx, url='https://docs.amazonaws.cn/en_us/test.html', max_length=1000, start_index=0
+        )
+        assert 'Final CN' in result
 
 
 class TestMain:

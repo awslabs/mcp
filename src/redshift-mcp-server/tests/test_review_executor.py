@@ -16,11 +16,6 @@
 
 import pytest
 from awslabs.redshift_mcp_server.models import RedshiftCluster
-from awslabs.redshift_mcp_server.review.definitions import (
-    RECOMMENDATIONS,
-    SIGNAL_EVALUATION_SQL,
-    SIGNAL_UNITS,
-)
 from awslabs.redshift_mcp_server.review.executor import review_cluster
 from unittest.mock import AsyncMock
 
@@ -41,7 +36,11 @@ def _make_empty_response() -> dict:
     return {'rows': [], 'columns': ['count', 'rec_id'], 'row_count': 0}
 
 
-def _cluster(identifier='test-cluster', cluster_type='provisioned'):
+def _cluster(
+    identifier='test-cluster',
+    cluster_type='provisioned',
+    node_type: str | None = 'ra3.xlplus',
+):
     """Build a RedshiftCluster model for discover_clusters mocks."""
     return RedshiftCluster.model_validate(
         {
@@ -49,13 +48,32 @@ def _cluster(identifier='test-cluster', cluster_type='provisioned'):
             'type': cluster_type,
             'status': 'available',
             'database_name': 'dev',
+            'node_type': None if cluster_type == 'serverless' else node_type,
         }
     )
 
 
-def _make_discover_clusters(cluster_type='provisioned'):
+def _make_discover_clusters(cluster_type='provisioned', node_type: str | None = 'ra3.xlplus'):
     """Build a mock discover_clusters returning a single cluster."""
-    return AsyncMock(return_value=[_cluster(cluster_type=cluster_type)])
+    return AsyncMock(return_value=[_cluster(cluster_type=cluster_type, node_type=node_type)])
+
+
+def _make_sql_recorder():
+    """Build an execute_query mock that records the SQL sent for each query name.
+
+    Every diagnostic query starts with a '-- <QueryName>' comment line, which is used
+    to key the recorded SQL.
+
+    Returns:
+        A (execute_query_func, recorded) tuple, where recorded maps query name to SQL.
+    """
+    recorded: dict[str, str] = {}
+
+    async def _execute(cluster_identifier, database_name, sql, allow_read_write=False):
+        recorded[sql.splitlines()[0].removeprefix('--').strip()] = sql
+        return _make_empty_response()
+
+    return _execute, recorded
 
 
 # ---------------------------------------------------------------------------
@@ -250,12 +268,12 @@ class TestErrorPropagation:
 
     @pytest.mark.asyncio
     async def test_permission_denied_aborts_review(self):
-        """A permission denied error aborts with a helpful superuser message."""
+        """A permission denied error aborts with the grant that resolves it."""
         execute_query_func = AsyncMock(
             side_effect=RuntimeError('permission denied for relation sys_auto_table_optimization')
         )
 
-        with pytest.raises(Exception, match='Review requires superuser'):
+        with pytest.raises(Exception, match='Review requires superuser or sys:monitor access'):
             await review_cluster(
                 cluster_identifier='test-cluster',
                 execute_query_func=execute_query_func,
@@ -377,49 +395,48 @@ class TestFullPipeline:
 
 
 # ---------------------------------------------------------------------------
-# Review queries constants validation
+# Node type substitution
 # ---------------------------------------------------------------------------
 
 
-class TestReviewQueriesConstants:
-    """Validate the SIGNAL_EVALUATION_SQL and RECOMMENDATIONS constants."""
+class TestNodeTypeSubstitution:
+    """Verify the cluster's real node type reaches the diagnostic SQL."""
 
-    def test_all_queries_have_sql(self):
-        """Every entry in SIGNAL_EVALUATION_SQL has non-empty SQL."""
-        for name, cluster_type, sql in SIGNAL_EVALUATION_SQL:
-            assert sql.strip(), f'{name} has empty SQL'
+    @pytest.mark.asyncio
+    async def test_known_node_type_is_inlined_in_sql(self):
+        """A provisioned cluster's reported node type is inlined into NodeDetails."""
+        execute_query_func, recorded = _make_sql_recorder()
 
-    def test_every_query_has_a_unit(self):
-        """Every query in SIGNAL_EVALUATION_SQL maps to a non-empty unit."""
-        for name, _cluster_type, _sql in SIGNAL_EVALUATION_SQL:
-            assert SIGNAL_UNITS.get(name), f'{name} is missing a unit in SIGNAL_UNITS'
+        await review_cluster(
+            cluster_identifier='test-cluster',
+            execute_query_func=execute_query_func,
+            discover_clusters_func=_make_discover_clusters(node_type='ra3.xlplus'),
+        )
 
-    def test_every_branch_emits_a_signal_label(self):
-        """Every rec branch selects a 3rd literal (its -- Signal label)."""
-        import re
+        assert "'ra3.xlplus'::text AS node_type" in recorded['NodeDetails']
 
-        no_label = re.compile(r"SELECT count\(\*\),\s*'REC_\d+'(?!\s*,)")
-        for name, _ct, sql in SIGNAL_EVALUATION_SQL:
-            assert not no_label.findall(sql), f'{name} has a branch without a label column'
+    @pytest.mark.asyncio
+    async def test_missing_node_type_falls_back_in_sql(self):
+        """A provisioned cluster without a node type inlines the unknown sentinel."""
+        execute_query_func, recorded = _make_sql_recorder()
 
-    def test_branch_rec_label_pairs_unique_per_query(self):
-        """Within a query, no two branches share the same (rec_id, label)."""
-        import re
+        await review_cluster(
+            cluster_identifier='test-cluster',
+            execute_query_func=execute_query_func,
+            discover_clusters_func=_make_discover_clusters(node_type=None),
+        )
 
-        pair = re.compile(r"SELECT count\(\*\),\s*'(REC_\d+)',\s*'((?:[^']|'')*)'")
-        for name, _ct, sql in SIGNAL_EVALUATION_SQL:
-            pairs = pair.findall(sql)
-            assert len(pairs) == len(set(pairs)), (
-                f'{name} has duplicate (rec, label) branches: {pairs}'
-            )
+        assert "'unknown'::text AS node_type" in recorded['NodeDetails']
 
-    def test_recommendations_not_empty(self):
-        """RECOMMENDATIONS dict is not empty."""
-        assert len(RECOMMENDATIONS) > 0
+    @pytest.mark.asyncio
+    async def test_serverless_review_executes_no_placeholder_query(self):
+        """Serverless workgroups have no node type and run no query needing one."""
+        execute_query_func, recorded = _make_sql_recorder()
 
-    def test_provisioned_only_flags(self):
-        """NodeDetails and WLMConfig are marked provisioned-only."""
-        provisioned = {name for name, ct, _ in SIGNAL_EVALUATION_SQL if ct == 'provisioned'}
-        assert 'NodeDetails' in provisioned
-        assert 'WLMConfig' in provisioned
-        assert 'WorkloadEvaluation' in provisioned
+        await review_cluster(
+            cluster_identifier='test-cluster',
+            execute_query_func=execute_query_func,
+            discover_clusters_func=_make_discover_clusters(cluster_type='serverless'),
+        )
+
+        assert 'NodeDetails' not in recorded

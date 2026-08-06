@@ -65,6 +65,8 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 ### AWS Invoicing
 
 - **Invoice summaries**: List invoice-level details (invoice ID, type, billing period, issued/due dates, issuing entity, and amounts with discount/tax/fee breakdowns across base, tax, and payment currencies) for an account or a single invoice, filtered by month or date range
+- **Invoice units**: List and retrieve invoice unit definitions (groups of accounts that receive a separate invoice, with their receiver account and linked-account rules), filtered by name, receiver, or member account; and fetch invoice receiver profiles (legal name, address, tax registration number) for a set of accounts
+- **Procurement portal preferences**: List and retrieve procurement portal connections (SAP Business Network, Coupa) and e-invoice delivery / purchase-order retrieval settings
 
 ### Specialized Cost Optimization Prompts
 
@@ -314,6 +316,11 @@ AWS Billing Conductor:
 
 AWS Invoicing:
 - invoicing:ListInvoiceSummaries
+- invoicing:ListInvoiceUnits
+- invoicing:GetInvoiceUnit
+- invoicing:BatchGetInvoiceProfile
+- invoicing:ListProcurementPortalPreferences
+- invoicing:GetProcurementPortalPreference
 
 #### Configuration
 
@@ -425,4 +432,6 @@ The server currently supports the following AWS services
     - list_cost_category_definitions
 
 12. **AWS Invoicing**
-    - list_invoice_summaries
+    - `invoicing` tool: list_invoice_summaries
+    - `invoice-units` tool: list_invoice_units, get_invoice_unit, batch_get_invoice_profile
+    - `procurement-preferences` tool: list_procurement_portal_preferences, get_procurement_portal_preference
