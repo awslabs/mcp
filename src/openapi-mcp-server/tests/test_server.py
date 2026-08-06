@@ -71,8 +71,11 @@ def test_create_mcp_server_forwards_ssrf_flags(
     spec loader. Hardcoding either open at ``server.py`` would silently disable
     the operator's SSRF protections; this assertion is the guard against that.
     """
-    # Explicit, non-default values so the assertion pins forwarding, not defaults.
-    mock_config.allow_insecure_http = False
+    # The two flags must DIFFER. Both default to False (``api/config.py``), so setting both
+    # to the same value leaves the assertion unable to tell them apart: swapping the two
+    # keyword arguments at the call site would still pass. One True and one False pins each
+    # flag to its own parameter, and makes ``allow_insecure_http`` genuinely non-default.
+    mock_config.allow_insecure_http = True
     mock_config.allow_private_networks = False
     mock_load_spec.return_value = {
         'openapi': '3.0.0',

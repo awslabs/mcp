@@ -54,6 +54,31 @@ def enrich(route, component):
 mcp = FastMCP.from_openapi(spec, client=client, mcp_component_fn=enrich)
 ```
 
+> **Resolve `$ref`s before enriching.** The example values in the generated
+> `**Responses:**` section come from `generate_example_from_schema`, which has no
+> `$ref` branch — an unresolved reference falls through to the literal string
+> `"unknown_type"`. This wrapper never hit it because it runs specs through
+> `prance`'s `ResolvingParser` first, but `httpx.get(...).json()` above hands
+> `from_openapi` a raw dict with `$ref`s intact. A response of
+> `{"type": "array", "items": {"$ref": "#/components/schemas/Widget"}}` then
+> documents its example as `["unknown_type"]` — while the tool's own
+> `output_schema` resolves the reference correctly, so the description contradicts
+> the schema next to it. Dereference first:
+>
+> ```python
+> from prance import ResolvingParser
+> from prance.util.resolver import RESOLVE_INTERNAL
+>
+> spec = ResolvingParser(
+>     spec_string=httpx.get("https://api.example.com/openapi.json").text,
+>     resolve_types=RESOLVE_INTERNAL,   # internal refs only — external ones are an SSRF/LFI sink
+>     backend="openapi-spec-validator",
+> ).specification
+> ```
+>
+> Only needed if you use `mcp_component_fn` for enrichment; `from_openapi`
+> resolves references itself for tool input/output schemas.
+
 ## Standalone (no-code) users
 
 Replace `uvx awslabs.openapi-mcp-server --spec-url ...` with a small entrypoint

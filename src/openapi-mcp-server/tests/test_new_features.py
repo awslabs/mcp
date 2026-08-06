@@ -43,6 +43,27 @@ PETSTORE_SPEC = {
                 'operationId': 'createPet',
                 'summary': 'Create a pet',
                 'tags': ['pet'],
+                # The ``requestBody`` is what exercises the ``request_body`` argument
+                # ``enrich_component`` passes to ``format_description_with_responses``.
+                # A ``description`` here is required, not decorative: the upstream
+                # formatter gates its whole Request Body section on that field being
+                # truthy, so a body without one enriches identically to no body at all.
+                'requestBody': {
+                    'description': 'The pet to add to the store',
+                    'required': True,
+                    'content': {
+                        'application/json': {
+                            'schema': {
+                                'type': 'object',
+                                'required': ['name'],
+                                'properties': {
+                                    'name': {'type': 'string', 'description': 'The pet name'},
+                                    'tag': {'type': 'string', 'description': 'A free-form tag'},
+                                },
+                            }
+                        }
+                    },
+                },
                 'responses': {'201': {'description': 'Created'}},
             },
         },
@@ -200,6 +221,30 @@ async def test_enriched_descriptions_include_parameters():
     list_pets = next(t for t in tools if t.name == 'listPets')
     assert '**Query Parameters:**' in list_pets.description
     assert 'status' in list_pets.description
+
+
+@pytest.mark.asyncio
+async def test_enriched_descriptions_include_request_body():
+    """Tool descriptions include the Request Body section for operations that have one.
+
+    ``enrich_component`` forwards ``route.request_body`` as the fourth argument to
+    ``format_description_with_responses``. Nothing else in this suite covers that
+    argument: every other operation in ``PETSTORE_SPEC`` is a GET or a body-less POST,
+    so without ``createPet``'s ``requestBody`` the branch never executes and dropping
+    the argument entirely would go unnoticed.
+    """
+    server = await _create_server(_base_config())
+    tools = await server.list_tools()
+    create_pet = next(t for t in tools if t.name == 'createPet')
+
+    assert '**Request Body:**' in create_pet.description
+    assert 'The pet to add to the store' in create_pet.description
+    # ``required: True`` on the body renders as a marker alongside its description.
+    assert '(Required)' in create_pet.description
+    # The per-property sub-section is a separate nested branch of the formatter.
+    assert '**Request Properties:**' in create_pet.description
+    assert 'The pet name' in create_pet.description
+    assert 'A free-form tag' in create_pet.description
 
 
 @pytest.mark.asyncio
