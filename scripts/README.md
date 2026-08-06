@@ -66,24 +66,58 @@ dangerous one:
 Case 2 is exactly what `verify-mcp-v2-locks.py` is for; case 1 catches itself. A raised
 dependency floor is not automatically a raised *resolved* version — always diff the lock.
 
-### Re-locking can silently revert a security bump
+Case 2 is reproducible from a fully up-to-date lock, so it is a real resolver behaviour rather
+than a stale-input artifact: on `amazon-translate-mcp-server`, raising only the `mcp` cap walks
+`fastmcp` 3.4.3 → **2.14.1**, which is exposed to GHSA-vv7q-7jx5-f767 (CRITICAL, SSRF and path
+traversal in the OpenAPI provider), GHSA-rww4-4w9c-7733, GHSA-m8x7-r2rg-vh5g and
+GHSA-5h2m-4q8j-pqpj. The first three are patched only in 3.2.0 — which requires mcp 1.x, so no
+`fastmcp` version is both v2-compatible and free of them.
 
-`uv lock` is not incremental: changing one bound recomputes the whole graph. An **unpinned
-transitive** dependency can therefore lose a version bump that an earlier commit had landed,
-because nothing in the manifest records why it was raised. The fleet rollout hit this with
-`cryptography`, reachable only as `mcp` → `pyjwt[crypto]` → `cryptography` with no bound
-anywhere: `origin/main` resolved 50.0.0, but re-locking `mcp` to 2.x re-derived 45.0.7/46.0.0,
-reverting a Dependabot security bump and re-adding 7 advisories. Nothing had changed *about*
-`cryptography` — only the resolution's vintage.
+The durable guardrail is to **raise the `fastmcp` floor above the vulnerable range even while
+staying on mcp v1**: `fastmcp>=3.2.0` still resolves 3.4.3/mcp 1.27.1 today, and it makes the
+silent walk *structurally impossible* — a later v2 attempt then fails loudly (case 1) instead
+of quietly downgrading. Do this before attempting the migration, not after.
 
-The structural tell is a package split into several entries with `resolution-markers` where
-the previous lock had one unmarked entry. A marker fork means the resolver could not satisfy
-every environment with a single version; when it appears out of nowhere, suspect a stale
-resolution rather than a real platform constraint. Fix with
-`uv lock --upgrade-package <name>`, then confirm the diff touches nothing else.
+`fastmcp` 4.0 is what actually lifts the ceiling (`fastmcp-slim` 4.0.0b1 requires
+`mcp>=2.0.0,<3.0.0`, and `fastmcp>=4.0.0b1` + `mcp>=2.0.0` resolves cleanly), but as of
+2026-08 only `4.0.0a1`, `4.0.0a2` and `4.0.0b1` exist — pre-releases, needing
+`--prerelease=allow`. Wait for the stable 4.0 rather than shipping a beta.
 
-So diff every lock against `origin/main` for versions that moved **backward**, not just for
-the `mcp` bound. Tests cannot see this — the suite is green either way.
+### A lock generated in a stale tree carries that tree's vulnerabilities
+
+`uv lock` is **conservative**: it keeps whatever the input `uv.lock` already pins and moves
+only what the changed constraint forces. That is normally a virtue, but it means a lock is a
+snapshot of *the tree it was generated in*. Commit one that was generated weeks earlier and it
+silently reintroduces every version its source tree had — including ones a security bump has
+since raised.
+
+The fleet rollout hit exactly this. The lambda-tool lock was generated on 2026-07-20 in an
+earlier PoC worktree, then committed onto a parent that already carried #4433's bump of
+`cryptography` to 50.0.0. The stale lock still pinned 45.0.7/46.0.0, so the commit reverted the
+bump and re-added 7 advisories (4 high). Nothing in the migration touched `cryptography` — it
+is reachable only as `mcp` → `pyjwt[crypto]` → `cryptography`, unbounded — and the loss was
+invisible in review because it read as ordinary lock churn among 600 changed lines.
+
+To be clear about what is *not* the cause: re-locking is safe. Bumping the `mcp` bound against
+an up-to-date lock keeps 50.0.0, and so does locking from scratch. Only a stale input lock
+loses the bump. So the fix is to **re-lock in a tree synced to `origin/main`**, not to
+distrust `uv lock`:
+
+```bash
+git fetch origin && git merge origin/main    # or rebase; sync FIRST
+cd src/<name> && uv lock                     # regenerate from a current tree
+```
+
+The tell is corroborating staleness across *several* packages, not one suspicious version.
+Here `sse-starlette` sat at 3.4.6 while main had newer, and `certifi` had vanished — all
+pointing at one old generation date. A single package split into `resolution-markers` entries
+where the previous lock had one unmarked entry is a weaker hint worth checking, but a marker
+fork can also be legitimate.
+
+Recovery for one package is `uv lock --upgrade-package <name>`; confirm the diff touches
+nothing else. Then diff every lock against `origin/main` for versions that moved **backward**,
+not just for the `mcp` bound — tests cannot see this, since the suite is green either way.
+Compare with `packaging.version.Version`, never string or tuple-of-int ordering.
 
 Naming a blocked server with `--server` is a hard error, because a half-migrated blocked
 server is broken against both SDKs.
