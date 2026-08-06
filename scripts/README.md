@@ -66,6 +66,25 @@ dangerous one:
 Case 2 is exactly what `verify-mcp-v2-locks.py` is for; case 1 catches itself. A raised
 dependency floor is not automatically a raised *resolved* version — always diff the lock.
 
+### Re-locking can silently revert a security bump
+
+`uv lock` is not incremental: changing one bound recomputes the whole graph. An **unpinned
+transitive** dependency can therefore lose a version bump that an earlier commit had landed,
+because nothing in the manifest records why it was raised. The fleet rollout hit this with
+`cryptography`, reachable only as `mcp` → `pyjwt[crypto]` → `cryptography` with no bound
+anywhere: `origin/main` resolved 50.0.0, but re-locking `mcp` to 2.x re-derived 45.0.7/46.0.0,
+reverting a Dependabot security bump and re-adding 7 advisories. Nothing had changed *about*
+`cryptography` — only the resolution's vintage.
+
+The structural tell is a package split into several entries with `resolution-markers` where
+the previous lock had one unmarked entry. A marker fork means the resolver could not satisfy
+every environment with a single version; when it appears out of nowhere, suspect a stale
+resolution rather than a real platform constraint. Fix with
+`uv lock --upgrade-package <name>`, then confirm the diff touches nothing else.
+
+So diff every lock against `origin/main` for versions that moved **backward**, not just for
+the `mcp` bound. Tests cannot see this — the suite is green either way.
+
 Naming a blocked server with `--server` is a hard error, because a half-migrated blocked
 server is broken against both SDKs.
 
@@ -139,6 +158,12 @@ cd src/<name> && uv run pyright          # some servers declare dev tools as an
 
 Per-server config can also hide real errors — `aws-dataprocessing-mcp-server` sets
 `reportCallIssue = false`, which masks 354 alias-spelled keyword arguments.
+
+Where an error documents deliberate behaviour, an inline `# pyright: ignore[<rule>]` is the
+right suppression — but it binds to the **line**, so add it *after* `ruff format`, never
+before. A pragma written onto a single-line call gets stranded on the wrong argument when
+formatting later reflows that call to one argument per line, which silences nothing and leaves
+the original error in CI.
 
 See https://github.com/awslabs/mcp/issues/4448 for the full migration plan and the list of
 servers needing individual review.
