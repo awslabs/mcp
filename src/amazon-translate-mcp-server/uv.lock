@@ -112,7 +112,7 @@ requires-dist = [
     { name = "authlib", specifier = ">=1.6.6" },
     { name = "boto3", specifier = ">=1.38.12" },
     { name = "defusedxml", specifier = ">=0.7.1" },
-    { name = "fastmcp", specifier = ">=2.13.1" },
+    { name = "fastmcp", specifier = ">=3.2.0" },
     { name = "filelock", specifier = ">=3.20.0" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.23.0,<2.0.0" },
     { name = "pydantic", specifier = ">=2.0.0" },
