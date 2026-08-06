@@ -13,11 +13,12 @@
 # limitations under the License.
 """Utility functions for AWS Documentation MCP Server."""
 
+import httpx
 import markdownify
 import re
 from awslabs.aws_documentation_mcp_server.models import RecommendationResult
-from typing import Any, Dict, List
-from urllib.parse import quote_plus
+from typing import Any, Dict, List, Sequence
+from urllib.parse import quote_plus, urljoin
 
 
 def extract_content_from_html(html: str) -> str:
@@ -154,6 +155,35 @@ def is_html_content(page_raw: str, content_type: str) -> bool:
         True if content is HTML, False otherwise
     """
     return '<html' in page_raw[:100] or 'text/html' in content_type or not content_type
+
+
+def url_matches_allowlist(url: str, allowed_domain_regexes: Sequence[str]) -> bool:
+    """Return True if the URL's host matches an allowed domain regex (extension not checked)."""
+    return any(re.match(pattern, url) for pattern in allowed_domain_regexes)
+
+
+def enforce_redirect_allowlist(allowed_domain_regexes: Sequence[str]):
+    """Build an httpx response event hook that rejects redirects to off-allowlist hosts.
+
+    Without this, ``follow_redirects=True`` follows a 3xx from an allow-listed page to any
+    host, including link-local metadata. The hook resolves each ``Location`` (including
+    relative redirects) against the request URL and raises if the target is not allow-listed.
+    """
+
+    async def _hook(response: httpx.Response) -> None:
+        if not response.is_redirect:
+            return
+        location = response.headers.get('location')
+        if not location:
+            return
+        target = urljoin(str(response.request.url), location)
+        if not url_matches_allowlist(target, allowed_domain_regexes):
+            raise httpx.RequestError(
+                f'Refusing to follow redirect to non-allowlisted URL: {target}',
+                request=response.request,
+            )
+
+    return _hook
 
 
 def format_documentation_result(url: str, content: str, start_index: int, max_length: int) -> str:

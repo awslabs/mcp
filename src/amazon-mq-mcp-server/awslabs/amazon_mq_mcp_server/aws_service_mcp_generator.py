@@ -73,6 +73,10 @@ class AWSToolGenerator:
         """Reture the MCP server instance."""
         return self.mcp
 
+    def get_client(self, region: str = 'us-east-1') -> Any:
+        """Get or create a service client for the specified region."""
+        return self.__get_client(region)
+
     def __register_operations(self):
         for operation in self.__get_operations():
             if operation not in self.tool_configuration:

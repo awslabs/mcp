@@ -60,7 +60,7 @@ This power includes the following steering files in [steering](./steering)
 - **ddl-migrations-column-operations**
   - Load for DROP COLUMN, ALTER COLUMN TYPE, SET/DROP NOT NULL, SET/DROP DEFAULT
 - **ddl-migrations-constraint-operations**
-  - Load for ADD/DROP CONSTRAINT, MODIFY PRIMARY KEY, column split/merge
+  - Load for ADD/DROP CONSTRAINT, VALIDATE CONSTRAINT, MODIFY PRIMARY KEY, column split/merge
 - **ddl-migrations-batched**
   - Load when migrating tables exceeding 3,000 rows
 - **mysql-type-mapping**

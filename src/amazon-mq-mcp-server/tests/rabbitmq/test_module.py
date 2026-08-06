@@ -12,7 +12,8 @@ class TestRabbitMQModule:
         Sets up mock MCP server and creates RabbitMQModule instance for testing.
         """
         self.mock_mcp = Mock()
-        self.module = RabbitMQModule(self.mock_mcp)
+        mock_mq_client_getter = Mock()
+        self.module = RabbitMQModule(self.mock_mcp, mock_mq_client_getter)
 
     def test_init(self):
         """Test RabbitMQModule initialization.
@@ -106,7 +107,8 @@ class TestRabbitMQModuleToolFunctions:
         Sets up mock MCP server and creates RabbitMQModule instance for testing.
         """
         self.mock_mcp = Mock()
-        self.module = RabbitMQModule(self.mock_mcp)
+        mock_mq_client_getter = Mock()
+        self.module = RabbitMQModule(self.mock_mcp, mock_mq_client_getter)
 
     def test_list_queues_tool_registration(self):
         """Test that list_queues tool is properly registered.
@@ -145,7 +147,8 @@ class TestRabbitMQModuleToolExecution:
         Sets up mock MCP server and creates RabbitMQModule instance for testing.
         """
         self.mock_mcp = Mock()
-        self.module = RabbitMQModule(self.mock_mcp)
+        mock_mq_client_getter = Mock()
+        self.module = RabbitMQModule(self.mock_mcp, mock_mq_client_getter)
 
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.RabbitMQConnection')
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.RabbitMQAdmin')
@@ -206,12 +209,16 @@ class TestRabbitMQBrokerInitializeConnection:
             return func
 
         self.mock_mcp.tool.return_value = mock_tool_decorator
-        self.module = RabbitMQModule(self.mock_mcp)
+        mock_mq_client_getter = Mock()
+        self.module = RabbitMQModule(self.mock_mcp, mock_mq_client_getter)
         self.module.register_rabbitmq_management_tools()
 
+    @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.get_broker_hostname_from_id')
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.RabbitMQConnection')
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.RabbitMQAdmin')
-    def test_rabbimq_broker_initialize_connection_success(self, mock_admin_class, mock_conn_class):
+    def test_rabbimq_broker_initialize_connection_success(
+        self, mock_admin_class, mock_conn_class, mock_get_hostname
+    ):
         """Test successful broker connection initialization.
 
         Verifies successful connection with username/password authentication.
@@ -220,11 +227,17 @@ class TestRabbitMQBrokerInitializeConnection:
         mock_admin_instance = Mock()
         mock_conn_class.return_value = mock_conn_instance
         mock_admin_class.return_value = mock_admin_instance
+        mock_get_hostname.return_value = 'test-hostname'
 
         func = self.captured_functions['rabbimq_broker_initialize_connection']
-        result = func('test-hostname', 'test-user', 'test-pass')
+        result = func('b-test-broker', 'us-east-1', 'test-user', 'test-pass')
 
         assert result == 'successfully connected'
+        # Verify get_broker_hostname_from_id was called with (mq_client, broker_id)
+        # The first argument should be the mock mq_client from the client getter
+        assert mock_get_hostname.call_count == 1
+        call_args = mock_get_hostname.call_args[0]
+        assert call_args[1] == 'b-test-broker'  # Second arg is broker_id
         mock_conn_class.assert_called_once_with(
             hostname='test-hostname',  # pragma: allowlist secret
             username='test-user',  # pragma: allowlist secret
@@ -238,19 +251,23 @@ class TestRabbitMQBrokerInitializeConnection:
         assert self.module.rmq == mock_conn_instance
         assert self.module.rmq_admin == mock_admin_instance
 
+    @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.get_broker_hostname_from_id')
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.RabbitMQConnection')
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.RabbitMQAdmin')
-    def test_rabbimq_broker_initialize_connection_failure(self, mock_admin_class, mock_conn_class):
+    def test_rabbimq_broker_initialize_connection_failure(
+        self, mock_admin_class, mock_conn_class, mock_get_hostname
+    ):
         """Test broker connection initialization failure handling.
 
         Verifies proper exception handling when connection fails.
         """
+        mock_get_hostname.return_value = 'test-hostname'
         mock_conn_class.side_effect = Exception('Connection failed')
 
         func = self.captured_functions['rabbimq_broker_initialize_connection']
 
         with pytest.raises(Exception, match='Connection failed'):
-            func('test-hostname', 'test-user', 'test-pass')
+            func('b-test-broker', 'us-east-1', 'test-user', 'test-pass')
 
 
 class TestRabbitMQBrokerInitializeConnectionWithOAuth:
@@ -269,13 +286,15 @@ class TestRabbitMQBrokerInitializeConnectionWithOAuth:
             return func
 
         self.mock_mcp.tool.return_value = mock_tool_decorator
-        self.module = RabbitMQModule(self.mock_mcp)
+        mock_mq_client_getter = Mock()
+        self.module = RabbitMQModule(self.mock_mcp, mock_mq_client_getter)
         self.module.register_rabbitmq_management_tools()
 
+    @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.get_broker_hostname_from_id')
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.RabbitMQConnection')
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.RabbitMQAdmin')
     def test_rabbimq_broker_initialize_connection_with_oauth_success(
-        self, mock_admin_class, mock_conn_class
+        self, mock_admin_class, mock_conn_class, mock_get_hostname
     ):
         """Test successful broker connection initialization with OAuth.
 
@@ -285,11 +304,16 @@ class TestRabbitMQBrokerInitializeConnectionWithOAuth:
         mock_admin_instance = Mock()
         mock_conn_class.return_value = mock_conn_instance
         mock_admin_class.return_value = mock_admin_instance
+        mock_get_hostname.return_value = 'test-hostname'
 
         func = self.captured_functions['rabbimq_broker_initialize_connection_with_oauth']
-        result = func('test-hostname', 'oauth-token-123')
+        result = func('b-test-broker', 'us-east-1', 'oauth-token-123')
 
         assert result == 'successfully connected'
+        # Verify get_broker_hostname_from_id was called with (mq_client, broker_id)
+        assert mock_get_hostname.call_count == 1
+        call_args = mock_get_hostname.call_args[0]
+        assert call_args[1] == 'b-test-broker'  # Second arg is broker_id
         mock_conn_class.assert_called_once_with(
             hostname='test-hostname',  # pragma: allowlist secret
             username='ignored',  # pragma: allowlist secret
@@ -303,21 +327,23 @@ class TestRabbitMQBrokerInitializeConnectionWithOAuth:
         assert self.module.rmq == mock_conn_instance
         assert self.module.rmq_admin == mock_admin_instance
 
+    @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.get_broker_hostname_from_id')
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.RabbitMQConnection')
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.RabbitMQAdmin')
     def test_rabbimq_broker_initialize_connection_with_oauth_failure(
-        self, mock_admin_class, mock_conn_class
+        self, mock_admin_class, mock_conn_class, mock_get_hostname
     ):
         """Test OAuth broker connection initialization failure handling.
 
         Verifies proper exception handling when OAuth connection fails.
         """
+        mock_get_hostname.return_value = 'test-hostname'
         mock_conn_class.side_effect = Exception('OAuth connection failed')
 
         func = self.captured_functions['rabbimq_broker_initialize_connection_with_oauth']
 
         with pytest.raises(Exception, match='OAuth connection failed'):
-            func('test-hostname', 'oauth-token-123')
+            func('b-test-broker', 'us-east-1', 'oauth-token-123')
 
 
 class TestRabbitMQBrokerListQueues:
@@ -333,7 +359,8 @@ class TestRabbitMQBrokerListQueues:
             return func
 
         self.mock_mcp.tool.return_value = mock_tool_decorator
-        self.module = RabbitMQModule(self.mock_mcp)
+        mock_mq_client_getter = Mock()
+        self.module = RabbitMQModule(self.mock_mcp, mock_mq_client_getter)
         self.module.register_rabbitmq_management_tools(allow_mutative_tools=False)
 
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.handle_list_queues')
@@ -380,7 +407,8 @@ class TestRabbitMQBrokerListExchanges:
             return func
 
         self.mock_mcp.tool.return_value = mock_tool_decorator
-        self.module = RabbitMQModule(self.mock_mcp)
+        mock_mq_client_getter = Mock()
+        self.module = RabbitMQModule(self.mock_mcp, mock_mq_client_getter)
         self.module.register_rabbitmq_management_tools(allow_mutative_tools=False)
 
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.handle_list_exchanges')
@@ -427,7 +455,8 @@ class TestRabbitMQBrokerListVhosts:
             return func
 
         self.mock_mcp.tool.return_value = mock_tool_decorator
-        self.module = RabbitMQModule(self.mock_mcp)
+        mock_mq_client_getter = Mock()
+        self.module = RabbitMQModule(self.mock_mcp, mock_mq_client_getter)
         self.module.register_rabbitmq_management_tools(allow_mutative_tools=False)
 
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.handle_list_vhosts')
@@ -474,7 +503,8 @@ class TestRabbitMQBrokerGetQueueInfo:
             return func
 
         self.mock_mcp.tool.return_value = mock_tool_decorator
-        self.module = RabbitMQModule(self.mock_mcp)
+        mock_mq_client_getter = Mock()
+        self.module = RabbitMQModule(self.mock_mcp, mock_mq_client_getter)
         self.module.register_rabbitmq_management_tools(allow_mutative_tools=False)
 
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.validate_rabbitmq_name')
@@ -512,7 +542,8 @@ class TestRabbitMQBrokerGetExchangeInfo:
             return func
 
         self.mock_mcp.tool.return_value = mock_tool_decorator
-        self.module = RabbitMQModule(self.mock_mcp)
+        mock_mq_client_getter = Mock()
+        self.module = RabbitMQModule(self.mock_mcp, mock_mq_client_getter)
         self.module.register_rabbitmq_management_tools(allow_mutative_tools=False)
 
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.validate_rabbitmq_name')
@@ -550,7 +581,8 @@ class TestRabbitMQBrokerListShovels:
             return func
 
         self.mock_mcp.tool.return_value = mock_tool_decorator
-        self.module = RabbitMQModule(self.mock_mcp)
+        mock_mq_client_getter = Mock()
+        self.module = RabbitMQModule(self.mock_mcp, mock_mq_client_getter)
         self.module.register_rabbitmq_management_tools(allow_mutative_tools=False)
 
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.handle_list_shovels')
@@ -586,7 +618,8 @@ class TestRabbitMQBrokerGetShovelInfo:
             return func
 
         self.mock_mcp.tool.return_value = mock_tool_decorator
-        self.module = RabbitMQModule(self.mock_mcp)
+        mock_mq_client_getter = Mock()
+        self.module = RabbitMQModule(self.mock_mcp, mock_mq_client_getter)
         self.module.register_rabbitmq_management_tools(allow_mutative_tools=False)
 
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.handle_shovel')
@@ -622,7 +655,8 @@ class TestRabbitMQBrokerGetClusterNodesInfo:
             return func
 
         self.mock_mcp.tool.return_value = mock_tool_decorator
-        self.module = RabbitMQModule(self.mock_mcp)
+        mock_mq_client_getter = Mock()
+        self.module = RabbitMQModule(self.mock_mcp, mock_mq_client_getter)
         self.module.register_rabbitmq_management_tools(allow_mutative_tools=False)
 
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.handle_get_cluster_nodes')
@@ -658,7 +692,8 @@ class TestRabbitMQBrokerListConnections:
             return func
 
         self.mock_mcp.tool.return_value = mock_tool_decorator
-        self.module = RabbitMQModule(self.mock_mcp)
+        mock_mq_client_getter = Mock()
+        self.module = RabbitMQModule(self.mock_mcp, mock_mq_client_getter)
         self.module.register_rabbitmq_management_tools(allow_mutative_tools=False)
 
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.handle_list_connections')
@@ -694,7 +729,8 @@ class TestRabbitMQBrokerListConsumers:
             return func
 
         self.mock_mcp.tool.return_value = mock_tool_decorator
-        self.module = RabbitMQModule(self.mock_mcp)
+        mock_mq_client_getter = Mock()
+        self.module = RabbitMQModule(self.mock_mcp, mock_mq_client_getter)
         self.module.register_rabbitmq_management_tools(allow_mutative_tools=False)
 
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.handle_list_consumers')
@@ -730,7 +766,8 @@ class TestRabbitMQBrokerListUsers:
             return func
 
         self.mock_mcp.tool.return_value = mock_tool_decorator
-        self.module = RabbitMQModule(self.mock_mcp)
+        mock_mq_client_getter = Mock()
+        self.module = RabbitMQModule(self.mock_mcp, mock_mq_client_getter)
         self.module.register_rabbitmq_management_tools(allow_mutative_tools=False)
 
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.handle_list_users')
@@ -766,7 +803,8 @@ class TestRabbitMQBrokerIsInAlarm:
             return func
 
         self.mock_mcp.tool.return_value = mock_tool_decorator
-        self.module = RabbitMQModule(self.mock_mcp)
+        mock_mq_client_getter = Mock()
+        self.module = RabbitMQModule(self.mock_mcp, mock_mq_client_getter)
         self.module.register_rabbitmq_management_tools(allow_mutative_tools=False)
 
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.handle_is_broker_in_alarm')
@@ -802,7 +840,8 @@ class TestRabbitMQBrokerIsQuorumCritical:
             return func
 
         self.mock_mcp.tool.return_value = mock_tool_decorator
-        self.module = RabbitMQModule(self.mock_mcp)
+        mock_mq_client_getter = Mock()
+        self.module = RabbitMQModule(self.mock_mcp, mock_mq_client_getter)
         self.module.register_rabbitmq_management_tools(allow_mutative_tools=False)
 
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.handle_is_node_in_quorum_critical')
@@ -838,7 +877,8 @@ class TestRabbitMQBrokerDeleteQueue:
             return func
 
         self.mock_mcp.tool.return_value = mock_tool_decorator
-        self.module = RabbitMQModule(self.mock_mcp)
+        mock_mq_client_getter = Mock()
+        self.module = RabbitMQModule(self.mock_mcp, mock_mq_client_getter)
         self.module.register_rabbitmq_management_tools(allow_mutative_tools=True)
 
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.validate_rabbitmq_name')
@@ -875,7 +915,8 @@ class TestRabbitMQBrokerPurgeQueue:
             return func
 
         self.mock_mcp.tool.return_value = mock_tool_decorator
-        self.module = RabbitMQModule(self.mock_mcp)
+        mock_mq_client_getter = Mock()
+        self.module = RabbitMQModule(self.mock_mcp, mock_mq_client_getter)
         self.module.register_rabbitmq_management_tools(allow_mutative_tools=True)
 
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.validate_rabbitmq_name')
@@ -912,7 +953,8 @@ class TestRabbitMQBrokerDeleteExchange:
             return func
 
         self.mock_mcp.tool.return_value = mock_tool_decorator
-        self.module = RabbitMQModule(self.mock_mcp)
+        mock_mq_client_getter = Mock()
+        self.module = RabbitMQModule(self.mock_mcp, mock_mq_client_getter)
         self.module.register_rabbitmq_management_tools(allow_mutative_tools=True)
 
     @patch('awslabs.amazon_mq_mcp_server.rabbitmq.module.validate_rabbitmq_name')
