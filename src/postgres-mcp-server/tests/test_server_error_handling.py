@@ -189,6 +189,8 @@ class TestConnectToDatabaseErrorHandling:
         mock_pool_conn.initialize_pool = AsyncMock(
             side_effect=Exception('pool initialization incomplete after 30 sec')
         )
+        # Eviction now also closes the failed connection to avoid leaking a pool.
+        mock_pool_conn.close = AsyncMock()
         mock_response = json.dumps(
             {
                 'connection_method': 'pgwire_iam',
@@ -227,6 +229,8 @@ class TestConnectToDatabaseErrorHandling:
                 5432,
             )
             assert conn is None
+            # And it was closed so the partially-opened pool isn't leaked.
+            mock_pool_conn.close.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_connect_to_database_rejects_superuser_and_removes_connection(self):
@@ -249,6 +253,7 @@ class TestConnectToDatabaseErrorHandling:
                 'records': [[{'booleanValue': True}, {'booleanValue': False}]],
             }
         )
+        mock_connection.close = AsyncMock()
         mock_response = json.dumps(
             {
                 'connection_method': 'rdsapi',
@@ -268,6 +273,9 @@ class TestConnectToDatabaseErrorHandling:
             ),
         ):
             mock_connect.return_value = (mock_connection, mock_response)
+            # Not a cache hit — force the fresh path so validation actually runs
+            # (a bare MagicMock map would otherwise return a truthy cached conn).
+            mock_map.get.return_value = None
 
             result = await connect_to_database(
                 region='us-east-1',
@@ -288,6 +296,8 @@ class TestConnectToDatabaseErrorHandling:
             # test_rejected_superuser_evicted_despite_key_mismatch for the
             # behavioral (real-map) proof.
             mock_map.remove_connection.assert_called_once_with(mock_connection)
+            # And the rejected connection is closed, not just unmapped.
+            mock_connection.close.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_rejected_superuser_evicted_despite_key_mismatch(self):
@@ -318,6 +328,7 @@ class TestConnectToDatabaseErrorHandling:
                 'records': [[{'booleanValue': True}, {'booleanValue': False}]],
             }
         )
+        mock_connection.close = AsyncMock()
         mock_response = json.dumps(
             {
                 'connection_method': 'rdsapi',
@@ -362,9 +373,111 @@ class TestConnectToDatabaseErrorHandling:
             # mismatch. A key-based remove() rebuilt from caller_endpoint=''
             # would have missed the entry stored under resolved_endpoint.
             assert db_connection_map.get(method, cluster, resolved_endpoint, database) is None
+            # And it was closed, not just unmapped.
+            mock_connection.close.assert_awaited_once()
         finally:
             # Defensive cleanup in case the assertion above failed.
             db_connection_map.remove_connection(mock_connection)
+
+    @pytest.mark.asyncio
+    async def test_rejection_close_failure_is_swallowed(self):
+        """If close() raises during cleanup, the rejection is still surfaced.
+
+        Closing a rejected connection is best-effort: a failure there must not
+        mask the original rejection or leave the connection reachable.
+        """
+        mock_connection = MagicMock()
+        mock_connection.execute_query = AsyncMock(
+            return_value={
+                'columnMetadata': [{'name': 'is_superuser'}, {'name': 'is_rds_superuser'}],
+                'records': [[{'booleanValue': True}, {'booleanValue': False}]],
+            }
+        )
+        mock_connection.close = AsyncMock(side_effect=RuntimeError('close failed'))
+        mock_response = json.dumps({'cluster_identifier': 'test-cluster'})
+
+        with (
+            patch('awslabs.postgres_mcp_server.server.internal_create_connection') as mock_connect,
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch('awslabs.postgres_mcp_server.server.privilege_check_policy', 'enforce'),
+        ):
+            mock_connect.return_value = (mock_connection, mock_response)
+            mock_map.get.return_value = None  # fresh path
+
+            result = await connect_to_database(
+                region='us-east-1',
+                database_type=DatabaseType.APG,
+                connection_method=ConnectionMethod.RDS_API,
+                cluster_identifier='test-cluster',
+                db_endpoint='test.endpoint.com',
+                port=5432,
+                database='testdb',
+            )
+
+        result_dict = json.loads(result)
+        assert result_dict['status'] == 'Failed'
+        assert 'over-privileged' in result_dict['error']
+        # Eviction and the (failing) close were both attempted.
+        mock_map.remove_connection.assert_called_once_with(mock_connection)
+        mock_connection.close.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_cached_connection_not_revalidated_or_evicted(self):
+        """A cache hit must skip re-validation (and eviction).
+
+        Re-probing a cached connection on every connect is redundant and, worse,
+        a transient probe failure would tear a healthy, in-use shared connection
+        out of the map. connect_to_database detects the cache hit (same key
+        internal_create_connection uses) and returns it without re-running the
+        privilege probe — so a probe that WOULD fail is never even called.
+        """
+        from awslabs.postgres_mcp_server.server import db_connection_map
+
+        method = ConnectionMethod.RDS_API
+        cluster = 'test-cluster-cached'
+        endpoint = 'writer.cached.example.com'
+        database = 'testdb'
+
+        cached_conn = MagicMock()
+        # If validation were (wrongly) run on the cached connection, this probe
+        # would raise and the except path would evict + close it.
+        cached_conn.execute_query = AsyncMock(side_effect=RuntimeError('transient throttle'))
+        cached_conn.close = AsyncMock()
+
+        # Seed the map so internal_create_connection would return this via its
+        # dedup early-return; connect_to_database's pre-check sees the same key.
+        db_connection_map.remove_connection(cached_conn)
+        db_connection_map.set(method, cluster, endpoint, database, cached_conn)
+
+        def fake_create(**kwargs):
+            return (cached_conn, '{"cluster_identifier": "test-cluster-cached"}')
+
+        try:
+            with (
+                patch(
+                    'awslabs.postgres_mcp_server.server.internal_create_connection',
+                    side_effect=fake_create,
+                ),
+                patch('awslabs.postgres_mcp_server.server.privilege_check_policy', 'enforce'),
+            ):
+                result = await connect_to_database(
+                    region='us-east-1',
+                    database_type=DatabaseType.APG,
+                    connection_method=method,
+                    cluster_identifier=cluster,
+                    db_endpoint=endpoint,
+                    port=5432,
+                    database=database,
+                )
+
+            # Not a failure, the probe never ran, close never called, and the
+            # connection is still cached.
+            assert '"status": "Failed"' not in result
+            cached_conn.execute_query.assert_not_awaited()
+            cached_conn.close.assert_not_awaited()
+            assert db_connection_map.get(method, cluster, endpoint, database) is cached_conn
+        finally:
+            db_connection_map.remove_connection(cached_conn)
 
 
 class TestDummyCtx:

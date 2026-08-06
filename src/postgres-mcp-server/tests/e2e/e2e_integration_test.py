@@ -402,14 +402,31 @@ async def provision_least_privilege_access(
         )
         server.readonly_query = saved_readonly
 
-    # 4. Store the role's credentials in a tagged secret.
+    # 4. Store the role's credentials in a tagged secret. If this fails after
+    # we've already created the IAM policy above, that policy would otherwise
+    # leak — deprovision is never called because we never return lp_info. So on
+    # failure, best-effort tear down whatever AWS artifacts were already created
+    # before re-raising. (The DB role is cleaned up by cluster deletion.)
     sm = boto3.client('secretsmanager', region_name=region)
     secret_name = f'mcp-e2e-lp-{cluster_identifier}-{datetime.now().strftime("%Y%m%d%H%M%S")}'
-    created = sm.create_secret(
-        Name=secret_name,
-        SecretString=_json.dumps({'username': lp_role, 'password': lp_password}),
-        Tags=[{'Key': 'mcp-e2e', 'Value': 'true'}],
-    )
+    try:
+        created = sm.create_secret(
+            Name=secret_name,
+            SecretString=_json.dumps({'username': lp_role, 'password': lp_password}),
+            Tags=[{'Key': 'mcp-e2e', 'Value': 'true'}],
+        )
+    except Exception:
+        await deprovision_least_privilege_access(
+            {
+                'role': lp_role,
+                'secret_arn': '',
+                'cluster_id': cluster_identifier,
+                'connection_method': connection_method,
+                'iam_policy_created': do_iam,
+            },
+            region,
+        )
+        raise
     logger.success(f'Provisioned least-privilege role {lp_role}; secret {secret_name}')
     return {
         'role': lp_role,
@@ -447,12 +464,14 @@ async def deprovision_least_privilege_access(lp_info: dict, region: str) -> None
     # Unpin the least-privilege secret.
     server.configured_secret_arns.pop(lp_info['cluster_id'], None)
 
-    # Delete the secret.
-    try:
-        sm = boto3.client('secretsmanager', region_name=region)
-        sm.delete_secret(SecretId=lp_info['secret_arn'], ForceDeleteWithoutRecovery=True)
-    except Exception as e:
-        logger.warning(f'deprovision delete_secret failed: {e}')
+    # Delete the secret (skip if none was created — e.g. this is a partial
+    # cleanup after create_secret failed).
+    if lp_info.get('secret_arn'):
+        try:
+            sm = boto3.client('secretsmanager', region_name=region)
+            sm.delete_secret(SecretId=lp_info['secret_arn'], ForceDeleteWithoutRecovery=True)
+        except Exception as e:
+            logger.warning(f'deprovision delete_secret failed: {e}')
 
     # Detach + delete the per-role IAM policy (only if one was created).
     iam_policy_created = lp_info.get(

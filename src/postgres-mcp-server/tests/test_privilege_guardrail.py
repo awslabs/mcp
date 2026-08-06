@@ -79,8 +79,17 @@ class FakeConnection(AbstractDBConnection):
         pass
 
     async def check_connection_health(self) -> bool:
-        """Report healthy; unused by the guardrail tests."""
-        return True
+        """Mirror the concrete connections' probe: run SELECT 1, report truthiness.
+
+        Records the query and returns False (rather than raising) on error, like
+        PsycopgPoolConnection / RDSDataAPIConnection — so the 'off' path, which
+        now reuses this probe, is exercised faithfully.
+        """
+        try:
+            result = await self.execute_query('SELECT 1')
+            return len(result.get('records', [])) > 0
+        except Exception:
+            return False
 
 
 class TestValidateConnectionEnforce:
@@ -93,6 +102,9 @@ class TestValidateConnectionEnforce:
         with pytest.raises(ConnectionValidationError) as exc:
             await validate_connection(conn, PRIVILEGE_CHECK_ENFORCE)
         assert 'superuser' in str(exc.value).lower()
+        # The over-privileged message carries its own override guidance so the
+        # startup handler doesn't need to append a (sometimes-wrong) hint.
+        assert '--privilege_check' in str(exc.value)
         # The privilege query (not a bare SELECT 1) was used.
         assert conn.queries == [POSTGRES_PRIVILEGE_QUERY]
 
@@ -135,6 +147,19 @@ class TestValidateConnectionEnforce:
         with pytest.raises(ConnectionValidationError) as exc:
             await validate_connection(conn, PRIVILEGE_CHECK_ENFORCE)
         assert 'fail-closed' in str(exc.value).lower()
+
+    @pytest.mark.asyncio
+    async def test_connectivity_failure_message_has_no_override_hint(self):
+        """A connectivity fail-closed message must NOT suggest --privilege_check.
+
+        Relaxing the policy can't make an unreachable DB reachable, so the
+        override hint (which belongs only on over-privileged rejections) must
+        not appear here.
+        """
+        conn = FakeConnection(exc=RuntimeError('connection reset'))
+        with pytest.raises(ConnectionValidationError) as exc:
+            await validate_connection(conn, PRIVILEGE_CHECK_ENFORCE)
+        assert '--privilege_check' not in str(exc.value)
 
     @pytest.mark.asyncio
     async def test_empty_result_fails_closed(self):
@@ -214,7 +239,7 @@ class TestValidateConnectionOff:
 
     @pytest.mark.asyncio
     async def test_off_runs_select_1_only(self):
-        """Under off, only SELECT 1 runs; the privilege query is skipped."""
+        """Under off, only SELECT 1 runs (shared health probe); privilege query skipped."""
         # Even a would-be superuser response is irrelevant: off never asks.
         conn = FakeConnection(response=privilege_response(True, True))
         await validate_connection(conn, PRIVILEGE_CHECK_OFF)
@@ -222,11 +247,48 @@ class TestValidateConnectionOff:
         assert POSTGRES_PRIVILEGE_QUERY not in conn.queries
 
     @pytest.mark.asyncio
-    async def test_off_connectivity_failure_propagates(self):
-        """Under off, a failed connectivity check still propagates."""
+    async def test_off_connectivity_failure_rejects(self):
+        """Under off, a failed connectivity check still fails fast.
+
+        The off path now reuses check_connection_health() (which returns False
+        rather than raising), so validate_connection raises
+        ConnectionValidationError instead of propagating the raw error — but the
+        fail-fast guarantee is preserved.
+        """
         conn = FakeConnection(exc=RuntimeError('cannot connect'))
-        with pytest.raises(RuntimeError):
+        with pytest.raises(ConnectionValidationError):
             await validate_connection(conn, PRIVILEGE_CHECK_OFF)
+
+    @pytest.mark.asyncio
+    async def test_off_empty_health_result_rejects(self):
+        """Under off, a SELECT 1 that returns no rows is treated as unhealthy."""
+        conn = FakeConnection(response={'columnMetadata': [], 'records': []})
+        with pytest.raises(ConnectionValidationError):
+            await validate_connection(conn, PRIVILEGE_CHECK_OFF)
+
+
+class TestValidateConnectionUnknownPolicy:
+    """An unrecognized policy value must fail closed (behave like enforce)."""
+
+    @pytest.mark.asyncio
+    async def test_unknown_policy_rejects_superuser(self):
+        """A superuser under an unknown policy is rejected, not allowed."""
+        conn = FakeConnection(response=privilege_response(True, False))
+        with pytest.raises(ConnectionValidationError):
+            await validate_connection(conn, 'bogus-policy')
+
+    @pytest.mark.asyncio
+    async def test_unknown_policy_rejects_on_probe_error(self):
+        """A probe failure under an unknown policy fails closed."""
+        conn = FakeConnection(exc=RuntimeError('boom'))
+        with pytest.raises(ConnectionValidationError):
+            await validate_connection(conn, 'bogus-policy')
+
+    @pytest.mark.asyncio
+    async def test_unknown_policy_allows_clean_role(self):
+        """A non-superuser role under an unknown policy is allowed (no raise)."""
+        conn = FakeConnection(response=privilege_response(False, False))
+        await validate_connection(conn, 'bogus-policy')
 
 
 class TestPrivilegeQueryShape:

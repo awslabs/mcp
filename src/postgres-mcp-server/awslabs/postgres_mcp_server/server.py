@@ -169,7 +169,8 @@ async def validate_connection(db_connection: AbstractDBConnection, policy: str) 
     connect_to_database tool). The privilege query doubles as a connectivity
     check. Behaviour by policy:
 
-      - 'off':     connectivity only (SELECT 1); no privilege check.
+      - 'off':     connectivity only (a shared SELECT 1 health probe); no
+                   privilege check.
       - 'warn':    run the privilege check. If the role is over-privileged or
                    its privileges can't be determined, log a warning but still
                    ALLOW the connection. However, if the check query cannot run
@@ -180,6 +181,10 @@ async def validate_connection(db_connection: AbstractDBConnection, policy: str) 
       - 'enforce': run the privilege check; raise ConnectionValidationError
                    on a violation, or if the check could not be performed
                    (fail-closed).
+
+    Any unrecognized policy value is treated as 'enforce' (fail-closed) so a
+    typo or a direct global assignment that bypasses argparse can never
+    silently allow an over-privileged connection.
 
     The primary security boundary is a least-privilege database role; this
     guardrail simply refuses to operate as superuser / rds_superuser so the
@@ -194,8 +199,12 @@ async def validate_connection(db_connection: AbstractDBConnection, policy: str) 
             or when privileges cannot be verified.
     """
     if policy == PRIVILEGE_CHECK_OFF:
-        # Connectivity only — prove the connection can execute a trivial query.
-        await db_connection.execute_query('SELECT 1')
+        # Connectivity only — reuse the connection's own SELECT 1 health probe
+        # instead of hand-rolling one. check_connection_health() returns False
+        # (and logs the underlying error) on failure, so translate that into a
+        # raised error to preserve fail-fast behavior at startup / connect.
+        if not await db_connection.check_connection_health():
+            raise ConnectionValidationError('Connectivity check failed: SELECT 1 did not succeed.')
         return
 
     try:
@@ -211,7 +220,9 @@ async def validate_connection(db_connection: AbstractDBConnection, policy: str) 
         # let an unreachable/mis-authenticated connection start up as if
         # healthy).
         message = f'Could not verify connection role privileges: {type(e).__name__}: {e}'
-        if policy == PRIVILEGE_CHECK_ENFORCE:
+        # Fail-closed for enforce AND any unrecognized policy; only an explicit
+        # 'warn' propagates the raw error without wrapping.
+        if policy != PRIVILEGE_CHECK_WARN:
             raise ConnectionValidationError(f'{message}. Rejecting connection (fail-closed).')
         logger.warning(f'{message}. Connectivity check failed; rejecting connection.')
         raise
@@ -222,7 +233,8 @@ async def validate_connection(db_connection: AbstractDBConnection, policy: str) 
     # actually inspect.
     if not rows or 'is_superuser' not in rows[0] or 'is_rds_superuser' not in rows[0]:
         message = 'Could not determine connection role privileges (unexpected result shape).'
-        if policy == PRIVILEGE_CHECK_ENFORCE:
+        # Fail-closed for enforce AND any unrecognized policy; only 'warn' allows.
+        if policy != PRIVILEGE_CHECK_WARN:
             raise ConnectionValidationError(f'{message} Rejecting connection (fail-closed).')
         logger.warning(f'{message} Allowing connection (privilege_check=warn).')
         return
@@ -241,9 +253,12 @@ async def validate_connection(db_connection: AbstractDBConnection, policy: str) 
             f'({" and ".join(flags)}). A superuser / rds_superuser role bypasses '
             f'row-level security, can read credential catalogs, and can terminate '
             f'other sessions. Connect using a dedicated least-privilege role '
-            f'instead (see the Security Consideration section of README.md).'
+            f'instead (see the Security Consideration section of README.md). '
+            f'To run with this role anyway, set --privilege_check=warn or off '
+            f'(not recommended).'
         )
-        if policy == PRIVILEGE_CHECK_ENFORCE:
+        # Fail-closed for enforce AND any unrecognized policy; only 'warn' allows.
+        if policy != PRIVILEGE_CHECK_WARN:
             raise ConnectionValidationError(message)
         logger.warning(f'{message} Allowing connection (privilege_check=warn).')
         return
@@ -460,6 +475,21 @@ async def connect_to_database(
             db_endpoint must be set
     """
     try:
+        # Detect a cache hit using the SAME key internal_create_connection uses
+        # for its dedup early-return. internal_create_connection is synchronous,
+        # so nothing interleaves between this check and the call. A cached
+        # connection was already validated when it was first created; re-running
+        # pool init / the privilege probe on it is redundant (an extra
+        # round-trip / billable Data API call) and, worse, a transient probe
+        # failure (throttling, Serverless resume, pool timeout) would evict a
+        # healthy, in-use shared connection — so skip re-validation for it.
+        was_cached = (
+            db_connection_map.get(
+                connection_method, cluster_identifier, db_endpoint, database, port
+            )
+            is not None
+        )
+
         db_connection, llm_response = internal_create_connection(
             region=region,
             database_type=database_type,
@@ -470,36 +500,34 @@ async def connect_to_database(
             database=database,
         )
 
-        # Eagerly initialize the connection pool so it's ready for queries
-        # and created_time is set at connect time, not at first query time
-        if isinstance(db_connection, PsycopgPoolConnection):
-            try:
-                await db_connection.initialize_pool()
-            except Exception:
-                # Pool failed to open — remove the broken connection from the map
-                # so the next connect attempt creates a fresh one. Evict by
-                # object identity: internal_create_connection stored it under the
-                # AWS-resolved endpoint/port, which may not match the
-                # caller-supplied db_endpoint/port here (e.g. empty db_endpoint
-                # or non-5432 port), so a key-based remove() could silently
-                # no-op and leave the broken connection cached.
-                db_connection_map.remove_connection(db_connection)
-                raise
+        if was_cached:
+            return str(llm_response)
 
-        # Post-connect validation: connectivity + least-privilege guardrail.
-        # A superuser / rds_superuser connection is rejected under the default
-        # 'enforce' policy. Remove the connection from the map on failure so it
-        # cannot be reached later via run_query. Evict by object identity:
-        # internal_create_connection stored the connection under the
-        # AWS-resolved endpoint/port, which may differ from the caller-supplied
-        # db_endpoint/port here (empty db_endpoint, non-5432 port, host casing).
-        # A key-based remove() rebuilt from the caller args could miss the
-        # actual key, leave the rejected connection cached, and defeat the
-        # guardrail. See the connection-map key-normalization follow-up.
+        # Newly-created connection: eagerly initialize the pool (so it's ready
+        # for queries and created_time is set at connect time) and run the
+        # least-privilege guardrail. On ANY failure, evict AND close the fresh
+        # connection:
+        #   - evict so a rejected/broken connection can't be reached later via
+        #     run_query (fail-closed: a fresh connection we could not validate
+        #     must not remain cached);
+        #   - close so we don't orphan an already-opened AsyncConnectionPool
+        #     with live backend sessions.
+        # Evict by object identity because the map key uses the AWS-resolved
+        # endpoint/port, which may differ from the caller-supplied args here
+        # (empty db_endpoint, non-5432 port, host casing); a key-based remove()
+        # rebuilt from caller args could miss and leave the connection cached.
         try:
+            if isinstance(db_connection, PsycopgPoolConnection):
+                await db_connection.initialize_pool()
             await validate_connection(db_connection, privilege_check_policy)
         except Exception:
             db_connection_map.remove_connection(db_connection)
+            try:
+                await db_connection.close()
+            except Exception as close_err:
+                logger.warning(
+                    f'Error closing rejected/failed connection during cleanup: {close_err}'
+                )
             raise
 
         return str(llm_response)
@@ -1374,10 +1402,12 @@ def main():
                     asyncio.run(validate_connection(db_connection, privilege_check_policy))
                     logger.success('Successfully validated database connection to Postgres')
                 except ConnectionValidationError as e:
-                    logger.error(
-                        f'Refusing to start: {e} '
-                        '(set --privilege_check to warn/off to override, not recommended)'
-                    )
+                    # The exception message carries its own remediation: an
+                    # over-privileged rejection mentions the --privilege_check
+                    # override, while a connectivity/unverifiable failure does
+                    # not (relaxing the policy would not make an unreachable DB
+                    # reachable).
+                    logger.error(f'Refusing to start: {e}')
                     sys.exit(1)
                 except Exception as e:
                     logger.error(
