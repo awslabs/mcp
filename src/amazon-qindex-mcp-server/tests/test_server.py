@@ -257,9 +257,9 @@ class TestServerErrorHandling:
 
         with pytest.raises(ValueError):
             await search_relevant_content(
-                application_id=None,
+                application_id=None,  # pyright: ignore[reportArgumentType]
                 query_text='test',
-                qbuiness_region='us-east-1',  # pyright: ignore[reportArgumentType]
+                qbuiness_region='us-east-1',
             )
 
     @pytest.mark.asyncio
