@@ -17,6 +17,7 @@
 
 import boto3
 import os
+import re
 from awslabs.timestream_for_influxdb_mcp_server import __version__
 from botocore.config import Config
 from influxdb_client.client.influxdb_client import InfluxDBClient
@@ -40,6 +41,7 @@ INFLUXDB_TOKEN = os.environ.get('INFLUXDB_TOKEN')
 INFLUXDB_URL = os.environ.get('INFLUXDB_URL')
 INFLUXDB_ORG = os.environ.get('INFLUXDB_ORG')
 INFLUXDB_ALLOWED_URLS = os.environ.get('INFLUXDB_ALLOWED_URLS', '')
+INFLUXDB_WRITE_MODE = os.environ.get('INFLUXDB_WRITE_MODE', 'false').lower() == 'true'
 
 # Define Field parameters as global variables to avoid duplication
 # Common fields
@@ -435,6 +437,63 @@ def get_influxdb_client(url, token, org=None, timeout=10000, verify_ssl: bool = 
     return InfluxDBClient(
         url=url, token=token, org=org_param, timeout=timeout, verify_ssl=verify_ssl
     )
+
+
+def validate_flux_query(query: str) -> None:
+    """Validate that a Flux query does not contain write-producing operations.
+
+    When INFLUXDB_WRITE_MODE is disabled (default), this function rejects Flux
+    queries that contain functions capable of writing data to InfluxDB. This
+    provides defense-in-depth protection against data modification through
+    the query interface.
+
+    The following write-producing Flux functions are blocked:
+    - to() — standard write function (influxdata/influxdb/to)
+    - experimental.to() — experimental write function
+    - wideTo() / influxdb.wideTo() — writes wide/pivoted data
+
+    Args:
+        query: The Flux query string to validate.
+
+    Raises:
+        ValueError: If the query contains write-producing operations and
+            INFLUXDB_WRITE_MODE is not enabled.
+    """
+    if INFLUXDB_WRITE_MODE:
+        return
+
+    # Strip single-line comments (// ...) to avoid false positives from commented-out code.
+    # Preserve line structure so that multi-line patterns still work.
+    stripped = re.sub(r'//[^\n]*', '', query)
+
+    # Patterns to detect write-producing Flux functions.
+    # These cover:
+    #   - Pipe-forward to `to(` — e.g. `|> to(bucket: "x")`
+    #   - Standalone or qualified calls — e.g. `to(bucket: "x")`,
+    #     `experimental.to(`, `influxdb.wideTo(`
+    #   - Aliased imports — e.g. `import ex "experimental"` then `ex.to(`
+    # The word-boundary and parenthesis requirements minimize false positives
+    # from identifiers like `toString` or field names containing "to".
+    write_patterns = [
+        # Pipe-forward into to(): |> to(
+        r'\|>\s*to\s*\(',
+        # Qualified calls: experimental.to( or <alias>.to( preceded by word char + dot
+        r'\w+\.to\s*\(',
+        # wideTo as standalone or qualified: wideTo( or <qualifier>.wideTo(
+        r'(?:\w+\.)?wideTo\s*\(',
+        # Standalone to() at statement level — preceded by start-of-line or semicolon
+        # but NOT preceded by a dot (which would be a method on something else).
+        r'(?:^|;\s*)to\s*\(',
+    ]
+
+    for pattern in write_patterns:
+        if re.search(pattern, stripped, re.MULTILINE):
+            raise ValueError(
+                'Query contains a write-producing Flux operation (to(), experimental.to(), '
+                'or wideTo()) which is not allowed when INFLUXDB_WRITE_MODE is not enabled. '
+                'Set the INFLUXDB_WRITE_MODE=true environment variable to allow write '
+                'operations through Flux queries.'
+            )
 
 
 @mcp.tool(
@@ -1365,6 +1424,9 @@ async def influxdb_query(
     Returns:
         Query results in the specified format.
     """
+    # Validate query does not contain write-producing operations in read-only mode
+    validate_flux_query(query)
+
     resolved_url, resolved_token, resolved_org = resolve_influxdb_config(url, token, org)
 
     try:
