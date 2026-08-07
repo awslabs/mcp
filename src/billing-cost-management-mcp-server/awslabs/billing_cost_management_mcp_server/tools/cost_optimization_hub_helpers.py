@@ -220,15 +220,14 @@ async def list_recommendations(
 
 
 async def get_recommendation(
-    ctx: Context, coh_client: Any, resource_id: str, resource_type: str
+    ctx: Context, coh_client: Any, recommendation_id: str
 ) -> Dict[str, Any]:
     """Get detailed information about a specific recommendation.
 
     Args:
         ctx: MCP context
         coh_client: Cost Optimization Hub client
-        resource_id: Recommendation ID to retrieve
-        resource_type: Resource type (for compatibility, not used in API call)
+        recommendation_id: Recommendation ID to retrieve
 
     Returns:
         Dict containing detailed recommendation information
@@ -238,10 +237,10 @@ async def get_recommendation(
 
     try:
         # Prepare the request parameters
-        request_params = {'recommendationId': resource_id}
+        request_params = {'recommendationId': recommendation_id}
 
         # Make the API call
-        await ctx_logger.info(f'Fetching recommendation {resource_id}')
+        await ctx_logger.info(f'Fetching recommendation {recommendation_id}')
         response = coh_client.get_recommendation(**request_params)
 
         # The response IS the recommendation data
@@ -249,16 +248,15 @@ async def get_recommendation(
 
         if not recommendation:
             await ctx_logger.warning(
-                f'No recommendation found for resource {resource_id} of type {resource_type}'
+                f'No recommendation found for recommendation {recommendation_id}'
             )
             return format_response(
                 'warning',
                 {
-                    'resource_id': resource_id,
-                    'resource_type': resource_type,
-                    'message': 'No recommendation found for the specified resource.',
+                    'recommendation_id': recommendation_id,
+                    'message': 'No recommendation found for the specified recommendation.',
                 },
-                'No recommendation found. The resource may not have optimization opportunities, or the resource ID/type may be incorrect.',
+                'No recommendation found. The recommendation may not have optimization opportunities, or the recommendation ID may be incorrect.',
             )
 
         # Build response using actual API fields
@@ -324,10 +322,9 @@ async def get_recommendation(
                 'warning',
                 {
                     'error_code': error_code,
-                    'resource_id': resource_id,
-                    'resource_type': resource_type,
+                    'recommendation_id': recommendation_id,
                 },
-                f'Resource {resource_id} of type {resource_type} not found in Cost Optimization Hub.',
+                f'Recommendation {recommendation_id} not found in Cost Optimization Hub.',
             )
         else:
             # Re-raise for other errors
