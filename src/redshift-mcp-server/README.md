@@ -260,6 +260,10 @@ Sales data between Analytics cluster and ETL workgroup is perfectly synchronized
 | Nov 2008 | $9,044,905        | $9,044,905    | 14,261         | 14,261   | Match  |
 | Oct 2008 | $10,726,368       | $10,726,368   | 16,741         | 16,741   | Match  |
 
+## Key Findings
+- Data Integrity: Perfect synchronization across all metrics
+- Verification: Transaction-level details match exactly (verified 10 recent records)
+
 > Briefly describe your actions.
 I analyzed sales data from your Redshift environments by:
 
@@ -303,10 +307,6 @@ WHERE saletime >= '2008-12-30'
 ORDER BY saletime DESC, salesid DESC
 LIMIT 10;
 ```
-
-## Key Findings
-- Data Integrity: Perfect synchronization across all metrics
-- Verification: Transaction-level details match exactly (verified 10 recent records)
 
 ## Tools
 
