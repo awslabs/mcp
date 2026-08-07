@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Corrected AWS Compute Optimizer recommendation response field names so EC2, Auto Scaling group, Lambda, and RDS tools return actual values instead of null. Fixed the shared savings-opportunity parser (`savingsOpportunityPercentage`), projected utilization metrics, EC2/RDS idle flags, nested ASG instance types, and the RDS instance/storage recommendation schema.
+- Corrected AWS Compute Optimizer ECS and Lambda recommendation response field names that read non-existent SDK fields and returned null. ECS now reads `currentPerformanceRisk`, `autoScalingConfiguration`, and `projectedUtilizationMetrics` (previously the non-existent `currentPerformance`, `autoScalingGroupArn`, and `projectedPerformance`), and Lambda derives the function name from the ARN (there is no `functionName` field).
 
 ## [0.0.4] - 2025-10-27
 ### Added
