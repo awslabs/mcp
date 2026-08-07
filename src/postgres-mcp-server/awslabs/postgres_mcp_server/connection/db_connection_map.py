@@ -103,6 +103,32 @@ class DBConnectionMap:
                     f'Try to remove a non-existing connection. {method} {cluster_identifier} {db_endpoint} {database} {port}'
                 )
 
+    def remove_connection(self, conn: AbstractDBConnection) -> bool:
+        """Remove a connection by object identity, regardless of its map key.
+
+        Prefer this over ``remove()`` when evicting a connection you already
+        hold a reference to (e.g. cleaning up a failed/rejected connection in
+        ``connect_to_database``).
+
+        Why: the map key is built from the AWS-*resolved* endpoint/port, and
+        ``set()`` does not receive ``port`` (so it is always stored as the
+        5432 default), whereas callers pass the *caller-supplied* endpoint/port
+        to ``get()``/``remove()``. Those keys can diverge (empty db_endpoint,
+        non-5432 port, differing host casing), which makes key-based
+        ``remove()`` silently no-op and leave the connection cached. Evicting
+        by identity sidesteps that entirely. See the tracked follow-up on
+        connection-map key normalization for the broader fix.
+
+        Returns:
+            True if a matching connection was found and removed, else False.
+        """
+        with self._lock:
+            for key, existing in list(self.map.items()):
+                if existing is conn:
+                    del self.map[key]
+                    return True
+        return False
+
     def get_keys_json(self) -> str:
         """Get all connection keys as JSON string."""
         entries: List[dict] = []

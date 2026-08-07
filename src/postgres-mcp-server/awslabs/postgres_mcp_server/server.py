@@ -68,6 +68,17 @@ query_comment_prohibited_key = 'The comment in query is prohibited because of in
 query_injection_risk_key = 'Your query contains risky injection patterns'
 readonly_query = True
 
+# Least-privilege guardrail policy for post-connect validation.
+#   'enforce' (default): reject a connection whose Postgres role is a
+#       superuser or a member of rds_superuser.
+#   'warn': log a warning but allow the connection.
+#   'off': skip the privilege check entirely (connectivity only).
+# Set from the --privilege_check CLI arg in main().
+PRIVILEGE_CHECK_ENFORCE = 'enforce'
+PRIVILEGE_CHECK_WARN = 'warn'
+PRIVILEGE_CHECK_OFF = 'off'
+privilege_check_policy = PRIVILEGE_CHECK_ENFORCE
+
 # Per-target Secrets Manager ARN overrides configured at server startup via
 # repeatable --secret_arn flags. Lookups are by:
 #   - Cluster identifier (e.g. 'mcp-prod-1') for Aurora / RDS-multi-AZ-cluster
@@ -125,6 +136,134 @@ def parse_execute_response(response: dict) -> list[dict]:
         records.append(row_data)
 
     return records
+
+
+class ConnectionValidationError(Exception):
+    """Raised when a freshly established connection fails post-connect validation.
+
+    Currently signals a least-privilege violation (the connected Postgres
+    role is a superuser or a member of rds_superuser) under the 'enforce'
+    policy, or an inability to verify the role's privileges (fail-closed).
+    """
+
+
+# Determine whether the connected role is a superuser or a member of the
+# managed rds_superuser role. current_user can always read its own row in
+# the pg_roles view, and the EXISTS clause evaluates to false (rather than
+# erroring) on clusters where rds_superuser does not exist (e.g. self-hosted
+# PostgreSQL), so the query is safe across managed and unmanaged deployments.
+POSTGRES_PRIVILEGE_QUERY = (
+    'SELECT rolsuper AS is_superuser, '
+    'EXISTS ('
+    "SELECT 1 FROM pg_roles r WHERE r.rolname = 'rds_superuser' "
+    "AND pg_has_role(current_user, r.oid, 'MEMBER')"
+    ') AS is_rds_superuser '
+    'FROM pg_roles WHERE rolname = current_user'
+)
+
+
+async def validate_connection(db_connection: AbstractDBConnection, policy: str) -> None:
+    """Post-connect validation: connectivity plus a least-privilege guardrail.
+
+    Runs once when a connection is established (at startup and via the
+    connect_to_database tool). The privilege query doubles as a connectivity
+    check. Behaviour by policy:
+
+      - 'off':     connectivity only (a shared SELECT 1 health probe); no
+                   privilege check.
+      - 'warn':    run the privilege check. If the role is over-privileged or
+                   its privileges can't be determined, log a warning but still
+                   ALLOW the connection. However, if the check query cannot run
+                   at all (database unreachable or authentication failed), that
+                   error is raised, not suppressed: 'warn' only softens the
+                   privilege check, it does not waive the need for a working
+                   connection.
+      - 'enforce': run the privilege check; raise ConnectionValidationError
+                   on a violation, or if the check could not be performed
+                   (fail-closed).
+
+    Any unrecognized policy value is treated as 'enforce' (fail-closed) so a
+    typo or a direct global assignment that bypasses argparse can never
+    silently allow an over-privileged connection.
+
+    The primary security boundary is a least-privilege database role; this
+    guardrail simply refuses to operate as superuser / rds_superuser so the
+    MCP is not silently running with cluster-wide privileges.
+
+    Args:
+        db_connection: the freshly established data-plane connection.
+        policy: one of 'enforce', 'warn', 'off'.
+
+    Raises:
+        ConnectionValidationError: under 'enforce', on a privilege violation
+            or when privileges cannot be verified.
+    """
+    if policy == PRIVILEGE_CHECK_OFF:
+        # Connectivity only — reuse the connection's own SELECT 1 health probe
+        # instead of hand-rolling one. check_connection_health() returns False
+        # (and logs the underlying error) on failure, so translate that into a
+        # raised error to preserve fail-fast behavior at startup / connect.
+        if not await db_connection.check_connection_health():
+            raise ConnectionValidationError('Connectivity check failed: SELECT 1 did not succeed.')
+        return
+
+    try:
+        response = await db_connection.execute_query(POSTGRES_PRIVILEGE_QUERY)
+        rows = parse_execute_response(response)
+    except Exception as e:
+        # A thrown error here means the probe query did not execute at all —
+        # a genuine connectivity/auth failure, not merely an "unverifiable
+        # privilege". Connectivity is required under every policy: 'warn'
+        # relaxes the privilege guardrail, not the requirement that the
+        # connection works. Fail closed under enforce; propagate the
+        # underlying error under warn (previously this was swallowed, which
+        # let an unreachable/mis-authenticated connection start up as if
+        # healthy).
+        message = f'Could not verify connection role privileges: {type(e).__name__}: {e}'
+        # Fail-closed for enforce AND any unrecognized policy; only an explicit
+        # 'warn' propagates the raw error without wrapping.
+        if policy != PRIVILEGE_CHECK_WARN:
+            raise ConnectionValidationError(f'{message}. Rejecting connection (fail-closed).')
+        logger.warning(f'{message}. Connectivity check failed; rejecting connection.')
+        raise
+
+    # Treat both an empty result set and a result missing the expected
+    # columns as "unverifiable" — we control the query, so this should not
+    # happen, but a guardrail must not silently pass a role it could not
+    # actually inspect.
+    if not rows or 'is_superuser' not in rows[0] or 'is_rds_superuser' not in rows[0]:
+        message = 'Could not determine connection role privileges (unexpected result shape).'
+        # Fail-closed for enforce AND any unrecognized policy; only 'warn' allows.
+        if policy != PRIVILEGE_CHECK_WARN:
+            raise ConnectionValidationError(f'{message} Rejecting connection (fail-closed).')
+        logger.warning(f'{message} Allowing connection (privilege_check=warn).')
+        return
+
+    is_superuser = bool(rows[0].get('is_superuser'))
+    is_rds_superuser = bool(rows[0].get('is_rds_superuser'))
+
+    if is_superuser or is_rds_superuser:
+        flags = []
+        if is_superuser:
+            flags.append('a superuser')
+        if is_rds_superuser:
+            flags.append('a member of rds_superuser')
+        message = (
+            f'The MCP server is connecting as an over-privileged Postgres role '
+            f'({" and ".join(flags)}). A superuser / rds_superuser role bypasses '
+            f'row-level security, can read credential catalogs, and can terminate '
+            f'other sessions. Connect using a dedicated least-privilege role '
+            f'instead (see the Security Consideration section of README.md). '
+            f'To run with this role anyway, set --privilege_check=warn or off '
+            f'(not recommended).'
+        )
+        # Fail-closed for enforce AND any unrecognized policy; only 'warn' allows.
+        if policy != PRIVILEGE_CHECK_WARN:
+            raise ConnectionValidationError(message)
+        logger.warning(f'{message} Allowing connection (privilege_check=warn).')
+        return
+
+    logger.debug('Connection role privilege check passed (not superuser / rds_superuser).')
 
 
 mcp = FastMCP(
@@ -336,6 +475,21 @@ async def connect_to_database(
             db_endpoint must be set
     """
     try:
+        # Detect a cache hit using the SAME key internal_create_connection uses
+        # for its dedup early-return. internal_create_connection is synchronous,
+        # so nothing interleaves between this check and the call. A cached
+        # connection was already validated when it was first created; re-running
+        # pool init / the privilege probe on it is redundant (an extra
+        # round-trip / billable Data API call) and, worse, a transient probe
+        # failure (throttling, Serverless resume, pool timeout) would evict a
+        # healthy, in-use shared connection — so skip re-validation for it.
+        was_cached = (
+            db_connection_map.get(
+                connection_method, cluster_identifier, db_endpoint, database, port
+            )
+            is not None
+        )
+
         db_connection, llm_response = internal_create_connection(
             region=region,
             database_type=database_type,
@@ -346,18 +500,35 @@ async def connect_to_database(
             database=database,
         )
 
-        # Eagerly initialize the connection pool so it's ready for queries
-        # and created_time is set at connect time, not at first query time
-        if isinstance(db_connection, PsycopgPoolConnection):
-            try:
+        if was_cached:
+            return str(llm_response)
+
+        # Newly-created connection: eagerly initialize the pool (so it's ready
+        # for queries and created_time is set at connect time) and run the
+        # least-privilege guardrail. On ANY failure, evict AND close the fresh
+        # connection:
+        #   - evict so a rejected/broken connection can't be reached later via
+        #     run_query (fail-closed: a fresh connection we could not validate
+        #     must not remain cached);
+        #   - close so we don't orphan an already-opened AsyncConnectionPool
+        #     with live backend sessions.
+        # Evict by object identity because the map key uses the AWS-resolved
+        # endpoint/port, which may differ from the caller-supplied args here
+        # (empty db_endpoint, non-5432 port, host casing); a key-based remove()
+        # rebuilt from caller args could miss and leave the connection cached.
+        try:
+            if isinstance(db_connection, PsycopgPoolConnection):
                 await db_connection.initialize_pool()
-            except Exception:
-                # Pool failed to open — remove the broken connection from the map
-                # so the next connect attempt creates a fresh one
-                db_connection_map.remove(
-                    connection_method, cluster_identifier, db_endpoint, database, port
+            await validate_connection(db_connection, privilege_check_policy)
+        except Exception:
+            db_connection_map.remove_connection(db_connection)
+            try:
+                await db_connection.close()
+            except Exception as close_err:
+                logger.warning(
+                    f'Error closing rejected/failed connection during cleanup: {close_err}'
                 )
-                raise
+            raise
 
         return str(llm_response)
 
@@ -884,6 +1055,13 @@ def internal_create_connection(
         )
 
     if db_connection:
+        # NOTE: the key here uses the AWS-resolved db_endpoint (overwritten
+        # above) and omits port, so it is stored as the 5432 default. This is
+        # NOT the same key callers reconstruct in get()/remove() from their
+        # own (pre-resolution) db_endpoint/port. Do not rely on rebuilding this
+        # key to evict a specific connection — use
+        # db_connection_map.remove_connection(conn) instead. Tracked for a
+        # broader key-normalization fix (see connection-map follow-up issue).
         db_connection_map.set(
             connection_method, cluster_identifier, db_endpoint, database, db_connection
         )
@@ -1072,6 +1250,7 @@ def main():
     global readonly_query
     global configured_secret_arns
     global configured_default_secret_arn
+    global privilege_check_policy
 
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for postgres'
@@ -1085,6 +1264,17 @@ def main():
     parser.add_argument('--db_type', help='APG for Aurora Postgres or RPG for RDS Postgres')
     parser.add_argument('--db_endpoint', help='Instance endpoint address')
     parser.add_argument('--region', help='AWS region')
+    parser.add_argument(
+        '--privilege_check',
+        choices=[PRIVILEGE_CHECK_ENFORCE, PRIVILEGE_CHECK_WARN, PRIVILEGE_CHECK_OFF],
+        default=PRIVILEGE_CHECK_ENFORCE,
+        help=(
+            'Least-privilege guardrail applied when a database connection is established. '
+            "'enforce' (default) rejects a connection whose Postgres role is a superuser or "
+            "a member of rds_superuser; 'warn' logs a warning but allows it; 'off' skips the "
+            'check. Use a dedicated least-privilege role (see README) rather than relaxing this.'
+        ),
+    )
     parser.add_argument(
         '--allow_write_query', action='store_true', help='Enforce readonly SQL statements'
     )
@@ -1166,6 +1356,7 @@ def main():
     )
 
     readonly_query = not args.allow_write_query
+    privilege_check_policy = args.privilege_check
     configured_secret_arns.clear()
     configured_secret_arns.update(secret_arn_map)
     configured_default_secret_arn = default_secret_arn
@@ -1203,31 +1394,27 @@ def main():
                 database=args.database,
             )
 
-            # Test database connection
+            # Validate the database connection: connectivity plus the
+            # least-privilege guardrail. Under the default 'enforce' policy a
+            # superuser / rds_superuser connection aborts startup.
             if db_connection:
-                ctx = DummyCtx()
-                response = asyncio.run(
-                    run_query(
-                        'SELECT 1',
-                        ctx,
-                        ConnectionMethod[args.connection_method],
-                        cluster_identifier,
-                        args.db_endpoint,
-                        args.database,
-                    )
-                )
-                if (
-                    isinstance(response, list)
-                    and len(response) == 1
-                    and isinstance(response[0], dict)
-                    and 'error' in response[0]
-                ):
+                try:
+                    asyncio.run(validate_connection(db_connection, privilege_check_policy))
+                    logger.success('Successfully validated database connection to Postgres')
+                except ConnectionValidationError as e:
+                    # The exception message carries its own remediation: an
+                    # over-privileged rejection mentions the --privilege_check
+                    # override, while a connectivity/unverifiable failure does
+                    # not (relaxing the policy would not make an unreachable DB
+                    # reachable).
+                    logger.error(f'Refusing to start: {e}')
+                    sys.exit(1)
+                except Exception as e:
                     logger.error(
-                        'Failed to validate database connection to Postgres. Exit the MCP server'
+                        f'Failed to validate database connection to Postgres: {e}. '
+                        'Exit the MCP server'
                     )
                     sys.exit(1)
-                else:
-                    logger.success('Successfully validated database connection to Postgres')
 
         logger.info('Postgres MCP server started')
         mcp.run()

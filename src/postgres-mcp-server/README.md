@@ -233,3 +233,40 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
 -- Force read-only transactions
 ALTER ROLE postgres_mcp_server_readonly SET default_transaction_read_only = on;
 ```
+
+#### Least-privilege guardrail (`--privilege_check`)
+
+To make the guidance above hard to get wrong, the server validates the
+connected role when a connection is established (at startup and via the
+`connect_to_database` tool) and, by default, **refuses to operate as a
+superuser or a member of `rds_superuser`**. This is a guardrail, not the
+security boundary itself — the database-enforced role privileges remain the
+real control — but it prevents the MCP server from silently running with
+cluster-wide privileges that would render the blocklist and RLS moot.
+
+The behavior is controlled by the `--privilege_check` argument:
+
+| Value | Behavior |
+|-------|----------|
+| `enforce` (default) | Reject the connection if the role is a superuser or a member of `rds_superuser`. If the check cannot be performed, the connection is rejected (fail-closed). |
+| `warn` | Log a warning but allow the connection. |
+| `off` | Skip the check entirely (connectivity is still verified). |
+
+At startup, an `enforce` violation aborts the server; through
+`connect_to_database`, it returns a connection failure. The check reads only
+the connected role's own entry in the `pg_roles` catalog and tolerates
+clusters where `rds_superuser` does not exist (e.g. self-hosted PostgreSQL).
+
+Keep the default (`enforce`) and connect with a dedicated least-privilege role
+such as the read-only role above. Relaxing to `warn`/`off` is not recommended;
+it exists only for constrained environments where a scoped role is temporarily
+unavailable.
+
+Example (add to the `args` array in your MCP config):
+
+```json
+"args": [
+  "awslabs.postgres-mcp-server@latest",
+  "--privilege_check", "enforce"
+]
+```
