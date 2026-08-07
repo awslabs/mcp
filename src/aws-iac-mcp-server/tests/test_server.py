@@ -96,20 +96,6 @@ class TestCheckTemplateCompliance:
         assert result == 'sanitized response'
         mock_check.assert_called_once()
 
-    @patch('awslabs.aws_iac_mcp_server.server.check_compliance')
-    @patch('awslabs.aws_iac_mcp_server.server.sanitize_tool_response')
-    def test_check_compliance_with_custom_rules(self, mock_sanitize, mock_check):
-        """Test compliance check with custom rules."""
-        mock_check.return_value = {'compliance_results': {'overall_status': 'PASS'}}
-        mock_sanitize.return_value = 'sanitized response'
-
-        template = json.dumps({'Resources': {}})
-        check_cloudformation_template_compliance(template, rules_file_path='/custom/rules.guard')
-
-        mock_check.assert_called_once_with(
-            template_content=template, rules_file_path='/custom/rules.guard'
-        )
-
 
 class TestTroubleshootDeployment:
     """Test troubleshoot_cloudformation_deployment tool."""

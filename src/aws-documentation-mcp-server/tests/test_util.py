@@ -13,17 +13,109 @@
 # limitations under the License.
 """Tests for utility functions in the AWS Documentation MCP Server."""
 
+import httpx
 import os
 import pytest
 from awslabs.aws_documentation_mcp_server.util import (
     add_search_intent_to_search_request,
+    enforce_redirect_allowlist,
     extract_content_from_html,
     extract_sections_from_html,
     format_documentation_result,
     is_html_content,
     parse_recommendation_results,
+    url_matches_allowlist,
 )
 from unittest.mock import MagicMock, patch
+
+
+ALLOWLIST = (
+    r'^https?://docs\.aws\.amazon\.com/',
+    r'^https?://awsdocs-neuron\.readthedocs-hosted\.com/',
+)
+
+
+class TestUrlMatchesAllowlist:
+    """Tests for url_matches_allowlist (domain-only, no extension check)."""
+
+    def test_docs_host_allowed(self):
+        """docs.aws.amazon.com is on the allowlist."""
+        assert url_matches_allowlist('https://docs.aws.amazon.com/s3/latest/x.html', ALLOWLIST)
+
+    def test_neuron_host_allowed(self):
+        """The third-party Neuron docs host is on the allowlist."""
+        assert url_matches_allowlist(
+            'https://awsdocs-neuron.readthedocs-hosted.com/x.html', ALLOWLIST
+        )
+
+    def test_directory_url_without_html_allowed(self):
+        """Redirect targets are often directory URLs (no .html); the domain check must pass them."""
+        assert url_matches_allowlist(
+            'https://docs.aws.amazon.com/powershell/v4/reference/', ALLOWLIST
+        )
+
+    def test_imds_blocked(self):
+        """The link-local IMDS endpoint is not on the allowlist."""
+        assert not url_matches_allowlist('http://169.254.169.254/latest/meta-data/', ALLOWLIST)
+
+    def test_arbitrary_host_blocked(self):
+        """An arbitrary external host is not on the allowlist."""
+        assert not url_matches_allowlist('https://evil.example.com/x', ALLOWLIST)
+
+    def test_lookalike_host_blocked(self):
+        """A host that merely contains the allowed domain as a substring is not allowed."""
+        assert not url_matches_allowlist('https://docs.aws.amazon.com.evil.com/x', ALLOWLIST)
+
+
+class TestEnforceRedirectAllowlist:
+    """Tests for the redirect-revalidation event hook."""
+
+    def _response(self, status, location=None, req_url='https://docs.aws.amazon.com/foo.html'):
+        """Build an httpx.Response with an optional Location header for hook testing."""
+        headers = {'location': location} if location else {}
+        return httpx.Response(status, headers=headers, request=httpx.Request('GET', req_url))
+
+    @pytest.mark.asyncio
+    async def test_off_allowlist_redirect_blocked(self):
+        """A redirect whose target is off the allowlist (IMDS) is rejected."""
+        hook = enforce_redirect_allowlist(ALLOWLIST)
+        resp = self._response(302, 'http://169.254.169.254/latest/meta-data/')
+        with pytest.raises(httpx.RequestError, match='non-allowlisted'):
+            await hook(resp)
+
+    @pytest.mark.asyncio
+    async def test_on_allowlist_redirect_allowed(self):
+        """A same-domain canonicalization redirect is allowed."""
+        hook = enforce_redirect_allowlist(ALLOWLIST)
+        resp = self._response(301, 'https://docs.aws.amazon.com/lambda/latest/dg/')
+        await hook(resp)  # must not raise
+
+    @pytest.mark.asyncio
+    async def test_relative_redirect_resolved_against_request(self):
+        """A relative Location resolves against the request URL and stays on the allowlist."""
+        hook = enforce_redirect_allowlist(ALLOWLIST)
+        resp = self._response(301, '/lambda/latest/dg/')
+        await hook(resp)  # must not raise
+
+    @pytest.mark.asyncio
+    async def test_relative_redirect_cannot_escape_host(self):
+        """A protocol-relative Location to another host is rejected."""
+        hook = enforce_redirect_allowlist(ALLOWLIST)
+        resp = self._response(302, '//169.254.169.254/latest/meta-data/')
+        with pytest.raises(httpx.RequestError, match='non-allowlisted'):
+            await hook(resp)
+
+    @pytest.mark.asyncio
+    async def test_non_redirect_response_is_noop(self):
+        """A 200 response is not a redirect and passes through untouched."""
+        hook = enforce_redirect_allowlist(ALLOWLIST)
+        await hook(self._response(200))  # must not raise
+
+    @pytest.mark.asyncio
+    async def test_redirect_without_location_is_noop(self):
+        """A 3xx with no Location header has nothing to validate and passes through."""
+        hook = enforce_redirect_allowlist(ALLOWLIST)
+        await hook(self._response(302))  # no Location header -> nothing to validate
 
 
 class TestIsHtmlContent:
@@ -242,6 +334,24 @@ class TestExtractContentFromHtml:
             result = extract_content_from_html(html)
             assert '<e>' in result
             mock_bs.assert_called_once()
+
+    def test_extract_content_exception_during_conversion(self):
+        """Test that exceptions during markdownify are caught and returned as error."""
+        html = '<html><body><p>Test</p></body></html>'
+        with patch('markdownify.markdownify', side_effect=Exception('conversion failed')):
+            result = extract_content_from_html(html)
+            assert '<e>Error converting HTML to Markdown: conversion failed</e>' == result
+
+
+class TestFormatDocumentationResultEdgeCases:
+    """Tests for edge cases in format_documentation_result."""
+
+    def test_zero_max_length_returns_no_content(self):
+        """When max_length is 0, truncated_content is empty, returns no-content message."""
+        url = 'https://docs.aws.amazon.com/test'
+        content = 'Some content here'
+        result = format_documentation_result(url, content, 0, 0)
+        assert '<e>No more content available.</e>' in result
 
 
 class TestParseRecommendationResults:

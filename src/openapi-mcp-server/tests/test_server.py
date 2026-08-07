@@ -39,46 +39,58 @@ def mock_config():
     return config
 
 
-@patch('awslabs.openapi_mcp_server.server.OpenAPIProvider')
+# NOTE: ``test_create_mcp_server_basic`` was removed in the FastMCP-native
+# migration. It asserted low-level construction mechanics
+# (``FastMCP``/``OpenAPIProvider`` each called once) that ``from_openapi`` now
+# owns internally. End-to-end server construction is exercised behaviorally in
+# ``tests/test_new_features.py``.
+#
+# The one assertion in that test that was NOT a construction mechanic — that the
+# operator's SSRF opt-in flags are forwarded into ``load_openapi_spec`` — is kept
+# below as a focused, refactor-proof test. It references neither ``from_openapi``
+# nor ``OpenAPIProvider``, so it survives upstream construction changes while
+# still catching a regression that would silently opt every user into plaintext
+# and private-network spec fetching.
+
+
 @patch('awslabs.openapi_mcp_server.server.FastMCP')
 @patch('awslabs.openapi_mcp_server.server.load_openapi_spec')
 @patch('awslabs.openapi_mcp_server.server.validate_openapi_spec', return_value=True)
 @patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client')
-def test_create_mcp_server_basic(
+def test_create_mcp_server_forwards_ssrf_flags(
     mock_create_client,
     mock_validate,
     mock_load_spec,
     mock_fastmcp,
-    mock_openapi_provider,
     mock_config,
 ):
-    """Test creating an MCP server with basic configuration."""
-    # Setup mocks
-    mock_server = MagicMock()
-    mock_fastmcp.return_value = mock_server
+    """The operator's SSRF opt-in flags must reach ``load_openapi_spec``.
+
+    ``create_mcp_server`` is the only place that threads
+    ``allow_insecure_http`` / ``allow_private_networks`` from config into the
+    spec loader. Hardcoding either open at ``server.py`` would silently disable
+    the operator's SSRF protections; this assertion is the guard against that.
+    """
+    # The two flags must DIFFER. Both default to False (``api/config.py``), so setting both
+    # to the same value leaves the assertion unable to tell them apart: swapping the two
+    # keyword arguments at the call site would still pass. One True and one False pins each
+    # flag to its own parameter, and makes ``allow_insecure_http`` genuinely non-default.
+    mock_config.allow_insecure_http = True
+    mock_config.allow_private_networks = False
     mock_load_spec.return_value = {
         'openapi': '3.0.0',
         'info': {'title': 'Test API', 'version': '1.0.0'},
         'paths': {},
     }
-    mock_client = MagicMock()
-    mock_create_client.return_value = mock_client
 
-    # Call the function
-    result = create_mcp_server(mock_config)
+    create_mcp_server(mock_config)
 
-    # Verify the result
-    assert result == mock_server
-    mock_fastmcp.assert_called_once()
     mock_load_spec.assert_called_once_with(
         url=mock_config.api_spec_url,
         path=mock_config.api_spec_path,
         allow_http=mock_config.allow_insecure_http,
         allow_private_networks=mock_config.allow_private_networks,
     )
-    mock_validate.assert_called_once()
-    mock_create_client.assert_called_once()
-    mock_openapi_provider.assert_called_once()
 
 
 @patch('awslabs.openapi_mcp_server.server.FastMCP')
@@ -143,7 +155,6 @@ def test_create_mcp_server_missing_base_url(
     mock_exit.assert_called_once_with(1)
 
 
-@patch('awslabs.openapi_mcp_server.server.OpenAPIProvider')
 @patch('awslabs.openapi_mcp_server.server.FastMCP')
 @patch('awslabs.openapi_mcp_server.server.load_openapi_spec')
 @patch('awslabs.openapi_mcp_server.server.validate_openapi_spec', return_value=False)
@@ -153,13 +164,16 @@ def test_create_mcp_server_invalid_spec(
     mock_validate,
     mock_load_spec,
     mock_fastmcp,
-    mock_openapi_provider,
     mock_config,
 ):
-    """Test creating an MCP server with an invalid OpenAPI spec."""
+    """Server continues despite OpenAPI spec validation failure.
+
+    Behavioral test: a spec that fails validation should not abort startup —
+    the server is still built (via ``FastMCP.from_openapi``) and returned.
+    """
     # Setup mocks
     mock_server = MagicMock()
-    mock_fastmcp.return_value = mock_server
+    mock_fastmcp.from_openapi.return_value = mock_server
     mock_load_spec.return_value = {
         'info': {'title': 'Test API', 'version': '1.0.0'},
         'paths': {},
@@ -172,8 +186,6 @@ def test_create_mcp_server_invalid_spec(
 
     # Verify the result - should continue despite validation failure
     assert result == mock_server
-    mock_fastmcp.assert_called_once()
-    mock_load_spec.assert_called_once()
     mock_validate.assert_called_once()
     mock_create_client.assert_called_once()
-    mock_openapi_provider.assert_called_once()
+    mock_fastmcp.from_openapi.assert_called_once()
