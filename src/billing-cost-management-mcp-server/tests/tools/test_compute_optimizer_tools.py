@@ -37,7 +37,7 @@ from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools im
     get_lambda_function_recommendations,
     get_rds_recommendations,
 )
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from fastmcp import Context, FastMCP
 from typing import Any, Callable
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -673,6 +673,19 @@ class TestHelperFunctions:
         # Test with None
         result = format_timestamp(None)
         assert result is None
+
+    def test_format_timestamp_normalizes_aware_datetime_to_utc(self):
+        """Test format_timestamp converts timezone-aware input to UTC."""
+        aware = datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone(timedelta(hours=-5)))
+        assert format_timestamp(aware) == '2023-01-01T17:00:00'
+
+    def test_format_timestamp_accepts_epoch_seconds(self):
+        """Test format_timestamp accepts epoch seconds."""
+        assert format_timestamp(1672574400) == '2023-01-01T12:00:00'
+
+    def test_format_timestamp_preserves_epoch_zero(self):
+        """Test format_timestamp treats epoch 0 as a value, not as absent."""
+        assert format_timestamp(0) == '1970-01-01T00:00:00'
 
 
 def test_compute_optimizer_server_initialization():
