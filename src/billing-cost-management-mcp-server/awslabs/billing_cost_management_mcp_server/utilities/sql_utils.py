@@ -368,6 +368,11 @@ def _get_specialized_converter(operation_name: str) -> Optional[str]:
     if operation_name.startswith('compute_optimizer_automation_'):
         return 'records'
 
+    # Credits operations return {<list_key>: [...]} plus sibling metadata blocks;
+    # store one row per item so an offloaded credit ledger stays aggregatable.
+    if operation_name.startswith('credits_get_'):
+        return 'records'
+
     return None
 
 
