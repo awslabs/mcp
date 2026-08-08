@@ -39,7 +39,7 @@ from awslabs.redshift_mcp_server.server import (
     review_cluster_tool,
 )
 from datetime import datetime
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 
 
 @pytest.mark.asyncio

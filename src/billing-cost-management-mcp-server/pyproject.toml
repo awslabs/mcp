@@ -9,6 +9,9 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "loguru>=0.7.0",
+    # Left on v1 deliberately. fastmcp 3.x (below) depends on fastmcp-slim, which pins
+    # mcp>=1.24.0,<2.0, so declaring mcp>=2.0.0 here is unsatisfiable -- only the unreleased
+    # fastmcp 4.0 lifts that ceiling. Revisit when it ships. See awslabs/mcp#4448.
     "mcp[cli]>=1.23.0",
     "pydantic>=2.10.6",
     "fastmcp>=3.2.0",

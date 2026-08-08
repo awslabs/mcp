@@ -39,6 +39,11 @@ keywords = [
 ]
 dependencies = [
     "boto3>=1.38.12",
+    # Left on v1 deliberately. fastmcp 3.x pins mcp>=1.24.0,<2.0 through fastmcp-slim, so
+    # raising this to >=2.0.0 makes fastmcp 3.x unsatisfiable -- and because the fastmcp floor
+    # below is only 2.13.1, the resolver does not fail, it silently walks *back* to fastmcp
+    # 2.14.1, which carries 4 known advisories (one CRITICAL). Revisit when fastmcp 4.0 ships.
+    # See awslabs/mcp#4448.
     "mcp[cli]>=1.23.0,<2.0.0",
     "pydantic>=2.0.0",
     "fastmcp>=3.2.0",

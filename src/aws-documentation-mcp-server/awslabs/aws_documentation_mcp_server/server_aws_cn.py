@@ -29,7 +29,7 @@ from awslabs.aws_documentation_mcp_server.util import (
     url_matches_allowlist,
 )
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import AnyUrl, Field
 from typing import Union
 
@@ -39,7 +39,7 @@ SESSION_UUID = str(uuid.uuid4())
 # China partition domain allowlist
 CN_ALLOWED_DOMAIN_REGEXES = (r'^https?://docs\.amazonaws\.cn/',)
 
-mcp = FastMCP(
+mcp = MCPServer(
     'awslabs.aws-documentation-mcp-server',
     instructions="""
     # AWS China Documentation MCP Server

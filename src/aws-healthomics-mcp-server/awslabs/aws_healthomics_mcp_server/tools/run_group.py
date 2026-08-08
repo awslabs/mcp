@@ -25,7 +25,7 @@ from awslabs.aws_healthomics_mcp_server.utils.error_utils import (
     handle_tool_error,
 )
 from loguru import logger
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from pydantic import Field
 from typing import Any, Dict, Optional
 

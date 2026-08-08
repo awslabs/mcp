@@ -38,7 +38,7 @@ from awslabs.redshift_mcp_server.redshift import (
 from awslabs.redshift_mcp_server.review.executor import review_cluster
 from awslabs.redshift_mcp_server.review.models import ReviewResult
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
@@ -51,7 +51,7 @@ logger.add(
 )
 
 
-mcp = FastMCP(
+mcp = MCPServer(
     'awslabs.redshift-mcp-server',
     instructions="""
 # Amazon Redshift MCP Server.

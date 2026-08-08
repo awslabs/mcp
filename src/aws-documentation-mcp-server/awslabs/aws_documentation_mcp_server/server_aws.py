@@ -41,7 +41,7 @@ from awslabs.aws_documentation_mcp_server.util import (
     parse_recommendation_results,
 )
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import BaseModel, Field, ValidationError
 from typing import Any, Dict, List, Optional, Type, TypeVar
 
@@ -80,7 +80,7 @@ SEARCH_TERM_DOMAIN_MODIFIERS = [
 ]
 
 
-mcp = FastMCP(
+mcp = MCPServer(
     'awslabs.aws-documentation-mcp-server',
     instructions="""
     # AWS Documentation MCP Server

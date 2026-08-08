@@ -16,7 +16,7 @@
 
 import pytest
 from awslabs.sagemaker_ai_mcp_server.logging_helper import LogLevel, log_with_request_id
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from unittest.mock import MagicMock, patch
 
 
