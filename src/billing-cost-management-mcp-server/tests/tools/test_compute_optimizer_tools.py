@@ -128,7 +128,7 @@ def mock_co_client():
                 },
                 'finding': 'OVERPROVISIONED',
                 'lastRefreshTimestamp': datetime(2023, 1, 1),
-                'recommendationOptions': [
+                'volumeRecommendationOptions': [
                     {
                         'configuration': {
                             'volumeType': 'gp3',
@@ -154,7 +154,6 @@ def mock_co_client():
             {
                 'accountId': '123456789012',
                 'functionArn': 'arn:aws:lambda:us-east-1:123456789012:function:test-function',
-                'functionName': 'test-function',
                 'functionVersion': '$LATEST',
                 'finding': 'OVER_PROVISIONED',
                 'currentMemorySize': 1024,
@@ -347,6 +346,34 @@ class TestGetAutoScalingGroupRecommendations:
         assert option['projected_utilization_metrics'][0]['value'] == 60.0
         assert option['savings_opportunity']['savings_percentage'] == 25.0
 
+    async def test_with_filters(self, mock_context, mock_co_client):
+        """Test get_auto_scaling_group_recommendations with filters, account IDs, and next token."""
+        filters = '[{"Name":"Finding","Values":["NOT_OPTIMIZED"]}]'
+        account_ids = '["123456789012"]'
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.parse_json'
+        ) as mock_parse_json:
+            mock_parse_json.side_effect = [
+                [{'Name': 'Finding', 'Values': ['NOT_OPTIMIZED']}],  # filters
+                ['123456789012'],  # account_ids
+            ]
+
+            await get_auto_scaling_group_recommendations(
+                mock_context,
+                mock_co_client,
+                max_results=10,
+                filters=filters,
+                account_ids=account_ids,
+                next_token='next-page',
+            )
+
+            mock_co_client.get_auto_scaling_group_recommendations.assert_called_once()
+            call_kwargs = mock_co_client.get_auto_scaling_group_recommendations.call_args[1]
+            assert 'filters' in call_kwargs
+            assert 'accountIds' in call_kwargs
+            assert call_kwargs['nextToken'] == 'next-page'
+
 
 @pytest.mark.asyncio
 class TestGetEBSVolumeRecommendations:
@@ -371,6 +398,44 @@ class TestGetEBSVolumeRecommendations:
         # Verify response format
         assert result['status'] == 'success'
         assert 'recommendations' in result['data']
+
+        # Verify the recommendation options are parsed
+        recommendation = result['data']['recommendations'][0]
+        assert len(recommendation['recommendation_options']) == 1
+        option = recommendation['recommendation_options'][0]
+        assert option['volume_type'] == 'gp3'
+        assert option['volume_size'] == 50
+        assert option['volume_baseline_iops'] == 3000
+        assert option['performance_risk'] == 'LOW'
+        assert option['savings_opportunity']['savings_percentage'] == 40.0
+
+    async def test_with_filters(self, mock_context, mock_co_client):
+        """Test get_ebs_volume_recommendations with filters, account IDs, and next token."""
+        filters = '[{"Name":"Finding","Values":["OVERPROVISIONED"]}]'
+        account_ids = '["123456789012"]'
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.parse_json'
+        ) as mock_parse_json:
+            mock_parse_json.side_effect = [
+                [{'Name': 'Finding', 'Values': ['OVERPROVISIONED']}],  # filters
+                ['123456789012'],  # account_ids
+            ]
+
+            await get_ebs_volume_recommendations(
+                mock_context,
+                mock_co_client,
+                max_results=10,
+                filters=filters,
+                account_ids=account_ids,
+                next_token='next-page',
+            )
+
+            mock_co_client.get_ebs_volume_recommendations.assert_called_once()
+            call_kwargs = mock_co_client.get_ebs_volume_recommendations.call_args[1]
+            assert 'filters' in call_kwargs
+            assert 'accountIds' in call_kwargs
+            assert call_kwargs['nextToken'] == 'next-page'
 
 
 @pytest.mark.asyncio
@@ -406,6 +471,7 @@ class TestGetLambdaFunctionRecommendations:
             recommendation['function_arn']
             == 'arn:aws:lambda:us-east-1:123456789012:function:test-function'
         )
+        # function_name is derived from the ARN (no functionName field in the API)
         assert recommendation['function_name'] == 'test-function'
         assert recommendation['account_id'] == '123456789012'
         assert recommendation['current_configuration']['memory_size'] == 1024
@@ -455,6 +521,41 @@ class TestGetLambdaFunctionRecommendations:
             assert 'filters' in call_kwargs
             assert 'accountIds' in call_kwargs
             assert call_kwargs['nextToken'] == 'next-page'
+
+    async def test_function_name_derived_from_arn(self, mock_context, mock_co_client):
+        """function_name is derived from the ARN, handling version/alias suffixes."""
+        mock_co_client.get_lambda_function_recommendations.return_value = {
+            'lambdaFunctionRecommendations': [
+                {
+                    'accountId': '123456789012',
+                    # ARN carries a trailing :version — name must still be the function segment
+                    'functionArn': 'arn:aws:lambda:us-east-1:123456789012:function:my-fn:PROD',
+                    'currentMemorySize': 512,
+                    'finding': 'OPTIMIZED',
+                    'memorySizeRecommendationOptions': [],
+                },
+                {
+                    # No ARN at all -> name should be None, not an error
+                    'accountId': '123456789012',
+                    'currentMemorySize': 256,
+                    'finding': 'OPTIMIZED',
+                    'memorySizeRecommendationOptions': [],
+                },
+            ],
+        }
+
+        result = await get_lambda_function_recommendations(
+            mock_context,
+            mock_co_client,
+            max_results=10,
+            filters=None,
+            account_ids=None,
+            next_token=None,
+        )
+
+        recs = result['data']['recommendations']
+        assert recs[0]['function_name'] == 'my-fn'
+        assert recs[1]['function_name'] is None
 
 
 @pytest.mark.asyncio
@@ -670,6 +771,90 @@ class TestComputeOptimizerFastMCP:
             res = await real_fn(
                 mock_context, operation='get_auto_scaling_group_recommendations', max_results=50
             )
+            assert res['status'] == 'success'
+            mock_impl.assert_awaited_once()
+
+    async def test_co_real_get_ebs_volume_recommendations_reload_identity_decorator(
+        self, mock_context
+    ):
+        """Test real compute_optimizer get_ebs_volume_recommendations dispatch."""
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        real_fn = co_mod.compute_optimizer
+
+        with (
+            patch.object(co_mod, 'create_aws_client') as mock_create_client,
+            patch.object(co_mod, 'get_context_logger') as mock_get_logger,
+            patch.object(
+                co_mod, 'get_ebs_volume_recommendations', new_callable=AsyncMock
+            ) as mock_impl,
+        ):
+            mock_logger = AsyncMock()
+            mock_get_logger.return_value = mock_logger
+            mock_client = MagicMock()
+            mock_client.get_enrollment_status.return_value = {
+                'status': 'ACTIVE',
+                'resourceTypes': ['ebsVolume'],
+            }
+            mock_create_client.return_value = mock_client
+            mock_impl.return_value = {'status': 'success', 'data': {'recommendations': []}}
+
+            res = await real_fn(
+                mock_context, operation='get_ebs_volume_recommendations', max_results=50
+            )
+            assert res['status'] == 'success'
+            mock_impl.assert_awaited_once()
+
+    async def test_co_real_get_lambda_function_recommendations_reload_identity_decorator(
+        self, mock_context
+    ):
+        """Test real compute_optimizer get_lambda_function_recommendations dispatch."""
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        real_fn = co_mod.compute_optimizer
+
+        with (
+            patch.object(co_mod, 'create_aws_client') as mock_create_client,
+            patch.object(co_mod, 'get_context_logger') as mock_get_logger,
+            patch.object(
+                co_mod, 'get_lambda_function_recommendations', new_callable=AsyncMock
+            ) as mock_impl,
+        ):
+            mock_logger = AsyncMock()
+            mock_get_logger.return_value = mock_logger
+            mock_client = MagicMock()
+            mock_client.get_enrollment_status.return_value = {
+                'status': 'ACTIVE',
+                'resourceTypes': ['lambdaFunction'],
+            }
+            mock_create_client.return_value = mock_client
+            mock_impl.return_value = {'status': 'success', 'data': {'recommendations': []}}
+
+            res = await real_fn(
+                mock_context, operation='get_lambda_function_recommendations', max_results=50
+            )
+            assert res['status'] == 'success'
+            mock_impl.assert_awaited_once()
+
+    async def test_co_real_get_rds_recommendations_reload_identity_decorator(self, mock_context):
+        """Test real compute_optimizer get_rds_recommendations dispatch."""
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        real_fn = co_mod.compute_optimizer
+
+        with (
+            patch.object(co_mod, 'create_aws_client') as mock_create_client,
+            patch.object(co_mod, 'get_context_logger') as mock_get_logger,
+            patch.object(co_mod, 'get_rds_recommendations', new_callable=AsyncMock) as mock_impl,
+        ):
+            mock_logger = AsyncMock()
+            mock_get_logger.return_value = mock_logger
+            mock_client = MagicMock()
+            mock_client.get_enrollment_status.return_value = {
+                'status': 'ACTIVE',
+                'resourceTypes': ['rdsDBInstance'],
+            }
+            mock_create_client.return_value = mock_client
+            mock_impl.return_value = {'status': 'success', 'data': {'recommendations': []}}
+
+            res = await real_fn(mock_context, operation='get_rds_recommendations', max_results=50)
             assert res['status'] == 'success'
             mock_impl.assert_awaited_once()
 
@@ -1208,6 +1393,22 @@ class TestComputeOptimizerCoverageGaps:
                             },
                         }
                     ],
+                    'storageRecommendationOptions': [
+                        {
+                            'storageConfiguration': {
+                                'storageType': 'gp3',
+                                'allocatedStorage': 100,
+                            },
+                            'rank': 1,
+                            'savingsOpportunity': {
+                                'savingsOpportunityPercentage': 20.0,
+                                'estimatedMonthlySavings': {
+                                    'currency': 'USD',
+                                    'value': 12.50,
+                                },
+                            },
+                        }
+                    ],
                 }
             ],
             'nextToken': None,
@@ -1229,6 +1430,47 @@ class TestComputeOptimizerCoverageGaps:
 
             assert result['status'] == 'success'
             assert len(result['data']['recommendations']) == 1
+
+            # Verify the storage recommendation options are parsed
+            recommendation = result['data']['recommendations'][0]
+            storage_options = recommendation['storage_recommendation_options']
+            assert len(storage_options) == 1
+            assert storage_options[0]['storage_configuration']['storageType'] == 'gp3'
+            assert storage_options[0]['rank'] == 1
+            assert storage_options[0]['savings_opportunity']['savings_percentage'] == 20.0
+
+
+@pytest.mark.asyncio
+class TestComputeOptimizerNoMaxResults:
+    """Verify the functions handle a falsy max_results (no maxResults sent)."""
+
+    async def test_recommendations_without_max_results(self, mock_context, mock_co_client):
+        """Each recommendation function omits maxResults when max_results is None."""
+        funcs = [
+            (
+                get_auto_scaling_group_recommendations,
+                mock_co_client.get_auto_scaling_group_recommendations,
+            ),
+            (get_ebs_volume_recommendations, mock_co_client.get_ebs_volume_recommendations),
+            (
+                get_lambda_function_recommendations,
+                mock_co_client.get_lambda_function_recommendations,
+            ),
+            (get_rds_recommendations, mock_co_client.get_rds_database_recommendations),
+        ]
+        for func, client_method in funcs:
+            client_method.reset_mock()
+            result = await func(
+                mock_context,
+                mock_co_client,
+                max_results=None,
+                filters=None,
+                account_ids=None,
+                next_token=None,
+            )
+            assert result['status'] == 'success'
+            # maxResults must NOT be sent when max_results is falsy
+            assert 'maxResults' not in client_method.call_args[1]
 
 
 @pytest.mark.asyncio
@@ -1253,25 +1495,32 @@ class TestGetECSServiceRecommendations:
                         'containerConfigurations': [
                             {'containerName': 'demo1', 'memorySizeConfiguration': {}, 'cpu': 0}
                         ],
-                        'autoScalingGroupArn': None,
+                        'autoScalingConfiguration': 'TargetTrackingScalingCpu',
                         'taskDefinitionArn': 'arn:aws:ecs:us-east-1:558889323918:task-definition/ECSFargateDemo:2',
-                        'finding': 'Overprovisioned',
-                        'currentPerformance': None,
                     },
+                    'finding': 'Overprovisioned',
+                    'currentPerformanceRisk': 'Low',
                     'utilizationMetrics': [
                         {'name': 'Cpu', 'statistic': 'Maximum', 'value': 0.26},
                         {'name': 'Memory', 'statistic': 'Maximum', 'value': 3.0},
                     ],
                     'lookbackPeriodInDays': 14.0,
                     'launchType': 'Fargate',
-                    'recommendationOptions': [
+                    'serviceRecommendationOptions': [
                         {
                             'memory': 512,
                             'cpu': 256,
                             'containerRecommendations': [
                                 {'containerName': 'demo1', 'memorySizeConfiguration': {}, 'cpu': 0}
                             ],
-                            'projectedPerformance': None,
+                            'projectedUtilizationMetrics': [
+                                {
+                                    'name': 'Cpu',
+                                    'statistic': 'Maximum',
+                                    'lowerBoundValue': 0.5,
+                                    'upperBoundValue': 0.8,
+                                }
+                            ],
                             'savingsOpportunity': {
                                 'savingsOpportunityPercentage': None,
                                 'estimatedMonthlySavings': {'currency': 'USD', 'value': 30.275},
@@ -1313,15 +1562,25 @@ class TestGetECSServiceRecommendations:
             == 'arn:aws:ecs:us-east-1:558889323918:service/fargate-test-cluster/FargateDemo'
         )
         assert recommendation['account_id'] == '558889323918'
-        assert recommendation['current_service_configuration']['memory'] == 3072
-        assert recommendation['current_service_configuration']['cpu'] == 1024
+        current_config = recommendation['current_service_configuration']
+        assert current_config['memory'] == 3072
+        assert current_config['cpu'] == 1024
+        assert current_config['auto_scaling_configuration'] == 'TargetTrackingScalingCpu'
+        assert current_config['finding'] == 'Overprovisioned'
+        assert current_config['current_performance_risk'] == 'Low'
         assert recommendation['launch_type'] == 'Fargate'
 
         # Verify utilization metrics are included
         assert 'utilization_metrics' in recommendation
 
-        # Verify the recommendation options exist
-        assert 'recommendation_options' in recommendation
+        # Verify the recommendation options are parsed
+        assert len(recommendation['recommendation_options']) == 1
+        option = recommendation['recommendation_options'][0]
+        assert option['memory'] == 512
+        assert option['cpu'] == 256
+        assert option['projected_utilization_metrics'][0]['name'] == 'Cpu'
+        assert option['projected_utilization_metrics'][0]['upperBoundValue'] == 0.8
+        assert option['savings_opportunity']['estimated_monthly_savings']['value'] == 30.275
 
     async def test_with_filters(self, mock_context, mock_co_client):
         """Test get_ecs_service_recommendations with filters."""

@@ -571,9 +571,13 @@ async def get_lambda_function_recommendations(
             recommended_options.append(recommended_option)
 
         # Create the formatted recommendation
+        function_arn = recommendation.get('functionArn')
+        function_name = (
+            function_arn.split(':function:')[-1].split(':')[0] if function_arn else None
+        )
         formatted_recommendation = {
-            'function_arn': recommendation.get('functionArn'),
-            'function_name': recommendation.get('functionName'),
+            'function_arn': function_arn,
+            'function_name': function_name,
             'account_id': recommendation.get('accountId'),
             'current_configuration': current_config,
             'recommendation_options': recommended_options,
@@ -733,30 +737,16 @@ async def get_ecs_service_recommendations(
 
     # Parse the recommendations
     for recommendation in response.get('ecsServiceRecommendations', []):
-        # Get the current performance
-        current_performance = recommendation.get('currentPerformance')
-        formatted_current_performance = None
-        if current_performance:
-            formatted_current_performance = {
-                'cpu_utilization': current_performance.get('cpuUtilization'),
-                'memory_utilization': current_performance.get('memoryUtilization'),
-            }
-
         # Get the current service configuration
+        current_service_config = recommendation.get('currentServiceConfiguration', {})
         current_config = {
-            'memory': recommendation.get('currentServiceConfiguration', {}).get('memory'),
-            'cpu': recommendation.get('currentServiceConfiguration', {}).get('cpu'),
-            'container_configurations': recommendation.get('currentServiceConfiguration', {}).get(
-                'containerConfigurations', []
-            ),
-            'auto_scaling_group_arn': recommendation.get('currentServiceConfiguration', {}).get(
-                'autoScalingGroupArn'
-            ),
-            'task_definition_arn': recommendation.get('currentServiceConfiguration', {}).get(
-                'taskDefinitionArn'
-            ),
+            'memory': current_service_config.get('memory'),
+            'cpu': current_service_config.get('cpu'),
+            'container_configurations': current_service_config.get('containerConfigurations', []),
+            'auto_scaling_configuration': current_service_config.get('autoScalingConfiguration'),
+            'task_definition_arn': current_service_config.get('taskDefinitionArn'),
             'finding': recommendation.get('finding'),
-            'current_performance': formatted_current_performance,
+            'current_performance_risk': recommendation.get('currentPerformanceRisk'),
         }
 
         # Get the utilization metrics
@@ -772,20 +762,11 @@ async def get_ecs_service_recommendations(
         # Get the recommended service configurations
         recommended_options = []
         for option in recommendation.get('serviceRecommendationOptions', []):
-            # Format projected performance
-            projected_performance = option.get('projectedPerformance')
-            formatted_projected_performance = None
-            if projected_performance:
-                formatted_projected_performance = {
-                    'cpu_utilization': projected_performance.get('cpuUtilization'),
-                    'memory_utilization': projected_performance.get('memoryUtilization'),
-                }
-
             recommended_option = {
                 'memory': option.get('memory'),
                 'cpu': option.get('cpu'),
                 'container_recommendations': option.get('containerRecommendations', []),
-                'projected_performance': formatted_projected_performance,
+                'projected_utilization_metrics': option.get('projectedUtilizationMetrics'),
                 'savings_opportunity': format_savings_opportunity(
                     option.get('savingsOpportunity', {})
                 ),
