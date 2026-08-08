@@ -43,8 +43,10 @@ from awslabs.redshift_mcp_server.models import (
 from awslabs.redshift_mcp_server.sql_guard import assert_executable
 from botocore.config import Config
 from botocore.exceptions import ClientError
+from functools import partial
 from loguru import logger
 from sqlglot import exp
+from types import SimpleNamespace
 
 
 def _sql_identifier(value: str) -> str:
@@ -56,69 +58,139 @@ def _sql_identifier(value: str) -> str:
 _ACCESS_DENIED = {'AccessDeniedException', 'UnauthorizedAccess', 'AccessDenied'}
 
 
+# ClientError codes that indicate expired credentials.
+_EXPIRED_TOKEN = {'ExpiredToken', 'ExpiredTokenException'}
+
+
+def _error_code(error: ClientError) -> str | None:
+    """Return the AWS error code carried by a ClientError, if any."""
+    return error.response.get('Error', {}).get('Code')
+
+
+class _CredentialRefreshingClient:
+    """A boto3 client for one service that refreshes credentials once on ExpiredToken.
+
+    Lazily creates and caches its boto3 client. On an ExpiredToken/ExpiredTokenException
+    error it discards the cached client and retries once against a freshly built one,
+    which re-reads credentials from the default chain.
+
+    This covers credential sources botocore resolves once and never refreshes, notably
+    keys written to the shared credentials file, where a cached client keeps signing with
+    them past expiry. Sources that yield refreshable credentials (SSO, assume-role, web
+    identity, container) already refresh inside a cached client, and credentials taken
+    from environment variables cannot be refreshed in-process at all.
+    """
+
+    def __init__(
+        self,
+        service_name: str,
+        config: Config,
+        aws_region: str | None = None,
+        aws_profile: str | None = None,
+    ):
+        """Initialize for a single Redshift-family boto3 service."""
+        self._service_name = service_name
+        self._config = config
+        self._aws_region = aws_region
+        self._aws_profile = aws_profile
+        self._client = None
+
+    @property
+    def service_name(self) -> str:
+        """The boto3 service this client is bound to."""
+        return self._service_name
+
+    def _build(self):
+        """Return the live boto3 client, creating and caching it on first use."""
+        if self._client is None:
+            try:
+                # Session works with None values - uses default credentials/region chain
+                session = boto3.Session(
+                    profile_name=self._aws_profile, region_name=self._aws_region
+                )
+                self._client = session.client(self._service_name, config=self._config)
+                logger.info(
+                    f'Created {self._service_name} client with profile: {self._aws_profile or "default"}, region: {self._aws_region or "default"}'
+                )
+            except Exception as e:
+                logger.error(f'Error creating {self._service_name} client: {str(e)}')
+                raise
+
+        return self._client
+
+    def invalidate(self):
+        """Discard the cached client so the next call recreates it with fresh credentials."""
+        self._client = None
+        logger.info(f'Invalidated cached {self._service_name} client for credential refresh')
+
+    def _retry(self, description: str, call, client=None):
+        """Run call against the live client, refreshing credentials once on expiry."""
+        try:
+            return call(client if client is not None else self._build())
+        except ClientError as e:
+            if _error_code(e) not in _EXPIRED_TOKEN:
+                raise
+            logger.warning(f'Expired credentials on {description}, refreshing and retrying')
+            self.invalidate()
+            return call(self._build())
+
+    def __getattr__(self, name: str):
+        """Proxy an attribute, wrapping operations with a retry on expired credentials."""
+        if name.startswith('_'):
+            raise AttributeError(name)
+
+        client = self._build()
+        attribute = getattr(client, name)
+        if not callable(attribute):
+            return attribute
+
+        def call(*args, **kwargs):
+            return self._retry(name, lambda c: getattr(c, name)(*args, **kwargs), client)
+
+        return call
+
+    def get_paginator(self, operation: str) -> SimpleNamespace:
+        """Return an object exposing paginate(**kwargs), like a boto3 paginator."""
+        return SimpleNamespace(paginate=partial(self._paginate, operation))
+
+    def _paginate(self, operation: str, **kwargs) -> list[dict]:
+        """Return every page of the operation, retried once on expired credentials.
+
+        Pages are collected eagerly so a refresh cannot re-yield pages already handed
+        out. Both paginated listings here are small and fully materialized by callers.
+        """
+        return self._retry(
+            f'paginating {operation}',
+            lambda client: list(client.get_paginator(operation).paginate(**kwargs)),
+        )
+
+
 class RedshiftClientManager:
-    """Manages AWS clients for Redshift operations."""
+    """Builds and holds the self-refreshing clients used for Redshift operations."""
 
     def __init__(
         self, config: Config, aws_region: str | None = None, aws_profile: str | None = None
     ):
-        """Initialize the client manager."""
-        self.aws_region = aws_region
-        self.aws_profile = aws_profile
-        self._redshift_client = None
-        self._redshift_serverless_client = None
-        self._redshift_data_client = None
-        self._config = config
+        """Create one self-refreshing client per Redshift service."""
+        self._redshift = _CredentialRefreshingClient('redshift', config, aws_region, aws_profile)
+        self._redshift_serverless = _CredentialRefreshingClient(
+            'redshift-serverless', config, aws_region, aws_profile
+        )
+        self._redshift_data = _CredentialRefreshingClient(
+            'redshift-data', config, aws_region, aws_profile
+        )
 
-    def redshift_client(self):
-        """Get or create the Redshift client for provisioned clusters."""
-        if self._redshift_client is None:
-            try:
-                # Session works with None values - uses default credentials/region chain
-                session = boto3.Session(profile_name=self.aws_profile, region_name=self.aws_region)
-                self._redshift_client = session.client('redshift', config=self._config)
-                logger.info(
-                    f'Created Redshift client with profile: {self.aws_profile or "default"}, region: {self.aws_region or "default"}'
-                )
-            except Exception as e:
-                logger.error(f'Error creating Redshift client: {str(e)}')
-                raise
+    def redshift_client(self) -> _CredentialRefreshingClient:
+        """Get the Redshift client for provisioned clusters (auto-refreshes on expiry)."""
+        return self._redshift
 
-        return self._redshift_client
+    def redshift_serverless_client(self) -> _CredentialRefreshingClient:
+        """Get the Redshift Serverless client (auto-refreshes on expiry)."""
+        return self._redshift_serverless
 
-    def redshift_serverless_client(self):
-        """Get or create the Redshift Serverless client."""
-        if self._redshift_serverless_client is None:
-            try:
-                # Session works with None values - uses default credentials/region chain
-                session = boto3.Session(profile_name=self.aws_profile, region_name=self.aws_region)
-                self._redshift_serverless_client = session.client(
-                    'redshift-serverless', config=self._config
-                )
-                logger.info(
-                    f'Created Redshift Serverless client with profile: {self.aws_profile or "default"}, region: {self.aws_region or "default"}'
-                )
-            except Exception as e:
-                logger.error(f'Error creating Redshift Serverless client: {str(e)}')
-                raise
-
-        return self._redshift_serverless_client
-
-    def redshift_data_client(self):
-        """Get or create the Redshift Data API client."""
-        if self._redshift_data_client is None:
-            try:
-                # Session works with None values - uses default credentials/region chain
-                session = boto3.Session(profile_name=self.aws_profile, region_name=self.aws_region)
-                self._redshift_data_client = session.client('redshift-data', config=self._config)
-                logger.info(
-                    f'Created Redshift Data API client with profile: {self.aws_profile or "default"}, region: {self.aws_region or "default"}'
-                )
-            except Exception as e:
-                logger.error(f'Error creating Redshift Data API client: {str(e)}')
-                raise
-
-        return self._redshift_data_client
+    def redshift_data_client(self) -> _CredentialRefreshingClient:
+        """Get the Redshift Data API client (auto-refreshes on expiry)."""
+        return self._redshift_data
 
 
 class RedshiftSessionManager:
@@ -501,7 +573,7 @@ async def discover_clusters() -> list[RedshiftCluster]:
         logger.info(f'Found {len(clusters)} provisioned clusters')
 
     except ClientError as e:
-        if e.response.get('Error', {}).get('Code') not in _ACCESS_DENIED:
+        if _error_code(e) not in _ACCESS_DENIED:
             raise
         provisioned_error = e
         logger.warning(f'Skipping provisioned; IAM lacks permission: {e}')
@@ -547,7 +619,7 @@ async def discover_clusters() -> list[RedshiftCluster]:
         logger.info(f'Found {serverless_count} serverless workgroups')
 
     except ClientError as e:
-        if e.response.get('Error', {}).get('Code') not in _ACCESS_DENIED:
+        if _error_code(e) not in _ACCESS_DENIED:
             raise
         serverless_error = e
         logger.warning(f'Skipping serverless; IAM lacks permission: {e}')
