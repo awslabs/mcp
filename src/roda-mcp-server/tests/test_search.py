@@ -98,3 +98,33 @@ async def test_search_response_structure(setup_server, patch_fetch):
         assert 'description' in r
         assert 'managed_by' in r
         assert 'license' in r
+
+
+async def test_search_ranks_by_relevance(setup_server, patch_fetch):
+    """A dataset matching more query terms ranks above one matching fewer."""
+    result = await search_datasets('climate weather')
+    data = json.loads(result)
+
+    # noaa-ghcn has both 'climate' and 'weather' tags; nasa-nex has only
+    # 'climate'. The more complete match should rank first.
+    assert data['total_count'] == 2
+    assert data['results'][0]['slug'] == 'noaa-ghcn'
+
+
+async def test_search_ignores_stop_words(setup_server, patch_fetch):
+    """Filler/stop words do not widen the match set."""
+    result = await search_datasets('find the climate data')
+    data = json.loads(result)
+
+    # Only 'climate' is meaningful; it matches nasa-nex and noaa-ghcn.
+    assert data['total_count'] == 2
+    assert {r['slug'] for r in data['results']} == {'nasa-nex', 'noaa-ghcn'}
+
+
+async def test_search_result_omits_internal_score(setup_server, patch_fetch):
+    """The internal relevance score is not leaked in the response."""
+    result = await search_datasets('climate')
+    data = json.loads(result)
+
+    assert data['results']
+    assert all('score' not in r for r in data['results'])
