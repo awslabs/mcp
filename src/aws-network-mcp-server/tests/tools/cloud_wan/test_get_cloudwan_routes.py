@@ -60,6 +60,47 @@ class TestGetCloudwanRoutes:
             ]
         }
 
+    @pytest.fixture
+    def mock_blackhole_routes_response(self):
+        """Mock blackhole route without Destinations."""
+        return {
+            'NetworkRoutes': [
+                {
+                    'DestinationCidrBlock': '0.0.0.0/0',
+                    'Type': 'STATIC',
+                    'State': 'BLACKHOLE',
+                }
+            ]
+        }
+
+    @patch.object(routes_module, 'get_aws_client')
+    async def test_segment_with_blackhole_route_without_destinations(
+        self,
+        mock_get_client,
+        mock_core_network,
+        mock_blackhole_routes_response,
+    ):
+        """Regression test for blackhole routes without Destinations."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_client.get_core_network.return_value = mock_core_network
+        mock_client.get_network_routes.return_value = mock_blackhole_routes_response
+
+        result = await routes_module.get_cwan_routes(
+            core_network_id='core-network-123',
+            region='us-east-1',
+            segment='segment-a',
+        )
+
+        assert result['segment']['routes'] == [
+            {
+                'destination': '0.0.0.0/0',
+                'target': None,
+                'type': 'static',
+                'state': 'blackhole',
+            }
+        ]
+
     async def test_missing_parameters(self):
         """Test error when neither segment nor network_function_group provided."""
         with pytest.raises(ToolError, match='Please provide a segment or network_function_group'):

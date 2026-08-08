@@ -105,18 +105,26 @@ async def get_cwan_routes(
                 'routes': 'No network routes found with the given parameters.',
             }
         else:
-            result['segment'] = {
-                'name': segment,
-                'routes': [
+            routes = []
+
+            for route in routes_response.get('NetworkRoutes', []):
+                target = None
+                if route.get('Destinations'):
+                    dest = route['Destinations'][0]
+                    target = dest.get('CoreNetworkAttachmentId') or dest.get('ResourceId')
+
+                routes.append(
                     {
                         'destination': route.get('DestinationCidrBlock'),
-                        'target': route['Destinations'][0].get('CoreNetworkAttachmentId')
-                        or route['Destinations'][0].get('ResourceId'),
+                        'target': target,
                         'type': route.get('Type', '').lower(),
                         'state': route.get('State', '').lower(),
                     }
-                    for route in routes_response.get('NetworkRoutes', [])
-                ],
+                )
+
+            result['segment'] = {
+                'name': segment,
+                'routes': routes,
             }
 
     if network_function_group:
@@ -137,18 +145,25 @@ async def get_cwan_routes(
                 'routes': 'No network routes found with the given parameters.',
             }
         else:
-            result['network_function_group'] = {
-                'name': network_function_group,
-                'routes': [
+            routes = []
+
+            for route in routes_response.get('NetworkRoutes', []):
+                target = None
+                if route.get('Destinations'):
+                    dest = route['Destinations'][0]
+                    target = dest.get('CoreNetworkAttachmentId') or dest.get('ResourceId')
+
+                routes.append(
                     {
                         'destination': route.get('DestinationCidrBlock'),
-                        'target': route['Destinations'][0].get('CoreNetworkAttachmentId')
-                        or route['Destinations'][0].get('ResourceId'),
+                        'target': target,
                         'type': route.get('Type', '').lower(),
                         'state': route.get('State', '').lower(),
                     }
-                    for route in routes_response.get('NetworkRoutes', [])
-                ],
-            }
+                )
 
+            result['network_function_group'] = {
+                'name': network_function_group,
+                'routes': routes,
+            }
     return result
