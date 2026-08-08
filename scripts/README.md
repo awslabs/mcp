@@ -2,6 +2,49 @@
 
 This directory contains utility scripts for the MCP project.
 
+## migrate-mcp-v2.py
+
+Migrates servers from MCP Python SDK v1 to v2, reversing the `mcp[cli]<2.0.0` cap added in
+PR #4360. SDK 2.0.0 removed `mcp.server.fastmcp` outright and renamed `FastMCP` ->
+`MCPServer`.
+
+### Usage
+
+```bash
+scripts/migrate-mcp-v2.py                                   # dry-run report, whole fleet
+scripts/migrate-mcp-v2.py --server lambda-tool-mcp-server   # one server
+scripts/migrate-mcp-v2.py --apply --server iam-mcp-server   # write changes
+scripts/migrate-mcp-v2.py --json                            # machine-readable
+```
+
+**Dry-run by default** — nothing is written without `--apply`.
+
+### What it does
+
+1. Rewrites all seven v1 import forms to `mcp.server.mcpserver[.sub]`.
+2. Renames the `FastMCP` identifier to `MCPServer`, but only in files that imported it from
+   `mcp.server.fastmcp` — never in files using the standalone `fastmcp` PyPI package, which
+   is a different project that also exports `FastMCP`.
+3. Rewrites string monkeypatch targets like `patch('mcp.server.fastmcp.FastMCP')`, renaming
+   both halves (module *and* attribute) and flagging each for review.
+4. Bumps the dependency to `>=2.0.0,<3.0.0`, preserving declared extras.
+
+It does **not** touch `uv.lock` (generated — run `uv lock`), and does not move
+`stateless_http=` from the constructor to `run()`; affected files are reported instead.
+
+### Completing a migration
+
+```bash
+scripts/migrate-mcp-v2.py --apply --server <name>
+cd src/<name> && uv lock && uv run pytest
+```
+
+The rename and the cap bump must land in the same commit — v2-only imports break under a
+1.x resolution.
+
+See https://github.com/awslabs/mcp/issues/4448 for the full migration plan and the list of
+servers needing individual review.
+
 ## verify_package_name.py
 
 A Python script that verifies package name consistency between `pyproject.toml` and `README.md` files.
