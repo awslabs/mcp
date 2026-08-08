@@ -28,6 +28,7 @@ const config: Config = {
   projectName: 'mcp', // Usually your repo name.
 
   onBrokenLinks: 'throw',
+  onBrokenAnchors: 'throw',
   markdown: {
     hooks:  {
       onBrokenMarkdownLinks: 'throw'
