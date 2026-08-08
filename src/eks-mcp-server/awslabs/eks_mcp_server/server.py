@@ -27,6 +27,7 @@ Environment Variables:
 
 import argparse
 import os
+from awslabs.eks_mcp_server.aws_context_handler import AwsContextHandler
 from awslabs.eks_mcp_server.cloudwatch_handler import CloudWatchHandler
 from awslabs.eks_mcp_server.cloudwatch_metrics_guidance_handler import CloudWatchMetricsHandler
 from awslabs.eks_mcp_server.eks_kb_handler import EKSKnowledgeBaseHandler
@@ -178,6 +179,9 @@ def main():
 
     # Initialize handlers - all tools are always registered, access control is handled within tools
     K8sHandler(mcp, allow_write, allow_sensitive_data_access)
+
+    # AWS context handler for runtime profile/region switching (available in all modes)
+    AwsContextHandler(mcp)
 
     # AWS-dependent handlers require AWS credentials and are skipped in kubeconfig mode
     if auth_mode != 'kubeconfig':

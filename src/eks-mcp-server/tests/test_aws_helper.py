@@ -260,3 +260,59 @@ class TestAwsHelper:
 
         # Verify that the same client instance was returned both times
         assert client1 is client2
+
+    def test_clear_client_cache(self):
+        """Test that clear_client_cache clears all cached clients."""
+        # Add some clients to the cache
+        AwsHelper._client_cache['service1'] = MagicMock()
+        AwsHelper._client_cache['service2'] = MagicMock()
+
+        # Verify cache is not empty
+        assert len(AwsHelper._client_cache) == 2
+
+        # Clear the cache
+        AwsHelper.clear_client_cache()
+
+        # Verify cache is empty
+        assert len(AwsHelper._client_cache) == 0
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_set_aws_context_set_profile_and_region(self):
+        """Test that set_aws_context sets profile and region in environment."""
+        result = AwsHelper.set_aws_context(profile='test-profile', region='us-west-2')
+
+        assert result['profile'] == 'test-profile'
+        assert result['region'] == 'us-west-2'
+        assert os.environ.get('AWS_PROFILE') == 'test-profile'
+        assert os.environ.get('AWS_REGION') == 'us-west-2'
+
+    @patch.dict(os.environ, {'AWS_PROFILE': 'old-profile', 'AWS_REGION': 'old-region'}, clear=True)
+    def test_set_aws_context_clear_profile_and_region(self):
+        """Test that set_aws_context clears profile and region when empty string is passed."""
+        result = AwsHelper.set_aws_context(profile='', region='')
+
+        assert result['profile'] is None
+        assert result['region'] is None
+        assert 'AWS_PROFILE' not in os.environ
+        assert 'AWS_REGION' not in os.environ
+
+    @patch.dict(os.environ, {'AWS_PROFILE': 'existing-profile'}, clear=True)
+    def test_set_aws_context_partial_update(self):
+        """Test that set_aws_context only updates specified values."""
+        # Only set region, keep existing profile
+        result = AwsHelper.set_aws_context(region='eu-west-1')
+
+        assert result['profile'] == 'existing-profile'
+        assert result['region'] == 'eu-west-1'
+
+    @patch('boto3.client')
+    def test_set_aws_context_clears_cache(self, mock_boto3_client):
+        """Test that set_aws_context clears the client cache."""
+        # Add a client to the cache
+        AwsHelper._client_cache['eks'] = MagicMock()
+
+        # Set AWS context
+        AwsHelper.set_aws_context(profile='new-profile')
+
+        # Verify cache was cleared
+        assert len(AwsHelper._client_cache) == 0
