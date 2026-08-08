@@ -233,7 +233,9 @@ def format_markdown_case_summary(case: Dict[str, Any]) -> str:
     if case.get('recentCommunications'):
         markdown += '\n## Recent Communications\n\n'
         for comm in case['recentCommunications'].get('communications', []):
-            comm_header = f'### {comm["submittedBy"]} - {comm["timeCreated"]}'
+            comm_header = (
+                f'### {comm.get("submittedBy", "N/A")} - {comm.get("timeCreated", "N/A")}'
+            )
             comm_body = comm['body']
             markdown += f'{comm_header}\n\n{comm_body}\n\n'
 
