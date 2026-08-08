@@ -22,8 +22,8 @@ class KnowledgeResult:
 
     rank: int
     title: str
-    url: str
     context: str
+    url: Optional[str] = None
 
 
 @dataclass
