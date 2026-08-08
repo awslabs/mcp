@@ -10,6 +10,8 @@ Integrating the DataProcessing MCP server into AI code assistants transforms dat
 ### AWS Glue Integration
 
 * Data Catalog Management: Enables users to explore, create, and manage databases, tables, and partitions through natural language requests, automatically translating them into appropriate AWS Glue Data Catalog operations.
+* Table Format Detection: Detects whether a table is Hive, Iceberg, Delta, or Hudi format, and surfaces Iceberg-specific metadata (metadata location, format version) when applicable.
+* Data Quality: Create and manage Data Quality Definition Language (DQDL) rulesets, run ruleset evaluations against Data Catalog tables, and retrieve evaluation scores and per-rule results.
 * Connection Type Discovery: Discover and describe available AWS Glue connection types, including their supported properties, authentication methods, and compute environments.
 * Connection Metadata & Entity Exploration: Explore entities available through Glue connections (e.g., SaaS objects, database tables), describe entity schemas, and preview entity data records from connected data sources.
 * Interactive Sessions: Provides interactive development environment for Spark and Ray workloads, enabling data exploration, debugging, and iterative development through managed Jupyter-like sessions.
@@ -89,6 +91,13 @@ For read operations, the following permissions are required:
         "glue:ListWorkflows",
         "glue:GetTrigger",
         "glue:GetTriggers",
+        "glue:ListDataQualityRulesets",
+        "glue:GetDataQualityRuleset",
+        "glue:GetDataQualityRulesetEvaluationRun",
+        "glue:ListDataQualityRulesetEvaluationRuns",
+        "glue:GetDataQualityResult",
+        "glue:ListDataQualityResults",
+        "glue:BatchGetDataQualityResult",
         "cloudwatch:GetMetricData",
         "logs:DescribeLogGroups",
         "logs:DescribeLogStreams",
@@ -130,7 +139,8 @@ For read operations, the following permissions are required:
 
 For write operations, we recommend the following IAM policies:
 
-* AWSGlueServiceRole: Enables Glue service operations including job execution, crawler runs, and data catalog modifications
+* AWSGlueServiceRole: Enables Glue service operations including job execution, crawler runs, and data catalog modifications. This also covers the write-side Data Catalog actions used by the newer table/partition operations (`glue:BatchDeleteTableVersion`, `glue:CreatePartitionIndex`, `glue:DeletePartitionIndex`) and Data Quality actions (`glue:CreateDataQualityRuleset`, `glue:UpdateDataQualityRuleset`, `glue:DeleteDataQualityRuleset`, `glue:StartDataQualityRulesetEvaluationRun`).
+* `start-ruleset-evaluation-run` additionally requires an IAM role (passed as the `role` parameter) that Glue can assume to read the target table, and `iam:PassRole` permission on that role for the credentials running this server.
 
 **Important Security Note**: Users should exercise caution when --allow-write and --allow-sensitive-data-access modes are enabled with these broad permissions, as this combination grants significant privileges to the MCP server. Only enable these flags when necessary and in trusted environments.
 
@@ -366,12 +376,18 @@ Controls whether the MCP server adds and verifies MCP-managed tags on resources.
 | Tool Name | Description | Key Operations | Requirements |
 |-----------|-------------|----------------|--------------|
 | manage_aws_glue_databases | Manage AWS Glue Data Catalog databases | create-database, delete-database, get-database, list-databases, update-database | --allow-write flag for create/delete/update operations, appropriate AWS permissions |
-| manage_aws_glue_tables | Manage AWS Glue Data Catalog tables | create-table, delete-table, get-table, list-tables, update-table, search-tables | --allow-write flag for create/delete/update operations, database must exist, appropriate AWS permissions |
+| manage_aws_glue_tables | Manage AWS Glue Data Catalog tables | create-table, delete-table, get-table, list-tables, update-table, search-tables, detect-table-format, get-iceberg-table-info, get-table-versions, batch-delete-table-version | --allow-write flag for create/delete/update/batch-delete-table-version operations, database must exist, appropriate AWS permissions |
 | manage_aws_glue_connections | Manage AWS Glue Data Catalog connections | create-connection, delete-connection, get-connection, list-connections, update-connection, test-connection, batch-delete-connection | --allow-write flag for create/delete/update/test/batch-delete operations, appropriate AWS permissions |
-| manage_aws_glue_partitions | Manage AWS Glue Data Catalog partitions | create-partition, delete-partition, get-partition, list-partitions, update-partition | --allow-write flag for create/delete/update operations, database and table must exist, appropriate AWS permissions |
+| manage_aws_glue_partitions | Manage AWS Glue Data Catalog partitions | create-partition, delete-partition, get-partition, list-partitions, update-partition, create-partition-index, get-partition-indexes, delete-partition-index | --allow-write flag for create/delete/update/create-partition-index/delete-partition-index operations, database and table must exist, appropriate AWS permissions |
 | manage_aws_glue_catalog | Manage AWS Glue Data Catalog | create-catalog, delete-catalog, get-catalog, list-catalogs, import-catalog-to-glue | --allow-write flag for create/delete/import operations, appropriate AWS permissions |
 | manage_aws_glue_connection_types | Discover and describe AWS Glue connection types | describe-connection-type, list-connection-types | Appropriate AWS permissions (read-only operations) |
 | manage_aws_glue_connection_metadata | Access connection metadata and preview entity data from Glue connections | list-entities, describe-entity, get-entity-records | --allow-sensitive-data-access flag for get-entity-records, valid connection with credentials, appropriate AWS permissions |
+
+### Glue Data Quality Handler Tools
+
+| Tool Name | Description | Key Operations | Requirements |
+|-----------|-------------|----------------|--------------|
+| manage_aws_glue_data_quality | Manage AWS Glue Data Quality rulesets, evaluation runs, and results | list-rulesets, get-ruleset, create-ruleset, update-ruleset, delete-ruleset, start-ruleset-evaluation-run, get-ruleset-evaluation-run, list-ruleset-evaluation-runs, get-data-quality-result, list-data-quality-results, batch-get-data-quality-result | --allow-write flag for create/update/delete-ruleset and start-ruleset-evaluation-run operations, IAM role required for start-ruleset-evaluation-run, appropriate AWS permissions |
 
 ### Glue Interactive Sessions Handler Tools
 

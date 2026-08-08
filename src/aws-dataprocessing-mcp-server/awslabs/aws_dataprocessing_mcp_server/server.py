@@ -57,6 +57,9 @@ from awslabs.aws_dataprocessing_mcp_server.handlers.glue.crawler_handler import 
 from awslabs.aws_dataprocessing_mcp_server.handlers.glue.data_catalog_handler import (
     GlueDataCatalogHandler,
 )
+from awslabs.aws_dataprocessing_mcp_server.handlers.glue.data_quality_handler import (
+    GlueDataQualityHandler,
+)
 from awslabs.aws_dataprocessing_mcp_server.handlers.glue.glue_commons_handler import (
     GlueCommonsHandler,
 )
@@ -115,6 +118,10 @@ It enables you to create, manage, and monitor data processing workflows.
 3. Search for tables: `manage_aws_glue_tables(operation='search-tables', search_text='customer')`
 4. Get table details: `manage_aws_glue_tables(operation='get-table', database_name='my-database', table_name='my-table')`
 5. List partitions: `manage_aws_glue_partitions(operation='list-partitions', database_name='my-database', table_name='my-table')`
+6. Detect a table's format (Hive, Iceberg, Delta, Hudi): `manage_aws_glue_tables(operation='detect-table-format', database_name='my-database', table_name='my-table')`
+7. Get Iceberg-specific table metadata: `manage_aws_glue_tables(operation='get-iceberg-table-info', database_name='my-database', table_name='my-table')`
+8. Get a table's schema version history: `manage_aws_glue_tables(operation='get-table-versions', database_name='my-database', table_name='my-table')`
+9. List partition indexes on a table: `manage_aws_glue_partitions(operation='get-partition-indexes', database_name='my-database', table_name='my-table')`
 
 ### Updating Data Catalog Resources
 1. Update database properties: `manage_aws_glue_databases(operation='update-database', database_name='my-database', description='Updated description')`
@@ -127,6 +134,9 @@ It enables you to create, manage, and monitor data processing workflows.
 3. Delete a connection: `manage_aws_glue_connections(operation='delete-connection', connection_name='my-connection')`
 4. Delete a database: `manage_aws_glue_databases(operation='delete-database', database_name='my-database')`
 5. Batch delete connections: `manage_aws_glue_connections(operation='batch-delete-connection', connection_name_list=['conn-1', 'conn-2'])`
+6. Delete old table schema versions: `manage_aws_glue_tables(operation='batch-delete-table-version', database_name='my-database', table_name='my-table', version_ids=['1', '2'])`
+7. Create a partition index: `manage_aws_glue_partitions(operation='create-partition-index', database_name='my-database', table_name='my-table', partition_index={'IndexName': 'my-index', 'Keys': ['year', 'month']})`
+8. Delete a partition index: `manage_aws_glue_partitions(operation='delete-partition-index', database_name='my-database', table_name='my-table', index_name='my-index')`
 
 ### Testing Connections
 1. Test an existing connection: `manage_aws_glue_connections(operation='test-connection', connection_name='my-connection')`
@@ -246,6 +256,14 @@ It enables you to create, manage, and monitor data processing workflows.
 9. Manage crawler schedules: `manage_aws_glue_crawler_management(operation='update-crawler-schedule', crawler_name='my-crawler', schedule='cron(0 0 * * ? *)')`
 10. Get crawler metrics: `manage_aws_glue_crawler_management(operation='get-crawler-metrics', crawler_name_list=['my-crawler'])`
 
+### Glue Data Quality
+1. Create a ruleset: `manage_aws_glue_data_quality(operation='create-ruleset', name='my-ruleset', ruleset='Rules = [ColumnCount = 10]', database_name='my-database', table_name='my-table')`
+2. List rulesets for a table: `manage_aws_glue_data_quality(operation='list-rulesets', database_name='my-database', table_name='my-table')`
+3. Start a ruleset evaluation run: `manage_aws_glue_data_quality(operation='start-ruleset-evaluation-run', database_name='my-database', table_name='my-table', ruleset_names=['my-ruleset'], role='arn:aws:iam::123456789012:role/GlueDataQualityRole')`
+4. Check an evaluation run's status: `manage_aws_glue_data_quality(operation='get-ruleset-evaluation-run', run_id='dqrun-123ABC')`
+5. Get a data quality result: `manage_aws_glue_data_quality(operation='get-data-quality-result', result_id='dqresult-123ABC')`
+6. Delete a ruleset: `manage_aws_glue_data_quality(operation='delete-ruleset', name='my-ruleset')`
+
 ### IAM Role Management
 1. Create a role for data processing: `create_data_processing_role(role_name='my-glue-role', service_type='glue', description='Role for Glue jobs')`
 2. View role permissions: `get_policies_for_role(role_name='my-glue-role')`
@@ -331,6 +349,11 @@ def main():
 
     # Initialize handlers - all tools are always registered, access control is handled within tools
     GlueDataCatalogHandler(
+        mcp,
+        allow_write=allow_write,
+        allow_sensitive_data_access=allow_sensitive_data_access,
+    )
+    GlueDataQualityHandler(
         mcp,
         allow_write=allow_write,
         allow_sensitive_data_access=allow_sensitive_data_access,

@@ -14,6 +14,7 @@
 
 """Tests for the DataCatalogTableManager class."""
 
+import json
 import pytest
 from awslabs.aws_dataprocessing_mcp_server.core.glue_data_catalog.data_catalog_table_manager import (
     DataCatalogTableManager,
@@ -505,3 +506,294 @@ class TestDataCatalogTableManager:
         assert isinstance(result, CallToolResult)
         assert result.isError is True
         assert 'Failed to search tables' in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_detect_table_format_iceberg(self, manager, mock_ctx, mock_glue_client):
+        """Test that detect_table_format identifies an Iceberg table from its table_type parameter."""
+        mock_glue_client.get_table.return_value = {
+            'Table': {
+                'Name': 'iceberg-table',
+                'Parameters': {'table_type': 'ICEBERG', 'metadata_location': 's3://bucket/x.json'},
+                'StorageDescriptor': {},
+            }
+        }
+
+        result = await manager.detect_table_format(
+            mock_ctx, database_name='test-db', table_name='iceberg-table'
+        )
+
+        assert result.isError is False
+        data = json.loads(result.content[1].text)
+        assert data['table_format'] == 'ICEBERG'
+        assert 'table_type' in data['detection_basis']
+
+    @pytest.mark.asyncio
+    async def test_detect_table_format_hive(self, manager, mock_ctx, mock_glue_client):
+        """Test that detect_table_format identifies a Hive-style table from its SerDe info."""
+        mock_glue_client.get_table.return_value = {
+            'Table': {
+                'Name': 'hive-table',
+                'Parameters': {},
+                'StorageDescriptor': {
+                    'InputFormat': 'org.apache.hadoop.mapred.TextInputFormat',
+                    'SerdeInfo': {
+                        'SerializationLibrary': 'org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe'
+                    },
+                },
+            }
+        }
+
+        result = await manager.detect_table_format(
+            mock_ctx, database_name='test-db', table_name='hive-table'
+        )
+
+        assert result.isError is False
+        data = json.loads(result.content[1].text)
+        assert data['table_format'] == 'HIVE'
+
+    @pytest.mark.asyncio
+    async def test_detect_table_format_delta_by_parameter_prefix(
+        self, manager, mock_ctx, mock_glue_client
+    ):
+        """Test that detect_table_format identifies a Delta table from delta.* parameter keys."""
+        mock_glue_client.get_table.return_value = {
+            'Table': {
+                'Name': 'delta-table',
+                'Parameters': {'delta.minReaderVersion': '1'},
+                'StorageDescriptor': {},
+            }
+        }
+
+        result = await manager.detect_table_format(
+            mock_ctx, database_name='test-db', table_name='delta-table'
+        )
+
+        assert result.isError is False
+        data = json.loads(result.content[1].text)
+        assert data['table_format'] == 'DELTA'
+
+    @pytest.mark.asyncio
+    async def test_detect_table_format_hudi_by_parameter_prefix(
+        self, manager, mock_ctx, mock_glue_client
+    ):
+        """Test that detect_table_format identifies a Hudi table from hoodie.* parameter keys."""
+        mock_glue_client.get_table.return_value = {
+            'Table': {
+                'Name': 'hudi-table',
+                'Parameters': {'hoodie.table.name': 'hudi-table'},
+                'StorageDescriptor': {},
+            }
+        }
+
+        result = await manager.detect_table_format(
+            mock_ctx, database_name='test-db', table_name='hudi-table'
+        )
+
+        assert result.isError is False
+        data = json.loads(result.content[1].text)
+        assert data['table_format'] == 'HUDI'
+
+    @pytest.mark.asyncio
+    async def test_detect_table_format_unknown(self, manager, mock_ctx, mock_glue_client):
+        """Test that detect_table_format falls back to UNKNOWN when no signal is present."""
+        mock_glue_client.get_table.return_value = {
+            'Table': {'Name': 'mystery-table', 'Parameters': {}, 'StorageDescriptor': {}}
+        }
+
+        result = await manager.detect_table_format(
+            mock_ctx, database_name='test-db', table_name='mystery-table'
+        )
+
+        assert result.isError is False
+        data = json.loads(result.content[1].text)
+        assert data['table_format'] == 'UNKNOWN'
+
+    @pytest.mark.asyncio
+    async def test_detect_table_format_not_found(self, manager, mock_ctx, mock_glue_client):
+        """Test that detect_table_format returns an error for a non-existent table."""
+        error_response = {'Error': {'Code': 'EntityNotFoundException', 'Message': 'Not found'}}
+        mock_glue_client.get_table.side_effect = ClientError(error_response, 'GetTable')
+
+        result = await manager.detect_table_format(
+            mock_ctx, database_name='test-db', table_name='missing-table'
+        )
+
+        assert result.isError is True
+        assert 'Failed to detect table format' in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_get_iceberg_table_info_is_iceberg(self, manager, mock_ctx, mock_glue_client):
+        """Test that get_iceberg_table_info surfaces metadata for an Iceberg table."""
+        mock_glue_client.get_table.return_value = {
+            'Table': {
+                'Name': 'iceberg-table',
+                'Parameters': {
+                    'table_type': 'ICEBERG',
+                    'metadata_location': 's3://bucket/metadata/00001.metadata.json',
+                    'previous_metadata_location': 's3://bucket/metadata/00000.metadata.json',
+                    'format-version': '2',
+                },
+                'StorageDescriptor': {},
+            }
+        }
+
+        result = await manager.get_iceberg_table_info(
+            mock_ctx, database_name='test-db', table_name='iceberg-table'
+        )
+
+        assert result.isError is False
+        data = json.loads(result.content[1].text)
+        assert data['is_iceberg'] is True
+        assert data['metadata_location'] == 's3://bucket/metadata/00001.metadata.json'
+        assert data['previous_metadata_location'] == 's3://bucket/metadata/00000.metadata.json'
+        assert data['format_version'] == '2'
+
+    @pytest.mark.asyncio
+    async def test_get_iceberg_table_info_not_iceberg(self, manager, mock_ctx, mock_glue_client):
+        """Test that get_iceberg_table_info reports is_iceberg=False for a non-Iceberg table, not an error."""
+        mock_glue_client.get_table.return_value = {
+            'Table': {'Name': 'hive-table', 'Parameters': {}, 'StorageDescriptor': {}}
+        }
+
+        result = await manager.get_iceberg_table_info(
+            mock_ctx, database_name='test-db', table_name='hive-table'
+        )
+
+        assert result.isError is False
+        data = json.loads(result.content[1].text)
+        assert data['is_iceberg'] is False
+        assert data['metadata_location'] is None
+
+    @pytest.mark.asyncio
+    async def test_get_iceberg_table_info_error(self, manager, mock_ctx, mock_glue_client):
+        """Test that get_iceberg_table_info returns an error for a non-existent table."""
+        error_response = {'Error': {'Code': 'EntityNotFoundException', 'Message': 'Not found'}}
+        mock_glue_client.get_table.side_effect = ClientError(error_response, 'GetTable')
+
+        result = await manager.get_iceberg_table_info(
+            mock_ctx, database_name='test-db', table_name='missing-table'
+        )
+
+        assert result.isError is True
+        assert 'Failed to get Iceberg table info' in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_get_table_versions_success(self, manager, mock_ctx, mock_glue_client):
+        """Test that get_table_versions returns a successful response with version history."""
+        update_time = datetime(2023, 1, 2, 0, 0, 0)
+        mock_glue_client.get_table_versions.return_value = {
+            'TableVersions': [
+                {
+                    'Table': {'Name': 'test-table', 'UpdateTime': update_time},
+                    'VersionId': '2',
+                },
+                {'Table': {'Name': 'test-table'}, 'VersionId': '1'},
+            ],
+            'NextToken': 'next-page',
+        }
+
+        result = await manager.get_table_versions(
+            mock_ctx, database_name='test-db', table_name='test-table', max_results=10
+        )
+
+        mock_glue_client.get_table_versions.assert_called_once_with(
+            DatabaseName='test-db', TableName='test-table', MaxResults=10
+        )
+        assert result.isError is False
+        data = json.loads(result.content[1].text)
+        assert data['count'] == 2
+        assert data['next_token'] == 'next-page'
+        assert data['versions'][0]['version_id'] == '2'
+
+    @pytest.mark.asyncio
+    async def test_get_table_versions_empty(self, manager, mock_ctx, mock_glue_client):
+        """Test that get_table_versions handles a table with no recorded version history."""
+        mock_glue_client.get_table_versions.return_value = {'TableVersions': []}
+
+        result = await manager.get_table_versions(
+            mock_ctx, database_name='test-db', table_name='new-table'
+        )
+
+        assert result.isError is False
+        data = json.loads(result.content[1].text)
+        assert data['count'] == 0
+        assert data['versions'] == []
+
+    @pytest.mark.asyncio
+    async def test_get_table_versions_not_found(self, manager, mock_ctx, mock_glue_client):
+        """Test that get_table_versions returns an error for a non-existent table."""
+        error_response = {'Error': {'Code': 'EntityNotFoundException', 'Message': 'Not found'}}
+        mock_glue_client.get_table_versions.side_effect = ClientError(
+            error_response, 'GetTableVersions'
+        )
+
+        result = await manager.get_table_versions(
+            mock_ctx, database_name='test-db', table_name='missing-table'
+        )
+
+        assert result.isError is True
+        assert 'Failed to get versions for table' in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_batch_delete_table_version_success(self, manager, mock_ctx, mock_glue_client):
+        """Test that batch_delete_table_version returns a successful response with no errors."""
+        mock_glue_client.batch_delete_table_version.return_value = {'Errors': []}
+
+        result = await manager.batch_delete_table_version(
+            mock_ctx,
+            database_name='test-db',
+            table_name='test-table',
+            version_ids=['1', '2'],
+        )
+
+        mock_glue_client.batch_delete_table_version.assert_called_once_with(
+            DatabaseName='test-db', TableName='test-table', VersionIds=['1', '2']
+        )
+        assert result.isError is False
+        data = json.loads(result.content[1].text)
+        assert data['version_ids'] == ['1', '2']
+        assert data['errors'] == []
+
+    @pytest.mark.asyncio
+    async def test_batch_delete_table_version_partial_errors(
+        self, manager, mock_ctx, mock_glue_client
+    ):
+        """Test that batch_delete_table_version surfaces per-version errors without failing the whole call."""
+        mock_glue_client.batch_delete_table_version.return_value = {
+            'Errors': [
+                {
+                    'VersionId': '1',
+                    'ErrorDetail': {'ErrorCode': 'EntityNotFoundException', 'ErrorMessage': 'x'},
+                }
+            ]
+        }
+
+        result = await manager.batch_delete_table_version(
+            mock_ctx,
+            database_name='test-db',
+            table_name='test-table',
+            version_ids=['1', '2'],
+        )
+
+        assert result.isError is False
+        data = json.loads(result.content[1].text)
+        assert len(data['errors']) == 1
+        assert data['errors'][0]['VersionId'] == '1'
+
+    @pytest.mark.asyncio
+    async def test_batch_delete_table_version_error(self, manager, mock_ctx, mock_glue_client):
+        """Test that batch_delete_table_version returns an error when the Glue API call fails."""
+        error_response = {'Error': {'Code': 'EntityNotFoundException', 'Message': 'Not found'}}
+        mock_glue_client.batch_delete_table_version.side_effect = ClientError(
+            error_response, 'BatchDeleteTableVersion'
+        )
+
+        result = await manager.batch_delete_table_version(
+            mock_ctx,
+            database_name='test-db',
+            table_name='missing-table',
+            version_ids=['1'],
+        )
+
+        assert result.isError is True
+        assert 'Failed to batch delete versions for table' in result.content[0].text

@@ -640,3 +640,249 @@ class ResourceLinkData(BaseModel):
     target_catalog_id: str = Field(..., description='Target catalog ID')
     target_database: str = Field(..., description='Target database name')
     operation: str = Field(default='create_link', description='Operation performed')
+
+
+# Table Format Detection Data Models
+class DetectTableFormatData(BaseModel):
+    """Data model for detect table format operation."""
+
+    database_name: str = Field(..., description='Name of the database containing the table')
+    table_name: str = Field(..., description='Name of the table')
+    table_format: str = Field(
+        ..., description='Detected table format: HIVE, ICEBERG, DELTA, HUDI, or UNKNOWN'
+    )
+    detection_basis: str = Field(
+        ..., description='Explanation of what table metadata led to this classification'
+    )
+    operation: str = Field(default='detect-table-format', description='Operation performed')
+
+
+class GetIcebergTableInfoData(BaseModel):
+    """Data model for get Iceberg table info operation."""
+
+    database_name: str = Field(..., description='Name of the database containing the table')
+    table_name: str = Field(..., description='Name of the table')
+    is_iceberg: bool = Field(..., description='Whether the table was detected as an Iceberg table')
+    metadata_location: Optional[str] = Field(
+        None, description='S3 location of the current Iceberg table metadata file'
+    )
+    previous_metadata_location: Optional[str] = Field(
+        None, description='S3 location of the previous Iceberg table metadata file'
+    )
+    format_version: Optional[str] = Field(
+        None, description='Iceberg table format version, if present in table parameters'
+    )
+    operation: str = Field(default='get-iceberg-table-info', description='Operation performed')
+
+
+# Table Version Data Models
+class TableVersionSummary(BaseModel):
+    """Summary of a Glue Data Catalog table version."""
+
+    version_id: str = Field(..., description='ID of the table version')
+    table_name: str = Field(..., description='Name of the table')
+    update_time: Optional[str] = Field(None, description='Update timestamp in ISO format')
+    table_definition: Dict[str, Any] = Field(
+        default_factory=dict, description='Table definition at this version'
+    )
+
+
+class GetTableVersionsData(BaseModel):
+    """Data model for get table versions operation."""
+
+    database_name: str = Field(..., description='Name of the database containing the table')
+    table_name: str = Field(..., description='Name of the table')
+    versions: List[TableVersionSummary] = Field(..., description='List of table versions')
+    count: int = Field(..., description='Number of table versions found')
+    next_token: Optional[str] = Field(None, description='Token for pagination')
+    operation: str = Field(default='get-table-versions', description='Operation performed')
+
+
+class BatchDeleteTableVersionData(BaseModel):
+    """Data model for batch delete table version operation."""
+
+    database_name: str = Field(..., description='Name of the database containing the table')
+    table_name: str = Field(..., description='Name of the table')
+    version_ids: List[str] = Field(..., description='Version IDs requested for deletion')
+    errors: List[Dict[str, Any]] = Field(
+        default_factory=list, description='Errors for version IDs that failed to delete'
+    )
+    operation: str = Field(default='batch-delete-table-version', description='Operation performed')
+
+
+# Partition Index Data Models
+class PartitionIndexSummary(BaseModel):
+    """Summary of a Glue Data Catalog partition index."""
+
+    index_name: str = Field(..., description='Name of the partition index')
+    keys: List[str] = Field(default_factory=list, description='Partition key names in the index')
+    index_status: Optional[str] = Field(None, description='Status of the partition index')
+    backfill_errors: List[Dict[str, Any]] = Field(
+        default_factory=list, description='Errors encountered while backfilling the index'
+    )
+
+
+class CreatePartitionIndexData(BaseModel):
+    """Data model for create partition index operation."""
+
+    database_name: str = Field(..., description='Name of the database containing the table')
+    table_name: str = Field(..., description='Name of the table')
+    index_name: str = Field(..., description='Name of the created partition index')
+    operation: str = Field(default='create-partition-index', description='Operation performed')
+
+
+class GetPartitionIndexesData(BaseModel):
+    """Data model for get partition indexes operation."""
+
+    database_name: str = Field(..., description='Name of the database containing the table')
+    table_name: str = Field(..., description='Name of the table')
+    partition_indexes: List[PartitionIndexSummary] = Field(
+        ..., description='List of partition indexes'
+    )
+    count: int = Field(..., description='Number of partition indexes found')
+    next_token: Optional[str] = Field(None, description='Token for pagination')
+    operation: str = Field(default='get-partition-indexes', description='Operation performed')
+
+
+class DeletePartitionIndexData(BaseModel):
+    """Data model for delete partition index operation."""
+
+    database_name: str = Field(..., description='Name of the database containing the table')
+    table_name: str = Field(..., description='Name of the table')
+    index_name: str = Field(..., description='Name of the deleted partition index')
+    operation: str = Field(default='delete-partition-index', description='Operation performed')
+
+
+# Data Quality Data Models
+class DataQualityRulesetSummary(BaseModel):
+    """Summary of a Glue Data Quality ruleset."""
+
+    name: str = Field(..., description='Name of the ruleset')
+    description: Optional[str] = Field(None, description='Description of the ruleset')
+    target_table: Optional[Dict[str, str]] = Field(
+        None, description='Database and table the ruleset targets'
+    )
+    created_on: Optional[str] = Field(None, description='Creation timestamp in ISO format')
+    last_modified_on: Optional[str] = Field(
+        None, description='Last modification timestamp in ISO format'
+    )
+    rule_count: Optional[int] = Field(None, description='Number of rules in the ruleset')
+
+
+class ListDataQualityRulesetsData(BaseModel):
+    """Data model for list data quality rulesets operation."""
+
+    rulesets: List[DataQualityRulesetSummary] = Field(
+        ..., description='List of data quality rulesets'
+    )
+    count: int = Field(..., description='Number of rulesets found')
+    next_token: Optional[str] = Field(None, description='Token for pagination')
+    operation: str = Field(default='list-rulesets', description='Operation performed')
+
+
+class GetDataQualityRulesetData(BaseModel):
+    """Data model for get data quality ruleset operation."""
+
+    name: str = Field(..., description='Name of the ruleset')
+    description: Optional[str] = Field(None, description='Description of the ruleset')
+    ruleset: Optional[str] = Field(None, description='DQDL ruleset definition')
+    target_table: Optional[Dict[str, str]] = Field(
+        None, description='Database and table the ruleset targets'
+    )
+    created_on: Optional[str] = Field(None, description='Creation timestamp in ISO format')
+    last_modified_on: Optional[str] = Field(
+        None, description='Last modification timestamp in ISO format'
+    )
+    operation: str = Field(default='get-ruleset', description='Operation performed')
+
+
+class CreateDataQualityRulesetData(BaseModel):
+    """Data model for create data quality ruleset operation."""
+
+    name: str = Field(..., description='Name of the created ruleset')
+    operation: str = Field(default='create-ruleset', description='Operation performed')
+
+
+class UpdateDataQualityRulesetData(BaseModel):
+    """Data model for update data quality ruleset operation."""
+
+    name: str = Field(..., description='Name of the updated ruleset')
+    operation: str = Field(default='update-ruleset', description='Operation performed')
+
+
+class DeleteDataQualityRulesetData(BaseModel):
+    """Data model for delete data quality ruleset operation."""
+
+    name: str = Field(..., description='Name of the deleted ruleset')
+    operation: str = Field(default='delete-ruleset', description='Operation performed')
+
+
+class StartDataQualityRulesetEvaluationRunData(BaseModel):
+    """Data model for start data quality ruleset evaluation run operation."""
+
+    run_id: str = Field(..., description='ID of the started evaluation run')
+    operation: str = Field(
+        default='start-ruleset-evaluation-run', description='Operation performed'
+    )
+
+
+class GetDataQualityRulesetEvaluationRunData(BaseModel):
+    """Data model for get data quality ruleset evaluation run operation."""
+
+    run_id: str = Field(..., description='ID of the evaluation run')
+    status: Optional[str] = Field(None, description='Status of the evaluation run')
+    ruleset_names: List[str] = Field(
+        default_factory=list, description='Rulesets evaluated in this run'
+    )
+    result_ids: List[str] = Field(
+        default_factory=list, description='Result IDs produced by this run'
+    )
+    started_on: Optional[str] = Field(None, description='Start timestamp in ISO format')
+    completed_on: Optional[str] = Field(None, description='Completion timestamp in ISO format')
+    error_string: Optional[str] = Field(None, description='Error message if the run failed')
+    operation: str = Field(default='get-ruleset-evaluation-run', description='Operation performed')
+
+
+class ListDataQualityRulesetEvaluationRunsData(BaseModel):
+    """Data model for list data quality ruleset evaluation runs operation."""
+
+    runs: List[Dict[str, Any]] = Field(
+        default_factory=list, description='List of evaluation run summaries'
+    )
+    count: int = Field(..., description='Number of evaluation runs found')
+    next_token: Optional[str] = Field(None, description='Token for pagination')
+    operation: str = Field(
+        default='list-ruleset-evaluation-runs', description='Operation performed'
+    )
+
+
+class GetDataQualityResultData(BaseModel):
+    """Data model for get data quality result operation."""
+
+    result: DataQualityResult = Field(..., description='The data quality result')
+    operation: str = Field(default='get-data-quality-result', description='Operation performed')
+
+
+class ListDataQualityResultsData(BaseModel):
+    """Data model for list data quality results operation."""
+
+    results: List[Dict[str, Any]] = Field(
+        default_factory=list, description='List of data quality result summaries'
+    )
+    count: int = Field(..., description='Number of results found')
+    next_token: Optional[str] = Field(None, description='Token for pagination')
+    operation: str = Field(default='list-data-quality-results', description='Operation performed')
+
+
+class BatchGetDataQualityResultData(BaseModel):
+    """Data model for batch get data quality result operation."""
+
+    results: List[DataQualityResult] = Field(
+        default_factory=list, description='Data quality results that were found'
+    )
+    results_not_found: List[str] = Field(
+        default_factory=list, description='Result IDs that were not found'
+    )
+    operation: str = Field(
+        default='batch-get-data-quality-result', description='Operation performed'
+    )

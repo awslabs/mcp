@@ -4155,3 +4155,259 @@ class TestGlueDataCatalogHandler:
 
         assert result.isError is True
         assert 'Error in manage_aws_glue_connection_metadata' in result.content[0].text
+
+    # Tests for the new table-format, table-version, and partition-index operations
+
+    @pytest.mark.asyncio
+    async def test_manage_aws_glue_data_catalog_tables_detect_table_format_read_access(
+        self, handler, mock_ctx, mock_table_manager
+    ):
+        """Test that detect-table-format is allowed with read access and dispatches correctly."""
+        expected_response = MagicMock()
+        expected_response.isError = False
+        mock_table_manager.detect_table_format.return_value = expected_response
+
+        result = await handler.manage_aws_glue_data_catalog_tables(
+            mock_ctx,
+            operation='detect-table-format',
+            database_name='test-db',
+            table_name='test-table',
+        )
+
+        mock_table_manager.detect_table_format.assert_called_once_with(
+            ctx=mock_ctx, database_name='test-db', table_name='test-table', catalog_id=ANY
+        )
+        assert result == expected_response
+
+    @pytest.mark.asyncio
+    async def test_manage_aws_glue_data_catalog_tables_detect_table_format_missing_table_name(
+        self, handler, mock_ctx
+    ):
+        """Test that detect-table-format requires table_name."""
+        with pytest.raises(ValueError):
+            await handler.manage_aws_glue_data_catalog_tables(
+                mock_ctx, operation='detect-table-format', database_name='test-db'
+            )
+
+    @pytest.mark.asyncio
+    async def test_manage_aws_glue_data_catalog_tables_get_iceberg_table_info_read_access(
+        self, handler, mock_ctx, mock_table_manager
+    ):
+        """Test that get-iceberg-table-info is allowed with read access and dispatches correctly."""
+        expected_response = MagicMock()
+        expected_response.isError = False
+        mock_table_manager.get_iceberg_table_info.return_value = expected_response
+
+        result = await handler.manage_aws_glue_data_catalog_tables(
+            mock_ctx,
+            operation='get-iceberg-table-info',
+            database_name='test-db',
+            table_name='test-table',
+        )
+
+        mock_table_manager.get_iceberg_table_info.assert_called_once_with(
+            ctx=mock_ctx, database_name='test-db', table_name='test-table', catalog_id=ANY
+        )
+        assert result == expected_response
+
+    @pytest.mark.asyncio
+    async def test_manage_aws_glue_data_catalog_tables_get_table_versions_read_access(
+        self, handler, mock_ctx, mock_table_manager
+    ):
+        """Test that get-table-versions is allowed with read access and dispatches correctly."""
+        expected_response = MagicMock()
+        expected_response.isError = False
+        mock_table_manager.get_table_versions.return_value = expected_response
+
+        result = await handler.manage_aws_glue_data_catalog_tables(
+            mock_ctx,
+            operation='get-table-versions',
+            database_name='test-db',
+            table_name='test-table',
+            max_results=5,
+        )
+
+        mock_table_manager.get_table_versions.assert_called_once_with(
+            ctx=mock_ctx,
+            database_name='test-db',
+            table_name='test-table',
+            catalog_id=ANY,
+            max_results=5,
+            next_token=ANY,
+        )
+        assert result == expected_response
+
+    @pytest.mark.asyncio
+    async def test_manage_aws_glue_data_catalog_tables_batch_delete_table_version_no_write_access(
+        self, handler, mock_ctx
+    ):
+        """Test that batch-delete-table-version is rejected without write access."""
+        result = await handler.manage_aws_glue_data_catalog_tables(
+            mock_ctx,
+            operation='batch-delete-table-version',
+            database_name='test-db',
+            table_name='test-table',
+            version_ids=['1'],
+        )
+        assert result.isError is True
+        assert 'not allowed without write access' in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_manage_aws_glue_data_catalog_tables_batch_delete_table_version_write_access(
+        self, handler_with_write_access, mock_ctx, mock_table_manager
+    ):
+        """Test that batch-delete-table-version dispatches correctly with write access."""
+        expected_response = MagicMock()
+        expected_response.isError = False
+        mock_table_manager.batch_delete_table_version.return_value = expected_response
+
+        result = await handler_with_write_access.manage_aws_glue_data_catalog_tables(
+            mock_ctx,
+            operation='batch-delete-table-version',
+            database_name='test-db',
+            table_name='test-table',
+            version_ids=['1', '2'],
+        )
+
+        mock_table_manager.batch_delete_table_version.assert_called_once_with(
+            ctx=mock_ctx,
+            database_name='test-db',
+            table_name='test-table',
+            version_ids=['1', '2'],
+            catalog_id=ANY,
+        )
+        assert result == expected_response
+
+    @pytest.mark.asyncio
+    async def test_manage_aws_glue_data_catalog_tables_batch_delete_table_version_missing_version_ids(
+        self, handler_with_write_access, mock_ctx
+    ):
+        """Test that batch-delete-table-version requires version_ids."""
+        with pytest.raises(ValueError):
+            await handler_with_write_access.manage_aws_glue_data_catalog_tables(
+                mock_ctx,
+                operation='batch-delete-table-version',
+                database_name='test-db',
+                table_name='test-table',
+            )
+
+    @pytest.mark.asyncio
+    async def test_manage_aws_glue_data_catalog_partitions_create_partition_index_no_write_access(
+        self, handler, mock_ctx
+    ):
+        """Test that create-partition-index is rejected without write access."""
+        result = await handler.manage_aws_glue_data_catalog_partitions(
+            mock_ctx,
+            operation='create-partition-index',
+            database_name='test-db',
+            table_name='test-table',
+            partition_index={'IndexName': 'my-index', 'Keys': ['year']},
+        )
+        assert result.isError is True
+        assert 'not allowed without write access' in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_manage_aws_glue_data_catalog_partitions_create_partition_index_write_access(
+        self, handler_with_write_access, mock_ctx, mock_catalog_manager
+    ):
+        """Test that create-partition-index dispatches correctly with write access."""
+        expected_response = MagicMock()
+        expected_response.isError = False
+        mock_catalog_manager.create_partition_index.return_value = expected_response
+
+        result = await handler_with_write_access.manage_aws_glue_data_catalog_partitions(
+            mock_ctx,
+            operation='create-partition-index',
+            database_name='test-db',
+            table_name='test-table',
+            partition_index={'IndexName': 'my-index', 'Keys': ['year']},
+        )
+
+        mock_catalog_manager.create_partition_index.assert_called_once_with(
+            ctx=mock_ctx,
+            database_name='test-db',
+            table_name='test-table',
+            partition_index={'IndexName': 'my-index', 'Keys': ['year']},
+            catalog_id=ANY,
+        )
+        assert result == expected_response
+
+    @pytest.mark.asyncio
+    async def test_manage_aws_glue_data_catalog_partitions_get_partition_indexes_read_access(
+        self, handler, mock_ctx, mock_catalog_manager
+    ):
+        """Test that get-partition-indexes is allowed with read access and dispatches correctly."""
+        expected_response = MagicMock()
+        expected_response.isError = False
+        mock_catalog_manager.get_partition_indexes.return_value = expected_response
+
+        result = await handler.manage_aws_glue_data_catalog_partitions(
+            mock_ctx,
+            operation='get-partition-indexes',
+            database_name='test-db',
+            table_name='test-table',
+        )
+
+        mock_catalog_manager.get_partition_indexes.assert_called_once_with(
+            ctx=mock_ctx,
+            database_name='test-db',
+            table_name='test-table',
+            catalog_id=ANY,
+            max_results=ANY,
+            next_token=ANY,
+        )
+        assert result == expected_response
+
+    @pytest.mark.asyncio
+    async def test_manage_aws_glue_data_catalog_partitions_delete_partition_index_no_write_access(
+        self, handler, mock_ctx
+    ):
+        """Test that delete-partition-index is rejected without write access."""
+        result = await handler.manage_aws_glue_data_catalog_partitions(
+            mock_ctx,
+            operation='delete-partition-index',
+            database_name='test-db',
+            table_name='test-table',
+            index_name='my-index',
+        )
+        assert result.isError is True
+        assert 'not allowed without write access' in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_manage_aws_glue_data_catalog_partitions_delete_partition_index_write_access(
+        self, handler_with_write_access, mock_ctx, mock_catalog_manager
+    ):
+        """Test that delete-partition-index dispatches correctly with write access."""
+        expected_response = MagicMock()
+        expected_response.isError = False
+        mock_catalog_manager.delete_partition_index.return_value = expected_response
+
+        result = await handler_with_write_access.manage_aws_glue_data_catalog_partitions(
+            mock_ctx,
+            operation='delete-partition-index',
+            database_name='test-db',
+            table_name='test-table',
+            index_name='my-index',
+        )
+
+        mock_catalog_manager.delete_partition_index.assert_called_once_with(
+            ctx=mock_ctx,
+            database_name='test-db',
+            table_name='test-table',
+            index_name='my-index',
+            catalog_id=ANY,
+        )
+        assert result == expected_response
+
+    @pytest.mark.asyncio
+    async def test_manage_aws_glue_data_catalog_partitions_delete_partition_index_missing_index_name(
+        self, handler_with_write_access, mock_ctx
+    ):
+        """Test that delete-partition-index requires index_name."""
+        with pytest.raises(ValueError):
+            await handler_with_write_access.manage_aws_glue_data_catalog_partitions(
+                mock_ctx,
+                operation='delete-partition-index',
+                database_name='test-db',
+                table_name='test-table',
+            )

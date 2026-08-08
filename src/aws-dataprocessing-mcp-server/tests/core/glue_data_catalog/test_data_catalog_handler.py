@@ -2546,3 +2546,139 @@ class TestDataCatalogManager:
         assert isinstance(result, CallToolResult)
         assert result.isError is True
         assert 'Failed to get entity records' in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_create_partition_index_success(self, manager, mock_ctx, mock_glue_client):
+        """Test that create_partition_index returns a successful response when the Glue API call succeeds."""
+        database_name = 'test-db'
+        table_name = 'test-table'
+        partition_index = {'IndexName': 'my-index', 'Keys': ['year', 'month']}
+        catalog_id = '123456789012'
+
+        result = await manager.create_partition_index(
+            mock_ctx,
+            database_name=database_name,
+            table_name=table_name,
+            partition_index=partition_index,
+            catalog_id=catalog_id,
+        )
+
+        mock_glue_client.create_partition_index.assert_called_once_with(
+            DatabaseName=database_name,
+            TableName=table_name,
+            PartitionIndex=partition_index,
+            CatalogId=catalog_id,
+        )
+        assert isinstance(result, CallToolResult)
+        assert result.isError is False
+        assert 'my-index' in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_create_partition_index_error(self, manager, mock_ctx, mock_glue_client):
+        """Test that create_partition_index returns an error when the Glue API call fails."""
+        mock_glue_client.create_partition_index.side_effect = ClientError(
+            {'Error': {'Code': 'EntityNotFoundException', 'Message': 'Table not found'}},
+            'CreatePartitionIndex',
+        )
+
+        result = await manager.create_partition_index(
+            mock_ctx,
+            database_name='test-db',
+            table_name='missing-table',
+            partition_index={'IndexName': 'my-index', 'Keys': ['year']},
+        )
+
+        assert isinstance(result, CallToolResult)
+        assert result.isError is True
+        assert 'Failed to create partition index' in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_get_partition_indexes_success(self, manager, mock_ctx, mock_glue_client):
+        """Test that get_partition_indexes returns a successful response with existing indexes."""
+        mock_glue_client.get_partition_indexes.return_value = {
+            'PartitionIndexDescriptorList': [
+                {
+                    'IndexName': 'my-index',
+                    'Keys': [{'Name': 'year', 'Type': 'string'}],
+                    'IndexStatus': 'ACTIVE',
+                    'BackfillErrors': [],
+                }
+            ],
+            'NextToken': 'next-page',
+        }
+
+        result = await manager.get_partition_indexes(
+            mock_ctx, database_name='test-db', table_name='test-table', max_results=10
+        )
+
+        mock_glue_client.get_partition_indexes.assert_called_once_with(
+            DatabaseName='test-db', TableName='test-table', MaxResults=10
+        )
+        assert isinstance(result, CallToolResult)
+        assert result.isError is False
+        assert '1 partition indexes' in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_get_partition_indexes_empty(self, manager, mock_ctx, mock_glue_client):
+        """Test that get_partition_indexes handles a table with no partition indexes."""
+        mock_glue_client.get_partition_indexes.return_value = {'PartitionIndexDescriptorList': []}
+
+        result = await manager.get_partition_indexes(
+            mock_ctx, database_name='test-db', table_name='test-table'
+        )
+
+        assert isinstance(result, CallToolResult)
+        assert result.isError is False
+        assert '0 partition indexes' in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_get_partition_indexes_error(self, manager, mock_ctx, mock_glue_client):
+        """Test that get_partition_indexes returns an error for a non-existent table."""
+        mock_glue_client.get_partition_indexes.side_effect = ClientError(
+            {'Error': {'Code': 'EntityNotFoundException', 'Message': 'Table not found'}},
+            'GetPartitionIndexes',
+        )
+
+        result = await manager.get_partition_indexes(
+            mock_ctx, database_name='test-db', table_name='missing-table'
+        )
+
+        assert isinstance(result, CallToolResult)
+        assert result.isError is True
+        assert 'Failed to get partition indexes' in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_delete_partition_index_success(self, manager, mock_ctx, mock_glue_client):
+        """Test that delete_partition_index returns a successful response when the Glue API call succeeds."""
+        result = await manager.delete_partition_index(
+            mock_ctx,
+            database_name='test-db',
+            table_name='test-table',
+            index_name='my-index',
+        )
+
+        mock_glue_client.delete_partition_index.assert_called_once_with(
+            DatabaseName='test-db', TableName='test-table', IndexName='my-index'
+        )
+        assert isinstance(result, CallToolResult)
+        assert result.isError is False
+        assert 'my-index' in result.content[0].text
+
+    @pytest.mark.asyncio
+    async def test_delete_partition_index_error(self, manager, mock_ctx, mock_glue_client):
+        """Test that delete_partition_index returns an error for a non-existent index."""
+        mock_glue_client.delete_partition_index.side_effect = ClientError(
+            {'Error': {'Code': 'EntityNotFoundException', 'Message': 'Index not found'}},
+            'DeletePartitionIndex',
+        )
+
+        result = await manager.delete_partition_index(
+            mock_ctx,
+            database_name='test-db',
+            table_name='test-table',
+            index_name='missing-index',
+        )
+
+        assert isinstance(result, CallToolResult)
+        assert result.isError is True
+        assert 'Failed to delete partition index' in result.content[0].text
