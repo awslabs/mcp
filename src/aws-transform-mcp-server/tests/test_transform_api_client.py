@@ -15,6 +15,7 @@
 """Tests for transform_api_client: cookie/bearer modes, token refresh, errors (boto3-based)."""
 # ruff: noqa: D101, D102, D103
 
+import asyncio
 import pytest
 import time
 from awslabs.aws_transform_mcp_server.http_utils import HttpError
@@ -435,6 +436,44 @@ class TestCallFesDirectSigv4:
         await call_fes_direct_sigv4('https://fes.example.com', 'VerifySession', region='eu-west-1')
 
         assert mock_create.call_args[1]['region'] == 'eu-west-1'
+
+    async def test_client_build_runs_off_event_loop(self):
+        """Regression test for #4059.
+
+        ``_create_sigv4_client`` must run off the event loop so concurrent
+        callers (the startup region fan-out) are not serialized by the
+        synchronous service-model load. Three concurrent calls whose client
+        build each sleeps 0.3s should complete in well under 3 * 0.3s.
+        """
+        from awslabs.aws_transform_mcp_server.transform_api_client import call_fes_direct_sigv4
+
+        build_delay = 0.3
+
+        def _slow_create(*args, **kwargs):
+            time.sleep(build_delay)  # simulate the synchronous model load
+            return MagicMock()
+
+        with (
+            patch(f'{_MOD}._call_boto3', return_value={'ok': True}),
+            patch(f'{_MOD}._create_sigv4_client', side_effect=_slow_create),
+        ):
+            start = time.monotonic()
+            results = await asyncio.gather(
+                *(
+                    call_fes_direct_sigv4('https://fes.example.com', 'VerifySession', region=r)
+                    for r in ('us-east-1', 'eu-west-1', 'ap-southeast-2')
+                )
+            )
+            elapsed = time.monotonic() - start
+
+        assert results == [{'ok': True}] * 3
+        # Serialized builds would take >= 3 * build_delay = 0.9s. The default
+        # asyncio to_thread pool has plenty of workers to run three builds in
+        # parallel, so this completes in roughly one build_delay. Use a generous
+        # but decisive threshold well below the serialized floor.
+        assert elapsed < 2 * build_delay, (
+            f'client builds appear serialized: {elapsed:.2f}s >= {2 * build_delay}s'
+        )
 
 
 # ── call_transform_api with FESRequest body ─────────────────────────────────────
