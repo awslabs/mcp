@@ -725,7 +725,10 @@ def test_main_with_valid_parameters(monkeypatch, capsys):
     # Stub the startup Secrets Manager probe so main() doesn't exit(1).
     monkeypatch.setattr(
         'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
-        lambda secret_arn, region, is_test=False: ('test_user', 'test_password'),
+        lambda secret_arn, region, is_test=False, require_password=True: (
+            'test_user',
+            'test_password',
+        ),
     )
 
     # Mock the connection so main can complete successfully
@@ -778,7 +781,10 @@ def test_main_with_invalid_parameters(monkeypatch, capsys):
     # Stub the startup Secrets Manager probe so main() doesn't exit(1).
     monkeypatch.setattr(
         'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
-        lambda secret_arn, region, is_test=False: ('test_user', 'test_password'),
+        lambda secret_arn, region, is_test=False, require_password=True: (
+            'test_user',
+            'test_password',
+        ),
     )
 
     # This test of main() will succeed in parsing parameters.
@@ -849,7 +855,10 @@ def test_main_with_psycopg_parameters(monkeypatch, capsys):
     # Stub the startup Secrets Manager probe so main() doesn't exit(1).
     monkeypatch.setattr(
         'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
-        lambda secret_arn, region, is_test=False: ('test_user', 'test_password'),
+        lambda secret_arn, region, is_test=False, require_password=True: (
+            'test_user',
+            'test_password',
+        ),
     )
 
     # The key fix: patch the PsycopgPoolConnection.__init__ to set is_test=True
@@ -1007,7 +1016,7 @@ def test_main_exits_when_secret_arn_unreadable(monkeypatch, capsys):
 
     monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', _fail_if_called)
 
-    def _raise_access_denied(secret_arn, region, is_test=False):
+    def _raise_access_denied(secret_arn, region, is_test=False, require_password=True):
         raise ValueError(
             'Failed to retrieve credentials from Secrets Manager: AccessDeniedException'
         )
@@ -1048,7 +1057,7 @@ def test_main_verifies_secret_before_mcp_run(monkeypatch, capsys):
     def _record_run():
         call_order.append('mcp.run')
 
-    def _record_secret(secret_arn, region, is_test=False):
+    def _record_secret(secret_arn, region, is_test=False, require_password=True):
         call_order.append('get_credentials_from_secret')
         return ('test_user', 'test_password')
 
@@ -1082,7 +1091,7 @@ def test_main_skips_secret_probe_when_arg_omitted(monkeypatch, capsys):
 
     secret_probe_calls = {'count': 0}
 
-    def _record_secret(secret_arn, region, is_test=False):
+    def _record_secret(secret_arn, region, is_test=False, require_password=True):
         secret_probe_calls['count'] += 1
         return ('test_user', 'test_password')
 
@@ -1132,7 +1141,10 @@ def test_main_parses_per_target_and_default_secret_arn(monkeypatch, capsys):
     monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
     monkeypatch.setattr(
         'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
-        lambda secret_arn, region, is_test=False: ('test_user', 'test_password'),
+        lambda secret_arn, region, is_test=False, require_password=True: (
+            'test_user',
+            'test_password',
+        ),
     )
 
     main()
@@ -1261,7 +1273,7 @@ def test_main_skips_empty_bare_secret_arn(monkeypatch, capsys):
 
     secret_probe_calls = {'count': 0}
 
-    def _record_secret(secret_arn, region, is_test=False):
+    def _record_secret(secret_arn, region, is_test=False, require_password=True):
         secret_probe_calls['count'] += 1
         return ('test_user', 'test_password')
 

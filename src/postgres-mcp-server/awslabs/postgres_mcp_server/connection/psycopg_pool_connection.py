@@ -34,8 +34,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 
 def get_credentials_from_secret(
-    secret_arn: str, region: str, is_test: bool = False
-) -> Tuple[str, str]:
+    secret_arn: str, region: str, is_test: bool = False, require_password: bool = True
+) -> Tuple[str, Optional[str]]:
     """Fetch database (username, password) from AWS Secrets Manager.
 
     The secret payload is expected to be JSON with ``username``/``user``/
@@ -51,13 +51,17 @@ def get_credentials_from_secret(
         region: AWS region of the secret.
         is_test: If True, return deterministic test credentials instead of
             hitting AWS. Intended for unit tests only.
+        require_password: If False, a secret without a password field is
+            accepted (IAM auth generates its own token and only needs the
+            username).
 
     Returns:
-        ``(username, password)`` tuple.
+        ``(username, password)`` tuple. ``password`` is ``None`` when the
+        secret has no password field and ``require_password`` is False.
 
     Raises:
-        ValueError: If the secret is missing, malformed, or lacks
-            username/password fields.
+        ValueError: If the secret is missing, malformed, lacks a username,
+            or lacks a password while ``require_password`` is True.
     """
     if is_test:
         return 'test_user', 'test_password'
@@ -89,7 +93,7 @@ def get_credentials_from_secret(
                 f'Secret does not contain username. Available keys: {", ".join(secret.keys())}'
             )
 
-        if not password:
+        if require_password and not password:
             logger.error('Password not found in secret')
             raise ValueError(
                 f'Secret does not contain password. Available keys: {", ".join(secret.keys())}'
@@ -354,7 +358,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
 
     def _get_credentials_from_secret(
         self, secret_arn: str, region: str, is_test: bool = False
-    ) -> Tuple[str, str]:
+    ) -> Tuple[str, Optional[str]]:
         """Get database credentials from AWS Secrets Manager.
 
         Instance-method wrapper around the module-level

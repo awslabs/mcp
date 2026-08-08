@@ -17,7 +17,10 @@ import concurrent.futures
 import pytest
 import threading
 import time
-from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import PsycopgPoolConnection
+from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import (
+    PsycopgPoolConnection,
+    get_credentials_from_secret,
+)
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -669,6 +672,20 @@ class TestPsycopgConnector:
 
             with pytest.raises(ValueError, match='Secret does not contain password'):
                 conn._get_credentials_from_secret('arn:secret', 'us-east-1', is_test=False)
+
+    def test_get_credentials_from_secret_password_not_required(self):
+        """Test username-only secret is accepted when password is not required."""
+        with patch('boto3.Session') as mock_session:
+            mock_client = MagicMock()
+            mock_session.return_value.client.return_value = mock_client
+            mock_client.get_secret_value.return_value = {'SecretString': '{"username": "db_user"}'}
+
+            user, password = get_credentials_from_secret(
+                'arn:secret', 'us-east-1', require_password=False
+            )
+
+            assert user == 'db_user'
+            assert password is None
 
     def test_get_credentials_from_secret_no_secret_string(self):
         """Test error when secret doesn't contain SecretString."""
