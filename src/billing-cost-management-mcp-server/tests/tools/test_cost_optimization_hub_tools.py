@@ -88,19 +88,18 @@ async def cost_optimization_hub(ctx, operation, **kwargs):
         }
 
     elif operation == 'get_recommendation':
-        if not kwargs.get('resource_id') or not kwargs.get('resource_type'):
+        if not kwargs.get('recommendation_id'):
             return format_response(
                 'error',
                 {},
-                'Both resource_id and resource_type are required for get_recommendation operation',
+                'recommendation_id is required for get_recommendation operation',
             )
 
         return {
             'status': 'success',
             'data': {
-                'id': kwargs.get('recommendation_id'),
-                'resource_id': kwargs.get('resource_id'),
-                'resource_type': 'EC2_INSTANCE',
+                'recommendation_id': kwargs.get('recommendation_id'),
+                'resource_id': 'i-12345',
                 'current_instance_type': 't3.xlarge',
                 'recommended_instance_type': 't3.large',
                 'estimated_monthly_savings': 50.0,
@@ -222,11 +221,11 @@ async def test_missing_group_by_for_summaries(mock_context):
 
 @pytest.mark.asyncio
 async def test_missing_resource_params_for_get_recommendation(mock_context):
-    """Test missing resource parameters for get_recommendation."""
+    """Test missing recommendation_id for get_recommendation."""
     result = await cost_optimization_hub(mock_context, operation='get_recommendation')
 
     assert result['status'] == 'error'
-    assert 'resource_id and resource_type are required' in result['message']
+    assert 'recommendation_id is required' in result['message']
 
 
 @pytest.mark.asyncio
@@ -255,18 +254,15 @@ async def test_list_recommendations_success(mock_context):
 
 @pytest.mark.asyncio
 async def test_get_recommendation_success(mock_context):
-    """Test successful get_recommendation."""
+    """Test successful get_recommendation with recommendation_id."""
     result = await cost_optimization_hub(
         mock_context,
         operation='get_recommendation',
-        resource_id='i-12345',
-        resource_type='EC2_INSTANCE',
         recommendation_id='rec-1',
     )
 
     assert result['status'] == 'success'
-    assert result['data']['resource_id'] == 'i-12345'
-    assert result['data']['resource_type'] == 'EC2_INSTANCE'
+    assert result['data']['recommendation_id'] == 'rec-1'
 
 
 def _reload_coh_with_identity_decorator():
@@ -388,15 +384,14 @@ async def test_coh_real_get_recommendation_success_reload_identity_decorator(moc
         res = await real_fn(  # type: ignore
             mock_context,
             operation='get_recommendation',
-            resource_id='i-abc',
-            resource_type='EC2_INSTANCE',
+            recommendation_id='i-abc',
         )
 
         assert res['status'] == 'success'
         mock_create_client.assert_called_once_with(
             'cost-optimization-hub', region_name='us-east-1'
         )
-        mock_get_rec.assert_awaited_once_with(mock_context, fake_client, 'i-abc', 'EC2_INSTANCE')
+        mock_get_rec.assert_awaited_once_with(mock_context, fake_client, 'i-abc')
 
 
 @pytest.mark.asyncio
@@ -408,12 +403,11 @@ async def test_coh_real_get_recommendation_missing_params_reload_identity_decora
     res = await real_fn(  # type: ignore
         mock_context,
         operation='get_recommendation',
-        # missing resource_id/resource_type
+        # missing recommendation_id
     )
     assert res['status'] == 'error'
     blob = json.dumps(res)
-    assert 'resource_id' in blob
-    assert 'resource_type' in blob
+    assert 'recommendation_id' in blob
 
 
 @pytest.mark.asyncio
@@ -560,12 +554,11 @@ async def test_coh_real_get_recommendation_missing_resource_id_reload_identity_d
     res = await real_fn(  # type: ignore
         mock_context,
         operation='get_recommendation',
-        resource_type='EC2_INSTANCE',
-        # missing resource_id
+        # missing recommendation_id
     )
 
     assert res['status'] == 'error'
-    assert 'resource_id and resource_type are required' in res['message']
+    assert 'recommendation_id is required' in res['message']
 
 
 @pytest.mark.asyncio

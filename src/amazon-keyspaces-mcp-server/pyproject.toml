@@ -7,7 +7,7 @@ requires-python = ">=3.10,<3.12"
 dependencies = [
     "boto3>=1.37.27",
     "cassandra-driver>=3.25.0",
-    "fastmcp>=2.14.0",
+    "fastmcp>=3.2.0",
     "loguru>=0.7.0",
     # Left on v1 deliberately. fastmcp 3.x pins mcp>=1.24.0,<2.0 through fastmcp-slim, so
     # raising this to >=2.0.0 makes fastmcp 3.x unsatisfiable -- and because the floor above
