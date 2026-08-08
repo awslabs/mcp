@@ -19,6 +19,7 @@ from awslabs.mysql_mcp_server.connection.cp_api_connection import (
     internal_create_rds_client,
     internal_get_cluster_properties,
     internal_get_instance_properties,
+    internal_get_instance_properties_by_identifier,
 )
 from botocore.exceptions import ClientError
 from unittest.mock import MagicMock, patch
@@ -214,6 +215,87 @@ class TestInternalGetInstanceProperties:
 
         with pytest.raises(ValueError, match='error fetching instance'):
             internal_get_instance_properties('ep.rds.amazonaws.com', 'us-east-1')
+
+
+class TestInternalGetInstancePropertiesByIdentifier:
+    """Tests for internal_get_instance_properties_by_identifier."""
+
+    @patch('awslabs.mysql_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_returns_instance_properties(self, mock_create_client):
+        """Should return instance properties for a valid instance identifier."""
+        mock_client = MagicMock()
+        mock_client.describe_db_instances.return_value = {
+            'DBInstances': [
+                {
+                    'DBInstanceIdentifier': 'my-instance',
+                    'DBInstanceStatus': 'available',
+                    'Engine': 'mysql',
+                    'Endpoint': {
+                        'Address': 'my-instance.xyz.us-east-1.rds.amazonaws.com',
+                        'Port': 3306,
+                    },
+                    'MasterUsername': 'admin',
+                    'MasterUserSecret': {'SecretArn': 'arn:secret'},
+                }
+            ]
+        }
+        mock_create_client.return_value = mock_client
+
+        result = internal_get_instance_properties_by_identifier('my-instance', 'us-east-1')
+
+        assert result['DBInstanceIdentifier'] == 'my-instance'
+        assert result['MasterUsername'] == 'admin'
+        assert result['Endpoint']['Address'] == 'my-instance.xyz.us-east-1.rds.amazonaws.com'
+        mock_client.describe_db_instances.assert_called_once_with(
+            DBInstanceIdentifier='my-instance'
+        )
+
+    @patch('awslabs.mysql_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_instance_not_found_raises(self, mock_create_client):
+        """Should raise ValueError when the instance list comes back empty."""
+        mock_client = MagicMock()
+        mock_client.describe_db_instances.return_value = {'DBInstances': []}
+        mock_create_client.return_value = mock_client
+
+        with pytest.raises(ValueError, match='not found'):
+            internal_get_instance_properties_by_identifier('nonexistent', 'us-east-1')
+
+    def test_empty_identifier_raises(self):
+        """Should raise ValueError for empty db_instance_identifier."""
+        with pytest.raises(ValueError, match='db_instance_identifier and region are required'):
+            internal_get_instance_properties_by_identifier('', 'us-east-1')
+
+    def test_empty_region_raises(self):
+        """Should raise ValueError for empty region."""
+        with pytest.raises(ValueError, match='db_instance_identifier and region are required'):
+            internal_get_instance_properties_by_identifier('my-instance', '')
+
+    @patch('awslabs.mysql_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_db_instance_not_found_fault_propagates(self, mock_create_client):
+        """Should propagate DBInstanceNotFoundFault from AWS.
+
+        e.g. an Aurora cluster identifier passed by mistake, which has no
+        standalone instance of the same name.
+        """
+        mock_client = MagicMock()
+        mock_client.describe_db_instances.side_effect = ClientError(
+            {'Error': {'Code': 'DBInstanceNotFound', 'Message': 'not found'}},
+            'DescribeDBInstances',
+        )
+        mock_create_client.return_value = mock_client
+
+        with pytest.raises(ClientError):
+            internal_get_instance_properties_by_identifier('my-cluster', 'us-east-1')
+
+    @patch('awslabs.mysql_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_unexpected_error_propagates(self, mock_create_client):
+        """Should propagate unexpected errors."""
+        mock_client = MagicMock()
+        mock_client.describe_db_instances.side_effect = RuntimeError('unexpected')
+        mock_create_client.return_value = mock_client
+
+        with pytest.raises(RuntimeError, match='unexpected'):
+            internal_get_instance_properties_by_identifier('my-instance', 'us-east-1')
 
 
 class TestInternalCreateRdsClient:
