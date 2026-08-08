@@ -140,6 +140,7 @@ const sidebars: SidebarsConfig = {
             "servers/well-architected-security-mcp-server",
             "servers/cloudtrail-mcp-server",
             "servers/billing-cost-management-mcp-server",
+            "servers/amazon-connect-mcp-server",
           ],
         },
         {
