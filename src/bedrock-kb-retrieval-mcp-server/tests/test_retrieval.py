@@ -17,10 +17,37 @@
 import json
 import pytest
 from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.retrieval import query_knowledge_base
+from unittest.mock import MagicMock
 
 
 class TestQueryKnowledgeBase:
     """Tests for the query_knowledge_base function."""
+
+    @pytest.mark.asyncio
+    async def test_query_knowledge_base_preserves_non_ascii_characters(self):
+        r"""Test that non-ASCII content is returned as readable text, not \uXXXX escapes."""
+        client = MagicMock()
+        client.retrieve.return_value = {
+            'retrievalResults': [
+                {
+                    'content': {'text': '東京は日本の首都です。 🗼', 'type': 'TEXT'},
+                    'location': {'s3Location': {'uri': 's3://test-bucket/ja-document.txt'}},
+                    'score': 0.9,
+                },
+            ]
+        }
+
+        result = await query_knowledge_base(
+            query='test query',
+            knowledge_base_id='kb-12345',
+            kb_agent_client=client,
+        )
+
+        assert '東京は日本の首都です。 🗼' in result
+        assert '\\u' not in result
+
+        documents = [json.loads(doc) for doc in result.split('\n\n')]
+        assert documents[0]['content']['text'] == '東京は日本の首都です。 🗼'
 
     @pytest.mark.asyncio
     async def test_query_knowledge_base_default(self, mock_bedrock_agent_runtime_client):
