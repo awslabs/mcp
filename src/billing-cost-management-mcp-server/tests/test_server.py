@@ -15,7 +15,7 @@
 """Tests for server.py."""
 
 import os
-from unittest.mock import AsyncMock, patch
+from unittest.mock import MagicMock, patch
 
 
 def test_server_imports():
@@ -32,7 +32,6 @@ def test_server_module_attributes():
     # Check that the module has the expected functions and imports
     assert hasattr(server, 'main')
     assert hasattr(server, 'mcp')
-    assert hasattr(server, 'asyncio')
 
 
 def test_path_modification():
@@ -89,47 +88,48 @@ def test_server_registration_logic():
 
 @patch('awslabs.billing_cost_management_mcp_server.server.mcp')
 @patch('awslabs.billing_cost_management_mcp_server.server.register_prompts')
-async def test_setup_function(mock_register_prompts, mock_mcp):
+def test_setup_function(mock_register_prompts, mock_mcp):
     """Test the setup function execution path."""
     from awslabs.billing_cost_management_mcp_server.server import setup
 
-    mock_mcp.import_server = AsyncMock()
+    mock_mcp.mount = MagicMock()
     mock_register_prompts.return_value = None
 
-    await setup()
+    setup()
 
-    assert mock_mcp.import_server.call_count >= 10
+    assert mock_mcp.mount.call_count == 22
+    mock_register_prompts.assert_called_once()
 
 
 @patch('awslabs.billing_cost_management_mcp_server.prompts.register_all_prompts')
-async def test_register_prompts_success(mock_register_all_prompts):
+def test_register_prompts_success(mock_register_all_prompts):
     """Test successful prompt registration."""
     from awslabs.billing_cost_management_mcp_server.server import register_prompts
 
     mock_register_all_prompts.return_value = None
 
-    await register_prompts()
+    register_prompts()
 
     mock_register_all_prompts.assert_called_once()
 
 
 @patch('awslabs.billing_cost_management_mcp_server.prompts.register_all_prompts')
-async def test_register_prompts_error(mock_register_all_prompts):
+def test_register_prompts_error(mock_register_all_prompts):
     """Test prompt registration error handling."""
     from awslabs.billing_cost_management_mcp_server.server import register_prompts
 
     mock_register_all_prompts.side_effect = Exception('Test error')
 
-    await register_prompts()
+    register_prompts()
 
 
-@patch('awslabs.billing_cost_management_mcp_server.server.asyncio.run')
+@patch('awslabs.billing_cost_management_mcp_server.server.setup')
 @patch('awslabs.billing_cost_management_mcp_server.server.mcp.run')
-def test_main_function(mock_mcp_run, mock_asyncio_run):
+def test_main_function(mock_mcp_run, mock_setup):
     """Test main function execution."""
     from awslabs.billing_cost_management_mcp_server.server import main
 
     main()
 
-    mock_asyncio_run.assert_called_once()
+    mock_setup.assert_called_once()
     mock_mcp_run.assert_called_once()

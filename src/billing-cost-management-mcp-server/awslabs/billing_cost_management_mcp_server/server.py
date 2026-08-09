@@ -18,7 +18,6 @@ A Model Context Protocol (MCP) server that provides tools for Billing and Cost M
 by wrapping boto3 SDK functions for AWS Billing and Cost Management services.
 """
 
-import asyncio
 import os
 import sys
 
@@ -192,7 +191,7 @@ For multi-account environments:
 mcp.add_middleware(ErrorSignalingMiddleware())
 
 
-async def register_prompts():
+def register_prompts():
     """Register all prompts with the MCP server."""
     try:
         from awslabs.billing_cost_management_mcp_server.prompts import register_all_prompts
@@ -203,32 +202,32 @@ async def register_prompts():
         logger.error(f'Error registering prompts: {e}')
 
 
-async def setup():
-    """Initialize the MCP server by importing all tool servers."""
-    await mcp.import_server(cost_explorer_server)
-    await mcp.import_server(compute_optimizer_server)
-    await mcp.import_server(compute_optimizer_automation_server)
-    await mcp.import_server(cost_optimization_hub_server)
-    await mcp.import_server(storage_lens_server)
-    await mcp.import_server(aws_pricing_server)
-    await mcp.import_server(bcm_pricing_calculator_server)
-    await mcp.import_server(budget_server)
-    await mcp.import_server(cost_anomaly_server)
-    await mcp.import_server(cost_comparison_server)
-    await mcp.import_server(free_tier_usage_server)
-    await mcp.import_server(recommendation_details_server)
-    await mcp.import_server(ri_performance_server)
-    await mcp.import_server(sp_performance_server)
-    await mcp.import_server(unified_sql_server)
-    await mcp.import_server(billing_conductor_server)
-    await mcp.import_server(bvs_server)
-    await mcp.import_server(cost_allocation_tags_server)
-    await mcp.import_server(cost_category_server)
-    await mcp.import_server(invoicing_server)
-    await mcp.import_server(invoice_units_server)
-    await mcp.import_server(procurement_preferences_server)
+def setup():
+    """Initialize the MCP server by mounting all tool servers."""
+    mcp.mount(cost_explorer_server)
+    mcp.mount(compute_optimizer_server)
+    mcp.mount(compute_optimizer_automation_server)
+    mcp.mount(cost_optimization_hub_server)
+    mcp.mount(storage_lens_server)
+    mcp.mount(aws_pricing_server)
+    mcp.mount(bcm_pricing_calculator_server)
+    mcp.mount(budget_server)
+    mcp.mount(cost_anomaly_server)
+    mcp.mount(cost_comparison_server)
+    mcp.mount(free_tier_usage_server)
+    mcp.mount(recommendation_details_server)
+    mcp.mount(ri_performance_server)
+    mcp.mount(sp_performance_server)
+    mcp.mount(unified_sql_server)
+    mcp.mount(billing_conductor_server)
+    mcp.mount(bvs_server)
+    mcp.mount(cost_allocation_tags_server)
+    mcp.mount(cost_category_server)
+    mcp.mount(invoicing_server)
+    mcp.mount(invoice_units_server)
+    mcp.mount(procurement_preferences_server)
 
-    await register_prompts()
+    register_prompts()
 
     logger.info('AWS Billing and Cost Management MCP Server initialized successfully')
 
@@ -282,7 +281,7 @@ async def setup():
 def main():
     """Main entry point for the server."""
     # Run the setup function to initialize the server
-    asyncio.run(setup())
+    setup()
 
     # Start the MCP server
     mcp.run()
