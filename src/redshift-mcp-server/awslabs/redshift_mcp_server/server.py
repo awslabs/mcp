@@ -39,6 +39,7 @@ from awslabs.redshift_mcp_server.review.executor import review_cluster
 from awslabs.redshift_mcp_server.review.models import ReviewResult
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
+from mcp.types import ToolAnnotations
 from pydantic import Field
 
 
@@ -86,7 +87,7 @@ This tool uses the Redshift Data API to run queries and return results.
 ### review_cluster
 Runs a diagnostic review of a Redshift cluster or serverless workgroup.
 Returns identified potential issues and respective recommendations ordered by required mitigation effort.
-Requires superuser (CREATEUSER) privileges.
+Requires the connected database user to hold the sys:monitor role (or be a superuser).
 
 ## Getting Started
 
@@ -137,7 +138,21 @@ The server reuses one Redshift Data API session per `cluster:database`:
 )
 
 
-@mcp.tool(name='list_clusters')
+def _read_only_annotations(title: str) -> ToolAnnotations:
+    """Return annotations for tools that only read the caller's AWS environment."""
+    return ToolAnnotations(
+        title=title,
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=True,
+    )
+
+
+@mcp.tool(
+    name='list_clusters',
+    annotations=_read_only_annotations('List Redshift clusters and workgroups'),
+)
 async def list_clusters_tool(ctx: Context) -> list[RedshiftCluster]:
     """List all available Amazon Redshift clusters and serverless workgroups.
 
@@ -196,7 +211,10 @@ async def list_clusters_tool(ctx: Context) -> list[RedshiftCluster]:
         raise
 
 
-@mcp.tool(name='list_databases')
+@mcp.tool(
+    name='list_databases',
+    annotations=_read_only_annotations('List Redshift databases'),
+)
 async def list_databases_tool(
     ctx: Context,
     cluster_identifier: str = Field(
@@ -270,7 +288,10 @@ async def list_databases_tool(
         raise
 
 
-@mcp.tool(name='list_schemas')
+@mcp.tool(
+    name='list_schemas',
+    annotations=_read_only_annotations('List Redshift schemas'),
+)
 async def list_schemas_tool(
     ctx: Context,
     cluster_identifier: str = Field(
@@ -352,7 +373,10 @@ async def list_schemas_tool(
         raise
 
 
-@mcp.tool(name='list_tables')
+@mcp.tool(
+    name='list_tables',
+    annotations=_read_only_annotations('List Redshift tables'),
+)
 async def list_tables_tool(
     ctx: Context,
     cluster_identifier: str = Field(
@@ -441,7 +465,10 @@ async def list_tables_tool(
         raise
 
 
-@mcp.tool(name='list_columns')
+@mcp.tool(
+    name='list_columns',
+    annotations=_read_only_annotations('List Redshift columns'),
+)
 async def list_columns_tool(
     ctx: Context,
     cluster_identifier: str = Field(
@@ -544,7 +571,10 @@ async def list_columns_tool(
         raise
 
 
-@mcp.tool(name='execute_query')
+@mcp.tool(
+    name='execute_query',
+    annotations=_read_only_annotations('Execute read-only Redshift query'),
+)
 async def execute_query_tool(
     ctx: Context,
     cluster_identifier: str = Field(
@@ -635,7 +665,10 @@ async def execute_query_tool(
         raise
 
 
-@mcp.tool(name='review_cluster')
+@mcp.tool(
+    name='review_cluster',
+    annotations=_read_only_annotations('Review Redshift cluster'),
+)
 async def review_cluster_tool(
     ctx: Context,
     cluster_identifier: str = Field(
@@ -657,11 +690,13 @@ async def review_cluster_tool(
     - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
     - The cluster must be available and accessible.
     - Required IAM permissions: redshift-data:ExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
-    - The connected user must have superuser (CREATEUSER) privileges to access the required system views.
-      If it does not, the review fails fast with "Review requires superuser (CREATEUSER) privileges"
-      (for example "permission denied for relation sys_auto_table_optimization"). This is by design -
-      an expected signal, not a tool defect - so the review never returns partial or misleading
-      results. Run the review as a superuser to get a complete assessment.
+    - The connected database user must be able to read Redshift system views, which
+      require superuser or sys:monitor access. If the current user is not a superuser,
+      it must be granted the sys:monitor role:
+      GRANT ROLE sys:monitor TO "<database_user>"; where <database_user> is the output
+      of SELECT current_user, quoted because IAM identities contain a colon
+      (IAM:<user> or IAMR:<role>).
+    - Without that access the review fails fast rather than returning partial results.
 
     ## Parameters
 

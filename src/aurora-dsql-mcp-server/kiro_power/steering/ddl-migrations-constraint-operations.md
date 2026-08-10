@@ -6,9 +6,59 @@ Step-by-step migration patterns for constraint changes, primary key modification
 
 ---
 
-## ADD CONSTRAINT Migration
+## ADD CHECK CONSTRAINT (Preferred)
 
-**Goal:** Add a constraint (UNIQUE, CHECK) to an existing table.
+**Goal:** Add a CHECK constraint to an existing table without table recreation.
+
+This is the **preferred** approach for CHECK constraints. It avoids full table recreation by adding the constraint as NOT VALID (applies to new rows immediately) and then validating existing rows asynchronously in the background.
+
+> **Note:** This pattern applies to CHECK constraints only. UNIQUE and PRIMARY KEY constraints still require the [Table Recreation Pattern](#add-unique-constraint-migration) below.
+
+### Migration Steps
+
+#### Step 1: Add constraint with NOT VALID
+
+```sql
+transact([
+  "ALTER TABLE target_table ADD CONSTRAINT chk_age CHECK (age >= 0) NOT VALID"
+])
+```
+
+The constraint applies immediately to all new inserts and updates. Existing rows are not scanned.
+
+#### Step 2: Validate asynchronously
+
+```sql
+transact([
+  "ALTER TABLE ASYNC target_table VALIDATE CONSTRAINT chk_age"
+])
+-- Returns a job_id
+```
+
+#### Step 3: Monitor validation
+
+```sql
+-- Option A: Poll job status
+readonly_query(
+  "SELECT * FROM sys.jobs WHERE job_id = '<job_id>'"
+)
+
+-- Option B: Block until complete
+readonly_query(
+  "SELECT sys.wait_for_job('<job_id>')"
+)
+```
+
+### Outcomes
+
+- **Success:** DSQL marks the constraint as VALID. The query planner enforces it for all queries.
+- **Failure:** The constraint remains NOT VALID. Existing rows violate the constraint. Fix the data and re-run VALIDATE CONSTRAINT.
+
+---
+
+## ADD UNIQUE CONSTRAINT Migration
+
+**Goal:** Add a UNIQUE constraint to an existing table (requires table recreation).
 
 ### Pre-Migration Validation
 
@@ -21,13 +71,6 @@ readonly_query(
    GROUP BY target_column HAVING COUNT(*) > 1 LIMIT 10"
 )
 -- MUST ABORT if any duplicates exist
-
--- For CHECK constraint: validate all rows pass
-readonly_query(
-  "SELECT COUNT(*) as invalid_count FROM target_table
-   WHERE NOT (check_condition)"
-)
--- MUST ABORT if invalid_count > 0
 ```
 
 ### Migration Steps
@@ -39,7 +82,6 @@ transact([
   "CREATE TABLE target_table_new (
      id UUID PRIMARY KEY,
      email VARCHAR(255) UNIQUE,  -- Added UNIQUE constraint
-     age INTEGER CHECK (age >= 0),  -- Added CHECK constraint
      other_column TEXT
    )"
 ])
@@ -49,8 +91,8 @@ transact([
 
 ```sql
 transact([
-  "INSERT INTO target_table_new (id, email, age, other_column)
-   SELECT id, email, age, other_column
+  "INSERT INTO target_table_new (id, email, other_column)
+   SELECT id, email, other_column
    FROM target_table"
 ])
 ```

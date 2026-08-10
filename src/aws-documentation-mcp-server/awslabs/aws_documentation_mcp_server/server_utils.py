@@ -19,6 +19,7 @@ from awslabs.aws_documentation_mcp_server.models import (
     TableResult,
 )
 from awslabs.aws_documentation_mcp_server.util import (
+    enforce_redirect_allowlist,
     extract_content_from_html,
     extract_sections_from_html,
     format_documentation_result,
@@ -29,8 +30,22 @@ from collections import deque
 from importlib.metadata import version
 from loguru import logger
 from mcp.server.fastmcp import Context
-from typing import Optional
+from typing import Optional, Sequence
 from urllib.parse import quote
+
+
+# Commercial partition domain allowlist
+COMMERCIAL_ALLOWED_DOMAIN_REGEXES = (
+    r'^https?://docs\.aws\.amazon\.com/',
+    r'^https?://awsdocs-neuron\.readthedocs-hosted\.com/',
+)
+
+
+def _docs_client(allowed_domain_regexes: Sequence[str]) -> httpx.AsyncClient:
+    """Build an AsyncClient that re-validates every redirect hop against the allowlist."""
+    return httpx.AsyncClient(
+        event_hooks={'response': [enforce_redirect_allowlist(allowed_domain_regexes)]}
+    )
 
 
 try:
@@ -55,6 +70,7 @@ async def read_documentation_impl(
     max_length: int,
     start_index: int,
     session_uuid: str,
+    allowed_domain_regexes: Sequence[str] = COMMERCIAL_ALLOWED_DOMAIN_REGEXES,
 ) -> str:
     """The implementation of the read_documentation tool."""
     logger.debug(f'Fetching documentation from {url_str}')
@@ -66,7 +82,7 @@ async def read_documentation_impl(
         url_with_session += f'&query_id={query_id}'
         logger.debug(f'Using query_id {query_id}')
 
-    async with httpx.AsyncClient() as client:
+    async with _docs_client(allowed_domain_regexes) as client:
         try:
             response = await client.get(
                 url_with_session,
@@ -156,6 +172,7 @@ async def read_sections_impl(
     url_str: str,
     section_titles: list[str],
     session_uuid: str,
+    allowed_domain_regexes: Sequence[str] = COMMERCIAL_ALLOWED_DOMAIN_REGEXES,
 ) -> str:
     """The implementation of the read_sections tool."""
     logger.debug(f'Fetching sections {section_titles} from {url_str}')
@@ -169,7 +186,7 @@ async def read_sections_impl(
         url_with_session += f'&query_id={query_id}'
         logger.debug(f'Using query_id {query_id}')
 
-    async with httpx.AsyncClient() as client:
+    async with _docs_client(allowed_domain_regexes) as client:
         try:
             response = await client.get(
                 url_with_session,
@@ -232,6 +249,7 @@ async def search_table_impl(
     query: str,
     max_rows: int,
     session_uuid: str,
+    allowed_domain_regexes: Sequence[str] = COMMERCIAL_ALLOWED_DOMAIN_REGEXES,
 ) -> SearchTableResponse:
     """The implementation of the search_table tool."""
     from awslabs.aws_documentation_mcp_server.table_utils import (  # noqa: E402
@@ -251,7 +269,7 @@ async def search_table_impl(
     if query_id:
         url_with_session += f'&query_id={query_id}'
 
-    async with httpx.AsyncClient() as client:
+    async with _docs_client(allowed_domain_regexes) as client:
         try:
             response = await client.get(
                 url_with_session,
