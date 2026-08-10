@@ -45,6 +45,7 @@ from awslabs.timestream_for_influxdb_mcp_server.server import (
     untag_resource,
     update_db_cluster,
     update_db_instance,
+    validate_flux_query,
 )
 from unittest.mock import MagicMock, patch
 
@@ -2695,3 +2696,334 @@ class TestInfluxDBCreateBucketWithRetention:
 
         assert result['status'] == 'error'
         assert 'not found' in result['message']
+
+
+@patch(
+    'awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_ALLOWED_URLS',
+    'https://influxdb-example.aws:8086',
+)
+class TestFluxQueryWriteGuard:
+    """Tests proving write-shaped Flux is rejected in read-only mode (default).
+
+    These tests validate the defense-in-depth fix for the security vulnerability
+    where InfluxDBQuery could execute Flux write primitives (to(), experimental.to(),
+    influxdb.wideTo()) without a write-mode guard.
+    """
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_rejects_pipe_forward_to(self, mock_get_client):
+        """Test that pipe-forward to() is rejected in read-only mode."""
+        query = 'from(bucket: "source") |> range(start: -1h) |> to(bucket: "dest")'
+
+        with pytest.raises(ValueError) as excinfo:
+            await influxdb_query(
+                url='https://influxdb-example.aws:8086',
+                token='test-token',
+                org='test-org',
+                query=query,
+            )
+
+        assert 'write-producing Flux operation' in str(excinfo.value)
+        mock_get_client.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_rejects_experimental_to(self, mock_get_client):
+        """Test that experimental.to() is rejected in read-only mode."""
+        query = """import "experimental"
+from(bucket: "source")
+  |> range(start: -1h)
+  |> experimental.to(bucket: "dest", org: "my-org")"""
+
+        with pytest.raises(ValueError) as excinfo:
+            await influxdb_query(
+                url='https://influxdb-example.aws:8086',
+                token='test-token',
+                org='test-org',
+                query=query,
+            )
+
+        assert 'write-producing Flux operation' in str(excinfo.value)
+        mock_get_client.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_rejects_wideTo(self, mock_get_client):
+        """Test that wideTo() is rejected in read-only mode."""
+        query = """import "influxdata/influxdb"
+from(bucket: "source")
+  |> range(start: -1h)
+  |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
+  |> wideTo(bucket: "dest")"""
+
+        with pytest.raises(ValueError) as excinfo:
+            await influxdb_query(
+                url='https://influxdb-example.aws:8086',
+                token='test-token',
+                org='test-org',
+                query=query,
+            )
+
+        assert 'write-producing Flux operation' in str(excinfo.value)
+        mock_get_client.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_rejects_influxdb_wideTo(self, mock_get_client):
+        """Test that influxdb.wideTo() is rejected in read-only mode."""
+        query = """import "influxdata/influxdb"
+from(bucket: "source")
+  |> range(start: -1h)
+  |> influxdb.wideTo(bucket: "dest", org: "my-org")"""
+
+        with pytest.raises(ValueError) as excinfo:
+            await influxdb_query(
+                url='https://influxdb-example.aws:8086',
+                token='test-token',
+                org='test-org',
+                query=query,
+            )
+
+        assert 'write-producing Flux operation' in str(excinfo.value)
+        mock_get_client.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_rejects_aliased_experimental_to(self, mock_get_client):
+        """Test that aliased experimental import with to() is rejected."""
+        query = """import ex "experimental"
+from(bucket: "source")
+  |> range(start: -1h)
+  |> ex.to(bucket: "dest")"""
+
+        with pytest.raises(ValueError) as excinfo:
+            await influxdb_query(
+                url='https://influxdb-example.aws:8086',
+                token='test-token',
+                org='test-org',
+                query=query,
+            )
+
+        assert 'write-producing Flux operation' in str(excinfo.value)
+        mock_get_client.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_rejects_to_with_extra_whitespace(self, mock_get_client):
+        """Test that to() with extra whitespace is still caught."""
+        query = 'from(bucket: "source") |>   to  (bucket: "dest")'
+
+        with pytest.raises(ValueError) as excinfo:
+            await influxdb_query(
+                url='https://influxdb-example.aws:8086',
+                token='test-token',
+                org='test-org',
+                query=query,
+            )
+
+        assert 'write-producing Flux operation' in str(excinfo.value)
+        mock_get_client.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_rejects_standalone_to_at_line_start(self, mock_get_client):
+        """Test that standalone to() at line start is rejected."""
+        query = """from(bucket: "source") |> range(start: -1h)
+to(bucket: "dest", org: "my-org")"""
+
+        with pytest.raises(ValueError) as excinfo:
+            await influxdb_query(
+                url='https://influxdb-example.aws:8086',
+                token='test-token',
+                org='test-org',
+                query=query,
+            )
+
+        assert 'write-producing Flux operation' in str(excinfo.value)
+        mock_get_client.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', True)
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_allows_to_when_write_mode_enabled(self, mock_get_client):
+        """Test that to() is allowed when INFLUXDB_WRITE_MODE is True."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_query_api = MagicMock()
+        mock_client.query_api.return_value = mock_query_api
+        mock_query_api.query.return_value = []
+
+        query = 'from(bucket: "source") |> range(start: -1h) |> to(bucket: "dest")'
+
+        result = await influxdb_query(
+            url='https://influxdb-example.aws:8086',
+            token='test-token',
+            org='test-org',
+            query=query,
+        )
+
+        assert result['status'] == 'success'
+        mock_get_client.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_allows_normal_read_query(self, mock_get_client):
+        """Test that normal read queries are not blocked."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_query_api = MagicMock()
+        mock_client.query_api.return_value = mock_query_api
+        mock_query_api.query.return_value = []
+
+        query = 'from(bucket: "my-bucket") |> range(start: -1h) |> filter(fn: (r) => r._measurement == "cpu")'
+
+        result = await influxdb_query(
+            url='https://influxdb-example.aws:8086',
+            token='test-token',
+            org='test-org',
+            query=query,
+        )
+
+        assert result['status'] == 'success'
+        mock_get_client.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_allows_toString_function(self, mock_get_client):
+        """Test that toString() is not falsely blocked (no false positive)."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_query_api = MagicMock()
+        mock_client.query_api.return_value = mock_query_api
+        mock_query_api.query.return_value = []
+
+        query = 'from(bucket: "b") |> range(start: -1h) |> map(fn: (r) => ({r with _value: string(v: r._value)}))'
+
+        result = await influxdb_query(
+            url='https://influxdb-example.aws:8086',
+            token='test-token',
+            org='test-org',
+            query=query,
+        )
+
+        assert result['status'] == 'success'
+        mock_get_client.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_ignores_commented_out_to(self, mock_get_client):
+        """Test that commented-out to() is not blocked."""
+        mock_client = MagicMock()
+        mock_get_client.return_value = mock_client
+        mock_query_api = MagicMock()
+        mock_client.query_api.return_value = mock_query_api
+        mock_query_api.query.return_value = []
+
+        query = """from(bucket: "b") |> range(start: -1h)
+// |> to(bucket: "dest")
+|> yield()"""
+
+        result = await influxdb_query(
+            url='https://influxdb-example.aws:8086',
+            token='test-token',
+            org='test-org',
+            query=query,
+        )
+
+        assert result['status'] == 'success'
+        mock_get_client.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
+    async def test_rejects_to_in_multiline_query(self, mock_get_client):
+        """Test that to() in a complex multi-line query is caught."""
+        query = """import "influxdata/influxdb"
+
+data = from(bucket: "source")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r._measurement == "cpu")
+  |> aggregateWindow(every: 5m, fn: mean)
+
+data
+  |> to(
+    bucket: "destination",
+    org: "my-org"
+  )"""
+
+        with pytest.raises(ValueError) as excinfo:
+            await influxdb_query(
+                url='https://influxdb-example.aws:8086',
+                token='test-token',
+                org='test-org',
+                query=query,
+            )
+
+        assert 'write-producing Flux operation' in str(excinfo.value)
+        mock_get_client.assert_not_called()
+
+
+class TestValidateFluxQueryUnit:
+    """Unit tests for validate_flux_query function directly."""
+
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    def test_rejects_simple_to(self):
+        """Test simple pipe-forward to()."""
+        with pytest.raises(ValueError):
+            validate_flux_query('from(bucket: "b") |> to(bucket: "x")')
+
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    def test_rejects_experimental_to(self):
+        """Test experimental.to()."""
+        with pytest.raises(ValueError):
+            validate_flux_query('data |> experimental.to(bucket: "x")')
+
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    def test_rejects_wideTo(self):
+        """Test wideTo()."""
+        with pytest.raises(ValueError):
+            validate_flux_query('data |> wideTo(bucket: "x")')
+
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    def test_rejects_influxdb_wideTo(self):
+        """Test influxdb.wideTo()."""
+        with pytest.raises(ValueError):
+            validate_flux_query('data |> influxdb.wideTo(bucket: "x")')
+
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    def test_allows_safe_query(self):
+        """Test that a safe query passes validation."""
+        # Should not raise
+        validate_flux_query('from(bucket: "b") |> range(start: -1h) |> yield()')
+
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', True)
+    def test_allows_write_when_enabled(self):
+        """Test that write is allowed when INFLUXDB_WRITE_MODE is True."""
+        # Should not raise even with to()
+        validate_flux_query('from(bucket: "b") |> to(bucket: "x")')
+
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    def test_ignores_single_line_comment(self):
+        """Test that single-line comments with to() don't trigger rejection."""
+        # Should not raise — the to() is in a comment
+        validate_flux_query(
+            'from(bucket: "b") |> range(start: -1h)\n// |> to(bucket: "x")\n|> yield()'
+        )
+
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    def test_rejects_to_after_comment(self):
+        """Test that to() on a line after a comment is still caught."""
+        query = '// This is a comment\nfrom(bucket: "b") |> to(bucket: "x")'
+        with pytest.raises(ValueError):
+            validate_flux_query(query)
