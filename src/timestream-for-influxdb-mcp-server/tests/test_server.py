@@ -2733,10 +2733,10 @@ class TestFluxQueryWriteGuard:
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
     async def test_rejects_experimental_to(self, mock_get_client):
         """Test that experimental.to() is rejected in read-only mode."""
-        query = '''import "experimental"
+        query = """import "experimental"
 from(bucket: "source")
   |> range(start: -1h)
-  |> experimental.to(bucket: "dest", org: "my-org")'''
+  |> experimental.to(bucket: "dest", org: "my-org")"""
 
         with pytest.raises(ValueError) as excinfo:
             await influxdb_query(
@@ -2754,11 +2754,11 @@ from(bucket: "source")
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
     async def test_rejects_wideTo(self, mock_get_client):
         """Test that wideTo() is rejected in read-only mode."""
-        query = '''import "influxdata/influxdb"
+        query = """import "influxdata/influxdb"
 from(bucket: "source")
   |> range(start: -1h)
   |> pivot(rowKey:["_time"], columnKey: ["_field"], valueColumn: "_value")
-  |> wideTo(bucket: "dest")'''
+  |> wideTo(bucket: "dest")"""
 
         with pytest.raises(ValueError) as excinfo:
             await influxdb_query(
@@ -2776,10 +2776,10 @@ from(bucket: "source")
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
     async def test_rejects_influxdb_wideTo(self, mock_get_client):
         """Test that influxdb.wideTo() is rejected in read-only mode."""
-        query = '''import "influxdata/influxdb"
+        query = """import "influxdata/influxdb"
 from(bucket: "source")
   |> range(start: -1h)
-  |> influxdb.wideTo(bucket: "dest", org: "my-org")'''
+  |> influxdb.wideTo(bucket: "dest", org: "my-org")"""
 
         with pytest.raises(ValueError) as excinfo:
             await influxdb_query(
@@ -2797,10 +2797,10 @@ from(bucket: "source")
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
     async def test_rejects_aliased_experimental_to(self, mock_get_client):
         """Test that aliased experimental import with to() is rejected."""
-        query = '''import ex "experimental"
+        query = """import ex "experimental"
 from(bucket: "source")
   |> range(start: -1h)
-  |> ex.to(bucket: "dest")'''
+  |> ex.to(bucket: "dest")"""
 
         with pytest.raises(ValueError) as excinfo:
             await influxdb_query(
@@ -2836,8 +2836,8 @@ from(bucket: "source")
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
     async def test_rejects_standalone_to_at_line_start(self, mock_get_client):
         """Test that standalone to() at line start is rejected."""
-        query = '''from(bucket: "source") |> range(start: -1h)
-to(bucket: "dest", org: "my-org")'''
+        query = """from(bucket: "source") |> range(start: -1h)
+to(bucket: "dest", org: "my-org")"""
 
         with pytest.raises(ValueError) as excinfo:
             await influxdb_query(
@@ -2930,9 +2930,9 @@ to(bucket: "dest", org: "my-org")'''
         mock_client.query_api.return_value = mock_query_api
         mock_query_api.query.return_value = []
 
-        query = '''from(bucket: "b") |> range(start: -1h)
+        query = """from(bucket: "b") |> range(start: -1h)
 // |> to(bucket: "dest")
-|> yield()'''
+|> yield()"""
 
         result = await influxdb_query(
             url='https://influxdb-example.aws:8086',
@@ -2949,7 +2949,7 @@ to(bucket: "dest", org: "my-org")'''
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
     async def test_rejects_to_in_multiline_query(self, mock_get_client):
         """Test that to() in a complex multi-line query is caught."""
-        query = '''import "influxdata/influxdb"
+        query = """import "influxdata/influxdb"
 
 data = from(bucket: "source")
   |> range(start: -1h)
@@ -2960,7 +2960,7 @@ data
   |> to(
     bucket: "destination",
     org: "my-org"
-  )'''
+  )"""
 
         with pytest.raises(ValueError) as excinfo:
             await influxdb_query(
@@ -3017,7 +3017,9 @@ class TestValidateFluxQueryUnit:
     def test_ignores_single_line_comment(self):
         """Test that single-line comments with to() don't trigger rejection."""
         # Should not raise — the to() is in a comment
-        validate_flux_query('from(bucket: "b") |> range(start: -1h)\n// |> to(bucket: "x")\n|> yield()')
+        validate_flux_query(
+            'from(bucket: "b") |> range(start: -1h)\n// |> to(bucket: "x")\n|> yield()'
+        )
 
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
     def test_rejects_to_after_comment(self):
