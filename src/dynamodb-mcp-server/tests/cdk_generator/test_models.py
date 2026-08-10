@@ -2011,6 +2011,9 @@ class TestTableNameValidation:
             'Users;drop',
             'Users Table',
             'Users\nTable',
+            'Users\n',
+            'Users\r',
+            'Users\t',
             'Users/../etc',
             'Users$(id)',
             'Users{}',
@@ -2090,6 +2093,15 @@ class TestIndexNameValidation:
         with pytest.raises(
             ValueError,
             match=r'tables\[0\]\.GlobalSecondaryIndexes\[0\]\.IndexName must be between 3 and 255',
+        ):
+            DataModel.from_json(data)
+
+    def test_index_name_trailing_newline_rejected(self):
+        """Error: a trailing newline does not slip past the anchored pattern."""
+        data = self._with_gsi('idx\n')
+        with pytest.raises(
+            ValueError,
+            match=r'tables\[0\]\.GlobalSecondaryIndexes\[0\]\.IndexName must contain only',
         ):
             DataModel.from_json(data)
 

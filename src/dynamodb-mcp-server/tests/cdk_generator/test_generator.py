@@ -665,6 +665,32 @@ class TestIdentifierSafety:
         assert generator._to_camel_case('...') == 'table'
         assert generator._to_pascal_case('___') == 'Table'
 
+    def test_prefixed_name_collision_is_reported(self, generator):
+        """A name prefixed to become a legal identifier can collide, and must be reported.
+
+        `'123'` needs the `table` prefix to start an identifier, which makes it collide with a
+        literal `'table123'`. Both are valid DynamoDB names, so the generator must fail with a
+        clear collision error rather than emit two methods with the same name.
+        """
+        data_model = DataModel.from_json(
+            {
+                'tables': [
+                    {
+                        'TableName': '123',
+                        'AttributeDefinitions': [{'AttributeName': 'pk', 'AttributeType': 'S'}],
+                        'KeySchema': [{'AttributeName': 'pk', 'KeyType': 'HASH'}],
+                    },
+                    {
+                        'TableName': 'table123',
+                        'AttributeDefinitions': [{'AttributeName': 'pk', 'AttributeType': 'S'}],
+                        'KeySchema': [{'AttributeName': 'pk', 'KeyType': 'HASH'}],
+                    },
+                ]
+            }
+        )
+        with pytest.raises(CdkGeneratorError, match=r'Table name collision detected'):
+            generator._check_table_name_collisions(data_model)
+
     def test_rendered_identifiers_are_legal(self, generator):
         """Identifier positions in the rendered stack are legal TypeScript identifiers."""
         data_model = DataModel.from_json(

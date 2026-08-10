@@ -36,6 +36,9 @@ MAX_GSI_SORT_KEYS = 4  # Maximum number of sort key attributes per GSI
 # Attribute names carry no character restriction in the DynamoDB API, so they cannot be
 # rejected. They reach only TypeScript string-literal positions, which the template escapes
 # with the tojson filter.
+#
+# DDB_NAME_PATTERN must be applied with fullmatch, not match: `$` also matches immediately
+# before a trailing newline, so `re.match` would accept a name like 'Users\n'.
 DDB_NAME_PATTERN = re.compile(r'^[a-zA-Z0-9_.-]+$')
 MIN_NAME_LENGTH = 3
 MAX_NAME_LENGTH = 255
@@ -180,7 +183,7 @@ class DataModel:
                 f'{field_path} must be between {MIN_NAME_LENGTH} and {MAX_NAME_LENGTH} '
                 f'characters, found {len(value)}'
             )
-        if not DDB_NAME_PATTERN.match(value):
+        if not DDB_NAME_PATTERN.fullmatch(value):
             raise ValueError(
                 f'{field_path} must contain only letters, digits, and the characters '
                 f'_ (underscore), . (dot) and - (hyphen)'
