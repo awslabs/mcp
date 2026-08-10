@@ -27,6 +27,11 @@ MAX_MONTHLY_COST = 1_000_000_000
 MAX_MONTHS = 120
 MAX_RESPONSE_CHARACTERS = 100_000
 
+# Monetary values are published as JSON numbers, so every emitted amount must survive the
+# round trip through a float. Keeping the largest emitted value below 10**15 minor units
+# holds the whole payload within float64's 15-significant-digit exact range.
+MAX_EXACT_MINOR_UNITS = 10**15
+
 
 def _round_money(value: Decimal, quantum: Decimal) -> Decimal:
     """Round a decimal monetary value to the requested minor unit."""
@@ -149,6 +154,16 @@ def calculate_forecast(
         )
 
     forecast_total = sum(monthly_totals, Decimal('0'))
+
+    # forecast_total is the largest emitted amount, so bounding it bounds every published value.
+    emitted_minor_units = forecast_total.scaleb(decimal_places)
+    if emitted_minor_units > MAX_EXACT_MINOR_UNITS:
+        raise ValueError(
+            f'forecast total {forecast_total} cannot be represented exactly at '
+            f'{decimal_places} decimal places; reduce component costs, multipliers, months, '
+            'or decimal_places'
+        )
+
     response = {
         'status': 'success',
         'currency': currency,

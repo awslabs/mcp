@@ -21,6 +21,7 @@ from awslabs.aws_pricing_mcp_server.forecast import (
     calculate_forecast,
 )
 from awslabs.aws_pricing_mcp_server.server import calculate_cost_scenario
+from decimal import Decimal
 from pydantic import ValidationError
 
 
@@ -91,6 +92,27 @@ async def test_mcp_tool_returns_forecast():
     assert [month['total'] for month in result['months']] == [172.0, 272.0, 372.0]
 
 
+@pytest.mark.asyncio
+async def test_mcp_tool_applies_field_defaults_on_direct_calls():
+    """Unwrap Field defaults so non-MCP callers get a forecast, not a FieldInfo."""
+    components = [
+        ForecastCostComponent(
+            name='Control plane',
+            category=None,
+            monthly_cost=10,
+            scaling_behavior='fixed',
+            end_multiplier=1,
+        )
+    ]
+
+    result = await calculate_cost_scenario(components)
+
+    assert result['summary']['forecast_months'] == 12
+    assert result['currency'] == 'USD'
+    assert result['decimal_places'] == 2
+    assert result['summary']['forecast_total'] == 120.0
+
+
 def test_linear_component_can_scale_down():
     """Support planned reductions as well as growth."""
     component = ForecastCostComponent(
@@ -128,10 +150,105 @@ def test_rounded_breakdowns_reconcile_with_forecast_total():
 
     result = calculate_forecast(components, months=3, currency='USD')
 
+    # Published values are JSON numbers, so reconcile at the stated precision rather than
+    # asserting exact float equality, which holds only for float-friendly inputs.
+    def at_precision(value):
+        return round(value, result['decimal_places'])
+
     for month in result['months']:
-        assert sum(month['by_component'].values()) == month['total']
-        assert sum(month['by_category'].values()) == month['total']
-    assert sum(month['total'] for month in result['months']) == result['summary']['forecast_total']
+        assert at_precision(sum(month['by_component'].values())) == month['total']
+        assert at_precision(sum(month['by_category'].values())) == month['total']
+    assert (
+        at_precision(sum(month['total'] for month in result['months']))
+        == result['summary']['forecast_total']
+    )
+
+
+def test_fractional_cent_breakdowns_reconcile_at_stated_precision():
+    """Reconcile a component set whose published floats do not sum exactly."""
+    components = [
+        ForecastCostComponent(
+            name=name,
+            category=category,
+            monthly_cost=cost,
+            scaling_behavior='fixed',
+            end_multiplier=1,
+        )
+        for name, category, cost in (
+            ('Compute', 'hosting', 10.10),
+            ('Storage', 'hosting', 20.20),
+            ('Requests', 'usage', 0.30),
+        )
+    ]
+
+    result = calculate_forecast(components, months=3, currency='USD')
+
+    # Guard the regression directly: raw float summation misses the published total.
+    first_month = result['months'][0]
+    assert sum(first_month['by_component'].values()) != first_month['total']
+
+    for month in result['months']:
+        assert round(sum(month['by_component'].values()), 2) == month['total']
+        assert round(sum(month['by_category'].values()), 2) == month['total']
+    assert (
+        round(sum(month['total'] for month in result['months']), 2)
+        == result['summary']['forecast_total']
+    )
+
+
+def test_forecast_total_beyond_exact_float_range_is_rejected():
+    """Reject magnitudes whose published values would silently lose significant digits."""
+    components = [
+        ForecastCostComponent(
+            name=f'Component {index}',
+            category=None,
+            monthly_cost=MAX_MONTHLY_COST,
+            scaling_behavior='linear',
+            end_multiplier=1_000_000,
+        )
+        for index in range(4)
+    ]
+
+    with pytest.raises(ValueError, match='cannot be represented exactly'):
+        calculate_forecast(components, months=12, currency='USD', decimal_places=6)
+
+
+def test_every_published_value_round_trips_to_its_decimal():
+    """Keep each accepted forecast's published floats exact at the requested precision."""
+    components = [
+        ForecastCostComponent(
+            name='Compute',
+            category='hosting',
+            monthly_cost=1234.567891,
+            scaling_behavior='linear',
+            end_multiplier=7.5,
+        ),
+        ForecastCostComponent(
+            name='Tokens',
+            category='ai',
+            monthly_cost=98.765432,
+            scaling_behavior='linear',
+            end_multiplier=40,
+        ),
+    ]
+
+    result = calculate_forecast(components, months=12, currency='USD', decimal_places=6)
+
+    quantum = Decimal('1').scaleb(-6)
+    published = [
+        value
+        for month in result['months']
+        for value in [
+            month['total'],
+            *month['by_category'].values(),
+            *month['by_component'].values(),
+        ]
+    ]
+    published.extend(result['summary'][key] for key in ('forecast_total', 'average_monthly_cost'))
+
+    for value in published:
+        exact = Decimal(repr(value))
+        assert exact == exact.quantize(quantum)
 
 
 @pytest.mark.parametrize(
@@ -205,7 +322,7 @@ def test_non_finite_costs_are_rejected(value):
 
 
 def test_monthly_cost_boundary_is_safe_for_maximum_multiplier():
-    """Keep every schema-valid cost within the supported Decimal range."""
+    """Reject the largest schema-valid input cleanly instead of failing inside Decimal."""
     component = ForecastCostComponent(
         name='Maximum',
         category=None,
@@ -214,9 +331,26 @@ def test_monthly_cost_boundary_is_safe_for_maximum_multiplier():
         end_multiplier=1_000_000,
     )
 
+    # Decimal quantization still succeeds at this magnitude; the exactness guard is what
+    # rejects it, so the caller gets actionable guidance rather than InvalidOperation.
+    with pytest.raises(ValueError, match='cannot be represented exactly'):
+        calculate_forecast([component], months=120, currency='USD')
+
+
+def test_maximum_monthly_cost_is_accepted_without_a_multiplier():
+    """Keep realistic large baselines inside the publishable range."""
+    component = ForecastCostComponent(
+        name='Maximum',
+        category=None,
+        monthly_cost=MAX_MONTHLY_COST,
+        scaling_behavior='fixed',
+        end_multiplier=1,
+    )
+
     result = calculate_forecast([component], months=120, currency='USD')
 
-    assert result['months'][-1]['total'] == 1e15
+    assert result['months'][-1]['total'] == float(MAX_MONTHLY_COST)
+    assert result['summary']['forecast_total'] == float(MAX_MONTHLY_COST) * 120
 
 
 def test_monthly_cost_above_supported_bound_is_rejected():

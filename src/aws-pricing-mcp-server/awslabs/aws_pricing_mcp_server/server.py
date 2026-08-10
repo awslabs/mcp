@@ -213,6 +213,13 @@ async def calculate_cost_scenario(
     ),
 ) -> Dict:
     """Calculate a cost scenario while preserving fixed and usage-scaled boundaries."""
+    if isinstance(months, FieldInfo):
+        months = months.default
+    if isinstance(currency, FieldInfo):
+        currency = currency.default
+    if isinstance(decimal_places, FieldInfo):
+        decimal_places = decimal_places.default
+
     return calculate_forecast(
         components=components,
         months=months,
