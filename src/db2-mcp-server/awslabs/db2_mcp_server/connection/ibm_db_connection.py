@@ -301,41 +301,95 @@ class IbmDbConnection(AbstractDBConnection):
             return bytes(value).decode('utf-8', errors='replace')
         return str(value)
 
+    def _rollback_quietly(self, conn: Any) -> None:
+        """Best-effort rollback used to clean up after a mid-statement failure.
+
+        Autocommit is off and the connection is cached and reused, so a statement
+        that fails part-way through would otherwise leave an open transaction on the
+        shared handle. In read-only mode the next query's end-of-run rollback would
+        still undo it, but in write mode a later successful statement's ``commit()``
+        would commit the earlier failure's partial state along with its own. Failures
+        here are logged rather than raised so they never mask the original error.
+        """
+        try:
+            if not ibm_db.rollback(conn):
+                logger.warning(
+                    f'Cleanup rollback after a failed statement returned failure: '
+                    f'{ibm_db.conn_errormsg()}'
+                )
+        except Exception as e:
+            logger.warning(f'Cleanup rollback after a failed statement raised: {e}')
+
     def _execute_sync(
         self, sql: str, parameters: Optional[List[Dict[str, Any]]], max_rows: int
     ) -> List[Dict[str, Any]]:
         """Blocking query execution; runs inside a worker thread."""
         with self._lock:
             conn = self._ensure_conn_sync()
-            stmt = cast(Any, ibm_db.prepare(conn, sql))
-            if not stmt:
-                raise ValueError(f'ibm_db.prepare failed: {ibm_db.stmt_errormsg()}')
-            if self.query_timeout_s and self.query_timeout_s > 0:
-                set_option_error = None
-                try:
-                    ok_timeout = ibm_db.set_option(
-                        stmt, {ibm_db.SQL_ATTR_QUERY_TIMEOUT: self.query_timeout_s}, 0
-                    )
-                except Exception as e:
-                    ok_timeout = False
-                    set_option_error = e
-                if not ok_timeout:
-                    # set_option signals failure via a falsy return as well as by
-                    # raising. Do NOT silently continue: running without the operator's
-                    # configured timeout could hold the single serialized connection lock
-                    # indefinitely (self-inflicted DoS on all tools). Fail the query.
-                    raise ValueError(
-                        f'Refusing to run query: could not enforce the configured '
-                        f'{self.query_timeout_s}s query timeout '
-                        f'(set_option failed: {set_option_error}).'
-                    ) from set_option_error
+            try:
+                return self._execute_locked(conn, sql, parameters, max_rows)
+            except Exception:
+                # Leave the shared connection in a clean transactional state. Without
+                # this, a statement that raised after `execute` (or a failed
+                # commit/rollback) leaves an open transaction that a later write's
+                # commit() would silently persist.
+                self._rollback_quietly(conn)
+                raise
 
-            params = self._to_positional(parameters)
-            ok = ibm_db.execute(stmt, params) if params else ibm_db.execute(stmt)
-            if not ok:
-                raise ValueError(f'ibm_db.execute failed: {ibm_db.stmt_errormsg()}')
+    def _execute_locked(
+        self,
+        conn: Any,
+        sql: str,
+        parameters: Optional[List[Dict[str, Any]]],
+        max_rows: int,
+    ) -> List[Dict[str, Any]]:
+        """Run one statement on an established connection. Caller holds ``self._lock``."""
+        stmt = cast(Any, ibm_db.prepare(conn, sql))
+        if not stmt:
+            raise ValueError(f'ibm_db.prepare failed: {ibm_db.stmt_errormsg()}')
+        if self.query_timeout_s and self.query_timeout_s > 0:
+            set_option_error = None
+            try:
+                ok_timeout = ibm_db.set_option(
+                    stmt, {ibm_db.SQL_ATTR_QUERY_TIMEOUT: self.query_timeout_s}, 0
+                )
+            except Exception as e:
+                ok_timeout = False
+                set_option_error = e
+            if not ok_timeout:
+                # set_option signals failure via a falsy return as well as by
+                # raising. Do NOT silently continue: running without the operator's
+                # configured timeout could hold the single serialized connection lock
+                # indefinitely (self-inflicted DoS on all tools). Fail the query.
+                raise ValueError(
+                    f'Refusing to run query: could not enforce the configured '
+                    f'{self.query_timeout_s}s query timeout '
+                    f'(set_option failed: {set_option_error}).'
+                ) from set_option_error
 
-            results: List[Dict[str, Any]] = []
+        params = self._to_positional(parameters)
+        ok = ibm_db.execute(stmt, params) if params else ibm_db.execute(stmt)
+        if not ok:
+            raise ValueError(f'ibm_db.execute failed: {ibm_db.stmt_errormsg()}')
+
+        results: List[Dict[str, Any]] = []
+        # Only fetch when the statement actually produced a result set. A non-SELECT
+        # (INSERT/UPDATE/DELETE/DDL, i.e. every statement the opt-in write mode
+        # exists to run) has zero result columns, and on a 0-column statement
+        # ibm_db.fetch_assoc RAISES rather than returning falsy: in the pinned
+        # driver, _python_ibm_db_get_result_set_info returns -1 when
+        # nResultCols == 0, and _python_ibm_db_bind_fetch_helper then does
+        # PyErr_SetString(...) / return NULL. Fetching unconditionally therefore
+        # made every write fail before ever reaching commit() below.
+        try:
+            has_result_set = bool(ibm_db.num_fields(stmt))
+        except Exception as e:
+            # If the column count can't be determined, fall back to attempting the
+            # fetch: that is the pre-existing behavior and is correct for SELECT.
+            logger.warning(f'ibm_db.num_fields failed; attempting fetch anyway: {e}')
+            has_result_set = True
+
+        if has_result_set:
             limit = max_rows + 1 if max_rows and max_rows > 0 else None
             row = cast(Any, ibm_db.fetch_assoc(stmt))
             while row:
@@ -359,18 +413,18 @@ class IbmDbConnection(AbstractDBConnection):
                         f'{ibm_db.stmt_errormsg()}'
                     )
 
-            # Read-only: roll back so nothing is ever persisted. ibm_db.rollback/commit
-            # signal failure via a falsy return as well as by raising (the same
-            # convention checked above for prepare/execute/set_option) -- check it so a
-            # silently-failed rollback can never masquerade as the read-only guarantee
-            # holding.
-            if self.readonly_query:
-                if not ibm_db.rollback(conn):
-                    raise ValueError(f'ibm_db.rollback failed: {ibm_db.conn_errormsg()}')
-            else:
-                if not ibm_db.commit(conn):
-                    raise ValueError(f'ibm_db.commit failed: {ibm_db.conn_errormsg()}')
-            return results
+        # Read-only: roll back so nothing is ever persisted. ibm_db.rollback/commit
+        # signal failure via a falsy return as well as by raising (the same
+        # convention checked above for prepare/execute/set_option) -- check it so a
+        # silently-failed rollback can never masquerade as the read-only guarantee
+        # holding.
+        if self.readonly_query:
+            if not ibm_db.rollback(conn):
+                raise ValueError(f'ibm_db.rollback failed: {ibm_db.conn_errormsg()}')
+        else:
+            if not ibm_db.commit(conn):
+                raise ValueError(f'ibm_db.commit failed: {ibm_db.conn_errormsg()}')
+        return results
 
     async def execute_query(
         self, sql: str, parameters: Optional[List[Dict[str, Any]]] = None, max_rows: int = 0

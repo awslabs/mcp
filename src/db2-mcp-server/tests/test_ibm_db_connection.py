@@ -14,7 +14,10 @@
 
 """Tests for the ibm_db connection wrapper (no live Db2 required)."""
 
+import atexit
+import contextlib
 import json
+import os
 import pytest
 import tempfile
 from awslabs.db2_mcp_server.connection.ibm_db_connection import IbmDbConnection
@@ -27,10 +30,19 @@ BAD_JSON_PAYLOAD = 'not-json'
 
 # A real (empty) file on disk so the SSL cert existence check passes for the
 # is_test=False credential tests. Contents are irrelevant — the driver is mocked.
+# delete=False is required because the path is reopened by the code under test, so
+# the file is unlinked at interpreter exit instead of leaking into the temp dir.
 _CERT_FILE = tempfile.NamedTemporaryFile(prefix='rds-test-', suffix='.pem', delete=False)
 _CERT_FILE.write(b'-----BEGIN CERTIFICATE-----\n')
 _CERT_FILE.close()
 _CERT_PATH = _CERT_FILE.name
+
+
+@atexit.register
+def _cleanup_cert_file() -> None:
+    """Remove the module-scoped temp certificate file at interpreter exit."""
+    with contextlib.suppress(OSError):
+        os.unlink(_CERT_PATH)
 
 
 def _conn(**kwargs) -> IbmDbConnection:
@@ -178,7 +190,16 @@ class TestHostnameValidation:
         assert 'SSLClientHostnameValidation=OFF' in s
 
 
-def _fake_ibm_db(mocker, *, rows, active=False, prepare_ok=True, execute_ok=True, connect_ok=True):
+def _fake_ibm_db(
+    mocker,
+    *,
+    rows,
+    active=False,
+    prepare_ok=True,
+    execute_ok=True,
+    connect_ok=True,
+    num_fields=None,
+):
     """Build a fake ibm_db module covering the calls the connection makes."""
     fake = mocker.MagicMock()
     fake.SQL_ATTR_AUTOCOMMIT = 0
@@ -191,7 +212,17 @@ def _fake_ibm_db(mocker, *, rows, active=False, prepare_ok=True, execute_ok=True
     fake.prepare.return_value = 'STMT' if prepare_ok else 0
     fake.exec_immediate.return_value = 'STMT'
     fake.execute.return_value = execute_ok
-    fake.fetch_assoc.side_effect = list(rows) + [None]
+    # Model the real driver: num_fields reports the result-set column count (0 for a
+    # non-SELECT), and fetch_assoc RAISES on a 0-column statement rather than
+    # returning falsy. Callers that need the DML shape pass num_fields=0.
+    fake.num_fields.return_value = num_fields if num_fields is not None else 1
+    if num_fields == 0:
+        fake.fetch_assoc.side_effect = Exception(
+            'Column information cannot be retrieved: [IBM][CLI Driver] '
+            'CLI0110E Invalid cursor state.'
+        )
+    else:
+        fake.fetch_assoc.side_effect = list(rows) + [None]
     fake.conn_errormsg.return_value = 'conn err'
     fake.stmt_errormsg.return_value = 'stmt err'
     fake.stmt_error.return_value = '02000'  # legitimate end-of-data by default
@@ -214,11 +245,62 @@ class TestExecuteQuery:
         fake.rollback.assert_called_once()
 
     async def test_write_commits(self, mocker):
-        """A writable connection commits after execution."""
+        """A writable connection commits after a SELECT (result-set-producing) statement."""
         fake = _fake_ibm_db(mocker, rows=[])
         c = _conn(readonly=False)
         await c.execute_query('SELECT 1 FROM SYSIBM.SYSDUMMY1')
         fake.commit.assert_called_once()
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            "INSERT INTO T (C) VALUES ('x')",
+            'UPDATE T SET C = 1 WHERE ID = 2',
+            'DELETE FROM T WHERE ID = 2',
+            'CREATE TABLE T2 (C INT)',
+        ],
+    )
+    async def test_write_dml_commits_without_fetching(self, mocker, sql):
+        """A non-SELECT in write mode must commit, not blow up on the absent result set.
+
+        This is the regression test for the write path being non-functional: a
+        non-SELECT produces zero result columns, and the real ibm_db.fetch_assoc
+        RAISES on a 0-column statement (it does not return falsy), so fetching
+        unconditionally made every write fail before reaching commit(). The fake
+        here reproduces that raising behavior via num_fields=0, so this test fails
+        against the unguarded implementation.
+        """
+        fake = _fake_ibm_db(mocker, rows=[], num_fields=0)
+        c = _conn(readonly=False)
+        out = await c.execute_query(sql)
+        assert out == []
+        fake.fetch_assoc.assert_not_called()
+        fake.commit.assert_called_once()
+        fake.rollback.assert_not_called()
+
+    async def test_readonly_dml_shape_still_rolls_back(self, mocker):
+        """A 0-column statement in read-only mode rolls back rather than raising.
+
+        Read-only mode blocks mutating SQL upstream in run_query, but the driver
+        layer must still handle a 0-column statement without raising (e.g. a
+        statement the keyword detector doesn't classify as mutating).
+        """
+        fake = _fake_ibm_db(mocker, rows=[], num_fields=0)
+        c = _conn(readonly=True)
+        out = await c.execute_query('SET CURRENT SCHEMA = MYSCHEMA')
+        assert out == []
+        fake.fetch_assoc.assert_not_called()
+        fake.rollback.assert_called_once()
+        fake.commit.assert_not_called()
+
+    async def test_num_fields_failure_falls_back_to_fetching(self, mocker):
+        """If num_fields raises, fall back to fetching (prior behavior, correct for SELECT)."""
+        fake = _fake_ibm_db(mocker, rows=[{'A': 1}])
+        fake.num_fields.side_effect = Exception('num_fields unavailable')
+        c = _conn(readonly=True)
+        out = await c.execute_query('SELECT A FROM T')
+        assert out == [{'A': 1}]
+        fake.fetch_assoc.assert_called()
 
     async def test_max_rows_truncates_fetch(self, mocker):
         """Fetching stops at max_rows + 1."""
@@ -663,3 +745,72 @@ async def test_autocommit_rejection_logs_warning_on_close_failure(mocker):
         await c.execute_query('SELECT 1 FROM SYSIBM.SYSDUMMY1')
     log_warning.assert_called_once()
     assert 'autocommit' in log_warning.call_args.args[0].lower()
+
+
+# --------------------------------------------------------------------------- #
+# Round-8: transactional cleanup after a mid-statement failure
+# --------------------------------------------------------------------------- #
+
+
+async def test_execute_failure_rolls_back_to_clean_transaction_state(mocker):
+    """A statement that fails after execute must leave no open transaction behind.
+
+    Autocommit is off and the connection is cached/reused. Without a cleanup
+    rollback, a failed statement's partial state stays in the open transaction, and
+    in write mode a later successful statement's commit() would persist it.
+    """
+    fake = _fake_ibm_db(mocker, rows=[{'A': 1}])
+    fake.fetch_assoc.side_effect = Exception('network drop mid-fetch')
+    c = _conn(readonly=False)
+    with pytest.raises(Exception, match='network drop mid-fetch'):
+        await c.execute_query('SELECT A FROM T')
+    # Cleanup rollback ran, and the failed statement was never committed.
+    fake.rollback.assert_called_once()
+    fake.commit.assert_not_called()
+
+
+async def test_prepare_failure_rolls_back(mocker):
+    """A prepare failure also triggers the cleanup rollback."""
+    fake = _fake_ibm_db(mocker, rows=[], prepare_ok=False)
+    c = _conn(readonly=False)
+    with pytest.raises(ValueError, match='prepare'):
+        await c.execute_query('SELECT 1 FROM SYSIBM.SYSDUMMY1')
+    fake.rollback.assert_called_once()
+
+
+async def test_commit_failure_rolls_back(mocker):
+    """A failed commit is followed by a cleanup rollback so nothing partial lingers."""
+    fake = _fake_ibm_db(mocker, rows=[], num_fields=0)
+    fake.commit.return_value = False
+    c = _conn(readonly=False)
+    with pytest.raises(ValueError, match='commit'):
+        await c.execute_query("INSERT INTO T (C) VALUES ('x')")
+    fake.rollback.assert_called_once()
+
+
+async def test_cleanup_rollback_failure_does_not_mask_original_error(mocker):
+    """If the cleanup rollback itself fails, the original error still propagates."""
+    fake = _fake_ibm_db(mocker, rows=[{'A': 1}])
+    fake.fetch_assoc.side_effect = Exception('original failure')
+    fake.rollback.side_effect = Exception('rollback also failed')
+    log_warning = mocker.patch(
+        'awslabs.db2_mcp_server.connection.ibm_db_connection.logger.warning'
+    )
+    c = _conn(readonly=False)
+    with pytest.raises(Exception, match='original failure'):
+        await c.execute_query('SELECT A FROM T')
+    log_warning.assert_called()
+
+
+async def test_cleanup_rollback_falsy_return_is_logged(mocker):
+    """A falsy cleanup rollback is logged, not raised, so it can't mask the real error."""
+    fake = _fake_ibm_db(mocker, rows=[{'A': 1}])
+    fake.fetch_assoc.side_effect = Exception('original failure')
+    fake.rollback.return_value = False
+    log_warning = mocker.patch(
+        'awslabs.db2_mcp_server.connection.ibm_db_connection.logger.warning'
+    )
+    c = _conn(readonly=False)
+    with pytest.raises(Exception, match='original failure'):
+        await c.execute_query('SELECT A FROM T')
+    log_warning.assert_called()
