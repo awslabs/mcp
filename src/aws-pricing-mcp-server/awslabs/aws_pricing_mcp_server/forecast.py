@@ -14,20 +14,23 @@
 
 """Deterministic scenario forecasting for fixed and usage-scaled costs."""
 
+import json
 import re
 from decimal import ROUND_HALF_UP, Decimal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing import Dict, List, Literal, Optional
 
 
-MONEY = Decimal('0.01')
 MAX_COMPONENTS = 100
+MAX_DECIMAL_PLACES = 6
+MAX_MONTHLY_COST = 1_000_000_000
 MAX_MONTHS = 120
+MAX_RESPONSE_CHARACTERS = 100_000
 
 
-def _money(value: Decimal) -> float:
-    """Round a decimal monetary value to cents for JSON output."""
-    return float(value.quantize(MONEY, rounding=ROUND_HALF_UP))
+def _round_money(value: Decimal, quantum: Decimal) -> Decimal:
+    """Round a decimal monetary value to the requested minor unit."""
+    return value.quantize(quantum, rounding=ROUND_HALF_UP)
 
 
 class ForecastCostComponent(BaseModel):
@@ -40,7 +43,11 @@ class ForecastCostComponent(BaseModel):
         None, min_length=1, max_length=100, description='Optional grouping label'
     )
     monthly_cost: float = Field(
-        ..., ge=0, allow_inf_nan=False, description='Baseline monthly cost'
+        ...,
+        ge=0,
+        le=MAX_MONTHLY_COST,
+        allow_inf_nan=False,
+        description='Baseline monthly cost',
     )
     scaling_behavior: Literal['fixed', 'linear'] = Field(
         ...,
@@ -63,7 +70,10 @@ class ForecastCostComponent(BaseModel):
 
 
 def calculate_forecast(
-    components: List[ForecastCostComponent], months: int, currency: str
+    components: List[ForecastCostComponent],
+    months: int,
+    currency: str,
+    decimal_places: int = 2,
 ) -> Dict:
     """Calculate a linear scenario forecast without querying external services."""
     if not 2 <= months <= MAX_MONTHS:
@@ -71,15 +81,21 @@ def calculate_forecast(
     if not 1 <= len(components) <= MAX_COMPONENTS:
         raise ValueError(f'components must contain between 1 and {MAX_COMPONENTS} items')
     if not re.fullmatch(r'[A-Z]{3}', currency):
-        raise ValueError('currency must be a three-letter uppercase ISO 4217 code')
+        raise ValueError('currency must be a three-letter uppercase display label')
+    if not 0 <= decimal_places <= MAX_DECIMAL_PLACES:
+        raise ValueError(f'decimal_places must be between 0 and {MAX_DECIMAL_PLACES}')
 
     component_names = [component.name for component in components]
     if len(component_names) != len(set(component_names)):
         raise ValueError('component names must be unique')
 
+    quantum = Decimal(1).scaleb(-decimal_places)
     component_rows = []
     monthly_rows = []
-    unrounded_monthly_totals = []
+    monthly_totals = []
+    component_totals = {component.name: Decimal('0') for component in components}
+    component_first_costs: Dict[str, Decimal] = {}
+    component_last_costs: Dict[str, Decimal] = {}
 
     for month_index in range(months):
         progress = Decimal(month_index) / Decimal(months - 1)
@@ -95,56 +111,68 @@ def calculate_forecast(
                 if component.scaling_behavior == 'fixed'
                 else Decimal('1') + (end_multiplier - Decimal('1')) * progress
             )
-            cost = baseline * factor
-            component_costs[component.name] = _money(cost)
+            cost = _round_money(baseline * factor, quantum)
+            component_costs[component.name] = float(cost)
             category = component.category or 'uncategorized'
             category_costs[category] = category_costs.get(category, Decimal('0')) + cost
             month_total += cost
+            component_totals[component.name] += cost
+            component_first_costs.setdefault(component.name, cost)
+            component_last_costs[component.name] = cost
 
-        unrounded_monthly_totals.append(month_total)
+        monthly_totals.append(month_total)
         monthly_rows.append(
             {
                 'month': month_index + 1,
-                'total': _money(month_total),
+                'total': float(month_total),
                 'by_category': {
-                    category: _money(cost) for category, cost in sorted(category_costs.items())
+                    category: float(cost) for category, cost in sorted(category_costs.items())
                 },
                 'by_component': component_costs,
             }
         )
 
     for component in components:
-        baseline = Decimal(str(component.monthly_cost))
         end_multiplier = Decimal(str(component.end_multiplier))
-        average_factor = (
-            Decimal('1')
-            if component.scaling_behavior == 'fixed'
-            else (Decimal('1') + end_multiplier) / Decimal('2')
-        )
         component_rows.append(
             {
                 'name': component.name,
                 'category': component.category or 'uncategorized',
                 'scaling_behavior': component.scaling_behavior,
-                'baseline_monthly_cost': _money(baseline),
+                'baseline_monthly_cost': float(component_first_costs[component.name]),
                 'end_multiplier': float(end_multiplier),
-                'average_monthly_cost': _money(baseline * average_factor),
-                'ending_monthly_cost': _money(baseline * end_multiplier),
+                'average_monthly_cost': float(
+                    _round_money(component_totals[component.name] / Decimal(months), quantum)
+                ),
+                'ending_monthly_cost': float(component_last_costs[component.name]),
             }
         )
 
-    forecast_total = sum(unrounded_monthly_totals, Decimal('0'))
-    return {
+    forecast_total = sum(monthly_totals, Decimal('0'))
+    response = {
         'status': 'success',
         'currency': currency,
-        'assumption': 'Each linear component ramps independently from 1x to its end multiplier.',
+        'decimal_places': decimal_places,
+        'assumption': (
+            'Each linear component ramps independently from 1x to its end multiplier using '
+            'a constant effective rate; tiering, free allowances, commitments, capacity steps, '
+            'and price changes must be modeled separately.'
+        ),
         'months': monthly_rows,
         'components': component_rows,
         'summary': {
             'forecast_months': months,
-            'baseline_monthly_cost': _money(unrounded_monthly_totals[0]),
-            'average_monthly_cost': _money(forecast_total / Decimal(months)),
-            'forecast_total': _money(forecast_total),
-            'ending_monthly_cost': _money(unrounded_monthly_totals[-1]),
+            'baseline_monthly_cost': float(monthly_totals[0]),
+            'average_monthly_cost': float(_round_money(forecast_total / Decimal(months), quantum)),
+            'forecast_total': float(forecast_total),
+            'ending_monthly_cost': float(monthly_totals[-1]),
         },
     }
+    response_characters = len(json.dumps(response, indent=2))
+    if response_characters > MAX_RESPONSE_CHARACTERS:
+        raise ValueError(
+            f'forecast response would contain {response_characters:,} characters, exceeding '
+            f'the {MAX_RESPONSE_CHARACTERS:,}-character limit; reduce components, months, or '
+            'label lengths'
+        )
+    return response

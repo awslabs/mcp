@@ -16,6 +16,7 @@
 
 import pytest
 from awslabs.aws_pricing_mcp_server.forecast import (
+    MAX_MONTHLY_COST,
     ForecastCostComponent,
     calculate_forecast,
 )
@@ -55,7 +56,7 @@ def test_mixed_fixed_and_independent_growth_components():
         'forecast_months': 12,
         'baseline_monthly_cost': 1999.64,
         'average_monthly_cost': 11459.2,
-        'forecast_total': 137510.43,
+        'forecast_total': 137510.42,
         'ending_monthly_cost': 20918.76,
     }
     assert result['months'][0]['by_category'] == {'ai': 98.13, 'hosting': 1901.51}
@@ -84,7 +85,7 @@ async def test_mcp_tool_returns_forecast():
         ),
     ]
 
-    result = await calculate_cost_scenario(components, months=3, currency='USD')
+    result = await calculate_cost_scenario(components, months=3, currency='USD', decimal_places=2)
 
     assert result['summary']['forecast_total'] == 816.0
     assert [month['total'] for month in result['months']] == [172.0, 272.0, 372.0]
@@ -104,6 +105,55 @@ def test_linear_component_can_scale_down():
 
     assert [month['total'] for month in result['months']] == [100.0, 50.0, 0.0]
     assert result['summary']['forecast_total'] == 150.0
+
+
+def test_rounded_breakdowns_reconcile_with_forecast_total():
+    """Derive every monetary view from the same rounded component ledger."""
+    components = [
+        ForecastCostComponent(
+            name='Requests',
+            category='usage',
+            monthly_cost=0.005,
+            scaling_behavior='fixed',
+            end_multiplier=1,
+        ),
+        ForecastCostComponent(
+            name='Storage',
+            category='usage',
+            monthly_cost=0.005,
+            scaling_behavior='fixed',
+            end_multiplier=1,
+        ),
+    ]
+
+    result = calculate_forecast(components, months=3, currency='USD')
+
+    for month in result['months']:
+        assert sum(month['by_component'].values()) == month['total']
+        assert sum(month['by_category'].values()) == month['total']
+    assert sum(month['total'] for month in result['months']) == result['summary']['forecast_total']
+
+
+@pytest.mark.parametrize(
+    ('currency', 'decimal_places', 'expected'),
+    [('JPY', 0, 1.0), ('KWD', 3, 1.234)],
+)
+def test_currency_labels_use_explicit_decimal_places(currency, decimal_places, expected):
+    """Do not assume that every currency uses two decimal places."""
+    component = ForecastCostComponent(
+        name='Usage',
+        category=None,
+        monthly_cost=1.234,
+        scaling_behavior='fixed',
+        end_multiplier=1,
+    )
+
+    result = calculate_forecast(
+        [component], months=2, currency=currency, decimal_places=decimal_places
+    )
+
+    assert result['decimal_places'] == decimal_places
+    assert result['months'][0]['total'] == expected
 
 
 def test_duplicate_component_names_are_rejected():
@@ -152,6 +202,64 @@ def test_non_finite_costs_are_rejected(value):
             scaling_behavior='fixed',
             end_multiplier=1,
         )
+
+
+def test_monthly_cost_boundary_is_safe_for_maximum_multiplier():
+    """Keep every schema-valid cost within the supported Decimal range."""
+    component = ForecastCostComponent(
+        name='Maximum',
+        category=None,
+        monthly_cost=MAX_MONTHLY_COST,
+        scaling_behavior='linear',
+        end_multiplier=1_000_000,
+    )
+
+    result = calculate_forecast([component], months=120, currency='USD')
+
+    assert result['months'][-1]['total'] == 1e15
+
+
+def test_monthly_cost_above_supported_bound_is_rejected():
+    """Reject large finite inputs before Decimal quantization can fail."""
+    with pytest.raises(ValidationError):
+        ForecastCostComponent(
+            name='Too large',
+            category=None,
+            monthly_cost=MAX_MONTHLY_COST + 1,
+            scaling_behavior='fixed',
+            end_multiplier=1,
+        )
+
+
+def test_oversized_forecast_response_is_rejected():
+    """Keep valid caller-controlled labels from exhausting client context."""
+    components = [
+        ForecastCostComponent(
+            name=('n' * 196) + f'{index:04d}',
+            category=('c' * 96) + f'{index:04d}',
+            monthly_cost=1,
+            scaling_behavior='fixed',
+            end_multiplier=1,
+        )
+        for index in range(100)
+    ]
+
+    with pytest.raises(ValueError, match='100,000-character limit'):
+        calculate_forecast(components, months=120, currency='USD')
+
+
+def test_decimal_places_outside_supported_range_is_rejected():
+    """Keep direct calls within the advertised monetary precision range."""
+    component = ForecastCostComponent(
+        name='Compute',
+        category=None,
+        monthly_cost=1,
+        scaling_behavior='fixed',
+        end_multiplier=1,
+    )
+
+    with pytest.raises(ValueError, match='decimal_places must be'):
+        calculate_forecast([component], months=2, currency='USD', decimal_places=7)
 
 
 @pytest.mark.parametrize(
