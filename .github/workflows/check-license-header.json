@@ -23,7 +23,8 @@
       "**/*.properties",
       "**/*.xml",
       "**/*.drawio",
-      "**/dist/**"
+      "**/dist/**",
+      "**/icon.svg"
     ],
     "include": [
       "**/*.py",
@@ -85,7 +86,8 @@
       "**/skills/*/references",
       "**/skills/*/mcp",
       "**/DO_NOT_RELEASE",
-      "**/*.pyi"
+      "**/*.pyi",
+      "**/icon.svg"
     ]
   }
 ]
