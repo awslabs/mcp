@@ -52,7 +52,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-amazon-qindex-mcp-server"
-version = "0.0.13"
+version = "0.0.14"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
