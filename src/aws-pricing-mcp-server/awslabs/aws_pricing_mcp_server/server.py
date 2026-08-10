@@ -183,12 +183,15 @@ planes, proxy capacity, gateway hours, keys, and subscriptions. Use linear compo
 when the baseline cost's effective rate is expected to remain constant over the modeled range.
 Tiering, free allowances, commitments, capacity steps, and price changes must be modeled
 separately. Each linear component can have its own final-month multiplier.
+Monetary amounts are returned as fixed-precision decimal strings so every breakdown remains
+exactly auditable at decimal_places.
 
 This tool performs arithmetic only. It does not retrieve account data, query AWS pricing, or
 create an AWS Pricing Calculator estimate. Obtain baseline costs and current unit prices with
 the appropriate pricing or billing tools first.
 """,
     annotations=ToolAnnotations(readOnlyHint=True),
+    structured_output=False,
 )
 async def calculate_cost_scenario(
     components: List[ForecastCostComponent] = Field(

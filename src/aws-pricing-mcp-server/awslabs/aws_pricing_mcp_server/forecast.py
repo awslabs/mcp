@@ -27,15 +27,25 @@ MAX_MONTHLY_COST = 1_000_000_000
 MAX_MONTHS = 120
 MAX_RESPONSE_CHARACTERS = 100_000
 
-# Monetary values are published as JSON numbers, so every emitted amount must survive the
-# round trip through a float. Keeping the largest emitted value below 10**15 minor units
-# holds the whole payload within float64's 15-significant-digit exact range.
-MAX_EXACT_MINOR_UNITS = 10**15
-
 
 def _round_money(value: Decimal, quantum: Decimal) -> Decimal:
     """Round a decimal monetary value to the requested minor unit."""
     return value.quantize(quantum, rounding=ROUND_HALF_UP)
+
+
+def _format_money(value: Decimal, decimal_places: int) -> str:
+    """Preserve a rounded monetary value as a fixed-precision decimal string."""
+    return f'{value:.{decimal_places}f}'
+
+
+def _fits_response_budget(value: Dict) -> bool:
+    """Count encoded characters without allocating an oversized JSON string."""
+    encoded_characters = 0
+    for chunk in json.JSONEncoder(indent=2).iterencode(value):
+        encoded_characters += len(chunk)
+        if encoded_characters > MAX_RESPONSE_CHARACTERS:
+            return False
+    return True
 
 
 class ForecastCostComponent(BaseModel):
@@ -104,7 +114,7 @@ def calculate_forecast(
 
     for month_index in range(months):
         progress = Decimal(month_index) / Decimal(months - 1)
-        component_costs: Dict[str, float] = {}
+        component_costs: Dict[str, str] = {}
         category_costs: Dict[str, Decimal] = {}
         month_total = Decimal('0')
 
@@ -117,7 +127,7 @@ def calculate_forecast(
                 else Decimal('1') + (end_multiplier - Decimal('1')) * progress
             )
             cost = _round_money(baseline * factor, quantum)
-            component_costs[component.name] = float(cost)
+            component_costs[component.name] = _format_money(cost, decimal_places)
             category = component.category or 'uncategorized'
             category_costs[category] = category_costs.get(category, Decimal('0')) + cost
             month_total += cost
@@ -129,9 +139,10 @@ def calculate_forecast(
         monthly_rows.append(
             {
                 'month': month_index + 1,
-                'total': float(month_total),
+                'total': _format_money(month_total, decimal_places),
                 'by_category': {
-                    category: float(cost) for category, cost in sorted(category_costs.items())
+                    category: _format_money(cost, decimal_places)
+                    for category, cost in sorted(category_costs.items())
                 },
                 'by_component': component_costs,
             }
@@ -144,25 +155,21 @@ def calculate_forecast(
                 'name': component.name,
                 'category': component.category or 'uncategorized',
                 'scaling_behavior': component.scaling_behavior,
-                'baseline_monthly_cost': float(component_first_costs[component.name]),
-                'end_multiplier': float(end_multiplier),
-                'average_monthly_cost': float(
-                    _round_money(component_totals[component.name] / Decimal(months), quantum)
+                'baseline_monthly_cost': _format_money(
+                    component_first_costs[component.name], decimal_places
                 ),
-                'ending_monthly_cost': float(component_last_costs[component.name]),
+                'end_multiplier': float(end_multiplier),
+                'average_monthly_cost': _format_money(
+                    _round_money(component_totals[component.name] / Decimal(months), quantum),
+                    decimal_places,
+                ),
+                'ending_monthly_cost': _format_money(
+                    component_last_costs[component.name], decimal_places
+                ),
             }
         )
 
     forecast_total = sum(monthly_totals, Decimal('0'))
-
-    # forecast_total is the largest emitted amount, so bounding it bounds every published value.
-    emitted_minor_units = forecast_total.scaleb(decimal_places)
-    if emitted_minor_units > MAX_EXACT_MINOR_UNITS:
-        raise ValueError(
-            f'forecast total {forecast_total} cannot be represented exactly at '
-            f'{decimal_places} decimal places; reduce component costs, multipliers, months, '
-            'or decimal_places'
-        )
 
     response = {
         'status': 'success',
@@ -177,17 +184,17 @@ def calculate_forecast(
         'components': component_rows,
         'summary': {
             'forecast_months': months,
-            'baseline_monthly_cost': float(monthly_totals[0]),
-            'average_monthly_cost': float(_round_money(forecast_total / Decimal(months), quantum)),
-            'forecast_total': float(forecast_total),
-            'ending_monthly_cost': float(monthly_totals[-1]),
+            'baseline_monthly_cost': _format_money(monthly_totals[0], decimal_places),
+            'average_monthly_cost': _format_money(
+                _round_money(forecast_total / Decimal(months), quantum), decimal_places
+            ),
+            'forecast_total': _format_money(forecast_total, decimal_places),
+            'ending_monthly_cost': _format_money(monthly_totals[-1], decimal_places),
         },
     }
-    response_characters = len(json.dumps(response, indent=2))
-    if response_characters > MAX_RESPONSE_CHARACTERS:
+    if not _fits_response_budget(response):
         raise ValueError(
-            f'forecast response would contain {response_characters:,} characters, exceeding '
-            f'the {MAX_RESPONSE_CHARACTERS:,}-character limit; reduce components, months, or '
-            'label lengths'
+            f'forecast response exceeds the {MAX_RESPONSE_CHARACTERS:,}-character limit; '
+            'reduce components, months, or label lengths'
         )
     return response
