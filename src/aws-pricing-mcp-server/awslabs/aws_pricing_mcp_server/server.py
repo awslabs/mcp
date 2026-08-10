@@ -22,6 +22,12 @@ import sys
 from awslabs.aws_pricing_mcp_server import consts
 from awslabs.aws_pricing_mcp_server.alternative_pricing import get_pricing_alternatives
 from awslabs.aws_pricing_mcp_server.cdk_analyzer import analyze_cdk_project
+from awslabs.aws_pricing_mcp_server.forecast import (
+    MAX_COMPONENTS,
+    MAX_MONTHS,
+    ForecastCostComponent,
+    calculate_forecast,
+)
 from awslabs.aws_pricing_mcp_server.models import (
     ATTRIBUTE_NAMES_FIELD,
     ATTRIBUTE_VALUES_FILTERS_FIELD,
@@ -143,6 +149,12 @@ mcp = FastMCP(
        - Source of the data (web scraping, API, or websearch)
        - List of attempted data retrieval methods
 
+    # USE CASE 3: MULTI-PERIOD SCENARIO FORECASTING
+    Use calculate_cost_scenario() after gathering baseline costs and current prices.
+    Classify architecture units that do not grow with demand as fixed. Classify usage-driven
+    costs as linear and assign each its own final-month multiplier. Do not apply a single
+    growth multiplier to the entire bill.
+
     ACCURACY GUIDELINES:
     - When uncertain about service compatibility or pricing details, EXCLUDE them rather than making assumptions
     - For database compatibility, only include CONFIRMED supported databases
@@ -157,6 +169,41 @@ mcp = FastMCP(
     serverless services and pay-as-you-go pricing models.""",
     dependencies=['pydantic', 'loguru', 'boto3', 'beautifulsoup4', 'websearch'],
 )
+
+
+@mcp.tool(
+    name='calculate_cost_scenario',
+    description="""Calculate a deterministic month-by-month cost scenario from classified components.
+
+Use fixed components for architecture units that do not grow with demand, such as control
+planes, proxy capacity, gateway hours, keys, and subscriptions. Use linear components for
+usage-driven costs such as compute, database consumption, requests, storage, data transfer,
+logs, and AI tokens. Each linear component can have its own final-month multiplier.
+
+This tool performs arithmetic only. It does not retrieve account data, query AWS pricing, or
+create an AWS Pricing Calculator estimate. Obtain baseline costs and current unit prices with
+the appropriate pricing or billing tools first.
+""",
+    annotations=ToolAnnotations(readOnlyHint=True),
+)
+async def calculate_cost_scenario(
+    components: List[ForecastCostComponent] = Field(
+        ...,
+        min_length=1,
+        max_length=MAX_COMPONENTS,
+        description='Baseline monthly cost components with explicit scaling behavior',
+    ),
+    months: int = Field(12, ge=2, le=MAX_MONTHS, description='Forecast horizon in months'),
+    currency: str = Field(
+        'USD',
+        min_length=3,
+        max_length=3,
+        pattern=r'^[A-Z]{3}$',
+        description='ISO 4217 currency code',
+    ),
+) -> Dict:
+    """Calculate a cost scenario while preserving fixed and usage-scaled boundaries."""
+    return calculate_forecast(components=components, months=months, currency=currency)
 
 
 @mcp.tool(
