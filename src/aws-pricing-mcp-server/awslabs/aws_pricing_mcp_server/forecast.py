@@ -133,7 +133,7 @@ def calculate_forecast(
             }
         )
 
-    annual_total = sum(unrounded_monthly_totals, Decimal('0'))
+    forecast_total = sum(unrounded_monthly_totals, Decimal('0'))
     return {
         'status': 'success',
         'currency': currency,
@@ -143,8 +143,8 @@ def calculate_forecast(
         'summary': {
             'forecast_months': months,
             'baseline_monthly_cost': _money(unrounded_monthly_totals[0]),
-            'average_monthly_cost': _money(annual_total / Decimal(months)),
-            'forecast_total': _money(annual_total),
+            'average_monthly_cost': _money(forecast_total / Decimal(months)),
+            'forecast_total': _money(forecast_total),
             'ending_monthly_cost': _money(unrounded_monthly_totals[-1]),
         },
     }
