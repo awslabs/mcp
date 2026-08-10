@@ -15,7 +15,7 @@
 # It is intentionally minimal to support PEP 420 namespace packages.
 
 from .admin import RabbitMQAdmin
-from .connection import RabbitMQConnection, validate_rabbitmq_name
+from .connection import RabbitMQConnection, get_broker_hostname_from_id, validate_rabbitmq_name
 from .handlers import (
     handle_delete_exchange,
     handle_delete_queue,
@@ -37,15 +37,20 @@ from .handlers import (
     handle_shovel,
 )
 from mcp.server.fastmcp import FastMCP
-from typing import Any
+from typing import Any, Callable
+
+
+# Type alias for boto3 client getter function
+BOTO3_CLIENT_GETTER = Callable[[str], Any]
 
 
 class RabbitMQModule:
     """A module that contains RabbitMQ API."""
 
-    def __init__(self, mcp: FastMCP):
+    def __init__(self, mcp: FastMCP, mq_client_getter: BOTO3_CLIENT_GETTER):
         """Initialize the RabbitMQ module."""
         self.mcp = mcp
+        self.mq_client_getter = mq_client_getter
         self.rmq: RabbitMQConnection | None = None
         self.rmq_admin: RabbitMQAdmin | None = None
 
@@ -59,17 +64,25 @@ class RabbitMQModule:
     def __register_critical_tools(self):
         @self.mcp.tool()
         def rabbimq_broker_initialize_connection(
-            broker_hostname: str,
+            broker_id: str,
+            region: str,
             username: str,
             password: str,
         ) -> str:
             """Connect to a new RabbitMQ broker which authentication strategy is SIMPLE.
 
-            broker_hostname: The hostname of the broker. For example, b-a9565a64-da39-4afc-9239-c43a9376b5ba.mq.us-east-1.on.aws, b-9560b8e1-3d33-4d91-9488-a3dc4a61dfe7.mq.us-east-1.amazonaws.com
+            broker_id: The unique broker ID from AWS MQ (e.g., 'b-a9565a64-da39-4afc-9239-c43a9376b5ba')
+            region: AWS region where the broker is located (e.g., 'us-east-1')
             username: The username of user
             password: The password of user
             """
             try:
+                # Get MQ client for the specified region using the client getter
+                mq_client = self.mq_client_getter(region)
+
+                # Get broker hostname from AWS API using the properly configured client
+                broker_hostname = get_broker_hostname_from_id(mq_client, broker_id)
+
                 self.rmq = RabbitMQConnection(
                     hostname=broker_hostname,
                     username=username,
@@ -87,15 +100,23 @@ class RabbitMQModule:
 
         @self.mcp.tool()
         def rabbimq_broker_initialize_connection_with_oauth(
-            broker_hostname: str,
+            broker_id: str,
+            region: str,
             oauth_token: str,
         ) -> str:
             """Connect to a new RabbitMQ broker using OAuth. It only applies to RabbitMQ broker which authentication strategy is config_managed.
 
-            broker_hostname: The hostname of the broker. For example, b-a9565a64-da39-4afc-9239-c43a9376b5ba.mq.us-east-1.on.aws, b-9560b8e1-3d33-4d91-9488-a3dc4a61dfe7.mq.us-east-1.amazonaws.com
+            broker_id: The unique broker ID from AWS MQ (e.g., 'b-a9565a64-da39-4afc-9239-c43a9376b5ba')
+            region: AWS region where the broker is located (e.g., 'us-east-1')
             oauth_token: A valid access token
             """
             try:
+                # Get MQ client for the specified region using the client getter
+                mq_client = self.mq_client_getter(region)
+
+                # Get broker hostname from AWS API using the properly configured client
+                broker_hostname = get_broker_hostname_from_id(mq_client, broker_id)
+
                 self.rmq = RabbitMQConnection(
                     hostname=broker_hostname,
                     username='ignored',

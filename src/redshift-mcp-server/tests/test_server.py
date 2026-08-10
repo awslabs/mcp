@@ -35,10 +35,37 @@ from awslabs.redshift_mcp_server.server import (
     list_databases_tool,
     list_schemas_tool,
     list_tables_tool,
+    mcp,
     review_cluster_tool,
 )
 from datetime import datetime
 from mcp.server.fastmcp import Context
+
+
+@pytest.mark.asyncio
+async def test_tool_annotations():
+    """Test that every tool advertises its read-only behavior to MCP clients."""
+    expected_titles = {
+        'list_clusters': 'List Redshift clusters and workgroups',
+        'list_databases': 'List Redshift databases',
+        'list_schemas': 'List Redshift schemas',
+        'list_tables': 'List Redshift tables',
+        'list_columns': 'List Redshift columns',
+        'execute_query': 'Execute read-only Redshift query',
+        'review_cluster': 'Review Redshift cluster',
+    }
+
+    tools = {tool.name: tool for tool in await mcp.list_tools()}
+
+    assert tools.keys() == expected_titles.keys()
+    for name, title in expected_titles.items():
+        annotations = tools[name].annotations
+        assert annotations is not None
+        assert annotations.title == title
+        assert annotations.readOnlyHint is True
+        assert annotations.destructiveHint is False
+        assert annotations.idempotentHint is True
+        assert annotations.openWorldHint is True
 
 
 class TestListClustersTool:
