@@ -142,10 +142,10 @@ def _read_only_annotations(title: str) -> ToolAnnotations:
     """Return annotations for tools that only read the caller's AWS environment."""
     return ToolAnnotations(
         title=title,
-        readOnlyHint=True,
-        destructiveHint=False,
-        idempotentHint=True,
-        openWorldHint=True,
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
     )
 
 
