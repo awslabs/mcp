@@ -17,6 +17,7 @@
 import pytest
 from awslabs.aws_pricing_mcp_server.forecast import (
     MAX_MONTHLY_COST,
+    MAX_RESPONSE_CHARACTERS,
     ForecastCostComponent,
     calculate_forecast,
 )
@@ -392,6 +393,29 @@ def test_oversized_forecast_response_is_rejected():
 
     with pytest.raises(ValueError, match='100,000-character limit'):
         calculate_forecast(components, months=120, currency='USD')
+
+
+@pytest.mark.asyncio
+async def test_non_ascii_labels_are_budgeted_as_emitted():
+    """Budget non-ASCII labels by emitted characters, not by escaped ones."""
+    components = [
+        {
+            'name': f'{index:02d}' + ('🧾' * 98),
+            'category': f'{index:02d}' + ('💰' * 48),
+            'monthly_cost': 1,
+            'scaling_behavior': 'fixed',
+        }
+        for index in range(3)
+    ]
+
+    content = await mcp.call_tool(
+        'calculate_cost_scenario', {'components': components, 'months': 12}
+    )
+
+    assert isinstance(content, list)
+    assert len(content) == 1
+    assert isinstance(content[0], TextContent)
+    assert len(content[0].text) < MAX_RESPONSE_CHARACTERS // 4
 
 
 @pytest.mark.asyncio

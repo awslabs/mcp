@@ -39,9 +39,9 @@ def _format_money(value: Decimal, decimal_places: int) -> str:
 
 
 def _fits_response_budget(value: Dict) -> bool:
-    """Count encoded characters without allocating an oversized JSON string."""
+    """Count emitted characters without allocating an oversized JSON string."""
     encoded_characters = 0
-    for chunk in json.JSONEncoder(indent=2).iterencode(value):
+    for chunk in json.JSONEncoder(indent=2, ensure_ascii=False).iterencode(value):
         encoded_characters += len(chunk)
         if encoded_characters > MAX_RESPONSE_CHARACTERS:
             return False
