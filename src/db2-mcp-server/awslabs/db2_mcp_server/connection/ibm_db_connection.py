@@ -128,38 +128,83 @@ class IbmDbConnection(AbstractDBConnection):
         self._conn = None
         self._lock = threading.Lock()
 
+    @staticmethod
+    def _check_dsn_value(label: str, value: str, *, redact: bool = False) -> str:
+        """Reject a DSN attribute value that would corrupt or inject into the DSN.
+
+        Values are deliberately NOT brace-quoted. Db2 CLI/ODBC documents ``{}`` for
+        values containing delimiters, but that unquoting is performed by the ODBC
+        *Driver Manager* -- and there is no Driver Manager in this code path.
+        ``ibm_db.connect`` hands a connection string containing ``=`` straight to
+        ``SQLDriverConnect`` on the IBM CLI driver (and ignores its own uid/pwd
+        arguments in that case), and the CLI driver does not strip the braces. Verified
+        against a live RDS for Db2 12.1 instance with ibm_db 3.2.9:
+
+            HOSTNAME={host}  -> SQL1336N  The remote host "{host}" was not found
+            UID={u};PWD={p}  -> SQL30082N reason 24 (USERNAME AND/OR PASSWORD INVALID)
+
+        i.e. brace-quoting silently corrupts every value instead of protecting it. So
+        the DSN is built unquoted and unsafe values are rejected instead.
+
+        Only ``;`` needs rejecting: the driver splits attributes on ``;`` and then
+        splits each attribute at its FIRST ``=``, so a value may legitimately contain
+        ``=`` (common in generated passwords) but a ``;`` would truncate it and turn
+        the remainder into a bogus attribute. A leading ``{`` is also rejected, since
+        the driver may attempt to treat it as an (unsupported) quoted value.
+
+        Args:
+            label: human-readable field name for the error message.
+            value: the value to check.
+            redact: when True, never echo the value in the error (used for secrets).
+
+        Returns:
+            The value unchanged, when it is safe to interpolate.
+        """
+        bad = [c for c in (';',) if c in value]
+        if value.startswith('{'):
+            bad.append('leading {')
+        if bad:
+            shown = '<redacted>' if redact else repr(value)
+            raise ValueError(
+                f'{label} contains a character that cannot be represented in a Db2 '
+                f'connection string ({", ".join(bad)}): {shown}. The IBM CLI driver '
+                'provides no escaping mechanism on this code path, so the value cannot '
+                'be passed safely. Change the value (for a password, rotate the secret '
+                'to one without a semicolon).'
+            )
+        return value
+
     def _build_conn_string(self, user: str, password: str) -> str:
-        """Build the ibm_db (DSN-less) connection string."""
+        """Build the ibm_db (DSN-less) connection string.
 
-        def _q(v: str) -> str:
-            # Db2 CLI allows wrapping an attribute value in braces so ';' '=' and
-            # other delimiters are treated literally. A literal '}' cannot be
-            # represented, so reject it rather than emit a corrupt/injectable DSN.
-            if '}' in v:
-                raise ValueError('Value contains an unsupported character: }')
-            return '{' + v + '}'
-
+        Attribute order is security-relevant: the Db2 CLI driver takes the FIRST
+        occurrence of a repeated keyword, so this method's own SECURITY / SSL
+        attributes are emitted BEFORE the credentials. That way, even if a credential
+        somehow carried a delimiter, anything it could append lands after -- and is
+        therefore ignored in favour of -- the SSL posture set here. Do not move UID/PWD
+        earlier.
+        """
         # database/host originate from MCP tool parameters (agent-supplied), not just
-        # operator config, so they get the same brace-escaping as the credentials.
-        # Without it, a value like database="DB2DB;SECURITY=NONE" or
-        # host="h;SSLClientHostnameValidation=OFF" would inject an attribute ahead of
-        # this method's own SECURITY=SSL / SSLClientHostnameValidation, silently
-        # downgrading TLS or disabling hostname validation (first-occurrence-wins).
+        # operator config: without validation a value like database='DB2DB;SECURITY=NONE'
+        # or host='h;SSLClientHostnameValidation=OFF' would inject an attribute into the
+        # DSN. Neither a Db2 database name nor a DNS hostname can legitimately contain
+        # ';', so rejecting costs nothing.
+        database = self._check_dsn_value('database', self.database)
+        host = self._check_dsn_value('host', self.host)
+
         parts = [
-            f'DATABASE={_q(self.database)}',
-            f'HOSTNAME={_q(self.host)}',
-            f'PORT={self.port}',
+            f'DATABASE={database}',
+            f'HOSTNAME={host}',
+            f'PORT={int(self.port)}',
             'PROTOCOL=TCPIP',
-            f'UID={_q(user)}',
-            f'PWD={_q(password)}',
         ]
         if self.ssl_encryption == 'require':
             parts.append('SECURITY=SSL')
             if self.ssl_server_certificate:
-                # Operator-controlled (not an MCP-tool-supplied injection vector), but
-                # a ';' in the path would still corrupt the DSN -- brace-escape for
-                # consistency/defense-in-depth with the other attributes above.
-                parts.append(f'SSLServerCertificate={_q(self.ssl_server_certificate)}')
+                parts.append(
+                    'SSLServerCertificate='
+                    + self._check_dsn_value('ssl_server_certificate', self.ssl_server_certificate)
+                )
             # Emit the hostname-validation mode explicitly rather than relying on the
             # client default: BASIC in production, OFF only for tunnel/port-forward
             # testing where the local hostname cannot match the certificate CN.
@@ -167,6 +212,10 @@ class IbmDbConnection(AbstractDBConnection):
                 parts.append('SSLClientHostnameValidation=BASIC')
             else:
                 parts.append('SSLClientHostnameValidation=OFF')
+
+        # Credentials last -- see the docstring note on first-occurrence-wins.
+        parts.append('UID=' + self._check_dsn_value('username', user))
+        parts.append('PWD=' + self._check_dsn_value('password', password, redact=True))
         return ';'.join(parts) + ';'
 
     def _get_credentials_from_secret(self) -> Tuple[str, str]:

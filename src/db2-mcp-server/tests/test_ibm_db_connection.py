@@ -65,11 +65,11 @@ class TestConnString:
     """Tests for connection-string construction."""
 
     def test_ssl_with_cert(self):
-        """SSL mode adds SECURITY=SSL and the brace-escaped certificate path."""
+        """SSL mode adds SECURITY=SSL and the certificate path."""
         c = _conn(ssl_encryption='require', ssl_server_certificate='/tmp/rds.pem')
         s = c._build_conn_string('admin', 'pw')
         assert 'SECURITY=SSL' in s
-        assert 'SSLServerCertificate={/tmp/rds.pem}' in s
+        assert 'SSLServerCertificate=/tmp/rds.pem' in s
         assert 'PORT=50443' in s
 
     def test_plain_tcp(self):
@@ -644,21 +644,74 @@ async def test_close_logs_warning_on_failure(mocker):
     assert c._conn is None
 
 
-def test_conn_string_escapes_credentials_with_braces():
-    """Credentials containing ';' or '=' are wrapped in {} braces for Db2 CLI."""
-    c = _conn()
-    # A password with ';' and '=' that would corrupt the DSN if unescaped.
-    conn_str = c._build_conn_string('user;name', 'p@ss=word;')
-    # The Db2 CLI {} brace syntax makes delimiters literal.
-    assert 'UID={user;name}' in conn_str
-    assert 'PWD={p@ss=word;}' in conn_str
+def test_conn_string_does_not_brace_quote_any_value():
+    """No value may be brace-quoted -- the CLI driver does not strip the braces.
+
+    Verified against live RDS for Db2 12.1 / ibm_db 3.2.9: HOSTNAME={host} fails with
+    SQL1336N naming the literal "{host}", and UID={u};PWD={p} fails with SQL30082N
+    reason 24. Brace-quoting is an ODBC Driver Manager convention and there is no
+    Driver Manager on this path (ibm_db passes the DSN straight to SQLDriverConnect),
+    so quoting silently corrupts every value. This test pins that regression.
+    """
+    conn_str = _conn(
+        database='DB2DB',
+        host='db2.example.com',
+        ssl_encryption='require',
+        ssl_server_certificate='/tmp/rds.pem',
+    )._build_conn_string('admin', 'pw')
+    assert '{' not in conn_str
+    assert '}' not in conn_str
+    assert 'DATABASE=DB2DB;' in conn_str
+    assert 'HOSTNAME=db2.example.com;' in conn_str
+    assert 'UID=admin;' in conn_str
+    assert 'PWD=pw;' in conn_str
 
 
-def test_conn_string_rejects_closing_brace_in_credential():
-    """A credential containing '}' cannot be represented in Db2 CLI syntax and is rejected."""
+def test_conn_string_allows_equals_in_password():
+    """'=' in a password is safe: the driver splits each attribute at its FIRST '='."""
+    conn_str = _conn()._build_conn_string('admin', 'p@ss=w0rd=')
+    assert 'PWD=p@ss=w0rd=' in conn_str
+
+
+def test_conn_string_rejects_semicolon_in_credential():
+    """A ';' in a credential would truncate the value, so it is rejected."""
     c = _conn()
-    with pytest.raises(ValueError, match='unsupported character'):
-        c._build_conn_string('admin', 'pass}word')
+    with pytest.raises(ValueError, match='password contains a character'):
+        c._build_conn_string('admin', 'pass;word')
+    with pytest.raises(ValueError, match='username contains a character'):
+        c._build_conn_string('ad;min', 'pw')
+
+
+def test_conn_string_rejection_never_echoes_the_password():
+    """The rejection error must not leak the secret it rejected."""
+    with pytest.raises(ValueError) as exc:
+        _conn()._build_conn_string('admin', 'sup3rs3cret;x')
+    message = str(exc.value)
+    assert 'sup3rs3cret' not in message
+    assert '<redacted>' in message
+
+
+def test_conn_string_rejects_leading_brace_in_value():
+    """A leading '{' is rejected -- the driver may try to treat it as a quoted value."""
+    with pytest.raises(ValueError, match='leading'):
+        _conn()._build_conn_string('admin', '{pw')
+    with pytest.raises(ValueError, match='leading'):
+        _conn(database='{DB2DB')._build_conn_string('admin', 'pw')
+
+
+def test_conn_string_emits_credentials_after_ssl_attributes():
+    """UID/PWD must come after the SSL attributes (first-occurrence-wins ordering).
+
+    The Db2 CLI driver honors the FIRST occurrence of a repeated keyword, so emitting
+    the SSL posture before the credentials means nothing a credential could append
+    can override SECURITY=SSL or the hostname-validation mode.
+    """
+    conn_str = _conn(
+        ssl_encryption='require', ssl_server_certificate='/tmp/rds.pem'
+    )._build_conn_string('admin', 'pw')
+    assert conn_str.index('SECURITY=SSL') < conn_str.index('UID=')
+    assert conn_str.index('SSLClientHostnameValidation=') < conn_str.index('UID=')
+    assert conn_str.index('UID=') < conn_str.index('PWD=')
 
 
 def test_conn_string_emits_hostname_validation_explicitly():
@@ -670,32 +723,25 @@ def test_conn_string_emits_hostname_validation_explicitly():
     assert 'SSLClientHostnameValidation=OFF' in c_off._build_conn_string('u', 'p')
 
 
-def test_conn_string_escapes_database_and_host_attribute_injection():
-    """database/host (agent-supplied MCP params) are brace-escaped like credentials.
+def test_conn_string_rejects_database_and_host_attribute_injection():
+    """An agent-supplied database/host that would inject a DSN attribute is rejected.
 
-    Without escaping, a value such as database="DB2DB;SECURITY=NONE" or
-    host="h;SSLClientHostnameValidation=OFF" would inject a DSN attribute ahead of
-    this method's own SECURITY=SSL / SSLClientHostnameValidation, silently downgrading
-    TLS or disabling hostname validation (first-occurrence-wins in the Db2 CLI DSN).
+    Neither a Db2 database name nor a DNS hostname can legitimately contain ';', so
+    rejecting closes the injection vector at no cost. (Escaping is not an option --
+    the CLI driver does not honor brace-quoting on this path.)
     """
-    c = _conn(database='DB2DB;SECURITY=NONE', host='h;SSLClientHostnameValidation=OFF')
-    conn_str = c._build_conn_string('admin', 'pw')
-    assert 'DATABASE={DB2DB;SECURITY=NONE}' in conn_str
-    assert 'HOSTNAME={h;SSLClientHostnameValidation=OFF}' in conn_str
-    # The injected attributes never appear unescaped/standalone.
-    assert ';SECURITY=NONE;' not in conn_str
-    assert ';SSLClientHostnameValidation=OFF;HOSTNAME' not in conn_str
-    # The server's own SSL posture still wins.
-    assert 'SECURITY=SSL' in conn_str
-    assert 'SSLClientHostnameValidation=BASIC' in conn_str
+    with pytest.raises(ValueError, match='database contains a character'):
+        _conn(database='DB2DB;SECURITY=NONE')._build_conn_string('admin', 'pw')
+    with pytest.raises(ValueError, match='host contains a character'):
+        _conn(host='h;SSLClientHostnameValidation=OFF')._build_conn_string('admin', 'pw')
 
 
-def test_conn_string_rejects_closing_brace_in_database_or_host():
-    """A database/host value containing '}' cannot be represented and is rejected."""
-    with pytest.raises(ValueError, match='unsupported character'):
-        _conn(database='DB2DB}x')._build_conn_string('admin', 'pw')
-    with pytest.raises(ValueError, match='unsupported character'):
-        _conn(host='h}x')._build_conn_string('admin', 'pw')
+def test_conn_string_rejects_semicolon_in_cert_path():
+    """A ';' in the certificate path would corrupt the DSN, so it is rejected."""
+    with pytest.raises(ValueError, match='ssl_server_certificate contains a character'):
+        _conn(ssl_encryption='require', ssl_server_certificate='/tmp/a;b.pem')._build_conn_string(
+            'admin', 'pw'
+        )
 
 
 async def test_connect_rejects_when_autocommit_not_disabled(mocker):
@@ -756,7 +802,7 @@ async def test_connect_refuses_when_autocommit_option_omitted(mocker):
     mocker.patch.object(
         IbmDbConnection,
         '_build_conn_string',
-        return_value='DATABASE={DB2DB};',
+        return_value='DATABASE=DB2DB;',
     )
 
     def _connect_without_options(_conn_str, _user, _password, _options=None):
