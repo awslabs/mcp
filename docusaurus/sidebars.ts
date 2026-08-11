@@ -45,6 +45,13 @@ const sidebars: SidebarsConfig = {
         },
         {
           type: "category",
+          label: "Migration & Modernization",
+          items: [
+            "servers/aws-transform-mcp-server",
+          ],
+        },
+        {
+          type: "category",
           label: "Infrastructure & Deployment",
           items: [
             "servers/aws-iac-mcp-server",
@@ -57,6 +64,7 @@ const sidebars: SidebarsConfig = {
             "servers/aws-serverless-mcp-server",
             "servers/aws-support-mcp-server",
             "servers/aws-network-mcp-server",
+            "servers/aws-for-sap-management-mcp-server",
           ],
         },
         {
@@ -66,10 +74,12 @@ const sidebars: SidebarsConfig = {
             "servers/bedrock-kb-retrieval-mcp-server",
             "servers/amazon-qindex-mcp-server",
             "servers/amazon-qbusiness-anonymous-mcp-server",
+            'servers/amazon-translate-mcp-server',
             "servers/document-loader-mcp-server",
             "servers/aws-bedrock-custom-model-import-mcp-server",
             "servers/amazon-bedrock-agentcore-mcp-server",
             "servers/sagemaker-ai-mcp-server",
+            "servers/roda-mcp-server"
           ],
         },
         {
@@ -85,7 +95,9 @@ const sidebars: SidebarsConfig = {
             "servers/amazon-keyspaces-mcp-server",
             "servers/amazon-neptune-mcp-server",
             "servers/aurora-dsql-mcp-server",
+            "servers/mssql-mcp-server",
             "servers/mysql-mcp-server",
+            "servers/oracle-mcp-server",
             "servers/postgres-mcp-server",
             "servers/aws-dataprocessing-mcp-server",
             "servers/redshift-mcp-server",
@@ -93,7 +105,9 @@ const sidebars: SidebarsConfig = {
             "servers/aws-appsync-mcp-server",
             "servers/aws-iot-sitewise-mcp-server",
             "servers/sagemaker-unified-studio-spark-troubleshooting-mcp-server",
-            "servers/sagemaker-unified-studio-spark-upgrade-mcp-server"
+            "servers/sagemaker-unified-studio-spark-upgrade-mcp-server",
+            "servers/roda-mcp-server"
+
           ],
         },
         {
@@ -122,6 +136,7 @@ const sidebars: SidebarsConfig = {
             "servers/aws-pricing-mcp-server",
             "servers/cloudwatch-mcp-server",
             "servers/cloudwatch-applicationsignals-mcp-server",
+            "servers/security-agent-mcp-server",
             "servers/well-architected-security-mcp-server",
             "servers/cloudtrail-mcp-server",
             "servers/billing-cost-management-mcp-server",
@@ -134,6 +149,7 @@ const sidebars: SidebarsConfig = {
             "servers/aws-healthomics-mcp-server",
             "servers/healthimaging-mcp-server",
             "servers/healthlake-mcp-server",
+            "servers/roda-mcp-server"
           ],
         },
       ],

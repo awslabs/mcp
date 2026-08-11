@@ -9,7 +9,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Code Interpreter `list_files`** — list files and directories in a sandbox session, so an agent can discover what a previous step wrote instead of guessing paths. Accepts an optional `directory_path` and returns structured file paths alongside the raw listing text
+
+### Fixed
+
+- **Browser `browser_evaluate`** — preserve non-ASCII text (CJK, emoji) in object/array results instead of emitting `\uXXXX` escapes, matching the scalar-string return path (`ensure_ascii=False`)
+- Server crash on startup when the configured `llms.txt` documentation source is unreachable (#4138). The hardcoded default URL (`aws.github.io/bedrock-agentcore-starter-toolkit/llms.txt`) was deprecated and returns HTTP 404, causing an unhandled `HTTPError` to propagate out of `main()` and kill the process before MCP initialization. `load_links_only()` now isolates each source and logs a warning on fetch failure so the server starts with all other tool groups functional. The default source was also updated to the official AWS AgentCore Developer Guide index (`docs.aws.amazon.com/bedrock-agentcore/latest/devguide/llms.txt`), restoring documentation search
+
+## 0.1.0 - 2026-05-14
+
+### Added
+
+- **Runtime primitive** — 14 tools for deploying, managing, and invoking agent runtimes and endpoints (`create_agent_runtime`, `create_agent_runtime_endpoint`, `invoke_agent_runtime`, `stop_runtime_session`, `get_runtime_guide`, and others)
+- **Memory primitive** — 21 tools for memory resource management, event storage, semantic retrieval, batch operations, and extraction jobs (`memory_create`, `memory_create_event`, `memory_retrieve_records`, `memory_batch_create_records`, `get_memory_guide`, and others)
+- **Identity primitive** — 21 tools for workload identity, API key providers, OAuth2 providers, token vault configuration, and resource policies. Data plane operations (token retrieval) are intentionally excluded to keep credential material out of LLM context
+- **Gateway primitive** — 15 tools for managing API gateways, gateway targets (Lambda, OpenAPI, Smithy, MCP servers), and resource policies. `InvokeGateway` data plane operation is excluded for the same security reason
+- **Policy primitive** — 15 tools for policy engine management, authorization policies, and policy asset generation
+- **Code Interpreter primitive** — 9 tools for sandboxed code execution, package installation, and file transfer
+- **Browser automation tools** — 25 tools for cloud-based web interaction across 5 categories (session, navigation, observation, interaction, management)
+- **Service opt-in/opt-out** via `AGENTCORE_ENABLE_TOOLS` and `AGENTCORE_DISABLE_TOOLS` environment variables
+- **Server instructions** for MCP clients with browser usage tips
 - Initial project setup
-- Browser automation tools — 25 tools for cloud-based web interaction across 5 categories (session, navigation, observation, interaction, management)
-- Service opt-in/opt-out via `AGENTCORE_ENABLE_TOOLS` and `AGENTCORE_DISABLE_TOOLS` environment variables
-- Server instructions for MCP clients with browser usage tips
+
+### Changed
+
+- **README** rewritten to reflect 122-tool operational coverage across 7 primitives, including per-primitive tool callouts, configuration mechanisms, cost-awareness tiers, security posture (exclusion of credential-returning data plane operations), and architecture overview
+
+### Fixed
+
+- **User-agent version reporting** — `MCP_SERVER_VERSION` is now derived dynamically via `importlib.metadata.version()` instead of being hardcoded. Previously every release reported `0.1.0` regardless of installed version, blocking version-distribution analysis in service-side telemetry
+- Server crash on Windows due to `asyncio.loop.add_signal_handler` being unsupported on the default `ProactorEventLoop` (#2752). Removed the redundant signal handler from `server_lifespan` — cleanup is already handled by the context manager's `finally` block on every graceful shutdown path (stdin EOF, SIGINT via default `KeyboardInterrupt`, HTTP shutdown via uvicorn's own signal handling)

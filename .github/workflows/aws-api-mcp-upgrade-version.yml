@@ -5,8 +5,6 @@ description: |
   and creates a pull request with the changes.
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 5 * * *'  # Daily at 6 AM Amsterdam time (UTC+1)
 env:
   BOT_USER_EMAIL: ${{ vars.BOT_USER_EMAIL || '203918161+awslabs-mcp@users.noreply.github.com' }}
   BOT_USER_NAME: ${{ vars.BOT_USER_NAME || 'awslabs-mcp' }}
@@ -36,11 +34,11 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           token: ${{ secrets.BOT_GITHUB_TOKEN }}
       - name: Install uv
-        uses: astral-sh/setup-uv@eac588ad8def6316056a12d4907a9d4d84ff7a3b # v7.3.0
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
       - name: Check and upgrade AWS CLI version
         id: upgrade
         working-directory: src/aws-api-mcp-server

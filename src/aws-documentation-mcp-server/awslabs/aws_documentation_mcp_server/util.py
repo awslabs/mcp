@@ -13,10 +13,12 @@
 # limitations under the License.
 """Utility functions for AWS Documentation MCP Server."""
 
+import httpx
 import markdownify
+import re
 from awslabs.aws_documentation_mcp_server.models import RecommendationResult
-from typing import Any, Dict, List
-from urllib.parse import quote_plus
+from typing import Any, Dict, List, Sequence
+from urllib.parse import quote_plus, urljoin
 
 
 def extract_content_from_html(html: str) -> str:
@@ -155,6 +157,35 @@ def is_html_content(page_raw: str, content_type: str) -> bool:
     return '<html' in page_raw[:100] or 'text/html' in content_type or not content_type
 
 
+def url_matches_allowlist(url: str, allowed_domain_regexes: Sequence[str]) -> bool:
+    """Return True if the URL's host matches an allowed domain regex (extension not checked)."""
+    return any(re.match(pattern, url) for pattern in allowed_domain_regexes)
+
+
+def enforce_redirect_allowlist(allowed_domain_regexes: Sequence[str]):
+    """Build an httpx response event hook that rejects redirects to off-allowlist hosts.
+
+    Without this, ``follow_redirects=True`` follows a 3xx from an allow-listed page to any
+    host, including link-local metadata. The hook resolves each ``Location`` (including
+    relative redirects) against the request URL and raises if the target is not allow-listed.
+    """
+
+    async def _hook(response: httpx.Response) -> None:
+        if not response.is_redirect:
+            return
+        location = response.headers.get('location')
+        if not location:
+            return
+        target = urljoin(str(response.request.url), location)
+        if not url_matches_allowlist(target, allowed_domain_regexes):
+            raise httpx.RequestError(
+                f'Refusing to follow redirect to non-allowlisted URL: {target}',
+                request=response.request,
+            )
+
+    return _hook
+
+
 def format_documentation_result(url: str, content: str, start_index: int, max_length: int) -> str:
     """Format documentation result with pagination information.
 
@@ -258,6 +289,80 @@ def extract_sections_from_html(html: str, section_titles: List[str]) -> str:
         result_html += f'\n\n<blockquote><strong>Note</strong>: The following requested sections were not found: {missing_list}</blockquote>'
 
     return result_html
+
+
+def truncate_large_tables(
+    markdown: str, url: str = '', max_rows: int = 20, preview_rows: int = 5
+) -> str:
+    """Detect large markdown tables and truncate them with a search_table hint.
+
+    Args:
+        markdown: Markdown content that may contain large tables
+        url: The source URL (used in the hint message)
+        max_rows: Tables with more data rows than this get truncated
+        preview_rows: Number of sample rows to keep
+
+    Returns:
+        Markdown with large tables truncated and a tool usage hint appended
+    """
+    if not markdown:
+        return markdown
+
+    lines = markdown.split('\n')
+    result = []
+    i = 0
+    in_code_block = False
+
+    while i < len(lines):
+        stripped = lines[i].strip()
+        # Track fenced code blocks — never truncate inside them
+        if stripped.startswith('```') or stripped.startswith('~~~'):
+            in_code_block = not in_code_block
+            result.append(lines[i])
+            i += 1
+            continue
+
+        if in_code_block:
+            result.append(lines[i])
+            i += 1
+            continue
+
+        if stripped.startswith('|'):
+            table_lines = []
+            while i < len(lines) and lines[i].strip().startswith('|'):
+                table_lines.append(lines[i])
+                i += 1
+
+            # Validate: must have >=3 lines and line[1] must be a GFM separator
+            is_table = (
+                len(table_lines) >= 3
+                and re.fullmatch(r'\s*\|?[\s|:-]+\|?\s*', table_lines[1])
+                and '-' in table_lines[1]
+            )
+
+            if is_table:
+                header = table_lines[0]
+                separator = table_lines[1]
+                data_rows = table_lines[2:]
+
+                if len(data_rows) > max_rows:
+                    result.append(header)
+                    result.append(separator)
+                    for row in data_rows[:preview_rows]:
+                        result.append(row)
+                    hint = f'\n\nTable truncated (showing {preview_rows} of {len(data_rows)} rows). Use the `search_table` tool to find specific rows.'
+                    if url:
+                        hint += f'\n  Example: search_table(url="{url}", section_title="<section>", query="your search term")'
+                    result.append(hint)
+                else:
+                    result.extend(table_lines)
+            else:
+                result.extend(table_lines)
+        else:
+            result.append(lines[i])
+            i += 1
+
+    return '\n'.join(result)
 
 
 def parse_recommendation_results(data: Dict[str, Any]) -> List[RecommendationResult]:

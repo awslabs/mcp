@@ -16,6 +16,7 @@
 import argparse
 import asyncio
 import httpx
+import os
 import re
 import signal
 import sys
@@ -30,6 +31,7 @@ from awslabs.openapi_mcp_server.utils.openapi import load_openapi_spec
 from awslabs.openapi_mcp_server.utils.openapi_validator import validate_openapi_spec
 from fastmcp import FastMCP
 from fastmcp.server.providers.openapi import MCPType, OpenAPIProvider, RouteMap
+from fastmcp.utilities.openapi import format_description_with_responses
 from typing import Any, Dict
 
 
@@ -91,7 +93,17 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
         logger.debug(
             f'Loading OpenAPI spec from URL: {config.api_spec_url} or path: {config.api_spec_path}'
         )
-        openapi_spec = load_openapi_spec(url=config.api_spec_url, path=config.api_spec_path)
+
+        # For a URL, load_openapi_spec validates + DNS-pins internally: it
+        # resolves once and fetches by connecting only to that pinned IP, so
+        # there is no un-pinned fetch path for the primary spec either. Pass the
+        # SSRF flags through so the operator's --allow-* opt-ins are honored.
+        openapi_spec = load_openapi_spec(
+            url=config.api_spec_url,
+            path=config.api_spec_path,
+            allow_http=config.allow_insecure_http,
+            allow_private_networks=config.allow_private_networks,
+        )
 
         # Validate the OpenAPI spec
         if not validate_openapi_spec(openapi_spec):
@@ -215,41 +227,56 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
             logger.info(f'Excluding operations with tags: {exclude_tags}')
 
         def enrich_component(route: Any, component: Any) -> None:
-            """Enrich MCP tool/resource descriptions with OpenAPI spec details."""
-            parts = []
-            if component.description:
-                parts.append(component.description)
-            # Add response info
-            if hasattr(route, 'responses') and route.responses:
-                codes = ', '.join(sorted(route.responses.keys()))
-                parts.append(f'Returns: {codes}')
-            # Add example values from parameters
-            examples = []
-            if hasattr(route, 'parameters'):
-                for p in route.parameters:
-                    schema = getattr(p, 'schema_', None) or {}
-                    if isinstance(schema, dict) and 'example' in schema:
-                        examples.append(f'{p.name}={schema["example"]}')
-                    elif isinstance(schema, dict) and 'enum' in schema:
-                        examples.append(f'{p.name}={schema["enum"][0]}')
-            if examples:
-                parts.append(f'Example: {", ".join(examples)}')
-            if parts:
-                component.description = ' | '.join(parts)
+            """Enrich MCP tool/resource descriptions with OpenAPI spec details.
 
-        provider_kwargs: Dict[str, Any] = {
-            'openapi_spec': openapi_spec,
-            'client': client,
-            'route_maps': custom_mappings,
-            'mcp_component_fn': enrich_component,
-            'validate_output': config.validate_output,
-        }
+            POC migration: this delegates to FastMCP's own shipped formatter
+            (`fastmcp.utilities.openapi.format_description_with_responses`)
+            instead of the previous bespoke string-building. The upstream
+            formatter emits richer, structured sections (Path/Query Parameters,
+            Request Body, Responses with examples) than the old
+            ``desc | Returns: ... | Example: ...`` format.
+            """
+            component.description = format_description_with_responses(
+                component.description or '',
+                route.responses if getattr(route, 'responses', None) else {},
+                getattr(route, 'parameters', None),
+                getattr(route, 'request_body', None),
+            )
 
-        providers = [OpenAPIProvider(**provider_kwargs)]
+        # POC migration: build the primary server via the native high-level
+        # ``FastMCP.from_openapi(...)`` entry point instead of hand-constructing
+        # an ``OpenAPIProvider`` and passing it to ``FastMCP(providers=[...])``.
+        # This is the supported, documented path and the one users migrating off
+        # this wrapper would call directly. Additional specs (below) are still
+        # mounted as extra providers, which ``from_openapi`` does not cover.
+        # ``instructions`` is forwarded through ``from_openapi``'s **settings to
+        # FastMCP(); preserve the wrapper's original text for behavior parity.
+        primary_server = FastMCP.from_openapi(
+            openapi_spec=openapi_spec,
+            client=client,
+            name=config.api_name or 'OpenAPI MCP Server',
+            instructions='This server acts as a bridge between OpenAPI specifications and LLMs, allowing models to have a better understanding of available API capabilities without requiring manual tool definitions.',
+            route_maps=custom_mappings,
+            mcp_component_fn=enrich_component,
+            validate_output=config.validate_output,
+        )
+
+        additional_providers = []
 
         # Load additional specs for multi-spec composition
         if config.additional_specs:
             import json
+            from awslabs.openapi_mcp_server.utils.url_validator import (
+                validate_spec_path,
+                validate_url_for_spec,
+            )
+            from fastmcp.server.auth.ssrf import SSRFError
+
+            allowed_dirs = (
+                [d.strip() for d in config.allowed_spec_dirs.split(os.pathsep) if d.strip()]
+                if config.allowed_spec_dirs
+                else None
+            )
 
             try:
                 extra_specs = json.loads(config.additional_specs)
@@ -269,10 +296,60 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
                             f'Skipping additional spec {extra_name}: base_url is required'
                         )
                         continue
+
+                    # Validate base_url against SSRF
+                    try:
+                        await validate_url_for_spec(
+                            extra_base_url,
+                            allow_http=config.allow_insecure_http,
+                            allow_private_networks=config.allow_private_networks,
+                        )
+                    except SSRFError as e:
+                        logger.warning(
+                            f'Skipping additional spec {extra_name}: '
+                            f'base_url failed security validation: {e}'
+                        )
+                        continue
+
+                    # Validate spec_url or spec_path
+                    spec_url = entry.get('spec_url', '')
+                    spec_path = entry.get('spec_path', '')
+
+                    # Capture the validated result so the fetch connects to the
+                    # pinned IP(s) — never re-resolving the hostname at fetch time.
+                    spec_validated_url = None
+                    if spec_url:
+                        try:
+                            spec_validated_url = await validate_url_for_spec(
+                                spec_url,
+                                allow_http=config.allow_insecure_http,
+                                allow_private_networks=config.allow_private_networks,
+                            )
+                        except SSRFError as e:
+                            logger.warning(
+                                f'Skipping additional spec {extra_name}: '
+                                f'spec_url failed security validation: {e}'
+                            )
+                            continue
+
+                    if spec_path:
+                        try:
+                            spec_path = validate_spec_path(spec_path, allowed_dirs=allowed_dirs)
+                        except (SSRFError, FileNotFoundError) as e:
+                            logger.warning(
+                                f'Skipping additional spec {extra_name}: '
+                                f'spec_path failed security validation: {e}'
+                            )
+                            continue
+
                     logger.info(f'Loading additional spec: {extra_name}')
                     try:
+                        # Load using the pinned IPs from validation (no re-resolution).
                         extra_spec = load_openapi_spec(
-                            url=entry.get('spec_url', ''), path=entry.get('spec_path', '')
+                            validated_url=spec_validated_url,
+                            path=spec_path,
+                            allow_http=config.allow_insecure_http,
+                            allow_private_networks=config.allow_private_networks,
                         )
                     except Exception as e:
                         logger.warning(f'Failed to load additional spec {extra_name}: {e}')
@@ -282,13 +359,50 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
                         logger.warning(
                             f'Additional spec {extra_name} validation failed, continuing anyway'
                         )
+
+                    # Build per-entry auth — never inherit primary API credentials
+                    extra_headers = {}
+                    extra_auth = None
+                    extra_cookies = None
+
+                    entry_auth_type = entry.get('auth_type', 'none')
+                    if entry_auth_type == 'bearer':
+                        token = entry.get('auth_token', '')
+                        if token:
+                            extra_headers['Authorization'] = f'Bearer {token}'
+                    elif entry_auth_type == 'api_key':
+                        key = entry.get('auth_api_key', '')
+                        key_name = entry.get('auth_api_key_name', 'X-API-Key')
+                        key_in = entry.get('auth_api_key_in', 'header')
+                        if key and key_in == 'header':
+                            extra_headers[key_name] = key
+                        elif key and key_in == 'cookie':
+                            extra_cookies = {key_name: key}
+                        elif key and key_in == 'query':
+                            logger.warning(
+                                f'Additional spec {extra_name}: auth_api_key_in=query is not '
+                                f'supported for additional specs (use header or cookie). '
+                                f'The API key will NOT be sent.'
+                            )
+                    elif entry_auth_type == 'basic':
+                        username = entry.get('auth_username', '')
+                        password = entry.get('auth_password', '')
+                        if username and password:
+                            extra_auth = httpx.BasicAuth(username, password)
+                    elif entry_auth_type != 'none':
+                        logger.warning(
+                            f'Additional spec {extra_name}: unrecognized auth_type '
+                            f'"{entry_auth_type}", requests will be unauthenticated'
+                        )
+
                     extra_client = HttpClientFactory.create_client(
                         base_url=extra_base_url,
-                        headers=auth_headers,
-                        auth=httpx_auth,
-                        cookies=auth_cookies,
+                        headers=extra_headers if extra_headers else None,
+                        auth=extra_auth,
+                        cookies=extra_cookies,
+                        follow_redirects=False,
                     )
-                    providers.append(
+                    additional_providers.append(
                         OpenAPIProvider(
                             openapi_spec=extra_spec,
                             client=extra_client,
@@ -301,11 +415,11 @@ async def create_mcp_server_async(config: Config) -> FastMCP:
             except (json.JSONDecodeError, TypeError) as e:
                 logger.warning(f'Failed to parse additional specs: {e}')
 
-        server = FastMCP(
-            name=config.api_name or 'OpenAPI MCP Server',
-            instructions='This server acts as a bridge between OpenAPI specifications and LLMs, allowing models to have a better understanding of available API capabilities without requiring manual tool definitions.',
-            providers=providers,
-        )
+        # The primary server comes from ``from_openapi``; compose any additional
+        # specs onto it as extra providers via the public API.
+        server = primary_server
+        for extra_provider in additional_providers:
+            server.add_provider(extra_provider)
 
         # Apply tag filters after server creation
         if include_tags:
@@ -585,6 +699,22 @@ def main():
     parser.add_argument(
         '--additional-specs',
         help='JSON array of additional API specs. Each entry requires base_url and either spec_url or spec_path: [{"name":"...","spec_url":"...","base_url":"..."}]',
+    )
+
+    # Security settings
+    parser.add_argument(
+        '--allow-insecure-http',
+        action='store_true',
+        help='Allow http:// URLs for spec and base URLs (default: HTTPS only)',
+    )
+    parser.add_argument(
+        '--allow-private-networks',
+        action='store_true',
+        help='Allow private/loopback/link-local IP addresses for spec and base URLs',
+    )
+    parser.add_argument(
+        '--allowed-spec-dirs',
+        help='OS path-separated list of directories allowed for spec_path (colon on Unix, semicolon on Windows)',
     )
 
     args = parser.parse_args()

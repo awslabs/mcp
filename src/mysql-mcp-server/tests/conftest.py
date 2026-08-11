@@ -1,248 +1,71 @@
-import pytest
-from botocore.exceptions import ClientError
-from enum import Enum
-from typing import Any, Dict, List, Optional
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Test fixtures shared across the package's pytest suite.
+
+This module ensures the Amazon RDS global CA bundle is present on disk
+before any test runs. The bundle is normally produced by hatch_build.py
+during wheel build and ships inside the installed package; for local
+test runs from a fresh checkout (where the package may be installed in
+editable mode and the build hook produced the file at install time)
+this is a no-op.
+
+The check is here only to give a clean, actionable error message early
+in collection if the file is missing -- otherwise tests that load the
+bundle would fail with FileNotFoundError partway through the suite.
+"""
+
+import os
 
 
-class MockException(Enum):
-    """Mock exception type."""
+def _ensure_ca_bundle_present() -> None:
+    r"""Fail collection early if the verified RDS CA bundle is missing.
 
-    No = 'none'
-    Client = 'client'
-    Unexpected = 'unexpected'
+    The bundle is produced by hatch_build.py during wheel build and is
+    therefore present in any properly-installed copy of the package
+    (editable or otherwise). Tests that load the bundle assume it exists.
+    If the file is missing, the developer has either skipped the build
+    hook (rare) or is running on a machine where the build hook could
+    not reach the AWS truststore endpoint. In that case, run hatch_build
+    once on a connected host:
 
+        python hatch_build.py
 
-class Mock_boto3_client:
-    """Mock implementation of boto3 client for testing purposes."""
+    or fetch the bundle manually:
 
-    def __init__(self, error: MockException = MockException.No):
-        """Initialize the mock boto3 client.
-
-        Args:
-            error: Whether to simulate an error
-        """
-        self._responses: List[dict] = []
-        self.error = error
-        self._current_response_index = 0
-
-    def begin_transaction(self, **kwargs) -> dict:
-        """Mock implementation of begin_transaction.
-
-        Returns:
-            dict: The mock response
-
-        Raises:
-            ClientError
-            Exception
-        """
-        if self.error == MockException.Client:
-            error_response = {
-                'Error': {
-                    'Code': 'AccessDeniedException',
-                    'Message': 'User is not authorized to perform rds-data:begin_transaction',
-                }
-            }
-            raise ClientError(error_response, operation_name='begin_transaction')
-
-        if self.error == MockException.Unexpected:
-            error_response = {
-                'Error': {
-                    'Code': 'UnexpectedException',
-                    'Message': 'UnexpectedException',
-                }
-            }
-            raise Exception(error_response)
-
-        return {'transactionId': 'txt-id-xxxxx'}
-
-    def commit_transaction(self, **kwargs) -> dict:
-        """Mock implementation of commit_transaction.
-
-        Returns:
-            dict: The mock response
-
-        Raises:
-            ClientError
-            Exception
-        """
-        if self.error == MockException.Client:
-            error_response = {
-                'Error': {
-                    'Code': 'AccessDeniedException',
-                    'Message': 'User is not authorized to perform rds-data:begin_transaction',
-                }
-            }
-            raise ClientError(error_response, operation_name='commit_transaction')
-
-        if self.error == MockException.Unexpected:
-            error_response = {
-                'Error': {
-                    'Code': 'UnexpectedException',
-                    'Message': 'UnexpectedException',
-                }
-            }
-            raise Exception(error_response)
-
-        return {'transactionStatus': 'txt status'}
-
-    def rollback_transaction(self, **kwargs) -> dict:
-        """Mock implementation of rollback_transaction.
-
-        Returns:
-            dict: The mock response
-
-        Raises:
-            ClientError
-            Exception
-        """
-        if self.error == MockException.Client:
-            error_response = {
-                'Error': {
-                    'Code': 'AccessDeniedException',
-                    'Message': 'User is not authorized to perform rds-data:begin_transaction',
-                }
-            }
-            raise ClientError(error_response, operation_name='rollback_transaction')
-
-        if self.error == MockException.Unexpected:
-            error_response = {
-                'Error': {
-                    'Code': 'UnexpectedException',
-                    'Message': 'UnexpectedException',
-                }
-            }
-            raise Exception(error_response)
-
-        return {'transactionStatus': 'txt status'}
-
-    def execute_statement(self, **kwargs) -> dict:
-        """Mock implementation of execute_statement.
-
-        Returns:
-            dict: The mock response
-
-        Raises:
-            ClientError
-            Exception
-        """
-        if self.error == MockException.Client:
-            error_response = {
-                'Error': {
-                    'Code': 'AccessDeniedException',
-                    'Message': 'User is not authorized to perform rds-data:begin_transaction',
-                }
-            }
-            raise ClientError(error_response, operation_name='execute_statement')
-
-        if self.error == MockException.Unexpected:
-            error_response = {
-                'Error': {
-                    'Code': 'UnexpectedException',
-                    'Message': 'UnexpectedException',
-                }
-            }
-            raise Exception(error_response)
-
-        if self._current_response_index < len(self._responses):
-            response = self._responses[self._current_response_index]
-            self._current_response_index += 1
-            return response
-        raise Exception('Mock_boto3_client.execute_statement mock response out of bound')
-
-    def add_mock_response(self, response):
-        """Add a mock response to be returned by execute_statement.
-
-        Args:
-            response: The mock response to add
-        """
-        self._responses.append(response)
-
-
-class Mock_DBConnection:
-    """Mock implementation of DBConnection for testing purposes."""
-
-    def __init__(self, readonly, error: MockException = MockException.No):
-        """Initialize the mock DB connection.
-
-        Args:
-            readonly: Whether the connection should be read-only
-            error: Mock exception if any
-        """
-        self.cluster_arn = 'dummy_cluster_arn'
-        self.secret_arn = 'dummy_secret_arn'  # pragma: allowlist secret
-        self.database = 'dummy_database'
-        self.readonly = readonly
-        self.error = error
-        self._data_client = Mock_boto3_client(error)
-
-    @property
-    def data_client(self):
-        """Get the mock data client.
-
-        Returns:
-            Mock_boto3_client: The mock boto3 client
-        """
-        return self._data_client
-
-    @property
-    def readonly_query(self):
-        """Get whether this connection is read-only.
-
-        Returns:
-            bool: True if the connection is read-only, False otherwise
-        """
-        return self.readonly
-
-    async def execute_query(
-        self, sql: str, parameters: Optional[List[Dict[str, Any]]] = None
-    ) -> dict:
-        """Execute a SQL query.
-
-        Args:
-            sql: The SQL query to execute
-            parameters: Optional parameters for the query
-        Returns:
-            dict: Query results with column metadata and records
-        """
-        if self.error == MockException.Client:
-            error_response = {
-                'Error': {
-                    'Code': 'AccessDeniedException',
-                    'Message': 'User is not authorized to perform rds-data:execute_statement',
-                }
-            }
-            raise ClientError(error_response, operation_name='execute_statement')
-
-        if self.error == MockException.Unexpected:
-            error_response = {
-                'Error': {
-                    'Code': 'UnexpectedException',
-                    'Message': 'UnexpectedException',
-                }
-            }
-            raise Exception(error_response)
-
-        return self.data_client.execute_statement(sql=sql, parameters=parameters)
-
-
-class DummyCtx:
-    """Mock implementation of MCP context for testing purposes."""
-
-    async def error(self, message):
-        """Mock MCP ctx.error with the given message.
-
-        Args:
-            message: The error message
-        """
-        # Do nothing because MCP ctx.error doesn't throw exception
-        pass
-
-
-@pytest.fixture
-def mock_DBConnection():
-    """Fixture that provides a mock DB connection for testing.
-
-    Returns:
-        Mock_DBConnection: A mock database connection
+        curl -sSL https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem \\
+            -o awslabs/mysql_mcp_server/connection/rds_global_bundle.pem
     """
-    return Mock_DBConnection(readonly=True)
+    bundle_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        'awslabs',
+        'mysql_mcp_server',
+        'connection',
+        'rds_global_bundle.pem',
+    )
+    if os.path.exists(bundle_path):
+        return
+
+    raise RuntimeError(
+        f'RDS CA bundle missing at {bundle_path}.\n\n'
+        'The bundle is normally produced by hatch_build.py during package\n'
+        'install. To produce it manually, run from the package root:\n\n'
+        '    python hatch_build.py\n\n'
+        'or download it directly with:\n\n'
+        '    curl -sSL https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem \\\n'
+        f'        -o {bundle_path}'
+    )
+
+
+_ensure_ca_bundle_present()

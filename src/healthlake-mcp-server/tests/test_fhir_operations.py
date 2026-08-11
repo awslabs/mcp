@@ -105,7 +105,9 @@ class TestResourceOperations:
                     )
 
                     result = await mock_client.create_resource(
-                        'test-datastore', 'Patient', {'resourceType': 'Patient'}
+                        'zz0123456789abcdef0123456789zzzz',
+                        'Patient',
+                        {'resourceType': 'Patient'},
                     )
 
                     assert result == expected_response
@@ -128,7 +130,7 @@ class TestResourceOperations:
                     )
 
                     result = await mock_client.read_resource(
-                        'test-datastore', 'Patient', 'test-id'
+                        'zz0123456789abcdef0123456789zzzz', 'Patient', 'test-id'
                     )
 
                     assert result == expected_response
@@ -205,13 +207,13 @@ class TestJobOperations:
 
     @pytest.mark.asyncio
     async def test_start_export_job_success(self, mock_client):
-        """Test successful export job start."""
+        """Successful export job start using snake_case config."""
         expected_response = {'JobId': 'export-123', 'JobStatus': 'SUBMITTED'}
         mock_client.healthlake_client.start_fhir_export_job.return_value = expected_response
 
         result = await mock_client.start_export_job(
             datastore_id='12345678901234567890123456789012',
-            output_data_config={'S3Configuration': {'S3Uri': 's3://bucket/export'}},
+            output_data_config={'s3_configuration': {'s3_uri': 's3://bucket/export'}},
             data_access_role_arn='arn:aws:iam::123456789012:role/HealthLakeRole',
         )
 

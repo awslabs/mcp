@@ -52,6 +52,22 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 - **Pricing rules and plans**: List pricing rules (MARKUP, DISCOUNT, TIERING) and pricing plans with their associations
 - **Custom line items**: List custom cost allocations including support fees, shared service costs, taxes, credits, and RI/SP distribution
 
+### Cost Allocation Tags
+
+- **Tag activation status**: List cost allocation tags with filters by status (Active/Inactive), type (AWSGenerated/UserDefined), and specific tag keys
+- **Backfill history**: Retrieve the history of tag backfill requests that retroactively apply activation status to historical billing data
+
+### Cost Category Definitions
+
+- **Describe cost categories**: Get the full definition of a cost category including rules, split charge rules, and processing status
+- **List cost categories**: List all cost category definitions in the account with summary metadata and filtering by effective date or supported resource types
+
+### AWS Invoicing
+
+- **Invoice summaries**: List invoice-level details (invoice ID, type, billing period, issued/due dates, issuing entity, and amounts with discount/tax/fee breakdowns across base, tax, and payment currencies) for an account or a single invoice, filtered by month or date range
+- **Invoice units**: List and retrieve invoice unit definitions (groups of accounts that receive a separate invoice, with their receiver account and linked-account rules), filtered by name, receiver, or member account; and fetch invoice receiver profiles (legal name, address, tax registration number) for a set of accounts
+- **Procurement portal preferences**: List and retrieve procurement portal connections (SAP Business Network, Coupa) and e-invoice delivery / purchase-order retrieval settings
+
 ### Specialized Cost Optimization Prompts
 
 - **Graviton migration analysis**: Guided analysis to identify EC2 instances suitable for AWS Graviton migration
@@ -206,6 +222,14 @@ Cost Explorer:
 - ce:GetTags
 - ce:GetCostCategories
 
+Cost Allocation Tags:
+- ce:ListCostAllocationTags
+- ce:ListCostAllocationTagBackfillHistory
+
+Cost Category Definitions:
+- ce:DescribeCostCategoryDefinition
+- ce:ListCostCategoryDefinitions
+
 Cost Optimization Hub:
 - cost-optimization-hub:GetRecommendation
 - cost-optimization-hub:ListRecommendations
@@ -220,6 +244,22 @@ Compute Optimizer:
 - compute-optimizer:GetLambdaFunctionRecommendations
 - compute-optimizer:GetEnrollmentStatus
 - compute-optimizer:GetIdleRecommendations
+
+Compute Optimizer Automation:
+- aco-automation:GetAutomationEvent
+- aco-automation:GetAutomationRule
+- aco-automation:GetEnrollmentConfiguration
+- aco-automation:ListAccounts
+- aco-automation:ListAutomationEvents
+- aco-automation:ListAutomationEventSteps
+- aco-automation:ListAutomationEventSummaries
+- aco-automation:ListAutomationRules
+- aco-automation:ListRecommendedActions
+- aco-automation:ListRecommendedActionSummaries
+- aco-automation:ListAutomationRulePreview
+- aco-automation:ListAutomationRulePreviewSummaries
+- aco-automation:ListTagsForResource
+- ec2:DescribeVolumes (required by ListRecommendedActions and ListAutomationRulePreview)
 
 AWS Budgets:
 - budgets:ViewBudget
@@ -273,6 +313,18 @@ AWS Billing Conductor:
 - billingconductor:ListCustomLineItems
 - billingconductor:ListCustomLineItemVersions
 - billingconductor:ListResourcesAssociatedToCustomLineItem
+
+AWS Invoicing:
+- invoicing:ListInvoiceSummaries
+- invoicing:ListInvoiceUnits
+- invoicing:GetInvoiceUnit
+- invoicing:BatchGetInvoiceProfile
+- invoicing:ListProcurementPortalPreferences
+- invoicing:GetProcurementPortalPreference
+
+AWS Billing:
+- billing:GetCredits
+- billing:GetCreditAllocationHistory
 
 #### Configuration
 
@@ -338,16 +390,31 @@ The server currently supports the following AWS services
    - get_idle_recommendations
    - get_enrollment_status
 
-7. **Pricing Calculator**
+7. **Compute Optimizer Automation**
+   - get_automation_event
+   - get_automation_rule
+   - get_enrollment_configuration
+   - list_accounts
+   - list_automation_events
+   - list_automation_event_steps
+   - list_automation_event_summaries
+   - list_automation_rules
+   - list_recommended_actions
+   - list_recommended_action_summaries
+   - list_automation_rule_preview
+   - list_automation_rule_preview_summaries
+   - list_tags_for_resource
+
+8. **Pricing Calculator**
    - get-preferences
    - get-workload-estimate
    - list-workload-estimate-usage
    - list-workload-estimates
 
-8. **S3 Storage Lens**
+9. **S3 Storage Lens**
    - storage_lens_run_query (custom implementation using Athena)
 
-9. **AWS Billing Conductor**
+10. **AWS Billing Conductor**
    - list_billing_groups
    - list_billing_group_cost_reports
    - get_billing_group_cost_report
@@ -359,3 +426,19 @@ The server currently supports the following AWS services
    - list_custom_line_items
    - list_custom_line_item_versions
    - list_resources_associated_to_custom_line_item
+
+11. **Cost Allocation Tags**
+    - list_cost_allocation_tags
+    - list_cost_allocation_tag_backfill_history
+
+12. **Cost Category Definitions**
+    - describe_cost_category_definition
+    - list_cost_category_definitions
+
+12. **AWS Invoicing**
+    - `invoicing` tool: list_invoice_summaries
+    - `invoice-units` tool: list_invoice_units, get_invoice_unit, batch_get_invoice_profile
+    - `procurement-preferences` tool: list_procurement_portal_preferences, get_procurement_portal_preference
+
+13. **AWS Credits**
+    - `credits` tool: get_credits, get_credit_allocation_history

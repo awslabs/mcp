@@ -38,6 +38,13 @@ class StorageType(str, Enum):
     DYNAMIC = 'DYNAMIC'
 
 
+class ScratchStorageMode(str, Enum):
+    """Enum for scratch storage modes."""
+
+    LOCAL = 'LOCAL'
+    SHARED = 'SHARED'
+
+
 class CacheBehavior(str, Enum):
     """Enum for cache behaviors."""
 
@@ -111,6 +118,36 @@ class ExportType(str, Enum):
 
     DEFINITION = 'DEFINITION'
     PARAMETER_TEMPLATE = 'PARAMETER_TEMPLATE'
+    README = 'README'
+
+
+class WorkflowEngine(str, Enum):
+    """Enum for workflow engine types.
+
+    WDL_LENIENT allows for some WDL directives that don't strictly meet the WDL spec
+    and can be useful when migrating legacy workflows designed to run on Cromwell.
+    """
+
+    WDL = 'WDL'
+    NEXTFLOW = 'NEXTFLOW'
+    CWL = 'CWL'
+    WDL_LENIENT = 'WDL_LENIENT'
+
+
+class AcceleratorType(str, Enum):
+    """Enum for computational accelerator types.
+
+    Note: Currently unused by the HealthOmics service. Reserved for future support.
+    """
+
+    GPU = 'GPU'
+
+
+class GetWorkflowType(str, Enum):
+    """Enum for workflow type filter in GetWorkflow."""
+
+    PRIVATE = 'PRIVATE'
+    READY2RUN = 'READY2RUN'
 
 
 class WorkflowSummary(BaseModel):

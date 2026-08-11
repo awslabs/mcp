@@ -66,6 +66,14 @@ CACHE_BEHAVIOR_ALWAYS = 'CACHE_ALWAYS'
 CACHE_BEHAVIOR_ON_FAILURE = 'CACHE_ON_FAILURE'
 CACHE_BEHAVIORS = [CACHE_BEHAVIOR_ALWAYS, CACHE_BEHAVIOR_ON_FAILURE]
 
+# Scratch storage modes
+SCRATCH_STORAGE_MODE_LOCAL = 'LOCAL'
+SCRATCH_STORAGE_MODE_SHARED = 'SHARED'
+SCRATCH_STORAGE_MODES = [SCRATCH_STORAGE_MODE_LOCAL, SCRATCH_STORAGE_MODE_SHARED]
+
+# MCP server default scratch storage mode (diverges from the HealthOmics API default of SHARED)
+DEFAULT_SCRATCH_STORAGE_MODE = SCRATCH_STORAGE_MODE_LOCAL
+
 # Run statuses
 RUN_STATUS_PENDING = 'PENDING'
 RUN_STATUS_STARTING = 'STARTING'
@@ -82,8 +90,20 @@ RUN_STATUSES = [
     RUN_STATUS_CANCELLED,
 ]
 
+# Workflow engine types
+WORKFLOW_ENGINES = ['WDL', 'NEXTFLOW', 'CWL', 'WDL_LENIENT']
+
+# Accelerator types
+ACCELERATOR_TYPE_GPU = 'GPU'
+ACCELERATOR_TYPES = [ACCELERATOR_TYPE_GPU]
+
+# Workflow types for GetWorkflow
+GET_WORKFLOW_TYPES = ['PRIVATE', 'READY2RUN']
+
 # Export types
 EXPORT_TYPE_DEFINITION = 'DEFINITION'
+EXPORT_TYPE_README = 'README'
+EXPORT_TYPES = [EXPORT_TYPE_DEFINITION, EXPORT_TYPE_README]
 
 # Agent identification
 AGENT_ENV = 'AGENT'
@@ -189,8 +209,13 @@ S3_STORAGE_CLASS_GLACIER_IR = 'GLACIER_IR'
 
 # Error messages
 
+ERROR_INVALID_ENGINE = 'Invalid engine. Must be one of: {}'
+ERROR_INVALID_ACCELERATOR = 'Invalid accelerator. Must be one of: {}'
+ERROR_INVALID_WORKFLOW_TYPE = 'Invalid workflow type. Must be one of: {}'
+ERROR_INVALID_EXPORT_TYPE = 'Invalid export type. Must be one of: {}'
 ERROR_INVALID_STORAGE_TYPE = 'Invalid storage type. Must be one of: {}'
 ERROR_INVALID_CACHE_BEHAVIOR = 'Invalid cache behavior. Must be one of: {}'
+ERROR_INVALID_SCRATCH_STORAGE_MODE = "Invalid scratch storage mode '{}'. Must be one of: {}"
 ERROR_INVALID_RUN_STATUS = 'Invalid run status. Must be one of: {}'
 ERROR_STATIC_STORAGE_REQUIRES_CAPACITY = (
     'Storage capacity is required when using STATIC storage type'

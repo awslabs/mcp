@@ -14,6 +14,7 @@
 
 """Workflow linting tools for WDL and CWL workflow definitions."""
 
+import os
 import tempfile
 from abc import ABC, abstractmethod
 from awslabs.aws_healthomics_mcp_server.utils.content_resolver import (
@@ -178,14 +179,33 @@ class WDLWorkflowLinter(WorkflowLinter):
             # Create temporary directory structure
             with tempfile.TemporaryDirectory() as tmp_dir:
                 tmp_path = Path(tmp_dir)
+                tmp_resolved = tmp_path.resolve()
 
                 # Write all files to temporary directory maintaining structure
                 for file_path, content in workflow_files.items():
-                    full_path = tmp_path / file_path
+                    try:
+                        full_path = (tmp_path / file_path).resolve()
+                    except Exception:
+                        return self._create_error_response(
+                            f'Invalid file path in workflow bundle: {file_path}'
+                        )
+
+                    if not str(full_path).startswith(str(tmp_resolved) + os.sep):
+                        return self._create_error_response(
+                            f'Path traversal detected in workflow file key: {file_path!r}. '
+                            f'File paths must remain within the workflow bundle directory.'
+                        )
+
                     full_path.parent.mkdir(parents=True, exist_ok=True)
                     full_path.write_text(content)
 
-                main_file_path = tmp_path / main_workflow_file
+                # Validate main_workflow_file path stays within temp directory
+                main_file_path = (tmp_path / main_workflow_file).resolve()
+                if not str(main_file_path).startswith(str(tmp_resolved) + os.sep):
+                    return self._create_error_response(
+                        f'Path traversal detected in main_workflow_file: {main_workflow_file!r}. '
+                        f'File paths must remain within the workflow bundle directory.'
+                    )
 
                 if not main_file_path.exists():
                     return self._create_error_response(
@@ -278,14 +298,33 @@ class CWLWorkflowLinter(WorkflowLinter):
             # Create temporary directory structure
             with tempfile.TemporaryDirectory() as tmp_dir:
                 tmp_path = Path(tmp_dir)
+                tmp_resolved = tmp_path.resolve()
 
                 # Write all files to temporary directory maintaining structure
                 for file_path, content in workflow_files.items():
-                    full_path = tmp_path / file_path
+                    try:
+                        full_path = (tmp_path / file_path).resolve()
+                    except Exception:
+                        return self._create_error_response(
+                            f'Invalid file path in workflow bundle: {file_path}'
+                        )
+
+                    if not str(full_path).startswith(str(tmp_resolved) + os.sep):
+                        return self._create_error_response(
+                            f'Path traversal detected in workflow file key: {file_path!r}. '
+                            f'File paths must remain within the workflow bundle directory.'
+                        )
+
                     full_path.parent.mkdir(parents=True, exist_ok=True)
                     full_path.write_text(content)
 
-                main_file_path = tmp_path / main_workflow_file
+                # Validate main_workflow_file path stays within temp directory
+                main_file_path = (tmp_path / main_workflow_file).resolve()
+                if not str(main_file_path).startswith(str(tmp_resolved) + os.sep):
+                    return self._create_error_response(
+                        f'Path traversal detected in main_workflow_file: {main_workflow_file!r}. '
+                        f'File paths must remain within the workflow bundle directory.'
+                    )
 
                 if not main_file_path.exists():
                     return self._create_error_response(

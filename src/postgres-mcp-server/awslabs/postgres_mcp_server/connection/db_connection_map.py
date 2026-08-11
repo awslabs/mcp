@@ -14,6 +14,7 @@
 
 """Database connection map for postgres MCP Server."""
 
+import asyncio
 import json
 import threading
 from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
@@ -118,11 +119,37 @@ class DBConnectionMap:
         return json.dumps(entries, indent=2)
 
     def close_all(self) -> None:
-        """Close all connections and clear the map."""
+        """Close all connections and clear the map.
+
+        Connection ``close()`` methods are coroutines (see
+        ``AbstractDBConnection.close``). When ``close_all`` is called from
+        sync code (e.g. server.main's finally block), we drive each
+        coroutine to completion via ``asyncio.run`` so the underlying
+        pool workers actually get a chance to shut down. When called
+        from inside a running event loop, we fall back to scheduling
+        the coroutine and waiting on it via ``run_until_complete`` is
+        not possible, so we just drop the coroutine on the floor with a
+        warning — the loop's own teardown will reap the workers.
+        """
         with self._lock:
-            for key, conn in self.map.items():
-                try:
-                    conn.close()
-                except Exception as e:
-                    logger.warning(f'Failed to close connection {key}: {e}')
+            connections = list(self.map.items())
             self.map.clear()
+
+        for key, conn in connections:
+            try:
+                result = conn.close()
+            except Exception as e:
+                logger.warning(f'Failed to close connection {key}: {e}')
+                continue
+
+            if asyncio.iscoroutine(result):
+                try:
+                    asyncio.run(result)
+                except RuntimeError:
+                    # Already inside a running loop; closing the
+                    # coroutine cancels it cleanly without spawning a
+                    # new event loop. The pool workers will be cleaned
+                    # up when the outer loop tears down.
+                    result.close()
+                except Exception as e:
+                    logger.warning(f'Failed to await close() for {key}: {e}')

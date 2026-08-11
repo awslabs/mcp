@@ -1541,6 +1541,30 @@ async def test_attach_user_policy_denied_arn():
 
 
 @pytest.mark.asyncio
+async def test_attach_user_policy_denied_arn_case_insensitive():
+    """Denied ARNs must be rejected regardless of case.
+
+    IAM resolves managed-policy ARNs case-insensitively, so case variants of a
+    denied ARN must not bypass the denylist (bug bounty P468271457).
+    """
+    from awslabs.iam_mcp_server.server import attach_user_policy
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    for arn in [
+        'arn:aws:iam::aws:policy/administratoraccess',
+        'arn:aws:iam::aws:policy/ADMINISTRATORACCESS',
+        'arn:aws:iam::aws:policy/AdMiNiStRaToRaCcEsS',
+        'arn:aws:iam::aws:policy/iamfullaccess',
+        'arn:aws:iam::aws:policy/PowerUserACCESS',
+        '  arn:aws:iam::aws:policy/administratoraccess  ',
+    ]:
+        with pytest.raises(IamValidationError) as exc_info:
+            await attach_user_policy(user_name='test-user', policy_arn=arn, confirmed=True)
+        assert 'denylist' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
 async def test_attach_group_policy_denied_arn():
     """Test that attach_group_policy rejects denied policy ARNs."""
     from awslabs.iam_mcp_server.server import attach_group_policy
@@ -1554,6 +1578,151 @@ async def test_attach_group_policy_denied_arn():
             confirmed=True,
         )
     assert 'denylist' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_attach_group_policy_denied_arn_case_insensitive():
+    """Denied ARNs must be rejected on groups regardless of case (bug bounty P468271457)."""
+    from awslabs.iam_mcp_server.server import attach_group_policy
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    with pytest.raises(IamValidationError) as exc_info:
+        await attach_group_policy(
+            group_name='test-group',
+            policy_arn='arn:aws:iam::aws:policy/administratoraccess',
+            confirmed=True,
+        )
+    assert 'denylist' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_attach_user_policy_denied_arn_other_partitions():
+    """Denied managed policies must be rejected in every partition.
+
+    The same AWS-managed policies exist in GovCloud (arn:aws-us-gov:) and China
+    (arn:aws-cn:). Matching only 'arn:aws:' ARNs let those variants attach real
+    AdministratorAccess/IAMFullAccess/PowerUserAccess, so the denylist matches on the
+    policy name and is partition-independent.
+    """
+    from awslabs.iam_mcp_server.server import attach_user_policy
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    for arn in [
+        'arn:aws-us-gov:iam::aws:policy/AdministratorAccess',
+        'arn:aws-cn:iam::aws:policy/AdministratorAccess',
+        'arn:aws-us-gov:iam::aws:policy/IAMFullAccess',
+        'arn:aws-cn:iam::aws:policy/PowerUserAccess',
+        'arn:aws-us-gov:iam::aws:policy/administratoraccess',
+    ]:
+        with pytest.raises(IamValidationError) as exc_info:
+            await attach_user_policy(user_name='test-user', policy_arn=arn, confirmed=True)
+        assert 'denylist' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_attach_user_policy_allows_non_denied_managed_policy():
+    """A non-denied managed policy whose name merely contains a denied substring is allowed."""
+    from awslabs.iam_mcp_server.server import attach_user_policy
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_client.attach_user_policy.return_value = {}
+        mock_get_client.return_value = mock_client
+
+        # 'AdministratorAccess-Amplify' is a distinct, more-scoped managed policy.
+        result = await attach_user_policy(
+            user_name='test-user',
+            policy_arn='arn:aws:iam::aws:policy/AdministratorAccess-Amplify',
+            confirmed=True,
+        )
+        assert 'Successfully attached policy' in result['Message']
+
+
+@pytest.mark.asyncio
+async def test_attach_user_policy_allows_arn_without_policy_segment():
+    """An ARN with no ':policy/' segment is not a managed policy and must pass the denylist.
+
+    Exercises the branch where the denylist name-extraction is skipped entirely, so an ARN
+    whose path happens to contain a denied word (e.g. a role named 'AdministratorAccess')
+    is not spuriously rejected.
+    """
+    from awslabs.iam_mcp_server.server import attach_user_policy
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_client.attach_user_policy.return_value = {}
+        mock_get_client.return_value = mock_client
+
+        result = await attach_user_policy(
+            user_name='test-user',
+            policy_arn='arn:aws:iam::123456789012:role/AdministratorAccess',
+            confirmed=True,
+        )
+        assert 'Successfully attached policy' in result['Message']
+
+
+@pytest.mark.asyncio
+async def test_put_user_policy_rejects_service_wildcard():
+    """Action 'iam:*' (or any service:*) with a broad Resource must be rejected.
+
+    Checking only the literal '*'/'*' pair let equivalent grants such as Action 'iam:*'
+    with Resource '*' through — still a full privilege-escalation primitive.
+    """
+    from awslabs.iam_mcp_server.server import put_user_policy
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    bad_policies = [
+        {'Effect': 'Allow', 'Action': 'iam:*', 'Resource': '*'},
+        {'Effect': 'Allow', 'Action': 's3:*', 'Resource': 'arn:aws:s3:*'},
+        {'Effect': 'Allow', 'Action': 'ec2:*', 'Resource': 'arn:aws:ec2:*:*:*'},
+        {'Effect': 'Allow', 'Action': '*', 'Resource': 'arn:*'},
+        {'Effect': 'Allow', 'Action': ['s3:GetObject', 'iam:*'], 'Resource': '*'},
+    ]
+
+    for stmt in bad_policies:
+        policy = {'Version': '2012-10-17', 'Statement': [stmt]}
+        with pytest.raises(IamValidationError) as exc_info:
+            await put_user_policy(
+                user_name='test-user',
+                policy_name='bad-policy',
+                policy_document=policy,
+                confirmed=True,
+            )
+        assert 'overly broad Action' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_put_user_policy_allows_service_wildcard_with_scoped_resource():
+    """A service wildcard scoped to a specific resource is not overly broad and is allowed."""
+    from awslabs.iam_mcp_server.server import put_user_policy
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    scoped_policy = {
+        'Version': '2012-10-17',
+        'Statement': [
+            {'Effect': 'Allow', 'Action': 's3:*', 'Resource': 'arn:aws:s3:::my-bucket/*'}
+        ],
+    }
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_get_client.return_value = mock_client
+
+        result = await put_user_policy(
+            user_name='test-user',
+            policy_name='scoped-service-wildcard',
+            policy_document=scoped_policy,
+            confirmed=True,
+        )
+        assert 'Successfully' in result.message
 
 
 @pytest.mark.asyncio
@@ -1575,7 +1744,7 @@ async def test_put_user_policy_rejects_wildcard():
             policy_document=wildcard_policy,
             confirmed=True,
         )
-    assert 'full access' in str(exc_info.value)
+    assert 'overly broad Action' in str(exc_info.value)
 
 
 @pytest.mark.asyncio
@@ -1597,7 +1766,7 @@ async def test_put_role_policy_rejects_wildcard():
             policy_document=wildcard_policy,
             confirmed=True,
         )
-    assert 'full access' in str(exc_info.value)
+    assert 'overly broad Action' in str(exc_info.value)
 
 
 @pytest.mark.asyncio
@@ -2066,7 +2235,7 @@ async def test_wildcard_policy_with_action_list():
             policy_document=policy,
             confirmed=True,
         )
-    assert 'full access' in str(exc_info.value)
+    assert 'overly broad Action' in str(exc_info.value)
 
 
 @pytest.mark.asyncio
@@ -2144,7 +2313,7 @@ async def test_wildcard_policy_statement_as_dict():
             policy_document=policy,
             confirmed=True,
         )
-    assert 'full access' in str(exc_info.value)
+    assert 'overly broad Action' in str(exc_info.value)
 
 
 @pytest.mark.asyncio

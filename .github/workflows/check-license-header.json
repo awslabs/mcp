@@ -22,7 +22,9 @@
       "**/*.cs",
       "**/*.properties",
       "**/*.xml",
-      "**/dist/**"
+      "**/*.drawio",
+      "**/dist/**",
+      "**/icon.svg"
     ],
     "include": [
       "**/*.py",
@@ -78,12 +80,14 @@
       "**/*.template",
       "**/*.properties",
       "**/*.xml",
+      "**/*.drawio",
       "**/dist/**",
       "**/skills/*/scripts",
       "**/skills/*/references",
       "**/skills/*/mcp",
       "**/DO_NOT_RELEASE",
-      "**/*.pyi"
+      "**/*.pyi",
+      "**/icon.svg"
     ]
   }
 ]

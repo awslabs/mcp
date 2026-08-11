@@ -18,6 +18,13 @@ from loguru import logger
 from pathlib import Path
 
 
+# Supported platforms and languages. Inputs are validated against these sets
+# before being used to build the template file path, so only known, expected
+# values ever reach the path-construction logic.
+VALID_PLATFORMS = frozenset({'ec2', 'ecs', 'lambda', 'eks'})
+VALID_LANGUAGES = frozenset({'python', 'nodejs', 'java', 'dotnet'})
+
+
 async def get_enablement_guide(
     service_platform: str,
     service_language: str,
@@ -85,6 +92,20 @@ async def get_enablement_guide(
     # Normalize to lowercase
     platform_str = service_platform.lower().strip()
     language_str = service_language.lower().strip()
+
+    # Validate inputs against the supported values before building any path, so
+    # unexpected input is handled here rather than passed to the path builder.
+    if platform_str not in VALID_PLATFORMS or language_str not in VALID_LANGUAGES:
+        error_msg = (
+            f"Enablement guide not available for platform '{platform_str}' and language '{language_str}'.\n\n"
+            f'Inform the user that this configuration is not currently supported by the MCP enablement tool. '
+            f'Supported platforms: {", ".join(sorted(VALID_PLATFORMS))}. '
+            f'Supported languages: {", ".join(sorted(VALID_LANGUAGES))}.\n'
+            f'Direct them to AWS documentation for manual setup:\n'
+            f'https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Monitoring-Sections.html'
+        )
+        logger.error(error_msg)
+        return error_msg
 
     guides_dir = Path(__file__).parent / 'enablement_guides'
     template_file = (

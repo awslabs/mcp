@@ -38,6 +38,14 @@ class GanttGenerator:
     }
     PENDING_COLOR = '#D3D3D3'  # lightgrey
 
+    # Dark mode uses brighter variants for better contrast on dark backgrounds
+    STATUS_COLORS_DARK = {
+        'COMPLETED': '#7AAFFF',  # brighter blue
+        'FAILED': '#FF6B6B',  # brighter red
+        'CANCELLED': '#FFD166',  # brighter orange
+    }
+    PENDING_COLOR_DARK = '#555555'  # medium grey visible on dark background
+
     TIME_SCALES = {
         'sec': 1,
         'min': 1 / 60,
@@ -52,6 +60,7 @@ class GanttGenerator:
         time_unit: str = 'hr',
         width: int = 960,
         height: int = 800,
+        theme: str = 'light',
     ) -> str:
         """Generate SVG Gantt chart for tasks.
 
@@ -72,17 +81,18 @@ class GanttGenerator:
             time_unit: Time unit for axis (sec, min, hr, day). Defaults to 'hr'.
             width: Chart width in pixels. Defaults to 960.
             height: Chart height in pixels. Defaults to 800.
+            theme: Color theme ('light' or 'dark'). Defaults to 'light'.
 
         Returns:
             SVG string representing the Gantt chart
         """
         if not tasks:
-            return self._empty_chart_svg(width, height)
+            return self._empty_chart_svg(width, height, theme)
 
         # Filter tasks with valid timing data (need at least creationTime and stopTime)
         valid_tasks = [t for t in tasks if t.get('creationTime') and t.get('stopTime')]
         if not valid_tasks:
-            return self._empty_chart_svg(width, height)
+            return self._empty_chart_svg(width, height, theme)
 
         # Calculate time reference (earliest creation time)
         tare = min(self._parse_time(t['creationTime']) for t in valid_tasks)
@@ -136,7 +146,7 @@ class GanttGenerator:
         # Build SVG - omit labels if more than 100 tasks
         show_labels = len(valid_tasks) <= 100
         return self._build_svg(
-            chart_data, run_info, max_time, time_unit, width, height, show_labels
+            chart_data, run_info, max_time, time_unit, width, height, show_labels, theme
         )
 
     def _parse_time(self, time_str: Union[str, datetime]) -> datetime:
@@ -200,6 +210,7 @@ class GanttGenerator:
         width: int,
         height: int,
         show_labels: bool,
+        theme: str = 'light',
     ) -> str:
         """Build SVG string from chart data.
 
@@ -211,11 +222,17 @@ class GanttGenerator:
             width: Chart width in pixels
             height: Chart height in pixels
             show_labels: Whether to show task name labels
+            theme: Color theme ('light' or 'dark')
 
         Returns:
             SVG string
         """
-        builder = SVGBuilder(width, height)
+        builder = SVGBuilder(width, height, theme=theme)
+
+        # Select colors based on theme
+        is_dark = theme == 'dark'
+        status_colors = self.STATUS_COLORS_DARK if is_dark else self.STATUS_COLORS
+        pending_color = self.PENDING_COLOR_DARK if is_dark else self.PENDING_COLOR
 
         # Add title
         run_id = run_info.get('runId', 'Unknown')
@@ -259,13 +276,13 @@ class GanttGenerator:
                     y=y,
                     width=pending_width,
                     height=bar_height,
-                    fill=self.PENDING_COLOR,
+                    fill=pending_color,
                     tooltip=pending_tooltip,
                 )
 
             # Running bar (colored by status)
             running_width = (task['running_end'] - task['pending_end']) * x_scale
-            color = self.STATUS_COLORS.get(task['status'], '#6495ED')
+            color = status_colors.get(task['status'], status_colors['COMPLETED'])
 
             # Build tooltip with task details including timing
             start_str = task['start_time'].strftime('%Y-%m-%d %H:%M:%S')
@@ -305,19 +322,23 @@ class GanttGenerator:
 
         return builder.build()
 
-    def _empty_chart_svg(self, width: int, height: int) -> str:
+    def _empty_chart_svg(self, width: int, height: int, theme: str = 'light') -> str:
         """Return SVG for empty chart.
 
         Args:
             width: Chart width in pixels
             height: Chart height in pixels
+            theme: Color theme ('light' or 'dark')
 
         Returns:
             SVG string with "no data" message
         """
+        colors = SVGBuilder.THEMES.get(theme, SVGBuilder.THEMES['light'])
         return (
             f'<svg width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">\n'
-            f'<text x="{width / 2}" y="{height / 2}" text-anchor="middle">'
+            f'<rect width="{width}" height="{height}" fill="{colors["background"]}"/>\n'
+            f'<text x="{width / 2}" y="{height / 2}" text-anchor="middle" '
+            f'fill="{colors["text"]}">'
             f'No task data available</text>\n'
             f'</svg>'
         )
