@@ -24,21 +24,30 @@ BY``) are removed; Db2-specific risks (``ADMIN_CMD``) are added.
 import re
 
 
-# Characters that terminate a ``--`` line comment.
+# Characters that terminate a ``--`` line comment, for the purposes of this scanner.
 #
-# Breaking only on '\n' was a read-only bypass: a bare CR (or any other line
-# terminator) would leave the rest of the statement inside the "comment" as far as
-# this scanner was concerned, so it was stripped before analysis while the server
-# still received -- and could execute -- the raw text. That let constructs the
-# denylist exists to stop slip through, including ones the autocommit-off rollback
-# backstop cannot undo (e.g. ``SELECT 1 --x\rGRANT DBADM ON DATABASE TO USER x`` and
-# ``--x\rCALL SYSPROC.ADMIN_CMD(...)``).
+# This is Python's universal-newline set (what ``str.splitlines()`` splits on), used
+# in preference to a hand-maintained list because it is well-defined and maintained.
 #
-# This is Python's universal-newline set (what ``str.splitlines()`` splits on). It is
-# used deliberately in preference to a hand-maintained list: it is a well-defined
-# superset, and for this scanner a broader terminator set is strictly fail-closed --
-# treating a character as a terminator can only cause MORE of the statement to be
-# analyzed, never less.
+# DEFENCE IN DEPTH, NOT A KNOWN HOLE. It was suggested that breaking only on '\n' was
+# an exploitable read-only bypass -- that a bare CR would end the comment for Db2
+# while this scanner swallowed the remainder, letting e.g.
+# ``SELECT 1 --x\rGRANT DBADM ON DATABASE TO USER x`` reach the server unexamined.
+# That was tested and is NOT the case, at least on the version measured:
+#
+#   Verified on DB2/LINUXX8664 12.01.0400 via ibm_db 3.2.9, two independent probes
+#   each with a passing LF control: Db2 treats a bare CR as ordinary comment text.
+#     `SELECT 1 AS A FROM SYSIBM.SYSDUMMY1 --x<CR>)))`            -> succeeds
+#     `... FROM (...) T --x<CR>WHERE A = 99`                      -> WHERE NOT applied
+#   The same statements with <LF> respectively raise SQL0104N and apply the WHERE.
+#
+# So for CR the pre-existing behaviour already matched the server's. The broader set
+# is kept anyway because it is strictly fail-closed (treating a character as a
+# terminator can only cause MORE of the statement to be analysed, never less), it
+# costs nothing real (a *bare* CR does not occur in practice; CRLF is unaffected
+# either way), and it guards against two things not measured here: any component in
+# the path normalising CR to LF, and other Db2 versions/engines or the remaining
+# terminators in this set, whose lexer behaviour is untested.
 _LINE_TERMINATORS = frozenset('\n\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029')
 
 

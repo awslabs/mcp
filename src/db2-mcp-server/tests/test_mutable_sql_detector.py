@@ -241,13 +241,18 @@ def test_data_change_table_reference_blocked():
 
 
 class TestLineCommentTerminators:
-    r"""A `--` comment must end at ANY line terminator, not just LF.
+    r"""A `--` comment ends at ANY line terminator, not just LF.
 
-    Breaking only on '\n' was a read-only bypass: the scanner swallowed the rest of
-    the statement as "comment" and stripped it before analysis, while the server
-    received and could execute the raw text. The constructs this let through include
-    ones the autocommit-off rollback backstop cannot undo (GRANT, ADMIN_CMD), so it
-    was a genuine read-only violation rather than a caught one.
+    This is defence in depth, not a regression test for a known hole. It was
+    suggested that breaking only on '\n' was an exploitable read-only bypass, but
+    measurement showed Db2 treats a bare CR as ordinary comment text -- so the
+    previous behaviour already matched the server's. See the note on
+    _LINE_TERMINATORS in mutable_sql_detector.py for the evidence.
+
+    These cases pin the intentionally-conservative behaviour: the scanner analyses
+    the text after any line terminator, which is strictly fail-closed and guards
+    against CR->LF normalisation elsewhere in the path and against untested
+    versions/terminators.
     """
 
     # Every terminator in Python's universal-newline set.
