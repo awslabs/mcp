@@ -407,6 +407,9 @@ class TestGetReservationCoverage:
         assert request_params['Filter'] == mock_filter
         assert request_params['SortBy'] == mock_sort_by
         assert request_params['MaxResults'] == 50
+        # Granularity and GroupBy are mutually exclusive for GetReservationCoverage:
+        # when GroupBy is set, Granularity must not be sent.
+        assert 'Granularity' not in request_params
 
         assert result['status'] == 'success'
 
@@ -550,6 +553,9 @@ class TestGetReservationUtilization:
         assert request_params['Filter'] == mock_filter
         assert request_params['SortBy'] == mock_sort_by
         assert request_params['MaxResults'] == 50
+        # Granularity and GroupBy are mutually exclusive for GetReservationUtilization:
+        # when GroupBy is set, Granularity must not be sent.
+        assert 'Granularity' not in request_params
 
         assert result['status'] == 'success'
 

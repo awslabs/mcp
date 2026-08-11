@@ -44,7 +44,12 @@ This tool provides insights into your Savings Plans usage patterns through three
 
 1. get_savings_plans_coverage: Shows how much of your eligible usage is covered by Savings Plans
 2. get_savings_plans_utilization: Shows overall utilization metrics for your Savings Plans
-3. get_savings_plans_utilization_details: Shows detailed per-Savings Plan utilization""",
+3. get_savings_plans_utilization_details: Shows detailed per-Savings Plan utilization
+
+IMPORTANT: For get_savings_plans_coverage, `granularity` and `group_by` are mutually
+exclusive. If `group_by` is provided, `granularity` is ignored (the Cost Explorer
+GetSavingsPlansCoverage API does not allow both). Valid `group_by` dimensions for
+coverage are SERVICE, REGION, or INSTANCE_FAMILY.""",
 )
 async def sp_performance(
     ctx: Context,
@@ -64,7 +69,7 @@ async def sp_performance(
         operation: The operation to perform: 'get_savings_plans_coverage', 'get_savings_plans_utilization', or 'get_savings_plans_utilization_details'
         start_date: Start date in YYYY-MM-DD format (inclusive). Defaults to 30 days ago if not provided.
         end_date: End date in YYYY-MM-DD format (exclusive). Defaults to today if not provided.
-        granularity: Time granularity of the data (DAILY or MONTHLY). Defaults to DAILY.
+        granularity: Time granularity of the data (DAILY or MONTHLY). Defaults to DAILY. For coverage, ignored when group_by is provided (granularity and group_by are mutually exclusive).
         metrics: List of metrics to retrieve as a JSON string. For coverage, only 'SpendCoveredBySavingsPlans' is valid.
         group_by: Optional grouping of results as a JSON string. For coverage, supports SERVICE, REGION, or INSTANCE_FAMILY.
         filter: Optional filter to apply to the results as a JSON string.
@@ -145,13 +150,18 @@ async def get_savings_plans_coverage(
         # Prepare the request parameters
         request_params = {
             'TimePeriod': {'Start': start, 'End': end},
-            'Granularity': granularity,
             'Metrics': metrics_list,
         }
 
-        # Add optional parameters if provided
+        # Add optional parameters if provided.
+        # GetSavingsPlansCoverage treats Granularity and GroupBy as mutually
+        # exclusive: "Granularity can't be set if GroupBy is set". Only send
+        # Granularity when the request is not grouped, otherwise the API returns
+        # a ValidationException.
         if group_by:
             request_params['GroupBy'] = parse_json(group_by, 'group_by')
+        else:
+            request_params['Granularity'] = granularity
 
         if filter_expr:
             request_params['Filter'] = parse_json(filter_expr, 'filter')
