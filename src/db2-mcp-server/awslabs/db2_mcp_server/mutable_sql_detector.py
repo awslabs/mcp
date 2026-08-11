@@ -24,6 +24,24 @@ BY``) are removed; Db2-specific risks (``ADMIN_CMD``) are added.
 import re
 
 
+# Characters that terminate a ``--`` line comment.
+#
+# Breaking only on '\n' was a read-only bypass: a bare CR (or any other line
+# terminator) would leave the rest of the statement inside the "comment" as far as
+# this scanner was concerned, so it was stripped before analysis while the server
+# still received -- and could execute -- the raw text. That let constructs the
+# denylist exists to stop slip through, including ones the autocommit-off rollback
+# backstop cannot undo (e.g. ``SELECT 1 --x\rGRANT DBADM ON DATABASE TO USER x`` and
+# ``--x\rCALL SYSPROC.ADMIN_CMD(...)``).
+#
+# This is Python's universal-newline set (what ``str.splitlines()`` splits on). It is
+# used deliberately in preference to a hand-maintained list: it is a well-defined
+# superset, and for this scanner a broader terminator set is strictly fail-closed --
+# treating a character as a terminator can only cause MORE of the statement to be
+# analyzed, never less.
+_LINE_TERMINATORS = frozenset('\n\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029')
+
+
 MUTATING_KEYWORDS = {
     # DML
     'INSERT',
@@ -170,7 +188,8 @@ def _strip_sql_comments(sql_text: str) -> str:
         # --- line comment -- ... ---
         if sql_text[i] == '-' and i + 1 < n and sql_text[i + 1] == '-':
             i += 2
-            while i < n and sql_text[i] != '\n':
+            # Stop at ANY line terminator, not just '\n' -- see _LINE_TERMINATORS.
+            while i < n and sql_text[i] not in _LINE_TERMINATORS:
                 i += 1
             result.append(' ')
             continue

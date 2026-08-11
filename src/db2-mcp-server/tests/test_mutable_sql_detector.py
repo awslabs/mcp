@@ -233,3 +233,71 @@ def test_data_change_table_reference_blocked():
 
     sql_update = 'SELECT a FROM OLD TABLE (UPDATE t SET a = 2 WHERE a = 1)'
     assert 'UPDATE' in detect_mutating_keywords(sql_update)
+
+
+# --------------------------------------------------------------------------- #
+# Round-9: line terminators other than LF must terminate a `--` comment
+# --------------------------------------------------------------------------- #
+
+
+class TestLineCommentTerminators:
+    r"""A `--` comment must end at ANY line terminator, not just LF.
+
+    Breaking only on '\n' was a read-only bypass: the scanner swallowed the rest of
+    the statement as "comment" and stripped it before analysis, while the server
+    received and could execute the raw text. The constructs this let through include
+    ones the autocommit-off rollback backstop cannot undo (GRANT, ADMIN_CMD), so it
+    was a genuine read-only violation rather than a caught one.
+    """
+
+    # Every terminator in Python's universal-newline set.
+    TERMINATORS = [
+        pytest.param('\n', id='LF'),
+        pytest.param('\r', id='CR'),
+        pytest.param('\r\n', id='CRLF'),
+        pytest.param('\x0b', id='VT'),
+        pytest.param('\x0c', id='FF'),
+        pytest.param('\x1c', id='FS'),
+        pytest.param('\x1d', id='GS'),
+        pytest.param('\x1e', id='RS'),
+        pytest.param('\x85', id='NEL'),
+        pytest.param('\u2028', id='LS'),
+        pytest.param('\u2029', id='PS'),
+    ]
+
+    @pytest.mark.parametrize('term', TERMINATORS)
+    def test_drop_after_terminator_is_detected(self, term):
+        """`--x<TERM>DROP TABLE t` must still be seen as mutating."""
+        assert 'DROP' in detect_mutating_keywords(f'SELECT 1 --x{term}DROP TABLE important')
+
+    @pytest.mark.parametrize('term', TERMINATORS)
+    def test_grant_after_terminator_is_detected(self, term):
+        """GRANT is not undoable by rollback, so it must never slip past the denylist."""
+        sql = f'SELECT 1 --x{term}GRANT DBADM ON DATABASE TO USER attacker'
+        assert 'GRANT' in detect_mutating_keywords(sql)
+
+    @pytest.mark.parametrize('term', TERMINATORS)
+    def test_admin_cmd_after_terminator_is_flagged(self, term):
+        """ADMIN_CMD runs arbitrary admin operations; rollback cannot undo it."""
+        sql = f"SELECT 1 --x{term}CALL SYSPROC.ADMIN_CMD('REORG TABLE t')"
+        assert detect_mutating_keywords(sql) or check_sql_injection_risk(sql, readonly=True)
+
+    @pytest.mark.parametrize('term', TERMINATORS)
+    def test_data_change_table_reference_after_terminator_is_detected(self, term):
+        """The data-change-table-reference form must be caught for every terminator."""
+        sql = f'SELECT a FROM FINAL TABLE (--z{term}INSERT INTO t(a) VALUES (1))'
+        assert 'INSERT' in detect_mutating_keywords(sql)
+
+    @pytest.mark.parametrize('term', TERMINATORS)
+    def test_text_after_terminator_survives_stripping(self, term):
+        """The post-terminator text must remain in the analyzed string."""
+        stripped = _strip_sql_comments(f'SELECT 1 --x{term}DROP TABLE important')
+        assert 'DROP TABLE important' in stripped
+
+    def test_genuine_trailing_comment_still_stripped(self):
+        """A real trailing comment is still removed (no false positive from the fix)."""
+        assert detect_mutating_keywords('SELECT 1 FROM SYSIBM.SYSDUMMY1 -- DROP TABLE T') == []
+
+    def test_comment_at_end_of_input_without_terminator(self):
+        """A comment running to end-of-input is still fully stripped."""
+        assert detect_mutating_keywords('SELECT 1 -- DROP TABLE T') == []

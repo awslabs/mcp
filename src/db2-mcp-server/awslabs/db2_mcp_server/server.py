@@ -84,7 +84,10 @@ class ServerConfig:
     ssl_encryption_mode: str = 'require'
     ssl_server_certificate: Optional[str] = None
     ssl_hostname_validation: bool = True
-    configured_port: int = DEFAULT_DB2_SSL_PORT
+    # The operator's --port, or None when they did not pass one. Kept Optional (rather
+    # than eagerly resolved) so _resolve_port can distinguish "operator chose this
+    # port" from "fall back to the SSL-mode default" without a circular dependency.
+    configured_port: Optional[int] = None
     max_rows: int = 1000
     query_timeout_s: int = 30
     login_timeout_s: int = 15
@@ -94,9 +97,22 @@ server_config = ServerConfig()
 
 
 def _resolve_port(port: Optional[int]) -> int:
-    """Resolve the Db2 port, defaulting from the SSL mode when unspecified."""
+    """Resolve the Db2 port to use.
+
+    Precedence: an explicit per-call ``port`` > the operator's ``--port`` > the
+    SSL-mode default.
+
+    Consulting ``configured_port`` is what makes a non-default ``--port`` usable at
+    all: ``port`` is part of the connection-map cache key, and the startup
+    pre-connect caches under the operator's port. Without this, a tool call that
+    omitted ``port`` resolved to the SSL-mode default instead, missed the cache, and
+    reported "No database connection available" for an already-validated connection
+    (or opened a second connection to a port the security group has closed).
+    """
     if port is not None:
         return port
+    if server_config.configured_port is not None:
+        return server_config.configured_port
     if server_config.ssl_encryption_mode == 'off':
         return DB2_TCP_PORT
     return DEFAULT_DB2_SSL_PORT
@@ -640,7 +656,11 @@ def main():
     server_config.ssl_encryption_mode = args.ssl_encryption
     server_config.ssl_server_certificate = args.ssl_server_certificate
     server_config.ssl_hostname_validation = args.ssl_hostname_validation != 'off'
-    server_config.configured_port = _resolve_port(args.port)
+    # Store the operator's raw choice (possibly None); _resolve_port derives the
+    # SSL-mode default when it is None. Assigning an eagerly-resolved value here
+    # would be circular now that _resolve_port consults configured_port, and would
+    # lose the ssl_encryption='off' -> 50000 derivation.
+    server_config.configured_port = args.port
     server_config.max_rows = args.max_rows
     server_config.query_timeout_s = args.query_timeout_s
     server_config.login_timeout_s = args.login_timeout_s
@@ -653,7 +673,7 @@ def main():
         f'db_endpoint:{args.db_endpoint}\n'
         f'region:{args.region}\n'
         f'database:{args.database}\n'
-        f'port:{server_config.configured_port}\n'
+        f'port:{_resolve_port(args.port)}\n'
         f'allow_write_query:{args.allow_write_query}\n'
         f'ssl_encryption:{args.ssl_encryption}\n'
         f'max_rows:{args.max_rows}\n'
@@ -703,7 +723,7 @@ def main():
                     region=args.region,
                     instance_identifier=instance_identifier,
                     db_endpoint=args.db_endpoint,
-                    port=server_config.configured_port,
+                    port=_resolve_port(args.port),
                     database=args.database,
                     secret_arn=server_config.default_secret_arn,
                 )

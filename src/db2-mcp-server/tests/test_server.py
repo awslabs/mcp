@@ -17,6 +17,7 @@
 import pytest
 import sys
 from awslabs.db2_mcp_server import server
+from awslabs.db2_mcp_server.connection.abstract_db_connection import AbstractDBConnection
 from awslabs.db2_mcp_server.connection.db_connection_map import (
     DEFAULT_DB2_SSL_PORT,
     ConnectionMethod,
@@ -24,6 +25,7 @@ from awslabs.db2_mcp_server.connection.db_connection_map import (
 from awslabs.db2_mcp_server.connection.ibm_db_connection import DB2_TCP_PORT
 from botocore.exceptions import ClientError
 from mcp.shared.exceptions import McpError
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
 
@@ -382,7 +384,70 @@ class TestResolvePort:
     def test_plain_default(self):
         """Plain TCP mode resolves to 50000 when no port is given."""
         server.server_config.ssl_encryption_mode = 'off'
+        server.server_config.configured_port = None
         assert server._resolve_port(None) == DB2_TCP_PORT
+
+    def test_configured_port_used_when_caller_omits_port(self):
+        """The operator's --port must be honored by tool calls that omit `port`.
+
+        `port` is part of the connection-map cache key and the startup pre-connect
+        caches under the operator's port, so resolving to the SSL-mode default here
+        meant every subsequent tool call missed the cache and reported "No database
+        connection available" for an already-validated connection.
+        """
+        server.server_config.ssl_encryption_mode = 'require'
+        server.server_config.configured_port = 50999
+        assert server._resolve_port(None) == 50999
+
+    def test_explicit_port_still_overrides_configured_port(self):
+        """A per-call port takes precedence over the operator's --port."""
+        server.server_config.configured_port = 50999
+        assert server._resolve_port(60000) == 60000
+
+    def test_configured_port_none_falls_back_to_ssl_mode_default(self):
+        """With no --port, the SSL-mode default is still used (no circular default)."""
+        server.server_config.configured_port = None
+        server.server_config.ssl_encryption_mode = 'require'
+        assert server._resolve_port(None) == DEFAULT_DB2_SSL_PORT
+        server.server_config.ssl_encryption_mode = 'off'
+        assert server._resolve_port(None) == DB2_TCP_PORT
+
+    def test_startup_cached_connection_is_reachable_without_explicit_port(self):
+        """End-to-end: a tool call omitting `port` finds the startup-cached connection.
+
+        This is the regression test for the --port bug: it drives the real
+        DBConnectionMap, caching under the operator's port exactly as main() does,
+        then looks the connection up the way run_query/is_database_connected do.
+        """
+        server.server_config.ssl_encryption_mode = 'require'
+        server.server_config.configured_port = 50999
+
+        conn = FakeConn(rows=[])
+        # main()'s startup pre-connect caches under the operator's port. Use
+        # configured_port directly here (NOT _resolve_port) so the two sides of this
+        # test can actually disagree -- otherwise the assertion is self-consistent
+        # and passes even when _resolve_port ignores configured_port.
+        server.db_connection_map.set(
+            ConnectionMethod.DB2_PASSWORD,
+            'id',
+            'host',
+            'DB2DB',
+            cast(AbstractDBConnection, conn),
+            server.server_config.configured_port,
+        )
+        try:
+            found = server.db_connection_map.get(
+                ConnectionMethod.DB2_PASSWORD,
+                'id',
+                'host',
+                'DB2DB',
+                server._resolve_port(None),
+            )
+            assert found is conn
+        finally:
+            server.db_connection_map.remove(
+                ConnectionMethod.DB2_PASSWORD, 'id', 'host', 'DB2DB', 50999
+            )
 
 
 class TestIdentifierValidation:

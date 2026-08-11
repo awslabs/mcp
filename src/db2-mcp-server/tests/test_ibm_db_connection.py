@@ -23,6 +23,7 @@ import tempfile
 from awslabs.db2_mcp_server.connection.ibm_db_connection import IbmDbConnection
 from datetime import date
 from decimal import Decimal
+from typing import Any, Dict
 
 
 DUMMY_PASSWORD = 'pw'  # pragma: allowlist secret
@@ -202,12 +203,33 @@ def _fake_ibm_db(
 ):
     """Build a fake ibm_db module covering the calls the connection makes."""
     fake = mocker.MagicMock()
-    fake.SQL_ATTR_AUTOCOMMIT = 0
+    # Real driver constants. These MUST NOT be collapsed to convenient values: when
+    # the attribute key and its value are both 0, a swapped key/value -- or flipping
+    # SQL_AUTOCOMMIT_OFF to SQL_AUTOCOMMIT_ON in the connect options -- is
+    # indistinguishable to every assertion in the suite, so the test protecting the
+    # primary layer of the read-only guarantee cannot fail.
+    fake.SQL_ATTR_AUTOCOMMIT = 102
     fake.SQL_AUTOCOMMIT_OFF = 0
+    fake.SQL_AUTOCOMMIT_ON = 1
     fake.SQL_ATTR_QUERY_TIMEOUT = 1
     fake.SQL_ATTR_LOGIN_TIMEOUT = 2
-    fake.connect.return_value = 'CONN' if connect_ok else 0
-    fake.autocommit.return_value = 0  # matches SQL_AUTOCOMMIT_OFF above by default
+
+    # Derive autocommit() from the options actually passed to connect(), the way a real
+    # driver would, rather than hardcoding the answer. Hardcoding it meant the
+    # read-back guard in _connect_sync was asserting against a constant and could
+    # never observe a connection opened with autocommit ON.
+    _connect_state: Dict[str, Any] = {'autocommit': fake.SQL_AUTOCOMMIT_OFF}
+
+    def _fake_connect(_conn_str, _user, _password, options=None):
+        if options and fake.SQL_ATTR_AUTOCOMMIT in options:
+            _connect_state['autocommit'] = options[fake.SQL_ATTR_AUTOCOMMIT]
+        else:
+            # No autocommit option supplied -> the driver default is ON.
+            _connect_state['autocommit'] = fake.SQL_AUTOCOMMIT_ON
+        return 'CONN' if connect_ok else 0
+
+    fake.connect.side_effect = _fake_connect
+    fake.autocommit.side_effect = lambda _conn: _connect_state['autocommit']
     fake.active.return_value = active
     fake.prepare.return_value = 'STMT' if prepare_ok else 0
     fake.exec_immediate.return_value = 'STMT'
@@ -686,7 +708,9 @@ async def test_connect_rejects_when_autocommit_not_disabled(mocker):
     with a false safety guarantee).
     """
     fake = _fake_ibm_db(mocker, rows=[])
-    fake.autocommit.return_value = 1  # SQL_AUTOCOMMIT_ON -- driver did not honor the option
+    # Simulate a driver that ignores the connect-time option: autocommit reads back ON
+    # regardless of what was requested.
+    fake.autocommit.side_effect = lambda _conn: fake.SQL_AUTOCOMMIT_ON
     c = _conn(readonly=True)
     with pytest.raises(ValueError, match='autocommit'):
         await c.execute_query('SELECT 1 FROM SYSIBM.SYSDUMMY1')
@@ -696,11 +720,54 @@ async def test_connect_rejects_when_autocommit_not_disabled(mocker):
 
 async def test_connect_accepts_when_autocommit_confirmed_off(mocker):
     """A connection is used normally when autocommit reads back as OFF."""
-    fake = _fake_ibm_db(mocker, rows=[{'A': 1}])
-    fake.autocommit.return_value = 0  # SQL_AUTOCOMMIT_OFF
+    _fake_ibm_db(mocker, rows=[{'A': 1}])
     c = _conn(readonly=True)
     out = await c.execute_query('SELECT A FROM T')
     assert out == [{'A': 1}]
+
+
+async def test_connect_requests_autocommit_off(mocker):
+    """The connect options must explicitly request SQL_AUTOCOMMIT_OFF.
+
+    This is the assertion the suite was missing. Autocommit-off is the primary layer
+    of the read-only guarantee (the post-query rollback is only meaningful if
+    autocommit is actually off), yet nothing checked the autocommit entry in the
+    connect options -- so flipping it to SQL_AUTOCOMMIT_ON survived the entire suite.
+    With the real driver constants (key 102, OFF 0, ON 1) that mutation is now
+    detectable.
+    """
+    fake = _fake_ibm_db(mocker, rows=[{'A': 1}])
+    c = _conn(readonly=True)
+    await c.execute_query('SELECT A FROM T')
+    options = fake.connect.call_args.args[3]
+    assert options[fake.SQL_ATTR_AUTOCOMMIT] == fake.SQL_AUTOCOMMIT_OFF
+    # Guard against the key/value collapse that hid this: they must be distinct, or
+    # a swapped key/value would be indistinguishable.
+    assert fake.SQL_ATTR_AUTOCOMMIT != fake.SQL_AUTOCOMMIT_OFF
+
+
+async def test_connect_refuses_when_autocommit_option_omitted(mocker):
+    """Omitting the autocommit option entirely must be caught by the read-back guard.
+
+    A real driver defaults to autocommit ON, so a regression that dropped the option
+    would silently lose the guarantee. The fake models that default.
+    """
+    fake = _fake_ibm_db(mocker, rows=[])
+    mocker.patch.object(
+        IbmDbConnection,
+        '_build_conn_string',
+        return_value='DATABASE={DB2DB};',
+    )
+
+    def _connect_without_options(_conn_str, _user, _password, _options=None):
+        # Ignore the requested options, as a driver that dropped them would.
+        fake.autocommit.side_effect = lambda _c: fake.SQL_AUTOCOMMIT_ON
+        return 'CONN'
+
+    fake.connect.side_effect = _connect_without_options
+    c = _conn(readonly=True)
+    with pytest.raises(ValueError, match='autocommit'):
+        await c.execute_query('SELECT 1 FROM SYSIBM.SYSDUMMY1')
 
 
 async def test_connect_passes_login_timeout_option(mocker):
@@ -735,7 +802,8 @@ async def test_autocommit_rejection_logs_warning_on_close_failure(mocker):
     close-failure logging convention used elsewhere in this module (_close_sync).
     """
     fake = _fake_ibm_db(mocker, rows=[])
-    fake.autocommit.return_value = 1  # SQL_AUTOCOMMIT_ON -- driver did not honor the option
+    # Driver ignores the connect-time option and reports autocommit ON.
+    fake.autocommit.side_effect = lambda _conn: fake.SQL_AUTOCOMMIT_ON
     fake.close.side_effect = RuntimeError('close failed')
     log_warning = mocker.patch(
         'awslabs.db2_mcp_server.connection.ibm_db_connection.logger.warning'
