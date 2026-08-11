@@ -52,7 +52,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-amazon-kendra-index-mcp-server"
-version = "1.0.20"
+version = "1.0.21"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
@@ -120,7 +120,6 @@ dependencies = [
     { name = "botocore-stubs" },
     { name = "types-s3transfer" },
     { name = "typing-extensions", version = "4.13.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
-    { name = "typing-extensions", version = "4.16.0", source = { registry = "https://pypi.org/simple" }, marker = "python_version < '0'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/0a/e4/dbfe50b2de2cac8bda9f1a5ee23ca5952efaa9bb6cc2d89d62d17fa0c6bc/boto3_stubs-1.38.19.tar.gz", hash = "sha256:566d50ec70105f06f86041d03fd4af6a24322f4063ecd2f6ac89b9b338038d14", size = 99263, upload-time = "2025-05-19T19:42:41.049Z" }
 wheels = [

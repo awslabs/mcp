@@ -14,4 +14,4 @@
 
 """Registry of Open Data on AWS (RODA) MCP Server."""
 
-__version__ = '0.1.4'
+__version__ = '0.1.5'
