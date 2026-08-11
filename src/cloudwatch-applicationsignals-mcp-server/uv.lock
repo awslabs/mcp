@@ -68,7 +68,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-cloudwatch-applicationsignals-mcp-server"
-version = "0.1.39"
+version = "0.1.40"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
