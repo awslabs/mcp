@@ -124,7 +124,10 @@ def register_sns_tools(mcp: FastMCP, disallow_resource_creation: bool = False):
 
     # Create the tool configuration dictionary
     tool_configuration = {
-        'add_permission': {'name_override': 'add_sns_permission'},
+        'add_permission': {
+            'name_override': 'add_sns_permission',
+            'validator': is_mutative_action_allowed,
+        },
         'remove_permission': {'name_override': 'remove_sns_permission'},
         'create_topic': {'func_override': create_topic_override},
         'delete_topic': {'validator': is_mutative_action_allowed},
