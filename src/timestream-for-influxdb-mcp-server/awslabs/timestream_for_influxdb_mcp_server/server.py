@@ -439,18 +439,105 @@ def get_influxdb_client(url, token, org=None, timeout=10000, verify_ssl: bool = 
     )
 
 
+# Names of Flux functions capable of writing data back to a bucket.
+FLUX_WRITE_FUNCTION_NAMES = ('to', 'wideTo')
+
+# A write function referenced as a whole identifier, in any position and with or
+# without a package qualifier: `to(...)`, `result = to(...)`, `writer = to`,
+# `experimental.to(...)`, `influxdb.wideTo(...)`. Word boundaries keep
+# identifiers that merely contain the name, such as `toString`, from matching.
+_WRITE_REFERENCE_RE = re.compile(r'\b(?:' + '|'.join(FLUX_WRITE_FUNCTION_NAMES) + r')\b')
+
+_WRITE_BLOCKED_MESSAGE = (
+    'Query contains a write-producing Flux operation (to(), experimental.to(), '
+    'or wideTo()) which is not allowed when INFLUXDB_WRITE_MODE is not enabled. '
+    'Set the INFLUXDB_WRITE_MODE=true environment variable to allow write '
+    'operations through Flux queries.'
+)
+
+
+def mask_flux_comments_and_strings(query: str) -> str:
+    r"""Blank out comment and string-literal content in a Flux query.
+
+    Replaces the contents of `// ...` comments and `"..."` string literals with
+    spaces, leaving all other characters in place. Offsets and newlines are
+    preserved so that reported positions and multi-line patterns still line up
+    with the original query.
+
+    Scanning left to right is what distinguishes code from data. A plain regex
+    substitution cannot: `re.sub(r'//[^\n]*', '', query)` treats the `//` in
+    `"http://example"` as the start of a comment and deletes the remainder of
+    the line, which can hide a trailing write call. Conversely, a string literal
+    such as `"experimental.to("` is data and must not be scanned as code.
+
+    Args:
+        query: The Flux query string to mask.
+
+    Returns:
+        A string of the same length as the input, with comment and string
+        contents replaced by spaces (newlines preserved).
+    """
+    masked: list[str] = []
+    index = 0
+    length = len(query)
+    while index < length:
+        char = query[index]
+        # Line comment: blank to end of line, leaving the newline itself.
+        if char == '/' and index + 1 < length and query[index + 1] == '/':
+            while index < length and query[index] != '\n':
+                masked.append(' ')
+                index += 1
+            continue
+        # String literal: blank the quotes and everything between them.
+        if char == '"':
+            masked.append(' ')
+            index += 1
+            while index < length:
+                # Escape sequence: consume both characters so that an escaped
+                # quote does not terminate the literal early.
+                if query[index] == '\\' and index + 1 < length:
+                    masked.append('  ')
+                    index += 2
+                    continue
+                if query[index] == '"':
+                    masked.append(' ')
+                    index += 1
+                    break
+                masked.append('\n' if query[index] == '\n' else ' ')
+                index += 1
+            continue
+        masked.append(char)
+        index += 1
+    return ''.join(masked)
+
+
 def validate_flux_query(query: str) -> None:
     """Validate that a Flux query does not contain write-producing operations.
 
     When INFLUXDB_WRITE_MODE is disabled (default), this function rejects Flux
-    queries that contain functions capable of writing data to InfluxDB. This
-    provides defense-in-depth protection against data modification through
-    the query interface.
+    queries that contain functions capable of writing data to InfluxDB.
 
     The following write-producing Flux functions are blocked:
     - to() — standard write function (influxdata/influxdb/to)
     - experimental.to() — experimental write function
     - wideTo() / influxdb.wideTo() — writes wide/pivoted data
+
+    Detection operates on the query with comments and string literals masked,
+    and matches write functions as whole identifiers in any position rather than
+    only in specific call syntax. Matching the identifier rather than the call
+    form is what rejects indirection such as `writer = to` followed by
+    `|> writer(...)`, and matching regardless of qualifier is what rejects
+    aliased package imports such as `import e "experimental"` then `e.to(...)`.
+
+    The check is deliberately biased towards rejection: record field access on a
+    column literally named `to` (`r.to`) is refused, because a qualifier cannot
+    be distinguished from a package alias without resolving the whole query.
+    Operators who need such a query can set INFLUXDB_WRITE_MODE=true.
+
+    This is a defense-in-depth control, not a complete one. Flux has
+    first-class functions, so no static inspection of query text can be
+    exhaustive. The authoritative control is a read-scoped InfluxDB token, so
+    that a write is refused by InfluxDB even if it reaches the server.
 
     Args:
         query: The Flux query string to validate.
@@ -462,38 +549,21 @@ def validate_flux_query(query: str) -> None:
     if INFLUXDB_WRITE_MODE:
         return
 
-    # Strip single-line comments (// ...) to avoid false positives from commented-out code.
-    # Preserve line structure so that multi-line patterns still work.
-    stripped = re.sub(r'//[^\n]*', '', query)
+    # Interpolation is checked on the raw query, because masking blanks the
+    # string contents in which `${...}` appears. Nested quotes inside an
+    # interpolated expression can desynchronize masking, so interpolation is
+    # refused rather than analyzed. It is rare in a read query.
+    if '${' in query:
+        raise ValueError(
+            'Flux string interpolation is not permitted when INFLUXDB_WRITE_MODE '
+            'is not enabled, because the query cannot be reliably inspected for '
+            'write operations. Set INFLUXDB_WRITE_MODE=true to allow it.'
+        )
 
-    # Patterns to detect write-producing Flux functions.
-    # These cover:
-    #   - Pipe-forward to `to(` — e.g. `|> to(bucket: "x")`
-    #   - Standalone or qualified calls — e.g. `to(bucket: "x")`,
-    #     `experimental.to(`, `influxdb.wideTo(`
-    #   - Aliased imports — e.g. `import ex "experimental"` then `ex.to(`
-    # The word-boundary and parenthesis requirements minimize false positives
-    # from identifiers like `toString` or field names containing "to".
-    write_patterns = [
-        # Pipe-forward into to(): |> to(
-        r'\|>\s*to\s*\(',
-        # Qualified calls: experimental.to( or <alias>.to( preceded by word char + dot
-        r'\w+\.to\s*\(',
-        # wideTo as standalone or qualified: wideTo( or <qualifier>.wideTo(
-        r'(?:\w+\.)?wideTo\s*\(',
-        # Standalone to() at statement level — preceded by start-of-line or semicolon
-        # but NOT preceded by a dot (which would be a method on something else).
-        r'(?:^|;\s*)to\s*\(',
-    ]
+    code = mask_flux_comments_and_strings(query)
 
-    for pattern in write_patterns:
-        if re.search(pattern, stripped, re.MULTILINE):
-            raise ValueError(
-                'Query contains a write-producing Flux operation (to(), experimental.to(), '
-                'or wideTo()) which is not allowed when INFLUXDB_WRITE_MODE is not enabled. '
-                'Set the INFLUXDB_WRITE_MODE=true environment variable to allow write '
-                'operations through Flux queries.'
-            )
+    if _WRITE_REFERENCE_RE.search(code):
+        raise ValueError(_WRITE_BLOCKED_MESSAGE)
 
 
 @mcp.tool(

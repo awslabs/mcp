@@ -41,6 +41,7 @@ from awslabs.timestream_for_influxdb_mcp_server.server import (
     list_db_instances_for_cluster,
     list_db_parameter_groups,
     list_tags_for_resource,
+    mask_flux_comments_and_strings,
     tag_resource,
     untag_resource,
     update_db_cluster,
@@ -3027,3 +3028,134 @@ class TestValidateFluxQueryUnit:
         query = '// This is a comment\nfrom(bucket: "b") |> to(bucket: "x")'
         with pytest.raises(ValueError):
             validate_flux_query(query)
+
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    def test_rejects_to_in_assignment_position(self):
+        """Test that to() called as an assignment right-hand side is caught."""
+        query = 'data = from(bucket: "src")\nresult = to(bucket: "dst", tables: data)'
+        with pytest.raises(ValueError, match='write-producing'):
+            validate_flux_query(query)
+
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    def test_rejects_write_function_bound_to_another_name(self):
+        """Test that binding to() to another name and piping into it is caught."""
+        query = 'writer = to\nfrom(bucket: "src") |> writer(bucket: "dst")'
+        with pytest.raises(ValueError, match='write-producing'):
+            validate_flux_query(query)
+
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    def test_rejects_write_wrapped_in_user_defined_function(self):
+        """Test that a write hidden inside a user-defined function is caught."""
+        query = 'f = (tables=<-) => tables |> to(bucket: "dst")\nfrom(bucket: "src") |> f()'
+        with pytest.raises(ValueError, match='write-producing'):
+            validate_flux_query(query)
+
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    def test_rejects_write_through_aliased_package_import(self):
+        """Test that an aliased package import does not hide a qualified write."""
+        query = 'import e "experimental"\ndata |> e.to(bucket: "dst")'
+        with pytest.raises(ValueError, match='write-producing'):
+            validate_flux_query(query)
+
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    def test_rejects_write_split_across_lines(self):
+        """Test that a newline between to() and its parenthesis is still a write."""
+        query = 'from(bucket: "src") |> to\n(bucket: "dst")'
+        with pytest.raises(ValueError, match='write-producing'):
+            validate_flux_query(query)
+
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    def test_rejects_write_hidden_behind_url_in_string(self):
+        """Test that a URL in a string does not hide a later to() on the same line."""
+        query = (
+            'from(bucket: "src") '
+            + '|> map(fn: (r) => ({r with url: "http://example"})) |> to(bucket: "dst")'
+        )
+        with pytest.raises(ValueError, match='write-producing'):
+            validate_flux_query(query)
+
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    def test_rejects_write_after_escaped_quote(self):
+        """Test that an escaped quote does not end the literal early and hide a write."""
+        query = 'from(bucket: "src") |> filter(fn: (r) => r.m == "a\\"b") |> to(bucket: "dst")'
+        with pytest.raises(ValueError, match='write-producing'):
+            validate_flux_query(query)
+
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    def test_rejects_string_interpolation(self):
+        """Test that interpolation is refused, since masking cannot be trusted."""
+        query = 'b = "dst"\nfrom(bucket: "src") |> to(bucket: "${b}")'
+        with pytest.raises(ValueError, match='interpolation is not permitted'):
+            validate_flux_query(query)
+
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    def test_rejects_interpolation_without_any_write_function(self):
+        """Test that interpolation is refused on its own merits, not via to().
+
+        The interpolation guard must run against the raw query. Checking the
+        masked query instead makes it dead code, because masking blanks the
+        string contents in which the interpolation appears.
+        """
+        query = 'b = "src"\nfrom(bucket: "${b}") |> range(start: -1h)'
+        with pytest.raises(ValueError, match='interpolation is not permitted'):
+            validate_flux_query(query)
+
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    def test_rejects_interpolation_with_nested_quotes(self):
+        """Test that interpolation containing nested quotes cannot smuggle a write."""
+        query = 'from(bucket: "${x + "y"}") |> to(bucket: "dst")'
+        with pytest.raises(ValueError, match='interpolation is not permitted'):
+            validate_flux_query(query)
+
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    def test_allows_write_function_name_inside_string_literal(self):
+        """Test that a string literal resembling a call is data, not code."""
+        # Should not raise — the text is a string literal, not an invocation
+        validate_flux_query(
+            'from(bucket: "src")\n  |> filter(fn: (r) => r.message == "experimental.to(")'
+        )
+
+    @pytest.mark.parametrize(
+        'expression',
+        [
+            'toString(v: r._value)',
+            'toFloat(v: r._value)',
+            'toInt(v: r._value)',
+            'toBool(v: r._value)',
+            'toTime(v: r._value)',
+            'toUInt(v: r._value)',
+        ],
+    )
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    def test_allows_to_prefixed_conversion_functions(self, expression):
+        """Test that the toX() conversion family are reads and are not rejected."""
+        # Should not raise — these are read-only type conversions
+        validate_flux_query(f'from(bucket: "b") |> map(fn: (r) => ({{r with s: {expression}}}))')
+
+    @patch('awslabs.timestream_for_influxdb_mcp_server.server.INFLUXDB_WRITE_MODE', False)
+    def test_allows_double_slash_inside_string_on_earlier_line(self):
+        """Test that // inside a string literal does not consume later lines."""
+        # Should not raise, and the trailing range() must remain visible
+        validate_flux_query(
+            'from(bucket: "b")\n'
+            + '  |> filter(fn: (r) => r.u == "http://a//b")\n'
+            + '  |> range(start: -1h)'
+        )
+
+    def test_masking_preserves_length_and_line_structure(self):
+        """Test that masking keeps offsets and newlines aligned with the input."""
+        query = 'from(bucket: "src") // note\n|> range(start: -1h)'
+        masked = mask_flux_comments_and_strings(query)
+        assert len(masked) == len(query)
+        assert masked.count('\n') == query.count('\n')
+
+    def test_masking_blanks_string_contents_but_keeps_code(self):
+        """Test that string contents are blanked while surrounding code remains."""
+        masked = mask_flux_comments_and_strings('from(bucket: "to(")')
+        assert masked.startswith('from(bucket:')
+        assert 'to(' not in masked.replace('from(', '')
+
+    def test_masking_does_not_treat_slashes_in_strings_as_comments(self):
+        """Test that // inside a literal is data, so following code stays visible."""
+        masked = mask_flux_comments_and_strings('a = "http://x" |> range()')
+        assert '|> range()' in masked
