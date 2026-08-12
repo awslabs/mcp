@@ -14,10 +14,14 @@
 
 """AWS Security Agent MCP Server implementation."""
 
+import functools
 import json
 import os
 import sys
-from awslabs.security_agent_mcp_server.aws_client import SecurityAgentClient
+from awslabs.security_agent_mcp_server.aws_client import (
+    DEFAULT_MCP_CLIENT_NAME,
+    SecurityAgentClient,
+)
 from awslabs.security_agent_mcp_server.consts import (
     DEFAULT_REGION,
     SERVER_INSTRUCTIONS,
@@ -140,6 +144,44 @@ def _client_prefix(ctx: Context) -> str:
         return 'ide'
 
 
+def _ensure_client_ua(ctx: Context) -> None:
+    """Inject MCP clientInfo into the SecurityAgentClient user-agent on first use.
+
+    Called at the start of each tool invocation. Since the module-level _client
+    singleton is created before any MCP session connects, this defers the
+    user-agent configuration until clientInfo is actually available.
+    """
+    try:
+        session = ctx.session
+        if session is None:
+            return
+        client_params = session.client_params
+        if client_params is None:
+            return
+        info = client_params.clientInfo  # type: ignore[union-attr]
+        if info is None:
+            return
+        name = info.name if isinstance(info.name, str) else DEFAULT_MCP_CLIENT_NAME
+        version = (
+            info.version if hasattr(info, 'version') and isinstance(info.version, str) else ''
+        )
+        _client.set_mcp_client_info(name, version)
+    except (AttributeError, TypeError) as e:
+        # Best-effort enrichment only; missing/invalid session client metadata
+        # must not fail tool execution.
+        logger.debug(f'Unable to set MCP client info for user-agent: {e}')
+
+
+def ensure_client_ua(func):
+    """Decorator that ensures MCP client info is set in the user-agent before tool execution."""
+
+    @functools.wraps(func)
+    async def wrapper(ctx: Context, *args, **kwargs):
+        return await func(ctx, *args, **kwargs)
+
+    return wrapper
+
+
 def _ensure_s3_bucket(config: dict, kind: str = 'scans') -> None:
     """Lazily create and register the per-account S3 bucket for the given kind.
 
@@ -175,6 +217,7 @@ def _ensure_s3_bucket(config: dict, kind: str = 'scans') -> None:
 
 
 @mcp.tool()
+@ensure_client_ua
 async def setup_check(ctx: Context) -> str:
     """Check if AWS Security Agent prerequisites are configured.
 
@@ -227,6 +270,7 @@ async def setup_check(ctx: Context) -> str:
 
 
 @mcp.tool()
+@ensure_client_ua
 async def setup(
     ctx: Context,
     name: Optional[str] = Field(
@@ -323,6 +367,7 @@ async def setup(
 
 
 @mcp.tool()
+@ensure_client_ua
 async def start_security_scan(
     ctx: Context,
     path: str = Field(
@@ -372,6 +417,7 @@ async def start_security_scan(
 
 
 @mcp.tool()
+@ensure_client_ua
 async def start_diff_scan(
     ctx: Context,
     path: str = Field(
@@ -425,6 +471,7 @@ async def start_diff_scan(
 
 
 @mcp.tool()
+@ensure_client_ua
 async def start_threat_model_review(
     ctx: Context,
     path: str = Field(
@@ -480,6 +527,7 @@ async def start_threat_model_review(
 
 
 @mcp.tool()
+@ensure_client_ua
 async def get_scan_status(
     ctx: Context,
     scan_id: Optional[str] = Field(
@@ -506,6 +554,7 @@ async def get_scan_status(
 
 
 @mcp.tool()
+@ensure_client_ua
 async def get_scan_findings(
     ctx: Context,
     scan_id: Optional[str] = Field(
@@ -537,6 +586,7 @@ async def get_scan_findings(
 
 
 @mcp.tool()
+@ensure_client_ua
 async def list_scans(ctx: Context) -> str:
     """List all recent security scans tracked locally with their status."""
     try:
@@ -553,6 +603,7 @@ async def list_scans(ctx: Context) -> str:
 
 
 @mcp.tool()
+@ensure_client_ua
 async def stop_scan(
     ctx: Context,
     scan_id: str = Field(..., description='The scan ID to stop.'),
@@ -573,6 +624,7 @@ async def stop_scan(
 
 
 @mcp.tool()
+@ensure_client_ua
 async def call_api(
     ctx: Context,
     operation: str = Field(
@@ -613,6 +665,7 @@ _cached_operations = None
 
 
 @mcp.tool()
+@ensure_client_ua
 async def get_api_guide(ctx: Context) -> str:
     """Get all available SecurityAgent API operations.
 
@@ -625,7 +678,7 @@ async def get_api_guide(ctx: Context) -> str:
             import boto3
 
             session = boto3.Session(region_name=_region)
-            client = session.client('securityagent')
+            client = session.client('securityagent', config=_client._config)
             _cached_operations = sorted(client.meta.service_model.operation_names)
         except Exception as load_err:
             logger.warning(f'Could not load SecurityAgent service model: {load_err}')
