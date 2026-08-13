@@ -22,7 +22,13 @@ File layout:
 - Formatters: pure reshapers from raw AWS API dicts to the response shape.
 """
 
-from ..utilities.aws_service_base import create_aws_client, format_response, handle_aws_error
+from ..utilities.aws_service_base import (
+    create_aws_client,
+    format_response,
+    handle_aws_error,
+    paginate_aws_response,
+)
+from ..utilities.sql_utils import convert_response_if_needed
 from datetime import datetime
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, List, Optional
@@ -94,13 +100,18 @@ async def budgets(
     description="""Reads the enforcement action(s) attached to AWS Budgets.
 
 A budget action is what AWS Budgets automatically does when a threshold is crossed — apply an
-IAM or SCP policy, or run an SSM document. Read-only; uses the account-scoped
-DescribeBudgetActionsForAccount API.
+IAM or SCP policy, or run an SSM document. Read-only.
 
-- Omit `budget_name` to list every budget's actions in one call — the efficient way to audit
-  which budgets have no enforcement configured.
-- Pass `budget_name` to filter that same result to a single budget (there is no per-budget
-  fan-out; filtering is client-side).
+- Omit `budget_name` to audit every budget's actions across the account
+  (DescribeBudgetActionsForAccount). This is the efficient way to find budgets with no
+  enforcement configured.
+- Pass `budget_name` to read one budget's actions directly (DescribeBudgetActionsForBudget) —
+  no account-wide scan.
+
+Pagination: a management account can have thousands of budgets, so results are paginated. Use
+`max_results` to bound page size and `max_pages` to bound how many pages are fetched; a
+`next_token` in the response can be passed back to continue. Large responses are automatically
+offloaded to session SQL to save tokens.
 
 An empty `actions` list is a real answer (a budget with no actions), distinct from an error
 such as AccessDenied. For a budget's spend-vs-limit status use the `budgets` tool; for its alert
@@ -112,14 +123,21 @@ async def budget_actions(
     budget_name: Optional[str] = None,
     max_results: int = 100,
     account_id: Optional[str] = None,
+    next_token: Optional[str] = None,
+    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """Reads AWS Budgets enforcement actions (DescribeBudgetActionsForAccount).
+    """Reads AWS Budgets enforcement actions.
+
+    Routes by ``budget_name``: DescribeBudgetActionsForBudget when a name is given, otherwise
+    the account-wide DescribeBudgetActionsForAccount.
 
     Args:
         ctx: The MCP context object.
-        budget_name: Optional. If provided, the account-wide result is filtered to this budget.
-        max_results: Maximum number of results to return. Defaults to 100.
+        budget_name: Optional. When provided, reads that one budget's actions directly.
+        max_results: Maximum number of results per page. Defaults to 100.
         account_id: Optional AWS account ID; retrieved automatically if not provided.
+        next_token: Optional pagination token from a previous response.
+        max_pages: Optional cap on how many pages to auto-paginate through.
 
     Returns:
         Dict containing the formatted action configuration.
@@ -131,7 +149,9 @@ async def budget_actions(
             account_id = await get_aws_account_id(ctx)
         await ctx.info(f'Using AWS Account ID: {account_id}')
 
-        return await describe_budget_actions(ctx, account_id, budget_name, max_results)
+        return await describe_budget_actions(
+            ctx, account_id, budget_name, max_results, next_token, max_pages
+        )
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'budget-actions', 'AWS Budgets')
@@ -139,28 +159,42 @@ async def budget_actions(
 
 @budget_server.tool(
     name='budget-notifications',
-    description="""Reads the alert thresholds (notifications) configured on an AWS Budget.
+    description="""Reads the alert thresholds (notifications) configured on AWS Budgets.
 
 A notification is an alert that fires when a budget crosses a threshold (e.g. 80% of the limit).
-Read-only; uses the DescribeNotificationsForBudget API, which is per-budget — `budget_name` is
-required (the AWS Budgets API has no account-scoped notifications read).
+Read-only.
+
+- Omit `budget_name` to audit every budget's notifications across the account
+  (DescribeBudgetNotificationsForAccount). Each returned notification carries its `budget_name`.
+- Pass `budget_name` to read one budget's notifications directly (DescribeNotificationsForBudget).
+
+Pagination: results are paginated. Use `max_results` to bound page size and `max_pages` to bound
+how many pages are fetched; a `next_token` in the response can be passed back to continue. Large
+responses are automatically offloaded to session SQL to save tokens.
 
 For a budget's spend-vs-limit status use the `budgets` tool; for its enforcement actions use
 `budget-actions`. The account ID is retrieved automatically or you may pass `account_id`.""",
 )
 async def budget_notifications(
     ctx: Context,
-    budget_name: str,
+    budget_name: Optional[str] = None,
     max_results: int = 100,
     account_id: Optional[str] = None,
+    next_token: Optional[str] = None,
+    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """Reads the notifications configured on a budget (DescribeNotificationsForBudget).
+    """Reads the notifications configured on AWS Budgets.
+
+    Routes by ``budget_name``: DescribeNotificationsForBudget when a name is given, otherwise
+    the account-wide DescribeBudgetNotificationsForAccount.
 
     Args:
         ctx: The MCP context object.
-        budget_name: The budget whose notifications to read. Required.
-        max_results: Maximum number of results to return. Defaults to 100.
+        budget_name: Optional. When provided, reads that one budget's notifications directly.
+        max_results: Maximum number of results per page. Defaults to 100.
         account_id: Optional AWS account ID; retrieved automatically if not provided.
+        next_token: Optional pagination token from a previous response.
+        max_pages: Optional cap on how many pages to auto-paginate through.
 
     Returns:
         Dict containing the formatted notification configuration.
@@ -170,14 +204,13 @@ async def budget_notifications(
             f'budget-notifications (budget_name={budget_name}, max_results={max_results})'
         )
 
-        if not budget_name:
-            raise ValueError('budget_name is required')
-
         if not account_id:
             account_id = await get_aws_account_id(ctx)
         await ctx.info(f'Using AWS Account ID: {account_id}')
 
-        return await describe_notifications_for_budget(ctx, account_id, budget_name, max_results)
+        return await describe_budget_notifications(
+            ctx, account_id, budget_name, max_results, next_token, max_pages
+        )
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'budget-notifications', 'AWS Budgets')
@@ -293,106 +326,132 @@ async def describe_budgets(
 
 
 async def describe_budget_actions(
-    ctx: Context, account_id: str, budget_name: Optional[str], max_results: int
+    ctx: Context,
+    account_id: str,
+    budget_name: Optional[str],
+    max_results: int,
+    next_token: Optional[str] = None,
+    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """Retrieves budget enforcement actions via DescribeBudgetActionsForAccount.
+    """Retrieves budget enforcement actions, routing by ``budget_name``.
 
-    Always calls the account-scoped API (one permission,
-    `budgets:DescribeBudgetActionsForAccount`, covers both the account-wide audit and a
-    single-budget lookup). If `budget_name` is provided, the account-wide result is filtered to
-    that budget client-side — the AWS API has no `BudgetName` parameter for the account call.
+    When ``budget_name`` is provided, calls the per-budget DescribeBudgetActionsForBudget
+    (authorized by ``budgets:DescribeBudgetActionsForBudget``); otherwise calls the account-wide
+    DescribeBudgetActionsForAccount (``budgets:DescribeBudgetActionsForAccount``). Both are
+    paginated via the shared helper, and a large response is offloaded to session SQL.
 
-    An empty `actions` list is a real answer (no actions configured), distinct from an error.
+    An empty ``actions`` list is a real answer (no actions configured), distinct from an error.
     """
     try:
         budgets_client = create_aws_client('budgets', region_name='us-east-1')
 
-        request_params: Dict[str, Any] = {'AccountId': account_id}
-        all_actions: List[Dict[str, Any]] = []
-        next_token = None
-        page_count = 0
-
-        while True:
-            page_count += 1
-            if next_token:
-                request_params['NextToken'] = next_token
-            # When filtering to one budget we cannot bound MaxResults by the filtered
-            # count, so page fully; otherwise stop once we have max_results.
-            if not budget_name:
-                remaining = max_results - len(all_actions)
-                if remaining <= 0:
-                    break
-                request_params['MaxResults'] = min(100, remaining)
-            else:
-                request_params['MaxResults'] = 100
-
-            await ctx.info(f'Fetching account budget actions page {page_count}')
-            response = budgets_client.describe_budget_actions_for_account(**request_params)
-            all_actions.extend(response.get('Actions', []))
-            next_token = response.get('NextToken')
-            if not next_token:
-                break
+        request_params: Dict[str, Any] = {
+            'AccountId': account_id,
+            'MaxResults': min(100, max_results),
+        }
+        if next_token:
+            request_params['NextToken'] = next_token
 
         if budget_name:
-            all_actions = [a for a in all_actions if a.get('BudgetName') == budget_name]
-            all_actions = all_actions[:max_results]
+            request_params['BudgetName'] = budget_name
+            all_actions, pagination = await paginate_aws_response(
+                ctx,
+                'DescribeBudgetActionsForBudget',
+                lambda **p: budgets_client.describe_budget_actions_for_budget(**p),
+                request_params,
+                'Actions',
+                max_pages=max_pages,
+            )
+        else:
+            all_actions, pagination = await paginate_aws_response(
+                ctx,
+                'DescribeBudgetActionsForAccount',
+                lambda **p: budgets_client.describe_budget_actions_for_account(**p),
+                request_params,
+                'Actions',
+                max_pages=max_pages,
+            )
 
         data: Dict[str, Any] = {
             'actions': [format_action(a) for a in all_actions],
             'total_count': len(all_actions),
             'account_id': account_id,
+            'pagination': pagination,
         }
         if budget_name:
             data['budget_name'] = budget_name
 
-        return format_response('success', data)
+        converted = await convert_response_if_needed(ctx, data, 'budget_actions')
+        return format_response('success', converted)
     except Exception as e:
         return await handle_aws_error(ctx, e, 'describe_budget_actions', 'AWS Budgets')
 
 
-async def describe_notifications_for_budget(
-    ctx: Context, account_id: str, budget_name: str, max_results: int
+async def describe_budget_notifications(
+    ctx: Context,
+    account_id: str,
+    budget_name: Optional[str],
+    max_results: int,
+    next_token: Optional[str] = None,
+    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """Retrieves the notifications configured on a budget (DescribeNotificationsForBudget).
+    """Retrieves budget notifications, routing by ``budget_name``.
 
-    Per-budget only — the AWS Budgets API has no account-scoped notifications read, so this
-    requires `budget_name`. Authorized by `budgets:ViewBudget`.
+    When ``budget_name`` is provided, calls the per-budget DescribeNotificationsForBudget;
+    otherwise calls the account-wide DescribeBudgetNotificationsForAccount, whose response nests
+    notifications under each budget. Both are paginated via the shared helper, and a large
+    response is offloaded to session SQL. Every returned notification carries its ``budget_name``.
     """
     try:
         budgets_client = create_aws_client('budgets', region_name='us-east-1')
 
-        request_params: Dict[str, Any] = {'AccountId': account_id, 'BudgetName': budget_name}
-        all_notifications: List[Dict[str, Any]] = []
-        next_token = None
-        page_count = 0
+        request_params: Dict[str, Any] = {
+            'AccountId': account_id,
+            'MaxResults': min(100, max_results),
+        }
+        if next_token:
+            request_params['NextToken'] = next_token
 
-        while True:
-            page_count += 1
-            if next_token:
-                request_params['NextToken'] = next_token
-            remaining = max_results - len(all_notifications)
-            if remaining <= 0:
-                break
-            request_params['MaxResults'] = min(100, remaining)
+        if budget_name:
+            request_params['BudgetName'] = budget_name
+            raw_notifications, pagination = await paginate_aws_response(
+                ctx,
+                'DescribeNotificationsForBudget',
+                lambda **p: budgets_client.describe_notifications_for_budget(**p),
+                request_params,
+                'Notifications',
+                max_pages=max_pages,
+            )
+            notifications = [format_notification(n, budget_name) for n in raw_notifications]
+        else:
+            per_budget, pagination = await paginate_aws_response(
+                ctx,
+                'DescribeBudgetNotificationsForAccount',
+                lambda **p: budgets_client.describe_budget_notifications_for_account(**p),
+                request_params,
+                'BudgetNotificationsForAccount',
+                max_pages=max_pages,
+            )
+            # Each entry groups one budget's notifications; flatten and stamp the budget name.
+            notifications = [
+                format_notification(n, entry.get('BudgetName'))
+                for entry in per_budget
+                for n in entry.get('Notifications', [])
+            ]
 
-            await ctx.info(f'Fetching notifications page {page_count}')
-            response = budgets_client.describe_notifications_for_budget(**request_params)
-            all_notifications.extend(response.get('Notifications', []))
-            next_token = response.get('NextToken')
-            if not next_token:
-                break
+        data: Dict[str, Any] = {
+            'notifications': notifications,
+            'total_count': len(notifications),
+            'account_id': account_id,
+            'pagination': pagination,
+        }
+        if budget_name:
+            data['budget_name'] = budget_name
 
-        return format_response(
-            'success',
-            {
-                'notifications': [format_notification(n) for n in all_notifications],
-                'total_count': len(all_notifications),
-                'budget_name': budget_name,
-                'account_id': account_id,
-            },
-        )
+        converted = await convert_response_if_needed(ctx, data, 'budget_notifications')
+        return format_response('success', converted)
     except Exception as e:
-        return await handle_aws_error(ctx, e, 'describe_notifications_for_budget', 'AWS Budgets')
+        return await handle_aws_error(ctx, e, 'describe_budget_notifications', 'AWS Budgets')
 
 
 # =============================================================================
@@ -583,12 +642,23 @@ def format_action_definition(definition: Dict[str, Any]) -> Dict[str, Any]:
     return result
 
 
-def format_notification(notification: Dict[str, Any]) -> Dict[str, Any]:
-    """Formats a budget Notification object from the AWS API response."""
-    return {
+def format_notification(
+    notification: Dict[str, Any], budget_name: Optional[str] = None
+) -> Dict[str, Any]:
+    """Formats a budget Notification object from the AWS API response.
+
+    Args:
+        notification: The raw Notification object from the AWS API.
+        budget_name: The budget this notification belongs to. Stamped onto the result so a
+            flattened account-wide list stays attributable to its budget.
+    """
+    formatted = {
         'notification_type': notification.get('NotificationType'),
         'comparison_operator': notification.get('ComparisonOperator'),
         'threshold': notification.get('Threshold'),
         'threshold_type': notification.get('ThresholdType'),
         'notification_state': notification.get('NotificationState'),
     }
+    if budget_name is not None:
+        formatted['budget_name'] = budget_name
+    return formatted
