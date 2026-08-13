@@ -2255,7 +2255,7 @@ async def main_async(args):
 
     # Start the run under 'off'. Bootstrapping (provisioning the least-privilege
     # role) connects as the master user (an rds_superuser member), which the
-    # 'enforce' default would reject. Once a least-privilege role is provisioned
+    # 'enforce' policy would reject. Once a least-privilege role is provisioned
     # for a cluster, its suites run under 'enforce' as that role (see
     # _apply_identity); clusters without one (e.g. serverless in the express-only
     # setup) keep connecting as master under 'off'.
@@ -2473,8 +2473,9 @@ async def main_async(args):
 
         # Provision a dedicated least-privilege role for the EXPRESS cluster so
         # the functional and security suites authenticate as a non-superuser
-        # role under the default 'enforce' policy (mirroring the recommended
-        # production setup). Express-only for now; the serverless cluster
+        # role under the 'enforce' policy (set explicitly by _apply_identity;
+        # mirroring the recommended production setup). Express-only for now;
+        # the serverless cluster
         # (opt-in) still connects as the master user under 'off'. Provisioning
         # runs under 'off' (it connects as master to run DDL). On failure the
         # affected suites degrade to the master/off path and the failure is
@@ -2507,7 +2508,8 @@ async def main_async(args):
         # the provisioning DDL, then pin the lp secret so every serverless
         # cell (RDS_API always; PG_WIRE_PROTOCOL / PG_WIRE_IAM_PROTOCOL when
         # --test-non-express-cluster) authenticates as the non-superuser role
-        # under the default 'enforce' policy. The lp secret (username +
+        # under the 'enforce' policy (set explicitly by _apply_identity). The
+        # lp secret (username +
         # password) covers RDS_API and PG_WIRE_PROTOCOL; the PG_WIRE_IAM cell
         # additionally needs an rds-db:connect grant, so we request lp IAM
         # setup only when --test-non-express-cluster will exercise it (avoids

@@ -1403,8 +1403,9 @@ def main():
             )
 
             # Validate the database connection: connectivity plus the
-            # least-privilege guardrail. Under the default 'enforce' policy a
-            # superuser / rds_superuser connection aborts startup.
+            # least-privilege guardrail. Under 'enforce' a superuser /
+            # rds_superuser connection aborts startup; under the default
+            # 'warn' it is allowed with a logged warning.
             if db_connection:
                 try:
                     asyncio.run(validate_connection(db_connection, privilege_check_policy))
