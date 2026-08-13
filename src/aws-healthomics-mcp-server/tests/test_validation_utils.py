@@ -1912,166 +1912,152 @@ class TestValidateDefinitionSources:
         mock_ctx.error.assert_called_once()
 
 
-
-
 class TestAutoZipWrapping:
-    """Tests for auto-wrapping non-ZIP definition_source into a ZIP archive."""
+    """Tests for wrapping a bare workflow definition file into a ZIP archive."""
+
+    @staticmethod
+    def _resolved(content, input_type, source):
+        """Build a ResolvedContent stand-in for the content resolver."""
+        from awslabs.aws_healthomics_mcp_server.utils.content_resolver import ResolvedContent
+
+        return ResolvedContent(content=content, input_type=input_type, source=source)
+
+    @staticmethod
+    def _make_zip(name='main.wdl', body='version 1.0\nworkflow hello {}'):
+        """Build a valid single-entry ZIP archive."""
+        import io
+        import zipfile
+
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr(name, body)
+        buffer.seek(0)
+        return buffer.read()
 
     @pytest.mark.asyncio
-    async def test_single_wdl_file_auto_wrapped(self):
-        """Test that a bare WDL file is automatically wrapped into a ZIP."""
+    async def test_local_wdl_file_wrapped_with_original_filename(self):
+        """A bare .wdl file path is wrapped, preserving its filename."""
+        import io
+        import zipfile
+        from awslabs.aws_healthomics_mcp_server.utils.content_resolver import ContentInputType
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_definition_sources,
         )
-        from awslabs.aws_healthomics_mcp_server.utils.content_resolver import (
-            ContentInputType,
-            ResolvedContent,
-        )
-        import zipfile
-        import io
 
-        mock_ctx = AsyncMock()
-        wdl_content = b'version 1.0\nworkflow hello {}'
-
+        wdl = b'version 1.1\nworkflow hello {}'
         with patch(
             'awslabs.aws_healthomics_mcp_server.utils.validation_utils.resolve_single_content',
-        ) as mock_resolve:
-            mock_resolve.return_value = ResolvedContent(
-                content=wdl_content,
-                input_type=ContentInputType.LOCAL_FILE,
-                source='/path/to/my_workflow.wdl',
-            )
-            result = await validate_definition_sources(
-                mock_ctx,
+            return_value=self._resolved(
+                wdl, ContentInputType.LOCAL_FILE, '/path/to/my_workflow.wdl'
+            ),
+        ):
+            definition_zip, _, _ = await validate_definition_sources(
+                AsyncMock(),
                 definition_source='/path/to/my_workflow.wdl',
                 definition_uri=None,
                 definition_repository=None,
             )
 
-        definition_zip = result[0]
         assert definition_zip is not None
-        # Verify it is a valid ZIP
-        assert definition_zip[:4] == b'PK\x03\x04'
-        # Verify the ZIP contains the file with correct name
-        zf = zipfile.ZipFile(io.BytesIO(definition_zip))
-        assert 'my_workflow.wdl' in zf.namelist()
-        assert zf.read('my_workflow.wdl') == wdl_content
+        archive = zipfile.ZipFile(io.BytesIO(definition_zip))
+        assert archive.namelist() == ['my_workflow.wdl']
+        assert archive.read('my_workflow.wdl') == wdl
 
     @pytest.mark.asyncio
-    async def test_inline_content_auto_wrapped_as_main_wdl(self):
-        """Test that inline (non-file) content is wrapped with filename main.wdl."""
+    async def test_s3_nextflow_file_wrapped_with_original_filename(self):
+        """A bare .nf file behind an S3 URI is wrapped, preserving its filename."""
+        import io
+        import zipfile
+        from awslabs.aws_healthomics_mcp_server.utils.content_resolver import ContentInputType
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_definition_sources,
         )
-        from awslabs.aws_healthomics_mcp_server.utils.content_resolver import (
-            ContentInputType,
-            ResolvedContent,
-        )
-        import zipfile
-        import io
 
-        mock_ctx = AsyncMock()
-        wdl_content = b'version 1.1\nworkflow test_wf {}'
-
+        uri = 's3://bucket/workflows/pipeline.nf'
         with patch(
             'awslabs.aws_healthomics_mcp_server.utils.validation_utils.resolve_single_content',
-        ) as mock_resolve:
-            mock_resolve.return_value = ResolvedContent(
-                content=wdl_content,
-                input_type=ContentInputType.INLINE_CONTENT,
-                source='version 1.1...',
-            )
-            result = await validate_definition_sources(
-                mock_ctx,
-                definition_source='version 1.1\nworkflow test_wf {}',
+            return_value=self._resolved(b'workflow {}', ContentInputType.S3_URI, uri),
+        ):
+            definition_zip, _, _ = await validate_definition_sources(
+                AsyncMock(),
+                definition_source=uri,
                 definition_uri=None,
                 definition_repository=None,
             )
 
-        definition_zip = result[0]
         assert definition_zip is not None
-        assert definition_zip[:4] == b'PK\x03\x04'
-        zf = zipfile.ZipFile(io.BytesIO(definition_zip))
-        assert 'main.wdl' in zf.namelist()
+        archive = zipfile.ZipFile(io.BytesIO(definition_zip))
+        assert archive.namelist() == ['pipeline.nf']
 
     @pytest.mark.asyncio
-    async def test_existing_zip_not_rewrapped(self):
-        """Test that content already in ZIP format is not double-wrapped."""
+    async def test_zip_file_path_not_rewrapped(self):
+        """A path to an existing ZIP archive is passed through untouched."""
+        from awslabs.aws_healthomics_mcp_server.utils.content_resolver import ContentInputType
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_definition_sources,
         )
-        from awslabs.aws_healthomics_mcp_server.utils.content_resolver import (
-            ContentInputType,
-            ResolvedContent,
-        )
-        import zipfile
-        import io
 
-        mock_ctx = AsyncMock()
-        # Create a valid ZIP
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr('main.wdl', 'version 1.0\nworkflow hello {}')
-        zip_buffer.seek(0)
-        zip_bytes = zip_buffer.read()
-
+        zip_bytes = self._make_zip()
         with patch(
             'awslabs.aws_healthomics_mcp_server.utils.validation_utils.resolve_single_content',
-        ) as mock_resolve:
-            mock_resolve.return_value = ResolvedContent(
-                content=zip_bytes,
-                input_type=ContentInputType.LOCAL_FILE,
-                source='/path/to/workflow.zip',
-            )
-            result = await validate_definition_sources(
-                mock_ctx,
+            return_value=self._resolved(
+                zip_bytes, ContentInputType.LOCAL_FILE, '/path/to/workflow.zip'
+            ),
+        ):
+            definition_zip, _, _ = await validate_definition_sources(
+                AsyncMock(),
                 definition_source='/path/to/workflow.zip',
                 definition_uri=None,
                 definition_repository=None,
             )
 
-        definition_zip = result[0]
-        assert definition_zip is not None
-        # Should be the same ZIP, not wrapped again
         assert definition_zip == zip_bytes
 
     @pytest.mark.asyncio
-    async def test_s3_uri_single_file_auto_wrapped(self):
-        """Test that a single file from S3 is auto-wrapped with default name."""
+    async def test_corrupt_zip_file_path_not_wrapped(self):
+        """A corrupt .zip file is left alone so the service still reports the error."""
+        from awslabs.aws_healthomics_mcp_server.utils.content_resolver import ContentInputType
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_definition_sources,
         )
-        from awslabs.aws_healthomics_mcp_server.utils.content_resolver import (
-            ContentInputType,
-            ResolvedContent,
-        )
-        import zipfile
-        import io
 
-        mock_ctx = AsyncMock()
-        wdl_content = b'version 1.0\nworkflow s3_wf {}'
-
+        corrupt = b'this is not a zip archive'
         with patch(
             'awslabs.aws_healthomics_mcp_server.utils.validation_utils.resolve_single_content',
-        ) as mock_resolve:
-            mock_resolve.return_value = ResolvedContent(
-                content=wdl_content,
-                input_type=ContentInputType.S3_URI,
-                source='s3://bucket/workflows/pipeline.wdl',
-            )
-            result = await validate_definition_sources(
-                mock_ctx,
-                definition_source='s3://bucket/workflows/pipeline.wdl',
+            return_value=self._resolved(
+                corrupt, ContentInputType.LOCAL_FILE, '/path/to/broken.zip'
+            ),
+        ):
+            definition_zip, _, _ = await validate_definition_sources(
+                AsyncMock(),
+                definition_source='/path/to/broken.zip',
                 definition_uri=None,
                 definition_repository=None,
             )
 
-        definition_zip = result[0]
-        assert definition_zip is not None
-        assert definition_zip[:4] == b'PK\x03\x04'
-        zf = zipfile.ZipFile(io.BytesIO(definition_zip))
-        # S3 URI is not 'local_file' type, so defaults to 'main.wdl'
-        assert 'main.wdl' in zf.namelist()
+        assert definition_zip == corrupt
+
+    @pytest.mark.asyncio
+    async def test_inline_base64_content_not_wrapped(self):
+        """Inline content is documented as already being a ZIP and is not wrapped."""
+        from awslabs.aws_healthomics_mcp_server.utils.content_resolver import ContentInputType
+        from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+            validate_definition_sources,
+        )
+
+        raw = b'test workflow content'
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.utils.validation_utils.resolve_single_content',
+            return_value=self._resolved(raw, ContentInputType.INLINE_CONTENT, 'dGVzdA=='),
+        ):
+            definition_zip, _, _ = await validate_definition_sources(
+                AsyncMock(),
+                definition_source='dGVzdA==',
+                definition_uri=None,
+                definition_repository=None,
+            )
+
+        assert definition_zip == raw
 
 
 class TestValidateContainerRegistryParams:

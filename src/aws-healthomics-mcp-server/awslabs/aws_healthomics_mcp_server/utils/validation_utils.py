@@ -14,14 +14,27 @@
 
 """Validation utilities for workflow management."""
 
+import io
 import posixpath
+import zipfile
 from awslabs.aws_healthomics_mcp_server.models import ContainerRegistryMap, DefinitionRepository
-from awslabs.aws_healthomics_mcp_server.utils.content_resolver import resolve_single_content
+from awslabs.aws_healthomics_mcp_server.utils.content_resolver import (
+    ContentInputType,
+    resolve_single_content,
+)
 from enum import Enum
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import ValidationError
 from typing import Any, Dict, List, Optional, Tuple
+
+
+# Local file header signature that marks the start of a ZIP archive
+ZIP_MAGIC_NUMBER = b'PK\x03\x04'
+
+# File extensions that identify a single workflow definition file, which HealthOmics
+# requires to be packaged into a ZIP archive before it can be registered
+WORKFLOW_DEFINITION_EXTENSIONS = ('.wdl', '.nf', '.cwl')
 
 
 class ReadmeInputType(Enum):
@@ -164,6 +177,55 @@ def parse_id_list(value: Any) -> list:
     )
 
 
+def _maybe_wrap_definition_in_zip(
+    content: bytes,
+    source: str,
+    input_type: ContentInputType,
+) -> bytes:
+    """Wrap a bare workflow definition file in a ZIP archive when required.
+
+    HealthOmics requires the workflow definition to be a ZIP archive. When
+    ``definition_source`` points at a single workflow definition file, wrap it so the
+    caller does not have to package it first.
+
+    Wrapping is applied only when all of the following hold:
+
+    - the source is file-backed (a local path or an S3 URI), since inline base64
+      content is documented as already being a ZIP;
+    - the file name ends in a workflow definition extension (``.wdl``, ``.nf`` or
+      ``.cwl``), so that a corrupt ``.zip`` still surfaces as an error instead of
+      being silently re-wrapped;
+    - the content does not already begin with the ZIP magic number.
+
+    Args:
+        content: The resolved definition bytes
+        source: The original ``definition_source`` value
+        input_type: How ``source`` was classified by the content resolver
+
+    Returns:
+        The original bytes, or a single-entry ZIP archive containing them
+    """
+    if input_type not in (ContentInputType.LOCAL_FILE, ContentInputType.S3_URI):
+        return content
+
+    filename = posixpath.basename(source.replace('\\', '/'))
+    if not filename.lower().endswith(WORKFLOW_DEFINITION_EXTENSIONS):
+        return content
+
+    if content[:4] == ZIP_MAGIC_NUMBER:
+        return content
+
+    logger.info(
+        f'definition_source "{source}" is a bare workflow definition file rather than a '
+        f'ZIP archive; wrapping it as "{filename}" so HealthOmics can accept it'
+    )
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(filename, content)
+    buffer.seek(0)
+    return buffer.read()
+
+
 async def validate_definition_sources(
     ctx: Context,
     definition_source: Optional[str],
@@ -266,25 +328,21 @@ async def validate_definition_sources(
             await ctx.error(error_message)
             raise ValueError(error_message) from e
 
-        # Auto-wrap single workflow files into a ZIP if the resolved content is not a ZIP archive
-        if definition_zip and definition_zip[:4] != b'PK\x03\x04':
-            import io
-            import os
-            import zipfile as _zipfile
-
-            if resolved.input_type.value == 'local_file':
-                filename = os.path.basename(definition_source)
-            else:
-                filename = 'main.wdl'
-            logger.info(
-                f'definition_source is not a ZIP archive; auto-wrapping as "{filename}" '
-                f'(source type: {resolved.input_type.value})'
+        # Auto-wrap a bare workflow definition file into a ZIP.
+        #
+        # HealthOmics requires definitionZip to be a ZIP archive, so pointing
+        # definition_source at a single .wdl/.nf/.cwl file otherwise fails
+        # asynchronously with 'Invalid zip file'.
+        #
+        # This only applies to file-backed sources (local paths and S3 URIs) whose
+        # extension identifies them as a workflow definition. Inline base64 content is
+        # left untouched, because that input is documented as already being a ZIP, and
+        # a file with a .zip extension is left untouched so that a corrupt archive
+        # still surfaces as an error rather than being silently re-wrapped.
+        if definition_zip is not None:
+            definition_zip = _maybe_wrap_definition_in_zip(
+                definition_zip, definition_source, resolved.input_type
             )
-            zip_buffer = io.BytesIO()
-            with _zipfile.ZipFile(zip_buffer, 'w', _zipfile.ZIP_DEFLATED) as zf:
-                zf.writestr(filename, definition_zip)
-            zip_buffer.seek(0)
-            definition_zip = zip_buffer.read()
 
     # Validate S3 URI format if provided
     if definition_uri is not None:
