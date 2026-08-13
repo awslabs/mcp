@@ -170,6 +170,21 @@ class TestValidateConnectionEnforce:
         assert 'a member of rds_superuser' not in str(exc.value)
 
     @pytest.mark.asyncio
+    async def test_all_flags_named_in_message(self):
+        """When a role has every over-privileged attribute, each flag is named.
+
+        Asserts each flag fragment loosely (substring), not the whole sentence,
+        so the test isn't brittle to message rewording.
+        """
+        conn = FakeConnection(response=privilege_response(True, True, is_bypassrls=True))
+        with pytest.raises(ConnectionValidationError) as exc:
+            await validate_connection(conn, PRIVILEGE_CHECK_ENFORCE)
+        msg = str(exc.value)
+        assert 'a superuser' in msg
+        assert 'a member of rds_superuser' in msg
+        assert 'a BYPASSRLS role' in msg
+
+    @pytest.mark.asyncio
     async def test_least_privilege_role_allowed(self):
         """A non-superuser role passes without raising."""
         conn = FakeConnection(response=privilege_response(False, False))

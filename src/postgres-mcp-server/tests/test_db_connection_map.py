@@ -285,6 +285,15 @@ class TestDBConnectionMap:
         entries = json.loads(connection_map.get_keys_json())
         assert entries[0]['effective_is_over_privileged'] is None
 
+    def test_get_keys_includes_effective_is_over_privileged_false(self, connection_map):
+        """A real False flag is surfaced as False (not coerced to None)."""
+        conn = MagicMock()
+        conn.effective_is_over_privileged = False
+        connection_map.set(ConnectionMethod.RDS_API, 'c', 'e', 'test-db', conn)
+
+        entries = json.loads(connection_map.get_keys_json())
+        assert entries[0]['effective_is_over_privileged'] is False
+
     def test_remove_connection_only_removes_matching_object(self, connection_map):
         """remove_connection() leaves other connections intact."""
         conn_a = MagicMock()

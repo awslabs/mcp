@@ -19,7 +19,10 @@ from awslabs.postgres_mcp_server.connection.db_connection_map import ConnectionM
 from awslabs.postgres_mcp_server.server import (
     ConnectionValidationError,
     DummyCtx,
+    async_job_status,
     connect_to_database,
+    create_cluster,
+    create_cluster_worker,
     main,
     run_query,
 )
@@ -506,6 +509,142 @@ class TestConnectToDatabaseErrorHandling:
         finally:
             db_connection_map.remove_connection(cached_conn)
 
+    @pytest.mark.asyncio
+    async def test_warn_allows_and_retains_over_privileged_connection(self):
+        """Under warn, a fresh over-privileged connection is allowed and retained.
+
+        'warn' relaxes only the privilege check, so connect_to_database must NOT
+        evict or close a superuser / rds_superuser / BYPASSRLS connection — it
+        logs a warning and leaves the connection cached and usable.
+        """
+        from awslabs.postgres_mcp_server.server import db_connection_map
+
+        method = ConnectionMethod.RDS_API
+        cluster = 'test-cluster-warn'
+        caller_endpoint = ''
+        resolved_endpoint = 'writer.warn.example.com'
+        database = 'testdb'
+
+        mock_connection = MagicMock()
+        mock_connection.execute_query = AsyncMock(
+            return_value={
+                'columnMetadata': [
+                    {'name': 'is_superuser'},
+                    {'name': 'is_bypassrls'},
+                    {'name': 'is_rds_superuser'},
+                ],
+                'records': [
+                    [
+                        {'booleanValue': True},
+                        {'booleanValue': False},
+                        {'booleanValue': False},
+                    ]
+                ],
+            }
+        )
+        mock_connection.close = AsyncMock()
+
+        def fake_create(**kwargs):
+            db_connection_map.set(method, cluster, resolved_endpoint, database, mock_connection)
+            return (mock_connection, '{"cluster_identifier": "test-cluster-warn"}')
+
+        db_connection_map.remove_connection(mock_connection)
+        try:
+            with (
+                patch(
+                    'awslabs.postgres_mcp_server.server.internal_create_connection',
+                    side_effect=fake_create,
+                ),
+                patch('awslabs.postgres_mcp_server.server.privilege_check_policy', 'warn'),
+            ):
+                result = await connect_to_database(
+                    region='us-east-1',
+                    database_type=DatabaseType.APG,
+                    connection_method=method,
+                    cluster_identifier=cluster,
+                    db_endpoint=caller_endpoint,
+                    port=5432,
+                    database=database,
+                )
+
+            # Allowed (not a failure); the probe ran; the connection is NOT
+            # closed and remains cached.
+            assert '"status": "Failed"' not in result
+            mock_connection.execute_query.assert_awaited()
+            mock_connection.close.assert_not_awaited()
+            assert (
+                db_connection_map.get(method, cluster, resolved_endpoint, database)
+                is mock_connection
+            )
+            # Recorded as over-privileged for diagnostics.
+            assert mock_connection.effective_is_over_privileged is True
+        finally:
+            db_connection_map.remove_connection(mock_connection)
+
+    @pytest.mark.asyncio
+    async def test_clean_role_validated_and_retained_under_enforce(self):
+        """A fresh clean role passes the real guardrail under enforce and is retained."""
+        from awslabs.postgres_mcp_server.server import db_connection_map
+
+        method = ConnectionMethod.RDS_API
+        cluster = 'test-cluster-clean'
+        resolved_endpoint = 'writer.clean.example.com'
+        database = 'testdb'
+
+        mock_connection = MagicMock()
+        mock_connection.execute_query = AsyncMock(
+            return_value={
+                'columnMetadata': [
+                    {'name': 'is_superuser'},
+                    {'name': 'is_bypassrls'},
+                    {'name': 'is_rds_superuser'},
+                ],
+                'records': [
+                    [
+                        {'booleanValue': False},
+                        {'booleanValue': False},
+                        {'booleanValue': False},
+                    ]
+                ],
+            }
+        )
+        mock_connection.close = AsyncMock()
+
+        def fake_create(**kwargs):
+            db_connection_map.set(method, cluster, resolved_endpoint, database, mock_connection)
+            return (mock_connection, '{"cluster_identifier": "test-cluster-clean"}')
+
+        db_connection_map.remove_connection(mock_connection)
+        try:
+            with (
+                patch(
+                    'awslabs.postgres_mcp_server.server.internal_create_connection',
+                    side_effect=fake_create,
+                ),
+                patch('awslabs.postgres_mcp_server.server.privilege_check_policy', 'enforce'),
+            ):
+                result = await connect_to_database(
+                    region='us-east-1',
+                    database_type=DatabaseType.APG,
+                    connection_method=method,
+                    cluster_identifier=cluster,
+                    db_endpoint=resolved_endpoint,
+                    port=5432,
+                    database=database,
+                )
+
+            # Passed validation, kept in the map, not closed.
+            assert '"status": "Failed"' not in result
+            mock_connection.execute_query.assert_awaited()
+            mock_connection.close.assert_not_awaited()
+            assert (
+                db_connection_map.get(method, cluster, resolved_endpoint, database)
+                is mock_connection
+            )
+            assert mock_connection.effective_is_over_privileged is False
+        finally:
+            db_connection_map.remove_connection(mock_connection)
+
 
 class TestDummyCtx:
     """Tests for DummyCtx class."""
@@ -608,3 +747,108 @@ class TestMainStartupValidation:
 
         assert exc.value.code == 1
         mock_run.assert_not_called()
+
+
+class TestCreateClusterBootstrapExemption:
+    """Guard the create_cluster bootstrap exemption from the guardrail.
+
+    A cluster the MCP just created must be immediately usable: it only has the
+    rds_superuser master and no least-privilege role yet, so create_cluster /
+    create_cluster_worker cache that master connection WITHOUT running the
+    least-privilege guardrail. These tests pin that behavior so a newly created
+    cluster is never auto-rejected (enforce) or auto-warned (warn) — even under
+    the strictest policy, validate_connection must not be invoked on the
+    bootstrap connection.
+
+    NOTE: this is the current/interim bootstrap behavior. It is expected to
+    change with the tracked validate-on-create-with-exemption follow-up; update
+    these tests when that lands.
+    """
+
+    def test_create_cluster_express_does_not_invoke_guardrail_under_enforce(self):
+        """The express create_cluster bootstrap connection is cached unvalidated."""
+        mock_conn = MagicMock()
+        properties = {
+            'MasterUsername': 'postgres',
+            'DbClusterResourceId': 'cluster-BOOTSTRAP',
+            'Endpoint': 'writer.bootstrap.example.com',
+            'Port': 5432,
+        }
+        with (
+            patch('awslabs.postgres_mcp_server.server.internal_create_express_cluster'),
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_cluster_properties',
+                return_value=properties,
+            ),
+            patch('awslabs.postgres_mcp_server.server.setup_aurora_iam_policy_for_current_user'),
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_create_connection',
+                return_value=(mock_conn, '{}'),
+            ) as mock_icc,
+            patch(
+                'awslabs.postgres_mcp_server.server.validate_connection', new=AsyncMock()
+            ) as mock_validate,
+            # Strictest policy: even here the bootstrap connection must not be
+            # validated/rejected.
+            patch('awslabs.postgres_mcp_server.server.privilege_check_policy', 'enforce'),
+        ):
+            result = create_cluster(
+                region='us-west-2',
+                cluster_identifier='mcp-express-bootstrap',
+                with_express_configuration=True,
+            )
+
+        result_dict = json.loads(result)
+        assert result_dict['status'] == 'Completed'
+        # The bootstrap connection was established ...
+        mock_icc.assert_called_once()
+        # ... but the guardrail was never run on it (no reject, no warn).
+        mock_validate.assert_not_called()
+
+    def test_create_cluster_worker_does_not_invoke_guardrail_under_enforce(self):
+        """The serverless create_cluster_worker bootstrap connection is unvalidated."""
+        job_id = 'job-bootstrap-guard'
+        cluster_result = {
+            'MasterUsername': 'postgres',
+            'DbClusterResourceId': 'cluster-BOOTSTRAP',
+            'Endpoint': 'writer.bootstrap.example.com',
+        }
+        mock_conn = MagicMock()
+        # create_cluster_worker updates async_job_status[job_id] in place, so it
+        # must be pre-registered (create_cluster does this before spawning it).
+        async_job_status[job_id] = {'state': 'pending', 'result': None}
+        try:
+            with (
+                patch(
+                    'awslabs.postgres_mcp_server.server.internal_create_serverless_cluster',
+                    return_value=cluster_result,
+                ),
+                patch(
+                    'awslabs.postgres_mcp_server.server.setup_aurora_iam_policy_for_current_user'
+                ),
+                patch(
+                    'awslabs.postgres_mcp_server.server.internal_create_connection',
+                    return_value=(mock_conn, '{}'),
+                ) as mock_icc,
+                patch(
+                    'awslabs.postgres_mcp_server.server.validate_connection', new=AsyncMock()
+                ) as mock_validate,
+                patch('awslabs.postgres_mcp_server.server.privilege_check_policy', 'enforce'),
+            ):
+                create_cluster_worker(
+                    job_id=job_id,
+                    region='us-west-2',
+                    database_type=DatabaseType.APG,
+                    connection_method=ConnectionMethod.RDS_API,
+                    cluster_identifier='mcp-serverless-bootstrap',
+                    engine_version='16.9',
+                    database='postgres',
+                )
+
+            # Cluster creation succeeded and the bootstrap connection was cached,
+            assert async_job_status[job_id]['state'] == 'succeeded'
+            mock_icc.assert_called_once()
+            # but the guardrail was never run on it (no reject, no warn).
+            mock_validate.assert_not_called()
+        finally:
+            async_job_status.pop(job_id, None)
