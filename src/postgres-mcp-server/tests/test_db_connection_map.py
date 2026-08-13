@@ -263,6 +263,26 @@ class TestDBConnectionMap:
         """remove_connection() returns False when the connection isn't in the map."""
         assert connection_map.remove_connection(mock_connection) is False
 
+    # ==================== effective_is_superuser diagnostic ====================
+
+    def test_get_keys_includes_effective_is_superuser_true(self, connection_map):
+        """get_keys_json surfaces a connection's effective_is_superuser flag."""
+        conn = MagicMock()
+        conn.effective_is_superuser = True
+        connection_map.set(ConnectionMethod.RDS_API, 'c', 'e', 'test-db', conn)
+
+        entries = json.loads(connection_map.get_keys_json())
+        assert entries[0]['effective_is_superuser'] is True
+
+    def test_get_keys_effective_is_superuser_defaults_none(self, connection_map, mock_connection):
+        """A connection without a real bool flag is reported as None (JSON-safe)."""
+        # mock_connection.effective_is_superuser auto-creates a MagicMock; the
+        # map coerces any non-bool to None so the output stays serializable.
+        connection_map.set(ConnectionMethod.RDS_API, 'c', 'e', 'test-db', mock_connection)
+
+        entries = json.loads(connection_map.get_keys_json())
+        assert entries[0]['effective_is_superuser'] is None
+
     def test_remove_connection_only_removes_matching_object(self, connection_map):
         """remove_connection() leaves other connections intact."""
         conn_a = MagicMock()

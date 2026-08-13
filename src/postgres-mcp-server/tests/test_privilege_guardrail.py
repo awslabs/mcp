@@ -14,11 +14,12 @@
 
 """Tests for the least-privilege post-connect guardrail (validate_connection).
 
-The guardrail rejects (under the default 'enforce' policy) any connection
-whose Postgres role is a superuser or a member of rds_superuser. It is
-connection-agnostic: it only calls ``execute_query`` on the established
-connection, so a single fake connection exercises the same contract that
-both PsycopgPoolConnection and RDSDataAPIConnection satisfy.
+Under the 'enforce' policy the guardrail rejects any connection whose Postgres
+role is a superuser or a member of rds_superuser; under the default 'warn'
+policy it logs and allows. It is connection-agnostic: it only calls
+``execute_query`` on the established connection, so a single fake connection
+exercises the same contract that both PsycopgPoolConnection and
+RDSDataAPIConnection satisfy.
 """
 
 import pytest
@@ -92,8 +93,18 @@ class FakeConnection(AbstractDBConnection):
             return False
 
 
+class TestDefaultPolicy:
+    """The module default policy is 'warn' (non-breaking; enforce is opt-in)."""
+
+    def test_default_policy_is_warn(self):
+        """privilege_check_policy defaults to warn so upgrades/bootstrap don't break."""
+        import awslabs.postgres_mcp_server.server as server
+
+        assert server.privilege_check_policy == server.PRIVILEGE_CHECK_WARN
+
+
 class TestValidateConnectionEnforce:
-    """Default 'enforce' policy: reject superuser / rds_superuser, fail-closed."""
+    """'enforce' policy: reject superuser / rds_superuser, fail-closed."""
 
     @pytest.mark.asyncio
     async def test_superuser_rejected(self):
@@ -302,3 +313,48 @@ class TestPrivilegeQueryShape:
         assert 'current_user' in q
         # Uses EXISTS so a missing rds_superuser role does not error.
         assert 'exists' in q
+
+
+class TestEffectiveIsSuperuserDiagnostic:
+    """validate_connection records the probe result on the connection (diagnostic).
+
+    The attribute is set once the privilege probe runs (warn/enforce), and left
+    None when the probe is skipped (off) or could not be performed. It is
+    observability only and never gates a security decision.
+    """
+
+    @pytest.mark.asyncio
+    async def test_superuser_sets_flag_true_under_warn(self):
+        """Under warn, an over-privileged role is allowed and flagged True."""
+        conn = FakeConnection(response=privilege_response(True, False))
+        await validate_connection(conn, PRIVILEGE_CHECK_WARN)
+        assert conn.effective_is_superuser is True
+
+    @pytest.mark.asyncio
+    async def test_rds_superuser_sets_flag_true_before_enforce_raise(self):
+        """The flag is recorded even when enforce rejects the connection."""
+        conn = FakeConnection(response=privilege_response(False, True))
+        with pytest.raises(ConnectionValidationError):
+            await validate_connection(conn, PRIVILEGE_CHECK_ENFORCE)
+        assert conn.effective_is_superuser is True
+
+    @pytest.mark.asyncio
+    async def test_clean_role_sets_flag_false(self):
+        """A non-superuser role is flagged False."""
+        conn = FakeConnection(response=privilege_response(False, False))
+        await validate_connection(conn, PRIVILEGE_CHECK_ENFORCE)
+        assert conn.effective_is_superuser is False
+
+    @pytest.mark.asyncio
+    async def test_off_leaves_flag_none(self):
+        """Under off the probe is skipped, so the flag stays None (undetermined)."""
+        conn = FakeConnection(response=privilege_response(True, True))
+        await validate_connection(conn, PRIVILEGE_CHECK_OFF)
+        assert conn.effective_is_superuser is None
+
+    @pytest.mark.asyncio
+    async def test_unverifiable_shape_leaves_flag_none(self):
+        """An unverifiable probe result leaves the flag None (not determined)."""
+        conn = FakeConnection(response={'columnMetadata': [], 'records': []})
+        await validate_connection(conn, PRIVILEGE_CHECK_WARN)
+        assert conn.effective_is_superuser is None

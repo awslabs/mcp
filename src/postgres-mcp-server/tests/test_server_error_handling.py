@@ -242,7 +242,7 @@ class TestConnectToDatabaseErrorHandling:
         """
         # Non-pool connection so initialize_pool is skipped; execute_query
         # reports a superuser role, which validate_connection rejects under the
-        # default 'enforce' policy.
+        # 'enforce' policy (patched below, since the default is now 'warn').
         mock_connection = MagicMock()
         mock_connection.execute_query = AsyncMock(
             return_value={

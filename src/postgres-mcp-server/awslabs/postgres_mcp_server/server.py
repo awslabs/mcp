@@ -69,15 +69,18 @@ query_injection_risk_key = 'Your query contains risky injection patterns'
 readonly_query = True
 
 # Least-privilege guardrail policy for post-connect validation.
-#   'enforce' (default): reject a connection whose Postgres role is a
-#       superuser or a member of rds_superuser.
-#   'warn': log a warning but allow the connection.
+#   'warn' (default): log a warning but allow a connection whose Postgres role
+#       is a superuser or a member of rds_superuser. Chosen as the default so
+#       upgrades and the create_cluster bootstrap (which connects as the
+#       rds_superuser master before any least-privilege role exists) don't
+#       break; operators are encouraged to set 'enforce' in production.
+#   'enforce': reject such an over-privileged connection (fail-closed).
 #   'off': skip the privilege check entirely (connectivity only).
 # Set from the --privilege_check CLI arg in main().
 PRIVILEGE_CHECK_ENFORCE = 'enforce'
 PRIVILEGE_CHECK_WARN = 'warn'
 PRIVILEGE_CHECK_OFF = 'off'
-privilege_check_policy = PRIVILEGE_CHECK_ENFORCE
+privilege_check_policy = PRIVILEGE_CHECK_WARN
 
 # Per-target Secrets Manager ARN overrides configured at server startup via
 # repeatable --secret_arn flags. Lookups are by:
@@ -241,6 +244,10 @@ async def validate_connection(db_connection: AbstractDBConnection, policy: str) 
 
     is_superuser = bool(rows[0].get('is_superuser'))
     is_rds_superuser = bool(rows[0].get('is_rds_superuser'))
+
+    # Record the probe result on the connection for diagnostics (observability
+    # only; the enforcement decision below is independent of this attribute).
+    db_connection.effective_is_superuser = is_superuser or is_rds_superuser
 
     if is_superuser or is_rds_superuser:
         flags = []
@@ -1267,12 +1274,13 @@ def main():
     parser.add_argument(
         '--privilege_check',
         choices=[PRIVILEGE_CHECK_ENFORCE, PRIVILEGE_CHECK_WARN, PRIVILEGE_CHECK_OFF],
-        default=PRIVILEGE_CHECK_ENFORCE,
+        default=PRIVILEGE_CHECK_WARN,
         help=(
             'Least-privilege guardrail applied when a database connection is established. '
-            "'enforce' (default) rejects a connection whose Postgres role is a superuser or "
-            "a member of rds_superuser; 'warn' logs a warning but allows it; 'off' skips the "
-            'check. Use a dedicated least-privilege role (see README) rather than relaxing this.'
+            "'warn' (default) logs a warning but allows a connection whose Postgres role is a "
+            "superuser or a member of rds_superuser; 'enforce' rejects it (recommended for "
+            "production); 'off' skips the check. Use a dedicated least-privilege role "
+            '(see README) and set enforce rather than operating as a superuser.'
         ),
     )
     parser.add_argument(
