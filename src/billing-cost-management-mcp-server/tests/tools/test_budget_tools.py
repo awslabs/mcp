@@ -546,3 +546,188 @@ def test_budget_server_initialization():
     instructions = budget_server.instructions
     assert instructions is not None
     assert 'Tools for working with AWS Budgets API' in instructions if instructions else False
+
+
+# ---------------------------------------------------------------------------
+# budget-actions + budget-notifications tools
+# ---------------------------------------------------------------------------
+
+from awslabs.billing_cost_management_mcp_server.tools.budget_tools import (  # noqa: E402
+    budget_actions,
+    budget_notifications,
+    describe_budget_actions,
+    describe_notifications_for_budget,
+    format_action,
+    format_notification,
+)
+
+
+class TestFormatAction:
+    """Tests for format_action / format_action_definition."""
+
+    def test_iam_action_verbatim_identifiers(self):
+        """IAM action identifiers (policy ARN, execution role, roles) survive verbatim."""
+        formatted = format_action(
+            {
+                'ActionId': 'a-1',
+                'BudgetName': 'b1',
+                'ActionType': 'APPLY_IAM_POLICY',
+                'ApprovalModel': 'AUTOMATIC',
+                'ExecutionRoleArn': 'arn:aws:iam::123456789012:role/BudgetRole',
+                'Status': 'STANDBY',
+                'ActionThreshold': {
+                    'ActionThresholdValue': 80.0,
+                    'ActionThresholdType': 'PERCENTAGE',
+                },
+                'Definition': {
+                    'IamActionDefinition': {
+                        'PolicyArn': 'arn:aws:iam::123456789012:policy/DenyExpensive',
+                        'Roles': ['dev-role'],
+                    }
+                },
+                'Subscribers': [
+                    {'SubscriptionType': 'SNS', 'Address': 'arn:aws:sns:us-east-1:123456789012:t'}
+                ],
+            }
+        )
+        assert formatted['action_type'] == 'APPLY_IAM_POLICY'
+        assert formatted['approval_model'] == 'AUTOMATIC'
+        # Load-bearing identifiers must survive verbatim.
+        assert formatted['execution_role_arn'] == 'arn:aws:iam::123456789012:role/BudgetRole'
+        assert (
+            formatted['definition']['iam_action_definition']['policy_arn']
+            == 'arn:aws:iam::123456789012:policy/DenyExpensive'
+        )
+        assert formatted['definition']['iam_action_definition']['roles'] == ['dev-role']
+        assert formatted['action_threshold']['action_threshold_value'] == 80.0
+        assert formatted['subscribers'][0]['address'].endswith(':t')
+
+    def test_scp_and_ssm_definitions(self):
+        """SCP and SSM action definitions map to their snake_case sub-objects."""
+        scp = format_action(
+            {'Definition': {'ScpActionDefinition': {'PolicyId': 'p-abc', 'TargetIds': ['ou-1']}}}
+        )
+        assert scp['definition']['scp_action_definition']['policy_id'] == 'p-abc'
+        ssm = format_action(
+            {
+                'Definition': {
+                    'SsmActionDefinition': {
+                        'ActionSubType': 'STOP_EC2_INSTANCES',
+                        'InstanceIds': ['i-abc'],
+                        'Region': 'us-east-1',
+                    }
+                }
+            }
+        )
+        assert (
+            ssm['definition']['ssm_action_definition']['action_sub_type'] == 'STOP_EC2_INSTANCES'
+        )
+
+
+class TestFormatNotification:
+    """Tests for format_notification."""
+
+    def test_maps_fields(self):
+        """Notification fields map to their snake_case equivalents."""
+        n = format_notification(
+            {
+                'NotificationType': 'ACTUAL',
+                'ComparisonOperator': 'GREATER_THAN',
+                'Threshold': 80.0,
+                'ThresholdType': 'PERCENTAGE',
+                'NotificationState': 'ALARM',
+            }
+        )
+        assert n == {
+            'notification_type': 'ACTUAL',
+            'comparison_operator': 'GREATER_THAN',
+            'threshold': 80.0,
+            'threshold_type': 'PERCENTAGE',
+            'notification_state': 'ALARM',
+        }
+
+
+@pytest.mark.asyncio
+class TestBudgetActionsTool:
+    """The budget-actions tool — always account-scoped, filtered client-side by budget_name."""
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.get_aws_account_id')
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
+    async def test_tool_resolves_account_and_audits(self, mock_create, mock_get_id, mock_context):
+        """The tool resolves the account ID then returns the account-wide action audit."""
+        mock_get_id.return_value = '123456789012'
+        client = MagicMock()
+        mock_create.return_value = client
+        client.describe_budget_actions_for_account.return_value = {
+            'Actions': [{'BudgetName': 'b1', 'ActionId': 'a1'}]
+        }
+        result = await budget_actions(mock_context)
+        assert result['status'] == 'success'
+        assert result['data']['actions'][0]['budget_name'] == 'b1'
+        assert 'budget_name' not in result['data']
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
+    async def test_audit_paginates_and_keeps_budget_name(self, mock_create, mock_context):
+        """The account audit paginates and preserves each action's budget name."""
+        client = MagicMock()
+        mock_create.return_value = client
+        client.describe_budget_actions_for_account.side_effect = [
+            {'Actions': [{'BudgetName': 'b1', 'ActionId': 'a1'}], 'NextToken': 'tok'},
+            {'Actions': [{'BudgetName': 'b2', 'ActionId': 'a2'}]},
+        ]
+        result = await describe_budget_actions(mock_context, '123456789012', None, 100)
+        assert [a['budget_name'] for a in result['data']['actions']] == ['b1', 'b2']
+        assert result['data']['total_count'] == 2
+        assert client.describe_budget_actions_for_account.call_count == 2
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
+    async def test_single_budget_filters_account_result(self, mock_create, mock_context):
+        """Passing budget_name filters the account-wide result to that budget."""
+        client = MagicMock()
+        mock_create.return_value = client
+        client.describe_budget_actions_for_account.return_value = {
+            'Actions': [
+                {'BudgetName': 'b1', 'ActionId': 'a1'},
+                {'BudgetName': 'b2', 'ActionId': 'a2'},
+            ]
+        }
+        result = await describe_budget_actions(mock_context, '123456789012', 'b2', 100)
+        assert [a['budget_name'] for a in result['data']['actions']] == ['b2']
+        assert result['data']['budget_name'] == 'b2'
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
+    async def test_empty_actions_is_success_not_error(self, mock_create, mock_context):
+        """A budget with no actions returns an empty list, not an error."""
+        client = MagicMock()
+        mock_create.return_value = client
+        client.describe_budget_actions_for_account.return_value = {'Actions': []}
+        result = await describe_budget_actions(mock_context, '123456789012', None, 100)
+        assert result['status'] == 'success'
+        assert result['data']['actions'] == []
+
+
+@pytest.mark.asyncio
+class TestBudgetNotificationsTool:
+    """The budget-notifications tool — per-budget, budget_name required."""
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.get_aws_account_id')
+    async def test_missing_budget_name_errors(self, mock_get_id, mock_context):
+        """An empty budget_name is rejected with an error envelope."""
+        mock_get_id.return_value = '123456789012'
+        result = await budget_notifications(mock_context, budget_name='')
+        assert result['status'] == 'error'
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
+    async def test_returns_formatted_notifications(self, mock_create, mock_context):
+        """Notifications are returned in the formatted (snake_case) shape."""
+        client = MagicMock()
+        mock_create.return_value = client
+        client.describe_notifications_for_budget.return_value = {
+            'Notifications': [
+                {'NotificationType': 'ACTUAL', 'Threshold': 80.0, 'ThresholdType': 'PERCENTAGE'}
+            ]
+        }
+        result = await describe_notifications_for_budget(mock_context, '123456789012', 'b1', 100)
+        assert result['status'] == 'success'
+        assert result['data']['notifications'][0]['threshold'] == 80.0
+        assert result['data']['total_count'] == 1
