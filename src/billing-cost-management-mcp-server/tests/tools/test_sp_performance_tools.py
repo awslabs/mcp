@@ -627,7 +627,9 @@ class TestGetSavingsPlansCoverage:
         assert request_params['Metrics'] == mock_metrics
         assert request_params['GroupBy'] == mock_group_by
         assert request_params['Filter'] == mock_filter
-        assert request_params['Granularity'] == 'MONTHLY'
+        # Granularity and GroupBy are mutually exclusive for GetSavingsPlansCoverage:
+        # when GroupBy is set, Granularity must not be sent.
+        assert 'Granularity' not in request_params
 
         assert result['status'] == 'success'
 

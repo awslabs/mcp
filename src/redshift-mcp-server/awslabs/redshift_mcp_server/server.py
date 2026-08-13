@@ -39,6 +39,7 @@ from awslabs.redshift_mcp_server.review.executor import review_cluster
 from awslabs.redshift_mcp_server.review.models import ReviewResult
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
+from mcp.types import ToolAnnotations
 from pydantic import Field
 
 
@@ -137,7 +138,21 @@ The server reuses one Redshift Data API session per `cluster:database`:
 )
 
 
-@mcp.tool(name='list_clusters')
+def _read_only_annotations(title: str) -> ToolAnnotations:
+    """Return annotations for tools that only read the caller's AWS environment."""
+    return ToolAnnotations(
+        title=title,
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=True,
+    )
+
+
+@mcp.tool(
+    name='list_clusters',
+    annotations=_read_only_annotations('List Redshift clusters and workgroups'),
+)
 async def list_clusters_tool(ctx: Context) -> list[RedshiftCluster]:
     """List all available Amazon Redshift clusters and serverless workgroups.
 
@@ -196,7 +211,10 @@ async def list_clusters_tool(ctx: Context) -> list[RedshiftCluster]:
         raise
 
 
-@mcp.tool(name='list_databases')
+@mcp.tool(
+    name='list_databases',
+    annotations=_read_only_annotations('List Redshift databases'),
+)
 async def list_databases_tool(
     ctx: Context,
     cluster_identifier: str = Field(
@@ -270,7 +288,10 @@ async def list_databases_tool(
         raise
 
 
-@mcp.tool(name='list_schemas')
+@mcp.tool(
+    name='list_schemas',
+    annotations=_read_only_annotations('List Redshift schemas'),
+)
 async def list_schemas_tool(
     ctx: Context,
     cluster_identifier: str = Field(
@@ -352,7 +373,10 @@ async def list_schemas_tool(
         raise
 
 
-@mcp.tool(name='list_tables')
+@mcp.tool(
+    name='list_tables',
+    annotations=_read_only_annotations('List Redshift tables'),
+)
 async def list_tables_tool(
     ctx: Context,
     cluster_identifier: str = Field(
@@ -441,7 +465,10 @@ async def list_tables_tool(
         raise
 
 
-@mcp.tool(name='list_columns')
+@mcp.tool(
+    name='list_columns',
+    annotations=_read_only_annotations('List Redshift columns'),
+)
 async def list_columns_tool(
     ctx: Context,
     cluster_identifier: str = Field(
@@ -544,7 +571,10 @@ async def list_columns_tool(
         raise
 
 
-@mcp.tool(name='execute_query')
+@mcp.tool(
+    name='execute_query',
+    annotations=_read_only_annotations('Execute read-only Redshift query'),
+)
 async def execute_query_tool(
     ctx: Context,
     cluster_identifier: str = Field(
@@ -635,7 +665,10 @@ async def execute_query_tool(
         raise
 
 
-@mcp.tool(name='review_cluster')
+@mcp.tool(
+    name='review_cluster',
+    annotations=_read_only_annotations('Review Redshift cluster'),
+)
 async def review_cluster_tool(
     ctx: Context,
     cluster_identifier: str = Field(

@@ -25,6 +25,7 @@ from ..utilities.aws_service_base import (
     parse_json,
 )
 from ..utilities.logging_utils import get_context_logger
+from ..utilities.time_utils import timestamp_to_utc_iso_string
 from botocore.exceptions import ClientError
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
@@ -341,6 +342,7 @@ async def get_ec2_instance_recommendations(
             'instance_type': recommendation.get('currentInstanceType'),
             'instance_name': recommendation.get('instanceName'),
             'finding': recommendation.get('finding'),
+            'idle': recommendation.get('idle'),
         }
 
         # Get the recommended instance options
@@ -348,8 +350,9 @@ async def get_ec2_instance_recommendations(
         for option in recommendation.get('recommendationOptions', []):
             instance_option = {
                 'instance_type': option.get('instanceType'),
-                'projected_utilization': option.get('projectedUtilization'),
+                'projected_utilization_metrics': option.get('projectedUtilizationMetrics'),
                 'performance_risk': option.get('performanceRisk'),
+                'rank': option.get('rank'),
                 'savings_opportunity': format_savings_opportunity(
                     option.get('savingsOpportunity', {})
                 ),
@@ -404,18 +407,21 @@ async def get_auto_scaling_group_recommendations(
     # Parse the recommendations
     for recommendation in response.get('autoScalingGroupRecommendations', []):
         # Get the current configuration
+        current_asg_config = recommendation.get('currentConfiguration', {})
         current_config = {
-            'instance_type': recommendation.get('currentInstanceType'),
+            'instance_type': current_asg_config.get('instanceType'),
             'finding': recommendation.get('finding'),
         }
 
         # Get the recommended options
         recommended_options = []
         for option in recommendation.get('recommendationOptions', []):
+            option_config = option.get('configuration', {})
             recommended_option = {
-                'instance_type': option.get('instanceType'),
-                'projected_utilization': option.get('projectedUtilization'),
+                'instance_type': option_config.get('instanceType'),
+                'projected_utilization_metrics': option.get('projectedUtilizationMetrics'),
                 'performance_risk': option.get('performanceRisk'),
+                'rank': option.get('rank'),
                 'savings_opportunity': format_savings_opportunity(
                     option.get('savingsOpportunity', {})
                 ),
@@ -557,7 +563,7 @@ async def get_lambda_function_recommendations(
         for option in recommendation.get('memorySizeRecommendationOptions', []):
             recommended_option = {
                 'memory_size': option.get('memorySize'),
-                'projected_utilization': option.get('projectedUtilization'),
+                'projected_utilization_metrics': option.get('projectedUtilizationMetrics'),
                 'rank': option.get('rank'),
                 'savings_opportunity': format_savings_opportunity(
                     option.get('savingsOpportunity', {})
@@ -566,9 +572,13 @@ async def get_lambda_function_recommendations(
             recommended_options.append(recommended_option)
 
         # Create the formatted recommendation
+        function_arn = recommendation.get('functionArn')
+        function_name = (
+            function_arn.split(':function:')[-1].split(':')[0] if function_arn else None
+        )
         formatted_recommendation = {
-            'function_arn': recommendation.get('functionArn'),
-            'function_name': recommendation.get('functionName'),
+            'function_arn': function_arn,
+            'function_name': function_name,
             'account_id': recommendation.get('accountId'),
             'current_configuration': current_config,
             'recommendation_options': recommended_options,
@@ -629,10 +639,13 @@ async def get_rds_recommendations(ctx, co_client, max_results, filters, account_
 
     # Parse the recommendations
     for recommendation in response.get('rdsDBRecommendations', []):
+        resource_arn = recommendation.get('resourceArn')
+
         # Get the current configuration
         current_config = {
-            'instance_class': recommendation.get('currentInstanceClass'),
-            'finding': recommendation.get('finding'),
+            'instance_class': recommendation.get('currentDBInstanceClass'),
+            'instance_finding': recommendation.get('instanceFinding'),
+            'idle': recommendation.get('idle'),
             'engine': recommendation.get('engine'),
             'engine_version': recommendation.get('engineVersion'),
             'storage_finding': recommendation.get('storageFinding'),
@@ -641,23 +654,43 @@ async def get_rds_recommendations(ctx, co_client, max_results, filters, account_
 
         # Get the recommended options
         recommended_options = []
-        for option in recommendation.get('recommendationOptions', []):
+        for option in recommendation.get('instanceRecommendationOptions', []):
             recommended_option = {
-                'instance_class': option.get('instanceClass'),
+                'instance_class': option.get('dbInstanceClass'),
                 'performance_risk': option.get('performanceRisk'),
+                'rank': option.get('rank'),
                 'savings_opportunity': format_savings_opportunity(
                     option.get('savingsOpportunity', {})
                 ),
             }
             recommended_options.append(recommended_option)
 
+        # Get the recommended storage options
+        storage_options = []
+        for option in recommendation.get('storageRecommendationOptions', []):
+            storage_options.append(
+                {
+                    'storage_configuration': option.get('storageConfiguration'),
+                    'rank': option.get('rank'),
+                    'savings_opportunity': format_savings_opportunity(
+                        option.get('savingsOpportunity', {})
+                    ),
+                }
+            )
+
         # Create the formatted recommendation
         formatted_recommendation = {
-            'instance_arn': recommendation.get('instanceArn'),
-            'instance_name': recommendation.get('instanceName'),
+            'instance_arn': resource_arn,
+            'instance_name': resource_arn.split(':')[-1] if resource_arn else None,
             'account_id': recommendation.get('accountId'),
             'current_configuration': current_config,
             'recommendation_options': recommended_options,
+            'storage_recommendation_options': storage_options,
+            'utilization_metrics': recommendation.get('utilizationMetrics'),
+            'lookback_period_in_days': recommendation.get('lookbackPeriodInDays'),
+            'savings_estimation_mode': recommendation.get(
+                'effectiveRecommendationPreferences', {}
+            ).get('savingsEstimationMode'),
             'last_refresh_timestamp': format_timestamp(recommendation.get('lastRefreshTimestamp')),
         }
 
@@ -705,30 +738,16 @@ async def get_ecs_service_recommendations(
 
     # Parse the recommendations
     for recommendation in response.get('ecsServiceRecommendations', []):
-        # Get the current performance
-        current_performance = recommendation.get('currentPerformance')
-        formatted_current_performance = None
-        if current_performance:
-            formatted_current_performance = {
-                'cpu_utilization': current_performance.get('cpuUtilization'),
-                'memory_utilization': current_performance.get('memoryUtilization'),
-            }
-
         # Get the current service configuration
+        current_service_config = recommendation.get('currentServiceConfiguration', {})
         current_config = {
-            'memory': recommendation.get('currentServiceConfiguration', {}).get('memory'),
-            'cpu': recommendation.get('currentServiceConfiguration', {}).get('cpu'),
-            'container_configurations': recommendation.get('currentServiceConfiguration', {}).get(
-                'containerConfigurations', []
-            ),
-            'auto_scaling_group_arn': recommendation.get('currentServiceConfiguration', {}).get(
-                'autoScalingGroupArn'
-            ),
-            'task_definition_arn': recommendation.get('currentServiceConfiguration', {}).get(
-                'taskDefinitionArn'
-            ),
+            'memory': current_service_config.get('memory'),
+            'cpu': current_service_config.get('cpu'),
+            'container_configurations': current_service_config.get('containerConfigurations', []),
+            'auto_scaling_configuration': current_service_config.get('autoScalingConfiguration'),
+            'task_definition_arn': current_service_config.get('taskDefinitionArn'),
             'finding': recommendation.get('finding'),
-            'current_performance': formatted_current_performance,
+            'current_performance_risk': recommendation.get('currentPerformanceRisk'),
         }
 
         # Get the utilization metrics
@@ -744,20 +763,11 @@ async def get_ecs_service_recommendations(
         # Get the recommended service configurations
         recommended_options = []
         for option in recommendation.get('serviceRecommendationOptions', []):
-            # Format projected performance
-            projected_performance = option.get('projectedPerformance')
-            formatted_projected_performance = None
-            if projected_performance:
-                formatted_projected_performance = {
-                    'cpu_utilization': projected_performance.get('cpuUtilization'),
-                    'memory_utilization': projected_performance.get('memoryUtilization'),
-                }
-
             recommended_option = {
                 'memory': option.get('memory'),
                 'cpu': option.get('cpu'),
                 'container_recommendations': option.get('containerRecommendations', []),
-                'projected_performance': formatted_projected_performance,
+                'projected_utilization_metrics': option.get('projectedUtilizationMetrics'),
                 'savings_opportunity': format_savings_opportunity(
                     option.get('savingsOpportunity', {})
                 ),
@@ -788,7 +798,7 @@ def format_savings_opportunity(savings_opportunity):
         return None
 
     return {
-        'savings_percentage': savings_opportunity.get('savingsPercentage'),
+        'savings_percentage': savings_opportunity.get('savingsOpportunityPercentage'),
         'estimated_monthly_savings': {
             'currency': savings_opportunity.get('estimatedMonthlySavings', {}).get('currency'),
             'value': savings_opportunity.get('estimatedMonthlySavings', {}).get('value'),
@@ -797,8 +807,8 @@ def format_savings_opportunity(savings_opportunity):
 
 
 def format_timestamp(timestamp):
-    """Format a timestamp to ISO format string."""
-    if not timestamp:
+    """Format a timestamp to an ISO 8601 UTC string."""
+    if timestamp is None:
         return None
 
-    return timestamp.isoformat() if hasattr(timestamp, 'isoformat') else str(timestamp)
+    return timestamp_to_utc_iso_string(timestamp)
