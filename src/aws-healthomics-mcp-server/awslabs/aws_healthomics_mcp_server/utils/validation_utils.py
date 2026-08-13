@@ -266,6 +266,26 @@ async def validate_definition_sources(
             await ctx.error(error_message)
             raise ValueError(error_message) from e
 
+        # Auto-wrap single workflow files into a ZIP if the resolved content is not a ZIP archive
+        if definition_zip and definition_zip[:4] != b'PK\x03\x04':
+            import io
+            import os
+            import zipfile as _zipfile
+
+            if resolved.input_type.value == 'local_file':
+                filename = os.path.basename(definition_source)
+            else:
+                filename = 'main.wdl'
+            logger.info(
+                f'definition_source is not a ZIP archive; auto-wrapping as "{filename}" '
+                f'(source type: {resolved.input_type.value})'
+            )
+            zip_buffer = io.BytesIO()
+            with _zipfile.ZipFile(zip_buffer, 'w', _zipfile.ZIP_DEFLATED) as zf:
+                zf.writestr(filename, definition_zip)
+            zip_buffer.seek(0)
+            definition_zip = zip_buffer.read()
+
     # Validate S3 URI format if provided
     if definition_uri is not None:
         await validate_s3_uri(ctx, definition_uri, 'definition_uri')
