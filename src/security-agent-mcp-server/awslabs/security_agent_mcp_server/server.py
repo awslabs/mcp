@@ -196,8 +196,12 @@ def _ensure_s3_bucket(config: dict, kind: str = 'scans') -> None:
     try:
         _client.create_s3_bucket(bucket)
     except ClientError as e:
+        # Reuse only if we already own it; BucketAlreadyExists (squatted) stays fatal.
         if e.response.get('Error', {}).get('Code') != 'BucketAlreadyOwnedByYou':
             raise
+
+    # Confirm ownership before trusting the bucket — 403 means it's squatted.
+    _client.verify_bucket_owner(bucket)
 
     # Register bucket on agent space so the service can access it
     agent_space_id = config['agent_space_id']
