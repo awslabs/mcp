@@ -30,6 +30,7 @@ from awslabs.postgres_mcp_server.server import (
     PRIVILEGE_CHECK_OFF,
     PRIVILEGE_CHECK_WARN,
     ConnectionValidationError,
+    privilege_check_policy,
     validate_connection,
 )
 from typing import Any, Dict, List, Optional
@@ -98,9 +99,7 @@ class TestDefaultPolicy:
 
     def test_default_policy_is_warn(self):
         """privilege_check_policy defaults to warn so upgrades/bootstrap don't break."""
-        import awslabs.postgres_mcp_server.server as server
-
-        assert server.privilege_check_policy == server.PRIVILEGE_CHECK_WARN
+        assert privilege_check_policy == PRIVILEGE_CHECK_WARN
 
 
 class TestValidateConnectionEnforce:
