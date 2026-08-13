@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- Removed the legacy `jobType` parameter from the `create_job` tool and the
+  `CreateJobRequest` model. AWS Transform no longer honors `jobType` on
+  `CreateJob`; callers must use `orchestratorAgent` instead. The
+  `orchestratorAgent` description no longer suggests retrying with it after a
+  `jobType` failure.
+
 ### Fixed
 
 - `load_instructions` now discovers instruction documents stored inside

@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.amazon-translate-mcp-server"
-version = "1.0.3"
+version = "1.0.5"
 description = "A Model Context Protocol server for Amazon Translate to provide text translation, custom terminology management, and batch translation processing"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -41,7 +41,7 @@ dependencies = [
     "boto3>=1.38.12",
     "mcp[cli]>=1.23.0,<2.0.0",
     "pydantic>=2.0.0",
-    "fastmcp>=2.13.1",
+    "fastmcp>=3.2.0",
     "defusedxml>=0.7.1",
     "starlette>=0.50.0",
     "urllib3>=2.6.0",

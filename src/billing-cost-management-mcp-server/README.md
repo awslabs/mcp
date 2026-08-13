@@ -322,6 +322,10 @@ AWS Invoicing:
 - invoicing:ListProcurementPortalPreferences
 - invoicing:GetProcurementPortalPreference
 
+AWS Billing:
+- billing:GetCredits
+- billing:GetCreditAllocationHistory
+
 #### Configuration
 
 The server uses these key environment variables:
@@ -435,3 +439,6 @@ The server currently supports the following AWS services
     - `invoicing` tool: list_invoice_summaries
     - `invoice-units` tool: list_invoice_units, get_invoice_unit, batch_get_invoice_profile
     - `procurement-preferences` tool: list_procurement_portal_preferences, get_procurement_portal_preference
+
+13. **AWS Credits**
+    - `credits` tool: get_credits, get_credit_allocation_history
