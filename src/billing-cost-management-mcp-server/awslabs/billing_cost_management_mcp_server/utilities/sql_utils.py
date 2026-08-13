@@ -357,6 +357,8 @@ def _get_specialized_converter(operation_name: str) -> Optional[str]:
         'cost_explorer_get_tags': 'tags',
         'cost_explorer_get_cost_categories': 'cost_categories',
         'aws_pricing_get_products': 'pricing_products',
+        'budget_actions': 'records',
+        'budget_notifications': 'records',
     }
 
     if operation_name in converters:

@@ -738,6 +738,41 @@ class TestBudgetActionsTool:
         )
         assert client.describe_budget_actions_for_account.call_args.kwargs['NextToken'] == 'tok'
 
+    @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_db_connection')
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.should_convert_to_sql',
+        return_value=True,
+    )
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
+    async def test_large_response_offloads_to_sql_rows(
+        self, mock_create, _mock_should, mock_conn, mock_context
+    ):
+        """An oversized account audit offloads to SQL as one queryable row per action."""
+        import sqlite3
+
+        conn = sqlite3.connect(':memory:')
+        conn.execute(
+            'CREATE TABLE IF NOT EXISTS schema_info '
+            '(table_name TEXT PRIMARY KEY, created_at TEXT, operation TEXT, '
+            'query TEXT, row_count INTEGER)'
+        )
+        mock_conn.return_value = (conn, conn.cursor())
+
+        client = MagicMock()
+        mock_create.return_value = client
+        client.describe_budget_actions_for_account.return_value = {
+            'Actions': [
+                {'BudgetName': 'b1', 'ActionId': 'a1', 'Status': 'STANDBY'},
+                {'BudgetName': 'b2', 'ActionId': 'a2', 'Status': 'PENDING'},
+            ]
+        }
+        result = await describe_budget_actions(mock_context, '123456789012', None, 100)
+        assert result['status'] == 'success'
+        # Offloaded (not returned inline) as one row per action, with real columns.
+        assert result['data']['data_stored'] is True
+        assert result['data']['row_count'] == 2
+        assert 'action_id' in result['data']['schema']
+
 
 @pytest.mark.asyncio
 class TestBudgetNotificationsTool:

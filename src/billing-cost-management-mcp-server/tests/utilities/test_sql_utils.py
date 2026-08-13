@@ -741,6 +741,15 @@ class TestConvertApiResponseToTableAdditional:
         )
         assert _get_specialized_converter('some_other_operation') is None
 
+    def test_specialized_converter_routes_budget_ops_to_records(self):
+        """Budget actions and notifications operations map to the 'records' converter."""
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _get_specialized_converter,
+        )
+
+        assert _get_specialized_converter('budget_actions') == 'records'
+        assert _get_specialized_converter('budget_notifications') == 'records'
+
     def test_record_columns_rejects_unsafe_identifiers(self):
         """Derived column names must be safe SQL identifiers (injection guard)."""
         from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import _record_columns
