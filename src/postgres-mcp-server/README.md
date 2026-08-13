@@ -238,18 +238,20 @@ ALTER ROLE postgres_mcp_server_readonly SET default_transaction_read_only = on;
 
 To make the guidance above hard to get wrong, the server validates the
 connected role when a connection is established (at startup and via the
-`connect_to_database` tool) and can refuse to operate as a superuser or a
-member of `rds_superuser`. This is a guardrail, not the security boundary
-itself — the database-enforced role privileges remain the real control — but
-it helps prevent the MCP server from silently running with cluster-wide
-privileges that would render the blocklist and RLS moot.
+`connect_to_database` tool) and can refuse to operate as an over-privileged
+role — a superuser, a member of `rds_superuser`, or a role with the
+`BYPASSRLS` attribute (which defeats row-level security without being a
+superuser). This is a guardrail, not the security boundary itself — the
+database-enforced role privileges remain the real control — but it helps
+prevent the MCP server from silently running with privileges that would
+render the blocklist and RLS moot.
 
 The behavior is controlled by the `--privilege_check` argument:
 
 | Value | Behavior |
 |-------|----------|
-| `warn` (default) | Log a warning but allow a connection whose role is a superuser or a member of `rds_superuser`. A connectivity/authentication failure still aborts (the guardrail only relaxes the *privilege* check, not the need for a working connection). |
-| `enforce` | Reject the connection if the role is a superuser or a member of `rds_superuser`. If the check cannot be performed, the connection is rejected (fail-closed). |
+| `warn` (default) | Log a warning but allow a connection whose role is over-privileged (superuser, `rds_superuser` member, or `BYPASSRLS`). A connectivity/authentication failure still aborts (the guardrail only relaxes the *privilege* check, not the need for a working connection). |
+| `enforce` | Reject the connection if the role is over-privileged (superuser, `rds_superuser` member, or `BYPASSRLS`). If the check cannot be performed, the connection is rejected (fail-closed). |
 | `off` | Skip the privilege check entirely (connectivity is still verified). |
 
 The default is `warn` so that upgrades, and the `create_cluster` bootstrap

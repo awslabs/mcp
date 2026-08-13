@@ -2046,7 +2046,7 @@ async def run_query_enforcement_suite(
                 connection_method, cluster_identifier, valid_endpoint, test_database, port
             )
         except Exception as e:
-            logger.warning('Non-fatal cleanup failure removing test DB connection: %s', e)
+            logger.warning(f'Non-fatal cleanup failure removing test DB connection: {e}')
 
     return result
 
@@ -2179,7 +2179,7 @@ async def run_privilege_enforcement_suite(
                 connection_method, cluster_identifier, valid_endpoint, test_database, port
             )
         except Exception as e:
-            logger.warning('Non-fatal cleanup failure removing test DB connection: %s', e)
+            logger.warning(f'Non-fatal cleanup failure removing test DB connection: {e}')
 
     return result
 

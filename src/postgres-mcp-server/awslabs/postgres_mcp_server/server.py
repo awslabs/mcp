@@ -144,19 +144,23 @@ def parse_execute_response(response: dict) -> list[dict]:
 class ConnectionValidationError(Exception):
     """Raised when a freshly established connection fails post-connect validation.
 
-    Currently signals a least-privilege violation (the connected Postgres
-    role is a superuser or a member of rds_superuser) under the 'enforce'
-    policy, or an inability to verify the role's privileges (fail-closed).
+    Currently signals a least-privilege violation (the connected Postgres role
+    is a superuser, a member of rds_superuser, or carries the BYPASSRLS
+    attribute) under the 'enforce' policy, or an inability to verify the
+    role's privileges (fail-closed).
     """
 
 
-# Determine whether the connected role is a superuser or a member of the
-# managed rds_superuser role. current_user can always read its own row in
-# the pg_roles view, and the EXISTS clause evaluates to false (rather than
-# erroring) on clusters where rds_superuser does not exist (e.g. self-hosted
-# PostgreSQL), so the query is safe across managed and unmanaged deployments.
+# Determine whether the connected role is over-privileged: a superuser, a
+# member of the managed rds_superuser role, or a role carrying the BYPASSRLS
+# attribute (which defeats row-level security without being a superuser).
+# current_user can always read its own row in the pg_roles view, and the
+# EXISTS clause evaluates to false (rather than erroring) on clusters where
+# rds_superuser does not exist (e.g. self-hosted PostgreSQL), so the query is
+# safe across managed and unmanaged deployments.
 POSTGRES_PRIVILEGE_QUERY = (
     'SELECT rolsuper AS is_superuser, '
+    'rolbypassrls AS is_bypassrls, '
     'EXISTS ('
     "SELECT 1 FROM pg_roles r WHERE r.rolname = 'rds_superuser' "
     "AND pg_has_role(current_user, r.oid, 'MEMBER')"
@@ -190,8 +194,10 @@ async def validate_connection(db_connection: AbstractDBConnection, policy: str) 
     silently allow an over-privileged connection.
 
     The primary security boundary is a least-privilege database role; this
-    guardrail simply refuses to operate as superuser / rds_superuser so the
-    MCP is not silently running with cluster-wide privileges.
+    guardrail simply refuses to operate as an over-privileged role (superuser,
+    rds_superuser member, or BYPASSRLS) so the MCP is not silently running
+    with privileges that would render row-level security and the blocklist
+    moot.
 
     Args:
         db_connection: the freshly established data-plane connection.
@@ -234,7 +240,12 @@ async def validate_connection(db_connection: AbstractDBConnection, policy: str) 
     # columns as "unverifiable" — we control the query, so this should not
     # happen, but a guardrail must not silently pass a role it could not
     # actually inspect.
-    if not rows or 'is_superuser' not in rows[0] or 'is_rds_superuser' not in rows[0]:
+    if (
+        not rows
+        or 'is_superuser' not in rows[0]
+        or 'is_rds_superuser' not in rows[0]
+        or 'is_bypassrls' not in rows[0]
+    ):
         message = 'Could not determine connection role privileges (unexpected result shape).'
         # Fail-closed for enforce AND any unrecognized policy; only 'warn' allows.
         if policy != PRIVILEGE_CHECK_WARN:
@@ -244,25 +255,29 @@ async def validate_connection(db_connection: AbstractDBConnection, policy: str) 
 
     is_superuser = bool(rows[0].get('is_superuser'))
     is_rds_superuser = bool(rows[0].get('is_rds_superuser'))
+    is_bypassrls = bool(rows[0].get('is_bypassrls'))
+    over_privileged = is_superuser or is_rds_superuser or is_bypassrls
 
     # Record the probe result on the connection for diagnostics (observability
     # only; the enforcement decision below is independent of this attribute).
-    db_connection.effective_is_superuser = is_superuser or is_rds_superuser
+    db_connection.effective_is_over_privileged = over_privileged
 
-    if is_superuser or is_rds_superuser:
+    if over_privileged:
         flags = []
         if is_superuser:
             flags.append('a superuser')
         if is_rds_superuser:
             flags.append('a member of rds_superuser')
+        if is_bypassrls:
+            flags.append('a BYPASSRLS role')
         message = (
             f'The MCP server is connecting as an over-privileged Postgres role '
-            f'({" and ".join(flags)}). A superuser / rds_superuser role bypasses '
-            f'row-level security, can read credential catalogs, and can terminate '
-            f'other sessions. Connect using a dedicated least-privilege role '
-            f'instead (see the Security Consideration section of README.md). '
-            f'To run with this role anyway, set --privilege_check=warn or off '
-            f'(not recommended).'
+            f'({" and ".join(flags)}). Such privileges bypass row-level security; '
+            f'a superuser or rds_superuser member can additionally read credential '
+            f'catalogs and terminate other sessions. Connect using a dedicated '
+            f'least-privilege role instead (see the Security Consideration section '
+            f'of README.md). To run with this role anyway, set '
+            f'--privilege_check=warn or off (not recommended).'
         )
         # Fail-closed for enforce AND any unrecognized policy; only 'warn' allows.
         if policy != PRIVILEGE_CHECK_WARN:
@@ -270,7 +285,9 @@ async def validate_connection(db_connection: AbstractDBConnection, policy: str) 
         logger.warning(f'{message} Allowing connection (privilege_check=warn).')
         return
 
-    logger.debug('Connection role privilege check passed (not superuser / rds_superuser).')
+    logger.debug(
+        'Connection role privilege check passed (not superuser / rds_superuser / BYPASSRLS).'
+    )
 
 
 mcp = FastMCP(
@@ -484,12 +501,23 @@ async def connect_to_database(
     try:
         # Detect a cache hit using the SAME key internal_create_connection uses
         # for its dedup early-return. internal_create_connection is synchronous,
-        # so nothing interleaves between this check and the call. A cached
-        # connection was already validated when it was first created; re-running
-        # pool init / the privilege probe on it is redundant (an extra
-        # round-trip / billable Data API call) and, worse, a transient probe
-        # failure (throttling, Serverless resume, pool timeout) would evict a
-        # healthy, in-use shared connection — so skip re-validation for it.
+        # so (within this coroutine) nothing interleaves between this check and
+        # the call. On a cache hit we return the existing connection without
+        # re-running pool init / the privilege probe: re-probing is redundant
+        # (an extra round-trip / billable Data API call) and, worse, a transient
+        # probe failure (throttling, Serverless resume, pool timeout) would evict
+        # a healthy, in-use shared connection.
+        #
+        # Caveat: connections established through connect_to_database (and the
+        # startup path) are validated at creation, so skipping re-validation for
+        # those is safe. Connections seeded by create_cluster /
+        # create_cluster_worker are cached WITHOUT validation (an intentional
+        # bootstrap: the freshly created cluster only has the rds_superuser
+        # master and no least-privilege role yet). For those keys this skip means
+        # an over-privileged connection is not surfaced/evicted on reconnect —
+        # under the default 'warn' this is moot, and under 'enforce' it is the
+        # known create_cluster bootstrap gap tracked as a follow-up
+        # (validate-on-create with a bootstrap exemption).
         was_cached = (
             db_connection_map.get(
                 connection_method, cluster_identifier, db_endpoint, database, port

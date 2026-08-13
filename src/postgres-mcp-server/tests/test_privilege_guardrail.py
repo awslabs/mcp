@@ -37,11 +37,23 @@ from typing import Any, Dict, List, Optional
 from unittest.mock import patch
 
 
-def privilege_response(is_superuser: bool, is_rds_superuser: bool) -> dict:
+def privilege_response(
+    is_superuser: bool, is_rds_superuser: bool, is_bypassrls: bool = False
+) -> dict:
     """Build an execute_query response matching the privilege query shape."""
     return {
-        'columnMetadata': [{'name': 'is_superuser'}, {'name': 'is_rds_superuser'}],
-        'records': [[{'booleanValue': is_superuser}, {'booleanValue': is_rds_superuser}]],
+        'columnMetadata': [
+            {'name': 'is_superuser'},
+            {'name': 'is_bypassrls'},
+            {'name': 'is_rds_superuser'},
+        ],
+        'records': [
+            [
+                {'booleanValue': is_superuser},
+                {'booleanValue': is_bypassrls},
+                {'booleanValue': is_rds_superuser},
+            ]
+        ],
     }
 
 
@@ -141,6 +153,21 @@ class TestValidateConnectionEnforce:
         conn = FakeConnection(response=privilege_response(True, True))
         with pytest.raises(ConnectionValidationError):
             await validate_connection(conn, PRIVILEGE_CHECK_ENFORCE)
+
+    @pytest.mark.asyncio
+    async def test_bypassrls_only_rejected(self):
+        """A non-superuser role with only the BYPASSRLS attribute is rejected.
+
+        BYPASSRLS defeats row-level security without superuser / rds_superuser
+        membership, so the guardrail must catch it too.
+        """
+        conn = FakeConnection(response=privilege_response(False, False, is_bypassrls=True))
+        with pytest.raises(ConnectionValidationError) as exc:
+            await validate_connection(conn, PRIVILEGE_CHECK_ENFORCE)
+        assert 'BYPASSRLS' in str(exc.value)
+        # The flag fragment is only present when BYPASSRLS was detected; it is
+        # not a superuser or rds_superuser rejection.
+        assert 'a member of rds_superuser' not in str(exc.value)
 
     @pytest.mark.asyncio
     async def test_least_privilege_role_allowed(self):
@@ -308,13 +335,14 @@ class TestPrivilegeQueryShape:
         """The privilege query references rolsuper, rds_superuser, current_user, EXISTS."""
         q = POSTGRES_PRIVILEGE_QUERY.lower()
         assert 'rolsuper' in q
+        assert 'rolbypassrls' in q
         assert 'rds_superuser' in q
         assert 'current_user' in q
         # Uses EXISTS so a missing rds_superuser role does not error.
         assert 'exists' in q
 
 
-class TestEffectiveIsSuperuserDiagnostic:
+class TestEffectiveIsOverPrivilegedDiagnostic:
     """validate_connection records the probe result on the connection (diagnostic).
 
     The attribute is set once the privilege probe runs (warn/enforce), and left
@@ -327,7 +355,7 @@ class TestEffectiveIsSuperuserDiagnostic:
         """Under warn, an over-privileged role is allowed and flagged True."""
         conn = FakeConnection(response=privilege_response(True, False))
         await validate_connection(conn, PRIVILEGE_CHECK_WARN)
-        assert conn.effective_is_superuser is True
+        assert conn.effective_is_over_privileged is True
 
     @pytest.mark.asyncio
     async def test_rds_superuser_sets_flag_true_before_enforce_raise(self):
@@ -335,25 +363,33 @@ class TestEffectiveIsSuperuserDiagnostic:
         conn = FakeConnection(response=privilege_response(False, True))
         with pytest.raises(ConnectionValidationError):
             await validate_connection(conn, PRIVILEGE_CHECK_ENFORCE)
-        assert conn.effective_is_superuser is True
+        assert conn.effective_is_over_privileged is True
+
+    @pytest.mark.asyncio
+    async def test_bypassrls_sets_flag_true(self):
+        """A BYPASSRLS-only role is flagged over-privileged."""
+        conn = FakeConnection(response=privilege_response(False, False, is_bypassrls=True))
+        with pytest.raises(ConnectionValidationError):
+            await validate_connection(conn, PRIVILEGE_CHECK_ENFORCE)
+        assert conn.effective_is_over_privileged is True
 
     @pytest.mark.asyncio
     async def test_clean_role_sets_flag_false(self):
-        """A non-superuser role is flagged False."""
+        """A role with none of the over-privileged attributes is flagged False."""
         conn = FakeConnection(response=privilege_response(False, False))
         await validate_connection(conn, PRIVILEGE_CHECK_ENFORCE)
-        assert conn.effective_is_superuser is False
+        assert conn.effective_is_over_privileged is False
 
     @pytest.mark.asyncio
     async def test_off_leaves_flag_none(self):
         """Under off the probe is skipped, so the flag stays None (undetermined)."""
         conn = FakeConnection(response=privilege_response(True, True))
         await validate_connection(conn, PRIVILEGE_CHECK_OFF)
-        assert conn.effective_is_superuser is None
+        assert conn.effective_is_over_privileged is None
 
     @pytest.mark.asyncio
     async def test_unverifiable_shape_leaves_flag_none(self):
         """An unverifiable probe result leaves the flag None (not determined)."""
         conn = FakeConnection(response={'columnMetadata': [], 'records': []})
         await validate_connection(conn, PRIVILEGE_CHECK_WARN)
-        assert conn.effective_is_superuser is None
+        assert conn.effective_is_over_privileged is None

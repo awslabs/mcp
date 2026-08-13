@@ -132,9 +132,9 @@ class DBConnectionMap:
     def get_keys_json(self) -> str:
         """Get all connection keys as JSON string.
 
-        Includes ``effective_is_superuser`` per connection for diagnostics:
-        True/False once the privilege probe has run, or None when it was not
-        determined (e.g. privilege_check=off). This is observability only.
+        Includes ``effective_is_over_privileged`` per connection for
+        diagnostics: True/False once the privilege probe has run, or None when
+        it was not determined (e.g. privilege_check=off). Observability only.
         """
         entries: List[dict] = []
         with self._lock:
@@ -142,14 +142,14 @@ class DBConnectionMap:
                 # Coerce to a JSON-safe bool-or-None: a real connection exposes
                 # Optional[bool], but be defensive against test doubles whose
                 # attribute access auto-creates non-serializable objects.
-                raw = getattr(conn, 'effective_is_superuser', None)
+                raw = getattr(conn, 'effective_is_over_privileged', None)
                 entry = {
                     'connection_method': key[0],
                     'cluster_identifier': key[1],
                     'db_endpoint': key[2],
                     'database': key[3],
                     'port': key[4],
-                    'effective_is_superuser': raw if isinstance(raw, bool) else None,
+                    'effective_is_over_privileged': raw if isinstance(raw, bool) else None,
                 }
                 entries.append(entry)
         return json.dumps(entries, indent=2)

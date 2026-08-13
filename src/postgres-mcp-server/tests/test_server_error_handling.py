@@ -248,9 +248,16 @@ class TestConnectToDatabaseErrorHandling:
             return_value={
                 'columnMetadata': [
                     {'name': 'is_superuser'},
+                    {'name': 'is_bypassrls'},
                     {'name': 'is_rds_superuser'},
                 ],
-                'records': [[{'booleanValue': True}, {'booleanValue': False}]],
+                'records': [
+                    [
+                        {'booleanValue': True},
+                        {'booleanValue': False},
+                        {'booleanValue': False},
+                    ]
+                ],
             }
         )
         mock_connection.close = AsyncMock()
@@ -324,8 +331,18 @@ class TestConnectToDatabaseErrorHandling:
         mock_connection = MagicMock()
         mock_connection.execute_query = AsyncMock(
             return_value={
-                'columnMetadata': [{'name': 'is_superuser'}, {'name': 'is_rds_superuser'}],
-                'records': [[{'booleanValue': True}, {'booleanValue': False}]],
+                'columnMetadata': [
+                    {'name': 'is_superuser'},
+                    {'name': 'is_bypassrls'},
+                    {'name': 'is_rds_superuser'},
+                ],
+                'records': [
+                    [
+                        {'booleanValue': True},
+                        {'booleanValue': False},
+                        {'booleanValue': False},
+                    ]
+                ],
             }
         )
         mock_connection.close = AsyncMock()
@@ -389,8 +406,18 @@ class TestConnectToDatabaseErrorHandling:
         mock_connection = MagicMock()
         mock_connection.execute_query = AsyncMock(
             return_value={
-                'columnMetadata': [{'name': 'is_superuser'}, {'name': 'is_rds_superuser'}],
-                'records': [[{'booleanValue': True}, {'booleanValue': False}]],
+                'columnMetadata': [
+                    {'name': 'is_superuser'},
+                    {'name': 'is_bypassrls'},
+                    {'name': 'is_rds_superuser'},
+                ],
+                'records': [
+                    [
+                        {'booleanValue': True},
+                        {'booleanValue': False},
+                        {'booleanValue': False},
+                    ]
+                ],
             }
         )
         mock_connection.close = AsyncMock(side_effect=RuntimeError('close failed'))

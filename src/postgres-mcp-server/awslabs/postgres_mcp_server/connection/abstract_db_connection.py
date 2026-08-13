@@ -29,16 +29,17 @@ class AbstractDBConnection(ABC):
         """
         self._readonly = readonly
         # Diagnostic only: whether the connected role is over-privileged
-        # (superuser or a member of rds_superuser), as determined by the
-        # post-connect privilege probe in server.validate_connection.
+        # (superuser, a member of rds_superuser, or carrying BYPASSRLS), as
+        # determined by the post-connect privilege probe in
+        # server.validate_connection.
         #   None  -> not determined (privilege_check=off, or the probe could
         #            not be performed / has not run for this connection)
-        #   True  -> connected role is superuser / rds_superuser
+        #   True  -> connected role is over-privileged
         #   False -> connected role is confirmed not over-privileged
         # This is for observability (surfaced in connection-map diagnostics)
         # and must never be used to make a security decision — that logic
         # lives in server.validate_connection.
-        self._effective_is_superuser: Optional[bool] = None
+        self._effective_is_over_privileged: Optional[bool] = None
 
     @property
     def readonly_query(self) -> bool:
@@ -50,19 +51,21 @@ class AbstractDBConnection(ABC):
         return self._readonly
 
     @property
-    def effective_is_superuser(self) -> Optional[bool]:
+    def effective_is_over_privileged(self) -> Optional[bool]:
         """Diagnostic flag: is the connected role over-privileged?
+
+        Over-privileged means superuser, rds_superuser member, or BYPASSRLS.
 
         Returns:
             Optional[bool]: True/False once the privilege probe has run,
             or None if it was not determined (e.g. privilege_check=off).
         """
-        return self._effective_is_superuser
+        return self._effective_is_over_privileged
 
-    @effective_is_superuser.setter
-    def effective_is_superuser(self, value: Optional[bool]) -> None:
+    @effective_is_over_privileged.setter
+    def effective_is_over_privileged(self, value: Optional[bool]) -> None:
         """Record the privilege-probe result (diagnostic use only)."""
-        self._effective_is_superuser = value
+        self._effective_is_over_privileged = value
 
     @abstractmethod
     async def execute_query(
