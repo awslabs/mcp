@@ -3,9 +3,9 @@ revision = 3
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.14' and platform_python_implementation != 'PyPy'",
-    "python_full_version < '3.14' and platform_python_implementation != 'PyPy'",
     "python_full_version >= '3.14' and platform_python_implementation == 'PyPy' and sys_platform == 'win32'",
     "python_full_version >= '3.14' and platform_python_implementation == 'PyPy' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and platform_python_implementation != 'PyPy'",
     "python_full_version < '3.14' and platform_python_implementation == 'PyPy' and sys_platform == 'win32'",
     "python_full_version < '3.14' and platform_python_implementation == 'PyPy' and sys_platform != 'win32'",
 ]
@@ -99,7 +99,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-ecs-mcp-server"
-version = "0.1.33"
+version = "0.1.34"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
