@@ -2,6 +2,7 @@
 Unit tests for docker utility module.
 """
 
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -74,6 +75,70 @@ async def test_build_and_push_image_missing_role_arn():
 
     # Verify error message
     assert "role_arn is required for ECR authentication" in str(excinfo.value)
+
+
+@pytest.mark.anyio
+@patch("awslabs.ecs_mcp_server.utils.docker.subprocess.run")
+@patch("awslabs.ecs_mcp_server.utils.docker.get_aws_account_id")
+async def test_build_and_push_image_rejects_sensitive_build_context(
+    mock_get_aws_account_id, mock_subprocess_run
+):
+    """A sensitive directory must never be handed to Docker as the build context."""
+    sensitive_path = os.path.join(os.path.expanduser("~"), ".aws")
+
+    with pytest.raises(ValueError) as excinfo:
+        await build_and_push_image(
+            app_path=sensitive_path,
+            repository_uri="test-repository",
+            tag="latest",
+            role_arn="test-role-arn",
+        )
+
+    assert "sensitive directory" in str(excinfo.value)
+    # Nothing may run before the build context is validated.
+    mock_get_aws_account_id.assert_not_called()
+    mock_subprocess_run.assert_not_called()
+
+
+@pytest.mark.anyio
+@patch("awslabs.ecs_mcp_server.utils.docker.subprocess.run")
+@patch("awslabs.ecs_mcp_server.utils.docker.get_aws_account_id")
+async def test_build_and_push_image_rejects_home_directory_build_context(
+    mock_get_aws_account_id, mock_subprocess_run
+):
+    """The home directory must be rejected because it contains sensitive directories."""
+    with pytest.raises(ValueError):
+        await build_and_push_image(
+            app_path=os.path.expanduser("~"),
+            repository_uri="test-repository",
+            tag="latest",
+            role_arn="test-role-arn",
+        )
+
+    mock_get_aws_account_id.assert_not_called()
+    mock_subprocess_run.assert_not_called()
+
+
+@pytest.mark.anyio
+@patch("awslabs.ecs_mcp_server.utils.docker.subprocess.run")
+@patch("awslabs.ecs_mcp_server.utils.docker.get_aws_account_id")
+async def test_build_and_push_image_rejects_symlinked_sensitive_build_context(
+    mock_get_aws_account_id, mock_subprocess_run, tmp_path
+):
+    """A symlink into a sensitive directory must be resolved and rejected."""
+    link = tmp_path / "my-app"
+    os.symlink(os.path.join(os.path.expanduser("~"), ".aws"), str(link))
+
+    with pytest.raises(ValueError):
+        await build_and_push_image(
+            app_path=str(link),
+            repository_uri="test-repository",
+            tag="latest",
+            role_arn="test-role-arn",
+        )
+
+    mock_get_aws_account_id.assert_not_called()
+    mock_subprocess_run.assert_not_called()
 
 
 @pytest.mark.anyio

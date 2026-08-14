@@ -1234,6 +1234,107 @@ class TestClientPrefix:
         assert _client_prefix(ctx) == 'ide'
 
 
+class TestEnsureClientUa:
+    """Tests for _ensure_client_ua."""
+
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    def test_extracts_and_sets_client_info(self, mock_client):
+        """_ensure_client_ua sets client info from MCP context."""
+        from awslabs.security_agent_mcp_server.server import _ensure_client_ua
+
+        ctx = MagicMock()
+        ctx.session.client_params.clientInfo.name = 'kiro'
+        ctx.session.client_params.clientInfo.version = '1.5.0'
+
+        _ensure_client_ua(ctx)
+        mock_client.set_mcp_client_info.assert_called_once_with('kiro', '1.5.0')
+
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    def test_none_session_does_not_call_set(self, mock_client):
+        """_ensure_client_ua does nothing when session is None."""
+        from awslabs.security_agent_mcp_server.server import _ensure_client_ua
+
+        ctx = MagicMock()
+        ctx.session = None
+
+        _ensure_client_ua(ctx)
+        mock_client.set_mcp_client_info.assert_not_called()
+
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    def test_none_client_params_does_not_call_set(self, mock_client):
+        """_ensure_client_ua does nothing when client_params is None."""
+        from awslabs.security_agent_mcp_server.server import _ensure_client_ua
+
+        ctx = MagicMock()
+        ctx.session.client_params = None
+
+        _ensure_client_ua(ctx)
+        mock_client.set_mcp_client_info.assert_not_called()
+
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    def test_none_client_info_does_not_call_set(self, mock_client):
+        """_ensure_client_ua does nothing when clientInfo is None."""
+        from awslabs.security_agent_mcp_server.server import _ensure_client_ua
+
+        ctx = MagicMock()
+        ctx.session.client_params.clientInfo = None
+
+        _ensure_client_ua(ctx)
+        mock_client.set_mcp_client_info.assert_not_called()
+
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    def test_non_string_name_uses_default(self, mock_client):
+        """_ensure_client_ua uses DEFAULT_MCP_CLIENT_NAME when name is not a string."""
+        from awslabs.security_agent_mcp_server.server import _ensure_client_ua
+
+        ctx = MagicMock()
+        ctx.session.client_params.clientInfo.name = 123
+        ctx.session.client_params.clientInfo.version = '1.0'
+
+        _ensure_client_ua(ctx)
+        mock_client.set_mcp_client_info.assert_called_once_with('unknown', '1.0')
+
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    def test_non_string_version_uses_empty(self, mock_client):
+        """_ensure_client_ua uses empty string when version is not a string."""
+        from awslabs.security_agent_mcp_server.server import _ensure_client_ua
+
+        ctx = MagicMock()
+        ctx.session.client_params.clientInfo.name = 'kiro'
+        ctx.session.client_params.clientInfo.version = 123
+
+        _ensure_client_ua(ctx)
+        mock_client.set_mcp_client_info.assert_called_once_with('kiro', '')
+
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    def test_missing_version_attr_uses_empty(self, mock_client):
+        """_ensure_client_ua uses empty string when version attr is missing."""
+        from awslabs.security_agent_mcp_server.server import _ensure_client_ua
+
+        ctx = MagicMock()
+        ctx.session.client_params.clientInfo.name = 'kiro'
+        del ctx.session.client_params.clientInfo.version
+
+        _ensure_client_ua(ctx)
+        mock_client.set_mcp_client_info.assert_called_once_with('kiro', '')
+
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    def test_attribute_error_is_caught(self, mock_client):
+        """_ensure_client_ua handles AttributeError gracefully."""
+        from awslabs.security_agent_mcp_server.server import _ensure_client_ua
+
+        class _BrokenSession:
+            @property
+            def client_params(self):
+                raise AttributeError('broken')
+
+        ctx = MagicMock()
+        ctx.session = _BrokenSession()
+
+        _ensure_client_ua(ctx)  # Should not raise
+        mock_client.set_mcp_client_info.assert_not_called()
+
+
 class TestStartDiffScanErrors:
     """Tests for start_diff_scan error paths."""
 
