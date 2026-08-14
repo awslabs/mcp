@@ -29,7 +29,7 @@ from botocore.exceptions import ClientError
 from loguru import logger
 from mcp.server.fastmcp import Context
 from pydantic import Field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 
 # Check result statuses
@@ -90,35 +90,173 @@ def parse_ecr_image_uri(image_uri: str) -> Optional[Dict[str, str]]:
     return parts
 
 
-def trust_policy_allows_healthomics(assume_role_policy: Any) -> bool:
-    """Check whether a role trust policy allows the HealthOmics service principal.
+def _as_list(value: Any) -> List[Any]:
+    """Normalize a policy value that may be a scalar or a list into a list."""
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple)):
+        return list(value)
+    return [value]
+
+
+def _statement_condition_verdict(
+    condition: Dict[str, Any],
+    region: Optional[str],
+    account_id: Optional[str],
+) -> Tuple[str, Optional[str]]:
+    """Decide whether a trust statement's conditions permit this run.
+
+    Only the condition keys AWS documents for confused-deputy protection on the
+    HealthOmics trust policy are evaluated: ``aws:SourceArn`` and
+    ``aws:SourceAccount``. Anything else is reported as not evaluable rather than
+    assumed to permit the run.
 
     Args:
-        assume_role_policy: The AssumeRolePolicyDocument from an IAM role. May be
-            a dict (already decoded by boto3) or a JSON string.
+        condition: The statement's Condition block
+        region: Region the run will start in
+        account_id: Account the run will start in
 
     Returns:
-        True if the policy grants sts:AssumeRole to omics.amazonaws.com
+        Tuple of (verdict, reason) where verdict is 'permits', 'excludes' or
+        'unknown'. reason is populated for 'excludes' and 'unknown'.
+    """
+    unevaluated: List[str] = []
+
+    for operator, entries in condition.items():
+        if not isinstance(entries, dict):
+            unevaluated.append(operator)
+            continue
+
+        for key, raw_values in entries.items():
+            key_lower = key.lower()
+            values = [str(v) for v in _as_list(raw_values)]
+
+            if key_lower == 'aws:sourcearn':
+                # Values are run ARN patterns: arn:aws:omics:<region>:<account>:run/*
+                arn_regions = set()
+                arn_accounts = set()
+                for value in values:
+                    parts = value.split(':')
+                    if len(parts) < 5:
+                        unevaluated.append(f'{operator}/{key}')
+                        continue
+                    arn_regions.add(parts[3])
+                    arn_accounts.add(parts[4])
+
+                concrete_regions = {r for r in arn_regions if r and '*' not in r and '?' not in r}
+                if region and concrete_regions and region not in concrete_regions:
+                    return (
+                        'excludes',
+                        f'{key} restricts this role to runs in '
+                        f'{", ".join(sorted(concrete_regions))}, but the run region is {region}',
+                    )
+
+                concrete_accounts = {
+                    a for a in arn_accounts if a and '*' not in a and '?' not in a
+                }
+                if account_id and concrete_accounts and account_id not in concrete_accounts:
+                    return (
+                        'excludes',
+                        f'{key} restricts this role to account '
+                        f'{", ".join(sorted(concrete_accounts))}, but the run account is '
+                        f'{account_id}',
+                    )
+
+            elif key_lower == 'aws:sourceaccount':
+                concrete = {v for v in values if '*' not in v and '?' not in v}
+                if account_id and concrete and account_id not in concrete:
+                    return (
+                        'excludes',
+                        f'{key} restricts this role to account '
+                        f'{", ".join(sorted(concrete))}, but the run account is {account_id}',
+                    )
+
+            else:
+                unevaluated.append(f'{operator}/{key}')
+
+    if unevaluated:
+        return (
+            'unknown',
+            f'trust policy carries conditions this check does not evaluate '
+            f'({", ".join(sorted(set(unevaluated)))}); HealthOmics may still be unable to '
+            f'assume the role',
+        )
+    return ('permits', None)
+
+
+def evaluate_healthomics_trust(
+    assume_role_policy: Any,
+    region: Optional[str] = None,
+    account_id: Optional[str] = None,
+) -> Tuple[str, str]:
+    """Evaluate whether HealthOmics can assume a role for a run in this region.
+
+    Naming ``omics.amazonaws.com`` as a trusted principal is necessary but not
+    sufficient. AWS documents a confused-deputy guard for this trust policy that
+    scopes it with ``aws:SourceArn`` and ``aws:SourceAccount``, and a role scoped to
+    another region is rejected by StartRun with ``IAM role is invalid or
+    inaccessible`` even though the principal is present.
+
+    Args:
+        assume_role_policy: AssumeRolePolicyDocument, as a dict or a JSON string
+        region: Region the run will start in
+        account_id: Account the run will start in
+
+    Returns:
+        Tuple of (status, detail) where status is one of the module's STATUS_ values
     """
     if isinstance(assume_role_policy, str):
         try:
             assume_role_policy = json.loads(assume_role_policy)
         except json.JSONDecodeError:
-            return False
+            return (STATUS_FAIL, 'Trust policy could not be parsed as JSON')
 
     if not isinstance(assume_role_policy, dict):
-        return False
+        return (STATUS_FAIL, 'Trust policy is missing or not an object')
+
+    exclusions: List[str] = []
+    unknowns: List[str] = []
 
     for statement in assume_role_policy.get('Statement', []):
-        if statement.get('Effect') != 'Allow':
+        if not isinstance(statement, dict) or statement.get('Effect') != 'Allow':
             continue
-        principal = statement.get('Principal', {})
-        services = principal.get('Service', [])
-        if isinstance(services, str):
-            services = [services]
-        if HEALTHOMICS_PRINCIPAL in services:
-            return True
-    return False
+        services = [str(s) for s in _as_list(statement.get('Principal', {}).get('Service'))]
+        if HEALTHOMICS_PRINCIPAL not in services:
+            continue
+
+        condition = statement.get('Condition') or {}
+        if not condition:
+            return (
+                STATUS_PASS,
+                f'{HEALTHOMICS_PRINCIPAL} is allowed to assume this role without conditions',
+            )
+
+        verdict, reason = _statement_condition_verdict(condition, region, account_id)
+        if verdict == 'permits':
+            return (
+                STATUS_PASS,
+                f'{HEALTHOMICS_PRINCIPAL} is allowed to assume this role, and its trust '
+                f'conditions permit a run in {region} / {account_id}',
+            )
+        if verdict == 'excludes' and reason:
+            exclusions.append(reason)
+        elif reason:
+            unknowns.append(reason)
+
+    if exclusions:
+        return (
+            STATUS_FAIL,
+            f'{HEALTHOMICS_PRINCIPAL} is named in the trust policy, but no statement permits '
+            f'this run: {"; ".join(exclusions)}. StartRun reports this as '
+            f'"IAM role is invalid or inaccessible".',
+        )
+    if unknowns:
+        return (STATUS_WARN, '; '.join(unknowns))
+    return (
+        STATUS_FAIL,
+        f'Trust policy does not allow {HEALTHOMICS_PRINCIPAL} to assume this role. '
+        f'HealthOmics cannot use it to start runs.',
+    )
 
 
 def extract_s3_uris(parameters: Any) -> List[str]:
@@ -283,6 +421,9 @@ async def validate_run_readiness(
 
         # --- Checks 2 and 3: IAM role exists and trusts HealthOmics ---
         role_name = role_arn.split('/')[-1] if '/' in role_arn else None
+        # The account the run will be attributed to, taken from the role ARN
+        arn_parts = role_arn.split(':')
+        role_account_id = arn_parts[4] if len(arn_parts) > 4 else None
         if not role_name:
             checks.append(
                 _check(
@@ -296,23 +437,12 @@ async def validate_run_readiness(
                 role = iam_client.get_role(RoleName=role_name)['Role']
                 checks.append(_check('role_exists', STATUS_PASS, f'Role {role_name} exists'))
 
-                if trust_policy_allows_healthomics(role.get('AssumeRolePolicyDocument')):
-                    checks.append(
-                        _check(
-                            'role_trust_policy',
-                            STATUS_PASS,
-                            f'{HEALTHOMICS_PRINCIPAL} is allowed to assume this role',
-                        )
-                    )
-                else:
-                    checks.append(
-                        _check(
-                            'role_trust_policy',
-                            STATUS_FAIL,
-                            f'Trust policy does not allow {HEALTHOMICS_PRINCIPAL} to assume '
-                            f'this role. HealthOmics cannot use it to start runs.',
-                        )
-                    )
+                trust_status, trust_detail = evaluate_healthomics_trust(
+                    role.get('AssumeRolePolicyDocument'),
+                    region=effective_region,
+                    account_id=role_account_id,
+                )
+                checks.append(_check('role_trust_policy', trust_status, trust_detail))
             except ClientError as e:
                 error_code = e.response['Error']['Code']
                 if error_code in ('NoSuchEntity', 'AccessDenied'):

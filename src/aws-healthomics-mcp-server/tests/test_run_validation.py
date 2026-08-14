@@ -16,16 +16,17 @@
 
 import pytest
 from awslabs.aws_healthomics_mcp_server.tools.run_validation import (
+    evaluate_healthomics_trust,
     extract_s3_uris,
     parse_ecr_image_uri,
-    trust_policy_allows_healthomics,
     validate_run_readiness,
 )
 from botocore.exceptions import ClientError
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
-ROLE_ARN = 'arn:aws:iam::123456789012:role/OmicsServiceRole'
+ACCOUNT_ID = '123456789012'
+ROLE_ARN = f'arn:aws:iam::{ACCOUNT_ID}:role/OmicsServiceRole'
 OUTPUT_URI = 's3://my-output-bucket/healthomics/'
 
 TRUSTING_POLICY = {
@@ -96,15 +97,23 @@ class TestParseEcrImageUri:
         assert parse_ecr_image_uri('public.ecr.aws/ubuntu/ubuntu:20.04') is None
 
 
-class TestTrustPolicyAllowsHealthOmics:
-    """Tests for trust_policy_allows_healthomics."""
+class TestEvaluateHealthOmicsTrust:
+    """Tests for evaluate_healthomics_trust."""
 
-    def test_allows_when_service_is_a_string(self):
-        """A policy naming the omics principal as a string is accepted."""
-        assert trust_policy_allows_healthomics(TRUSTING_POLICY) is True
+    REGION = 'us-east-1'
+    ACCOUNT = '123456789012'
 
-    def test_allows_when_service_is_a_list(self):
-        """A policy naming the omics principal inside a list is accepted."""
+    def _eval(self, policy):
+        return evaluate_healthomics_trust(policy, region=self.REGION, account_id=self.ACCOUNT)
+
+    def test_passes_with_no_conditions(self):
+        """A statement naming the omics principal without conditions passes."""
+        status, detail = self._eval(TRUSTING_POLICY)
+        assert status == 'pass'
+        assert 'without conditions' in detail
+
+    def test_passes_when_service_is_a_list(self):
+        """The omics principal is found inside a list of services."""
         policy = {
             'Statement': [
                 {
@@ -113,32 +122,143 @@ class TestTrustPolicyAllowsHealthOmics:
                 }
             ]
         }
-        assert trust_policy_allows_healthomics(policy) is True
+        assert self._eval(policy)[0] == 'pass'
 
-    def test_rejects_other_principal(self):
-        """A policy that does not name the omics principal is rejected."""
+    def test_passes_when_source_arn_matches_run_region(self):
+        """A SourceArn condition scoped to this region permits the run."""
+        policy = {
+            'Statement': [
+                {
+                    'Effect': 'Allow',
+                    'Principal': {'Service': 'omics.amazonaws.com'},
+                    'Condition': {
+                        'StringEquals': {'aws:SourceAccount': ACCOUNT_ID},
+                        'ArnLike': {
+                            'aws:SourceArn': f'arn:aws:omics:us-east-1:{ACCOUNT_ID}:run/*'
+                        },
+                    },
+                }
+            ]
+        }
+        status, detail = self._eval(policy)
+        assert status == 'pass'
+        assert 'permit a run' in detail
+
+    def test_fails_when_source_arn_restricts_another_region(self):
+        """A role scoped to another region cannot be assumed for this run.
+
+        Observed against the service: the principal is present, so a check that only
+        looks for it reports pass, and StartRun still rejects the role with
+        'IAM role is invalid or inaccessible'.
+        """
+        policy = {
+            'Statement': [
+                {
+                    'Effect': 'Allow',
+                    'Principal': {'Service': 'omics.amazonaws.com'},
+                    'Condition': {
+                        'StringEquals': {'aws:SourceAccount': ACCOUNT_ID},
+                        'ArnLike': {
+                            'aws:SourceArn': f'arn:aws:omics:ap-northeast-2:{ACCOUNT_ID}:run/*'
+                        },
+                    },
+                }
+            ]
+        }
+        status, detail = self._eval(policy)
+        assert status == 'fail'
+        assert 'ap-northeast-2' in detail
+        assert 'us-east-1' in detail
+        assert 'IAM role is invalid or inaccessible' in detail
+
+    def test_passes_when_source_arn_region_is_wildcarded(self):
+        """A wildcard region in SourceArn does not exclude any region."""
+        policy = {
+            'Statement': [
+                {
+                    'Effect': 'Allow',
+                    'Principal': {'Service': 'omics.amazonaws.com'},
+                    'Condition': {
+                        'ArnLike': {'aws:SourceArn': f'arn:aws:omics:*:{ACCOUNT_ID}:run/*'}
+                    },
+                }
+            ]
+        }
+        assert self._eval(policy)[0] == 'pass'
+
+    def test_fails_when_source_account_is_another_account(self):
+        """A SourceAccount condition naming another account excludes this run."""
+        policy = {
+            'Statement': [
+                {
+                    'Effect': 'Allow',
+                    'Principal': {'Service': 'omics.amazonaws.com'},
+                    'Condition': {'StringEquals': {'aws:SourceAccount': '999999999999'}},
+                }
+            ]
+        }
+        status, detail = self._eval(policy)
+        assert status == 'fail'
+        assert '999999999999' in detail
+
+    def test_warns_on_conditions_it_cannot_evaluate(self):
+        """An unrecognized condition key warns rather than silently passing."""
+        policy = {
+            'Statement': [
+                {
+                    'Effect': 'Allow',
+                    'Principal': {'Service': 'omics.amazonaws.com'},
+                    'Condition': {'StringEquals': {'sts:ExternalId': 'secret'}},
+                }
+            ]
+        }
+        status, detail = self._eval(policy)
+        assert status == 'warn'
+        assert 'does not evaluate' in detail
+        assert 'sts:ExternalId' in detail
+
+    def test_passes_when_a_later_statement_permits(self):
+        """A restricted statement does not mask a permissive one."""
+        policy = {
+            'Statement': [
+                {
+                    'Effect': 'Allow',
+                    'Principal': {'Service': 'omics.amazonaws.com'},
+                    'Condition': {
+                        'ArnLike': {'aws:SourceArn': f'arn:aws:omics:eu-west-1:{ACCOUNT_ID}:run/*'}
+                    },
+                },
+                {'Effect': 'Allow', 'Principal': {'Service': 'omics.amazonaws.com'}},
+            ]
+        }
+        assert self._eval(policy)[0] == 'pass'
+
+    def test_fails_for_other_principal(self):
+        """A policy that does not name the omics principal fails."""
         policy = {
             'Statement': [{'Effect': 'Allow', 'Principal': {'Service': 'ec2.amazonaws.com'}}]
         }
-        assert trust_policy_allows_healthomics(policy) is False
+        status, detail = self._eval(policy)
+        assert status == 'fail'
+        assert 'does not allow' in detail
 
-    def test_rejects_deny_statement(self):
-        """A Deny statement naming the omics principal does not count as allowed."""
+    def test_fails_for_deny_statement(self):
+        """A Deny statement naming the omics principal does not grant access."""
         policy = {
             'Statement': [{'Effect': 'Deny', 'Principal': {'Service': 'omics.amazonaws.com'}}]
         }
-        assert trust_policy_allows_healthomics(policy) is False
+        assert self._eval(policy)[0] == 'fail'
 
     def test_accepts_json_string_policy(self):
         """A policy supplied as a JSON string is decoded before evaluation."""
         import json
 
-        assert trust_policy_allows_healthomics(json.dumps(TRUSTING_POLICY)) is True
+        assert self._eval(json.dumps(TRUSTING_POLICY))[0] == 'pass'
 
-    def test_rejects_malformed_input(self):
-        """Malformed policies are rejected rather than raising."""
-        assert trust_policy_allows_healthomics('not json') is False
-        assert trust_policy_allows_healthomics(None) is False
+    def test_fails_on_malformed_input(self):
+        """Malformed policies fail rather than raising."""
+        assert self._eval('not json')[0] == 'fail'
+        assert self._eval(None)[0] == 'fail'
 
 
 class TestExtractS3Uris:
@@ -314,6 +434,79 @@ class TestValidateRunReadiness:
 
         assert result['ready'] is False
         assert _find(result['checks'], 'role_trust_policy')['status'] == 'fail'
+
+    @pytest.mark.asyncio
+    async def test_region_restricted_role_fails_even_when_writable(self):
+        """A role scoped to another region fails on the trust check alone.
+
+        Verified against the service: such a role names the omics principal, so a
+        check that only looks for the principal reports pass, while StartRun rejects
+        the role with 'IAM role is invalid or inaccessible'. Every other check here
+        passes, so the trust check has to be what fails.
+        """
+        ctx = AsyncMock()
+
+        omics = MagicMock()
+        omics.get_workflow.return_value = {'status': 'ACTIVE'}
+
+        iam = MagicMock()
+        iam.get_role.return_value = {
+            'Role': {
+                'AssumeRolePolicyDocument': {
+                    'Statement': [
+                        {
+                            'Effect': 'Allow',
+                            'Principal': {'Service': 'omics.amazonaws.com'},
+                            'Condition': {
+                                'StringEquals': {'aws:SourceAccount': ACCOUNT_ID},
+                                'ArnLike': {
+                                    'aws:SourceArn': (
+                                        f'arn:aws:omics:ap-northeast-2:{ACCOUNT_ID}:run/*'
+                                    )
+                                },
+                            },
+                        }
+                    ]
+                }
+            }
+        }
+        iam.simulate_principal_policy.return_value = {
+            'EvaluationResults': [{'EvalDecision': 'allowed'}]
+        }
+
+        s3 = MagicMock()
+        s3.head_bucket.return_value = {}
+        s3.get_bucket_location.return_value = {'LocationConstraint': None}
+
+        with (
+            patch(
+                'awslabs.aws_healthomics_mcp_server.tools.run_validation.get_omics_client',
+                return_value=omics,
+            ),
+            patch(
+                'awslabs.aws_healthomics_mcp_server.tools.run_validation.get_iam_client',
+                return_value=iam,
+            ),
+            patch(
+                'awslabs.aws_healthomics_mcp_server.tools.run_validation.get_aws_session',
+                return_value=_mock_session(region='us-east-1', s3_client=s3),
+            ),
+        ):
+            result = await validate_run_readiness(
+                ctx,
+                workflow_id='1234567',
+                role_arn=ROLE_ARN,
+                output_uri=OUTPUT_URI,
+            )
+
+        assert result['ready'] is False
+        trust = _find(result['checks'], 'role_trust_policy')
+        assert trust['status'] == 'fail'
+        assert 'ap-northeast-2' in trust['detail']
+        # Everything else is fine, so the trust check is the only failure
+        assert [c['name'] for c in result['checks'] if c['status'] == 'fail'] == [
+            'role_trust_policy'
+        ]
 
     @pytest.mark.asyncio
     async def test_simulate_permission_denied_warns(self):
