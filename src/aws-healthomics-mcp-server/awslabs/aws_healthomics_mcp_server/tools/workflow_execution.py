@@ -14,9 +14,13 @@
 
 """Workflow execution tools for the AWS HealthOmics MCP server."""
 
+import asyncio
+import time
 from awslabs.aws_healthomics_mcp_server.consts import (
     CACHE_BEHAVIORS,
     DEFAULT_MAX_RESULTS,
+    DEFAULT_RUN_POLL_INTERVAL_SECONDS,
+    DEFAULT_RUN_WAIT_TIMEOUT_SECONDS,
     DEFAULT_SCRATCH_STORAGE_MODE,
     ERROR_CONFIGURATION_NAME_REQUIRES_VPC_MODE,
     ERROR_INVALID_CACHE_BEHAVIOR,
@@ -26,6 +30,8 @@ from awslabs.aws_healthomics_mcp_server.consts import (
     ERROR_INVALID_STORAGE_TYPE,
     ERROR_STATIC_STORAGE_REQUIRES_CAPACITY,
     ERROR_VPC_MODE_REQUIRES_CONFIGURATION_NAME,
+    MAX_RUN_WAIT_TIMEOUT_SECONDS,
+    MIN_RUN_POLL_INTERVAL_SECONDS,
     NETWORKING_MODE_RESTRICTED,
     NETWORKING_MODE_VPC,
     NETWORKING_MODES,
@@ -33,6 +39,7 @@ from awslabs.aws_healthomics_mcp_server.consts import (
     SCRATCH_STORAGE_MODES,
     STORAGE_TYPE_STATIC,
     STORAGE_TYPES,
+    TERMINAL_RUN_STATUSES,
 )
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_omics_client
 from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
@@ -538,6 +545,57 @@ async def list_runs(
         return await handle_tool_error(ctx, e, 'Error listing runs')
 
 
+def format_run_response(response: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert a GetRun API response into the tool's serializable result shape.
+
+    Datetime fields are rendered as ISO 8601 strings, and optional fields are
+    included only when the API returned them.
+
+    Args:
+        response: Raw response from the HealthOmics GetRun API
+
+    Returns:
+        Dictionary describing the run
+    """
+    result: Dict[str, Any] = {
+        'id': response.get('id'),
+        'arn': response.get('arn'),
+        'name': response.get('name'),
+        'status': response.get('status'),
+        'workflowId': response.get('workflowId'),
+        'workflowType': response.get('workflowType'),
+        'creationTime': response.get('creationTime').isoformat()
+        if response.get('creationTime')
+        else None,
+        'outputUri': response.get('outputUri'),
+        'roleArn': response.get('roleArn'),
+        'runOutputUri': response.get('runOutputUri'),
+    }
+
+    if 'parameters' in response:
+        result['parameters'] = response['parameters']
+
+    if 'uuid' in response:
+        result['uuid'] = response['uuid']
+
+    # Handle optional datetime fields
+    for field in ['startTime', 'stopTime']:
+        if field in response and response[field] is not None:
+            result[field] = response[field].isoformat()
+
+    # Handle optional string fields
+    for field in [
+        'statusMessage',
+        'failureReason',
+        'workflowVersionName',
+        'scratchStorageMode',
+    ]:
+        if field in response:
+            result[field] = response[field]
+
+    return result
+
+
 async def get_run(
     ctx: Context,
     run_id: str = Field(
@@ -575,44 +633,7 @@ async def get_run(
 
     try:
         response = client.get_run(id=run_id)
-
-        result = {
-            'id': response.get('id'),
-            'arn': response.get('arn'),
-            'name': response.get('name'),
-            'status': response.get('status'),
-            'workflowId': response.get('workflowId'),
-            'workflowType': response.get('workflowType'),
-            'creationTime': response.get('creationTime').isoformat()
-            if response.get('creationTime')
-            else None,
-            'outputUri': response.get('outputUri'),
-            'roleArn': response.get('roleArn'),
-            'runOutputUri': response.get('runOutputUri'),
-        }
-
-        if 'parameters' in response:
-            result['parameters'] = response['parameters']
-
-        if 'uuid' in response:
-            result['uuid'] = response['uuid']
-
-        # Handle optional datetime fields
-        for field in ['startTime', 'stopTime']:
-            if field in response and response[field] is not None:
-                result[field] = response[field].isoformat()
-
-        # Handle optional string fields
-        for field in [
-            'statusMessage',
-            'failureReason',
-            'workflowVersionName',
-            'scratchStorageMode',
-        ]:
-            if field in response:
-                result[field] = response[field]
-
-        return result
+        return format_run_response(response)
     except Exception as e:
         return await handle_tool_error(ctx, e, f'Error getting run {run_id}')
 
@@ -766,3 +787,121 @@ async def get_run_task(
         return result
     except Exception as e:
         return await handle_tool_error(ctx, e, f'Error getting task {task_id} for run {run_id}')
+
+
+async def wait_for_run(
+    ctx: Context,
+    run_id: str = Field(
+        ...,
+        description='ID of the run to wait for',
+    ),
+    timeout_seconds: int = Field(
+        DEFAULT_RUN_WAIT_TIMEOUT_SECONDS,
+        description='Maximum time to wait before returning with timed_out set. '
+        'Returning on timeout does not cancel the run.',
+        ge=1,
+        le=MAX_RUN_WAIT_TIMEOUT_SECONDS,
+    ),
+    poll_interval_seconds: int = Field(
+        DEFAULT_RUN_POLL_INTERVAL_SECONDS,
+        description='Seconds to wait between status checks',
+        ge=MIN_RUN_POLL_INTERVAL_SECONDS,
+    ),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
+) -> Dict[str, Any]:
+    """Wait for a run to reach a terminal status, polling until it does.
+
+    Terminal statuses are COMPLETED, FAILED and CANCELLED. Intermediate statuses,
+    including ones the service reports outside the documented set such as STOPPING
+    while outputs are exported, are treated as not yet finished.
+
+    Use this instead of calling GetAHORun in a loop. The status is checked
+    immediately on entry, so a run that has already finished returns without waiting.
+
+    Reaching the timeout is not an error and does not cancel the run: the result
+    carries timed_out set to true along with the last observed status, and the run
+    continues in the service.
+
+    Args:
+        ctx: MCP context for error reporting
+        run_id: ID of the run to wait for
+        timeout_seconds: Maximum time to wait before returning
+        poll_interval_seconds: Seconds between status checks
+        aws_profile: Optional AWS profile name override
+        aws_region: Optional AWS region override
+
+    Returns:
+        Dictionary containing:
+        - id: The run identifier
+        - status: The last observed status, terminal unless timed_out is true
+        - timedOut: Whether the wait ended because the timeout was reached
+        - elapsedSeconds: Seconds spent waiting
+        - pollCount: Number of GetRun calls made
+        - run: Full run details as returned by GetAHORun
+    """
+    # Resolve Field defaults that FastMCP passes through unevaluated
+    if not isinstance(timeout_seconds, int):
+        timeout_seconds = getattr(timeout_seconds, 'default', DEFAULT_RUN_WAIT_TIMEOUT_SECONDS)
+    if not isinstance(poll_interval_seconds, int):
+        poll_interval_seconds = getattr(
+            poll_interval_seconds, 'default', DEFAULT_RUN_POLL_INTERVAL_SECONDS
+        )
+
+    client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
+
+    started_at = time.monotonic()
+    poll_count = 0
+    run_details: Dict[str, Any] = {}
+    status: Optional[str] = None
+
+    try:
+        while True:
+            response = client.get_run(id=run_id)
+            poll_count += 1
+            run_details = format_run_response(response)
+            status = run_details.get('status')
+
+            if status in TERMINAL_RUN_STATUSES:
+                elapsed = time.monotonic() - started_at
+                logger.info(
+                    f'Run {run_id} reached terminal status {status} after '
+                    f'{elapsed:.0f}s and {poll_count} poll(s)'
+                )
+                return {
+                    'id': run_id,
+                    'status': status,
+                    'timedOut': False,
+                    'elapsedSeconds': round(elapsed, 1),
+                    'pollCount': poll_count,
+                    'run': run_details,
+                }
+
+            elapsed = time.monotonic() - started_at
+            remaining = timeout_seconds - elapsed
+            if remaining <= 0:
+                logger.warning(
+                    f'Stopped waiting for run {run_id} after {elapsed:.0f}s; '
+                    f'last observed status was {status}. The run has not been cancelled.'
+                )
+                return {
+                    'id': run_id,
+                    'status': status,
+                    'timedOut': True,
+                    'elapsedSeconds': round(elapsed, 1),
+                    'pollCount': poll_count,
+                    'run': run_details,
+                }
+
+            # Never sleep past the deadline, so the timeout is honoured even when it
+            # is not a multiple of the poll interval.
+            await asyncio.sleep(min(poll_interval_seconds, remaining))
+
+    except Exception as e:
+        return await handle_tool_error(ctx, e, f'Error waiting for run {run_id}')

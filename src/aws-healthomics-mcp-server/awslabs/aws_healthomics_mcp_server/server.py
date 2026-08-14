@@ -103,6 +103,7 @@ from awslabs.aws_healthomics_mcp_server.tools.workflow_execution import (
     list_run_tasks,
     list_runs,
     start_run,
+    wait_for_run,
 )
 from awslabs.aws_healthomics_mcp_server.tools.workflow_linting import (
     lint_workflow_bundle,
@@ -137,6 +138,7 @@ This MCP server provides tools for creating, managing, and analyzing genomic wor
 
 ### Workflow Execution
 - **StartAHORun**: Start a workflow run
+- **WaitForAHORun**: Wait for a run to reach a terminal status (COMPLETED, FAILED or CANCELLED), polling until it does instead of repeatedly calling GetAHORun
 - **ListAHORuns**: List workflow runs
 - **GetAHORun**: Get details about a specific run
 - **ListAHORunTasks**: List tasks for a specific run
@@ -254,6 +256,7 @@ mcp.tool(name='ListAHOWorkflowVersions')(list_workflow_versions)
 mcp.tool(name='StartAHORun')(start_run)
 mcp.tool(name='ListAHORuns')(list_runs)
 mcp.tool(name='GetAHORun')(get_run)
+mcp.tool(name='WaitForAHORun')(wait_for_run)
 mcp.tool(name='ListAHORunTasks')(list_run_tasks)
 mcp.tool(name='GetAHORunTask')(get_run_task)
 

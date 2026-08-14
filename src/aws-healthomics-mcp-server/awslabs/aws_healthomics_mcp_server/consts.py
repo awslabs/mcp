@@ -90,6 +90,24 @@ RUN_STATUSES = [
     RUN_STATUS_CANCELLED,
 ]
 
+# Statuses a run does not transition out of. Membership is tested positively rather
+# than treating everything outside RUN_STATUSES as terminal, because the service
+# reports intermediate statuses that are not listed above (for example STOPPING,
+# observed while outputs are exported after the last task completes).
+TERMINAL_RUN_STATUSES = frozenset(
+    {
+        RUN_STATUS_COMPLETED,
+        RUN_STATUS_FAILED,
+        RUN_STATUS_CANCELLED,
+    }
+)
+
+# Bounds for polling a run to completion
+DEFAULT_RUN_WAIT_TIMEOUT_SECONDS = 3600
+MAX_RUN_WAIT_TIMEOUT_SECONDS = 86400
+DEFAULT_RUN_POLL_INTERVAL_SECONDS = 30
+MIN_RUN_POLL_INTERVAL_SECONDS = 5
+
 # Workflow engine types
 WORKFLOW_ENGINES = ['WDL', 'NEXTFLOW', 'CWL', 'WDL_LENIENT']
 
