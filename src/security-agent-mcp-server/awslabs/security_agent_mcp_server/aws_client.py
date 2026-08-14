@@ -39,6 +39,7 @@ class SecurityAgentClient:
         """Initialize SecurityAgent client."""
         self.region = region
         self._cached_account_id: Optional[str] = None
+        self._cached_account_key: Optional[str] = None
         self._mcp_client_name = mcp_client_name
         self._mcp_client_version = mcp_client_version
         self._config = self._build_config(mcp_client_name, mcp_client_version)
@@ -77,9 +78,15 @@ class SecurityAgentClient:
         return boto3.Session(region_name=self.region)
 
     def _account_id(self) -> str:
-        """Cache and return the caller's account ID for bucket-ownership guards."""
-        if self._cached_account_id is None:
-            self._cached_account_id = str(self.get_caller_identity()['Account'])
+        """Return the caller's account ID, cached per credential set."""
+        session = self._get_session()
+        creds = session.get_credentials()
+        key = creds.get_frozen_credentials().access_key if creds else None
+        if self._cached_account_id is None or self._cached_account_key != key:
+            self._cached_account_id = str(
+                session.client('sts', config=self._config).get_caller_identity()['Account']
+            )
+            self._cached_account_key = key
         return self._cached_account_id
 
     def _client(self):
@@ -413,8 +420,8 @@ class SecurityAgentClient:
             )
         except S3UploadFailedError as e:
             # Re-raise the underlying ClientError (e.g. 403) so callers can handle it.
-            cause = e.__cause__ or e.__context__
-            if isinstance(cause, ClientError):
-                raise cause
+            for cand in (e.__cause__, e.__context__):
+                if isinstance(cand, ClientError):
+                    raise cand
             raise
         return f's3://{bucket}/{key}'

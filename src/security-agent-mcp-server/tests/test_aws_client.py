@@ -611,5 +611,8 @@ class TestUserAgentInjection:
         mock_boto3.Session.return_value = mock_session
         client = SecurityAgentClient(region='us-east-1')
         client._cached_account_id = '123456789012'
+        client._cached_account_key = (
+            mock_session.get_credentials().get_frozen_credentials().access_key
+        )
         client.upload_to_s3('bucket', 'key', '/path/to/file')
         mock_session.client.assert_called_once_with('s3', config=client._config)
