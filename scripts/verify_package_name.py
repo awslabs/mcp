@@ -215,12 +215,15 @@ def find_package_references_in_readme(
         # But allow package names that look like they could be valid (contain hyphens)
         if '.' not in ref and '@' not in ref and '-' not in ref:
             continue
-        # Skip common false positives in code examples (word@something where word is not a package name)
+        # Skip common false positives in code examples (word@something where the
+        # part after '@' doesn't look like a real package version, e.g. Python
+        # snippets such as create_asset("asset@invalid", ...) that demonstrate
+        # input validation rather than an installation instruction).
+        # A real package reference's version is either the literal "latest" or
+        # a numeric tag such as "1", "2.0", or "v1.2".
         if '@' in ref and '.' not in ref:
-            # Extract the part before @
-            prefix = ref.split('@')[0].lower()
-            # Different scenarios where the prefix is not a package name
-            if prefix in ['asset', 'model', 'property', 'hierarchy']:
+            version_part = ref.split('@', 1)[1]
+            if not re.fullmatch(r'latest|v?\d+(\.\d+)*', version_part, re.IGNORECASE):
                 continue
         filtered_references.append((ref, line_num))
 
