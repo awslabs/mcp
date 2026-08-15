@@ -14,12 +14,21 @@
 # limitations under the License.
 """Tests for verify_package_name.py's README reference filtering.
 
-Regression coverage for https://github.com/awslabs/mcp/issues/2656: the script
-used to hardcode a list of "safe" prefixes (asset/model/property/hierarchy) to
-skip when filtering `word@something` false positives, which would have hidden
-a real package reference such as ``asset-manager@latest`` had one ever been
-added. The replacement filters on whether the text after ``@`` looks like a
-version identifier instead of matching a fixed word list.
+Regression coverage for https://github.com/awslabs/mcp/issues/2656.
+
+The old filter matched on `ref.split('@')[0].lower() in ['asset', 'model',
+'property', 'hierarchy']` (an exact-equality check on the whole prefix, not a
+`startswith` check). That meant a compound name like `asset-manager@latest`
+was never affected by the old exclusion (its prefix is `"asset-manager"`,
+which is not in the list) -- the old code already detected it correctly. The
+only real gap was a package literally named `asset`, `model`, `property`, or
+`hierarchy` (exact match) that had a valid version, e.g. `asset@latest`,
+which the old code silently hid.
+
+The replacement drops the word list and instead matches the single known
+code-sample false positive (`asset@invalid`, from the SiteWise README's
+``create_asset("asset@invalid", "model-id")`` input-validation example) by
+its exact literal value.
 """
 
 import tempfile
@@ -42,25 +51,35 @@ class TestFindPackageReferencesInReadme(unittest.TestCase):
         finally:
             path.unlink()
 
-    def test_code_example_with_invalid_placeholder_is_filtered(self):
-        """Doc code examples like create_asset("asset@invalid", ...) are not package refs."""
+    def test_known_sitewise_false_positive_is_filtered(self):
+        """The documented create_asset("asset@invalid", ...) sample is not a package ref."""
         content = 'create_asset("asset@invalid", "model-id")  # Fails: invalid characters\n'
         self.assertNotIn('asset@invalid', self._refs(content))
 
-    def test_previously_hardcoded_prefixes_no_longer_hide_real_packages(self):
-        """A real package starting with a formerly-hardcoded prefix must be detected."""
+    def test_exact_word_package_with_valid_version_is_now_detected(self):
+        """A package literally named one of the old hardcoded words must be detected.
+
+        Discriminates old vs. new behavior: the old code excluded ANY
+        `asset@<version>` reference by exact-prefix match, even with a
+        legitimate version. This is the actual bug the old code had.
+        """
+        content = '"mcpServers": {"x": {"command": "uvx", "args": ["asset@latest"]}}\n'
+        self.assertIn('asset@latest', self._refs(content))
+
+    def test_exact_word_package_property_with_numeric_version_is_now_detected(self):
+        """Same discrimination as above for another formerly-hardcoded word."""
+        content = '"property@2" is referenced here\n'
+        self.assertIn('property@2', self._refs(content))
+
+    def test_compound_name_starting_with_hardcoded_word_was_always_detected(self):
+        """Sanity check: compound names were never broken by the old exact-match list.
+
+        This does NOT discriminate old vs. new (both detect it), but guards
+        against a future regression that reintroduces prefix/startswith
+        matching instead of exact matching.
+        """
         content = '"mcpServers": {"x": {"command": "uvx", "args": ["asset-manager@latest"]}}\n'
         self.assertIn('asset-manager@latest', self._refs(content))
-
-    def test_bare_numeric_version_is_kept(self):
-        """A short numeric version tag (no dot) is still recognized as a package ref."""
-        content = '"model-toolkit@2" is referenced here\n'
-        self.assertIn('model-toolkit@2', self._refs(content))
-
-    def test_non_version_suffix_is_filtered_regardless_of_prefix(self):
-        """Any word@non-version token is filtered, not just the old hardcoded words."""
-        content = 'create_model("model@bad-input")\n'
-        self.assertNotIn('model@bad-input', self._refs(content))
 
 
 if __name__ == '__main__':

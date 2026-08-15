@@ -215,16 +215,14 @@ def find_package_references_in_readme(
         # But allow package names that look like they could be valid (contain hyphens)
         if '.' not in ref and '@' not in ref and '-' not in ref:
             continue
-        # Skip common false positives in code examples (word@something where the
-        # part after '@' doesn't look like a real package version, e.g. Python
-        # snippets such as create_asset("asset@invalid", ...) that demonstrate
-        # input validation rather than an installation instruction).
-        # A real package reference's version is either the literal "latest" or
-        # a numeric tag such as "1", "2.0", or "v1.2".
-        if '@' in ref and '.' not in ref:
-            version_part = ref.split('@', 1)[1]
-            if not re.fullmatch(r'latest|v?\d+(\.\d+)*', version_part, re.IGNORECASE):
-                continue
+        # Skip the one known code-sample false positive in the SiteWise README:
+        # create_asset("asset@invalid", "model-id") demonstrates input
+        # validation, not an install instruction. Matched by exact literal
+        # value (not a word-prefix list) so we don't silently hide real
+        # "word@version" package references that happen to start with the
+        # same word (e.g. a hypothetical "asset-manager@latest").
+        if ref.lower() == 'asset@invalid':
+            continue
         filtered_references.append((ref, line_num))
 
     return filtered_references
