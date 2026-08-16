@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added AWS Billing Conductor tools to analize billing groups, account associations, billing group cost reports, pricing rules/plans, and custom line items
 - Added AWS Billing tools for managing and querying billing views
 - Added optional `billing_view_arn` parameter to 7 Cost Explorer operations to scope queries to specific billing views (PRIMARY, BILLING_GROUP, CUSTOM, BILLING_TRANSFER, BILLING_TRANSFER_SHOWBACK)
+- Added local time-filter validation to the AWS Invoicing `list_invoice_summaries` operation so requests the service cannot satisfy are refused before the round trip: ranges longer than one month, reversed or empty ranges, and a missing time filter on the account selector. An over-long range returns `suggested_date_ranges`, the per-month sub-ranges that together cover the request, expressed as dates rather than billing periods to preserve issued-date semantics. The span limit follows the number of days in the start date's month (28 from a February start, 31 from a January one) rather than a flat 31 days.
+
+### Changed
+- Clarified the AWS Invoicing `list_invoice_summaries` time-filter documentation to match service behavior: the one-month maximum on `start_date`/`end_date` ranges (and that calendar alignment is not required), that a date-only bound is 00:00:00 UTC so a full June is `2026-06-01` to `2026-07-01`, that a time filter is mandatory for the account selector but optional for `invoice_id`, and that `billing_period` and `start_date`/`end_date` are not interchangeable because they filter on billing month and issued date respectively.
 
 ### Fixed
 - Corrected AWS Compute Optimizer recommendation response field names so EC2, Auto Scaling group, Lambda, and RDS tools return actual values instead of null. Fixed the shared savings-opportunity parser (`savingsOpportunityPercentage`), projected utilization metrics, EC2/RDS idle flags, nested ASG instance types, and the RDS instance/storage recommendation schema.
