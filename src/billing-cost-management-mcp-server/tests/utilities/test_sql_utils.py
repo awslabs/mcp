@@ -1066,6 +1066,128 @@ class TestValidateSqlQuery:
         with pytest.raises(ValueError, match='Query contains potentially harmful operations'):
             validate_sql_query('SELECT * FROM users; DROP TABLE users')
 
+    def test_validate_sql_query_dangerous_attach_database(self):
+        """ATTACH DATABASE must be rejected.
+
+        Without this rejection, an attacker (or a prompt-injected
+        agent) can attach any SQLite file readable by the process
+        and read it back via subsequent SELECTs — a filter bypass
+        that the blacklist previously missed.
+        """
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            validate_sql_query,
+        )
+
+        with pytest.raises(ValueError, match='Query contains potentially harmful operations'):
+            validate_sql_query("ATTACH DATABASE '/tmp/victim.db' AS victim_db")
+
+    def test_validate_sql_query_dangerous_attach_lowercase(self):
+        """Case-insensitive: ATTACH must be rejected regardless of case."""
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            validate_sql_query,
+        )
+
+        with pytest.raises(ValueError, match='Query contains potentially harmful operations'):
+            validate_sql_query("attach database '/tmp/victim.db' as victim_db")
+
+    def test_validate_sql_query_dangerous_detach(self):
+        """Symmetric case: DETACH is rejected too."""
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            validate_sql_query,
+        )
+
+        with pytest.raises(ValueError, match='Query contains potentially harmful operations'):
+            validate_sql_query('DETACH DATABASE victim_db')
+
+
+class TestSessionAuthorizer:
+    """Engine-level defense against ATTACH DATABASE.
+
+    The authorizer is the second line of defense behind the regex
+    blacklist in ``validate_sql_query``. Even if the query text were
+    to slip past the blacklist (comment tricks, whitespace variants,
+    dynamic SQL from a trigger), the SQLite parser calls the
+    authorizer for every operation the query would perform. ATTACH
+    returns SQLITE_DENY here, so the connection refuses to mount any
+    external database file.
+    """
+
+    def test_authorizer_denies_attach(self, tmp_path):
+        """A connection with the authorizer refuses ATTACH DATABASE."""
+        import sqlite3
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _session_authorizer,
+        )
+
+        conn = sqlite3.connect(':memory:')
+        conn.set_authorizer(_session_authorizer)
+
+        victim = tmp_path / 'victim.db'
+        # Populate the victim DB with something that would be visible
+        # if ATTACH succeeded — the assertion is that ATTACH raises,
+        # not that this data is or isn't readable.
+        sqlite3.connect(str(victim)).execute(
+            'CREATE TABLE secrets (v TEXT)',
+        )
+
+        with pytest.raises(sqlite3.DatabaseError):
+            conn.execute(f"ATTACH DATABASE '{victim}' AS victim")
+
+    def test_authorizer_denies_detach(self):
+        """The authorizer refuses DETACH as well (symmetric coverage)."""
+        import sqlite3
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _session_authorizer,
+        )
+
+        conn = sqlite3.connect(':memory:')
+        conn.set_authorizer(_session_authorizer)
+        with pytest.raises(sqlite3.DatabaseError):
+            conn.execute('DETACH DATABASE anything')
+
+    def test_authorizer_allows_normal_select(self):
+        """Normal SELECT/INSERT/CREATE operations still work.
+
+        The authorizer only denies ATTACH/DETACH; everything else
+        returns SQLITE_OK, so the session tool retains full
+        read/write access to its own database.
+        """
+        import sqlite3
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _session_authorizer,
+        )
+
+        conn = sqlite3.connect(':memory:')
+        conn.set_authorizer(_session_authorizer)
+        conn.execute('CREATE TABLE t (a INTEGER, b TEXT)')
+        conn.execute("INSERT INTO t VALUES (1, 'hello'), (2, 'world')")
+        rows = list(conn.execute('SELECT a, b FROM t ORDER BY a'))
+        assert rows == [(1, 'hello'), (2, 'world')]
+
+    def test_get_db_connection_installs_authorizer(self, tmp_path, monkeypatch):
+        """The session connection factory installs the authorizer.
+
+        Guarantees the tool-facing code path is guarded end-to-end
+        rather than relying on callers to remember to attach the
+        authorizer themselves.
+        """
+        import sqlite3
+        from awslabs.billing_cost_management_mcp_server.utilities import sql_utils
+
+        # Isolate the session DB in a tmpdir so this test doesn't
+        # pollute the shared session location.
+        session_db = tmp_path / 'session.db'
+        monkeypatch.setattr(sql_utils, 'get_session_db_path', lambda: str(session_db))
+
+        conn, cursor = sql_utils.get_db_connection()
+        try:
+            victim = tmp_path / 'victim.db'
+            sqlite3.connect(str(victim)).execute('CREATE TABLE secrets (v TEXT)')
+            with pytest.raises(sqlite3.DatabaseError):
+                cursor.execute(f"ATTACH DATABASE '{victim}' AS victim")
+        finally:
+            conn.close()
+
 
 class TestGetSpecializedConverter:
     """Test _get_specialized_converter function."""

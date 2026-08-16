@@ -118,6 +118,25 @@ def cleanup_session_db() -> None:
             logger.warning(f'Failed to remove session database: {str(e)}')
 
 
+def _session_authorizer(action, arg1, arg2, db_name, trigger_name):
+    """SQLite authorizer callback: deny cross-DB attach/detach.
+
+    Belt-and-suspenders with the regex blacklist in
+    :func:`validate_sql_query`. The regex catches the query text
+    before SQLite parses it; this authorizer catches every SQL parser
+    action the connection actually attempts, including anything the
+    regex filter might miss (comment tricks, whitespace variants,
+    dynamic SQL from triggers, etc.).
+
+    Any ATTACH/DETACH DATABASE attempt returns ``SQLITE_DENY``; every
+    other action returns ``SQLITE_OK`` so the session tool retains
+    full read/write access to its own database.
+    """
+    if action == sqlite3.SQLITE_ATTACH or action == sqlite3.SQLITE_DETACH:
+        return sqlite3.SQLITE_DENY
+    return sqlite3.SQLITE_OK
+
+
 def get_db_connection() -> Tuple[sqlite3.Connection, sqlite3.Cursor]:
     """Get a connection to the session database.
 
@@ -133,6 +152,12 @@ def get_db_connection() -> Tuple[sqlite3.Connection, sqlite3.Cursor]:
     conn = sqlite3.connect(db_path)
     conn.execute('PRAGMA journal_mode=WAL')
     conn.execute(f'PRAGMA busy_timeout={BUSY_TIMEOUT_MS}')
+    # Install the engine-level authorizer AFTER PRAGMA setup — the
+    # authorizer denies ATTACH/DETACH but SQLITE_PRAGMA is separately
+    # gated, so setup pragmas above still run. Every subsequent call
+    # through this connection (including anything from the
+    # session-sql tool) is guarded. See _session_authorizer.
+    conn.set_authorizer(_session_authorizer)
     cursor = conn.cursor()
 
     # Create schema_info table to track created tables if it doesn't exist
@@ -294,6 +319,17 @@ def validate_sql_query(query: str) -> bool:
         r'\bDELETE\b.*\bFROM\b',
         r'\bTRUNCATE\b.*\bTABLE\b',
         r'\bALTER\b.*\bTABLE\b',
+        # ATTACH / DETACH must NOT be allowed on the session
+        # connection. ATTACH DATABASE lets a caller mount any SQLite
+        # file readable by the process (browser cookie stores,
+        # credential DBs, other files under the same user) as an
+        # alias inside the session, and then read its contents back
+        # via SELECT. The engine-level `set_authorizer` on the
+        # session connection is the primary defense; this regex is
+        # the first-line filter that gives callers a clear error
+        # message.
+        r'\bATTACH\b',
+        r'\bDETACH\b',
         r'\bEXEC\b',
         r'\bSYSTEM\b',
         r';.*\b',
