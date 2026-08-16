@@ -200,7 +200,9 @@ async def test_configure_security_groups_no_cache_nodes():
             }
         ]
     }
-
+    mock_elasticache.describe_cache_subnet_groups.return_value = {
+        'CacheSubnetGroups': [{'VpcId': 'vpc-1234'}]
+    }
     with pytest.raises(ValueError) as exc_info:
         await _configure_security_groups('cluster-1', 'i-1234', mock_ec2, mock_elasticache)
 
