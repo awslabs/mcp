@@ -1,54 +1,160 @@
 /**
- * Any CSS included here will be global. The classic template
- * bundles Infima by default. Infima is a CSS framework designed to
- * work well for content-centric websites.
+ * Global styles. Bundles Infima (Docusaurus classic theme) plus the
+ * AWS identity system layered on top: Squid Ink navy + Smile Orange,
+ * Cloudscape action blue for interaction. Per-category accent colors
+ * live in src/categoryMeta.ts.
  */
 
-/* You can override the default Infima variables here. */
+/* ------------------------------------------------------------------ *
+ * Design tokens
+ * ------------------------------------------------------------------ */
 :root {
-  --ifm-font-color-base: #000000;
-  --ifm-color-primary: #006ce0;
-  --ifm-color-primary-dark: #0061ca;
-  --ifm-color-primary-darker: #005cbe;
-  --ifm-color-primary-darkest: #004c9d;
-  --ifm-color-primary-light: #0077f6;
-  --ifm-color-primary-lighter: #037cff;
-  --ifm-color-primary-lightest: #248eff;
+  /* AWS brand */
+  --aws-squid-ink: #232f3e;
+  --aws-squid-ink-deep: #161d26;
+  --aws-smile-orange: #ff9900;
+  --aws-anchor-link: #0972d3;
+
+  /* Neutral ramp (cool-tinted toward squid ink, not warm) */
+  --aws-ink-700: #414d5c;
+  --aws-ink-300: #d5dbdb;
+  --aws-ink-200: #e5e9ec;
+  --aws-ink-100: #f2f4f6;
+  --aws-ink-050: #f8fafb;
+
+  /* Elevation */
+  --aws-shadow-md: 0 4px 12px rgba(22, 25, 31, 0.08),
+    0 2px 4px rgba(22, 25, 31, 0.05);
+
+  /* Motion */
+  --aws-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Infima overrides -------------------------------------------------- */
+  --ifm-color-primary: #0972d3;
+  --ifm-color-primary-dark: #0868be;
+  --ifm-color-primary-darker: #0862b4;
+  --ifm-color-primary-darkest: #065194;
+  --ifm-color-primary-light: #1a80dd;
+  --ifm-color-primary-lighter: #2a89e0;
+  --ifm-color-primary-lightest: #4c9de6;
   --ifm-color-secondary: #ebedf0;
-  --ifm-color-success: #00802f;
-  --ifm-color-info: #54c7ec;
-  --ifm-color-warning: #f2cd54;
-  --ifm-color-danger: #db0000;
+  --ifm-color-success: #037f51;
+  --ifm-color-info: #0972d3;
+  --ifm-color-warning: #b25900;
+  --ifm-color-danger: #d13212;
+
+  --ifm-font-color-base: #16191f;
+  --ifm-heading-color: var(--aws-squid-ink);
+  --ifm-font-family-base: 'Public Sans', -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --ifm-font-family-monospace: 'IBM Plex Mono', ui-monospace, 'SF Mono',
+    'JetBrains Mono', 'Fira Code', Menlo, Consolas, monospace;
+  --ifm-heading-font-weight: 700;
   --ifm-h1-font-size: 37px;
-  --ifm-menu-color: #000000;
+
+  --ifm-menu-color: #16191f;
+  --ifm-navbar-background-color: #ffffff;
+  --ifm-navbar-shadow: inset 0 -1px 0 var(--aws-ink-200);
+  --ifm-background-surface-color: #ffffff;
+  --ifm-toc-border-color: var(--aws-ink-200);
+  --ifm-code-font-size: 90%;
   --doc-sidebar-width: 325px;
 }
 
+/* Dark surfaces reuse the same primary; the site ships light-only. */
+[data-theme='dark'] {
+  --ifm-color-primary: #4c9de6;
+  --ifm-color-primary-dark: #2a89e0;
+  --ifm-color-primary-darker: #1a80dd;
+  --ifm-color-primary-darkest: #0868be;
+  --ifm-color-primary-light: #6cb0eb;
+  --ifm-color-primary-lighter: #7dbaed;
+  --ifm-color-primary-lightest: #a6d0f3;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}
+
+/* ------------------------------------------------------------------ *
+ * Markdown doc typography (unchanged rhythm from the original)
+ * ------------------------------------------------------------------ */
 .markdown h1:first-child {
   font-size: 32px;
+  letter-spacing: -0.02em;
 }
 
 .markdown > h2 {
   font-size: 24px;
+  letter-spacing: -0.01em;
 }
 
 .markdown {
-    --ifm-h1-vertical-rhythm-top: 2;
-    --ifm-h2-vertical-rhythm-top: 1.5;
-    --ifm-h3-vertical-rhythm-top: 1.1;
-    --ifm-heading-vertical-rhythm-top: 1.25;
-    --ifm-h1-vertical-rhythm-bottom: 1;
-    --ifm-heading-vertical-rhythm-bottom: 1;
+  --ifm-h1-vertical-rhythm-top: 2;
+  --ifm-h2-vertical-rhythm-top: 1.5;
+  --ifm-h3-vertical-rhythm-top: 1.1;
+  --ifm-heading-vertical-rhythm-top: 1.25;
+  --ifm-h1-vertical-rhythm-bottom: 1;
+  --ifm-heading-vertical-rhythm-bottom: 1;
+  --ifm-line-height-base: 1.65;
 }
 
-/* For readability concerns, you should choose a lighter palette in dark mode. */
-[data-theme='dark'] {
-  --ifm-color-primary: #006ce0;
-  --ifm-color-primary-dark: #0061ca;
-  --ifm-color-primary-darker: #005cbe;
-  --ifm-color-primary-darkest: #004c9d;
-  --ifm-color-primary-light: #0077f6;
-  --ifm-color-primary-lighter: #037cff;
-  --ifm-color-primary-lightest: #248eff;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+/* ------------------------------------------------------------------ *
+ * Navbar: keep it console-clean, brand the wordmark
+ * ------------------------------------------------------------------ */
+.navbar {
+  backdrop-filter: saturate(1.1);
+}
+
+.navbar__title {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--aws-squid-ink);
+}
+
+.navbar__logo {
+  height: 1.75rem;
+}
+
+.navbar__link,
+.navbar__brand:hover .navbar__title {
+  transition: color 0.15s var(--aws-ease-out);
+}
+
+/* ------------------------------------------------------------------ *
+ * Buttons — flatter, Cloudscape-flavored
+ * ------------------------------------------------------------------ */
+.button {
+  border-radius: 8px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  transition: transform 0.15s var(--aws-ease-out),
+    box-shadow 0.15s var(--aws-ease-out), background-color 0.15s var(--aws-ease-out);
+}
+
+.button--primary {
+  --ifm-button-background-color: var(--aws-anchor-link);
+  --ifm-button-border-color: var(--aws-anchor-link);
+}
+
+/* ------------------------------------------------------------------ *
+ * Footer — deepen the navy and add the Smile Orange rule
+ * ------------------------------------------------------------------ */
+.footer--dark {
+  --ifm-footer-background-color: var(--aws-squid-ink-deep);
+  --ifm-footer-color: var(--aws-ink-300);
+  --ifm-footer-link-color: var(--aws-ink-200);
+  --ifm-footer-title-color: #ffffff;
+  border-top: 3px solid var(--aws-smile-orange);
+}
+
+.footer__link-item:hover {
+  color: var(--aws-smile-orange);
+}
+
+/* ------------------------------------------------------------------ *
+ * Reduced motion
+ * ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: reduce) {
+  .button,
+  .navbar__link {
+    transition: none;
+  }
 }
