@@ -53,7 +53,7 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/document-loader-mcp-server                                @awslabs/mcp-admins @awslabs/mcp-maintainers  @andywidjaja @hvital @HaoOliv
 /src/documentdb-mcp-server                                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @nitinahuja89
 /src/dynamodb-mcp-server                                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @LeeroyHannigan @willykev
-/src/ecs-mcp-server                                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @guitar80ep @matthewgoodman13 @nineonine @biagic @tusharbabbar @lewisct
+/src/ecs-mcp-server                                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @matthewgoodman13 @nineonine @biagic @meseer
 /src/eks-mcp-server                                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @patrick-yu-amzn @lynnnnnnluo @djtung @BrianS99 @nolanzzz @okjuliankim
 /src/elasticache-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @swarnaprakash @madolson @allenss-amazon @kevinmcgehee
 /src/finch-mcp-server                                          @awslabs/mcp-admins @awslabs/mcp-maintainers  @Shubhranshu153 @pendo324
