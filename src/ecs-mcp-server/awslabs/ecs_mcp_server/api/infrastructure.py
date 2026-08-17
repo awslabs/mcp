@@ -27,11 +27,11 @@ from awslabs.ecs_mcp_server.utils.aws import (
     get_aws_client_with_role,
     get_default_vpc_and_subnets,
 )
+from awslabs.ecs_mcp_server.utils.path_validation import validate_path
 from awslabs.ecs_mcp_server.utils.security import (
     ValidationError,
     validate_app_name,
     validate_cloudformation_template,
-    validate_file_path,
 )
 from awslabs.ecs_mcp_server.utils.templates import get_templates_dir
 
@@ -46,7 +46,7 @@ def prepare_template_files(app_name: str, app_path: str) -> Dict[str, str]:
 
     Args:
         app_name: Name of the application
-        app_path: Path to the application directory
+        app_path: Path to the application directory. Created if it doesn't exist.
 
     Returns:
         Dict containing paths to the template files
@@ -57,16 +57,12 @@ def prepare_template_files(app_name: str, app_path: str) -> Dict[str, str]:
     # Validate app_name
     validate_app_name(app_name)
 
-    # For app_path, we'll validate it but handle the case where it doesn't exist
+    # Resolve and validate app_path before writing anything to disk. The directory
+    # is created below when missing, so existence is not required here.
     try:
-        validate_file_path(app_path)
-    except ValidationError as e:
-        # If the path doesn't exist, we'll create it
-        if "does not exist" not in str(e):
-            # Some other validation error occurred
-            raise ValidationError(str(e)) from e
-        # Otherwise, we'll continue and create the directory later
-        logger.debug(f"Path {app_path} does not exist, will create it")
+        app_path = validate_path(app_path)
+    except ValueError as e:
+        raise ValidationError(str(e)) from e
 
     # Create templates directory (this will create app_path if it doesn't exist)
     templates_dir = os.path.join(app_path, "cloudformation-templates")

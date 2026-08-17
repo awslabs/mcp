@@ -47,16 +47,6 @@ BILLING_MONTH_PATTERN = re.compile(r'\d{4}-(0[1-9]|1[0-2])')
 # this are rejected locally rather than spending a call that cannot return data.
 EARLIEST_BILLING_MONTH = '2025-01'
 
-# IAM action required by each operation, used to build an actionable message
-# when the caller's policy is missing it.
-_REQUIRED_IAM_ACTIONS = {
-    'GetEnterpriseSupportChargeSummary': 'billing:GetEnterpriseSupportChargeSummary',
-    'GetEnterpriseSupportContractDetails': 'billing:GetEnterpriseSupportContractDetails',
-    'ListEnterpriseSupportLinkedAccountCharges': (
-        'billing:ListEnterpriseSupportLinkedAccountCharges'
-    ),
-}
-
 
 def _create_billing_client() -> Any:
     """Create an AWS Billing client for the Enterprise Support operations.
@@ -90,7 +80,7 @@ def _classify_enterprise_support_error(
         one this module explains itself.
     """
     if error_code in ('AccessDeniedException', 'AccessDenied'):
-        required_action = _REQUIRED_IAM_ACTIONS.get(api_name, f'billing:{api_name}')
+        required_action = f'billing:{api_name}'
         return (
             'access_denied',
             f'Access denied for Billing {api_name}. This is a permission or '
