@@ -25,7 +25,11 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 ### Savings Plans and Reserved Instanaces
 
 - **Reserved Instance planning**: Analyze RI coverage and receive purchase recommendations
-- **Savings Plans guidance**: Get personalized Savings Plans recommendations based on usage patterns
+- **Savings Plans performance**: Analyze how much eligible spend existing plans cover and how much of their commitment is consumed over a lookback window
+- **Savings Plans inventory**: Describe the plans an account owns with their state, term, payment option, commitment, and expiry, including the queued, returned, and payment-failed plans that Cost Explorer does not report
+- **Savings Plans rates and offerings**: Look up the rates locked in on plans already owned, and the offerings available to purchase with their rates, to compare terms and payment options against real numbers
+- **Savings Plans recommendations**: Get personalized purchase recommendations based on usage patterns, the hourly data-points behind a recommendation, and the history of when recommendations were generated
+- **Savings Plans purchase analysis**: Retrieve the projected cost, coverage, and utilization of a planned purchase from a Purchase Analyzer analysis, and list the analyses an account has run
 
 ### S3 Storage Lens Analysis
 
@@ -210,6 +214,10 @@ Cost Explorer:
 - ce:GetSavingsPlansCoverage
 - ce:GetSavingsPlansUtilizationDetails
 - ce:GetSavingsPlansPurchaseRecommendation
+- ce:GetSavingsPlanPurchaseRecommendationDetails
+- ce:ListSavingsPlansPurchaseRecommendationGeneration
+- ce:GetCommitmentPurchaseAnalysis
+- ce:ListCommitmentPurchaseAnalyses
 - ce:GetCostAndUsageComparisons
 - ce:GetCostComparisonDrivers
 - ce:GetAnomalies
@@ -221,6 +229,12 @@ Cost Explorer:
 - ce:GetUsageForecast
 - ce:GetTags
 - ce:GetCostCategories
+
+Savings Plans:
+- savingsplans:DescribeSavingsPlans
+- savingsplans:DescribeSavingsPlanRates
+- savingsplans:DescribeSavingsPlansOfferings
+- savingsplans:DescribeSavingsPlansOfferingRates
 
 Cost Allocation Tags:
 - ce:ListCostAllocationTags
