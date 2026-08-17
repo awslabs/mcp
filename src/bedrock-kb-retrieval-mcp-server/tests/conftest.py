@@ -31,11 +31,23 @@ def mock_bedrock_agent_runtime_client():
                 'content': {'text': 'This is a test document content.', 'type': 'TEXT'},
                 'location': {'s3Location': {'uri': 's3://test-bucket/test-document.txt'}},
                 'score': 0.95,
+                'metadata': {
+                    'x-amz-bedrock-kb-source-uri': 's3://test-bucket/test-document.txt',
+                    'x-amz-bedrock-kb-data-source-id': 'ds-12345',
+                    'doc_type': 'runbook',
+                    'service': 'test-service',
+                },
             },
             {
                 'content': {'text': 'This is another test document content.', 'type': 'TEXT'},
                 'location': {'s3Location': {'uri': 's3://test-bucket/another-document.txt'}},
                 'score': 0.85,
+                'metadata': {
+                    'x-amz-bedrock-kb-source-uri': 's3://test-bucket/another-document.txt',
+                    'x-amz-bedrock-kb-data-source-id': 'ds-67890',
+                    'doc_type': 'faq',
+                    'service': 'another-service',
+                },
             },
         ]
     }

@@ -15,12 +15,20 @@ MCP server for accessing Amazon Bedrock Knowledge Bases
 - Retrieve information using conversational queries
 - Get relevant passages from your knowledge bases
 - Access citation information for all results
+- Access document metadata attributes (system `x-amz-bedrock-kb-*` attributes and custom attributes) for all results
 
 ### Filter results by data source
 
 - Focus your queries on specific data sources
 - Include or exclude specific data sources
 - Prioritize results from specific data sources
+
+### Filter results by document metadata
+
+- Apply rich metadata filters to your queries using the [Bedrock RetrievalFilter](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_agent-runtime_RetrievalFilter.html) schema via the `metadata_filter` parameter
+- Use any filter operator the Retrieve API supports (`equals`, `notEquals`, `greaterThan`, `lessThan`, `in`, `startsWith`, `andAll`, `orAll`, etc.)
+- Combine with data source filtering — when both `metadata_filter` and `data_source_ids` are provided, they are composed with `andAll`: a top-level `andAll` filter has the data-source condition merged into its member list (preserving filter depth); any other filter is wrapped together with the data-source condition in a new `andAll`
+- Note that the Retrieve API allows only [one level of embedded filter groups](https://docs.aws.amazon.com/bedrock/latest/userguide/kb-test-config.html) — a top-level `orAll` filter that already contains embedded `andAll`/`orAll` groups cannot be combined with `data_source_ids` (the server raises an error); fold the data-source condition into the filter yourself using the `x-amz-bedrock-kb-data-source-id` key instead
 
 ### Rerank results
 

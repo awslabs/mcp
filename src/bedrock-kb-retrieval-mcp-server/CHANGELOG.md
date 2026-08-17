@@ -17,3 +17,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Initial project setup
+- Document `metadata` is now included in `QueryKnowledgeBases` results
+- Optional `metadata_filter` parameter on `QueryKnowledgeBases` for metadata-based filtering using the Bedrock RetrievalFilter schema; composed with `data_source_ids` via `andAll` when both are provided (merged into an existing top-level `andAll` to respect the Retrieve API's one-level filter embedding limit)

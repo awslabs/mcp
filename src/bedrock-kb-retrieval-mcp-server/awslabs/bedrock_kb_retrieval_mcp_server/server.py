@@ -30,7 +30,7 @@ from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.retrieval import (
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
-from typing import List, Literal, Optional
+from typing import Dict, List, Literal, Optional
 
 
 # Remove all default handlers then add our own
@@ -81,6 +81,7 @@ mcp = FastMCP(
     - Knowledge bases contain structured data from various data sources (documents, websites, databases)
     - Each knowledge base has a unique ID that must be used when querying
     - You can filter by specific data sources within a knowledge base using data_source_ids
+    - You can filter by document metadata attributes using metadata_filter with the Bedrock RetrievalFilter schema
     - Always verify that the knowledge base ID exists in the ListKnowledgeBases tool response before querying
     """,
     dependencies=['boto3'],
@@ -153,6 +154,25 @@ async def query_knowledge_bases_tool(
         None,
         description='The data source IDs to filter the knowledge base by. It must be a list of valid data source IDs from the ListKnowledgeBases tool',
     ),
+    metadata_filter: Optional[Dict] = Field(
+        None,
+        description=(
+            'A metadata filter to apply to the knowledge base query, following the Bedrock '
+            'RetrievalFilter schema (https://docs.aws.amazon.com/bedrock/latest/APIReference/API_agent-runtime_RetrievalFilter.html). '
+            "It is passed through unchanged to the Retrieve API's "
+            'vectorSearchConfiguration.filter field. Must not be an empty object — omit '
+            'the parameter entirely to query without a metadata filter. Supports '
+            'operators such as equals, notEquals, greaterThan, lessThan, in, startsWith, '
+            "andAll, orAll, etc. Example: {'equals': {'key': 'doc_type', 'value': 'runbook'}}. "
+            'When combined with data_source_ids: if the filter is a top-level andAll, the '
+            'data-source condition is merged into its list (preserving filter depth); '
+            "otherwise both are wrapped in a new andAll. Note Bedrock's limit of one level "
+            'of embedded filter groups: a top-level orAll that already contains embedded '
+            'andAll/orAll groups cannot be combined with data_source_ids (a ValueError is '
+            'raised); fold the data-source condition into the filter using key '
+            "'x-amz-bedrock-kb-data-source-id' instead."
+        ),
+    ),
 ) -> str:
     """Query an Amazon Bedrock Knowledge Base using natural language.
 
@@ -171,6 +191,7 @@ async def query_knowledge_bases_tool(
     - content: The text content of the document
     - location: The source location of the document
     - score: The relevance score of the document
+    - metadata: The metadata attributes of the document, including system attributes (x-amz-bedrock-kb-*) and any custom attributes indexed with the document
 
 
     ## Interpretation Best Practices
@@ -188,6 +209,7 @@ async def query_knowledge_bases_tool(
         reranking=reranking,
         reranking_model_name=reranking_model_name,
         data_source_ids=data_source_ids,
+        metadata_filter=metadata_filter,
     )
 
 
