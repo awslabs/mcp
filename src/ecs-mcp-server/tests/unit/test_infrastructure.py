@@ -2,6 +2,7 @@
 Unit tests for infrastructure module.
 """
 
+import os
 from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
 import pytest
@@ -22,7 +23,7 @@ from awslabs.ecs_mcp_server.utils.security import ValidationError
 
 @pytest.mark.anyio
 @patch("awslabs.ecs_mcp_server.api.infrastructure.validate_app_name")
-@patch("awslabs.ecs_mcp_server.api.infrastructure.validate_file_path")
+@patch("awslabs.ecs_mcp_server.api.infrastructure.validate_path")
 @patch("awslabs.ecs_mcp_server.api.infrastructure.os.makedirs")
 @patch("awslabs.ecs_mcp_server.api.infrastructure.os.path.join")
 @patch("awslabs.ecs_mcp_server.api.infrastructure.get_templates_dir")
@@ -36,15 +37,15 @@ async def test_prepare_template_files(
     mock_get_templates_dir,
     mock_join,
     mock_makedirs,
-    mock_validate_file_path,
+    mock_validate_path,
     mock_validate_app_name,
 ):
     """Test prepare_template_files."""
     # Mock validate_app_name
     mock_validate_app_name.return_value = True
 
-    # Mock validate_file_path
-    mock_validate_file_path.return_value = "/path/to/app"
+    # Mock validate_path
+    mock_validate_path.return_value = "/path/to/app"
 
     # Mock get_templates_dir
     mock_get_templates_dir.return_value = "/path/to/templates"
@@ -58,8 +59,8 @@ async def test_prepare_template_files(
     # Verify validate_app_name was called
     mock_validate_app_name.assert_called_once_with("test-app")
 
-    # Verify validate_file_path was called
-    mock_validate_file_path.assert_called_once_with("/path/to/app")
+    # Verify validate_path was called
+    mock_validate_path.assert_called_once_with("/path/to/app")
 
     # Verify os.makedirs was called
     mock_makedirs.assert_called_once_with("/path/to/app/cloudformation-templates", exist_ok=True)
@@ -76,16 +77,41 @@ async def test_prepare_template_files(
 
 @pytest.mark.anyio
 @patch("awslabs.ecs_mcp_server.api.infrastructure.validate_app_name")
-@patch("awslabs.ecs_mcp_server.api.infrastructure.validate_file_path")
-async def test_prepare_template_files_path_not_exists(
-    mock_validate_file_path, mock_validate_app_name
+@patch("awslabs.ecs_mcp_server.api.infrastructure.validate_path")
+async def test_prepare_template_files_uses_resolved_path(
+    mock_validate_path, mock_validate_app_name
 ):
-    """Test prepare_template_files when app_path doesn't exist."""
+    """Test that prepare_template_files writes to the resolved path, not the raw input."""
+    mock_validate_app_name.return_value = True
+    mock_validate_path.return_value = "/resolved/app"
+
+    with (
+        patch("awslabs.ecs_mcp_server.api.infrastructure.os.makedirs") as mock_makedirs,
+        patch(
+            "awslabs.ecs_mcp_server.api.infrastructure.get_templates_dir"
+        ) as mock_get_templates_dir,
+        patch("builtins.open", new_callable=mock_open, read_data="template content"),
+    ):
+        mock_get_templates_dir.return_value = "/path/to/templates"
+
+        result = prepare_template_files(app_name="test-app", app_path="./app")
+
+        mock_makedirs.assert_called_once_with(
+            os.path.join("/resolved/app", "cloudformation-templates"), exist_ok=True
+        )
+        assert result["ecr_template_path"].startswith("/resolved/app")
+
+
+@pytest.mark.anyio
+@patch("awslabs.ecs_mcp_server.api.infrastructure.validate_app_name")
+@patch("awslabs.ecs_mcp_server.api.infrastructure.validate_path")
+async def test_prepare_template_files_path_not_exists(mock_validate_path, mock_validate_app_name):
+    """Test prepare_template_files when app_path doesn't exist yet."""
     # Mock validate_app_name
     mock_validate_app_name.return_value = True
 
-    # Mock validate_file_path to raise ValidationError
-    mock_validate_file_path.side_effect = ValidationError("Path /non/existent/path does not exist")
+    # A missing path is valid; the directory is created below
+    mock_validate_path.return_value = "/non/existent/path"
 
     # Use patch to mock os.makedirs and other file operations
     with (
@@ -118,12 +144,43 @@ async def test_prepare_template_files_path_not_exists(
 
 @pytest.mark.anyio
 @patch("awslabs.ecs_mcp_server.api.infrastructure.validate_app_name")
-@patch("awslabs.ecs_mcp_server.api.infrastructure.validate_file_path")
-async def test_prepare_template_files_io_error(mock_validate_file_path, mock_validate_app_name):
-    """Test prepare_template_files handling IO errors."""
-    # Mock validate_app_name and validate_file_path
+async def test_prepare_template_files_rejects_sensitive_path(mock_validate_app_name):
+    """Test that a sensitive app_path is rejected before anything is written to disk."""
     mock_validate_app_name.return_value = True
-    mock_validate_file_path.return_value = True
+    sensitive_path = os.path.join(os.path.expanduser("~"), ".aws")
+
+    with patch("awslabs.ecs_mcp_server.api.infrastructure.os.makedirs") as mock_makedirs:
+        with pytest.raises(ValidationError) as excinfo:
+            prepare_template_files(app_name="test-app", app_path=sensitive_path)
+
+    assert "sensitive directory" in str(excinfo.value)
+    mock_makedirs.assert_not_called()
+
+
+@pytest.mark.anyio
+@patch("awslabs.ecs_mcp_server.api.infrastructure.validate_app_name")
+async def test_prepare_template_files_rejects_sensitive_path_that_does_not_exist(
+    mock_validate_app_name,
+):
+    """Test that a missing sensitive path is rejected rather than created."""
+    mock_validate_app_name.return_value = True
+    sensitive_path = os.path.join(os.path.expanduser("~"), ".aws", "not-created-by-this-test")
+
+    with patch("awslabs.ecs_mcp_server.api.infrastructure.os.makedirs") as mock_makedirs:
+        with pytest.raises(ValidationError):
+            prepare_template_files(app_name="test-app", app_path=sensitive_path)
+
+    mock_makedirs.assert_not_called()
+
+
+@pytest.mark.anyio
+@patch("awslabs.ecs_mcp_server.api.infrastructure.validate_app_name")
+@patch("awslabs.ecs_mcp_server.api.infrastructure.validate_path")
+async def test_prepare_template_files_io_error(mock_validate_path, mock_validate_app_name):
+    """Test prepare_template_files handling IO errors."""
+    # Mock validate_app_name and validate_path
+    mock_validate_app_name.return_value = True
+    mock_validate_path.return_value = "/path/to/app"
 
     # Use patch to mock file operations with an IO error
     with (

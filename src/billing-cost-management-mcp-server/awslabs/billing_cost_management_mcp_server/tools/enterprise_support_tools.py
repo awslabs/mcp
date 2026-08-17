@@ -114,7 +114,7 @@ async def _enterprise_support(
      - supportDiscount: a discount applied against the Support charge itself.
      - totalSupportEligibleSpend: total Support-eligible spend across the profile, which already includes the usage, Reserved Instance and Savings Plan figures below. Do not add the three breakdown values to this total; they decompose it.
      - totalSupportEligibleUsageSpend, totalSupportEligibleReservedInstanceSpend, totalSupportEligibleSavingsPlanSpend: the breakdown of that total.
-     - supportChargePercentage: the percentage applied to total Support-eligible spend to derive the total Support charge.
+     - supportChargePercentage: this payer's share of totalSupportCharge, as a decimal fraction where 1.0 means 100 percent. It is NOT a rate applied to Support-eligible spend and must never be presented as an effective rate. Derive an effective rate from supportCharge against totalSupportEligibleSpend instead.
      - supportEffectivePricingPlan: the plan used for the calculation, with pricingPlanId, name, description, startDate, endDate, minimumCharge, planDiscountPercent, discountAppliesToMinimumCharge, tiered, and tiers[]. Each tier carries tierMinimum, tierMaximum, baseCharge, additionalPercentageOfAggregateCharges, aggregateChargesAdjustment, incremental, increment and incrementCharge.
 
 2) get_contract_details - the Enterprise Support contract terms in effect for one billing period
