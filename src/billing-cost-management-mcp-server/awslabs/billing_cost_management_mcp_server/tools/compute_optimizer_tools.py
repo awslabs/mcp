@@ -25,6 +25,7 @@ from ..utilities.aws_service_base import (
     parse_json,
 )
 from ..utilities.logging_utils import get_context_logger
+from ..utilities.time_utils import timestamp_to_utc_iso_string
 from botocore.exceptions import ClientError
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
@@ -806,8 +807,8 @@ def format_savings_opportunity(savings_opportunity):
 
 
 def format_timestamp(timestamp):
-    """Format a timestamp to ISO format string."""
-    if not timestamp:
+    """Format a timestamp to an ISO 8601 UTC string."""
+    if timestamp is None:
         return None
 
-    return timestamp.isoformat() if hasattr(timestamp, 'isoformat') else str(timestamp)
+    return timestamp_to_utc_iso_string(timestamp)

@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added AWS Billing Conductor tools to analize billing groups, account associations, billing group cost reports, pricing rules/plans, and custom line items
 - Added AWS Billing tools for managing and querying billing views
 - Added optional `billing_view_arn` parameter to 7 Cost Explorer operations to scope queries to specific billing views (PRIMARY, BILLING_GROUP, CUSTOM, BILLING_TRANSFER, BILLING_TRANSFER_SHOWBACK)
+- Added read-only budget actions and notifications support to the `budget` tool: `budget-actions` and `budget-notifications`. Each routes by `budget_name` — a single-budget read (`DescribeBudgetActionsForBudget` / `DescribeNotificationsForBudget`) when a name is given, or an account-wide audit (`DescribeBudgetActionsForAccount` / `DescribeBudgetNotificationsForAccount`) when omitted. Both support pagination (`max_results`, `next_token`, `max_pages`) and offload large responses to session SQL
 
 ### Fixed
 - Corrected AWS Compute Optimizer recommendation response field names so EC2, Auto Scaling group, Lambda, and RDS tools return actual values instead of null. Fixed the shared savings-opportunity parser (`savingsOpportunityPercentage`), projected utilization metrics, EC2/RDS idle flags, nested ASG instance types, and the RDS instance/storage recommendation schema.

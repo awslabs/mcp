@@ -546,3 +546,306 @@ def test_budget_server_initialization():
     instructions = budget_server.instructions
     assert instructions is not None
     assert 'Tools for working with AWS Budgets API' in instructions if instructions else False
+
+
+# ---------------------------------------------------------------------------
+# budget-actions + budget-notifications tools
+# ---------------------------------------------------------------------------
+
+from awslabs.billing_cost_management_mcp_server.tools.budget_tools import (  # noqa: E402
+    budget_actions,
+    budget_notifications,
+    describe_budget_actions,
+    describe_budget_notifications,
+    format_action,
+    format_notification,
+)
+
+
+class TestFormatAction:
+    """Tests for format_action / format_action_definition."""
+
+    def test_iam_action_verbatim_identifiers(self):
+        """IAM action identifiers (policy ARN, execution role, roles) survive verbatim."""
+        formatted = format_action(
+            {
+                'ActionId': 'a-1',
+                'BudgetName': 'b1',
+                'ActionType': 'APPLY_IAM_POLICY',
+                'ApprovalModel': 'AUTOMATIC',
+                'ExecutionRoleArn': 'arn:aws:iam::123456789012:role/BudgetRole',
+                'Status': 'STANDBY',
+                'ActionThreshold': {
+                    'ActionThresholdValue': 80.0,
+                    'ActionThresholdType': 'PERCENTAGE',
+                },
+                'Definition': {
+                    'IamActionDefinition': {
+                        'PolicyArn': 'arn:aws:iam::123456789012:policy/DenyExpensive',
+                        'Roles': ['dev-role'],
+                        'Groups': ['dev-group'],
+                        'Users': ['dev-user'],
+                    }
+                },
+                'Subscribers': [
+                    {'SubscriptionType': 'SNS', 'Address': 'arn:aws:sns:us-east-1:123456789012:t'}
+                ],
+            }
+        )
+        assert formatted['action_type'] == 'APPLY_IAM_POLICY'
+        assert formatted['approval_model'] == 'AUTOMATIC'
+        # Load-bearing identifiers must survive verbatim.
+        assert formatted['execution_role_arn'] == 'arn:aws:iam::123456789012:role/BudgetRole'
+        assert (
+            formatted['definition']['iam_action_definition']['policy_arn']
+            == 'arn:aws:iam::123456789012:policy/DenyExpensive'
+        )
+        assert formatted['definition']['iam_action_definition']['roles'] == ['dev-role']
+        assert formatted['definition']['iam_action_definition']['groups'] == ['dev-group']
+        assert formatted['definition']['iam_action_definition']['users'] == ['dev-user']
+        assert formatted['action_threshold']['action_threshold_value'] == 80.0
+        assert formatted['subscribers'][0]['address'].endswith(':t')
+
+    def test_scp_and_ssm_definitions(self):
+        """SCP and SSM action definitions map to their snake_case sub-objects."""
+        scp = format_action(
+            {'Definition': {'ScpActionDefinition': {'PolicyId': 'p-abc', 'TargetIds': ['ou-1']}}}
+        )
+        assert scp['definition']['scp_action_definition']['policy_id'] == 'p-abc'
+        ssm = format_action(
+            {
+                'Definition': {
+                    'SsmActionDefinition': {
+                        'ActionSubType': 'STOP_EC2_INSTANCES',
+                        'InstanceIds': ['i-abc'],
+                        'Region': 'us-east-1',
+                    }
+                }
+            }
+        )
+        assert (
+            ssm['definition']['ssm_action_definition']['action_sub_type'] == 'STOP_EC2_INSTANCES'
+        )
+
+
+class TestFormatNotification:
+    """Tests for format_notification."""
+
+    def test_maps_fields(self):
+        """Notification fields map to their snake_case equivalents."""
+        n = format_notification(
+            {
+                'NotificationType': 'ACTUAL',
+                'ComparisonOperator': 'GREATER_THAN',
+                'Threshold': 80.0,
+                'ThresholdType': 'PERCENTAGE',
+                'NotificationState': 'ALARM',
+            }
+        )
+        assert n == {
+            'notification_type': 'ACTUAL',
+            'comparison_operator': 'GREATER_THAN',
+            'threshold': 80.0,
+            'threshold_type': 'PERCENTAGE',
+            'notification_state': 'ALARM',
+        }
+
+
+@pytest.mark.asyncio
+class TestBudgetActionsTool:
+    """The budget-actions tool — routes by budget_name (ForBudget vs ForAccount)."""
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.get_aws_account_id')
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
+    async def test_tool_resolves_account_and_audits(self, mock_create, mock_get_id, mock_context):
+        """With no budget_name the tool resolves the account ID and audits account-wide."""
+        mock_get_id.return_value = '123456789012'
+        client = MagicMock()
+        mock_create.return_value = client
+        client.describe_budget_actions_for_account.return_value = {
+            'Actions': [{'BudgetName': 'b1', 'ActionId': 'a1'}]
+        }
+        result = await budget_actions(mock_context)
+        assert result['status'] == 'success'
+        assert result['data']['actions'][0]['budget_name'] == 'b1'
+        assert 'budget_name' not in result['data']
+        client.describe_budget_actions_for_budget.assert_not_called()
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
+    async def test_audit_paginates_and_keeps_budget_name(self, mock_create, mock_context):
+        """The account audit paginates and preserves each action's budget name."""
+        client = MagicMock()
+        mock_create.return_value = client
+        client.describe_budget_actions_for_account.side_effect = [
+            {'Actions': [{'BudgetName': 'b1', 'ActionId': 'a1'}], 'NextToken': 'tok'},
+            {'Actions': [{'BudgetName': 'b2', 'ActionId': 'a2'}]},
+        ]
+        result = await describe_budget_actions(mock_context, '123456789012', None, 100)
+        assert [a['budget_name'] for a in result['data']['actions']] == ['b1', 'b2']
+        assert result['data']['total_count'] == 2
+        assert client.describe_budget_actions_for_account.call_count == 2
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
+    async def test_single_budget_uses_per_budget_api(self, mock_create, mock_context):
+        """Passing budget_name calls DescribeBudgetActionsForBudget, not the account API."""
+        client = MagicMock()
+        mock_create.return_value = client
+        client.describe_budget_actions_for_budget.return_value = {
+            'Actions': [{'BudgetName': 'b2', 'ActionId': 'a2'}]
+        }
+        result = await describe_budget_actions(mock_context, '123456789012', 'b2', 100)
+        assert [a['budget_name'] for a in result['data']['actions']] == ['b2']
+        assert result['data']['budget_name'] == 'b2'
+        # Routed to the per-budget API with the name bound; account API untouched.
+        client.describe_budget_actions_for_budget.assert_called()
+        assert client.describe_budget_actions_for_budget.call_args.kwargs['BudgetName'] == 'b2'
+        client.describe_budget_actions_for_account.assert_not_called()
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
+    async def test_empty_actions_is_success_not_error(self, mock_create, mock_context):
+        """A budget with no actions returns an empty list, not an error."""
+        client = MagicMock()
+        mock_create.return_value = client
+        client.describe_budget_actions_for_account.return_value = {'Actions': []}
+        result = await describe_budget_actions(mock_context, '123456789012', None, 100)
+        assert result['status'] == 'success'
+        assert result['data']['actions'] == []
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
+    async def test_api_error_returns_error_envelope(self, mock_create, mock_context):
+        """An API failure is surfaced as an error envelope, not a raised exception."""
+        client = MagicMock()
+        mock_create.return_value = client
+        client.describe_budget_actions_for_account.side_effect = Exception('AccessDenied')
+        result = await describe_budget_actions(mock_context, '123456789012', None, 100)
+        assert result['status'] == 'error'
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.get_aws_account_id')
+    async def test_entrypoint_error_is_handled(self, mock_get_id, mock_context):
+        """A failure resolving the account ID is caught by the tool entrypoint."""
+        mock_get_id.side_effect = Exception('sts down')
+        result = await budget_actions(mock_context)
+        assert result['status'] == 'error'
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
+    async def test_next_token_is_passed_through(self, mock_create, mock_context):
+        """A caller-supplied next_token is forwarded to the account API request."""
+        client = MagicMock()
+        mock_create.return_value = client
+        client.describe_budget_actions_for_account.return_value = {'Actions': []}
+        await describe_budget_actions(
+            mock_context, '123456789012', None, 100, next_token='tok', max_pages=1
+        )
+        assert client.describe_budget_actions_for_account.call_args.kwargs['NextToken'] == 'tok'
+
+    @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_db_connection')
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.should_convert_to_sql',
+        return_value=True,
+    )
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
+    async def test_large_response_offloads_to_sql_rows(
+        self, mock_create, _mock_should, mock_conn, mock_context
+    ):
+        """An oversized account audit offloads to SQL as one queryable row per action."""
+        import sqlite3
+
+        conn = sqlite3.connect(':memory:')
+        conn.execute(
+            'CREATE TABLE IF NOT EXISTS schema_info '
+            '(table_name TEXT PRIMARY KEY, created_at TEXT, operation TEXT, '
+            'query TEXT, row_count INTEGER)'
+        )
+        mock_conn.return_value = (conn, conn.cursor())
+
+        client = MagicMock()
+        mock_create.return_value = client
+        client.describe_budget_actions_for_account.return_value = {
+            'Actions': [
+                {'BudgetName': 'b1', 'ActionId': 'a1', 'Status': 'STANDBY'},
+                {'BudgetName': 'b2', 'ActionId': 'a2', 'Status': 'PENDING'},
+            ]
+        }
+        result = await describe_budget_actions(mock_context, '123456789012', None, 100)
+        assert result['status'] == 'success'
+        # Offloaded (not returned inline) as one row per action, with real columns.
+        assert result['data']['data_stored'] is True
+        assert result['data']['row_count'] == 2
+        assert 'action_id' in result['data']['schema']
+
+
+@pytest.mark.asyncio
+class TestBudgetNotificationsTool:
+    """The budget-notifications tool — routes by budget_name (per-budget vs account-wide)."""
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.get_aws_account_id')
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
+    async def test_no_budget_name_audits_account_wide(
+        self, mock_create, mock_get_id, mock_context
+    ):
+        """With no budget_name the tool flattens DescribeBudgetNotificationsForAccount."""
+        mock_get_id.return_value = '123456789012'
+        client = MagicMock()
+        mock_create.return_value = client
+        client.describe_budget_notifications_for_account.return_value = {
+            'BudgetNotificationsForAccount': [
+                {
+                    'BudgetName': 'b1',
+                    'Notifications': [{'NotificationType': 'ACTUAL', 'Threshold': 80.0}],
+                },
+                {
+                    'BudgetName': 'b2',
+                    'Notifications': [{'NotificationType': 'FORECASTED', 'Threshold': 100.0}],
+                },
+            ]
+        }
+        result = await budget_notifications(mock_context)
+        assert result['status'] == 'success'
+        assert result['data']['total_count'] == 2
+        # Each flattened notification is stamped with its owning budget.
+        assert {n['budget_name'] for n in result['data']['notifications']} == {'b1', 'b2'}
+        client.describe_notifications_for_budget.assert_not_called()
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
+    async def test_returns_formatted_notifications(self, mock_create, mock_context):
+        """Passing budget_name uses the per-budget API and stamps the budget name."""
+        client = MagicMock()
+        mock_create.return_value = client
+        client.describe_notifications_for_budget.return_value = {
+            'Notifications': [
+                {'NotificationType': 'ACTUAL', 'Threshold': 80.0, 'ThresholdType': 'PERCENTAGE'}
+            ]
+        }
+        result = await describe_budget_notifications(mock_context, '123456789012', 'b1', 100)
+        assert result['status'] == 'success'
+        assert result['data']['notifications'][0]['threshold'] == 80.0
+        assert result['data']['notifications'][0]['budget_name'] == 'b1'
+        assert result['data']['total_count'] == 1
+        client.describe_budget_notifications_for_account.assert_not_called()
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
+    async def test_api_error_returns_error_envelope(self, mock_create, mock_context):
+        """An API failure is surfaced as an error envelope, not a raised exception."""
+        client = MagicMock()
+        mock_create.return_value = client
+        client.describe_budget_notifications_for_account.side_effect = Exception('AccessDenied')
+        result = await describe_budget_notifications(mock_context, '123456789012', None, 100)
+        assert result['status'] == 'error'
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.get_aws_account_id')
+    async def test_entrypoint_error_is_handled(self, mock_get_id, mock_context):
+        """A failure resolving the account ID is caught by the tool entrypoint."""
+        mock_get_id.side_effect = Exception('sts down')
+        result = await budget_notifications(mock_context)
+        assert result['status'] == 'error'
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
+    async def test_next_token_is_passed_through(self, mock_create, mock_context):
+        """A caller-supplied next_token is forwarded to the per-budget API request."""
+        client = MagicMock()
+        mock_create.return_value = client
+        client.describe_notifications_for_budget.return_value = {'Notifications': []}
+        await describe_budget_notifications(
+            mock_context, '123456789012', 'b1', 100, next_token='tok', max_pages=1
+        )
+        assert client.describe_notifications_for_budget.call_args.kwargs['NextToken'] == 'tok'
