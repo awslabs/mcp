@@ -2734,7 +2734,8 @@ async def test_start_run_invalid_workflow_type():
     )
 
     # Should return an error dict from handle_tool_error
-    assert 'error' in str(result).lower() or isinstance(result, dict)
+    assert 'error' in result
+    assert 'INVALID' in result['error']
     mock_ctx.report_progress.assert_not_called()  # Shouldn't get to client call
 
 
@@ -2745,7 +2746,7 @@ async def test_start_run_invalid_workflow_type():
 
 @pytest.mark.asyncio
 async def test_start_run_ready2run_with_storage_capacity_rejected():
-    """Test READY2RUN workflow rejects storage_capacity parameter (line 249)."""
+    """Test READY2RUN workflow rejects storage_capacity parameter."""
     mock_ctx = AsyncMock()
 
     result = await start_run(
@@ -2773,7 +2774,7 @@ async def test_start_run_ready2run_with_storage_capacity_rejected():
 
 @pytest.mark.asyncio
 async def test_start_run_ready2run_with_static_storage_type_rejected():
-    """Test READY2RUN workflow rejects non-DYNAMIC storage_type (line 259)."""
+    """Test READY2RUN workflow rejects non-DYNAMIC storage_type."""
     mock_ctx = AsyncMock()
 
     result = await start_run(
@@ -2801,7 +2802,7 @@ async def test_start_run_ready2run_with_static_storage_type_rejected():
 
 @pytest.mark.asyncio
 async def test_start_run_invalid_networking_mode():
-    """Test start_run with invalid networking_mode value (line 300)."""
+    """Test start_run with invalid networking_mode value."""
     mock_ctx = AsyncMock()
 
     result = await start_run(
@@ -2828,7 +2829,7 @@ async def test_start_run_invalid_networking_mode():
 
 @pytest.mark.asyncio
 async def test_start_run_vpc_mode_without_configuration_name():
-    """Test start_run with networking_mode=VPC but no configuration_name (line 308)."""
+    """Test start_run with networking_mode=VPC but no configuration_name."""
     mock_ctx = AsyncMock()
 
     result = await start_run(
@@ -2855,7 +2856,7 @@ async def test_start_run_vpc_mode_without_configuration_name():
 
 @pytest.mark.asyncio
 async def test_start_run_configuration_name_without_vpc_mode():
-    """Test start_run with configuration_name but no VPC mode (line 318)."""
+    """Test start_run with configuration_name but no VPC mode."""
     mock_ctx = AsyncMock()
 
     result = await start_run(
@@ -2882,7 +2883,7 @@ async def test_start_run_configuration_name_without_vpc_mode():
 
 @pytest.mark.asyncio
 async def test_start_run_with_vpc_networking_full():
-    """Test start_run with fully configured VPC networking (lines 380-381)."""
+    """Test start_run with fully configured VPC networking."""
     mock_response = {
         'id': 'run-vpc-001',
         'arn': 'arn:aws:omics:us-east-1:123456789012:run/run-vpc-001',
@@ -2931,7 +2932,7 @@ async def test_start_run_with_vpc_networking_full():
 
 @pytest.mark.asyncio
 async def test_list_runs_date_filter_pagination_early_stop():
-    """Test list_runs with date filters and pagination early stop (lines 546-551)."""
+    """Test list_runs with date filters and pagination early stop."""
     from datetime import timedelta
 
     base_time = datetime(2023, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
@@ -2980,7 +2981,7 @@ async def test_list_runs_date_filter_pagination_early_stop():
 
 @pytest.mark.asyncio
 async def test_list_runs_date_filter_more_results_than_max():
-    """Test list_runs log when filtered results exceed max_results (line 566)."""
+    """Test list_runs log when filtered results exceed max_results."""
     from datetime import timedelta
 
     base_time = datetime(2023, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
@@ -3026,7 +3027,7 @@ async def test_list_runs_date_filter_more_results_than_max():
 
 @pytest.mark.asyncio
 async def test_list_run_tasks_with_next_token():
-    """Test list_run_tasks with a next_token for pagination (line 713)."""
+    """Test list_run_tasks with a next_token for pagination."""
     mock_response = {
         'items': [
             {
@@ -3071,7 +3072,7 @@ async def test_list_run_tasks_with_next_token():
 
 @pytest.mark.asyncio
 async def test_filter_runs_by_creation_time_with_invalid_time_string():
-    """Test filter_runs_by_creation_time with malformed creation time strings (lines 116-121)."""
+    """Test filter_runs_by_creation_time with malformed creation time strings."""
     from awslabs.aws_healthomics_mcp_server.tools.workflow_execution import (
         filter_runs_by_creation_time,
     )
@@ -3104,11 +3105,10 @@ async def test_filter_runs_by_creation_time_with_invalid_time_string():
 
 @pytest.mark.asyncio
 async def test_list_runs_no_filtering_with_pagination_loop():
-    """Test list_runs else branch when not filtering after while loop (lines 574-577).
+    """Test list_runs returns all runs when no date filters are applied.
 
-    This covers the else branch that fires when needs_filtering=False
-    and the loop exits normally (not via break). In practice this happens
-    when the first API call has no nextToken.
+    When there is no nextToken and no date filtering, list_runs returns the
+    collected runs without a pagination token.
     """
     mock_response = {
         'items': [
@@ -3121,7 +3121,7 @@ async def test_list_runs_no_filtering_with_pagination_loop():
                 'creationTime': datetime(2023, 6, 15, 12, 0, 0, tzinfo=timezone.utc),
             }
         ],
-        # No nextToken - loop exits at `if not needs_filtering` early return path
+        # No nextToken - a single page of results is returned
     }
 
     mock_ctx = AsyncMock()
@@ -3142,10 +3142,6 @@ async def test_list_runs_no_filtering_with_pagination_loop():
             run_group_id=None,
         )
 
-    # This follows the early return path (not the else branch)
-    # The else branch on lines 574-577 is only reachable after the while loop
-    # with needs_filtering=False AND the early return didn't fire.
-    # Since needs_filtering=False always takes the early return inside the loop,
-    # lines 574-577 are effectively dead code.
+    # With no nextToken and no filters, all runs are returned without pagination.
     assert len(result['runs']) == 1
     assert 'nextToken' not in result
