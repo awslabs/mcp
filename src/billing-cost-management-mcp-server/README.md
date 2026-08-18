@@ -14,7 +14,7 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 
 - **Cost Explorer insights**: Analyze historical and forecasted AWS costs with flexible grouping and filtering
 - **Usage metrics analysis**: Track resource usage trends across your AWS environment
-- **Budget monitoring**: Check existing budgets and their status against actual spending
+- **Budget monitoring**: Check existing budgets and their status against actual spending, plus their configured enforcement actions and alert notifications (per-budget or account-wide)
 - **Cost anomaly detection**: Identify unusual spending patterns and their root causes
 
 ### Cost Optimization Recommendations
@@ -262,7 +262,9 @@ Compute Optimizer Automation:
 - ec2:DescribeVolumes (required by ListRecommendedActions and ListAutomationRulePreview)
 
 AWS Budgets:
-- budgets:ViewBudget
+- budgets:ViewBudget (also covers budget notifications, per-budget and account-wide)
+- budgets:DescribeBudgetActionsForBudget (required for budget actions by budget name)
+- budgets:DescribeBudgetActionsForAccount (required for account-wide budget actions)
 
 AWS Pricing:
 - pricing:DescribeServices
@@ -365,6 +367,8 @@ The server currently supports the following AWS services
 
 2. **AWS Budgets**
    - describe_budgets
+   - describe_budget_actions (DescribeBudgetActionsForBudget / DescribeBudgetActionsForAccount)
+   - describe_budget_notifications (DescribeNotificationsForBudget / DescribeBudgetNotificationsForAccount)
 
 3. **AWS Free Tier**
    - get_free_tier_usage

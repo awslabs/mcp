@@ -52,7 +52,7 @@ _REMEDIATION = {
     'EntityAlreadyExistsException': 'The resource already exists; reuse it or pick a different name.',
     'ResourceNotFoundException': 'The resource does not exist or was deleted; run setup again.',
     'NoSuchEntity': 'The IAM resource does not exist; run setup again.',
-    'BucketAlreadyExists': 'The S3 bucket name is taken globally; pick a different name.',
+    'BucketAlreadyExists': 'SECURITY ALERT: this bucket name is owned by a different AWS account — possible squatting; investigate before retrying.',
     'BucketAlreadyOwnedByYou': 'You already own this bucket; reuse it.',
     'ValidationException': 'Request parameters were invalid; check the operation inputs.',
     'ThrottlingException': 'Request was throttled; retry with backoff.',
@@ -191,12 +191,27 @@ def _ensure_s3_bucket(config: dict, kind: str = 'scans') -> None:
     config_key = 's3_bucket' if kind == 'scans' else 'threat_model_s3_bucket'
     if config.get(config_key):
         return
-    account_id = _client.get_caller_identity()['Account']
+    account_id = _client._account_id()
     bucket = f'security-agent-{kind}-{account_id}-{_region}'
     try:
         _client.create_s3_bucket(bucket)
     except ClientError as e:
+        # Reuse only if we already own it; BucketAlreadyExists (squatted) stays fatal.
         if e.response.get('Error', {}).get('Code') != 'BucketAlreadyOwnedByYou':
+            raise
+
+    # Only 403 means squat; upload_to_s3 re-checks ownership so transient errors are safe to swallow.
+    try:
+        _client.verify_bucket_owner(bucket)
+    except ClientError as e:
+        err = e.response.get('Error', {}) if hasattr(e, 'response') else {}
+        code = err.get('Code')
+        status = (
+            e.response.get('ResponseMetadata', {}).get('HTTPStatusCode')
+            if hasattr(e, 'response')
+            else None
+        )
+        if code in ('403', 'AccessDenied', 'Forbidden') or status == 403:
             raise
 
     # Register bucket on agent space so the service can access it

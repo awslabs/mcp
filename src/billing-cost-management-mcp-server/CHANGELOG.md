@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Clarified the AWS Invoicing `list_invoice_summaries` time-filter documentation to match service behavior: the one-month maximum on `start_date`/`end_date` ranges (and that calendar alignment is not required), that a date-only bound is 00:00:00 UTC so a full June is `2026-06-01` to `2026-07-01`, that a time filter is mandatory for the account selector but optional for `invoice_id`, and that `billing_period` and `start_date`/`end_date` are not interchangeable because they filter on billing month and issued date respectively.
+- Added read-only budget actions and notifications support to the `budget` tool: `budget-actions` and `budget-notifications`. Each routes by `budget_name` — a single-budget read (`DescribeBudgetActionsForBudget` / `DescribeNotificationsForBudget`) when a name is given, or an account-wide audit (`DescribeBudgetActionsForAccount` / `DescribeBudgetNotificationsForAccount`) when omitted. Both support pagination (`max_results`, `next_token`, `max_pages`) and offload large responses to session SQL
 
 ### Fixed
 - Corrected AWS Compute Optimizer recommendation response field names so EC2, Auto Scaling group, Lambda, and RDS tools return actual values instead of null. Fixed the shared savings-opportunity parser (`savingsOpportunityPercentage`), projected utilization metrics, EC2/RDS idle flags, nested ASG instance types, and the RDS instance/storage recommendation schema.

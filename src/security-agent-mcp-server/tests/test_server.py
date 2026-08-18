@@ -1116,6 +1116,42 @@ class TestEnsureS3BucketHelper:
         with pytest.raises(ClientError):
             _ensure_s3_bucket(config, 'scans')
 
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    @patch('awslabs.security_agent_mcp_server.server._state')
+    def test_squatted_bucket_aborts_before_caching(self, mock_state, mock_client):
+        """A 403 from the ownership assertion aborts without registering or caching the bucket."""
+        from awslabs.security_agent_mcp_server.server import _ensure_s3_bucket
+        from botocore.exceptions import ClientError
+
+        config = {'agent_space_id': 'as-1'}
+        mock_client.get_caller_identity.return_value = {'Account': '123'}
+        mock_client.create_s3_bucket.side_effect = ClientError(
+            {'Error': {'Code': 'BucketAlreadyExists', 'Message': 'taken'}}, 'CreateBucket'
+        )
+        with pytest.raises(ClientError):
+            _ensure_s3_bucket(config, 'scans')
+        mock_client.verify_bucket_owner.assert_not_called()
+        mock_client.update_agent_space.assert_not_called()
+        mock_state.update_config.assert_not_called()
+
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    @patch('awslabs.security_agent_mcp_server.server._state')
+    def test_ownership_assertion_403_aborts(self, mock_state, mock_client):
+        """If create succeeds but ownership can't be confirmed, abort without caching."""
+        from awslabs.security_agent_mcp_server.server import _ensure_s3_bucket
+        from botocore.exceptions import ClientError
+
+        config = {'agent_space_id': 'as-1'}
+        mock_client.get_caller_identity.return_value = {'Account': '123'}
+        mock_client.create_s3_bucket.return_value = 'security-agent-scans-123-us-east-1'
+        mock_client.verify_bucket_owner.side_effect = ClientError(
+            {'Error': {'Code': '403', 'Message': 'Forbidden'}}, 'HeadBucket'
+        )
+        with pytest.raises(ClientError):
+            _ensure_s3_bucket(config, 'scans')
+        mock_client.update_agent_space.assert_not_called()
+        mock_state.update_config.assert_not_called()
+
 
 class TestValidatePath:
     """Tests for _validate_path workspace boundary enforcement."""

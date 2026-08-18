@@ -5,6 +5,8 @@
 
 import pytest
 from awslabs.security_agent_mcp_server.aws_client import SecurityAgentClient
+from boto3.exceptions import S3UploadFailedError
+from botocore.exceptions import ClientError
 from unittest.mock import MagicMock, patch
 
 
@@ -340,15 +342,94 @@ class TestSecurityAgentClient:
 
     @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
     def test_upload_to_s3(self, mock_boto3):
-        """upload_to_s3 returns the s3:// URL and calls boto3.upload_file."""
+        """upload_to_s3 returns the s3:// URL and passes ExpectedBucketOwner."""
         mock_s3 = MagicMock()
+        mock_s3.get_caller_identity.return_value = {'Account': '123456789012'}
         mock_boto3.Session.return_value.client.return_value = mock_s3
 
         client = SecurityAgentClient()
         url = client.upload_to_s3('bkt', 'k.zip', '/tmp/source.zip')
 
         assert url == 's3://bkt/k.zip'
-        mock_s3.upload_file.assert_called_once_with('/tmp/source.zip', 'bkt', 'k.zip')
+        mock_s3.upload_file.assert_called_once_with(
+            '/tmp/source.zip',
+            'bkt',
+            'k.zip',
+            ExtraArgs={'ExpectedBucketOwner': '123456789012'},
+        )
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_upload_to_s3_caches_account_id(self, mock_boto3):
+        """The account ID is resolved once and reused across uploads."""
+        mock_s3 = MagicMock()
+        mock_s3.get_caller_identity.return_value = {'Account': '123456789012'}
+        mock_boto3.Session.return_value.client.return_value = mock_s3
+
+        client = SecurityAgentClient()
+        client.upload_to_s3('bkt', 'a.zip', '/tmp/a.zip')
+        client.upload_to_s3('bkt', 'b.zip', '/tmp/b.zip')
+
+        # STS is only called once even though there were two uploads.
+        assert mock_s3.get_caller_identity.call_count == 1
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_verify_bucket_owner_passes_expected_owner(self, mock_boto3):
+        """verify_bucket_owner calls head_bucket with the caller's account ID."""
+        mock_s3 = MagicMock()
+        mock_s3.get_caller_identity.return_value = {'Account': '123456789012'}
+        mock_boto3.Session.return_value.client.return_value = mock_s3
+
+        client = SecurityAgentClient()
+        client.verify_bucket_owner('my-bucket')
+
+        mock_s3.head_bucket.assert_called_once_with(
+            Bucket='my-bucket', ExpectedBucketOwner='123456789012'
+        )
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_verify_bucket_owner_raises_on_403(self, mock_boto3):
+        """A squatted bucket (403 from head_bucket) propagates as a fatal error."""
+        mock_s3 = MagicMock()
+        mock_s3.get_caller_identity.return_value = {'Account': '123456789012'}
+        mock_s3.head_bucket.side_effect = ClientError(
+            {'Error': {'Code': '403', 'Message': 'Forbidden'}}, 'HeadBucket'
+        )
+        mock_boto3.Session.return_value.client.return_value = mock_s3
+
+        client = SecurityAgentClient()
+        with pytest.raises(ClientError):
+            client.verify_bucket_owner('squatted-bucket')
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_upload_to_s3_unwraps_client_error(self, mock_boto3):
+        """A 403 wrapped in S3UploadFailedError is re-raised as the underlying ClientError."""
+        mock_s3 = MagicMock()
+        mock_s3.get_caller_identity.return_value = {'Account': '123456789012'}
+        cause = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Forbidden'}}, 'PutObject'
+        )
+        # boto3's transfer manager chains via __context__ (implicit), not __cause__.
+        wrapper = S3UploadFailedError('failed: 403')
+        wrapper.__context__ = cause
+        mock_s3.upload_file.side_effect = wrapper
+        mock_boto3.Session.return_value.client.return_value = mock_s3
+
+        client = SecurityAgentClient()
+        with pytest.raises(ClientError) as exc_info:
+            client.upload_to_s3('squatted-bucket', 'k.zip', '/tmp/source.zip')
+        assert exc_info.value is cause
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_upload_to_s3_reraises_unwrapped_wrapper(self, mock_boto3):
+        """A wrapper without a ClientError cause propagates unchanged, not silently swallowed."""
+        mock_s3 = MagicMock()
+        mock_s3.get_caller_identity.return_value = {'Account': '123456789012'}
+        mock_s3.upload_file.side_effect = S3UploadFailedError('disk full')
+        mock_boto3.Session.return_value.client.return_value = mock_s3
+
+        client = SecurityAgentClient()
+        with pytest.raises(S3UploadFailedError):
+            client.upload_to_s3('bkt', 'k.zip', '/tmp/source.zip')
 
 
 class TestDiffScanAndThreatModel:
@@ -529,5 +610,9 @@ class TestUserAgentInjection:
         mock_session = MagicMock()
         mock_boto3.Session.return_value = mock_session
         client = SecurityAgentClient(region='us-east-1')
+        client._cached_account_id = '123456789012'
+        client._cached_account_key = (
+            mock_session.get_credentials().get_frozen_credentials().access_key
+        )
         client.upload_to_s3('bucket', 'key', '/path/to/file')
         mock_session.client.assert_called_once_with('s3', config=client._config)
