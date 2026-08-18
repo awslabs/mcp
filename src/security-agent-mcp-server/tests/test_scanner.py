@@ -629,6 +629,63 @@ class TestDiffScan:
         assert 'Not configured' in result['error']
 
     @pytest.mark.asyncio
+    async def test_diff_scan_rejects_option_like_base_ref(self, mock_client, mock_state, tmp_path):
+        """A base_ref beginning with '-' is rejected before any git subprocess runs."""
+        code_dir = tmp_path / 'code'
+        code_dir.mkdir()
+        scanner = Scanner(client=mock_client, state=mock_state)
+
+        with patch('awslabs.security_agent_mcp_server.scanner.subprocess.run') as mock_run:
+            with pytest.raises(ValueError, match='not start with'):
+                await scanner.start_diff_scan(path=str(code_dir), base_ref='--not-a-ref')
+
+        # Bailed before any git call, S3 upload, or the agent-space check — no side effects.
+        mock_run.assert_not_called()
+        mock_client.upload_to_s3.assert_not_called()
+        mock_client.get_agent_space.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_diff_scan_rejects_short_option_base_ref(
+        self, mock_client, mock_state, tmp_path
+    ):
+        """A bare short option (e.g. '-o') is also rejected."""
+        code_dir = tmp_path / 'code'
+        code_dir.mkdir()
+        scanner = Scanner(client=mock_client, state=mock_state)
+
+        with patch('awslabs.security_agent_mcp_server.scanner.subprocess.run') as mock_run:
+            with pytest.raises(ValueError, match='not start with'):
+                await scanner.start_diff_scan(path=str(code_dir), base_ref='-o')
+
+        mock_run.assert_not_called()
+        mock_client.upload_to_s3.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_diff_scan_rejects_empty_base_ref(self, mock_client, mock_state, tmp_path):
+        """An empty/whitespace base_ref is rejected before any git subprocess runs."""
+        code_dir = tmp_path / 'code'
+        code_dir.mkdir()
+        scanner = Scanner(client=mock_client, state=mock_state)
+
+        with patch('awslabs.security_agent_mcp_server.scanner.subprocess.run') as mock_run:
+            with pytest.raises(ValueError, match='must not be empty'):
+                await scanner.start_diff_scan(path=str(code_dir), base_ref='   ')
+
+        mock_run.assert_not_called()
+        mock_client.upload_to_s3.assert_not_called()
+
+    def test_validate_git_ref_allows_valid_refs(self):
+        """Legitimate refs pass validation (no exception)."""
+        for ref in ['HEAD', 'main', 'origin/main', 'HEAD~1', 'v1.2.3', 'abc1234']:
+            Scanner._validate_git_ref(ref)  # must not raise
+
+    def test_validate_git_ref_rejects_option_like_refs(self):
+        """Hyphen-prefixed and empty refs raise ValueError."""
+        for ref in ['--not-a-ref', '-o', '  --not-a-ref', '', '   ']:
+            with pytest.raises(ValueError):
+                Scanner._validate_git_ref(ref)
+
+    @pytest.mark.asyncio
     async def test_diff_scan_branch_ref(self, mock_client, mock_state, tmp_path):
         """Uses 'git diff base_ref' and 'git archive base_ref' for branch mode."""
         code_dir = tmp_path / 'code'
