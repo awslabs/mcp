@@ -1240,7 +1240,7 @@ class TestClientPrefix:
         from awslabs.security_agent_mcp_server.server import _client_prefix
 
         ctx = MagicMock()
-        ctx.session.client_params.clientInfo.name = 'Kiro IDE'
+        ctx.session.client_params.client_info.name = 'Kiro IDE'
         assert _client_prefix(ctx) == 'kiro-ide'
 
     def test_none_session_returns_fallback(self):
@@ -1256,7 +1256,7 @@ class TestClientPrefix:
         from awslabs.security_agent_mcp_server.server import _client_prefix
 
         ctx = MagicMock()
-        ctx.session.client_params.clientInfo.name = 123
+        ctx.session.client_params.client_info.name = 123
         assert _client_prefix(ctx) == 'ide'
 
     def test_attribute_error_returns_fallback(self):
@@ -1264,7 +1264,7 @@ class TestClientPrefix:
         from awslabs.security_agent_mcp_server.server import _client_prefix
 
         ctx = MagicMock()
-        type(ctx.session.client_params).clientInfo = property(
+        type(ctx.session.client_params).client_info = property(
             lambda self: (_ for _ in ()).throw(AttributeError)
         )
         assert _client_prefix(ctx) == 'ide'

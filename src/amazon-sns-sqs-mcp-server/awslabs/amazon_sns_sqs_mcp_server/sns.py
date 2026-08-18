@@ -20,12 +20,12 @@ from awslabs.amazon_sns_sqs_mcp_server.common import (
 )
 from awslabs.amazon_sns_sqs_mcp_server.consts import MCP_SERVER_VERSION
 from awslabs.amazon_sns_sqs_mcp_server.generator import BOTO3_CLIENT_GETTER, AWSToolGenerator
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from typing import Any, Dict, List, Tuple
 
 
 # override create_topic tool to tag resources
-def create_topic_override(mcp: FastMCP, sns_client_getter: BOTO3_CLIENT_GETTER, _: str):
+def create_topic_override(mcp: MCPServer, sns_client_getter: BOTO3_CLIENT_GETTER, _: str):
     """Create an SNS topic with MCP server version tag."""
 
     @mcp.tool()
@@ -58,7 +58,7 @@ def create_topic_override(mcp: FastMCP, sns_client_getter: BOTO3_CLIENT_GETTER, 
 
 # Define validator for SNS resources
 def is_mutative_action_allowed(
-    mcp: FastMCP, sns_client: Any, kwargs: Dict[str, Any]
+    mcp: MCPServer, sns_client: Any, kwargs: Dict[str, Any]
 ) -> Tuple[bool, str]:
     """Check if the SNS resource being mutated is tagged with mcp_server_version."""
     # Check for TopicArn (used by most operations)
@@ -77,7 +77,7 @@ def is_mutative_action_allowed(
 
 # Define validator specifically for unsubscribe operation
 def is_unsubscribe_allowed(
-    mcp: FastMCP, sns_client: Any, kwargs: Dict[str, Any]
+    mcp: MCPServer, sns_client: Any, kwargs: Dict[str, Any]
 ) -> Tuple[bool, str]:
     """Check if the SNS subscription being unsubscribed is from a tagged topic."""
     subscription_arn = kwargs.get('SubscriptionArn')
@@ -96,7 +96,7 @@ def is_unsubscribe_allowed(
         return False, str(e)
 
 
-def register_sns_tools(mcp: FastMCP, disallow_resource_creation: bool = False):
+def register_sns_tools(mcp: MCPServer, disallow_resource_creation: bool = False):
     """Register SNS tools with the MCP server."""
     # Generate SNS tools
 

@@ -20,12 +20,12 @@ from awslabs.amazon_sns_sqs_mcp_server.common import (
 )
 from awslabs.amazon_sns_sqs_mcp_server.consts import MCP_SERVER_VERSION
 from awslabs.amazon_sns_sqs_mcp_server.generator import BOTO3_CLIENT_GETTER, AWSToolGenerator
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from typing import Any, Dict, Tuple
 
 
 # override create_queue tool to tag resources
-def create_queue_override(mcp: FastMCP, sqs_client_getter: BOTO3_CLIENT_GETTER, _: str):
+def create_queue_override(mcp: MCPServer, sqs_client_getter: BOTO3_CLIENT_GETTER, _: str):
     """Create an SQS queue with MCP server version tag."""
 
     @mcp.tool()
@@ -59,7 +59,7 @@ def create_queue_override(mcp: FastMCP, sqs_client_getter: BOTO3_CLIENT_GETTER, 
 
 # Define validator for SQS resources
 def is_mutative_action_allowed(
-    mcp: FastMCP, sqs_client: Any, kwargs: Dict[str, Any]
+    mcp: MCPServer, sqs_client: Any, kwargs: Dict[str, Any]
 ) -> Tuple[bool, str]:
     """Check if the SQS resource being mutated is tagged with mcp_server_version."""
     queue_url = kwargs.get('QueueUrl')
@@ -73,7 +73,7 @@ def is_mutative_action_allowed(
         return False, str(e)
 
 
-def register_sqs_tools(mcp: FastMCP, disallow_resource_creation: bool = False):
+def register_sqs_tools(mcp: MCPServer, disallow_resource_creation: bool = False):
     """Register SQS tools with the MCP server."""
     # Generate SQS tools
 

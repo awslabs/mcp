@@ -31,7 +31,7 @@ from awslabs.security_agent_mcp_server.state import StateManager
 from botocore.exceptions import ClientError
 from datetime import datetime, timezone
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Optional
 
@@ -84,7 +84,7 @@ logger.remove()
 logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
 
 # Initialize MCP server
-mcp = FastMCP(
+mcp = MCPServer(
     'awslabs.security-agent-mcp-server',
     instructions=SERVER_INSTRUCTIONS,
     dependencies=['boto3', 'filelock', 'gitignorefile', 'pydantic', 'loguru'],
@@ -136,7 +136,7 @@ def _client_prefix(ctx: Context) -> str:
         client_params = session.client_params
         if client_params is None:
             return 'ide'
-        name = client_params.clientInfo.name  # type: ignore[union-attr]
+        name = client_params.client_info.name  # type: ignore[union-attr]
         if not isinstance(name, str):
             return 'ide'
         return name.lower().replace(' ', '-')

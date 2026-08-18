@@ -15,7 +15,7 @@
 """Deploy serverless app help tool for AWS Serverless MCP Server."""
 
 from enum import Enum
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Any, Dict, Literal
 
@@ -31,7 +31,7 @@ class ApplicationType(str, Enum):
 class DeployServerlessAppHelpTool:
     """Tool to provide help information for deploying serverless applications to AWS Lambda."""
 
-    def __init__(self, mcp: FastMCP):
+    def __init__(self, mcp: MCPServer):
         """Initialize the DeployServerlessAppHelpTool."""
         mcp.tool(name='deploy_serverless_app_help')(self.deploy_serverless_app_help_tool)
 

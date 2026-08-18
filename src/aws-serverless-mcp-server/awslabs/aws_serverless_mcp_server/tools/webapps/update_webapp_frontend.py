@@ -24,7 +24,7 @@ import os
 from awslabs.aws_serverless_mcp_server.tools.common.base_tool import BaseTool
 from awslabs.aws_serverless_mcp_server.utils.aws_client_helper import get_aws_client
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Any, Dict, List, Optional
 
@@ -32,7 +32,7 @@ from typing import Any, Dict, List, Optional
 class UpdateFrontendTool(BaseTool):
     """Tool to update frontend assets of a deployed web application."""
 
-    def __init__(self, mcp: FastMCP, allow_write: bool):
+    def __init__(self, mcp: MCPServer, allow_write: bool):
         """Initialize the update frontend tool."""
         super().__init__(allow_write=allow_write)
         mcp.tool(name='update_webapp_frontend')(self.update_webapp_frontend_tool)

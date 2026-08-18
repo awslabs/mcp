@@ -31,7 +31,7 @@ from awslabs.aws_dataprocessing_mcp_server.utils.consts import (
     MCP_RESOURCE_TYPE_TAG_KEY,
 )
 from botocore.exceptions import ClientError
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from unittest.mock import MagicMock, patch
 
 
@@ -154,7 +154,7 @@ class TestWriteOperationsPermissions:
         )
 
         # Verify operation was denied
-        assert result.isError is True
+        assert result.is_error is True
         assert any(
             f'Operation {operation} is not allowed without write access' in content.text
             for content in result.content
@@ -194,7 +194,7 @@ class TestWriteOperationsPermissions:
             result = await emr_handler_without_write_access.manage_aws_emr_ec2_instances(**kwargs)
 
             # Verify operation was allowed (not an error)
-            assert result.isError is False
+            assert result.is_error is False
 
 
 class TestParameterValidation:
@@ -208,7 +208,7 @@ class TestParameterValidation:
             ctx=mock_context, operation='invalid-operation'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert any('Invalid operation' in content.text for content in result.content)
 
     # Testing parameter validation with patches to avoid actual implementation raising ValueErrors
@@ -602,7 +602,7 @@ class TestAddInstanceFleet:
                 mock_emr_client.add_tags.assert_called_once()
 
                 # Verify response
-                assert result.isError is False
+                assert result.is_error is False
                 assert len(result.content) == 2
                 assert any(
                     'Successfully added instance fleet' in content.text
@@ -641,7 +641,7 @@ class TestAddInstanceFleet:
             )
 
             # Verify error handling
-            assert result.isError is True
+            assert result.is_error is True
             assert any(
                 'Error in manage_aws_emr_ec2_instances' in content.text
                 for content in result.content
@@ -701,7 +701,7 @@ class TestAddInstanceGroups:
                 mock_emr_client.add_tags.assert_called_once()
 
                 # Verify response
-                assert result.isError is False
+                assert result.is_error is False
                 # Parse JSON data from second content element
                 json_content = None
                 for content in result.content:
@@ -755,7 +755,7 @@ class TestModifyInstanceFleet:
             )
 
             # Verify response
-            assert result.isError is False
+            assert result.is_error is False
             # Parse JSON data from second content element
             json_content = None
             for content in result.content:
@@ -790,7 +790,7 @@ class TestModifyInstanceFleet:
         )
 
         # Verify response indicates error
-        assert result.isError is True
+        assert result.is_error is True
         assert any('Resource is not managed by MCP' in content.text for content in result.content)
 
     async def test_modify_instance_fleet_aws_error(
@@ -819,7 +819,7 @@ class TestModifyInstanceFleet:
             )
 
             # Verify error handling
-            assert result.isError is True
+            assert result.is_error is True
             assert any(
                 'Error in manage_aws_emr_ec2_instances' in content.text
                 for content in result.content
@@ -879,7 +879,7 @@ class TestModifyInstanceGroups:
             )
 
             # Verify response
-            assert result.isError is False
+            assert result.is_error is False
             # Parse JSON data from second content element
             json_content = None
             for content in result.content:
@@ -911,7 +911,7 @@ class TestModifyInstanceGroups:
         )
 
         # Verify response indicates error
-        assert result.isError is True
+        assert result.is_error is True
         assert any('Resource is not managed by MCP' in content.text for content in result.content)
 
     async def test_modify_instance_groups_missing_cluster_id(
@@ -926,7 +926,7 @@ class TestModifyInstanceGroups:
         )
 
         # Verify response indicates error
-        assert result.isError is True
+        assert result.is_error is True
         assert any(
             'Cannot modify instance groups without providing a cluster_id' in content.text
             for content in result.content
@@ -975,7 +975,7 @@ class TestListInstanceFleets:
             )
 
             # Verify response
-            assert result.isError is False
+            assert result.is_error is False
             # Parse JSON data from second content element
             json_content = None
             for content in result.content:
@@ -1014,7 +1014,7 @@ class TestListInstanceFleets:
             )
 
             # Verify response
-            assert result.isError is False
+            assert result.is_error is False
             # Parse JSON data from second content element
             json_content = None
             for content in result.content:
@@ -1074,7 +1074,7 @@ class TestListInstances:
             )
 
             # Verify response
-            assert result.isError is False
+            assert result.is_error is False
             # Parse JSON data from second content element
             json_content = None
             for content in result.content:
@@ -1119,7 +1119,7 @@ class TestListInstances:
             )
 
             # Verify response
-            assert result.isError is False
+            assert result.is_error is False
             # Parse JSON data from second content element
             json_content = None
             for content in result.content:
@@ -1156,7 +1156,7 @@ class TestListInstances:
             )
 
             # Verify response
-            assert result.isError is False
+            assert result.is_error is False
 
 
 class TestListSupportedInstanceTypes:
@@ -1203,7 +1203,7 @@ class TestListSupportedInstanceTypes:
             )
 
             # Verify response
-            assert result.isError is False
+            assert result.is_error is False
             # Parse JSON data from second content element
             json_content = None
             for content in result.content:
@@ -1242,7 +1242,7 @@ class TestListSupportedInstanceTypes:
             )
 
             # Verify response
-            assert result.isError is False
+            assert result.is_error is False
             # Parse JSON data from second content element
             json_content = None
             for content in result.content:
