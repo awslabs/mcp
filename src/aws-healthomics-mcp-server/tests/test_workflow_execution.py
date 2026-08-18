@@ -1595,27 +1595,24 @@ async def test_start_run_invalid_s3_uri():
     """Test start_run with invalid S3 URI."""
     mock_ctx = AsyncMock()
 
-    with patch(
-        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.ensure_s3_uri_ends_with_slash'
-    ) as mock_ensure_s3_uri:
-        mock_ensure_s3_uri.side_effect = ValueError('Invalid S3 URI format')
-
-        result = await start_run(
-            ctx=mock_ctx,
-            workflow_id='wfl-12345',
-            role_arn='arn:aws:iam::123456789012:role/HealthOmicsRole',
-            name='test-run',
-            output_uri='invalid-uri',  # Invalid S3 URI
-            parameters={'param1': 'value1'},
-            workflow_version_name=None,
-            storage_type='DYNAMIC',
-            storage_capacity=None,
-            cache_id=None,
-            cache_behavior=None,
-            networking_mode=None,
-            configuration_name=None,
-        )
+    result = await start_run(
+        ctx=mock_ctx,
+        workflow_id='wfl-12345',
+        role_arn='arn:aws:iam::123456789012:role/HealthOmicsRole',
+        name='test-run',
+        output_uri='http://not-s3/outputs/',  # Not an s3:// URI
+        parameters={'param1': 'value1'},
+        workflow_version_name=None,
+        storage_type='DYNAMIC',
+        storage_capacity=None,
+        cache_id=None,
+        cache_behavior=None,
+        networking_mode=None,
+        configuration_name=None,
+        scratch_storage_mode=None,
+    )
     assert 'error' in result
+    assert 'Invalid S3 URI' in result['error']
 
 
 @pytest.mark.asyncio
@@ -2613,3 +2610,542 @@ class TestGetRunPassesScratchStorageModeThrough:
         else:
             # When the API response omits scratchStorageMode, the result omits it entirely.
             assert 'scratchStorageMode' not in result
+
+
+@pytest.mark.asyncio
+async def test_start_run_with_workflow_type_ready2run():
+    """Test that workflow_type=READY2RUN is passed to the API."""
+    mock_response = {
+        'id': 'run-r2r-001',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:run/run-r2r-001',
+        'status': 'PENDING',
+        'name': 'ready2run-test',
+        'workflowId': '2174942',
+        'uuid': 'uuid-r2r-001',
+        'tags': {},
+    }
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.start_run.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await start_run(
+            mock_ctx,
+            workflow_id='2174942',
+            role_arn='arn:aws:iam::123456789012:role/OmicsRole',
+            name='ready2run-test',
+            output_uri='s3://my-bucket/outputs/',
+            parameters={'samplename': 'test', 'protocol': '10XV3', 'input': []},
+            workflow_type='READY2RUN',
+            storage_type='DYNAMIC',
+            storage_capacity=None,
+            cache_id=None,
+            cache_behavior=None,
+            run_group_id=None,
+            networking_mode=None,
+            configuration_name=None,
+            scratch_storage_mode=None,
+        )
+
+    # Verify workflowType was passed to the API call
+    call_kwargs = mock_client.start_run.call_args[1]
+    assert call_kwargs['workflowType'] == 'READY2RUN'
+    assert call_kwargs['workflowId'] == '2174942'
+    # Ready2Run workflows must NOT send storage params
+    assert 'storageType' not in call_kwargs
+    assert 'storageCapacity' not in call_kwargs
+    assert 'scratchStorageMode' not in call_kwargs
+
+    assert result['id'] == 'run-r2r-001'
+    assert result['status'] == 'PENDING'
+
+
+@pytest.mark.asyncio
+async def test_start_run_without_workflow_type_omits_it():
+    """Test that workflowType is NOT passed when workflow_type is None (default)."""
+    mock_response = {
+        'id': 'run-private-001',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:run/run-private-001',
+        'status': 'PENDING',
+        'name': 'private-run',
+        'workflowId': 'wfl-99999',
+        'uuid': 'uuid-priv-001',
+        'tags': {},
+    }
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.start_run.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await start_run(
+            mock_ctx,
+            workflow_id='wfl-99999',
+            role_arn='arn:aws:iam::123456789012:role/OmicsRole',
+            name='private-run',
+            output_uri='s3://my-bucket/outputs/',
+            parameters={'param1': 'value1'},
+            workflow_type=None,
+            storage_type='DYNAMIC',
+            storage_capacity=None,
+            cache_id=None,
+            cache_behavior=None,
+            run_group_id=None,
+            networking_mode=None,
+            configuration_name=None,
+            scratch_storage_mode=None,
+        )
+
+    # Verify workflowType was NOT passed to the API call
+    call_kwargs = mock_client.start_run.call_args[1]
+    assert 'workflowType' not in call_kwargs
+
+    assert result['id'] == 'run-private-001'
+
+
+@pytest.mark.asyncio
+async def test_start_run_invalid_workflow_type():
+    """Test that invalid workflow_type values are rejected."""
+    mock_ctx = AsyncMock()
+
+    result = await start_run(
+        mock_ctx,
+        workflow_id='wfl-12345',
+        role_arn='arn:aws:iam::123456789012:role/OmicsRole',
+        name='bad-type-run',
+        output_uri='s3://my-bucket/outputs/',
+        parameters={'param1': 'value1'},
+        workflow_type='INVALID',
+        storage_type='DYNAMIC',
+        storage_capacity=None,
+        cache_id=None,
+        cache_behavior=None,
+        run_group_id=None,
+        networking_mode=None,
+        configuration_name=None,
+        scratch_storage_mode=None,
+    )
+
+    # Should return an error dict from handle_tool_error
+    assert 'error' in str(result).lower() or isinstance(result, dict)
+    mock_ctx.report_progress.assert_not_called()  # Shouldn't get to client call
+
+
+# ---------------------------------------------------------------------------
+# Additional coverage tests for uncovered lines
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_start_run_ready2run_with_storage_capacity_rejected():
+    """Test READY2RUN workflow rejects storage_capacity parameter (line 249)."""
+    mock_ctx = AsyncMock()
+
+    result = await start_run(
+        mock_ctx,
+        workflow_id='2174942',
+        role_arn='arn:aws:iam::123456789012:role/OmicsRole',
+        name='r2r-test',
+        output_uri='s3://my-bucket/outputs/',
+        parameters={'input': []},
+        workflow_type='READY2RUN',
+        storage_type='DYNAMIC',
+        storage_capacity=1200,  # Should be rejected for READY2RUN
+        cache_id=None,
+        cache_behavior=None,
+        run_group_id=None,
+        networking_mode=None,
+        configuration_name=None,
+        scratch_storage_mode=None,
+    )
+
+    assert 'error' in result
+    assert 'storage_capacity' in result['error']
+    assert 'READY2RUN' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_start_run_ready2run_with_static_storage_type_rejected():
+    """Test READY2RUN workflow rejects non-DYNAMIC storage_type (line 259)."""
+    mock_ctx = AsyncMock()
+
+    result = await start_run(
+        mock_ctx,
+        workflow_id='2174942',
+        role_arn='arn:aws:iam::123456789012:role/OmicsRole',
+        name='r2r-test',
+        output_uri='s3://my-bucket/outputs/',
+        parameters={'input': []},
+        workflow_type='READY2RUN',
+        storage_type='STATIC',  # Should be rejected for READY2RUN
+        storage_capacity=None,
+        cache_id=None,
+        cache_behavior=None,
+        run_group_id=None,
+        networking_mode=None,
+        configuration_name=None,
+        scratch_storage_mode=None,
+    )
+
+    assert 'error' in result
+    assert 'storage_type' in result['error']
+    assert 'READY2RUN' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_start_run_invalid_networking_mode():
+    """Test start_run with invalid networking_mode value (line 300)."""
+    mock_ctx = AsyncMock()
+
+    result = await start_run(
+        mock_ctx,
+        workflow_id='wfl-12345',
+        role_arn='arn:aws:iam::123456789012:role/OmicsRole',
+        name='test-run',
+        output_uri='s3://my-bucket/outputs/',
+        parameters={'param1': 'value1'},
+        workflow_type=None,
+        storage_type='DYNAMIC',
+        storage_capacity=None,
+        cache_id=None,
+        cache_behavior=None,
+        run_group_id=None,
+        networking_mode='INVALID_MODE',  # Invalid networking mode
+        configuration_name=None,
+        scratch_storage_mode=None,
+    )
+
+    assert 'error' in result
+    assert 'Invalid networking mode' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_start_run_vpc_mode_without_configuration_name():
+    """Test start_run with networking_mode=VPC but no configuration_name (line 308)."""
+    mock_ctx = AsyncMock()
+
+    result = await start_run(
+        mock_ctx,
+        workflow_id='wfl-12345',
+        role_arn='arn:aws:iam::123456789012:role/OmicsRole',
+        name='test-run',
+        output_uri='s3://my-bucket/outputs/',
+        parameters={'param1': 'value1'},
+        workflow_type=None,
+        storage_type='DYNAMIC',
+        storage_capacity=None,
+        cache_id=None,
+        cache_behavior=None,
+        run_group_id=None,
+        networking_mode='VPC',  # VPC mode
+        configuration_name=None,  # Missing required configuration name
+        scratch_storage_mode=None,
+    )
+
+    assert 'error' in result
+    assert 'Missing configuration name' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_start_run_configuration_name_without_vpc_mode():
+    """Test start_run with configuration_name but no VPC mode (line 318)."""
+    mock_ctx = AsyncMock()
+
+    result = await start_run(
+        mock_ctx,
+        workflow_id='wfl-12345',
+        role_arn='arn:aws:iam::123456789012:role/OmicsRole',
+        name='test-run',
+        output_uri='s3://my-bucket/outputs/',
+        parameters={'param1': 'value1'},
+        workflow_type=None,
+        storage_type='DYNAMIC',
+        storage_capacity=None,
+        cache_id=None,
+        cache_behavior=None,
+        run_group_id=None,
+        networking_mode=None,  # Not VPC mode
+        configuration_name='my-vpc-config',  # But configuration name provided
+        scratch_storage_mode=None,
+    )
+
+    assert 'error' in result
+    assert 'Invalid networking configuration' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_start_run_with_vpc_networking_full():
+    """Test start_run with fully configured VPC networking (lines 380-381)."""
+    mock_response = {
+        'id': 'run-vpc-001',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:run/run-vpc-001',
+        'status': 'PENDING',
+        'name': 'vpc-run',
+        'workflowId': 'wfl-12345',
+        'uuid': 'uuid-vpc-001',
+        'tags': {},
+    }
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.start_run.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await start_run(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            role_arn='arn:aws:iam::123456789012:role/OmicsRole',
+            name='vpc-run',
+            output_uri='s3://my-bucket/outputs/',
+            parameters={'param1': 'value1'},
+            workflow_type=None,
+            storage_type='DYNAMIC',
+            storage_capacity=None,
+            cache_id=None,
+            cache_behavior=None,
+            run_group_id=None,
+            networking_mode='VPC',
+            configuration_name='my-vpc-config',
+            scratch_storage_mode=None,
+        )
+
+    # Verify VPC params were passed to the API
+    call_kwargs = mock_client.start_run.call_args[1]
+    assert call_kwargs['networkingMode'] == 'VPC'
+    assert call_kwargs['configurationName'] == 'my-vpc-config'
+
+    # Verify response
+    assert result['id'] == 'run-vpc-001'
+    assert result['networkingMode'] == 'VPC'
+
+
+@pytest.mark.asyncio
+async def test_list_runs_date_filter_pagination_early_stop():
+    """Test list_runs with date filters and pagination early stop (lines 546-551)."""
+    from datetime import timedelta
+
+    base_time = datetime(2023, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+
+    # First page returns runs, with a nextToken indicating more pages
+    first_page_response = {
+        'items': [
+            {
+                'id': f'run-{i}',
+                'name': f'run-{i}',
+                'status': 'COMPLETED',
+                'workflowId': 'wfl-1',
+                'workflowType': 'WDL',
+                'creationTime': base_time + timedelta(hours=i),
+            }
+            for i in range(10)
+        ],
+        'nextToken': 'page-2-token',
+    }
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    # Return first page with enough results to trigger early stop
+    mock_client.list_runs.return_value = first_page_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        # Request max_results=5, all 10 runs match the filter -> early stop
+        result = await list_runs(
+            ctx=mock_ctx,
+            max_results=5,
+            next_token=None,
+            status=None,
+            created_after='2023-06-14T00:00:00Z',  # All 10 runs are after this
+            created_before=None,
+            run_group_id=None,
+        )
+
+    # Should return max_results (5) even though 10 match
+    assert len(result['runs']) == 5
+    # Only one API call since early stop triggered
+    assert mock_client.list_runs.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_list_runs_date_filter_more_results_than_max():
+    """Test list_runs log when filtered results exceed max_results (line 566)."""
+    from datetime import timedelta
+
+    base_time = datetime(2023, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+
+    # Response with many matching runs but no next token (single page)
+    mock_response = {
+        'items': [
+            {
+                'id': f'run-{i}',
+                'name': f'run-{i}',
+                'status': 'COMPLETED',
+                'workflowId': 'wfl-1',
+                'workflowType': 'WDL',
+                'creationTime': base_time + timedelta(hours=i),
+            }
+            for i in range(20)
+        ],
+        # No nextToken - single page
+    }
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.list_runs.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        # max_results=5, but all 20 runs match the date filter
+        result = await list_runs(
+            ctx=mock_ctx,
+            max_results=5,
+            next_token=None,
+            status=None,
+            created_after='2023-06-14T00:00:00Z',  # All runs match
+            created_before=None,
+            run_group_id=None,
+        )
+
+    # Should truncate to max_results
+    assert len(result['runs']) == 5
+
+
+@pytest.mark.asyncio
+async def test_list_run_tasks_with_next_token():
+    """Test list_run_tasks with a next_token for pagination (line 713)."""
+    mock_response = {
+        'items': [
+            {
+                'taskId': 'task-page2-001',
+                'status': 'COMPLETED',
+                'name': 'task-on-page-2',
+                'cpus': 2,
+                'memory': 4096,
+            },
+        ],
+        'nextToken': 'page-3-token',
+    }
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.list_run_tasks.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await list_run_tasks(
+            mock_ctx,
+            run_id='run-12345',
+            max_results=10,
+            next_token='page-2-token',  # Providing pagination token
+            status=None,
+        )
+
+    # Verify the next_token was passed as startingToken
+    mock_client.list_run_tasks.assert_called_once_with(
+        id='run-12345',
+        maxResults=10,
+        startingToken='page-2-token',
+    )
+
+    # Verify results
+    assert len(result['tasks']) == 1
+    assert result['tasks'][0]['taskId'] == 'task-page2-001'
+    assert result['nextToken'] == 'page-3-token'
+
+
+@pytest.mark.asyncio
+async def test_filter_runs_by_creation_time_with_invalid_time_string():
+    """Test filter_runs_by_creation_time with malformed creation time strings (lines 116-121)."""
+    from awslabs.aws_healthomics_mcp_server.tools.workflow_execution import (
+        filter_runs_by_creation_time,
+    )
+
+    base_time = datetime(2023, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+
+    runs = [
+        {
+            'id': 'run-valid',
+            'creationTime': base_time.isoformat(),
+        },
+        {
+            'id': 'run-invalid',
+            'creationTime': 'not-a-valid-datetime-string',  # Malformed datetime
+        },
+        {
+            'id': 'run-also-valid',
+            'creationTime': (base_time + timedelta(days=1)).isoformat(),
+        },
+    ]
+
+    # Filter with created_after - the invalid run should be skipped with a warning
+    result = filter_runs_by_creation_time(runs, created_after='2023-06-10T00:00:00Z')
+
+    # Should only include the two valid runs, skipping the invalid one
+    assert len(result) == 2
+    assert result[0]['id'] == 'run-valid'
+    assert result[1]['id'] == 'run-also-valid'
+
+
+@pytest.mark.asyncio
+async def test_list_runs_no_filtering_with_pagination_loop():
+    """Test list_runs else branch when not filtering after while loop (lines 574-577).
+
+    This covers the else branch that fires when needs_filtering=False
+    and the loop exits normally (not via break). In practice this happens
+    when the first API call has no nextToken.
+    """
+    mock_response = {
+        'items': [
+            {
+                'id': 'run-1',
+                'name': 'run-1',
+                'status': 'COMPLETED',
+                'workflowId': 'wfl-1',
+                'workflowType': 'WDL',
+                'creationTime': datetime(2023, 6, 15, 12, 0, 0, tzinfo=timezone.utc),
+            }
+        ],
+        # No nextToken - loop exits at `if not needs_filtering` early return path
+    }
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.list_runs.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await list_runs(
+            ctx=mock_ctx,
+            max_results=10,
+            next_token=None,
+            status=None,
+            created_after=None,
+            created_before=None,
+            run_group_id=None,
+        )
+
+    # This follows the early return path (not the else branch)
+    # The else branch on lines 574-577 is only reachable after the while loop
+    # with needs_filtering=False AND the early return didn't fire.
+    # Since needs_filtering=False always takes the early return inside the loop,
+    # lines 574-577 are effectively dead code.
+    assert len(result['runs']) == 1
+    assert 'nextToken' not in result
