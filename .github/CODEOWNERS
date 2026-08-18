@@ -21,7 +21,7 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/amazon-bedrock-agentcore-mcp-server                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @theagenticguy @scottschreckengaust @theumbrella1 @Vivekbhadauria1 @jesseturner21 @AlexanderRichey @kevin-orellana @Bhavik-T @sundargthb @jariy17 @Sudip2403
 /src/amazon-kendra-index-mcp-server                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @tomron-aws
 /src/amazon-keyspaces-mcp-server                               @awslabs/mcp-admins @awslabs/mcp-maintainers  @jcshepherd
-/src/amazon-mq-mcp-server                                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @kenliao94 @hashimsharkh
+/src/amazon-mq-mcp-server                                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @kenliao94 @hashimsharkh @BenAtAmazon
 /src/amazon-neptune-mcp-server                                 @awslabs/mcp-admins @awslabs/mcp-maintainers  @cornerwings @krlawrence @thompsonbry
 /src/amazon-qbusiness-anonymous-mcp-server                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @abhjaw
 /src/amazon-qindex-mcp-server                                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @tkoba-aws @akhileshamara
