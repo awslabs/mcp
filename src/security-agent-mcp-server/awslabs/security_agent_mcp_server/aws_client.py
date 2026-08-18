@@ -19,6 +19,8 @@ import botocore.config
 import json
 import re
 from awslabs.security_agent_mcp_server import __version__
+from boto3.exceptions import S3UploadFailedError
+from botocore.exceptions import ClientError
 from typing import Any, Optional
 
 
@@ -36,6 +38,8 @@ class SecurityAgentClient:
     ):
         """Initialize SecurityAgent client."""
         self.region = region
+        self._cached_account_id: Optional[str] = None
+        self._cached_account_key: Optional[str] = None
         self._mcp_client_name = mcp_client_name
         self._mcp_client_version = mcp_client_version
         self._config = self._build_config(mcp_client_name, mcp_client_version)
@@ -72,6 +76,18 @@ class SecurityAgentClient:
     def _get_session(self):
         """Fresh session each call to pick up rotated credentials."""
         return boto3.Session(region_name=self.region)
+
+    def _account_id(self) -> str:
+        """Return the caller's account ID, cached per credential set."""
+        session = self._get_session()
+        creds = session.get_credentials()
+        key = creds.get_frozen_credentials().access_key if creds else None
+        if self._cached_account_id is None or self._cached_account_key != key:
+            self._cached_account_id = str(
+                session.client('sts', config=self._config).get_caller_identity()['Account']
+            )
+            self._cached_account_key = key
+        return self._cached_account_id
 
     def _client(self):
         """Get a fresh securityagent boto3 client with custom user-agent."""
@@ -327,6 +343,12 @@ class SecurityAgentClient:
         )
         return bucket_name
 
+    def verify_bucket_owner(self, bucket_name: str) -> None:
+        """Raise if the caller's account does not own the bucket (403 = squatted)."""
+        self._get_session().client('s3', config=self._config).head_bucket(
+            Bucket=bucket_name, ExpectedBucketOwner=self._account_id()
+        )
+
     def create_service_role(self, role_name: str, account_id: str, bucket_name: str) -> str:
         """Create IAM service role for Security Agent with S3 + CloudWatch Logs access."""
         iam = self._get_session().client('iam', config=self._config)
@@ -388,6 +410,18 @@ class SecurityAgentClient:
         return f'arn:aws:iam::{account_id}:role/{role_name}'
 
     def upload_to_s3(self, bucket: str, key: str, file_path: str) -> str:
-        """Upload a file to S3."""
-        self._get_session().client('s3', config=self._config).upload_file(file_path, bucket, key)
+        """Upload a file to S3, rejecting the write if the bucket is owned by another account."""
+        try:
+            self._get_session().client('s3', config=self._config).upload_file(
+                file_path,
+                bucket,
+                key,
+                ExtraArgs={'ExpectedBucketOwner': self._account_id()},
+            )
+        except S3UploadFailedError as e:
+            # Re-raise the underlying ClientError (e.g. 403) so callers can handle it.
+            for cand in (e.__cause__, e.__context__):
+                if isinstance(cand, ClientError):
+                    raise cand
+            raise
         return f's3://{bucket}/{key}'
