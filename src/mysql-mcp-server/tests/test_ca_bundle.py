@@ -220,12 +220,13 @@ class TestCaBundleSslContextWiring:
             'called with no cafile so the system trust store is used (warned).'
         )
 
-    async def test_no_ssl_context_for_non_iam(self, monkeypatch):
-        """Non-IAM connections must not configure an SSL context.
+    async def test_ssl_context_for_secret_arn_path(self, monkeypatch):
+        """Secrets Manager credential path must configure an SSL context.
 
-        Setting an SSL context on `mysqlwire` (no IAM) connections would
-        force-upgrade them to TLS, which can break installations relying on
-        plaintext or server-certificate-managed TLS.
+        When secret_arn is set, credentials are transmitted over the wire.
+        TLS is required to prevent credential interception by an attacker-
+        controlled endpoint or network observer. This is a security fix for
+        CWE-918, CWE-522, CWE-319.
         """
         from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -250,8 +251,8 @@ class TestCaBundleSslContextWiring:
             )
             await conn.initialize_pool()
 
-        assert captured['ssl_calls'] == 0, (
-            'create_default_context was called for a non-IAM connection. '
-            'mysqlwire must remain plaintext-capable.'
+        assert captured['ssl_calls'] == 1, (
+            'create_default_context must be called for Secrets Manager credential path. '
+            'TLS is required when real credentials are on the wire.'
         )
-        assert mock_pool.call_args.kwargs['ssl'] is None
+        assert mock_pool.call_args.kwargs['ssl'] is not None
