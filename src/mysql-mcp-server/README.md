@@ -126,6 +126,7 @@ directly via `mysqlwire` with the endpoint, port, and credentials.
 #### mysqlwire / mysqlwire_iam
 - VPC security group must allow inbound connections from your MCP server to the database
 - For `mysqlwire_iam`: IAM authentication must be enabled on the Aurora MySQL cluster
+- The AWS identity needs `rds:DescribeDBClusters` and `rds:DescribeDBInstances`. A caller-supplied `db_endpoint` is validated against the cluster's AWS-resolved endpoints before connecting; resolving those endpoints requires both permissions. Without them, endpoint validation cannot enumerate the cluster's real endpoints and the connection is refused.
 
 #### rdsapi
 - RDS Data API must be enabled on the Aurora MySQL cluster
@@ -141,7 +142,7 @@ The MCP server uses the AWS profile specified in the AWS_PROFILE environment var
 }
 ```
 
-Make sure the AWS profile has permissions to access the RDS Data API, and the secret from AWS Secrets Manager. The MCP server creates a boto3 session using the specified profile to authenticate with AWS services. Your AWS IAM credentials remain on your local machine and are strictly used for accessing AWS services.
+Make sure the AWS profile has permissions to access the RDS Data API and the secret from AWS Secrets Manager. Wire-protocol methods (`mysqlwire` / `mysqlwire_iam`) additionally require `rds:DescribeDBClusters` / `rds:DescribeDBInstances` — see the prerequisites above. The MCP server creates a boto3 session using the specified profile to authenticate with AWS services. Your AWS IAM credentials remain on your local machine and are strictly used for accessing AWS services.
 
 ## Security model
 
