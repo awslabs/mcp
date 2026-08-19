@@ -1063,6 +1063,59 @@ def validate_secret_arn_at_startup(secret_arn: str, region: str) -> None:
     logger.success(f'Verified Secrets Manager access for {secret_arn} in region {region}')
 
 
+async def _run_server(args) -> None:
+    """Run the startup self-test and the MCP server on a single event loop.
+
+    The startup ``SELECT 1`` self-test must share the event loop that serves
+    MCP requests: ``aiorwlock.RWLock`` binds lazily to the first loop that
+    acquires it, so running the self-test inside a throwaway ``asyncio.run``
+    loop leaves the pooled connection bound to a dead loop and crashes the
+    first real query with "bound to a different event loop".
+    """
+    if args.db_type:
+        # Create the appropriate database connection based on the provided parameters
+        db_connection: Optional[AbstractDBConnection] = None
+
+        cluster_identifier = args.db_cluster_arn.split(':')[-1]
+        db_connection, llm_response = internal_create_connection(
+            region=args.region,
+            database_type=DatabaseType[args.db_type],
+            connection_method=ConnectionMethod[args.connection_method],
+            cluster_identifier=cluster_identifier,
+            db_endpoint=args.db_endpoint,
+            port=args.port,
+            database=args.database,
+        )
+
+        # Test the database connection on the same loop that serves requests.
+        if db_connection:
+            ctx = DummyCtx()
+            response = await run_query(
+                'SELECT 1',
+                ctx,
+                ConnectionMethod[args.connection_method],
+                cluster_identifier,
+                args.db_endpoint,
+                args.database,
+            )
+            if (
+                isinstance(response, list)
+                and len(response) == 1
+                and isinstance(response[0], dict)
+                and 'error' in response[0]
+            ):
+                logger.error(
+                    'Failed to validate database connection to Postgres. Exit the MCP server'
+                )
+                sys.exit(1)
+            else:
+                logger.success('Successfully validated database connection to Postgres')
+
+    logger.info('Postgres MCP server started')
+    await mcp.run_stdio_async()
+    logger.info('Postgres MCP server stopped')
+
+
 def main():
     """Main entry point for the MCP server application.
 
@@ -1188,50 +1241,7 @@ def main():
             raise
 
     try:
-        if args.db_type:
-            # Create the appropriate database connection based on the provided parameters
-            db_connection: Optional[AbstractDBConnection] = None
-
-            cluster_identifier = args.db_cluster_arn.split(':')[-1]
-            db_connection, llm_response = internal_create_connection(
-                region=args.region,
-                database_type=DatabaseType[args.db_type],
-                connection_method=ConnectionMethod[args.connection_method],
-                cluster_identifier=cluster_identifier,
-                db_endpoint=args.db_endpoint,
-                port=args.port,
-                database=args.database,
-            )
-
-            # Test database connection
-            if db_connection:
-                ctx = DummyCtx()
-                response = asyncio.run(
-                    run_query(
-                        'SELECT 1',
-                        ctx,
-                        ConnectionMethod[args.connection_method],
-                        cluster_identifier,
-                        args.db_endpoint,
-                        args.database,
-                    )
-                )
-                if (
-                    isinstance(response, list)
-                    and len(response) == 1
-                    and isinstance(response[0], dict)
-                    and 'error' in response[0]
-                ):
-                    logger.error(
-                        'Failed to validate database connection to Postgres. Exit the MCP server'
-                    )
-                    sys.exit(1)
-                else:
-                    logger.success('Successfully validated database connection to Postgres')
-
-        logger.info('Postgres MCP server started')
-        mcp.run()
-        logger.info('Postgres MCP server stopped')
+        asyncio.run(_run_server(args))
     finally:
         db_connection_map.close_all()
 

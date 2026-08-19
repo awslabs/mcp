@@ -721,7 +721,7 @@ def test_main_with_valid_parameters(monkeypatch, capsys):
             'arn:aws:secretsmanager:us-west-2:123456789012:secret:test-secret',
         ],
     )
-    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run_stdio_async', AsyncMock())
     # Stub the startup Secrets Manager probe so main() doesn't exit(1).
     monkeypatch.setattr(
         'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
@@ -744,6 +744,72 @@ def test_main_with_valid_parameters(monkeypatch, capsys):
 
     # This test of main() will succeed in parsing parameters and create connection object.
     main()
+
+
+def test_main_runs_self_test_and_server_on_same_event_loop(monkeypatch, capsys):
+    """The startup self-test and the serving loop must share one event loop.
+
+    Regression test for the aiorwlock binding bug: the startup ``SELECT 1``
+    self-test used to run inside a throwaway ``asyncio.run`` loop, binding the
+    pooled connection's ``aiorwlock.RWLock`` to that dead loop. The first real
+    query then crashed with "bound to a different event loop". The self-test
+    and ``mcp.run_stdio_async`` must execute on the same loop.
+    """
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--connection_method',
+            'RDS_API',
+            '--db_type',
+            'APG',
+            '--db_cluster_arn',
+            'arn:aws:rds:us-west-2:123456789012:cluster:example-cluster-name',
+            '--database',
+            'postgres',
+            '--region',
+            'us-west-2',
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:test-secret',
+        ],
+    )
+
+    # Stub the startup Secrets Manager probe so main() doesn't exit(1).
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
+        lambda secret_arn, region, is_test=False: ('test_user', 'test_password'),
+    )
+
+    observed_loops = []
+
+    async def fake_run_query(*args, **kwargs):
+        observed_loops.append(('query', asyncio.get_running_loop()))
+        return [{'column1': 'value'}]
+
+    async def fake_run_stdio_async():
+        observed_loops.append(('serve', asyncio.get_running_loop()))
+
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.internal_create_connection',
+        lambda **kwargs: (Mock_DBConnection(readonly=False), '{}'),
+    )
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.run_query', fake_run_query)
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.mcp.run_stdio_async',
+        fake_run_stdio_async,
+    )
+
+    main()
+
+    query_loops = [loop for kind, loop in observed_loops if kind == 'query']
+    serve_loops = [loop for kind, loop in observed_loops if kind == 'serve']
+
+    assert query_loops, 'startup self-test query did not run'
+    assert serve_loops, 'MCP server did not start serving'
+    assert query_loops[0] is serve_loops[0], (
+        'self-test and serving must share a single event loop; they ran on different loops'
+    )
 
 
 def test_main_with_invalid_parameters(monkeypatch, capsys):
@@ -774,7 +840,7 @@ def test_main_with_invalid_parameters(monkeypatch, capsys):
             'arn:aws:secretsmanager:us-west-2:123456789012:secret:test-secret',
         ],
     )
-    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run_stdio_async', AsyncMock())
     # Stub the startup Secrets Manager probe so main() doesn't exit(1).
     monkeypatch.setattr(
         'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
@@ -782,7 +848,7 @@ def test_main_with_invalid_parameters(monkeypatch, capsys):
     )
 
     # This test of main() will succeed in parsing parameters.
-    # With mcp.run mocked, the server starts and stops without error.
+    # With mcp.run_stdio_async mocked, the server starts and stops without error.
     # The connection validation happens lazily when queries are executed, not at startup.
     main()  # Should not raise an error
 
@@ -845,7 +911,7 @@ def test_main_with_psycopg_parameters(monkeypatch, capsys):
             'arn:aws:secretsmanager:us-west-2:123456789012:secret:test-secret',
         ],
     )
-    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run_stdio_async', AsyncMock())
     # Stub the startup Secrets Manager probe so main() doesn't exit(1).
     monkeypatch.setattr(
         'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
@@ -971,7 +1037,7 @@ def test_main_with_invalid_psycopg_parameters(monkeypatch, capsys):
             'True',
         ],
     )
-    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run_stdio_async', AsyncMock())
 
     # This test of main() will fail due to invalid port
     with pytest.raises(SystemExit) as excinfo:
@@ -985,7 +1051,7 @@ def test_main_exits_when_secret_arn_unreadable(monkeypatch, capsys):
     Simulates an operator who gives the correct CLI shape but whose AWS
     principal lacks secretsmanager:GetSecretValue. main() must surface the
     underlying error, log a clear startup-failure message, and exit(1)
-    before mcp.run() is ever reached.
+    before mcp.run_stdio_async() is ever reached.
     """
     monkeypatch.setattr(
         sys,
@@ -999,13 +1065,13 @@ def test_main_exits_when_secret_arn_unreadable(monkeypatch, capsys):
         ],
     )
 
-    # mcp.run must not be called when startup validation fails.
+    # mcp.run_stdio_async must not be called when startup validation fails.
     mcp_run_called = {'count': 0}
 
-    def _fail_if_called():
+    async def _fail_if_called():
         mcp_run_called['count'] += 1
 
-    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', _fail_if_called)
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run_stdio_async', _fail_if_called)
 
     def _raise_access_denied(secret_arn, region, is_test=False):
         raise ValueError(
@@ -1025,10 +1091,10 @@ def test_main_exits_when_secret_arn_unreadable(monkeypatch, capsys):
 
 
 def test_main_verifies_secret_before_mcp_run(monkeypatch, capsys):
-    """Happy path: startup validation succeeds and mcp.run is invoked.
+    """Happy path: startup validation succeeds and mcp.run_stdio_async is invoked.
 
     No --db_type is supplied (lazy-connect mode), so the only work done
-    between argument parsing and mcp.run is the secret-ARN verification.
+    between argument parsing and mcp.run_stdio_async is the secret-ARN verification.
     """
     monkeypatch.setattr(
         sys,
@@ -1042,17 +1108,17 @@ def test_main_verifies_secret_before_mcp_run(monkeypatch, capsys):
         ],
     )
 
-    # Capture mcp.run invocation order.
+    # Capture mcp.run_stdio_async invocation order.
     call_order = []
 
-    def _record_run():
-        call_order.append('mcp.run')
+    async def _record_run():
+        call_order.append('mcp.run_stdio_async')
 
     def _record_secret(secret_arn, region, is_test=False):
         call_order.append('get_credentials_from_secret')
         return ('test_user', 'test_password')
 
-    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', _record_run)
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run_stdio_async', _record_run)
     monkeypatch.setattr(
         'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
         _record_secret,
@@ -1060,8 +1126,8 @@ def test_main_verifies_secret_before_mcp_run(monkeypatch, capsys):
 
     main()
 
-    # Verification must happen before mcp.run, not after.
-    assert call_order == ['get_credentials_from_secret', 'mcp.run']
+    # Verification must happen before mcp.run_stdio_async, not after.
+    assert call_order == ['get_credentials_from_secret', 'mcp.run_stdio_async']
 
 
 def test_main_skips_secret_probe_when_arg_omitted(monkeypatch, capsys):
@@ -1086,7 +1152,7 @@ def test_main_skips_secret_probe_when_arg_omitted(monkeypatch, capsys):
         secret_probe_calls['count'] += 1
         return ('test_user', 'test_password')
 
-    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run_stdio_async', AsyncMock())
     monkeypatch.setattr(
         'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
         _record_secret,
@@ -1129,7 +1195,7 @@ def test_main_parses_per_target_and_default_secret_arn(monkeypatch, capsys):
         ],
     )
 
-    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run_stdio_async', AsyncMock())
     monkeypatch.setattr(
         'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
         lambda secret_arn, region, is_test=False: ('test_user', 'test_password'),
@@ -1161,7 +1227,7 @@ def test_main_rejects_two_default_secret_arns(monkeypatch, capsys):
         ],
     )
 
-    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run_stdio_async', AsyncMock())
 
     with pytest.raises(SystemExit) as excinfo:
         from awslabs.postgres_mcp_server.server import main as main_fn
@@ -1186,7 +1252,7 @@ def test_main_rejects_duplicate_per_target_key(monkeypatch, capsys):
         ],
     )
 
-    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run_stdio_async', AsyncMock())
 
     with pytest.raises(SystemExit) as excinfo:
         from awslabs.postgres_mcp_server.server import main as main_fn
@@ -1209,7 +1275,7 @@ def test_main_rejects_secret_arn_with_empty_key(monkeypatch, capsys):
         ],
     )
 
-    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run_stdio_async', AsyncMock())
 
     with pytest.raises(SystemExit) as excinfo:
         from awslabs.postgres_mcp_server.server import main as main_fn
@@ -1232,7 +1298,7 @@ def test_main_rejects_secret_arn_with_empty_arn(monkeypatch, capsys):
         ],
     )
 
-    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run_stdio_async', AsyncMock())
 
     with pytest.raises(SystemExit) as excinfo:
         from awslabs.postgres_mcp_server.server import main as main_fn
@@ -1265,7 +1331,7 @@ def test_main_skips_empty_bare_secret_arn(monkeypatch, capsys):
         secret_probe_calls['count'] += 1
         return ('test_user', 'test_password')
 
-    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run_stdio_async', AsyncMock())
     monkeypatch.setattr(
         'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
         _record_secret,
