@@ -645,6 +645,140 @@ class TestConnectToDatabaseErrorHandling:
         finally:
             db_connection_map.remove_connection(mock_connection)
 
+    @pytest.mark.asyncio
+    async def test_warn_over_privileged_response_carries_advisory(self):
+        """Under warn, the connect_to_database response includes an advisory.
+
+        The server-side warning log is often invisible to the MCP host, so an
+        over-privileged connection must also surface its posture in the tool
+        response as a structured, parseable advisory (additive to the existing
+        fields).
+        """
+        from awslabs.postgres_mcp_server.server import db_connection_map
+
+        method = ConnectionMethod.RDS_API
+        cluster = 'test-cluster-advisory'
+        resolved_endpoint = 'writer.advisory.example.com'
+        database = 'testdb'
+
+        mock_connection = MagicMock()
+        mock_connection.execute_query = AsyncMock(
+            return_value={
+                'columnMetadata': [
+                    {'name': 'is_superuser'},
+                    {'name': 'is_bypassrls'},
+                    {'name': 'is_rds_superuser'},
+                ],
+                # rds_superuser member (the common RDS/Aurora master case).
+                'records': [
+                    [
+                        {'booleanValue': False},
+                        {'booleanValue': False},
+                        {'booleanValue': True},
+                    ]
+                ],
+            }
+        )
+        mock_connection.close = AsyncMock()
+
+        def fake_create(**kwargs):
+            db_connection_map.set(method, cluster, resolved_endpoint, database, mock_connection)
+            return (mock_connection, '{"cluster_identifier": "test-cluster-advisory"}')
+
+        db_connection_map.remove_connection(mock_connection)
+        try:
+            with (
+                patch(
+                    'awslabs.postgres_mcp_server.server.internal_create_connection',
+                    side_effect=fake_create,
+                ),
+                patch('awslabs.postgres_mcp_server.server.privilege_check_policy', 'warn'),
+            ):
+                result = await connect_to_database(
+                    region='us-east-1',
+                    database_type=DatabaseType.APG,
+                    connection_method=method,
+                    cluster_identifier=cluster,
+                    db_endpoint=resolved_endpoint,
+                    port=5432,
+                    database=database,
+                )
+
+            # Allowed, and the response is valid JSON carrying the advisory
+            # alongside the original fields.
+            assert '"status": "Failed"' not in result
+            payload = json.loads(result)
+            assert payload['cluster_identifier'] == 'test-cluster-advisory'
+            assert 'advisories' in payload
+            codes = [a['code'] for a in payload['advisories']]
+            assert 'over_privileged_role' in codes
+            advisory = next(
+                a for a in payload['advisories'] if a['code'] == 'over_privileged_role'
+            )
+            assert advisory['severity'] == 'warning'
+            assert 'least-privilege' in advisory['message']
+        finally:
+            db_connection_map.remove_connection(mock_connection)
+
+    @pytest.mark.asyncio
+    async def test_clean_role_response_has_no_advisory(self):
+        """A clean (least-privilege) role produces no advisory in the response."""
+        from awslabs.postgres_mcp_server.server import db_connection_map
+
+        method = ConnectionMethod.RDS_API
+        cluster = 'test-cluster-noadvisory'
+        resolved_endpoint = 'writer.noadvisory.example.com'
+        database = 'testdb'
+
+        mock_connection = MagicMock()
+        mock_connection.execute_query = AsyncMock(
+            return_value={
+                'columnMetadata': [
+                    {'name': 'is_superuser'},
+                    {'name': 'is_bypassrls'},
+                    {'name': 'is_rds_superuser'},
+                ],
+                'records': [
+                    [
+                        {'booleanValue': False},
+                        {'booleanValue': False},
+                        {'booleanValue': False},
+                    ]
+                ],
+            }
+        )
+        mock_connection.close = AsyncMock()
+
+        def fake_create(**kwargs):
+            db_connection_map.set(method, cluster, resolved_endpoint, database, mock_connection)
+            return (mock_connection, '{"cluster_identifier": "test-cluster-noadvisory"}')
+
+        db_connection_map.remove_connection(mock_connection)
+        try:
+            with (
+                patch(
+                    'awslabs.postgres_mcp_server.server.internal_create_connection',
+                    side_effect=fake_create,
+                ),
+                patch('awslabs.postgres_mcp_server.server.privilege_check_policy', 'warn'),
+            ):
+                result = await connect_to_database(
+                    region='us-east-1',
+                    database_type=DatabaseType.APG,
+                    connection_method=method,
+                    cluster_identifier=cluster,
+                    db_endpoint=resolved_endpoint,
+                    port=5432,
+                    database=database,
+                )
+
+            payload = json.loads(result)
+            assert payload['cluster_identifier'] == 'test-cluster-noadvisory'
+            assert 'advisories' not in payload
+            assert mock_connection.effective_is_over_privileged is False
+        finally:
+            db_connection_map.remove_connection(mock_connection)
+
 
 class TestDummyCtx:
     """Tests for DummyCtx class."""

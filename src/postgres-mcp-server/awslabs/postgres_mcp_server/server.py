@@ -290,6 +290,53 @@ async def validate_connection(db_connection: AbstractDBConnection, policy: str) 
     )
 
 
+def attach_privilege_advisory(llm_response: str, db_connection: AbstractDBConnection) -> str:
+    """Attach an over-privileged advisory to a successful connect response.
+
+    Under 'warn' an over-privileged connection (superuser, rds_superuser
+    member, or BYPASSRLS) is allowed and validate_connection logs a warning.
+    That server-side log is frequently invisible to the MCP host (the server's
+    stderr is often not captured), so also surface the posture in the tool
+    response itself as a structured, parseable advisory the caller can see.
+
+    Additive and non-destructive: existing response fields are preserved; an
+    'advisories' list is added (or appended to). No-op when the role is not
+    over-privileged or the posture was not determined (``effective_is_over_privileged``
+    is False/None), and under 'enforce' this path is never reached for an
+    over-privileged role (it is rejected and reported as a 'Failed' response).
+
+    Args:
+        llm_response: the JSON string returned by internal_create_connection.
+        db_connection: the connection whose privilege posture was just probed.
+
+    Returns:
+        The response JSON string, with an advisory appended when applicable.
+    """
+    if db_connection.effective_is_over_privileged is not True:
+        return llm_response
+    advisory = {
+        'code': 'over_privileged_role',
+        'severity': 'warning',
+        'message': (
+            'Connected as an over-privileged Postgres role (superuser, a member '
+            'of rds_superuser, or a BYPASSRLS role). Such a role bypasses '
+            'row-level security and can read credential catalogs; prefer a '
+            'dedicated least-privilege role (see the Security Consideration '
+            'section of README.md). Allowed because privilege_check=warn.'
+        ),
+    }
+    try:
+        payload = json.loads(llm_response)
+    except (TypeError, ValueError):
+        # Response was not JSON (unexpected for the normal path); leave it
+        # untouched rather than dropping the original content.
+        return llm_response
+    if not isinstance(payload, dict):
+        return llm_response
+    payload.setdefault('advisories', []).append(advisory)
+    return json.dumps(payload, indent=2, default=str)
+
+
 mcp = FastMCP(
     'pg-mcp MCP server. This is the starting point for all solutions created',
     dependencies=[
@@ -536,7 +583,9 @@ async def connect_to_database(
         )
 
         if was_cached:
-            return str(llm_response)
+            # A previously-validated over-privileged connection keeps its
+            # diagnostic flag, so re-surface the advisory on reconnect too.
+            return attach_privilege_advisory(str(llm_response), db_connection)
 
         # Newly-created connection: eagerly initialize the pool (so it's ready
         # for queries and created_time is set at connect time) and run the
@@ -565,7 +614,7 @@ async def connect_to_database(
                 )
             raise
 
-        return str(llm_response)
+        return attach_privilege_advisory(str(llm_response), db_connection)
 
     except Exception as e:
         logger.exception(f'connect_to_database failed with error: {str(e)}')
