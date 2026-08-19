@@ -283,9 +283,10 @@ class TestConnectToDatabaseErrorHandling:
             ),
         ):
             mock_connect.return_value = (mock_connection, mock_response)
-            # Not a cache hit — force the fresh path so validation actually runs
-            # (a bare MagicMock map would otherwise return a truthy cached conn).
-            mock_map.get.return_value = None
+            # Not a cache hit — empty snapshot forces the fresh path so
+            # validation actually runs (was_cached is decided by object identity
+            # against the pre-call snapshot).
+            mock_map.list_connections.return_value = []
 
             result = await connect_to_database(
                 region='us-east-1',
@@ -432,7 +433,7 @@ class TestConnectToDatabaseErrorHandling:
             patch('awslabs.postgres_mcp_server.server.privilege_check_policy', 'enforce'),
         ):
             mock_connect.return_value = (mock_connection, mock_response)
-            mock_map.get.return_value = None  # fresh path
+            mock_map.list_connections.return_value = []  # fresh path (identity snapshot)
 
             result = await connect_to_database(
                 region='us-east-1',
@@ -457,9 +458,10 @@ class TestConnectToDatabaseErrorHandling:
 
         Re-probing a cached connection on every connect is redundant and, worse,
         a transient probe failure would tear a healthy, in-use shared connection
-        out of the map. connect_to_database detects the cache hit (same key
-        internal_create_connection uses) and returns it without re-running the
-        privilege probe — so a probe that WOULD fail is never even called.
+        out of the map. connect_to_database detects the cache hit by object
+        identity (the returned connection is already in the pre-call snapshot)
+        and returns it without re-running the privilege probe — so a probe that
+        WOULD fail is never even called.
         """
         from awslabs.postgres_mcp_server.server import db_connection_map
 
@@ -474,8 +476,9 @@ class TestConnectToDatabaseErrorHandling:
         cached_conn.execute_query = AsyncMock(side_effect=RuntimeError('transient throttle'))
         cached_conn.close = AsyncMock()
 
-        # Seed the map so internal_create_connection would return this via its
-        # dedup early-return; connect_to_database's pre-check sees the same key.
+        # Seed the map so internal_create_connection returns this via its dedup
+        # early-return; connect_to_database's pre-call snapshot then contains it,
+        # so the identity check reports a cache hit.
         db_connection_map.remove_connection(cached_conn)
         db_connection_map.set(method, cluster, endpoint, database, cached_conn)
 
@@ -506,6 +509,70 @@ class TestConnectToDatabaseErrorHandling:
             cached_conn.execute_query.assert_not_awaited()
             cached_conn.close.assert_not_awaited()
             assert db_connection_map.get(method, cluster, endpoint, database) is cached_conn
+        finally:
+            db_connection_map.remove_connection(cached_conn)
+
+    @pytest.mark.asyncio
+    async def test_cache_hit_detected_by_identity_despite_key_mismatch(self):
+        """A returned pre-existing connection is treated as cached by identity.
+
+        Regression for the was_cached key-divergence: the connection is stored
+        under the AWS-resolved endpoint while the caller passes an empty
+        endpoint, so a key-based was_cached lookup would report "not cached" and
+        wrongly re-validate an already-validated, in-use connection. Detection is
+        by object identity against the pre-call snapshot, so when
+        internal_create_connection returns the pre-existing connection it is
+        recognized as a cache hit regardless of the key mismatch — the probe
+        never runs.
+        """
+        from awslabs.postgres_mcp_server.server import db_connection_map
+
+        method = ConnectionMethod.RDS_API
+        cluster = 'test-cluster-identity'
+        caller_endpoint = ''  # caller passes empty; stored under the resolved one
+        resolved_endpoint = 'writer.identity.example.com'
+        database = 'testdb'
+
+        cached_conn = MagicMock()
+        # Would raise (and, under enforce, trigger eviction+close) if probed.
+        cached_conn.execute_query = AsyncMock(side_effect=RuntimeError('should not run'))
+        cached_conn.close = AsyncMock()
+
+        # Pre-seed under the RESOLVED key (differs from the caller's empty one).
+        db_connection_map.remove_connection(cached_conn)
+        db_connection_map.set(method, cluster, resolved_endpoint, database, cached_conn)
+
+        def fake_create(**kwargs):
+            # Simulate a dedup hit: return the pre-existing object without
+            # re-storing it (as internal_create_connection's early-return does).
+            return (cached_conn, '{"cluster_identifier": "test-cluster-identity"}')
+
+        try:
+            with (
+                patch(
+                    'awslabs.postgres_mcp_server.server.internal_create_connection',
+                    side_effect=fake_create,
+                ),
+                patch('awslabs.postgres_mcp_server.server.privilege_check_policy', 'enforce'),
+            ):
+                result = await connect_to_database(
+                    region='us-east-1',
+                    database_type=DatabaseType.APG,
+                    connection_method=method,
+                    cluster_identifier=cluster,
+                    db_endpoint=caller_endpoint,
+                    port=5432,
+                    database=database,
+                )
+
+            # Recognized as cached despite the key mismatch: no probe, no close,
+            # connection retained.
+            assert '"status": "Failed"' not in result
+            cached_conn.execute_query.assert_not_awaited()
+            cached_conn.close.assert_not_awaited()
+            assert (
+                db_connection_map.get(method, cluster, resolved_endpoint, database) is cached_conn
+            )
         finally:
             db_connection_map.remove_connection(cached_conn)
 

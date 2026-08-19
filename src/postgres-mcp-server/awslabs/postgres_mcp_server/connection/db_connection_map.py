@@ -129,6 +129,19 @@ class DBConnectionMap:
                     return True
         return False
 
+    def list_connections(self) -> List[AbstractDBConnection]:
+        """Return a snapshot list of the currently cached connection objects.
+
+        Holds object references (not keys) so callers can test membership by
+        identity, independent of the map key. connect_to_database uses this to
+        tell whether internal_create_connection returned an already-cached (and
+        thus already-validated) connection or a freshly created one, without
+        rebuilding the key — which is unreliable given the endpoint/port
+        key-divergence documented on remove_connection.
+        """
+        with self._lock:
+            return list(self.map.values())
+
     def get_keys_json(self) -> str:
         """Get all connection keys as JSON string.
 

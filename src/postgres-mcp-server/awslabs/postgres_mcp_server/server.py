@@ -546,31 +546,33 @@ async def connect_to_database(
             db_endpoint must be set
     """
     try:
-        # Detect a cache hit using the SAME key internal_create_connection uses
-        # for its dedup early-return. internal_create_connection is synchronous,
-        # so (within this coroutine) nothing interleaves between this check and
-        # the call. On a cache hit we return the existing connection without
-        # re-running pool init / the privilege probe: re-probing is redundant
-        # (an extra round-trip / billable Data API call) and, worse, a transient
-        # probe failure (throttling, Serverless resume, pool timeout) would evict
-        # a healthy, in-use shared connection.
+        # Decide whether internal_create_connection returned an existing
+        # (already-validated) connection or created a fresh one, so we can skip
+        # re-running pool init / the privilege probe on a cache hit. Re-probing
+        # is redundant (an extra round-trip / billable Data API call) and, worse,
+        # a transient probe failure (throttling, Serverless resume, pool timeout)
+        # would evict a healthy, in-use shared connection.
+        #
+        # Detect the cache hit by OBJECT IDENTITY against a pre-call snapshot,
+        # not by rebuilding the map key. internal_create_connection stores under
+        # the AWS-resolved endpoint/port, which can differ from the caller args
+        # (e.g. an empty db_endpoint the resolver fills in, or a non-5432 port),
+        # so a key-based lookup here can wrongly report "not cached". If the
+        # returned connection already existed it is in this snapshot; if it was
+        # just created it is not. internal_create_connection is synchronous, so
+        # nothing interleaves between the snapshot and the identity check.
         #
         # Caveat: connections established through connect_to_database (and the
         # startup path) are validated at creation, so skipping re-validation for
-        # those is safe. Connections seeded by create_cluster /
+        # a cached one is safe. Connections seeded by create_cluster /
         # create_cluster_worker are cached WITHOUT validation (an intentional
         # bootstrap: the freshly created cluster only has the rds_superuser
-        # master and no least-privilege role yet). For those keys this skip means
-        # an over-privileged connection is not surfaced/evicted on reconnect —
-        # under the default 'warn' this is moot, and under 'enforce' it is the
-        # known create_cluster bootstrap gap tracked as a follow-up
-        # (validate-on-create with a bootstrap exemption).
-        was_cached = (
-            db_connection_map.get(
-                connection_method, cluster_identifier, db_endpoint, database, port
-            )
-            is not None
-        )
+        # master and no least-privilege role yet). For those this skip means an
+        # over-privileged connection is not surfaced/evicted on reconnect — under
+        # the default 'warn' this is moot, and under 'enforce' it is the known
+        # create_cluster bootstrap gap tracked as a follow-up (validate-on-create
+        # with a bootstrap exemption).
+        existing_connections = db_connection_map.list_connections()
 
         db_connection, llm_response = internal_create_connection(
             region=region,
@@ -581,6 +583,8 @@ async def connect_to_database(
             port=port,
             database=database,
         )
+
+        was_cached = any(existing is db_connection for existing in existing_connections)
 
         if was_cached:
             # A previously-validated over-privileged connection keeps its
