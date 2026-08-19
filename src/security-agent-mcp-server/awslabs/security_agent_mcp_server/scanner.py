@@ -251,7 +251,10 @@ class Scanner:
             return {'error': 'No S3 bucket configured. Run setup first.'}
 
         # Validate base_ref before it reaches the git commands below.
-        self._validate_git_ref(base_ref)
+        try:
+            self._validate_git_ref(base_ref)
+        except ValueError as e:
+            return {'error': str(e)}
 
         # Verify agent space still exists
         space = self._client.get_agent_space(agent_space_id)

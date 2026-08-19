@@ -636,9 +636,10 @@ class TestDiffScan:
         scanner = Scanner(client=mock_client, state=mock_state)
 
         with patch('awslabs.security_agent_mcp_server.scanner.subprocess.run') as mock_run:
-            with pytest.raises(ValueError, match='not start with'):
-                await scanner.start_diff_scan(path=str(code_dir), base_ref='--not-a-ref')
+            result = await scanner.start_diff_scan(path=str(code_dir), base_ref='--not-a-ref')
 
+        assert 'error' in result
+        assert 'not start with' in result['error']
         # Bailed before any git call, S3 upload, or the agent-space check — no side effects.
         mock_run.assert_not_called()
         mock_client.upload_to_s3.assert_not_called()
@@ -654,9 +655,10 @@ class TestDiffScan:
         scanner = Scanner(client=mock_client, state=mock_state)
 
         with patch('awslabs.security_agent_mcp_server.scanner.subprocess.run') as mock_run:
-            with pytest.raises(ValueError, match='not start with'):
-                await scanner.start_diff_scan(path=str(code_dir), base_ref='-o')
+            result = await scanner.start_diff_scan(path=str(code_dir), base_ref='-o')
 
+        assert 'error' in result
+        assert 'not start with' in result['error']
         mock_run.assert_not_called()
         mock_client.upload_to_s3.assert_not_called()
 
@@ -668,9 +670,10 @@ class TestDiffScan:
         scanner = Scanner(client=mock_client, state=mock_state)
 
         with patch('awslabs.security_agent_mcp_server.scanner.subprocess.run') as mock_run:
-            with pytest.raises(ValueError, match='must not be empty'):
-                await scanner.start_diff_scan(path=str(code_dir), base_ref='   ')
+            result = await scanner.start_diff_scan(path=str(code_dir), base_ref='   ')
 
+        assert 'error' in result
+        assert 'must not be empty' in result['error']
         mock_run.assert_not_called()
         mock_client.upload_to_s3.assert_not_called()
 
