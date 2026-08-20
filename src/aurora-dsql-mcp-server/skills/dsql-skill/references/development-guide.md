@@ -13,7 +13,7 @@ effortless scaling, multi-region viability, among other advantages.
 - **REQUIRED: Follow DDL Guidelines** - Refer to [DDL Rules](#schema-ddl-rules)
 - **SHALL repeatedly generate fresh tokens** - Refer to [Connection Limits](auth/authentication-guide.md#connection-rules)
 - **ALWAYS use ASYNC indexes** - `CREATE INDEX ASYNC` is mandatory
-- **MUST Serialize arrays/JSON as TEXT** - Store arrays/JSON as TEXT (comma separated, JSON.stringify)
+- **MUST serialize arrays** into a single-column representation; **PREFER `JSONB`** (operators work directly); **MAY use `TEXT`** when the column is opaque to the database; **ASK** the user (see [Schema Design Rules](#schema-design-rules))
 - **ALWAYS Batch within row limit** - maintain transaction limits (verify via `awsknowledge`: `aurora dsql transaction limits`)
 - **REQUIRED: Sanitize SQL inputs with allowlists, regex, and quote escaping** - See [Input Validation](../mcp/tools/input-validation.md#input-validation-critical)
 - **MUST follow correct Application Layer Patterns** - when multi-tenant isolation or application referential integrity are required; refer to [Application Layer Patterns](#application-layer-patterns)
@@ -53,9 +53,15 @@ effortless scaling, multi-region viability, among other advantages.
 
 ### Schema Design Rules
 
-- MUST use **simple PostgreSQL types:** VARCHAR, TEXT, INTEGER, BOOLEAN, TIMESTAMP
-- MUST store arrays as TEXT (comma-separated is recommended)
-- MUST store JSON objects as TEXT (JSON.stringify)
+- MUST use **simple PostgreSQL types:** VARCHAR, TEXT, INTEGER, BOOLEAN, TIMESTAMP, JSON, JSONB
+- MUST serialize arrays into a single-column representation:
+  - **PREFER `JSONB`** — `@>`, `?`, `?|`, `?&`, and `jsonb_array_elements_text` work directly; values validated and normalized at write
+  - **MAY use `TEXT`** when the column is opaque to the database (application reads the whole value, parses it, never queries inside)
+- For document columns:
+  - **`JSONB`** when querying with `@>`, `?`, or indexed JSONB paths
+  - **`JSON`** when writes dominate (no parse/sort overhead), when byte-exact input matters (audit, replay, payloads with duplicate keys), or when only `->`/`->>` is needed
+  - **SHOULD keep** existing `JSON` columns as `JSON` when migrating; **MAY upgrade to `JSONB`** if the application needs JSONB-only operators or indexed paths
+  - ASK the user about query patterns and read/write ratio before defaulting
 - ALWAYS include tenant_id in tables for multi-tenant isolation
 - SHOULD create async indexes for tenant_id and common query patterns
 
@@ -66,6 +72,11 @@ effortless scaling, multi-region viability, among other advantages.
 - MUST use **`CREATE INDEX ASYNC`:** No synchronous creation (verify limits via `awsknowledge`: `aurora dsql index limits`)
   - MAXIMUM: **24 indexes per table**
   - MAXIMUM: **8 columns per index**
+- MUST use **`ALTER TABLE ASYNC ... VALIDATE CONSTRAINT`** for constraint validation: No synchronous validation
+  - **MUST** add CHECK constraints with `NOT VALID`: `ALTER TABLE t ADD CONSTRAINT c CHECK (expr) NOT VALID`
+  - Then validate asynchronously: `ALTER TABLE ASYNC t VALIDATE CONSTRAINT c` — returns a `job_id`
+  - **MUST** monitor via `sys.jobs` or block with `SELECT sys.wait_for_job('job_id')`
+  - Constraint applies to new rows immediately; existing rows validated in background
 - **Asynchronous Execution:** DDL ALWAYS runs asynchronously
 - To add a column with DEFAULT or NOT NULL:
   1. MUST issue ADD COLUMN specifying only the column name and data type
@@ -116,16 +127,18 @@ instead implementation:
 ### Schema Operations
 
 ```sql
-CREATE INDEX ASYNC idx_name ON table(column);          ← ALWAYS ASYNC
-ALTER TABLE t ADD COLUMN c VARCHAR(50);                ← ONE AT A TIME
-ALTER TABLE t ADD COLUMN c2 INTEGER;                   ← SEPARATE STATEMENT
-UPDATE table SET c = 'default' WHERE c IS NULL;        ← AFTER ADD COLUMN
+CREATE INDEX ASYNC idx_name ON table(column);                        ← ALWAYS ASYNC
+ALTER TABLE t ADD CONSTRAINT c CHECK (age >= 0) NOT VALID;           ← NOT VALID required
+ALTER TABLE ASYNC t VALIDATE CONSTRAINT c;                           ← ALWAYS ASYNC
+ALTER TABLE t ADD COLUMN c VARCHAR(50);                              ← ONE AT A TIME
+ALTER TABLE t ADD COLUMN c2 INTEGER;                                 ← SEPARATE STATEMENT
+UPDATE table SET c = 'default' WHERE c IS NULL;                      ← AFTER ADD COLUMN
 ```
 
 ### Supported Data Types
 
 ```
-VARCHAR, TEXT, INTEGER, DECIMAL, BOOLEAN, TIMESTAMP, UUID
+VARCHAR, TEXT, INTEGER, DECIMAL, BOOLEAN, TIMESTAMP, UUID, JSON, JSONB
 ```
 
 ### Supported Key

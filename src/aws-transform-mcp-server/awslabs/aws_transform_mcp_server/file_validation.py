@@ -19,7 +19,7 @@ from loguru import logger
 from typing import Optional
 
 
-# File basenames that must never be read.
+# File basenames that must never be read or written.
 BLOCKED_FILENAMES: frozenset[str] = frozenset(
     {
         '.env',
@@ -59,6 +59,27 @@ BLOCKED_READ_DIRS: tuple[str, ...] = (
     '/etc/passwd',
 )
 
+# Environment variable an operator may set to pin the write base explicitly.
+WRITE_BASE_ENV_VAR = 'AWS_TRANSFORM_MCP_WRITE_DIR'
+
+
+def _resolve_write_base() -> str:
+    """Resolve the allowed base directory for write operations.
+
+    All writes must resolve under this base, which prevents an LLM-controlled
+    savePath from writing to arbitrary filesystem locations. The base is taken
+    from AWS_TRANSFORM_MCP_WRITE_DIR if set, otherwise the current working
+    directory at import time.
+    """
+    configured = os.environ.get(WRITE_BASE_ENV_VAR)
+    if configured:
+        return os.path.realpath(os.path.expanduser(configured))
+    return os.path.realpath(os.getcwd())
+
+
+# Allowed base directory for write operations.
+_ALLOWED_WRITE_BASE: str = _resolve_write_base()
+
 
 def _is_blocked_name(path: str) -> bool:
     return os.path.basename(path).lower() in BLOCKED_FILENAMES
@@ -95,12 +116,33 @@ def validate_write_path(save_path: str, file_name: Optional[str] = None) -> str:
 
     Prevents path traversal by stripping directory components from *file_name*
     via os.path.basename(), ensuring the write stays within *save_path*.
-    Also blocks writes into sensitive directories.
+    Confines all writes to the allowed base directory (CWD at startup).
+    Blocks writes into sensitive directories and to sensitive filenames.
 
     Returns the resolved absolute write path.
     Raises ValueError on any policy violation.
     """
+    # Refuse to write when the base is the filesystem root. Confining to '/'
+    # would place no bound on writes, so require an explicit base instead.
+    if _ALLOWED_WRITE_BASE == os.sep:
+        logger.warning('[security] Blocked write: allowed base is the filesystem root')
+        raise ValueError(
+            f'Cannot determine a safe save location: the server was started with the '
+            f'filesystem root as its working directory. Set the {WRITE_BASE_ENV_VAR} '
+            f'environment variable to the directory downloads should be written to.'
+        )
+
     resolved_dir = os.path.realpath(os.path.expanduser(save_path))
+
+    # Confine writes to the allowed base directory.
+    if resolved_dir != _ALLOWED_WRITE_BASE and not resolved_dir.startswith(
+        _ALLOWED_WRITE_BASE + os.sep
+    ):
+        logger.warning('[security] Blocked write outside allowed base: {}', save_path)
+        raise ValueError(
+            f'Write path must be within the working directory '
+            f'({_ALLOWED_WRITE_BASE}), got: {save_path}'
+        )
 
     if _in_blocked_dir(resolved_dir):
         logger.warning('[security] Blocked write to sensitive directory: {}', save_path)
@@ -113,6 +155,13 @@ def validate_write_path(save_path: str, file_name: Optional[str] = None) -> str:
     else:
         safe_name = None
 
-    if safe_name:
-        return os.path.join(resolved_dir, safe_name)
-    return resolved_dir
+    final_path = os.path.join(resolved_dir, safe_name) if safe_name else resolved_dir
+
+    # Enforce blocked filename list on writes (not just reads).
+    if _is_blocked_name(final_path):
+        logger.warning(
+            '[security] Blocked write of sensitive filename: {}', os.path.basename(final_path)
+        )
+        raise ValueError(f'Blocked filename: {os.path.basename(final_path)} cannot be written.')
+
+    return final_path

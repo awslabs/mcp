@@ -181,7 +181,12 @@ def main():
     )
     generator.generate()
 
-    rmq_module = RabbitMQModule(mcp)
+    # Create a boto3 client getter function that matches the pattern used by AWSToolGenerator
+    def mq_client_getter(region: str) -> Any:
+        """Get or create an MQ client for the specified region with proper credential handling."""
+        return generator.get_client(region)
+
+    rmq_module = RabbitMQModule(mcp, mq_client_getter)
     allow_mutative_tools = args.allow_resource_creation if args.allow_resource_creation else False
     rmq_module.register_rabbitmq_management_tools(allow_mutative_tools)
 

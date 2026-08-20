@@ -66,6 +66,14 @@ CACHE_BEHAVIOR_ALWAYS = 'CACHE_ALWAYS'
 CACHE_BEHAVIOR_ON_FAILURE = 'CACHE_ON_FAILURE'
 CACHE_BEHAVIORS = [CACHE_BEHAVIOR_ALWAYS, CACHE_BEHAVIOR_ON_FAILURE]
 
+# Scratch storage modes
+SCRATCH_STORAGE_MODE_LOCAL = 'LOCAL'
+SCRATCH_STORAGE_MODE_SHARED = 'SHARED'
+SCRATCH_STORAGE_MODES = [SCRATCH_STORAGE_MODE_LOCAL, SCRATCH_STORAGE_MODE_SHARED]
+
+# MCP server default scratch storage mode (diverges from the HealthOmics API default of SHARED)
+DEFAULT_SCRATCH_STORAGE_MODE = SCRATCH_STORAGE_MODE_LOCAL
+
 # Run statuses
 RUN_STATUS_PENDING = 'PENDING'
 RUN_STATUS_STARTING = 'STARTING'
@@ -207,6 +215,7 @@ ERROR_INVALID_WORKFLOW_TYPE = 'Invalid workflow type. Must be one of: {}'
 ERROR_INVALID_EXPORT_TYPE = 'Invalid export type. Must be one of: {}'
 ERROR_INVALID_STORAGE_TYPE = 'Invalid storage type. Must be one of: {}'
 ERROR_INVALID_CACHE_BEHAVIOR = 'Invalid cache behavior. Must be one of: {}'
+ERROR_INVALID_SCRATCH_STORAGE_MODE = "Invalid scratch storage mode '{}'. Must be one of: {}"
 ERROR_INVALID_RUN_STATUS = 'Invalid run status. Must be one of: {}'
 ERROR_STATIC_STORAGE_REQUIRES_CAPACITY = (
     'Storage capacity is required when using STATIC storage type'

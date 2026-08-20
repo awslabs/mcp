@@ -40,6 +40,15 @@ from awslabs.aws_transform_mcp_server.tool_utils import (
 from unittest.mock import AsyncMock, patch
 
 
+@pytest.fixture(autouse=True)
+def _allow_tmp_writes(monkeypatch):
+    """Disable write-path confinement so integration tests can use tmp_path."""
+    monkeypatch.setattr(
+        'awslabs.aws_transform_mcp_server.file_validation._ALLOWED_WRITE_BASE',
+        '',
+    )
+
+
 # ── Annotation dicts ─────────────────────────────────────────────────────
 
 
@@ -235,6 +244,32 @@ class TestDownloadS3Content:
             assert result['savedTo'] == os.path.join(str(tmp_path), 'output.bin')
             assert result['sizeBytes'] == len(b'binary data here')
             # Verify the file was actually written
+            with open(result['savedTo'], 'rb') as fh:
+                assert fh.read() == b'binary data here'
+
+    @pytest.mark.asyncio
+    async def test_creates_missing_save_directory(self, tmp_path):
+        """A save_path whose directory does not yet exist is created."""
+        mock_response = AsyncMock(spec=httpx.Response)
+        mock_response.status_code = 200
+        mock_response.content = b'binary data here'
+        mock_response.raise_for_status = lambda: None
+
+        with patch('awslabs.aws_transform_mcp_server.tool_utils.httpx.AsyncClient') as MockClient:
+            instance = AsyncMock()
+            instance.get.return_value = mock_response
+            instance.__aenter__ = AsyncMock(return_value=instance)
+            instance.__aexit__ = AsyncMock(return_value=False)
+            MockClient.return_value = instance
+
+            save_dir = os.path.join(str(tmp_path), 'new', 'nested') + '/'
+            assert not os.path.exists(save_dir)
+            result = await download_s3_content(
+                'https://s3.example.com/data.bin',
+                save_path=save_dir,
+                file_name='output.bin',
+            )
+            assert result['savedTo'] == os.path.join(str(tmp_path), 'new', 'nested', 'output.bin')
             with open(result['savedTo'], 'rb') as fh:
                 assert fh.read() == b'binary data here'
 
@@ -502,9 +537,9 @@ class TestDownloadS3ContentPathTraversal:
             result = await download_s3_content(
                 'https://s3.example.com/artifact',
                 save_path=save_dir,
-                file_name='../../../../root/.ssh/authorized_keys',
+                file_name='../../../../root/documents/report.txt',
             )
-            assert result['savedTo'] == os.path.join(str(tmp_path), 'authorized_keys')
+            assert result['savedTo'] == os.path.join(str(tmp_path), 'report.txt')
 
     @pytest.mark.asyncio
     async def test_blocked_save_path_raises(self):

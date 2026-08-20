@@ -15,25 +15,83 @@
 """AWS SecurityAgent API client using boto3 SDK."""
 
 import boto3
+import botocore.config
 import json
 import re
+from awslabs.security_agent_mcp_server import __version__
+from boto3.exceptions import S3UploadFailedError
+from botocore.exceptions import ClientError
 from typing import Any, Optional
+
+
+DEFAULT_MCP_CLIENT_NAME = 'unknown'
 
 
 class SecurityAgentClient:
     """Client for AWS SecurityAgent APIs using boto3."""
 
-    def __init__(self, region: str = 'us-east-1'):
+    def __init__(
+        self,
+        region: str = 'us-east-1',
+        mcp_client_name: str = DEFAULT_MCP_CLIENT_NAME,
+        mcp_client_version: str = '',
+    ):
         """Initialize SecurityAgent client."""
         self.region = region
+        self._cached_account_id: Optional[str] = None
+        self._cached_account_key: Optional[str] = None
+        self._mcp_client_name = mcp_client_name
+        self._mcp_client_version = mcp_client_version
+        self._config = self._build_config(mcp_client_name, mcp_client_version)
+
+    def _build_config(
+        self, mcp_client_name: str, mcp_client_version: str
+    ) -> botocore.config.Config:
+        """Build a botocore Config with a custom user_agent_extra string."""
+        # Sanitize client name to prevent malformed UA tokens (e.g. "Claude Code" -> "claude-code")
+        safe_name = mcp_client_name.lower().replace(' ', '-')
+
+        ua_extra = f'md/awslabs#mcp#security-agent-mcp-server#{__version__} md/client#{safe_name}'
+        if mcp_client_version:
+            ua_extra += f'/{mcp_client_version}'
+
+        return botocore.config.Config(user_agent_extra=ua_extra)
+
+    def set_mcp_client_info(self, mcp_client_name: str, mcp_client_version: str = '') -> None:
+        """Update the MCP client identity and rebuild the botocore config.
+
+        Called after MCP session initialization when clientInfo becomes available.
+        """
+        # NOTE: Under concurrent HTTP/SSE sessions, _config would need per-session isolation.
+        # Current stdio transport guarantees one client per process.
+        if (
+            mcp_client_name == self._mcp_client_name
+            and mcp_client_version == self._mcp_client_version
+        ):
+            return  # No change needed
+        self._mcp_client_name = mcp_client_name
+        self._mcp_client_version = mcp_client_version
+        self._config = self._build_config(mcp_client_name, mcp_client_version)
 
     def _get_session(self):
         """Fresh session each call to pick up rotated credentials."""
         return boto3.Session(region_name=self.region)
 
+    def _account_id(self) -> str:
+        """Return the caller's account ID, cached per credential set."""
+        session = self._get_session()
+        creds = session.get_credentials()
+        key = creds.get_frozen_credentials().access_key if creds else None
+        if self._cached_account_id is None or self._cached_account_key != key:
+            self._cached_account_id = str(
+                session.client('sts', config=self._config).get_caller_identity()['Account']
+            )
+            self._cached_account_key = key
+        return self._cached_account_id
+
     def _client(self):
-        """Get a fresh securityagent boto3 client."""
-        return self._get_session().client('securityagent')
+        """Get a fresh securityagent boto3 client with custom user-agent."""
+        return self._get_session().client('securityagent', config=self._config)
 
     def call(self, operation: str, params: dict) -> dict:
         """Call any SecurityAgent API operation generically."""
@@ -50,7 +108,7 @@ class SecurityAgentClient:
 
     def get_caller_identity(self) -> dict:
         """Get the current AWS caller identity."""
-        return self._get_session().client('sts').get_caller_identity()
+        return self._get_session().client('sts', config=self._config).get_caller_identity()
 
     def list_agent_spaces(self) -> list[dict]:
         """List all SecurityAgent agent spaces."""
@@ -67,16 +125,10 @@ class SecurityAgentClient:
         self,
         agent_space_id: str,
         name: str,
-        iam_roles: Optional[list[str]] = None,
-        s3_buckets: Optional[list[str]] = None,
+        aws_resources: Optional[dict] = None,
     ) -> dict:
-        """Update an agent space with roles and buckets."""
+        """Update an agent space, replacing its awsResources with the provided dict."""
         kwargs: dict[str, Any] = {'agentSpaceId': agent_space_id, 'name': name}
-        aws_resources: dict[str, Any] = {}
-        if iam_roles:
-            aws_resources['iamRoles'] = iam_roles
-        if s3_buckets:
-            aws_resources['s3Buckets'] = s3_buckets
         if aws_resources:
             kwargs['awsResources'] = aws_resources
         return self._client().update_agent_space(**kwargs)
@@ -114,6 +166,19 @@ class SecurityAgentClient:
         return self._client().start_code_review_job(
             agentSpaceId=agent_space_id,
             codeReviewId=code_review_id,
+        )
+
+    def start_code_review_job_with_diff(
+        self,
+        agent_space_id: str,
+        code_review_id: str,
+        diff_s3_uri: str,
+    ) -> dict:
+        """Start a diff scan job with diffSource."""
+        return self._client().start_code_review_job(
+            agentSpaceId=agent_space_id,
+            codeReviewId=code_review_id,
+            diffSource={'s3Uri': diff_s3_uri},
         )
 
     def batch_get_code_review_jobs(self, agent_space_id: str, job_ids: list[str]) -> dict:
@@ -154,6 +219,62 @@ class SecurityAgentClient:
             findingIds=finding_ids,
         )
 
+    # --- Threat model operations ---
+
+    def create_threat_model(
+        self,
+        agent_space_id: str,
+        title: str,
+        service_role: str,
+        assets: dict,
+        scope_docs: Optional[list[dict]] = None,
+    ) -> dict:
+        """Create a threat model resource with source assets and scope documents."""
+        kwargs: dict[str, Any] = {
+            'agentSpaceId': agent_space_id,
+            'title': title,
+            'serviceRole': service_role,
+            'assets': assets,
+        }
+        if scope_docs:
+            kwargs['scopeDocs'] = scope_docs
+        return self._client().create_threat_model(**kwargs)
+
+    def start_threat_model_job(self, agent_space_id: str, threat_model_id: str) -> dict:
+        """Start a threat model job."""
+        return self._client().start_threat_model_job(
+            agentSpaceId=agent_space_id,
+            threatModelId=threat_model_id,
+        )
+
+    def batch_get_threat_model_jobs(self, agent_space_id: str, job_ids: list[str]) -> dict:
+        """Get status of threat model jobs."""
+        return self._client().batch_get_threat_model_jobs(
+            agentSpaceId=agent_space_id,
+            threatModelJobIds=job_ids,
+        )
+
+    def list_threats(self, agent_space_id: str, threat_job_id: str) -> dict:
+        """List all threats for a threat model job, handling pagination."""
+        client = self._client()
+        all_threats: list[dict] = []
+        kwargs: dict[str, Any] = {'agentSpaceId': agent_space_id, 'threatJobId': threat_job_id}
+        while True:
+            result = client.list_threats(**kwargs)
+            all_threats.extend(result.get('threats', []))
+            next_token = result.get('nextToken')
+            if not next_token:
+                break
+            kwargs['nextToken'] = next_token
+        return {'threats': all_threats}
+
+    def batch_get_threats(self, agent_space_id: str, threat_ids: list[str]) -> dict:
+        """Get detailed threats by ID."""
+        return self._client().batch_get_threats(
+            agentSpaceId=agent_space_id,
+            threatIds=threat_ids,
+        )
+
     # --- Non-SecurityAgent helpers (S3, IAM, STS) ---
 
     def create_s3_bucket(self, bucket_name: str) -> str:
@@ -161,7 +282,7 @@ class SecurityAgentClient:
 
         Public-access block, SSE-S3, TLS-only policy, and 30-day lifecycle.
         """
-        s3 = self._get_session().client('s3')
+        s3 = self._get_session().client('s3', config=self._config)
         create_args: dict[str, Any] = {'Bucket': bucket_name}
         if self.region != 'us-east-1':
             create_args['CreateBucketConfiguration'] = {'LocationConstraint': self.region}
@@ -222,9 +343,15 @@ class SecurityAgentClient:
         )
         return bucket_name
 
+    def verify_bucket_owner(self, bucket_name: str) -> None:
+        """Raise if the caller's account does not own the bucket (403 = squatted)."""
+        self._get_session().client('s3', config=self._config).head_bucket(
+            Bucket=bucket_name, ExpectedBucketOwner=self._account_id()
+        )
+
     def create_service_role(self, role_name: str, account_id: str, bucket_name: str) -> str:
         """Create IAM service role for Security Agent with S3 + CloudWatch Logs access."""
-        iam = self._get_session().client('iam')
+        iam = self._get_session().client('iam', config=self._config)
 
         trust_policy = json.dumps(
             {
@@ -252,6 +379,8 @@ class SecurityAgentClient:
                         'Resource': [
                             f'arn:aws:s3:::security-agent-scans-{account_id}-{self.region}',
                             f'arn:aws:s3:::security-agent-scans-{account_id}-{self.region}/*',
+                            f'arn:aws:s3:::security-agent-threat-model-{account_id}-{self.region}',
+                            f'arn:aws:s3:::security-agent-threat-model-{account_id}-{self.region}/*',
                         ],
                     },
                     {
@@ -281,6 +410,18 @@ class SecurityAgentClient:
         return f'arn:aws:iam::{account_id}:role/{role_name}'
 
     def upload_to_s3(self, bucket: str, key: str, file_path: str) -> str:
-        """Upload a file to S3."""
-        self._get_session().client('s3').upload_file(file_path, bucket, key)
+        """Upload a file to S3, rejecting the write if the bucket is owned by another account."""
+        try:
+            self._get_session().client('s3', config=self._config).upload_file(
+                file_path,
+                bucket,
+                key,
+                ExtraArgs={'ExpectedBucketOwner': self._account_id()},
+            )
+        except S3UploadFailedError as e:
+            # Re-raise the underlying ClientError (e.g. 403) so callers can handle it.
+            for cand in (e.__cause__, e.__context__):
+                if isinstance(cand, ClientError):
+                    raise cand
+            raise
         return f's3://{bucket}/{key}'

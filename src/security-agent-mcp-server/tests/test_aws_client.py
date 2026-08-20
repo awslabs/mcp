@@ -5,6 +5,8 @@
 
 import pytest
 from awslabs.security_agent_mcp_server.aws_client import SecurityAgentClient
+from boto3.exceptions import S3UploadFailedError
+from botocore.exceptions import ClientError
 from unittest.mock import MagicMock, patch
 
 
@@ -133,10 +135,10 @@ class TestSecurityAgentClient:
             client.call('../evil', {})
 
     @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
-    def test_call_unknown_operation(self, mock_boto3):
-        """Operations not in the SecurityAgent service model are rejected."""
+    def test_call_unknown_operation_rejected(self, mock_boto3):
+        """Operations not in the SDK are rejected."""
         mock_client = MagicMock()
-        mock_client.meta.service_model.operation_names = ['ListPentests', 'CreatePentest']
+        mock_client.meta.service_model.operation_names = ['ListPentests']
         mock_boto3.Session.return_value.client.return_value = mock_client
 
         client = SecurityAgentClient()
@@ -184,13 +186,15 @@ class TestSecurityAgentClient:
 
     @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
     def test_update_agent_space_with_resources(self, mock_boto3):
-        """update_agent_space forwards iam_roles and s3_buckets to awsResources."""
+        """update_agent_space forwards the full awsResources dict unchanged."""
         mock_client = MagicMock()
         mock_client.update_agent_space.return_value = {'agentSpaceId': 'as-1'}
         mock_boto3.Session.return_value.client.return_value = mock_client
 
         client = SecurityAgentClient()
-        client.update_agent_space('as-1', 'name', iam_roles=['arn:role-a'], s3_buckets=['bkt'])
+        client.update_agent_space(
+            'as-1', 'name', {'iamRoles': ['arn:role-a'], 's3Buckets': ['bkt']}
+        )
         kwargs = mock_client.update_agent_space.call_args.kwargs
         assert kwargs['agentSpaceId'] == 'as-1'
         assert kwargs['awsResources']['iamRoles'] == ['arn:role-a']
@@ -198,7 +202,7 @@ class TestSecurityAgentClient:
 
     @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
     def test_update_agent_space_no_resources(self, mock_boto3):
-        """When no roles/buckets provided, awsResources is omitted."""
+        """When no resources provided, awsResources is omitted."""
         mock_client = MagicMock()
         mock_boto3.Session.return_value.client.return_value = mock_client
 
@@ -338,12 +342,277 @@ class TestSecurityAgentClient:
 
     @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
     def test_upload_to_s3(self, mock_boto3):
-        """upload_to_s3 returns the s3:// URL and calls boto3.upload_file."""
+        """upload_to_s3 returns the s3:// URL and passes ExpectedBucketOwner."""
         mock_s3 = MagicMock()
+        mock_s3.get_caller_identity.return_value = {'Account': '123456789012'}
         mock_boto3.Session.return_value.client.return_value = mock_s3
 
         client = SecurityAgentClient()
         url = client.upload_to_s3('bkt', 'k.zip', '/tmp/source.zip')
 
         assert url == 's3://bkt/k.zip'
-        mock_s3.upload_file.assert_called_once_with('/tmp/source.zip', 'bkt', 'k.zip')
+        mock_s3.upload_file.assert_called_once_with(
+            '/tmp/source.zip',
+            'bkt',
+            'k.zip',
+            ExtraArgs={'ExpectedBucketOwner': '123456789012'},
+        )
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_upload_to_s3_caches_account_id(self, mock_boto3):
+        """The account ID is resolved once and reused across uploads."""
+        mock_s3 = MagicMock()
+        mock_s3.get_caller_identity.return_value = {'Account': '123456789012'}
+        mock_boto3.Session.return_value.client.return_value = mock_s3
+
+        client = SecurityAgentClient()
+        client.upload_to_s3('bkt', 'a.zip', '/tmp/a.zip')
+        client.upload_to_s3('bkt', 'b.zip', '/tmp/b.zip')
+
+        # STS is only called once even though there were two uploads.
+        assert mock_s3.get_caller_identity.call_count == 1
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_verify_bucket_owner_passes_expected_owner(self, mock_boto3):
+        """verify_bucket_owner calls head_bucket with the caller's account ID."""
+        mock_s3 = MagicMock()
+        mock_s3.get_caller_identity.return_value = {'Account': '123456789012'}
+        mock_boto3.Session.return_value.client.return_value = mock_s3
+
+        client = SecurityAgentClient()
+        client.verify_bucket_owner('my-bucket')
+
+        mock_s3.head_bucket.assert_called_once_with(
+            Bucket='my-bucket', ExpectedBucketOwner='123456789012'
+        )
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_verify_bucket_owner_raises_on_403(self, mock_boto3):
+        """A squatted bucket (403 from head_bucket) propagates as a fatal error."""
+        mock_s3 = MagicMock()
+        mock_s3.get_caller_identity.return_value = {'Account': '123456789012'}
+        mock_s3.head_bucket.side_effect = ClientError(
+            {'Error': {'Code': '403', 'Message': 'Forbidden'}}, 'HeadBucket'
+        )
+        mock_boto3.Session.return_value.client.return_value = mock_s3
+
+        client = SecurityAgentClient()
+        with pytest.raises(ClientError):
+            client.verify_bucket_owner('squatted-bucket')
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_upload_to_s3_unwraps_client_error(self, mock_boto3):
+        """A 403 wrapped in S3UploadFailedError is re-raised as the underlying ClientError."""
+        mock_s3 = MagicMock()
+        mock_s3.get_caller_identity.return_value = {'Account': '123456789012'}
+        cause = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Forbidden'}}, 'PutObject'
+        )
+        # boto3's transfer manager chains via __context__ (implicit), not __cause__.
+        wrapper = S3UploadFailedError('failed: 403')
+        wrapper.__context__ = cause
+        mock_s3.upload_file.side_effect = wrapper
+        mock_boto3.Session.return_value.client.return_value = mock_s3
+
+        client = SecurityAgentClient()
+        with pytest.raises(ClientError) as exc_info:
+            client.upload_to_s3('squatted-bucket', 'k.zip', '/tmp/source.zip')
+        assert exc_info.value is cause
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_upload_to_s3_reraises_unwrapped_wrapper(self, mock_boto3):
+        """A wrapper without a ClientError cause propagates unchanged, not silently swallowed."""
+        mock_s3 = MagicMock()
+        mock_s3.get_caller_identity.return_value = {'Account': '123456789012'}
+        mock_s3.upload_file.side_effect = S3UploadFailedError('disk full')
+        mock_boto3.Session.return_value.client.return_value = mock_s3
+
+        client = SecurityAgentClient()
+        with pytest.raises(S3UploadFailedError):
+            client.upload_to_s3('bkt', 'k.zip', '/tmp/source.zip')
+
+
+class TestDiffScanAndThreatModel:
+    """Tests for diff scan and threat model operations using standard SDK."""
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_start_code_review_job_with_diff_success(self, mock_boto3):
+        """Diff scan job calls start_code_review_job with diffSource."""
+        mock_client = MagicMock()
+        mock_client.start_code_review_job.return_value = {'codeReviewJobId': 'cj-diff'}
+        mock_boto3.Session.return_value.client.return_value = mock_client
+
+        client = SecurityAgentClient()
+        result = client.start_code_review_job_with_diff('as-1', 'cr-1', 's3://b/k')
+        assert result == {'codeReviewJobId': 'cj-diff'}
+        mock_client.start_code_review_job.assert_called_once_with(
+            agentSpaceId='as-1', codeReviewId='cr-1', diffSource={'s3Uri': 's3://b/k'}
+        )
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_create_threat_model_with_scope_docs(self, mock_boto3):
+        """create_threat_model includes scopeDocs when provided."""
+        mock_client = MagicMock()
+        mock_client.create_threat_model.return_value = {'threatModelId': 'tm-1'}
+        mock_boto3.Session.return_value.client.return_value = mock_client
+
+        client = SecurityAgentClient()
+        result = client.create_threat_model(
+            agent_space_id='as-1',
+            title='t',
+            service_role='arn:role',
+            assets={'sourceCode': []},
+            scope_docs=[{'s3Location': 's3://b/spec.md'}],
+        )
+        assert result == {'threatModelId': 'tm-1'}
+        kwargs = mock_client.create_threat_model.call_args.kwargs
+        assert kwargs['scopeDocs'] == [{'s3Location': 's3://b/spec.md'}]
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_create_threat_model_without_scope_docs(self, mock_boto3):
+        """create_threat_model omits scopeDocs when not provided."""
+        mock_client = MagicMock()
+        mock_client.create_threat_model.return_value = {'threatModelId': 'tm-2'}
+        mock_boto3.Session.return_value.client.return_value = mock_client
+
+        client = SecurityAgentClient()
+        client.create_threat_model(
+            agent_space_id='as-1', title='t', service_role='arn:role', assets={}
+        )
+        kwargs = mock_client.create_threat_model.call_args.kwargs
+        assert 'scopeDocs' not in kwargs
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_start_threat_model_job(self, mock_boto3):
+        """start_threat_model_job calls the SDK method."""
+        mock_client = MagicMock()
+        mock_client.start_threat_model_job.return_value = {'threatModelJobId': 'tj-1'}
+        mock_boto3.Session.return_value.client.return_value = mock_client
+
+        client = SecurityAgentClient()
+        result = client.start_threat_model_job('as-1', 'tm-1')
+        assert result == {'threatModelJobId': 'tj-1'}
+        mock_client.start_threat_model_job.assert_called_once_with(
+            agentSpaceId='as-1', threatModelId='tm-1'
+        )
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_batch_get_threat_model_jobs(self, mock_boto3):
+        """batch_get_threat_model_jobs calls the SDK method."""
+        mock_client = MagicMock()
+        mock_client.batch_get_threat_model_jobs.return_value = {'threatModelJobs': []}
+        mock_boto3.Session.return_value.client.return_value = mock_client
+
+        client = SecurityAgentClient()
+        result = client.batch_get_threat_model_jobs('as-1', ['tj-1', 'tj-2'])
+        assert result == {'threatModelJobs': []}
+        mock_client.batch_get_threat_model_jobs.assert_called_once_with(
+            agentSpaceId='as-1', threatModelJobIds=['tj-1', 'tj-2']
+        )
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_list_threats_pagination(self, mock_boto3):
+        """list_threats follows nextToken until exhausted and concatenates."""
+        mock_client = MagicMock()
+        mock_client.list_threats.side_effect = [
+            {'threats': [{'threatId': 't-1'}], 'nextToken': 'tok'},
+            {'threats': [{'threatId': 't-2'}]},
+        ]
+        mock_boto3.Session.return_value.client.return_value = mock_client
+
+        client = SecurityAgentClient()
+        result = client.list_threats('as-1', 'tj-1')
+        assert len(result['threats']) == 2
+        assert mock_client.list_threats.call_count == 2
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_batch_get_threats(self, mock_boto3):
+        """batch_get_threats calls the SDK method."""
+        mock_client = MagicMock()
+        mock_client.batch_get_threats.return_value = {'threats': [{'threatId': 't-1'}]}
+        mock_boto3.Session.return_value.client.return_value = mock_client
+
+        client = SecurityAgentClient()
+        result = client.batch_get_threats('as-1', ['t-1'])
+        assert result == {'threats': [{'threatId': 't-1'}]}
+        mock_client.batch_get_threats.assert_called_once_with(
+            agentSpaceId='as-1', threatIds=['t-1']
+        )
+
+
+class TestUserAgentInjection:
+    """Tests for custom User-Agent injection."""
+
+    def test_default_user_agent_has_mcp_server_identifier(self):
+        """SecurityAgentClient includes MCP server identifier in config by default."""
+        client = SecurityAgentClient(region='us-east-1')
+        assert 'md/awslabs#mcp#security-agent-mcp-server#' in client._config.user_agent_extra  # type: ignore[attr-defined]
+        assert 'md/client#unknown' in client._config.user_agent_extra  # type: ignore[attr-defined]
+
+    def test_constructor_accepts_mcp_client_info(self):
+        """SecurityAgentClient accepts mcp_client_name and version at construction."""
+        client = SecurityAgentClient(
+            region='us-east-1', mcp_client_name='kiro', mcp_client_version='1.5.0'
+        )
+        assert 'md/client#kiro/1.5.0' in client._config.user_agent_extra  # type: ignore[attr-defined]
+
+    def test_set_mcp_client_info_updates_user_agent(self):
+        """set_mcp_client_info updates the user agent with client name and version."""
+        client = SecurityAgentClient(region='us-east-1')
+        client.set_mcp_client_info('kiro', '1.5.0')
+        assert 'md/client#kiro/1.5.0' in client._config.user_agent_extra  # type: ignore[attr-defined]
+
+    def test_set_mcp_client_info_without_version(self):
+        """set_mcp_client_info works with just client name (no version)."""
+        client = SecurityAgentClient(region='us-east-1')
+        client.set_mcp_client_info('cursor', '')
+        assert 'md/client#cursor' in client._config.user_agent_extra  # type: ignore[attr-defined]
+        assert 'md/client#cursor/' not in client._config.user_agent_extra  # type: ignore[attr-defined]
+
+    def test_set_mcp_client_info_noop_when_same(self):
+        """set_mcp_client_info does not rebuild config if info is unchanged."""
+        client = SecurityAgentClient(region='us-east-1')
+        client.set_mcp_client_info('kiro', '1.5.0')
+        config_after_first = client._config
+        client.set_mcp_client_info('kiro', '1.5.0')
+        assert client._config is config_after_first  # Same object, not rebuilt
+
+    def test_set_mcp_client_info_rebuilds_when_different(self):
+        """set_mcp_client_info rebuilds config when info changes."""
+        client = SecurityAgentClient(region='us-east-1')
+        client.set_mcp_client_info('kiro', '1.0')
+        config_first = client._config
+        client.set_mcp_client_info('claude-code', '2.0')
+        assert client._config is not config_first
+        assert 'md/client#claude-code/2.0' in client._config.user_agent_extra  # type: ignore[attr-defined]
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_client_passes_config_to_securityagent(self, mock_boto3):
+        """_client() passes the botocore config to boto3 securityagent client."""
+        mock_session = MagicMock()
+        mock_boto3.Session.return_value = mock_session
+        client = SecurityAgentClient(region='us-east-1')
+        client._client()
+        mock_session.client.assert_called_once_with('securityagent', config=client._config)
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_get_caller_identity_passes_config(self, mock_boto3):
+        """get_caller_identity passes the botocore config to sts client."""
+        mock_session = MagicMock()
+        mock_boto3.Session.return_value = mock_session
+        client = SecurityAgentClient(region='us-east-1')
+        client.get_caller_identity()
+        mock_session.client.assert_called_once_with('sts', config=client._config)
+
+    @patch('awslabs.security_agent_mcp_server.aws_client.boto3')
+    def test_upload_to_s3_passes_config(self, mock_boto3):
+        """upload_to_s3 passes the botocore config to s3 client."""
+        mock_session = MagicMock()
+        mock_boto3.Session.return_value = mock_session
+        client = SecurityAgentClient(region='us-east-1')
+        client._cached_account_id = '123456789012'
+        client._cached_account_key = (
+            mock_session.get_credentials().get_frozen_credentials().access_key
+        )
+        client.upload_to_s3('bucket', 'key', '/path/to/file')
+        mock_session.client.assert_called_once_with('s3', config=client._config)

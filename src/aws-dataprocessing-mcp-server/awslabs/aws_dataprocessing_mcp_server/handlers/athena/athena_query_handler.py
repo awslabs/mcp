@@ -210,8 +210,8 @@ class AthenaQueryHandler:
                         'query_string is required for start-query-execution operation'
                     )
 
-                # Check for write operations when write access is disabled
-                if not self.allow_write and SqlAnalyzer.contains_write_operations(query_string):
+                # Reject queries that are not explicitly read-only when write access is disabled (allowlist / fail-closed)
+                if not self.allow_write and not SqlAnalyzer.is_read_only_query(query_string):
                     error_message = (
                         f'Operation {operation} contains write operations and is not allowed without write access. '
                         f'Detected query type: {SqlAnalyzer.get_query_type(query_string)}'
@@ -222,6 +222,20 @@ class AthenaQueryHandler:
                         isError=True,
                         content=[TextContent(type='text', text=error_message)],
                     )
+
+                # Block caller-supplied OutputLocation when sensitive data access is disabled
+                # to prevent exfiltration of query results to attacker-controlled S3 paths
+                if not self.allow_sensitive_data_access and result_configuration is not None:
+                    if 'OutputLocation' in result_configuration:
+                        error_message = (
+                            'Custom OutputLocation in ResultConfiguration is not allowed without '
+                            '--allow-sensitive-data-access. Query results must use the workgroup default output location.'
+                        )
+                        log_with_request_id(ctx, LogLevel.ERROR, error_message)
+                        return CallToolResult(
+                            isError=True,
+                            content=[TextContent(type='text', text=error_message)],
+                        )
 
                 # Prepare parameters
                 params = {'QueryString': query_string}

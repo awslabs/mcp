@@ -70,7 +70,7 @@ Map MySQL data types to their DSQL equivalents.
 | MEDIUMTEXT        | TEXT                               | DSQL uses TEXT for all unbounded strings                                                 |
 | LONGTEXT          | TEXT                               | DSQL uses TEXT for all unbounded strings                                                 |
 | ENUM('a','b','c') | VARCHAR(255) with CHECK constraint | See [ENUM Migration](ddl-type-alternatives.md#enum-type-migration)                              |
-| SET('a','b','c')  | TEXT                               | Store as comma-separated TEXT; see [SET Migration](ddl-type-alternatives.md#set-type-migration) |
+| SET('a','b','c')  | JSONB (PREFERRED) or TEXT          | PREFER JSONB; MAY use TEXT for opaque columns; see [SET Migration](ddl-type-alternatives.md#set-type-migration) |
 
 ### Date/Time Types
 
@@ -97,7 +97,7 @@ Map MySQL data types to their DSQL equivalents.
 
 | MySQL Type     | DSQL Equivalent                                           | Notes                                                                                            |
 | -------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| JSON           | TEXT                                                      | MUST store as TEXT                                                                               |
+| JSON           | JSON (default); MAY upgrade to JSONB                      | Keep as `JSON`; MAY upgrade to `JSONB` when querying with `@>`/`?`/indexed JSONB paths           |
 | AUTO_INCREMENT | UUID with gen_random_uuid(), IDENTITY column, or SEQUENCE | See [AUTO_INCREMENT Migration](ddl-auto-increment.md#auto_increment-migration) for all three options |
 
 ---

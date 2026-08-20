@@ -91,6 +91,7 @@ class TestSearchResponse:
         assert len(response.search_results) == 1
         assert response.facets is None
         assert response.query_id == 'test-query-id'
+        assert response.metadata is None
 
 
 class TestRecommendationResult:

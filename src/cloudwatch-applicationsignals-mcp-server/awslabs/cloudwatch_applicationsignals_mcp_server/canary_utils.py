@@ -21,7 +21,7 @@ import os
 import re
 import tempfile
 import zipfile
-from .aws_clients import get_client
+from .aws_clients import AWS_REGION, get_client
 from botocore.exceptions import ClientError
 from datetime import datetime, timedelta, timezone
 from loguru import logger
@@ -571,7 +571,7 @@ async def analyze_canary_logs_with_time_window(
     failure_time,
     canary: dict,
     window_minutes: int = 3,
-    region: str = 'us-east-1',
+    region: str = AWS_REGION,
 ) -> dict:
     """Analyze canary logs within a specific time window around failure."""
     try:
@@ -666,7 +666,7 @@ async def analyze_canary_logs_with_time_window(
         return {'status': 'error', 'insights': [f'Log analysis failed: {str(e)[:200]}']}
 
 
-async def extract_disk_memory_usage_metrics(canary_name: str, region: str = 'us-east-1') -> dict:
+async def extract_disk_memory_usage_metrics(canary_name: str, region: str = AWS_REGION) -> dict:
     """Extract disk and memory usage metrics from canary log group."""
     try:
         # Get canary details to find the Lambda function name
@@ -756,7 +756,7 @@ async def extract_disk_memory_usage_metrics(canary_name: str, region: str = 'us-
         return {'error': f'Resource analysis failed: {str(e)[:200]}'}
 
 
-async def get_canary_code(canary: dict, region: str = 'us-east-1') -> dict:
+async def get_canary_code(canary: dict, region: str = AWS_REGION) -> dict:
     """Extract and analyze canary code from Lambda layers."""
     try:
         engine_arn = canary.get('EngineArn', '')
@@ -891,7 +891,7 @@ async def get_canary_code(canary: dict, region: str = 'us-east-1') -> dict:
 
 
 async def check_canaries_for_service(
-    normalized_targets, unix_start, unix_end, region: str = 'us-east-1'
+    normalized_targets, unix_start, unix_end, region: str = AWS_REGION
 ):
     """Check Synthetics canaries associated with audited services via list_service_dependents."""
     try:

@@ -238,20 +238,22 @@ def test_internal_create_connection_validates_endpoint(mocker):
     )
 
     custom_arn = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:my-db-user'
+    old_default = srv.server_config.configured_default_secret_arn
+    srv.server_config.configured_default_secret_arn = custom_arn
 
     try:
-        conn, resp = internal_create_connection(
+        conn, resp, _ = internal_create_connection(
             region='us-east-1',
             connection_method=ConnectionMethod.MSSQL_PASSWORD,
             instance_identifier='my-instance',
             db_endpoint=rds_endpoint,
             port=1433,
             database='testdb',
-            secret_arn=custom_arn,
         )
         assert conn.host == rds_endpoint
     finally:
         srv.server_config.readonly_query = old_readonly
+        srv.server_config.configured_default_secret_arn = old_default
         db_connection_map.remove(
             ConnectionMethod.MSSQL_PASSWORD, 'my-instance', rds_endpoint, 'testdb', 1433
         )
@@ -264,6 +266,10 @@ def test_internal_create_connection_rejects_invalid_endpoint(mocker):
     mocker.patch.object(db_connection_map, 'get', return_value=None)
     old_readonly = srv.server_config.readonly_query
     srv.server_config.readonly_query = True
+    old_default = srv.server_config.configured_default_secret_arn
+    srv.server_config.configured_default_secret_arn = (
+        'arn:aws:secretsmanager:us-east-1:123:secret:x'  # pragma: allowlist secret
+    )
 
     mocker.patch(
         'awslabs.mssql_mcp_server.server.validate_endpoint',
@@ -279,10 +285,10 @@ def test_internal_create_connection_rejects_invalid_endpoint(mocker):
                 db_endpoint='evil.com',
                 port=1433,
                 database='testdb',
-                secret_arn='arn:aws:secretsmanager:us-east-1:123:secret:x',  # pragma: allowlist secret
             )
     finally:
         srv.server_config.readonly_query = old_readonly
+        srv.server_config.configured_default_secret_arn = old_default
 
 
 # ─── secret_arn empty fallthrough ───────────────────────────────────────────────
@@ -294,9 +300,11 @@ def test_internal_create_connection_missing_master_secret_raises(mocker):
 
     mocker.patch.object(db_connection_map, 'get', return_value=None)
     old_readonly = srv.server_config.readonly_query
-    old_default = srv.server_config.default_secret_arn
+    old_default = srv.server_config.configured_default_secret_arn
+    old_arns = srv.server_config.configured_secret_arns
     srv.server_config.readonly_query = True
-    srv.server_config.default_secret_arn = None
+    srv.server_config.configured_default_secret_arn = None
+    srv.server_config.configured_secret_arns = {}
 
     rds_endpoint = 'my-instance.abc123.us-east-1.rds.amazonaws.com'
     mocker.patch(
@@ -322,4 +330,5 @@ def test_internal_create_connection_missing_master_secret_raises(mocker):
             )
     finally:
         srv.server_config.readonly_query = old_readonly
-        srv.server_config.default_secret_arn = old_default
+        srv.server_config.configured_default_secret_arn = old_default
+        srv.server_config.configured_secret_arns = old_arns

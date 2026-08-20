@@ -12,7 +12,6 @@ from awslabs.ecs_mcp_server.utils.security import (
     ValidationError,
     validate_app_name,
     validate_cloudformation_template,
-    validate_file_path,
 )
 
 
@@ -156,49 +155,6 @@ class TestValidateAppName:
         assert validate_app_name("web123-api456") is True
 
 
-class TestValidateFilePath:
-    """Tests for validate_file_path function."""
-
-    def test_valid_file_path(self, tmp_path):
-        """Test that valid file paths pass validation."""
-        # Create a temporary file
-        test_file = tmp_path / "test_file.txt"
-        test_file.write_text("test content")
-
-        # Validate the file path
-        result = validate_file_path(str(test_file))
-
-        # Check that the result is the absolute path to the file
-        assert result == os.path.abspath(str(test_file))
-
-    def test_nonexistent_file_path(self):
-        """Test that nonexistent file paths fail validation."""
-        with pytest.raises(ValidationError) as excinfo:
-            validate_file_path("/path/to/nonexistent/file.txt")
-        assert "does not exist" in str(excinfo.value)
-
-    def test_directory_traversal_attempts(self, tmp_path):
-        """Test that directory traversal attempts fail validation."""
-        # Create a temporary file
-        test_file = tmp_path / "test_file.txt"
-        test_file.write_text("test content")
-
-        # Test various directory traversal attempts
-        traversal_attempts = [
-            f"{test_file}/../../../etc/passwd",
-            f"{test_file}/../../..",
-            "../../../etc/passwd",
-            "..\\..\\..\\Windows\\System32\\config\\SAM",  # Windows example
-        ]
-
-        for path in traversal_attempts:
-            with pytest.raises(ValidationError) as excinfo:
-                validate_file_path(path)
-            assert "suspicious traversal patterns" in str(excinfo.value) or "does not exist" in str(
-                excinfo.value
-            )
-
-
 class TestValidateCloudFormationTemplate:
     """Tests for validate_cloudformation_template function."""
 
@@ -314,3 +270,11 @@ class TestValidateCloudFormationTemplate:
         with pytest.raises(ValidationError) as excinfo:
             validate_cloudformation_template(str(valid_template_file))
         assert "Failed to read template file" in str(excinfo.value)
+
+    def test_template_file_in_sensitive_directory(self):
+        """Test that a template path inside a sensitive directory fails validation."""
+        sensitive_template = os.path.join(os.path.expanduser("~"), ".aws", "template.json")
+
+        with pytest.raises(ValidationError) as excinfo:
+            validate_cloudformation_template(sensitive_template)
+        assert "sensitive directory" in str(excinfo.value)

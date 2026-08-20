@@ -68,6 +68,13 @@ def handler_readonly(mock_aws_helper):
 
 
 @pytest.fixture
+def handler_no_sensitive_data(mock_aws_helper):
+    """Create a handler with sensitive data access disabled for testing OutputLocation blocking."""
+    mcp = Mock()
+    return AthenaQueryHandler(mcp, allow_write=True, allow_sensitive_data_access=False)
+
+
+@pytest.fixture
 def mock_context():
     """Create a mock context instance for testing."""
     return Mock(spec=Context)
@@ -902,3 +909,99 @@ async def test_error_message_includes_query_type(handler_readonly):
     assert response.isError
     assert 'contains write operations' in response.content[0].text
     assert 'Detected query type: UPDATE' in response.content[0].text
+
+
+# OutputLocation Blocking Tests
+
+
+@pytest.mark.asyncio
+async def test_output_location_blocked_without_sensitive_data_access(handler_no_sensitive_data):
+    """Test that custom OutputLocation is blocked when allow_sensitive_data_access is False."""
+    ctx = Mock()
+    response = await handler_no_sensitive_data.manage_aws_athena_queries(
+        ctx,
+        operation='start-query-execution',
+        query_string='SELECT * FROM table',
+        result_configuration={'OutputLocation': 's3://attacker-bucket/exfil/'},
+    )
+
+    assert response.isError
+    assert (
+        'Custom OutputLocation in ResultConfiguration is not allowed' in response.content[0].text
+    )
+    assert '--allow-sensitive-data-access' in response.content[0].text
+
+
+@pytest.mark.asyncio
+async def test_output_location_allowed_with_sensitive_data_access(handler, mock_athena_client):
+    """Test that custom OutputLocation is allowed when allow_sensitive_data_access is True."""
+    handler.athena_client = mock_athena_client
+    mock_athena_client.start_query_execution.return_value = {'QueryExecutionId': 'query1'}
+
+    ctx = Mock()
+    response = await handler.manage_aws_athena_queries(
+        ctx,
+        operation='start-query-execution',
+        query_string='SELECT * FROM table',
+        result_configuration={'OutputLocation': 's3://my-bucket/results/'},
+    )
+
+    assert not response.isError
+    data = extract_response_data(response)
+    assert data['query_execution_id'] == 'query1'
+
+
+@pytest.mark.asyncio
+async def test_result_configuration_without_output_location_allowed(
+    handler_no_sensitive_data, mock_athena_client
+):
+    """Test that ResultConfiguration without OutputLocation is allowed even without sensitive data access."""
+    handler_no_sensitive_data.athena_client = mock_athena_client
+    mock_athena_client.start_query_execution.return_value = {'QueryExecutionId': 'query1'}
+
+    ctx = Mock()
+    response = await handler_no_sensitive_data.manage_aws_athena_queries(
+        ctx,
+        operation='start-query-execution',
+        query_string='SELECT * FROM table',
+        result_configuration={'EncryptionConfiguration': {'EncryptionOption': 'SSE_S3'}},
+    )
+
+    assert not response.isError
+    data = extract_response_data(response)
+    assert data['query_execution_id'] == 'query1'
+
+
+# UNLOAD Blocking Tests
+
+
+@pytest.mark.asyncio
+async def test_unload_blocked_in_readonly_mode(handler_readonly):
+    """Test that UNLOAD queries are blocked when write access is disabled."""
+    ctx = Mock()
+    response = await handler_readonly.manage_aws_athena_queries(
+        ctx,
+        operation='start-query-execution',
+        query_string="UNLOAD (SELECT * FROM table) TO 's3://bucket/prefix/' WITH (format='JSON')",
+    )
+
+    assert response.isError
+    assert 'contains write operations' in response.content[0].text
+
+
+@pytest.mark.asyncio
+async def test_unload_allowed_with_write_access(handler, mock_athena_client):
+    """Test that UNLOAD queries succeed when write access is enabled."""
+    handler.athena_client = mock_athena_client
+    mock_athena_client.start_query_execution.return_value = {'QueryExecutionId': 'query1'}
+
+    ctx = Mock()
+    response = await handler.manage_aws_athena_queries(
+        ctx,
+        operation='start-query-execution',
+        query_string="UNLOAD (SELECT * FROM table) TO 's3://bucket/prefix/' WITH (format='JSON')",
+    )
+
+    assert not response.isError
+    data = extract_response_data(response)
+    assert data['query_execution_id'] == 'query1'

@@ -17,6 +17,7 @@
 
 import boto3
 import os
+import re
 from awslabs.timestream_for_influxdb_mcp_server import __version__
 from botocore.config import Config
 from influxdb_client.client.influxdb_client import InfluxDBClient
@@ -39,6 +40,8 @@ _config = Config(user_agent_extra=USER_AGENT_EXTRA)
 INFLUXDB_TOKEN = os.environ.get('INFLUXDB_TOKEN')
 INFLUXDB_URL = os.environ.get('INFLUXDB_URL')
 INFLUXDB_ORG = os.environ.get('INFLUXDB_ORG')
+INFLUXDB_ALLOWED_URLS = os.environ.get('INFLUXDB_ALLOWED_URLS', '')
+INFLUXDB_WRITE_MODE = os.environ.get('INFLUXDB_WRITE_MODE', 'false').lower() == 'true'
 
 # Define Field parameters as global variables to avoid duplication
 # Common fields
@@ -194,16 +197,22 @@ REQUIRED_FIELD_STATUS_CLUSTER = Field(
 # InfluxDB fields
 OPTIONAL_FIELD_URL = Field(
     None,
-    description='The URL of the InfluxDB server. Falls back to INFLUXDB_URL env var if not provided.',
+    description='Optional InfluxDB server URL override. The URL must match INFLUXDB_URL or '
+    'an entry in INFLUXDB_ALLOWED_URLS, and all required connection parameters must be provided '
+    'together. Omit all connection parameters to use the server environment configuration.',
 )
 OPTIONAL_FIELD_TOKEN = Field(
     None,
-    description='The authentication token. Falls back to INFLUXDB_TOKEN env var if not provided.',
+    description='Optional authentication token override. If any connection parameter is provided, '
+    'all required connection parameters must be provided together; environment values are not mixed '
+    'with caller-supplied values.',
 )
 REQUIRED_FIELD_BUCKET_INFLUX = Field(..., description='The destination bucket for writes.')
 OPTIONAL_FIELD_ORG = Field(
     None,
-    description='The organization name. Falls back to INFLUXDB_ORG env var if not provided.',
+    description='Optional organization override. If any connection parameter is provided, all '
+    'required connection parameters must be provided together; environment values are not mixed '
+    'with caller-supplied values.',
 )
 REQUIRED_FIELD_POINTS = Field(
     ...,
@@ -273,36 +282,128 @@ def resolve_influxdb_config(
 ) -> tuple:
     """Resolve InfluxDB configuration from parameters or environment variables.
 
+    Caller-supplied connection parameters and server environment credentials are
+    never mixed. Caller-supplied URLs must also be approved by the operator through
+    INFLUXDB_URL or INFLUXDB_ALLOWED_URLS.
+
     Args:
-        url: The URL of the InfluxDB server (optional, falls back to INFLUXDB_URL env var).
-        token: The authentication token (optional, falls back to INFLUXDB_TOKEN env var).
-        org: The organization name (optional, falls back to INFLUXDB_ORG env var).
+        url: Optional operator-approved URL override for the InfluxDB server.
+        token: Optional authentication token override.
+        org: Optional organization name override.
         require_org: Whether the organization is required (default True).
 
     Returns:
         A tuple of (resolved_url, resolved_token, resolved_org).
 
     Raises:
-        ValueError: If required parameters are not provided.
+        ValueError: If required parameters are not provided or if caller-supplied
+            and server credentials are mixed.
     """
-    resolved_url = url or INFLUXDB_URL
-    resolved_token = token or INFLUXDB_TOKEN
-    resolved_org = org or INFLUXDB_ORG
+    # Any caller-supplied parameter signals a custom connection. In that case,
+    # all required values must come from the caller.
+    caller_supplied = any(p is not None for p in (url, token, org))
 
-    if not resolved_url:
-        raise ValueError(
-            'URL must be provided either as parameter or via INFLUXDB_URL environment variable'
-        )
-    if not resolved_token:
-        raise ValueError(
-            'Token must be provided either as parameter or via INFLUXDB_TOKEN environment variable'
-        )
-    if require_org and not resolved_org:
-        raise ValueError(
-            'Organization must be provided either as parameter or via INFLUXDB_ORG environment variable'
-        )
+    if caller_supplied:
+        resolved_url = url
+        resolved_token = token
+        resolved_org = org
+
+        if not resolved_url:
+            raise ValueError(
+                'When custom connection parameters are provided, url is required. '
+                'Server credentials cannot be mixed with caller-supplied parameters.'
+            )
+        if not resolved_token:
+            raise ValueError(
+                'When custom connection parameters are provided, token is required. '
+                'Server credentials cannot be mixed with caller-supplied parameters.'
+            )
+        if require_org and not resolved_org:
+            raise ValueError(
+                'When custom connection parameters are provided, org is required. '
+                'Server credentials cannot be mixed with caller-supplied parameters.'
+            )
+        resolved_url = validate_influxdb_url(resolved_url, require_approved=True)
+    else:
+        resolved_url = INFLUXDB_URL
+        resolved_token = INFLUXDB_TOKEN
+        resolved_org = INFLUXDB_ORG
+
+        if not resolved_url:
+            raise ValueError(
+                'URL must be provided either as parameter or via INFLUXDB_URL environment variable'
+            )
+        if not resolved_token:
+            raise ValueError(
+                'Token must be provided either as parameter or via INFLUXDB_TOKEN environment variable'
+            )
+        if require_org and not resolved_org:
+            raise ValueError(
+                'Organization must be provided either as parameter or via INFLUXDB_ORG environment variable'
+            )
+        resolved_url = validate_influxdb_url(resolved_url, require_approved=False)
 
     return resolved_url, resolved_token, resolved_org
+
+
+def normalize_influxdb_url(url: str) -> str:
+    """Validate and normalize an InfluxDB base URL."""
+    if not isinstance(url, str) or not url or url != url.strip():
+        raise ValueError('InfluxDB URL must be a non-empty string without surrounding whitespace')
+
+    try:
+        parsed_url = urlparse(url)
+        scheme = parsed_url.scheme.lower()
+        hostname = parsed_url.hostname
+        port = parsed_url.port
+    except ValueError as e:
+        raise ValueError(f'Invalid InfluxDB URL: {str(e)}') from e
+
+    if scheme not in {'https', 'http'}:
+        raise ValueError('InfluxDB URL must use HTTP(S) protocol')
+    if not hostname:
+        raise ValueError('InfluxDB URL must include a host')
+    if parsed_url.username or parsed_url.password:
+        raise ValueError('InfluxDB URL must not include user information')
+    if parsed_url.params or parsed_url.query or parsed_url.fragment:
+        raise ValueError('InfluxDB URL must not include parameters, a query string, or a fragment')
+
+    normalized_hostname = hostname.lower()
+    if ':' in normalized_hostname:
+        normalized_hostname = f'[{normalized_hostname}]'
+    normalized_netloc = (
+        f'{normalized_hostname}:{port}' if port is not None else normalized_hostname
+    )
+
+    return parsed_url._replace(
+        scheme=scheme,
+        netloc=normalized_netloc,
+        path=parsed_url.path.rstrip('/'),
+        params='',
+        query='',
+        fragment='',
+    ).geturl()
+
+
+def validate_influxdb_url(url: str, *, require_approved: bool) -> str:
+    """Validate an InfluxDB URL and optionally require operator approval."""
+    normalized_url = normalize_influxdb_url(url)
+    if not require_approved:
+        return normalized_url
+
+    configured_urls = [INFLUXDB_URL] if INFLUXDB_URL else []
+    configured_urls.extend(
+        candidate.strip() for candidate in INFLUXDB_ALLOWED_URLS.split(',') if candidate.strip()
+    )
+    approved_urls = {normalize_influxdb_url(candidate) for candidate in configured_urls}
+
+    if normalized_url not in approved_urls:
+        raise ValueError(
+            'Caller-supplied InfluxDB URL is not approved by the server operator. '
+            'Configure it through INFLUXDB_URL or INFLUXDB_ALLOWED_URLS.'
+        )
+
+    return normalized_url
 
 
 def get_influxdb_client(url, token, org=None, timeout=10000, verify_ssl: bool = True):
@@ -322,11 +423,8 @@ def get_influxdb_client(url, token, org=None, timeout=10000, verify_ssl: bool = 
         ValueError: If the URL does not use HTTPS protocol or is not properly formatted.
     """
     try:
-        parsed_url = urlparse(url)
-        url_scheme = parsed_url.scheme
-        if url_scheme != 'https' and url_scheme != 'http':
-            raise ValueError('URL must use HTTP(S) protocol')
-    except Exception as e:
+        url = validate_influxdb_url(url, require_approved=True)
+    except ValueError as e:
         logger.error(f'Error parsing URL: {str(e)}')
         raise
 
@@ -339,6 +437,133 @@ def get_influxdb_client(url, token, org=None, timeout=10000, verify_ssl: bool = 
     return InfluxDBClient(
         url=url, token=token, org=org_param, timeout=timeout, verify_ssl=verify_ssl
     )
+
+
+# Names of Flux functions capable of writing data back to a bucket.
+FLUX_WRITE_FUNCTION_NAMES = ('to', 'wideTo')
+
+# A write function referenced as a whole identifier, in any position and with or
+# without a package qualifier: `to(...)`, `result = to(...)`, `writer = to`,
+# `experimental.to(...)`, `influxdb.wideTo(...)`. Word boundaries keep
+# identifiers that merely contain the name, such as `toString`, from matching.
+_WRITE_REFERENCE_RE = re.compile(r'\b(?:' + '|'.join(FLUX_WRITE_FUNCTION_NAMES) + r')\b')
+
+_WRITE_BLOCKED_MESSAGE = (
+    'Query contains a write-producing Flux operation (to(), experimental.to(), '
+    'or wideTo()) which is not allowed when INFLUXDB_WRITE_MODE is not enabled. '
+    'Set the INFLUXDB_WRITE_MODE=true environment variable to allow write '
+    'operations through Flux queries.'
+)
+
+
+def mask_flux_comments_and_strings(query: str) -> str:
+    r"""Blank out comment and string-literal content in a Flux query.
+
+    Replaces the contents of `// ...` comments and `"..."` string literals with
+    spaces, leaving all other characters in place. Offsets and newlines are
+    preserved so that reported positions and multi-line patterns still line up
+    with the original query.
+
+    Scanning left to right is what distinguishes code from data. A plain regex
+    substitution cannot: `re.sub(r'//[^\n]*', '', query)` treats the `//` in
+    `"http://example"` as the start of a comment and deletes the remainder of
+    the line, which can hide a trailing write call. Conversely, a string literal
+    such as `"experimental.to("` is data and must not be scanned as code.
+
+    Args:
+        query: The Flux query string to mask.
+
+    Returns:
+        A string of the same length as the input, with comment and string
+        contents replaced by spaces (newlines preserved).
+    """
+    masked: list[str] = []
+    index = 0
+    length = len(query)
+    while index < length:
+        char = query[index]
+        # Line comment: blank to end of line, leaving the newline itself.
+        if char == '/' and index + 1 < length and query[index + 1] == '/':
+            while index < length and query[index] != '\n':
+                masked.append(' ')
+                index += 1
+            continue
+        # String literal: blank the quotes and everything between them.
+        if char == '"':
+            masked.append(' ')
+            index += 1
+            while index < length:
+                # Escape sequence: consume both characters so that an escaped
+                # quote does not terminate the literal early.
+                if query[index] == '\\' and index + 1 < length:
+                    masked.append('  ')
+                    index += 2
+                    continue
+                if query[index] == '"':
+                    masked.append(' ')
+                    index += 1
+                    break
+                masked.append('\n' if query[index] == '\n' else ' ')
+                index += 1
+            continue
+        masked.append(char)
+        index += 1
+    return ''.join(masked)
+
+
+def validate_flux_query(query: str) -> None:
+    """Validate that a Flux query does not contain write-producing operations.
+
+    When INFLUXDB_WRITE_MODE is disabled (default), this function rejects Flux
+    queries that contain functions capable of writing data to InfluxDB.
+
+    The following write-producing Flux functions are blocked:
+    - to() — standard write function (influxdata/influxdb/to)
+    - experimental.to() — experimental write function
+    - wideTo() / influxdb.wideTo() — writes wide/pivoted data
+
+    Detection operates on the query with comments and string literals masked,
+    and matches write functions as whole identifiers in any position rather than
+    only in specific call syntax. Matching the identifier rather than the call
+    form is what rejects indirection such as `writer = to` followed by
+    `|> writer(...)`, and matching regardless of qualifier is what rejects
+    aliased package imports such as `import e "experimental"` then `e.to(...)`.
+
+    The check is deliberately biased towards rejection: record field access on a
+    column literally named `to` (`r.to`) is refused, because a qualifier cannot
+    be distinguished from a package alias without resolving the whole query.
+    Operators who need such a query can set INFLUXDB_WRITE_MODE=true.
+
+    This is a defense-in-depth control, not a complete one. Flux has
+    first-class functions, so no static inspection of query text can be
+    exhaustive. The authoritative control is a read-scoped InfluxDB token, so
+    that a write is refused by InfluxDB even if it reaches the server.
+
+    Args:
+        query: The Flux query string to validate.
+
+    Raises:
+        ValueError: If the query contains write-producing operations and
+            INFLUXDB_WRITE_MODE is not enabled.
+    """
+    if INFLUXDB_WRITE_MODE:
+        return
+
+    # Interpolation is checked on the raw query, because masking blanks the
+    # string contents in which `${...}` appears. Nested quotes inside an
+    # interpolated expression can desynchronize masking, so interpolation is
+    # refused rather than analyzed. It is rare in a read query.
+    if '${' in query:
+        raise ValueError(
+            'Flux string interpolation is not permitted when INFLUXDB_WRITE_MODE '
+            'is not enabled, because the query cannot be reliably inspected for '
+            'write operations. Set INFLUXDB_WRITE_MODE=true to allow it.'
+        )
+
+    code = mask_flux_comments_and_strings(query)
+
+    if _WRITE_REFERENCE_RE.search(code):
+        raise ValueError(_WRITE_BLOCKED_MESSAGE)
 
 
 @mcp.tool(
@@ -1269,6 +1494,9 @@ async def influxdb_query(
     Returns:
         Query results in the specified format.
     """
+    # Validate query does not contain write-producing operations in read-only mode
+    validate_flux_query(query)
+
     resolved_url, resolved_token, resolved_org = resolve_influxdb_config(url, token, org)
 
     try:
