@@ -20,15 +20,35 @@ including creating, updating, retrieving, listing, searching, and deleting table
 
 import json
 from awslabs.aws_dataprocessing_mcp_server.models.data_catalog_models import (
+    BatchDeleteTableVersionData,
     CreateTableData,
     DeleteTableData,
+    DetectTableFormatData,
+    GetIcebergTableInfoData,
     GetTableData,
+    GetTableVersionsData,
     ListTablesData,
     SearchTablesData,
     TableSummary,
+    TableVersionSummary,
     UpdateTableData,
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
+from awslabs.aws_dataprocessing_mcp_server.utils.consts import (
+    DELTA_PARAMETER_PREFIX,
+    DELTA_TABLE_TYPE_VALUE,
+    HUDI_PARAMETER_PREFIX,
+    ICEBERG_FORMAT_VERSION_PARAMETER_KEYS,
+    ICEBERG_METADATA_LOCATION_PARAMETER_KEY,
+    ICEBERG_PREVIOUS_METADATA_LOCATION_PARAMETER_KEY,
+    ICEBERG_TABLE_TYPE_VALUE,
+    TABLE_FORMAT_DELTA,
+    TABLE_FORMAT_HIVE,
+    TABLE_FORMAT_HUDI,
+    TABLE_FORMAT_ICEBERG,
+    TABLE_FORMAT_UNKNOWN,
+    TABLE_TYPE_PARAMETER_KEY,
+)
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     LogLevel,
     log_with_request_id,
@@ -701,6 +721,357 @@ class DataCatalogTableManager:
             error_message = (
                 f'Failed to search tables: {error_code} - {e.response["Error"]["Message"]}'
             )
+            log_with_request_id(ctx, LogLevel.ERROR, error_message)
+
+            return CallToolResult(
+                isError=True,
+                content=[TextContent(type='text', text=error_message)],
+            )
+
+    @staticmethod
+    def _classify_table_format(table: Dict[str, Any]) -> tuple:
+        """Classify a Glue table's storage format from its metadata.
+
+        Detection is best-effort: it relies on the `table_type` parameter written by
+        Iceberg-on-Glue, on `delta.*`/`hoodie.*` property-key conventions written by
+        Delta Lake and Apache Hudi respectively (neither of which has a canonical Glue
+        field), and finally on SerDe/InputFormat presence for plain Hive-style tables.
+        Falls back to UNKNOWN rather than guessing when none of these signals are present.
+
+        Args:
+            table: The Glue Table dict as returned by GetTable
+
+        Returns:
+            Tuple of (table_format, detection_basis)
+        """
+        parameters = table.get('Parameters', {}) or {}
+        storage_descriptor = table.get('StorageDescriptor', {}) or {}
+        serialization_library = storage_descriptor.get('SerdeInfo', {}).get(
+            'SerializationLibrary', ''
+        )
+        input_format = storage_descriptor.get('InputFormat', '')
+        table_type_param = str(parameters.get(TABLE_TYPE_PARAMETER_KEY, '')).upper()
+
+        if table_type_param == ICEBERG_TABLE_TYPE_VALUE:
+            return (
+                TABLE_FORMAT_ICEBERG,
+                f"Parameters['{TABLE_TYPE_PARAMETER_KEY}'] == '{ICEBERG_TABLE_TYPE_VALUE}'",
+            )
+        if table_type_param == DELTA_TABLE_TYPE_VALUE:
+            return (
+                TABLE_FORMAT_DELTA,
+                f"Parameters['{TABLE_TYPE_PARAMETER_KEY}'] == '{DELTA_TABLE_TYPE_VALUE}'",
+            )
+        if any(key.startswith(DELTA_PARAMETER_PREFIX) for key in parameters):
+            return (
+                TABLE_FORMAT_DELTA,
+                f"Parameters contain '{DELTA_PARAMETER_PREFIX}*' keys written by Delta Lake",
+            )
+        if any(key.startswith(HUDI_PARAMETER_PREFIX) for key in parameters):
+            return (
+                TABLE_FORMAT_HUDI,
+                f"Parameters contain '{HUDI_PARAMETER_PREFIX}*' keys written by Apache Hudi",
+            )
+        if serialization_library or input_format:
+            basis_value = serialization_library or input_format
+            return (
+                TABLE_FORMAT_HIVE,
+                f'SerDe/InputFormat present ({basis_value}), consistent with a Hive-style table',
+            )
+        return (
+            TABLE_FORMAT_UNKNOWN,
+            f"No '{TABLE_TYPE_PARAMETER_KEY}' parameter, Delta/Hudi property keys, or "
+            'SerDe/InputFormat information found',
+        )
+
+    async def detect_table_format(
+        self,
+        ctx: Context,
+        database_name: str,
+        table_name: str,
+        catalog_id: Optional[str] = None,
+    ) -> CallToolResult:
+        """Detect whether a table is Hive, Iceberg, Delta, or Hudi format.
+
+        Classifies the table's storage format using its Glue table parameters and
+        storage descriptor. Detection is best-effort and falls back to UNKNOWN when
+        no recognized signal is present, rather than guessing.
+
+        Args:
+            ctx: MCP context containing request information
+            database_name: Name of the database containing the table
+            table_name: Name of the table to classify
+            catalog_id: Optional catalog ID (defaults to AWS account ID)
+
+        Returns:
+            DetectTableFormatResponse with the detected format and detection basis
+        """
+        try:
+            kwargs = {'DatabaseName': database_name, 'Name': table_name}
+            if catalog_id:
+                kwargs['CatalogId'] = catalog_id
+
+            response = self.glue_client.get_table(**kwargs)
+            table = response['Table']
+
+            table_format, detection_basis = self._classify_table_format(table)
+
+            log_with_request_id(
+                ctx,
+                LogLevel.INFO,
+                f'Detected table format {table_format} for table: {database_name}.{table_name}',
+            )
+
+            success_message = (
+                f'Detected table format {table_format} for table: {database_name}.{table_name}'
+            )
+            data = DetectTableFormatData(
+                database_name=database_name,
+                table_name=table_name,
+                table_format=table_format,
+                detection_basis=detection_basis,
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_message),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
+            )
+
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            error_message = f'Failed to detect table format for {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
+            log_with_request_id(ctx, LogLevel.ERROR, error_message)
+
+            return CallToolResult(
+                isError=True,
+                content=[TextContent(type='text', text=error_message)],
+            )
+
+    async def get_iceberg_table_info(
+        self,
+        ctx: Context,
+        database_name: str,
+        table_name: str,
+        catalog_id: Optional[str] = None,
+    ) -> CallToolResult:
+        """Get Iceberg-specific metadata for a table, if it is an Iceberg table.
+
+        Returns the table's current and previous Iceberg metadata locations and
+        format version when present. If the table does not classify as Iceberg,
+        returns is_iceberg=False without treating that as an error.
+
+        Args:
+            ctx: MCP context containing request information
+            database_name: Name of the database containing the table
+            table_name: Name of the table to inspect
+            catalog_id: Optional catalog ID (defaults to AWS account ID)
+
+        Returns:
+            GetIcebergTableInfoResponse with Iceberg metadata, if applicable
+        """
+        try:
+            kwargs = {'DatabaseName': database_name, 'Name': table_name}
+            if catalog_id:
+                kwargs['CatalogId'] = catalog_id
+
+            response = self.glue_client.get_table(**kwargs)
+            table = response['Table']
+            parameters = table.get('Parameters', {}) or {}
+
+            table_format, _ = self._classify_table_format(table)
+            is_iceberg = table_format == TABLE_FORMAT_ICEBERG
+
+            format_version = None
+            for key in ICEBERG_FORMAT_VERSION_PARAMETER_KEYS:
+                if parameters.get(key):
+                    format_version = parameters[key]
+                    break
+
+            log_with_request_id(
+                ctx,
+                LogLevel.INFO,
+                f'Retrieved Iceberg table info for table: {database_name}.{table_name} (is_iceberg={is_iceberg})',
+            )
+
+            success_message = (
+                f'Retrieved Iceberg table info for table: {database_name}.{table_name}'
+            )
+            data = GetIcebergTableInfoData(
+                database_name=database_name,
+                table_name=table_name,
+                is_iceberg=is_iceberg,
+                metadata_location=(
+                    parameters.get(ICEBERG_METADATA_LOCATION_PARAMETER_KEY) if is_iceberg else None
+                ),
+                previous_metadata_location=(
+                    parameters.get(ICEBERG_PREVIOUS_METADATA_LOCATION_PARAMETER_KEY)
+                    if is_iceberg
+                    else None
+                ),
+                format_version=format_version if is_iceberg else None,
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_message),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
+            )
+
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            error_message = f'Failed to get Iceberg table info for {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
+            log_with_request_id(ctx, LogLevel.ERROR, error_message)
+
+            return CallToolResult(
+                isError=True,
+                content=[TextContent(type='text', text=error_message)],
+            )
+
+    async def get_table_versions(
+        self,
+        ctx: Context,
+        database_name: str,
+        table_name: str,
+        catalog_id: Optional[str] = None,
+        max_results: Optional[int] = None,
+        next_token: Optional[str] = None,
+    ) -> CallToolResult:
+        """List the schema version history of a table in the AWS Glue Data Catalog.
+
+        Retrieves prior versions of the table definition, including when each version
+        was created. Supports pagination through the next_token parameter.
+
+        Args:
+            ctx: MCP context containing request information
+            database_name: Name of the database containing the table
+            table_name: Name of the table to retrieve version history for
+            catalog_id: Optional catalog ID (defaults to AWS account ID)
+            max_results: Optional maximum number of versions to return
+            next_token: Optional pagination token for retrieving the next set of results
+
+        Returns:
+            GetTableVersionsResponse with the list of table versions
+        """
+        try:
+            kwargs: Dict[str, Any] = {'DatabaseName': database_name, 'TableName': table_name}
+            if catalog_id:
+                kwargs['CatalogId'] = catalog_id
+            if max_results:
+                kwargs['MaxResults'] = max_results
+            if next_token:
+                kwargs['NextToken'] = next_token
+
+            response = self.glue_client.get_table_versions(**kwargs)
+            versions = response.get('TableVersions', [])
+            next_token_response = response.get('NextToken', None)
+
+            log_with_request_id(
+                ctx,
+                LogLevel.INFO,
+                f'Successfully listed {len(versions)} versions for table {database_name}.{table_name}',
+            )
+
+            success_message = f'Successfully listed {len(versions)} versions for table {database_name}.{table_name}'
+            data = GetTableVersionsData(
+                database_name=database_name,
+                table_name=table_name,
+                versions=[
+                    TableVersionSummary(
+                        version_id=version.get('VersionId', ''),
+                        table_name=version.get('Table', {}).get('Name', table_name),
+                        update_time=(
+                            version.get('Table', {}).get('UpdateTime', '').isoformat()
+                            if version.get('Table', {}).get('UpdateTime')
+                            else ''
+                        ),
+                        table_definition=version.get('Table', {}),
+                    )
+                    for version in versions
+                ],
+                count=len(versions),
+                next_token=next_token_response,
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_message),
+                    TextContent(type='text', text=json.dumps(data.model_dump(), default=str)),
+                ],
+            )
+
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            error_message = f'Failed to get versions for table {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
+            log_with_request_id(ctx, LogLevel.ERROR, error_message)
+
+            return CallToolResult(
+                isError=True,
+                content=[TextContent(type='text', text=error_message)],
+            )
+
+    async def batch_delete_table_version(
+        self,
+        ctx: Context,
+        database_name: str,
+        table_name: str,
+        version_ids: List[str],
+        catalog_id: Optional[str] = None,
+    ) -> CallToolResult:
+        """Delete multiple versions of a table in a single call.
+
+        Args:
+            ctx: MCP context containing request information
+            database_name: Name of the database containing the table
+            table_name: Name of the table whose versions should be deleted
+            version_ids: Version IDs to delete
+            catalog_id: Optional catalog ID (defaults to AWS account ID)
+
+        Returns:
+            BatchDeleteTableVersionResponse with any per-version errors
+        """
+        try:
+            kwargs: Dict[str, Any] = {
+                'DatabaseName': database_name,
+                'TableName': table_name,
+                'VersionIds': version_ids,
+            }
+            if catalog_id:
+                kwargs['CatalogId'] = catalog_id
+
+            response = self.glue_client.batch_delete_table_version(**kwargs)
+            errors = response.get('Errors', [])
+
+            log_with_request_id(
+                ctx,
+                LogLevel.INFO,
+                f'Batch deleted {len(version_ids) - len(errors)} of {len(version_ids)} versions for table {database_name}.{table_name}',
+            )
+
+            success_message = f'Batch deleted {len(version_ids) - len(errors)} of {len(version_ids)} versions for table {database_name}.{table_name}'
+            data = BatchDeleteTableVersionData(
+                database_name=database_name,
+                table_name=table_name,
+                version_ids=version_ids,
+                errors=errors,
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_message),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
+            )
+
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            error_message = f'Failed to batch delete versions for table {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
             return CallToolResult(

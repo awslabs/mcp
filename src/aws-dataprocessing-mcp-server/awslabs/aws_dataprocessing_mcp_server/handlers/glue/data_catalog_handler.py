@@ -247,7 +247,7 @@ class GlueDataCatalogHandler:
         operation: Annotated[
             str,
             Field(
-                description='Operation to perform: create-table, delete-table, get-table, list-tables, update-table, or search-tables. Choose "get-table", "list-tables", or "search-tables" for read-only operations.',
+                description='Operation to perform: create-table, delete-table, get-table, list-tables, update-table, search-tables, detect-table-format, get-iceberg-table-info, get-table-versions, or batch-delete-table-version. Choose "get-table", "list-tables", "search-tables", "detect-table-format", "get-iceberg-table-info", or "get-table-versions" for read-only operations.',
             ),
         ],
         database_name: Annotated[
@@ -259,7 +259,7 @@ class GlueDataCatalogHandler:
         table_name: Annotated[
             Optional[str],
             Field(
-                description='Name of the table (required for create-table, delete-table, get-table, and update-table operations).',
+                description='Name of the table (required for create-table, delete-table, get-table, update-table, detect-table-format, get-iceberg-table-info, get-table-versions, and batch-delete-table-version operations).',
             ),
         ] = None,
         catalog_id: Annotated[
@@ -283,12 +283,18 @@ class GlueDataCatalogHandler:
         max_results: Annotated[
             Optional[int],
             Field(
-                description='Maximum number of results to return for list and search-tables operations.',
+                description='Maximum number of results to return for list, search-tables, and get-table-versions operations.',
             ),
         ] = None,
         next_token: Annotated[
             Optional[str],
             Field(description='A continuation token, included if this is a continuation call.'),
+        ] = None,
+        version_ids: Annotated[
+            Optional[List[str]],
+            Field(
+                description='Version IDs to delete (required for batch-delete-table-version operation).',
+            ),
         ] = None,
     ) -> CallToolResult:
         """Manage AWS Glue Data Catalog tables with both read and write operations.
@@ -298,7 +304,7 @@ class GlueDataCatalogHandler:
         Tables define the schema and metadata for data stored in various formats and locations.
 
         ## Requirements
-        - The server must be run with the `--allow-write` flag for create-table, update-table, and delete-table operations
+        - The server must be run with the `--allow-write` flag for create-table, update-table, delete-table, and batch-delete-table-version operations
         - Database must exist before creating tables within it
         - Appropriate AWS permissions for Glue Data Catalog operations
 
@@ -309,11 +315,16 @@ class GlueDataCatalogHandler:
         - **list-tables**: List all tables in the specified database
         - **update-table**: Update an existing table's properties
         - **search-tables**: Search for tables using text matching
+        - **detect-table-format**: Detect whether a table is Hive, Iceberg, Delta, or Hudi format (best-effort; falls back to UNKNOWN)
+        - **get-iceberg-table-info**: Get Iceberg-specific metadata (metadata location, format version) for a table, if it is Iceberg format
+        - **get-table-versions**: List the schema version history of a table
+        - **batch-delete-table-version**: Delete multiple table versions in a single call
 
         ## Usage Tips
         - Table names must be unique within a database
         - Use get-table or list-tables operations to check existing tables before creating
         - Table input should include storage descriptor, columns, and partitioning information
+        - Use detect-table-format before get-iceberg-table-info if you don't already know the table's format
 
         Args:
             ctx: MCP context
@@ -325,6 +336,7 @@ class GlueDataCatalogHandler:
             search_text: Search text for search operation
             max_results: Maximum results to return
             next_token: A continuation string token, if this is a continuation call
+            version_ids: Version IDs to delete for batch-delete-table-version operation
 
         Returns:
             Union of response types specific to the operation performed
@@ -336,8 +348,12 @@ class GlueDataCatalogHandler:
             'list-tables',
             'update-table',
             'search-tables',
+            'detect-table-format',
+            'get-iceberg-table-info',
+            'get-table-versions',
+            'batch-delete-table-version',
         ]:
-            error_message = f'Invalid operation: {operation}. Must be one of: create-table, delete-table, get-table, list-tables, update-table, search-tables'
+            error_message = f'Invalid operation: {operation}. Must be one of: create-table, delete-table, get-table, list-tables, update-table, search-tables, detect-table-format, get-iceberg-table-info, get-table-versions, batch-delete-table-version'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
             return CallToolResult(
                 isError=True,
@@ -349,6 +365,9 @@ class GlueDataCatalogHandler:
                 'get-table',
                 'list-tables',
                 'search-tables',
+                'detect-table-format',
+                'get-iceberg-table-info',
+                'get-table-versions',
             ]:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
@@ -422,8 +441,54 @@ class GlueDataCatalogHandler:
                     max_results=max_results,
                     catalog_id=catalog_id,
                 )
+
+            elif operation == 'detect-table-format':
+                if table_name is None:
+                    raise ValueError('table_name is required for detect-table-format operation')
+                return await self.data_catalog_table_manager.detect_table_format(
+                    ctx=ctx,
+                    database_name=database_name,
+                    table_name=table_name,
+                    catalog_id=catalog_id,
+                )
+
+            elif operation == 'get-iceberg-table-info':
+                if table_name is None:
+                    raise ValueError('table_name is required for get-iceberg-table-info operation')
+                return await self.data_catalog_table_manager.get_iceberg_table_info(
+                    ctx=ctx,
+                    database_name=database_name,
+                    table_name=table_name,
+                    catalog_id=catalog_id,
+                )
+
+            elif operation == 'get-table-versions':
+                if table_name is None:
+                    raise ValueError('table_name is required for get-table-versions operation')
+                return await self.data_catalog_table_manager.get_table_versions(
+                    ctx=ctx,
+                    database_name=database_name,
+                    table_name=table_name,
+                    catalog_id=catalog_id,
+                    max_results=max_results,
+                    next_token=next_token,
+                )
+
+            elif operation == 'batch-delete-table-version':
+                if table_name is None or not version_ids:
+                    raise ValueError(
+                        'table_name and version_ids are required for batch-delete-table-version operation'
+                    )
+                return await self.data_catalog_table_manager.batch_delete_table_version(
+                    ctx=ctx,
+                    database_name=database_name,
+                    table_name=table_name,
+                    version_ids=version_ids,
+                    catalog_id=catalog_id,
+                )
+
             else:
-                error_message = f'Invalid operation: {operation}. Must be one of: create-table, delete-table, get-table, list-tables, update-table, search-tables'
+                error_message = f'Invalid operation: {operation}. Must be one of: create-table, delete-table, get-table, list-tables, update-table, search-tables, detect-table-format, get-iceberg-table-info, get-table-versions, batch-delete-table-version'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
                 return CallToolResult(
                     isError=True,
@@ -967,7 +1032,7 @@ class GlueDataCatalogHandler:
         operation: Annotated[
             str,
             Field(
-                description='Operation to perform: create-partition, delete-partition, get-partition, list-partitions, or update-partition. Choose "get-partition" or "list-partitions" for read-only operations.',
+                description='Operation to perform: create-partition, delete-partition, get-partition, list-partitions, update-partition, create-partition-index, get-partition-indexes, or delete-partition-index. Choose "get-partition", "list-partitions", or "get-partition-indexes" for read-only operations.',
             ),
         ],
         database_name: Annotated[
@@ -997,7 +1062,7 @@ class GlueDataCatalogHandler:
         max_results: Annotated[
             Optional[int],
             Field(
-                description='Maximum number of results to return for list-partitions operation.',
+                description='Maximum number of results to return for list-partitions and get-partition-indexes operations.',
             ),
         ] = None,
         next_token: Annotated[
@@ -1018,6 +1083,18 @@ class GlueDataCatalogHandler:
                 description='ID of the catalog (optional, defaults to account ID).',
             ),
         ] = None,
+        partition_index: Annotated[
+            Optional[Dict[str, Any]],
+            Field(
+                description="Partition index definition with 'IndexName' and 'Keys' (required for create-partition-index operation).",
+            ),
+        ] = None,
+        index_name: Annotated[
+            Optional[str],
+            Field(
+                description='Name of the partition index (required for delete-partition-index operation).',
+            ),
+        ] = None,
     ) -> CallToolResult:
         """Manage AWS Glue Data Catalog partitions with both read and write operations.
 
@@ -1026,9 +1103,10 @@ class GlueDataCatalogHandler:
         by allowing queries to target specific subsets of data.
 
         ## Requirements
-        - The server must be run with the `--allow-write` flag for create-partition, update-partition, and delete-partition operations
+        - The server must be run with the `--allow-write` flag for create-partition, update-partition, delete-partition, create-partition-index, and delete-partition-index operations
         - Database and table must exist before creating partitions
         - Partition values must match the partition schema defined in the table
+        - Partition index keys must reference partition columns already defined on the table
 
         ## Operations
         - **create-partition**: Create a new partition in the specified table
@@ -1036,11 +1114,15 @@ class GlueDataCatalogHandler:
         - **get-partition**: Retrieve detailed information about a specific partition
         - **list-partitions**: List all partitions in the specified table
         - **update-partition**: Update an existing partition's properties
+        - **create-partition-index**: Create a partition index to speed up partition filtering
+        - **get-partition-indexes**: List partition indexes defined on the table
+        - **delete-partition-index**: Delete a partition index from the table
 
         ## Usage Tips
         - Partition values must be provided in the same order as partition columns in the table
         - Use get-partition or list-partitions operations to check existing partitions before creating
         - Partition input should include storage descriptor and location information
+        - Consider a partition index if list-partitions with a filter expression is slow on a table with many partitions
 
         Args:
             ctx: MCP context
@@ -1053,6 +1135,8 @@ class GlueDataCatalogHandler:
             next_token: A continuation token, if this is not the first call to retrieve these partitions
             expression: Filter expression for list-partitions operation
             catalog_id: ID of the catalog (optional, defaults to account ID)
+            partition_index: Partition index definition for create-partition-index operation
+            index_name: Name of the partition index for delete-partition-index operation
 
         Returns:
             Union of response types specific to the operation performed
@@ -1063,8 +1147,11 @@ class GlueDataCatalogHandler:
             'get-partition',
             'list-partitions',
             'update-partition',
+            'create-partition-index',
+            'get-partition-indexes',
+            'delete-partition-index',
         ]:
-            error_message = f'Invalid operation: {operation}. Must be one of: create-partition, delete-partition, get-partition, list-partitions, update-partition'
+            error_message = f'Invalid operation: {operation}. Must be one of: create-partition, delete-partition, get-partition, list-partitions, update-partition, create-partition-index, get-partition-indexes, delete-partition-index'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
             return CallToolResult(
                 isError=True,
@@ -1074,6 +1161,7 @@ class GlueDataCatalogHandler:
             if not self.allow_write and operation not in [
                 'get-partition',
                 'list-partitions',
+                'get-partition-indexes',
             ]:
                 error_message = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
@@ -1143,8 +1231,43 @@ class GlueDataCatalogHandler:
                     partition_input=partition_input,
                     catalog_id=catalog_id,
                 )
+
+            elif operation == 'create-partition-index':
+                if partition_index is None:
+                    raise ValueError(
+                        'partition_index is required for create-partition-index operation'
+                    )
+                return await self.data_catalog_manager.create_partition_index(
+                    ctx=ctx,
+                    database_name=database_name,
+                    table_name=table_name,
+                    partition_index=partition_index,
+                    catalog_id=catalog_id,
+                )
+
+            elif operation == 'get-partition-indexes':
+                return await self.data_catalog_manager.get_partition_indexes(
+                    ctx=ctx,
+                    database_name=database_name,
+                    table_name=table_name,
+                    catalog_id=catalog_id,
+                    max_results=max_results,
+                    next_token=next_token,
+                )
+
+            elif operation == 'delete-partition-index':
+                if index_name is None:
+                    raise ValueError('index_name is required for delete-partition-index operation')
+                return await self.data_catalog_manager.delete_partition_index(
+                    ctx=ctx,
+                    database_name=database_name,
+                    table_name=table_name,
+                    index_name=index_name,
+                    catalog_id=catalog_id,
+                )
+
             else:
-                error_message = f'Invalid operation: {operation}. Must be one of: create-partition, delete-partition, get-partition, list-partitions, update-partition'
+                error_message = f'Invalid operation: {operation}. Must be one of: create-partition, delete-partition, get-partition, list-partitions, update-partition, create-partition-index, get-partition-indexes, delete-partition-index'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
                 return CallToolResult(
                     isError=True,

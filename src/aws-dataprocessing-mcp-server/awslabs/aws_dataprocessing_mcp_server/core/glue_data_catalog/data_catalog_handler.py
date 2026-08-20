@@ -27,9 +27,11 @@ from awslabs.aws_dataprocessing_mcp_server.models.data_catalog_models import (
     CreateCatalogData,
     CreateConnectionData,
     CreatePartitionData,
+    CreatePartitionIndexData,
     DeleteCatalogData,
     DeleteConnectionData,
     DeletePartitionData,
+    DeletePartitionIndexData,
     DescribeConnectionTypeData,
     DescribeEntityData,
     EntitySummary,
@@ -38,12 +40,14 @@ from awslabs.aws_dataprocessing_mcp_server.models.data_catalog_models import (
     GetConnectionData,
     GetEntityRecordsData,
     GetPartitionData,
+    GetPartitionIndexesData,
     ImportCatalogData,
     ListCatalogsData,
     ListConnectionsData,
     ListConnectionTypesData,
     ListEntitiesData,
     ListPartitionsData,
+    PartitionIndexSummary,
     PartitionSummary,
     TestConnectionData,
     UpdateConnectionData,
@@ -1624,6 +1628,212 @@ class DataCatalogManager:
         except ClientError as e:
             error_code = e.response['Error']['Code']
             error_message = f'Failed to update partition in table {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
+            log_with_request_id(ctx, LogLevel.ERROR, error_message)
+
+            return CallToolResult(
+                isError=True,
+                content=[TextContent(type='text', text=error_message)],
+            )
+
+    async def create_partition_index(
+        self,
+        ctx: Context,
+        database_name: str,
+        table_name: str,
+        partition_index: Dict[str, Any],
+        catalog_id: Optional[str] = None,
+    ) -> CallToolResult:
+        """Create a partition index on a table in the AWS Glue Data Catalog.
+
+        Partition indexes speed up partition filtering for tables with many partitions.
+        The partition_index dict must include 'IndexName' and 'Keys' (a list of
+        partition column names already defined on the table).
+
+        Args:
+            ctx: MCP context containing request information
+            database_name: Name of the database containing the table
+            table_name: Name of the table to add the partition index to
+            partition_index: Partition index definition with 'IndexName' and 'Keys'
+            catalog_id: Optional catalog ID (defaults to AWS account ID)
+
+        Returns:
+            CreatePartitionIndexResponse with the result of the operation
+        """
+        try:
+            index_name = partition_index.get('IndexName', '')
+
+            kwargs: Dict[str, Any] = {
+                'DatabaseName': database_name,
+                'TableName': table_name,
+                'PartitionIndex': partition_index,
+            }
+            if catalog_id:
+                kwargs['CatalogId'] = catalog_id
+
+            self.glue_client.create_partition_index(**kwargs)
+
+            log_with_request_id(
+                ctx,
+                LogLevel.INFO,
+                f'Successfully created partition index {index_name} on table: {database_name}.{table_name}',
+            )
+
+            success_msg = f'Successfully created partition index {index_name} on table: {database_name}.{table_name}'
+            data = CreatePartitionIndexData(
+                database_name=database_name,
+                table_name=table_name,
+                index_name=index_name,
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
+            )
+
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            error_message = f'Failed to create partition index on table {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
+            log_with_request_id(ctx, LogLevel.ERROR, error_message)
+
+            return CallToolResult(
+                isError=True,
+                content=[TextContent(type='text', text=error_message)],
+            )
+
+    async def get_partition_indexes(
+        self,
+        ctx: Context,
+        database_name: str,
+        table_name: str,
+        catalog_id: Optional[str] = None,
+        max_results: Optional[int] = None,
+        next_token: Optional[str] = None,
+    ) -> CallToolResult:
+        """List partition indexes defined on a table in the AWS Glue Data Catalog.
+
+        Args:
+            ctx: MCP context containing request information
+            database_name: Name of the database containing the table
+            table_name: Name of the table to list partition indexes for
+            catalog_id: Optional catalog ID (defaults to AWS account ID)
+            max_results: Optional maximum number of results to return
+            next_token: Optional pagination token for retrieving the next set of results
+
+        Returns:
+            GetPartitionIndexesResponse with the list of partition indexes
+        """
+        try:
+            kwargs: Dict[str, Any] = {'DatabaseName': database_name, 'TableName': table_name}
+            if catalog_id:
+                kwargs['CatalogId'] = catalog_id
+            if max_results:
+                kwargs['MaxResults'] = max_results
+            if next_token:
+                kwargs['NextToken'] = next_token
+
+            response = self.glue_client.get_partition_indexes(**kwargs)
+            indexes = response.get('PartitionIndexDescriptorList', [])
+            next_token_response = response.get('NextToken', None)
+
+            log_with_request_id(
+                ctx,
+                LogLevel.INFO,
+                f'Successfully listed {len(indexes)} partition indexes on table {database_name}.{table_name}',
+            )
+
+            success_msg = f'Successfully listed {len(indexes)} partition indexes on table {database_name}.{table_name}'
+            data = GetPartitionIndexesData(
+                database_name=database_name,
+                table_name=table_name,
+                partition_indexes=[
+                    PartitionIndexSummary(
+                        index_name=index.get('IndexName', ''),
+                        keys=[key.get('Name', '') for key in index.get('Keys', [])],
+                        index_status=index.get('IndexStatus'),
+                        backfill_errors=index.get('BackfillErrors', []),
+                    )
+                    for index in indexes
+                ],
+                count=len(indexes),
+                next_token=next_token_response,
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
+            )
+
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            error_message = f'Failed to get partition indexes on table {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
+            log_with_request_id(ctx, LogLevel.ERROR, error_message)
+
+            return CallToolResult(
+                isError=True,
+                content=[TextContent(type='text', text=error_message)],
+            )
+
+    async def delete_partition_index(
+        self,
+        ctx: Context,
+        database_name: str,
+        table_name: str,
+        index_name: str,
+        catalog_id: Optional[str] = None,
+    ) -> CallToolResult:
+        """Delete a partition index from a table in the AWS Glue Data Catalog.
+
+        Args:
+            ctx: MCP context containing request information
+            database_name: Name of the database containing the table
+            table_name: Name of the table containing the partition index
+            index_name: Name of the partition index to delete
+            catalog_id: Optional catalog ID (defaults to AWS account ID)
+
+        Returns:
+            DeletePartitionIndexResponse with the result of the operation
+        """
+        try:
+            kwargs: Dict[str, Any] = {
+                'DatabaseName': database_name,
+                'TableName': table_name,
+                'IndexName': index_name,
+            }
+            if catalog_id:
+                kwargs['CatalogId'] = catalog_id
+
+            self.glue_client.delete_partition_index(**kwargs)
+
+            log_with_request_id(
+                ctx,
+                LogLevel.INFO,
+                f'Successfully deleted partition index {index_name} from table: {database_name}.{table_name}',
+            )
+
+            success_msg = f'Successfully deleted partition index {index_name} from table: {database_name}.{table_name}'
+            data = DeletePartitionIndexData(
+                database_name=database_name,
+                table_name=table_name,
+                index_name=index_name,
+            )
+
+            return CallToolResult(
+                isError=False,
+                content=[
+                    TextContent(type='text', text=success_msg),
+                    TextContent(type='text', text=json.dumps(data.model_dump())),
+                ],
+            )
+
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            error_message = f'Failed to delete partition index from table {database_name}.{table_name}: {error_code} - {e.response["Error"]["Message"]}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
             return CallToolResult(
