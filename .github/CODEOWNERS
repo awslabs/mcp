@@ -64,7 +64,7 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/mcp-lambda-handler                                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @mikegc-aws @Lukas-Xue
 /src/memcached-mcp-server                                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @swarnaprakash @madolson @allenss-amazon @kevinmcgehee
 /src/mssql-mcp-server                                          @awslabs/mcp-admins @awslabs/mcp-maintainers  @RobinGolden @shreyaskshekhar
-/src/mysql-mcp-server                                          @awslabs/mcp-admins @awslabs/mcp-maintainers  @kennthhz @happycupofjava
+/src/mysql-mcp-server                                          @awslabs/mcp-admins @awslabs/mcp-maintainers  @kennthhz @happycupofjava @manaswini1920
 /src/openapi-mcp-server                                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @prajwalendra
 /src/oracle-mcp-server                                         @awslabs/mcp-admins @awslabs/mcp-maintainers  @RobinGolden
 /src/postgres-mcp-server                                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @kennthhz @thephantomthief
