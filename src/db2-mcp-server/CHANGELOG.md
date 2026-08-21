@@ -1,0 +1,48 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [0.1.0] - Unreleased
+
+### Added
+
+- Initial release of the Amazon RDS for Db2 MCP server.
+- `connect_to_database` — open and cache an SSL connection to an RDS for Db2 instance using credentials from AWS Secrets Manager.
+- `run_query` — run a parameterized SQL query (read-only by default).
+- `get_table_schema` — fetch column metadata from `SYSCAT.COLUMNS`.
+- `is_database_connected` / `get_database_connection_info` — inspect cached connections.
+
+### Security
+
+- Require an SSL server certificate bundle when `--ssl_encryption require` (the default): the server now refuses to start with `SECURITY=SSL` and no certificate, closing a man-in-the-middle gap where the connection was encrypted but the server was not authenticated. The certificate path is also validated to point at a real file (fast-fail).
+- Harden the SQL injection detector so `.*` patterns (e.g. the `UNION ... SELECT` guard) match across newlines (`re.DOTALL`); an injected newline no longer bypasses the check.
+- Make the connection-map lookup secret-aware so a cached connection built with different credentials is never returned to a caller.
+
+### Changed
+
+- Removed the `list_db2_instances` / `describe_db2_instance` discovery tools (account-wide enumeration with no connection precondition), aligning with the `oracle-mcp-server` template.
+- Read-only enforcement now reads a single source of truth (the per-connection flag) for both the mutation and injection checks.
+- `connect_to_database` now also handles `BotoCoreError` (endpoint/credential failures, timeouts) via the `Failed` contract instead of crashing the tool.
+- Query execution now **refuses to run** if the configured per-query timeout cannot be applied (previously it logged a warning and ran unbounded, which could hold the connection lock indefinitely). Both exception-based and falsy-return failure modes from `ibm_db.set_option` are now checked.
+- Replaced cached connections are now closed on overwrite (fixes a connection leak when reconnecting under a different secret); the `get()` docstring was corrected to describe the actual secret/replacement semantics.
+- **Credential injection protection**: UID/PWD values in the connection string are now wrapped in Db2 CLI `{}` braces so passwords containing `;` or `=` delimiters are treated literally and cannot corrupt the DSN or inject connection attributes. A credential containing a closing brace `}` (unrepresentable in Db2 CLI syntax) is rejected with a clear error.
+- **DSN attribute injection via `database`/`host`**: extended the brace-escaping above to the `DATABASE=`/`HOSTNAME=` attributes, which are populated from MCP tool parameters (`database`, `db_endpoint`) rather than operator-controlled config. Without this, a value such as `database="DB2DB;SECURITY=NONE"` could inject an attribute ahead of the server's own `SECURITY=SSL` / `SSLClientHostnameValidation=BASIC`, silently downgrading TLS.
+- **Explicit hostname validation mode**: `SSLClientHostnameValidation` is now emitted explicitly (BASIC in production, OFF only for tunnel testing) rather than relying on the clidriver's implicit default, closing an injection vector from unescaped credentials.
+- **Connect-time validation**: `connect_to_database` now validates connectivity (SSL handshake, auth, network) immediately and reports real failures ("unreachable endpoint", "bad secret") at connect time instead of returning "Connected" and only surfacing errors on the first query. Broken connections are evicted from the cache on validation failure.
+- Startup instance-identifier derivation guards dotless/IP (tunnel) endpoints and gives an actionable error asking for `--instance_identifier` / `--secret_arn` instead of a misleading "instance not found".
+- `_to_positional` handles an explicit `{'isNull': False}` marker instead of raising an "unrecognized format" error.
+- **Rollback/commit failure detection**: `ibm_db.rollback`/`commit` signal failure via a falsy return as well as by raising (the same convention already checked for `prepare`/`execute`/`set_option`); both are now checked so a silently-failed rollback can never masquerade as the read-only "nothing is ever persisted" guarantee holding.
+- **Truncated result-set detection**: `ibm_db.fetch_assoc` returns falsy at both legitimate end-of-data and on a mid-stream fetch error (network drop, LOB/conversion failure); the SQLSTATE is now checked so a real error raises instead of silently returning a truncated result set as if it were complete.
+- `_close_sync` now logs a warning on a failed `ibm_db.close` instead of swallowing it silently, matching the other connection-close paths.
+- `connect_to_database` now offloads the synchronous connect/validate work (boto3 calls plus a full TCP/TLS handshake) to a worker thread via `asyncio.to_thread`, so a slow or unreachable endpoint no longer freezes the event loop for other tools.
+- `SSLServerCertificate` (the certificate bundle path) is now brace-escaped for consistency/defense-in-depth with the other DSN attributes.
+- `get_table_schema` now rejects a schema-qualified `table_name` (e.g. `'HR.EMPLOYEE'`) instead of silently returning an empty result; pass the schema via `schema_name` instead.
+- `is_database_connected`'s description now clarifies it reports cache presence, not live connection health.
+
+### Documented
+
+- `UNION` / `UNION ALL` are intentionally rejected even in read-only mode (data-exfiltration vector); the limitation and workaround are noted in the README.
+- `SET` statements (including `SET CURRENT ...` session-state changes) are rejected in read-only mode; this was already enforced in code but missing from the README's SQL-restrictions list.
