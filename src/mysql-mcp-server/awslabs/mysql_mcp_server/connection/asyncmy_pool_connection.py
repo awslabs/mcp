@@ -168,12 +168,18 @@ class AsyncmyPoolConnection(AbstractDBConnection):
 
         self.created_time = datetime.now()
 
-        # Build SSL context for IAM auth (required for RDS IAM tokens).
+        # Build SSL context (required for RDS IAM tokens and Secrets Manager credentials).
         # Trust decisions, in order of preference:
         #   1. --ca_bundle override supplied by the operator (explicit trust)
         #   2. Bundled Amazon RDS CA bundle verified against a pinned SHA-256
         #      (protects against silent tampering of the PEM on disk)
         #   3. System trust store (may not include RDS regional CAs — warned)
+        #
+        # TLS is required whenever real credentials are on the wire:
+        #   - IAM auth tokens (is_iam_auth=True)
+        #   - Secrets Manager passwords (secret_arn is set)
+        # Without TLS, a MITM or attacker-controlled endpoint can capture
+        # the password in cleartext.
         ssl_ctx = None
         if self.is_iam_auth:
             cafile = self.ca_bundle_path or _bundled_ca_file()
@@ -187,6 +193,19 @@ class AsyncmyPoolConnection(AbstractDBConnection):
                     'the system trust store. IAM auth may fail with '
                     'CERTIFICATE_VERIFY_FAILED. Supply --ca_bundle <path> '
                     'or reinstall the package to restore the bundled bundle.'
+                )
+        elif self.secret_arn:
+            cafile = self.ca_bundle_path or _bundled_ca_file()
+            if cafile:
+                ssl_ctx = ssl_module.create_default_context(cafile=cafile)
+                logger.debug('Using CA bundle for Secrets Manager auth: {}', cafile)
+            else:
+                ssl_ctx = ssl_module.create_default_context()
+                logger.warning(
+                    'No verified RDS CA bundle available; falling back to '
+                    'the system trust store for Secrets Manager credential path. '
+                    'Supply --ca_bundle <path> or reinstall the package to '
+                    'restore the bundled bundle.'
                 )
 
         self.pool = await asyncmy.create_pool(

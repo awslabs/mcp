@@ -22,8 +22,10 @@ import threading
 from awslabs.mysql_mcp_server.connection.abstract_db_connection import AbstractDBConnection
 from awslabs.mysql_mcp_server.connection.asyncmy_pool_connection import AsyncmyPoolConnection
 from awslabs.mysql_mcp_server.connection.cp_api_connection import (
+    DEFAULT_MYSQL_PORT,
     internal_create_aurora_cluster,
     internal_get_cluster_properties,
+    internal_get_cluster_valid_endpoints,
     internal_get_instance_properties,
     setup_aurora_iam_policy_for_current_user,
 )
@@ -700,11 +702,57 @@ def internal_connect_to_database(
         if not db_endpoint:
             db_endpoint = cluster_properties.get('Endpoint', '')
             port = int(cluster_properties.get('Port', ''))
+        else:
+            # Endpoint supplied: validate (host, port) against the cluster's
+            # advertised endpoints (writer, reader, custom, members). If the
+            # caller-supplied pair does not match any legitimate endpoint,
+            # refuse the connection — this prevents directing credentials or
+            # IAM auth tokens at an attacker-controlled host.
+            #
+            # On match, we overwrite the local db_endpoint/port with the
+            # AWS-sourced strings so the connection string is never built
+            # from caller input.
+            valid_endpoints = internal_get_cluster_valid_endpoints(
+                cluster_properties=cluster_properties, region=region
+            )
+
+            requested_host = db_endpoint.strip().lower()
+            matched: Optional[Tuple[str, int]] = None
+            for valid_host, valid_port in valid_endpoints:
+                if valid_host.lower() == requested_host and valid_port == port:
+                    matched = (valid_host, valid_port)
+                    break
+
+            if matched is None:
+                valid_repr = ', '.join(f'{h}:{p}' for h, p in valid_endpoints) or '<none>'
+                err = (
+                    f"db_endpoint '{db_endpoint}:{port}' does not match any endpoint of "
+                    f"cluster '{cluster_identifier}'. Valid endpoints: {valid_repr}"
+                )
+                logger.error(err)
+                raise ValueError(
+                    f"db_endpoint '{db_endpoint}:{port}' does not match any endpoint of "
+                    f"cluster '{cluster_identifier}'."
+                )
+
+            db_endpoint, port = matched
     else:
+        # Standalone instance path (no cluster). Overwrite db_endpoint/port
+        # with AWS-sourced values so the connection string never comes from
+        # caller input.
         instance_properties = internal_get_instance_properties(db_endpoint, region)
         masteruser = instance_properties.get('MasterUsername', '')
         secret_arn = instance_properties.get('MasterUserSecret', {}).get('SecretArn')
-        port = int(instance_properties.get('Endpoint', {}).get('Port'))
+        instance_endpoint = instance_properties.get('Endpoint', {}) or {}
+        resolved_host = instance_endpoint.get('Address', '')
+        try:
+            resolved_port = int(instance_endpoint.get('Port') or 0)
+        except (TypeError, ValueError):
+            resolved_port = DEFAULT_MYSQL_PORT
+        if resolved_host:
+            db_endpoint = resolved_host
+        if resolved_port:
+            port = resolved_port
 
     logger.info(
         f'About to create internal DB connections with:'
