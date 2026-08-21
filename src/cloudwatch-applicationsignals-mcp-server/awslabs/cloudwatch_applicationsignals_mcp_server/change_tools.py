@@ -15,7 +15,7 @@
 """Change tracking tools for AWS Application Signals MCP Server."""
 
 import json
-from .aws_clients import AWS_REGION, applicationsignals_client
+from .aws_clients import get_client, get_region
 from .utils import parse_timestamp
 from botocore.exceptions import ClientError, NoCredentialsError
 from datetime import datetime, timezone
@@ -160,7 +160,7 @@ async def _list_change_events(
         # Use appropriate API based on comprehensive_history flag
         if comprehensive_history:
             return await _list_entity_events(
-                applicationsignals_client,
+                get_client('application-signals'),
                 start_timestamp,
                 end_timestamp,
                 service_key_attributes,
@@ -168,7 +168,7 @@ async def _list_change_events(
             )
         else:
             return await _list_service_states(
-                applicationsignals_client,
+                get_client('application-signals'),
                 start_timestamp,
                 end_timestamp,
                 service_key_attributes,
@@ -364,7 +364,7 @@ async def list_change_events(
         default=100, description='Maximum number of events to return (1-250, default: 100)'
     ),
     region: str = Field(
-        default=AWS_REGION, description='AWS region to query (defaults to configured region)'
+        default=get_region(), description='AWS region to query (defaults to configured region)'
     ),
     comprehensive_history: bool = Field(
         default=True,

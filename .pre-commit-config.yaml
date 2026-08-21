@@ -75,3 +75,9 @@ repos:
         entry: bash -c 'for x in "$@"; do (cd `dirname $x`; pwd; uv run --frozen pytest --cov --cov-branch --cov-report=term-missing;); done;' --
         stages: [pre-push]
         files: src\/.*\/pyproject.toml
+    -   id: no-direct-boto3
+        name: no direct boto3 in applicationsignals tool modules
+        language: script
+        entry: src/cloudwatch-applicationsignals-mcp-server/scripts/check_direct_boto3.sh
+        pass_filenames: false
+        files: 'src/cloudwatch-applicationsignals-mcp-server/awslabs/cloudwatch_applicationsignals_mcp_server/.*\.py$'

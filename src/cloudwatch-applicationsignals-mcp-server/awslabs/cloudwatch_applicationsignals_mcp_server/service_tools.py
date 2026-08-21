@@ -14,7 +14,7 @@
 
 """CloudWatch Application Signals MCP Server - Service-related tools."""
 
-from .aws_clients import applicationsignals_client, cloudwatch_client
+from .aws_clients import get_client
 from botocore.exceptions import ClientError
 from datetime import datetime, timedelta, timezone
 from loguru import logger
@@ -100,7 +100,7 @@ async def list_monitored_services() -> str:
             params = {'StartTime': start_time, 'EndTime': end_time, 'MaxResults': 100}
             if next_token:
                 params['NextToken'] = next_token
-            response = applicationsignals_client.list_services(**params)
+            response = get_client('application-signals').list_services(**params)
             services.extend(response.get('ServiceSummaries', []))
             next_token = response.get('NextToken')
             if not next_token:
@@ -224,7 +224,7 @@ async def query_service_metrics(
             params = {'StartTime': start_time, 'EndTime': end_time, 'MaxResults': 100}
             if next_token:
                 params['NextToken'] = next_token
-            services_response = applicationsignals_client.list_services(**params)
+            services_response = get_client('application-signals').list_services(**params)
             for service in services_response.get('ServiceSummaries', []):
                 key_attrs = service.get('KeyAttributes', {})
                 if key_attrs.get('Name') == service_name:
@@ -241,7 +241,7 @@ async def query_service_metrics(
             return f"Service '{service_name}' not found in Application Signals."
 
         # Get detailed service info for metric references
-        service_response = applicationsignals_client.get_service(
+        service_response = get_client('application-signals').get_service(
             StartTime=start_time, EndTime=end_time, KeyAttributes=target_service['KeyAttributes']
         )
 
@@ -281,7 +281,7 @@ async def query_service_metrics(
             period = 3600  # 1 hour
 
         # Get both standard and extended statistics in a single call
-        response = cloudwatch_client.get_metric_statistics(
+        response = get_client('cloudwatch').get_metric_statistics(
             Namespace=target_metric['Namespace'],
             MetricName=target_metric['MetricName'],
             Dimensions=target_metric.get('Dimensions', []),

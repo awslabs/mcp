@@ -75,8 +75,8 @@ class TestAuditServicesFiltering:
         }
 
         with patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.server.applicationsignals_client',
-            mock_applicationsignals_client,
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_client',
+            return_value=mock_applicationsignals_client,
         ):
             mock_applicationsignals_client.list_services.return_value = mock_services_response
 
@@ -118,8 +118,8 @@ class TestAuditServicesFiltering:
     ):
         """Test audit_services doesn't show filtering stats when no wildcards used."""
         with patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.server.applicationsignals_client',
-            mock_applicationsignals_client,
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_client',
+            return_value=mock_applicationsignals_client,
         ):
             # Mock the validation function
             with patch(
@@ -180,8 +180,8 @@ class TestAuditServicesFiltering:
         }
 
         with patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.server.applicationsignals_client',
-            mock_applicationsignals_client,
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_client',
+            return_value=mock_applicationsignals_client,
         ):
             mock_applicationsignals_client.list_services.return_value = mock_services_response
 
@@ -246,8 +246,8 @@ class TestAuditServicesFiltering:
     ):
         """Test audit_services when no services remain after filtering."""
         with patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.server.applicationsignals_client',
-            mock_applicationsignals_client,
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_client',
+            return_value=mock_applicationsignals_client,
         ):
             # Mock expand_service_wildcard_patterns to return empty results
             with patch(
@@ -283,8 +283,8 @@ class TestAuditServicesFiltering:
     ):
         """Test audit_services with shorthand format containing wildcards."""
         with patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.server.applicationsignals_client',
-            mock_applicationsignals_client,
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_client',
+            return_value=mock_applicationsignals_client,
         ):
             # Mock expand_service_wildcard_patterns
             with patch(
@@ -349,8 +349,8 @@ class TestAuditServicesFiltering:
     ):
         """Test audit_services with multiple targets containing wildcards."""
         with patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.server.applicationsignals_client',
-            mock_applicationsignals_client,
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_client',
+            return_value=mock_applicationsignals_client,
         ):
             # Mock expand_service_wildcard_patterns
             with patch(
@@ -434,8 +434,8 @@ class TestAuditServicesFiltering:
     ):
         """Test audit_services when no services are filtered out."""
         with patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.server.applicationsignals_client',
-            mock_applicationsignals_client,
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_client',
+            return_value=mock_applicationsignals_client,
         ):
             # Mock expand_service_wildcard_patterns - all services are instrumented
             with patch(
@@ -518,8 +518,8 @@ class TestAuditServicesFiltering:
     ):
         """Test wildcard detection in Data.Service.Name format."""
         with patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.server.applicationsignals_client',
-            mock_applicationsignals_client,
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_client',
+            return_value=mock_applicationsignals_client,
         ):
             # Mock expand_service_wildcard_patterns
             with patch(
@@ -578,8 +578,8 @@ class TestAuditServicesFiltering:
     ):
         """Test wildcard detection in shorthand Service format."""
         with patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.server.applicationsignals_client',
-            mock_applicationsignals_client,
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_client',
+            return_value=mock_applicationsignals_client,
         ):
             # Mock expand_service_wildcard_patterns
             with patch(
@@ -636,8 +636,8 @@ class TestAuditServicesFiltering:
     ):
         """Test no wildcard detection when service name is empty."""
         with patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.server.applicationsignals_client',
-            mock_applicationsignals_client,
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_client',
+            return_value=mock_applicationsignals_client,
         ):
             # Test with empty service name - this should return an error
             result = await audit_services(
@@ -656,8 +656,8 @@ class TestAuditServicesFiltering:
     ):
         """Test audit_services shows both batching and filtering stats."""
         with patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.server.applicationsignals_client',
-            mock_applicationsignals_client,
+            'awslabs.cloudwatch_applicationsignals_mcp_server.server.get_client',
+            return_value=mock_applicationsignals_client,
         ):
             # Mock expand_service_wildcard_patterns to return many services (trigger batching)
             with patch(
