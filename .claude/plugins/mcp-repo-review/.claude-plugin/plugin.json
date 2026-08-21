@@ -1,0 +1,6 @@
+{
+  "name": "mcp-repo-review",
+  "version": "0.1.0",
+  "description": "Review tooling for the awslabs/mcp monorepo — PR review, server audits, and cross-repo consistency checks",
+  "license": "Apache-2.0"
+}

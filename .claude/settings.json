@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run --frozen pytest:*)",
+      "Bash(ruff check:*)",
+      "Bash(ruff format --check:*)"
+    ]
+  },
+  "enabledPlugins": {
+    ".claude/plugins/mcp-repo-review": true
+  }
+}
