@@ -74,6 +74,7 @@ body:
       multiple: true
       options:
         - amazon-bedrock-agentcore-mcp-server
+        - amazon-connect-mcp-server
         - amazon-kendra-index-mcp-server
         - amazon-keyspaces-mcp-server
         - amazon-mq-mcp-server
