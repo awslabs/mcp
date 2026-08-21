@@ -202,14 +202,28 @@ async def call_fes_direct_sigv4(
     max_retries: int = MAX_RETRIES,
     region: Optional[str] = None,
 ) -> Any:
-    """Direct FES call with SigV4 auth from boto3 credentials."""
-    if region is None:
-        session = AwsHelper.create_session()
-        region = AwsHelper.resolve_region(session)
-    client = _create_sigv4_client(
-        endpoint, region=region, max_retries=max_retries, timeout=timeout_seconds
-    )
-    return await asyncio.to_thread(_call_boto3, client, operation, body or {})
+    """Direct FES call with SigV4 auth from boto3 credentials.
+
+    Region resolution, boto3 client construction, and the HTTP call are all run
+    off the event loop. ``_create_sigv4_client`` loads the vendored service model
+    synchronously (~1-2s) and blocks the loop if run inline, which serializes
+    otherwise-concurrent callers — notably the startup region discovery fan-out
+    in ``server.py``, where 9 inlined client builds blew past the discovery
+    timeout from hosts distant from their Transform profile's region (#4059).
+    """
+    resolved_region = region
+
+    def _build_and_call() -> Any:
+        nonlocal resolved_region
+        if resolved_region is None:
+            session = AwsHelper.create_session()
+            resolved_region = AwsHelper.resolve_region(session)
+        client = _create_sigv4_client(
+            endpoint, region=resolved_region, max_retries=max_retries, timeout=timeout_seconds
+        )
+        return _call_boto3(client, operation, body or {})
+
+    return await asyncio.to_thread(_build_and_call)
 
 
 async def call_fes_direct_cookie(
