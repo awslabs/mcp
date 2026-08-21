@@ -20,6 +20,7 @@ MCP server for accessing real-time AWS pricing information and providing cost an
 - **Infrastructure project analysis**: Scan CDK and Terraform projects to automatically identify AWS services and their configurations
 - **Architecture pattern guidance**: Get detailed architecture patterns and cost considerations, especially for Amazon Bedrock services
 - **Cost optimization recommendations**: Receive AWS Well-Architected Framework aligned suggestions for cost optimization
+- **Scenario forecasting**: Model independent growth ramps while keeping fixed architecture costs separate from usage-driven costs, with auditable fixed-precision monetary output
 
 ### Query pricing data with natural language
 
