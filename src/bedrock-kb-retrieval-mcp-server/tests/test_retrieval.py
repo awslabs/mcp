@@ -161,6 +161,39 @@ class TestQueryKnowledgeBase:
         mock_bedrock_agent_runtime_client.retrieve.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_query_knowledge_base_preserves_non_ascii(
+        self, mock_bedrock_agent_runtime_client
+    ):
+        """Test that non-ASCII (e.g. CJK) content is preserved and not unicode-escaped."""
+        # Modify the mock to return non-ASCII content
+        mock_bedrock_agent_runtime_client.retrieve.return_value = {
+            'retrievalResults': [
+                {
+                    'content': {'text': '東京は日本の首都です。', 'type': 'TEXT'},
+                    'location': {'s3Location': {'uri': 's3://test-bucket/도쿄.txt'}},
+                    'score': 0.95,
+                },
+            ]
+        }
+
+        # Call the function
+        result = await query_knowledge_base(
+            query='test query',
+            knowledge_base_id='kb-12345',
+            kb_agent_client=mock_bedrock_agent_runtime_client,
+        )
+
+        # The raw serialized result must contain the literal characters, not \\uXXXX escapes
+        assert '東京は日本の首都です。' in result
+        assert '도쿄.txt' in result
+        assert '\\u' not in result
+
+        # And it must still round-trip as valid JSON
+        documents = [json.loads(doc) for doc in result.split('\n\n')]
+        assert documents[0]['content']['text'] == '東京は日本の首都です。'
+        assert documents[0]['location']['s3Location']['uri'] == 's3://test-bucket/도쿄.txt'
+
+    @pytest.mark.asyncio
     async def test_query_knowledge_base_with_image_content(
         self, mock_bedrock_agent_runtime_client
     ):
