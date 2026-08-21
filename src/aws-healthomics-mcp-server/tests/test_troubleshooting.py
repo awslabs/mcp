@@ -335,11 +335,15 @@ class TestDiagnoseRunFailure:
 
     @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_omics_client')
     @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_run_engine_logs_internal')
+    @patch(
+        'awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_run_manifest_logs_internal'
+    )
     @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_task_logs_internal')
     @pytest.mark.asyncio
     async def test_diagnose_run_failure_task_logs_error(
         self,
         mock_get_task_logs_internal,
+        mock_get_run_manifest_logs_internal,
         mock_get_run_engine_logs_internal,
         mock_get_omics_client,
         mock_context,
@@ -357,6 +361,9 @@ class TestDiagnoseRunFailure:
         # Mock successful engine logs but failed task logs
         mock_get_run_engine_logs_internal.return_value = sample_log_events
         mock_get_task_logs_internal.side_effect = Exception('Task log retrieval failed')
+        # Manifest logs are incidental to this test but must still be stubbed so the
+        # call never reaches CloudWatch Logs (project AWS-isolation rule).
+        mock_get_run_manifest_logs_internal.return_value = sample_log_events
 
         # Act
         result = await diagnose_run_failure(
@@ -460,9 +467,13 @@ class TestDiagnoseRunFailure:
 
     @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_omics_client')
     @patch('awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_run_engine_logs_internal')
+    @patch(
+        'awslabs.aws_healthomics_mcp_server.tools.troubleshooting.get_run_manifest_logs_internal'
+    )
     @pytest.mark.asyncio
     async def test_diagnose_run_failure_recommendations_included(
         self,
+        mock_get_run_manifest_logs_internal,
         mock_get_run_engine_logs_internal,
         mock_get_omics_client,
         mock_context,
@@ -476,6 +487,9 @@ class TestDiagnoseRunFailure:
         mock_client.get_run.return_value = sample_failed_run_response
         mock_client.list_run_tasks.return_value = {'items': []}
         mock_get_run_engine_logs_internal.return_value = sample_log_events
+        # Manifest logs are incidental to this test but must still be stubbed so the
+        # call never reaches CloudWatch Logs (project AWS-isolation rule).
+        mock_get_run_manifest_logs_internal.return_value = sample_log_events
 
         # Act
         result = await diagnose_run_failure(
