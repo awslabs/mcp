@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Browser client credential caching** — `get_browser_client` cached a `BrowserClient` per region at module level and never invalidated it. Because the wrapped boto3 clients resolve credentials at construction time, a long-lived MCP server kept using credentials captured at first use, so a refresh (`ada credentials update`, IAM role rotation, expired STS session) had no effect until the process was restarted. Cache entries now expire after a TTL (default 300s, configurable via `AGENTCORE_BROWSER_CLIENT_TTL_SECONDS`; `0` disables caching) and are rebuilt on the next call, forcing credentials to be re-resolved.
 - **Browser `browser_evaluate`** — preserve non-ASCII text (CJK, emoji) in object/array results instead of emitting `\uXXXX` escapes, matching the scalar-string return path (`ensure_ascii=False`)
 - Server crash on startup when the configured `llms.txt` documentation source is unreachable (#4138). The hardcoded default URL (`aws.github.io/bedrock-agentcore-starter-toolkit/llms.txt`) was deprecated and returns HTTP 404, causing an unhandled `HTTPError` to propagate out of `main()` and kill the process before MCP initialization. `load_links_only()` now isolates each source and logs a warning on fetch failure so the server starts with all other tool groups functional. The default source was also updated to the official AWS AgentCore Developer Guide index (`docs.aws.amazon.com/bedrock-agentcore/latest/devguide/llms.txt`), restoring documentation search
 
