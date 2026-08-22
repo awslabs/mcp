@@ -22,7 +22,7 @@ dependencies = [
     "importlib_resources>=6.0.0",
     "requests>=2.32.4",
     "python-frontmatter>=1.1.0",
-    "fastmcp>=3.2.0",
+    "fastmcp>=3.4.3",
     "awscli==1.46.0",
 ]
 license = {text = "Apache-2.0"}
