@@ -920,7 +920,10 @@ def test_main_http_transport_allowed_hosts_reach_fastmcp_guard(
     FastMCP 3.x only accepts loopback Host headers unless ``allowed_hosts`` is passed to
     ``run()``. Build the HTTP app with exactly the keyword arguments ``main()`` hands to
     ``server.run()`` and check that a request carrying a real DNS name is not rejected
-    with ``421 Misdirected Request`` when the server is bound to ``0.0.0.0``.
+    with ``421 Misdirected Request`` when the server is bound to ``0.0.0.0``. Each request
+    also carries a cross origin ``Origin`` header so the ``allowed_origins`` side of the
+    guard is exercised too; FastMCP falls back to loopback only origins when that
+    argument is missing, which would reject the request.
     """
     mock_get_read_only_operations.return_value = MagicMock()
     initialize_request = {
@@ -948,6 +951,7 @@ def test_main_http_transport_allowed_hosts_reach_fastmcp_guard(
                     json=initialize_request,
                     headers={
                         'Host': host_header,
+                        'Origin': 'https://console.example.net',
                         'Accept': 'application/json, text/event-stream',
                     },
                 )
