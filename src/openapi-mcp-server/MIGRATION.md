@@ -57,23 +57,33 @@ mcp = FastMCP.from_openapi(spec, client=client, mcp_component_fn=enrich)
 > **Resolve `$ref`s before enriching.** The example values in the generated
 > `**Responses:**` section come from `generate_example_from_schema`, which has no
 > `$ref` branch — an unresolved reference falls through to the literal string
-> `"unknown_type"`. This wrapper never hit it because it runs specs through
-> `prance`'s `ResolvingParser` first, but `httpx.get(...).json()` above hands
+> `"unknown_type"`. This wrapper never hit it because it resolves internal
+> references before enrichment, but `httpx.get(...).json()` above hands
 > `from_openapi` a raw dict with `$ref`s intact. A response of
 > `{"type": "array", "items": {"$ref": "#/components/schemas/Widget"}}` then
 > documents its example as `["unknown_type"]` — while the tool's own
 > `output_schema` resolves the reference correctly, so the description contradicts
 > the schema next to it. Dereference first:
 >
-> ```python
-> from prance import ResolvingParser
-> from prance.util.resolver import RESOLVE_INTERNAL
+> **Trusted specs only:** The next example fetches a fixed URL directly. Use it
+> only when you control the URL and document. For operator- or tenant-supplied
+> URLs, use the SSRF-safe flow below.
 >
-> spec = ResolvingParser(
+> ```python
+> from prance import BaseParser
+> from prance.util.resolver import RESOLVE_INTERNAL, RefResolver
+>
+> parser = BaseParser(
 >     spec_string=httpx.get("https://api.example.com/openapi.json").text,
->     resolve_types=RESOLVE_INTERNAL,   # internal refs only — external ones are an SSRF/LFI sink
 >     backend="openapi-spec-validator",
-> ).specification
+> )
+> resolver = RefResolver(
+>     parser.specification,
+>     parser.url,
+>     resolve_types=RESOLVE_INTERNAL,  # external refs are an SSRF/LFI sink
+> )
+> resolver.resolve_references()
+> spec = resolver.specs
 > ```
 >
 > Only needed if you use `mcp_component_fn` for enrichment; `from_openapi`

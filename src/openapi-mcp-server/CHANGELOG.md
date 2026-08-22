@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Spec URL loading is DNS-pinned end to end; the previous README note about deploying behind an egress proxy for "full DNS pinning" no longer applies.
+- OpenAPI documents are validated before internal references are resolved. This avoids validating an expanded copy when many operations reuse shared schemas.
 - **BREAKING (edge case)**: OpenAPI specs containing external `$ref`s — remote `http(s)://`/`file://` references, or relative multi-file references like `schemas.yaml#/Pet` — are now refused. Specs using only internal (`#/components/...`) references are unaffected. Bundle multi-file specs into a single document before loading.
 
 ## [1.1.0] - 2026-05-31

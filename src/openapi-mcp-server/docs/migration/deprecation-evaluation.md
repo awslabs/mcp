@@ -156,7 +156,7 @@ If pursued, sequence #3 first — it's the smallest/highest-accept change and es
   ⚠️ `spec` here must be **`$ref`-resolved**. The formatter's example values come from
   `generate_example_from_schema` (`utilities/openapi/formatters.py:100`), which has no `$ref`
   branch and falls through to the literal `"unknown_type"`. The wrapper never hit this because
-  it runs specs through `prance`'s `ResolvingParser` first, but the `httpx.get(...).json()`
+  it resolves internal references before enrichment, but the `httpx.get(...).json()`
   entrypoints above hand `from_openapi` a raw dict with `$ref`s intact — so a response of
   `{"type": "array", "items": {"$ref": "#/components/schemas/Widget"}}` documents its example as
   `["unknown_type"]` while the tool's `output_schema` resolves the reference correctly. Dereference

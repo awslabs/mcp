@@ -38,7 +38,9 @@ paths:
 
         try:
             # Mock prance to fail and remove yaml from sys.modules to simulate ImportError
-            with patch('awslabs.openapi_mcp_server.utils.openapi.ResolvingParser') as mock_parser:
+            with patch(
+                'awslabs.openapi_mcp_server.utils.openapi._parse_and_resolve_spec'
+            ) as mock_parser:
                 mock_parser.side_effect = Exception('Prance failed')
                 with patch.dict(sys.modules, {'yaml': None}):
                     # This should raise ImportError about pyyaml
@@ -117,7 +119,7 @@ paths:
             # Mock prance to be available but raise an exception
             with patch('awslabs.openapi_mcp_server.utils.openapi.PRANCE_AVAILABLE', True):
                 with patch(
-                    'awslabs.openapi_mcp_server.utils.openapi.ResolvingParser'
+                    'awslabs.openapi_mcp_server.utils.openapi._parse_and_resolve_spec'
                 ) as mock_parser:
                     mock_parser.side_effect = Exception('Prance parsing failed')
 

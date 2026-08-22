@@ -1050,12 +1050,49 @@ def test_parse_spec_bytes_uses_prance_when_available():
     resolved = {'openapi': '3.0.0', 'info': {'title': 'Resolved', 'version': '1'}}
     with (
         patch.object(openapi_mod, 'PRANCE_AVAILABLE', True),
-        patch.object(openapi_mod, 'ResolvingParser') as mock_parser,
+        patch.object(openapi_mod, '_parse_and_resolve_spec', return_value=resolved),
     ):
-        mock_parser.return_value.specification = resolved
         result = openapi_mod._parse_spec_bytes(b'{"openapi": "3.0.0"}')
 
     assert result == resolved
+
+
+def test_prance_validates_source_before_resolving_reused_refs(tmp_path):
+    """Validation sees source refs, while callers receive resolved schemas."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    spec = _spec_with_ref('#/components/schemas/Pet')
+    spec['paths']['/y'] = spec['paths']['/x'].copy()
+    spec['components'] = {'schemas': {'Pet': {'type': 'object', 'x-legit': 'INTERNAL-OK'}}}
+    spec_file = tmp_path / 'shared-schema.json'
+    spec_file.write_text(json.dumps(spec))
+
+    with patch('openapi_spec_validator.validate') as mock_validate:
+        result = openapi_mod._parse_and_resolve_spec(str(spec_file))
+
+    validated = mock_validate.call_args.args[0]
+    source_schema = validated['paths']['/x']['get']['responses']['200']['content'][
+        'application/json'
+    ]['schema']
+    resolved_schema = result['paths']['/x']['get']['responses']['200']['content'][
+        'application/json'
+    ]['schema']
+    assert source_schema == {'$ref': '#/components/schemas/Pet'}
+    assert resolved_schema.get('x-legit') == 'INTERNAL-OK'
+
+
+def test_prance_rejects_external_refs_before_validation(tmp_path):
+    """External refs never reach BaseParser's validator."""
+    from awslabs.openapi_mcp_server.utils import openapi as openapi_mod
+
+    spec_file = tmp_path / 'external-ref.json'
+    spec_file.write_text(json.dumps(_spec_with_ref('https://example.com/schema.json')))
+
+    with patch.object(openapi_mod, 'BaseParser') as mock_parser:
+        with pytest.raises(SSRFError, match='external \\$ref'):
+            openapi_mod._parse_and_resolve_spec(str(spec_file))
+
+    mock_parser.assert_not_called()
 
 
 def test_parse_spec_bytes_falls_back_to_json_when_prance_fails():
@@ -1064,7 +1101,7 @@ def test_parse_spec_bytes_falls_back_to_json_when_prance_fails():
 
     with (
         patch.object(openapi_mod, 'PRANCE_AVAILABLE', True),
-        patch.object(openapi_mod, 'ResolvingParser', side_effect=Exception('prance boom')),
+        patch.object(openapi_mod, '_parse_and_resolve_spec', side_effect=Exception('prance boom')),
     ):
         result = openapi_mod._parse_spec_bytes(b'{"openapi": "3.0.0", "x": 1}')
 
@@ -1309,7 +1346,7 @@ def test_load_openapi_spec_file_reraises_memory_error_from_prance(tmp_path):
 
     with (
         patch.object(openapi_mod, 'PRANCE_AVAILABLE', True),
-        patch.object(openapi_mod, 'ResolvingParser', side_effect=MemoryError('oom')),
+        patch.object(openapi_mod, '_parse_and_resolve_spec', side_effect=MemoryError('oom')),
     ):
         with pytest.raises(MemoryError):
             load_openapi_spec(path=str(spec_file))
@@ -1438,7 +1475,7 @@ def test_parse_spec_bytes_reraises_memory_error_from_prance():
     spec = json.dumps(_spec_with_ref('#/components/schemas/Pet')).encode()
     with (
         patch.object(openapi_mod, 'PRANCE_AVAILABLE', True),
-        patch.object(openapi_mod, 'ResolvingParser', side_effect=MemoryError('oom')),
+        patch.object(openapi_mod, '_parse_and_resolve_spec', side_effect=MemoryError('oom')),
     ):
         with pytest.raises(MemoryError):
             openapi_mod._parse_spec_bytes(spec)
