@@ -69,8 +69,8 @@ except ImportError:
 
 # Try to import prance, but don't fail if it's not installed
 try:
-    from prance import ResolvingParser
-    from prance.util.resolver import RESOLVE_INTERNAL
+    from prance import BaseParser
+    from prance.util.resolver import RESOLVE_INTERNAL, RefResolver
 
     PRANCE_AVAILABLE = True
 except ImportError:
@@ -304,6 +304,23 @@ def _require_mapping(spec: Any) -> Dict[str, Any]:
     return spec
 
 
+def _parse_and_resolve_spec(path: str) -> Dict[str, Any]:
+    """Validate a source document before resolving its internal references.
+
+    ResolvingParser expands references before validation. Specs that reuse a
+    shared schema across many operations can therefore become much larger than
+    their source document during validation. Keep the same prance validation
+    and resolution behavior, but run those stages in source-first order. Reject
+    external references before BaseParser can pass them to its validator.
+    """
+    source_spec = _basic_parse(Path(path).read_bytes())
+    _reject_external_refs(source_spec)
+    parser = BaseParser(path)
+    resolver = RefResolver(parser.specification, parser.url, resolve_types=RESOLVE_INTERNAL)
+    resolver.resolve_references()
+    return _require_mapping(resolver.specs)
+
+
 def _parse_spec_bytes(content: bytes) -> Dict[str, Any]:
     """Parse fetched spec bytes into a dict.
 
@@ -338,10 +355,12 @@ def _parse_spec_bytes(content: bytes) -> Dict[str, Any]:
             # RESOLVE_INTERNAL restricts prance to in-document references; combined
             # with the external-ref rejection above, no http(s)://, file://, or
             # relative-path reference is ever fetched.
-            parser = ResolvingParser(temp_path, resolve_types=RESOLVE_INTERNAL)
-            spec = parser.specification
+            spec = _parse_and_resolve_spec(temp_path)
             Path(temp_path).unlink(missing_ok=True)
             return _require_mapping(spec)
+        except SSRFError:
+            Path(temp_path).unlink(missing_ok=True)
+            raise
         except (MemoryError, RecursionError):
             # Resource-exhaustion failures are non-recoverable; clean up the temp
             # file and propagate rather than silently falling back to basic parsing.
@@ -452,32 +471,15 @@ def load_openapi_spec(
 
         logger.info(f'Loading OpenAPI spec from file: {path}')
         try:
-            # Refuse external references before prance can dereference them. This
-            # runs outside the prance try/except below so the SSRFError is never
-            # swallowed by the fallback-to-basic-parsing path. The parse here is
-            # best effort purely for the safety check: an unparseable file has no
-            # references to resolve, so its parse error is left to the existing
-            # handling below.
-            with open(spec_path, 'rb') as f:
-                try:
-                    prescan_spec = _basic_parse(f.read())
-                except (MemoryError, RecursionError):
-                    # Resource-exhaustion failures are not "unparseable content" —
-                    # let them propagate rather than masking them as a prescan skip.
-                    raise
-                except Exception:
-                    prescan_spec = None
-            if prescan_spec is not None:
-                _reject_external_refs(prescan_spec)
-
             if PRANCE_AVAILABLE:
                 logger.info('Using prance for reference resolution')
                 # Use prance for reference resolution if available. RESOLVE_INTERNAL
                 # restricts prance to in-document references; combined with the
                 # external-ref rejection above, no external file/URL is fetched.
                 try:
-                    parser = ResolvingParser(path, resolve_types=RESOLVE_INTERNAL)
-                    spec = parser.specification
+                    spec = _parse_and_resolve_spec(path)
+                except SSRFError:
+                    raise
                 except (MemoryError, RecursionError):
                     # Resource-exhaustion failures are non-recoverable; propagate
                     # rather than silently falling back to basic parsing.
