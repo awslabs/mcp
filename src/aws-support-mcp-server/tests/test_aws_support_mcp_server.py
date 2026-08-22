@@ -1877,6 +1877,21 @@ class TestFormatMarkdown:
         assert first_comm['body'] in markdown
         assert first_comm['submittedBy'] in markdown
 
+    def test_format_markdown_case_summary_communication_missing_optional_fields(
+        self, support_case_data
+    ):
+        """A communication missing submittedBy/timeCreated (e.g. system-generated) must not raise KeyError."""
+        support_case_data['recentCommunications']['communications'][0] = {
+            'caseId': 'case-12345678910-2013-c4c1d2bf33c5cf47',
+            'body': 'System-generated communication with no submittedBy/timeCreated.',
+        }
+        formatted_case = format_case(support_case_data)
+
+        markdown = format_markdown_case_summary(formatted_case)
+
+        assert 'System-generated communication' in markdown
+        assert '### N/A - N/A' in markdown
+
     def test_format_markdown_services(self, services_response_data):
         """Test formatting services in Markdown."""
         formatted_services = format_services(services_response_data['services'])
