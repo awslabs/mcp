@@ -337,6 +337,38 @@ def attach_privilege_advisory(llm_response: str, db_connection: AbstractDBConnec
     return json.dumps(payload, indent=2, default=str)
 
 
+async def validate_or_evict(db_connection: AbstractDBConnection) -> None:
+    """Run the post-connect guardrail; on failure evict AND close the connection.
+
+    Shared by connect_to_database's newly-created and bootstrap cache-hit paths.
+    Eagerly initializes a psycopg pool (so the privilege probe can run and
+    created_time is set at connect time), then validates under the active
+    policy. On ANY failure:
+
+      - evict so a rejected/broken connection can't be reached later via
+        run_query (fail-closed: a connection we could not validate must not
+        remain cached);
+      - close so we don't orphan an already-opened AsyncConnectionPool with
+        live backend sessions.
+
+    Eviction is by object identity because the map key uses the AWS-resolved
+    endpoint/port, which may differ from the caller-supplied args (empty
+    db_endpoint, non-5432 port, host casing); a key-based remove() rebuilt from
+    caller args could miss and leave the connection cached.
+    """
+    try:
+        if isinstance(db_connection, PsycopgPoolConnection):
+            await db_connection.initialize_pool()
+        await validate_connection(db_connection, privilege_check_policy)
+    except Exception:
+        db_connection_map.remove_connection(db_connection)
+        try:
+            await db_connection.close()
+        except Exception as close_err:
+            logger.warning(f'Error closing rejected/failed connection during cleanup: {close_err}')
+        raise
+
+
 mcp = FastMCP(
     'pg-mcp MCP server. This is the starting point for all solutions created',
     dependencies=[
@@ -587,36 +619,31 @@ async def connect_to_database(
         was_cached = any(existing is db_connection for existing in existing_connections)
 
         if was_cached:
-            # A previously-validated over-privileged connection keeps its
-            # diagnostic flag, so re-surface the advisory on reconnect too.
+            # Most cached connections were validated when first established
+            # (connect_to_database or the startup path), so skip re-probing:
+            # it is a redundant round-trip and a transient failure would evict a
+            # healthy, in-use shared connection.
+            #
+            # The exception is a connection seeded by create_cluster /
+            # create_cluster_worker: it enters the cache WITHOUT validation (the
+            # bootstrap exemption -- a freshly created cluster has only its
+            # rds_superuser master and no least-privilege role yet), so it still
+            # has effective_is_over_privileged is None. Validate that one now --
+            # the deferred half of "validate-on-create with a bootstrap
+            # exemption" -- so 'enforce' cannot surface an unvalidated,
+            # over-privileged bootstrap connection as a usable success. On
+            # rejection validate_or_evict evicts AND closes it, so it can no
+            # longer be reached via run_query.
+            if db_connection.effective_is_over_privileged is None:
+                await validate_or_evict(db_connection)
+            # A previously- or now-validated over-privileged connection keeps
+            # its diagnostic flag, so surface the advisory on reconnect too.
             return attach_privilege_advisory(str(llm_response), db_connection)
 
-        # Newly-created connection: eagerly initialize the pool (so it's ready
-        # for queries and created_time is set at connect time) and run the
-        # least-privilege guardrail. On ANY failure, evict AND close the fresh
-        # connection:
-        #   - evict so a rejected/broken connection can't be reached later via
-        #     run_query (fail-closed: a fresh connection we could not validate
-        #     must not remain cached);
-        #   - close so we don't orphan an already-opened AsyncConnectionPool
-        #     with live backend sessions.
-        # Evict by object identity because the map key uses the AWS-resolved
-        # endpoint/port, which may differ from the caller-supplied args here
-        # (empty db_endpoint, non-5432 port, host casing); a key-based remove()
-        # rebuilt from caller args could miss and leave the connection cached.
-        try:
-            if isinstance(db_connection, PsycopgPoolConnection):
-                await db_connection.initialize_pool()
-            await validate_connection(db_connection, privilege_check_policy)
-        except Exception:
-            db_connection_map.remove_connection(db_connection)
-            try:
-                await db_connection.close()
-            except Exception as close_err:
-                logger.warning(
-                    f'Error closing rejected/failed connection during cleanup: {close_err}'
-                )
-            raise
+        # Newly-created connection: eagerly initialize the pool and run the
+        # least-privilege guardrail, evicting+closing on any failure. See
+        # validate_or_evict for the fail-closed rationale.
+        await validate_or_evict(db_connection)
 
         return attach_privilege_advisory(str(llm_response), db_connection)
 
