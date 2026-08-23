@@ -174,6 +174,9 @@ class Mock_DBConnection:
         self.readonly = readonly
         self.error = error
         self._data_client = Mock_boto3_client(error)
+        # Mirror AbstractDBConnection's contract: a freshly created connection
+        # has no privilege posture until validate_connection has run.
+        self.effective_is_over_privileged = None
 
     @property
     def data_client(self):
@@ -512,6 +515,9 @@ class Mock_PsycopgPoolConnection:
         self.min_size = min_size
         self.max_size = max_size
         self.is_test = is_test
+        # Mirror AbstractDBConnection's contract: no privilege posture until
+        # validate_connection has run.
+        self.effective_is_over_privileged = None
         self.pool = MockConnectionPool(
             conninfo=f'host={host} port={port} dbname={database} user=test_user password=test_password',
             min_size=min_size,

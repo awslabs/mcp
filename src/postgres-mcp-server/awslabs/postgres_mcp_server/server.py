@@ -451,6 +451,29 @@ async def run_query(
         )
         return [{'error': query_injection_risk_key}]
 
+    # Bootstrap hardening: a connection seeded by create_cluster enters the
+    # cache WITHOUT going through the validating connect/startup path, so it
+    # carries no privilege posture (effective_is_over_privileged is None). A
+    # direct run_query -- with no intervening connect_to_database to trip the
+    # cache-hit guardrail -- would otherwise execute against that unvalidated
+    # (possibly rds_superuser) connection. Validate it lazily on first use.
+    # 'off' means the operator opted out of privilege checks entirely, so skip
+    # (also avoids a per-query probe); gating on `is None` makes the probe fire
+    # at most once -- enforce/warn record the posture, so later queries on the
+    # same connection short-circuit. Under enforce validate_or_evict evicts and
+    # closes the connection before raising, so it is unreachable thereafter.
+    if (
+        privilege_check_policy != PRIVILEGE_CHECK_OFF
+        and db_connection.effective_is_over_privileged is None
+    ):
+        try:
+            await validate_or_evict(db_connection)
+        except Exception as e:
+            msg = f'Connection rejected by privilege guardrail: {type(e).__name__}: {e}'
+            logger.error(msg)
+            await ctx.error(msg)
+            return [{'error': msg}]
+
     try:
         logger.debug(
             (

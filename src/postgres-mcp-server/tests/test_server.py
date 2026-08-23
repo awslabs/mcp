@@ -489,6 +489,12 @@ def validate_normal_query_response(column_records):
 
 def setup_mock_connection(mock_db_connection, connection_method=ConnectionMethod.RDS_API):
     """Helper function to set up a mock connection in the global db_connection_map."""
+    # A connection cached and ready to serve run_query has, in production, been
+    # validated by connect_to_database (or startup). Mark it validated (clean)
+    # so run_query's lazy bootstrap guardrail short-circuits, matching that
+    # realistic post-connect state. Tests that specifically exercise the
+    # never-validated bootstrap path seed connections directly instead.
+    mock_db_connection.effective_is_over_privileged = False
     db_connection_map.set(
         connection_method, 'test-cluster', 'test-endpoint', 'test-db', mock_db_connection
     )
