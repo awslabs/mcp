@@ -40,6 +40,9 @@ from typing import Dict, List, Optional
 # Maximum file size for uploads (500 MB).
 MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024
 
+# Explicit timeout for S3 PUT operations to avoid unbounded awaits
+S3_HTTP_TIMEOUT_SECONDS = 60.0
+
 
 def _flatten_request_headers(
     request_headers: Optional[Dict[str, List[str]]],
@@ -97,7 +100,7 @@ async def upload_json_artifact(
 
     put_headers = _flatten_request_headers(init_result.get('requestHeaders'))
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=httpx.Timeout(S3_HTTP_TIMEOUT_SECONDS)) as client:
         s3_response = await client.put(
             init_result['s3PreSignedUrl'],
             content=content_bytes,
@@ -178,7 +181,7 @@ async def upload_file_artifact(
 
     put_headers = _flatten_request_headers(init_result.get('requestHeaders'))
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=httpx.Timeout(S3_HTTP_TIMEOUT_SECONDS)) as client:
         s3_response = await client.put(
             init_result['s3PreSignedUrl'],
             content=content_bytes,

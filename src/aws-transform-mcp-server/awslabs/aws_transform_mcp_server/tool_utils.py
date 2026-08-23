@@ -242,6 +242,9 @@ def failure_result(error: Exception, hint: Optional[str] = None) -> Dict[str, An
 
 # ── S3 download helper ───────────────────────────────────────────────────
 
+# Explicit timeout for S3 GET to avoid unbounded awaits on redirects/slow links
+DEFAULT_S3_GET_TIMEOUT_SECONDS = 30.0
+
 
 async def download_s3_content(
     s3_url: str,
@@ -257,7 +260,7 @@ async def download_s3_content(
     """
     from awslabs.aws_transform_mcp_server.file_validation import validate_write_path
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=httpx.Timeout(DEFAULT_S3_GET_TIMEOUT_SECONDS)) as client:
         response = await client.get(s3_url, follow_redirects=True)
         response.raise_for_status()
 

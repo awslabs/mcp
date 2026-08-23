@@ -53,6 +53,9 @@ _NOT_CONFIGURED_CODE = 'NOT_CONFIGURED'
 _NOT_CONFIGURED_MSG = 'Not connected to AWS Transform.'
 _NOT_CONFIGURED_ACTION = 'Call configure with authMode "cookie" or "sso".'
 
+# Explicit timeout for S3 PUT operations to avoid unbounded awaits
+S3_HTTP_TIMEOUT_SECONDS = 60.0
+
 
 class ArtifactHandler:
     """Registers artifact-related MCP tools."""
@@ -171,7 +174,7 @@ class ArtifactHandler:
                     if values:
                         put_headers[key] = ', '.join(values)
 
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(S3_HTTP_TIMEOUT_SECONDS)) as client:
                 s3_response = await client.put(
                     init_result['s3PreSignedUrl'],
                     content=content_bytes,
