@@ -281,19 +281,21 @@ sts_client = _singleton_clients['sts']
 
 
 def get_applicationsignals_client():
-    """Return the module-level Application Signals client.
+    """Return the Application Signals client via the client factory.
 
-    Provided so callers (e.g. the service_events tools) can resolve the client lazily,
-    which lets ``mock.patch`` of the module attribute propagate in tests.
+    Delegates to ``get_client()`` so per-request FAS credentials are honoured when a
+    custom factory is registered, falling back to the module-level singleton otherwise.
+    Kept as a typed per-service accessor so callers (e.g. the service_events tools) can
+    resolve the client lazily and tests can ``mock.patch`` this function directly.
     """
-    return applicationsignals_client
+    return get_client('application-signals')
 
 
 def get_cloudwatch_client():
-    """Return the module-level CloudWatch client (lazy accessor; see above)."""
-    return cloudwatch_client
+    """Return the CloudWatch client via the client factory (see above)."""
+    return get_client('cloudwatch')
 
 
 def get_logs_client():
-    """Return the module-level CloudWatch Logs client (lazy accessor; see above)."""
-    return logs_client
+    """Return the CloudWatch Logs client via the client factory (see above)."""
+    return get_client('logs')

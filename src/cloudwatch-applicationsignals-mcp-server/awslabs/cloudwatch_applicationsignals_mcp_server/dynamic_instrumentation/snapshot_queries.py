@@ -26,7 +26,7 @@ def _execute_cloudwatch_query(
     max_timeout: int = 30,
 ) -> dict:
     """Execute a CloudWatch Logs Insights query and poll for results."""
-    logs = aws_clients.logs_client
+    logs = aws_clients.get_client('logs')
 
     try:
         start_response = logs.start_query(
