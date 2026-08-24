@@ -77,8 +77,17 @@ from awslabs.billing_cost_management_mcp_server.tools.recommendation_details_too
 from awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools import (
     ri_performance_server,
 )
+from awslabs.billing_cost_management_mcp_server.tools.sp_explorer_tools import (
+    sp_explorer_server,
+)
 from awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools import (
     sp_performance_server,
+)
+from awslabs.billing_cost_management_mcp_server.tools.sp_purchase_analyzer_tools import (
+    sp_purchase_analyzer_server,
+)
+from awslabs.billing_cost_management_mcp_server.tools.sp_recommendation_tools import (
+    sp_recommendation_server,
 )
 from awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools import storage_lens_server
 from awslabs.billing_cost_management_mcp_server.tools.unified_sql_tools import unified_sql_server
@@ -158,6 +167,9 @@ TOOLS:
 - rec-details: Get enhanced cost optimization recommendations
 - ri-performance: Analyze Reserved Instance coverage and utilization
 - sp-performance: Analyze Savings Plans coverage and utilization
+- sp-explorer: Describe the Savings Plans an account owns, including queued, returned, and payment-failed plans that Cost Explorer does not report, plus rates on owned plans and the offerings available to purchase
+- sp-recommendation: Get Savings Plans purchase recommendations, the hourly data-points behind one, and the recommendation generation history
+- sp-purchase-analyzer: Run Savings Plans Purchase Analyzer what-if analyses (max savings, custom commitment, target average coverage) and retrieve their results
 - session-sql: Execute SQL queries on the session database
 - billing-conductor: AWS Billing Conductor tools for AWS Proforma billing (billing groups and associated accounts and cost reports, pricing rules/plans, custom line items)
 - billing-view: AWS Billing View tools for managing and querying billing views (get-billing-view, list-billing-views, list-source-views-for-billing-view, get-resource-policy)
@@ -219,6 +231,9 @@ def setup():
     mcp.mount(recommendation_details_server)
     mcp.mount(ri_performance_server)
     mcp.mount(sp_performance_server)
+    mcp.mount(sp_explorer_server)
+    mcp.mount(sp_recommendation_server)
+    mcp.mount(sp_purchase_analyzer_server)
     mcp.mount(unified_sql_server)
     mcp.mount(billing_conductor_server)
     mcp.mount(bvs_server)
@@ -249,6 +264,9 @@ def setup():
         'rec-details',
         'ri-performance',
         'sp-performance',
+        'sp-explorer',
+        'sp-recommendation',
+        'sp-purchase-analyzer',
         'session-sql',
         'list-billing-groups',
         'list-billing-group-cost-reports',

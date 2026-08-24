@@ -162,13 +162,13 @@ class TestListInvoiceSummariesFilter:
             result = await list_invoice_summaries(
                 mock_context,
                 account_id='123456789012',
-                start_date='2026-01-01',
+                start_date='2026-06-01',
                 end_date='2026-06-30',
             )
 
         assert result['status'] == 'success'
         interval = mock_client.list_invoice_summaries.call_args.kwargs['Filter']['TimeInterval']
-        assert interval['StartDate'] == int(datetime(2026, 1, 1, tzinfo=timezone.utc).timestamp())
+        assert interval['StartDate'] == int(datetime(2026, 6, 1, tzinfo=timezone.utc).timestamp())
         assert interval['EndDate'] == int(datetime(2026, 6, 30, tzinfo=timezone.utc).timestamp())
 
     @pytest.mark.asyncio
@@ -242,6 +242,212 @@ class TestListInvoiceSummariesFilter:
 
         assert result['status'] == 'error'
         assert 'YYYY-MM-DD' in result['data']['message']
+
+    @pytest.mark.asyncio
+    async def test_account_selector_requires_time_filter(self, mock_context):
+        """An account query with no time filter errors before calling the API.
+
+        The service rejects an ACCOUNT_ID selector carrying neither
+        BillingPeriod nor TimeInterval, so the call is refused locally.
+        """
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            result = await list_invoice_summaries(mock_context, account_id='123456789012')
+
+        assert result['status'] == 'error'
+        assert 'time filter is required' in result['data']['message']
+        assert 'one call per month' in result['data']['message']
+        mock_create.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_invoice_id_selector_needs_no_time_filter(self, mock_context, sample_summary):
+        """An invoice_id query is still valid without any time filter."""
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.return_value = mock_client
+            result = await list_invoice_summaries(mock_context, invoice_id='INV-001')
+
+        assert result['status'] == 'success'
+
+    @pytest.mark.asyncio
+    async def test_range_longer_than_a_month_is_rejected(self, mock_context):
+        """An over-long range errors locally and names the sub-ranges to call.
+
+        The suggestions stay expressed as dates, not billing periods: a
+        TimeInterval selects on issued date while a BillingPeriod selects on
+        billing month, so swapping them would answer a different question.
+        """
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            result = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                start_date='2026-05-14',
+                end_date='2026-08-14',
+            )
+
+        assert result['status'] == 'error'
+        assert 'at most one month' in result['data']['message']
+        assert result['data']['suggested_date_ranges'] == [
+            {'start_date': '2026-05-14', 'end_date': '2026-06-01'},
+            {'start_date': '2026-06-01', 'end_date': '2026-07-01'},
+            {'start_date': '2026-07-01', 'end_date': '2026-08-01'},
+            {'start_date': '2026-08-01', 'end_date': '2026-08-14'},
+        ]
+        mock_create.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_suggested_sub_ranges_are_each_within_the_service_limit(self, mock_context):
+        """Every suggested sub-range must itself be accepted if replayed.
+
+        A suggestion the service would reject in turn would send the caller into
+        a loop, so each pair is fed back through the same validation.
+        """
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.return_value = MagicMock(
+                list_invoice_summaries=MagicMock(return_value={'InvoiceSummaries': []})
+            )
+            rejected = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                # Starts in February, the shortest month, and ends mid-March.
+                start_date='2026-02-15',
+                end_date='2026-03-20',
+            )
+
+            assert rejected['status'] == 'error'
+            sub_ranges = rejected['data']['suggested_date_ranges']
+            assert sub_ranges == [
+                {'start_date': '2026-02-15', 'end_date': '2026-03-01'},
+                {'start_date': '2026-03-01', 'end_date': '2026-03-20'},
+            ]
+
+            for sub_range in sub_ranges:
+                replayed = await list_invoice_summaries(
+                    mock_context, account_id='123456789012', **sub_range
+                )
+                assert replayed['status'] == 'success', sub_range
+
+    @pytest.mark.asyncio
+    async def test_span_limit_follows_the_start_months_length(self, mock_context, sample_summary):
+        """The cap is the start month's length, not a flat 31 days.
+
+        Verified against the live API: a range starting 2026-02-15 is accepted
+        at 28 days (February's length) and rejected at 29, so a flat 31-day cap
+        would wave through a request the service refuses.
+        """
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.return_value = mock_client
+            allowed = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                start_date='2026-02-15',
+                end_date='2026-03-15',
+            )
+            rejected = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                start_date='2026-02-15',
+                end_date='2026-03-16',
+            )
+
+        assert allowed['status'] == 'success'
+        assert rejected['status'] == 'error'
+        assert '28 here' in rejected['data']['message']
+
+    @pytest.mark.asyncio
+    async def test_long_start_month_allows_a_31_day_span(self, mock_context, sample_summary):
+        """A 31-day span starting in a 31-day month is accepted.
+
+        Verified against the live API: 2026-01-31 to 2026-03-03 succeeds. The
+        cap tracks the start month's length rather than clamping to the same day
+        of the next month, so this must not be rejected.
+        """
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.return_value = mock_client
+            result = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                start_date='2026-01-31',
+                end_date='2026-03-03',
+            )
+
+        assert result['status'] == 'success'
+
+    @pytest.mark.asyncio
+    async def test_partial_day_over_the_limit_is_not_rejected(self, mock_context, sample_summary):
+        """A span of 28 days plus a few hours from a February start is allowed.
+
+        The service truncates the span to whole days -- 2026-02-15 to
+        2026-03-15T23:59:59 succeeds against the live API -- so the local check
+        must truncate the same way instead of rounding up into a false rejection.
+        """
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.return_value = mock_client
+            result = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                start_date='2026-02-15',
+                end_date='2026-03-15T23:59:59',
+            )
+
+        assert result['status'] == 'success'
+
+    @pytest.mark.asyncio
+    async def test_reversed_range_is_rejected(self, mock_context):
+        """An empty or reversed range errors locally.
+
+        The service rejects both with "End date ... cannot be before start
+        date", and a negative span would otherwise slip past the span check.
+        """
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            reversed_range = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                start_date='2026-03-01',
+                end_date='2026-02-01',
+            )
+            empty_range = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                start_date='2026-03-01',
+                end_date='2026-03-01',
+            )
+
+        for result in (reversed_range, empty_range):
+            assert result['status'] == 'error'
+            assert 'later than start_date' in result['data']['message']
+        mock_create.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_mid_month_range_within_a_month_is_allowed(self, mock_context, sample_summary):
+        """A 30-day range that crosses a month boundary is still accepted.
+
+        The service caps the span, not the alignment, so a mid-month range must
+        not be rejected.
+        """
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.return_value = mock_client
+            result = await list_invoice_summaries(
+                mock_context,
+                account_id='123456789012',
+                start_date='2026-05-14',
+                end_date='2026-06-13',
+            )
+
+        assert result['status'] == 'success'
 
 
 class TestListInvoiceSummariesResponse:
