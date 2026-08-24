@@ -158,7 +158,7 @@ def _ensure_client_ua(ctx: Context) -> None:
         client_params = session.client_params
         if client_params is None:
             return
-        info = client_params.clientInfo  # type: ignore[union-attr]
+        info = client_params.client_info  # type: ignore[union-attr]
         if info is None:
             return
         name = info.name if isinstance(info.name, str) else DEFAULT_MCP_CLIENT_NAME

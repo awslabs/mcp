@@ -1279,8 +1279,8 @@ class TestEnsureClientUa:
         from awslabs.security_agent_mcp_server.server import _ensure_client_ua
 
         ctx = MagicMock()
-        ctx.session.client_params.clientInfo.name = 'kiro'
-        ctx.session.client_params.clientInfo.version = '1.5.0'
+        ctx.session.client_params.client_info.name = 'kiro'
+        ctx.session.client_params.client_info.version = '1.5.0'
 
         _ensure_client_ua(ctx)
         mock_client.set_mcp_client_info.assert_called_once_with('kiro', '1.5.0')
@@ -1313,7 +1313,7 @@ class TestEnsureClientUa:
         from awslabs.security_agent_mcp_server.server import _ensure_client_ua
 
         ctx = MagicMock()
-        ctx.session.client_params.clientInfo = None
+        ctx.session.client_params.client_info = None
 
         _ensure_client_ua(ctx)
         mock_client.set_mcp_client_info.assert_not_called()
@@ -1324,8 +1324,8 @@ class TestEnsureClientUa:
         from awslabs.security_agent_mcp_server.server import _ensure_client_ua
 
         ctx = MagicMock()
-        ctx.session.client_params.clientInfo.name = 123
-        ctx.session.client_params.clientInfo.version = '1.0'
+        ctx.session.client_params.client_info.name = 123
+        ctx.session.client_params.client_info.version = '1.0'
 
         _ensure_client_ua(ctx)
         mock_client.set_mcp_client_info.assert_called_once_with('unknown', '1.0')
@@ -1336,8 +1336,8 @@ class TestEnsureClientUa:
         from awslabs.security_agent_mcp_server.server import _ensure_client_ua
 
         ctx = MagicMock()
-        ctx.session.client_params.clientInfo.name = 'kiro'
-        ctx.session.client_params.clientInfo.version = 123
+        ctx.session.client_params.client_info.name = 'kiro'
+        ctx.session.client_params.client_info.version = 123
 
         _ensure_client_ua(ctx)
         mock_client.set_mcp_client_info.assert_called_once_with('kiro', '')
@@ -1348,8 +1348,8 @@ class TestEnsureClientUa:
         from awslabs.security_agent_mcp_server.server import _ensure_client_ua
 
         ctx = MagicMock()
-        ctx.session.client_params.clientInfo.name = 'kiro'
-        del ctx.session.client_params.clientInfo.version
+        ctx.session.client_params.client_info.name = 'kiro'
+        del ctx.session.client_params.client_info.version
 
         _ensure_client_ua(ctx)
         mock_client.set_mcp_client_info.assert_called_once_with('kiro', '')
