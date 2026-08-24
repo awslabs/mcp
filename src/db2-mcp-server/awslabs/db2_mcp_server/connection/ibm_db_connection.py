@@ -177,12 +177,22 @@ class IbmDbConnection(AbstractDBConnection):
     def _build_conn_string(self, user: str, password: str) -> str:
         """Build the ibm_db (DSN-less) connection string.
 
-        Attribute order is security-relevant: the Db2 CLI driver takes the FIRST
-        occurrence of a repeated keyword, so this method's own SECURITY / SSL
-        attributes are emitted BEFORE the credentials. That way, even if a credential
-        somehow carried a delimiter, anything it could append lands after -- and is
-        therefore ignored in favour of -- the SSL posture set here. Do not move UID/PWD
-        earlier.
+        Attribute order is security-relevant, and the direction has been MEASURED at the
+        wire level rather than inferred. With a raw socket listener in front of the
+        driver, classifying the first bytes sent (0x16 0x03 = TLS ClientHello, anything
+        else = plaintext DRDA):
+
+            SECURITY=SSL  ... then ... SECURITY=NONE   -> TLS
+            SECURITY=NONE ... then ... SECURITY=SSL    -> plaintext
+
+        So the CLI driver honours the FIRST occurrence of a repeated keyword. This
+        method therefore emits its own SECURITY / SSL attributes BEFORE the credentials:
+        anything a credential could append lands after them and is ignored. Had the
+        driver honoured the LAST occurrence, this ordering would be backwards and the
+        downgrade would be live -- do not move UID/PWD earlier.
+
+        (Evidence contributed by @theagenticguy in the round-9 review of awslabs/mcp
+        PR #3816.)
         """
         # database/host originate from MCP tool parameters (agent-supplied), not just
         # operator config: without validation a value like database='DB2DB;SECURITY=NONE'

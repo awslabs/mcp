@@ -6,7 +6,13 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "loguru>=0.7.0",
-    "mcp[cli]>=1.23.0",
+    # Capped below 2.0.0: mcp 2.x removed `mcp.server.fastmcp` and renamed McpError to
+    # MCPError, both of which server.py imports, so an unlocked resolve (what
+    # `uvx awslabs.db2-mcp-server@latest` does -- it ignores uv.lock) picks 2.x and the
+    # process dies at import. Matches the cap 44 of the 49 servers in this repo use.
+    # The fleet-wide v2 migration (awslabs/mcp#4452) removes this cap as part of porting
+    # the v1 fastmcp API, so leave it to that PR rather than lifting it here.
+    "mcp[cli]>=1.23.0,<2.0.0",
     "pydantic>=2.10.6",
     "boto3>=1.42.79",
     "botocore>=1.42.79",

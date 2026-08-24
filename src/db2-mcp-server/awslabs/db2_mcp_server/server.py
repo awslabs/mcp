@@ -292,6 +292,24 @@ async def get_table_schema(
             )
         )
 
+    # schema_name needs the same one-part restriction, for the same reason: it is bound
+    # whole as TABSCHEMA, so a dotted value like '"a"."b"' passes validate_identifier(),
+    # falls through _catalog_form() to raw.upper(), binds '"A"."B"', and matches no
+    # catalog row -- an empty result with no error, which is the same confusing silent
+    # no-op the table_name check above exists to prevent.
+    if schema_name:
+        schema_name_parts = _parse_identifier_parts(schema_name)
+        if schema_name_parts is not None and len(schema_name_parts) > 1:
+            raise McpError(
+                ErrorData(
+                    code=INVALID_PARAMS,
+                    message=(
+                        f"schema_name must be a single identifier, not qualified: '{schema_name}'. "
+                        "Pass just the schema (e.g. schema_name='HR')."
+                    ),
+                )
+            )
+
     catalog_table = _catalog_form(table_name)
 
     if schema_name:

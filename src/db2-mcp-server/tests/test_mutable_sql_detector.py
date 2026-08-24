@@ -172,6 +172,67 @@ class TestInjectionRisk:
         assert check_sql_injection_risk(sql, readonly=False) == []
         assert check_sql_injection_risk(sql, readonly=True) != []
 
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            # Enumeration gaps: the previous regex named 4 views, and these carry the
+            # same grant data under names it never listed.
+            'SELECT * FROM SYSCAT.SCHEMAAUTH',
+            'SELECT * FROM SYSCAT.ROLEAUTH',
+            'SELECT * FROM SYSCAT.COLAUTH',
+            'SELECT * FROM SYSCAT.PACKAGEAUTH',
+            'SELECT * FROM SYSCAT.INDEXAUTH',
+            'SELECT * FROM SYSCAT.TBSPACEAUTH',
+            'SELECT * FROM SYSIBM.SYSDBAUTH',
+            # Quoting/spacing forms. NOTE: that Db2 resolves these to the same object is
+            # inferred from ordinary identifier rules, not measured against an engine --
+            # tolerating them is free and fail-closed, so it is done regardless.
+            'SELECT * FROM SYSCAT."DBAUTH"',
+            'SELECT * FROM "SYSCAT".DBAUTH',
+            'SELECT * FROM SYSCAT . DBAUTH',
+            # Federated options can expose remote credentials.
+            'SELECT * FROM SYSCAT.USEROPTIONS',
+            'SELECT * FROM SYSCAT.SERVEROPTIONS',
+            # Grant-bearing admin view with no 'AUTH' in the name.
+            'SELECT * FROM SYSIBMADM.PRIVILEGES',
+        ],
+    )
+    def test_readonly_blocks_auth_catalog_variants(self, sql):
+        """The block is by object-name shape, so it is not escaped by quoting or spacing."""
+        assert check_sql_injection_risk(sql, readonly=True) != []
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            'SELECT * FROM APP.AUTHORS',  # user table whose name contains AUTH
+            'SELECT AUTHOR FROM APP.BOOKS',  # column whose name contains AUTH
+            'SELECT * FROM SYSCAT.TABLES',
+            'SELECT COLNAME FROM SYSCAT.COLUMNS WHERE TABNAME = ?',
+            'SELECT 1 FROM SYSIBM.SYSDUMMY1',
+        ],
+    )
+    def test_readonly_auth_catalog_false_positive_boundary(self, sql):
+        r"""`\w*auth\w*` is deliberately broad, so pin what it must NOT catch.
+
+        The pattern is anchored to the system qualifiers (syscat/sysibm/sysibmadm), so a
+        user object merely containing "AUTH" stays allowed. Without this, widening the
+        pattern could silently start rejecting ordinary read-only queries.
+        """
+        assert check_sql_injection_risk(sql, readonly=True) == []
+
+    def test_auth_catalog_block_is_readonly_only(self):
+        """None of the auth-catalog forms are blocked in write mode.
+
+        The block is a read-only confidentiality measure, not part of the write-
+        prevention guarantee, so widening it must not leak into write mode.
+        """
+        for sql in [
+            'SELECT * FROM SYSCAT.SCHEMAAUTH',
+            'SELECT * FROM SYSCAT."DBAUTH"',
+            'SELECT * FROM SYSIBMADM.PRIVILEGES',
+        ]:
+            assert check_sql_injection_risk(sql, readonly=False) == []
+
 
 class TestTransactionBypass:
     """Tests for detect_transaction_bypass_attempt."""

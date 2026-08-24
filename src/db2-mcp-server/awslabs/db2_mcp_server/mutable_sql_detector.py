@@ -122,8 +122,33 @@ SUSPICIOUS_PATTERNS = [
 ]
 
 READONLY_SUSPICIOUS_PATTERNS = [
-    # Authorization catalog views — expose grants/roles. Block in read-only mode.
-    r'(?i)\bsyscat\.(dbauth|tabauth|routineauth|surrogateauthids)\b',
+    # Authorization catalog views -- expose grants/roles. Blocked in read-only mode as a
+    # confidentiality measure (this is not part of the read-only write-prevention
+    # guarantee).
+    #
+    # Matched by object-name SHAPE rather than an enumerated list. The previous
+    # enumeration named 4 views (DBAUTH, TABAUTH, ROUTINEAUTH, SURROGATEAUTHIDS) out of
+    # roughly 16 that carry the same grant data; MEASURED against this detector, all of
+    # SCHEMAAUTH, ROLEAUTH, COLAUTH, PACKAGEAUTH and the SYSIBM.SYSDBAUTH base table
+    # were allowed through while DBAUTH was blocked. An enumeration silently misses
+    # every name it omits, so match \w*auth\w* instead.
+    #
+    # Optional quotes and whitespace around the '.' are tolerated so a delimited
+    # identifier (SYSCAT."DBAUTH") or a spaced qualifier (SYSCAT . DBAUTH) cannot step
+    # around the block. NOTE: that those forms resolve to the same object is INFERRED
+    # from ordinary SQL identifier rules -- it has not been executed against a live
+    # engine. Tolerating them is free and fail-closed, so it is done regardless, but the
+    # evasion itself is unverified and should not be cited as measured. (The enumeration
+    # gap above needs no such premise: those are simply different object names.)
+    #
+    # Anchored to the system qualifiers so a user table whose name merely contains
+    # "AUTH" (e.g. APP.AUTHORS) is not caught -- see the false-positive test.
+    r'(?i)\b"?(?:syscat|sysibm|sysibmadm)"?\s*\.\s*"?\w*auth\w*"?',
+    # Federated wrapper options -- can expose remote server credentials.
+    r'(?i)\b"?syscat"?\s*\.\s*"?(?:useroptions|serveroptions)"?\b',
+    # Grant-bearing admin views whose names contain no 'AUTH', so the shape pattern
+    # above does not reach them (found while pinning the false-positive boundary).
+    r'(?i)\b"?sysibmadm"?\s*\.\s*"?privileges"?\b',
 ]
 
 # DOTALL so that '.*' / '.*?' (e.g. the UNION ... SELECT guard) match across
