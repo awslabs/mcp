@@ -106,6 +106,12 @@ def register_sqs_tools(mcp: FastMCP, disallow_resource_creation: bool = False):
         'receive_message': {'validator': is_mutative_action_allowed},
         'send_message_batch': {'validator': is_mutative_action_allowed},
         'delete_message': {'validator': is_mutative_action_allowed},
+        'purge_queue': {'validator': is_mutative_action_allowed},
+        'delete_message_batch': {'validator': is_mutative_action_allowed},
+        'change_message_visibility': {'validator': is_mutative_action_allowed},
+        'change_message_visibility_batch': {'validator': is_mutative_action_allowed},
+        'start_message_move_task': {'validator': is_mutative_action_allowed},
+        'cancel_message_move_task': {'validator': is_mutative_action_allowed},
     }
 
     # Add all operations to ignore to the tool configuration
@@ -122,5 +128,6 @@ def register_sqs_tools(mcp: FastMCP, disallow_resource_creation: bool = False):
         mcp_server_version=MCP_SERVER_VERSION,
         tool_configuration=tool_configuration,
         skip_param_documentation=True,
+        default_validator=is_mutative_action_allowed,
     )
     sqs_generator.generate()

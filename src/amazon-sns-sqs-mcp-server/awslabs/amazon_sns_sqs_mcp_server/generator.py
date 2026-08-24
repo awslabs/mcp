@@ -43,6 +43,7 @@ class AWSToolGenerator:
         mcp_server_version: str,
         tool_configuration: Dict[str, Dict[str, Any]] | None = None,
         skip_param_documentation: bool = False,
+        default_validator: 'VALIDATOR | None' = None,
     ):
         """Initialize the AWS Service Tool.
 
@@ -53,6 +54,9 @@ class AWSToolGenerator:
             mcp_server_version: The mcp server version used which will be passed in to the boto3 clients
             tool_configuration: Configuration for each tool
             skip_param_documentation: If True, parameter documentation will be skipped
+            default_validator: If provided, operations not explicitly listed in tool_configuration
+                will use this validator. This makes the generator fail-closed: any auto-discovered
+                mutating operation must pass validation rather than being allowed by default.
 
         """
         self.service_name = service_name
@@ -61,6 +65,7 @@ class AWSToolGenerator:
         self.clients: Dict[str, Any] = {}
         self.tool_configuration = tool_configuration or {}
         self.skip_param_documentation = skip_param_documentation
+        self.default_validator = default_validator
         self.__validate_tool_configuration()
         self.config = Config(
             user_agent_extra=f'md/awslabs#mcp#amazon-{self.service_name}-mcp-server#{mcp_server_version}'
@@ -77,7 +82,9 @@ class AWSToolGenerator:
     def __register_operations(self):
         for operation in self.__get_operations():
             if operation not in self.tool_configuration:
-                func = self.__create_operation_function(operation)
+                func = self.__create_operation_function(
+                    operation, validator=self.default_validator
+                )
                 if func is not None:
                     self.mcp.tool(description=func.__doc__)(func)
             else:
