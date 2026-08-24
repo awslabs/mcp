@@ -22,17 +22,26 @@ exercises the same contract that both PsycopgPoolConnection and
 RDSDataAPIConnection satisfy.
 """
 
+import json
 import pytest
 from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
+from awslabs.postgres_mcp_server.connection.db_connection_map import (
+    ConnectionMethod,
+    DatabaseType,
+)
 from awslabs.postgres_mcp_server.server import (
     POSTGRES_PRIVILEGE_QUERY,
     PRIVILEGE_CHECK_ENFORCE,
     PRIVILEGE_CHECK_OFF,
     PRIVILEGE_CHECK_WARN,
     ConnectionValidationError,
+    connect_to_database,
+    db_connection_map,
     privilege_check_policy,
+    run_query,
     validate_connection,
 )
+from tests.conftest import DummyCtx
 from typing import Any, Dict, List, Optional
 from unittest.mock import patch
 
@@ -408,3 +417,290 @@ class TestEffectiveIsOverPrivilegedDiagnostic:
         conn = FakeConnection(response={'columnMetadata': [], 'records': []})
         await validate_connection(conn, PRIVILEGE_CHECK_WARN)
         assert conn.effective_is_over_privileged is None
+
+
+# Coordinates for the create_cluster bootstrap scenario. run_query looks the
+# connection up WITHOUT a port, so everything uses the 5432 default to keep one
+# consistent map key across the seed -> connect -> query flow.
+_REGION = 'us-east-1'
+_METHOD = ConnectionMethod.RDS_API
+_CLUSTER = 'victim-cluster'
+_ENDPOINT = 'victim.cluster-abc.us-east-1.rds.amazonaws.com'
+_DATABASE = 'appdb'
+_PORT = 5432
+
+
+def _seed_bootstrap_connection(conn: AbstractDBConnection) -> None:
+    """Reproduce the post-create_cluster map state.
+
+    create_cluster / create_cluster_worker seed the freshly created cluster's
+    rds_superuser master connection via internal_create_connection WITHOUT ever
+    calling validate_connection, so the connection lands in the map with
+    effective_is_over_privileged still None. Seeding directly yields the
+    identical map state without the AWS API calls create_cluster would make.
+    """
+    db_connection_map.map.clear()
+    db_connection_map.set(_METHOD, _CLUSTER, _ENDPOINT, _DATABASE, conn, _PORT)
+
+
+class TestBootstrapReconnectGuardrail:
+    """Reconnecting to a create_cluster-seeded connection must honor the policy.
+
+    A connection seeded by create_cluster enters the cache WITHOUT going through
+    the validating connect/startup path, so it carries no privilege posture
+    (effective_is_over_privileged is None). connect_to_database's cache-hit
+    fast-return must not surface such an unvalidated over-privileged connection
+    as a usable success under 'enforce'.
+    """
+
+    @pytest.mark.asyncio
+    async def test_reconnect_validates_and_rejects_bootstrap_superuser_under_enforce(self):
+        """enforce: reconnecting to an unvalidated rds_superuser conn is rejected+evicted."""
+        conn = FakeConnection(response=privilege_response(False, True))  # rds_superuser
+        _seed_bootstrap_connection(conn)
+        assert conn.effective_is_over_privileged is None  # never validated (bootstrap)
+
+        with patch(
+            'awslabs.postgres_mcp_server.server.privilege_check_policy', PRIVILEGE_CHECK_ENFORCE
+        ):
+            result = await connect_to_database(
+                region=_REGION,
+                database_type=DatabaseType.APG,
+                connection_method=_METHOD,
+                cluster_identifier=_CLUSTER,
+                db_endpoint=_ENDPOINT,
+                port=_PORT,
+                database=_DATABASE,
+            )
+
+        parsed = json.loads(result)
+        # The over-privileged bootstrap connection must be rejected, not surfaced.
+        assert parsed.get('status') == 'Failed', f'expected rejection, got {parsed}'
+        # ...and evicted, so it cannot be reached later via run_query (fail-closed).
+        assert db_connection_map.get(_METHOD, _CLUSTER, _ENDPOINT, _DATABASE, _PORT) is None, (
+            'over-privileged bootstrap connection must be evicted on rejection'
+        )
+        # The privilege probe actually ran on the cache-hit path.
+        assert POSTGRES_PRIVILEGE_QUERY in conn.queries
+        db_connection_map.map.clear()
+
+    @pytest.mark.asyncio
+    async def test_bootstrap_connection_not_queryable_after_rejected_reconnect(self):
+        """enforce: the PoC consequence is cured -- run_query can't reach the conn."""
+        conn = FakeConnection(response=privilege_response(False, True))  # rds_superuser
+        _seed_bootstrap_connection(conn)
+
+        with patch(
+            'awslabs.postgres_mcp_server.server.privilege_check_policy', PRIVILEGE_CHECK_ENFORCE
+        ):
+            await connect_to_database(
+                region=_REGION,
+                database_type=DatabaseType.APG,
+                connection_method=_METHOD,
+                cluster_identifier=_CLUSTER,
+                db_endpoint=_ENDPOINT,
+                port=_PORT,
+                database=_DATABASE,
+            )
+            rows = await run_query(
+                sql='SELECT rolname, rolpassword FROM pg_authid',  # superuser-only read
+                ctx=DummyCtx(),
+                connection_method=_METHOD,
+                cluster_identifier=_CLUSTER,
+                db_endpoint=_ENDPOINT,
+                database=_DATABASE,
+            )
+
+        # run_query returns an error payload (no connection), never data rows.
+        assert len(rows) == 1 and 'error' in rows[0], f'expected no-connection error, got {rows}'
+        db_connection_map.map.clear()
+
+    @pytest.mark.asyncio
+    async def test_already_validated_cached_connection_not_revalidated(self):
+        """A previously-validated cached connection short-circuits with no re-probe.
+
+        Guards the caching contract: reconnecting to a healthy, already-validated
+        connection must not issue a fresh (billable / evict-risking) privilege
+        probe.
+        """
+        conn = FakeConnection(response=privilege_response(False, False))  # clean role
+        conn.effective_is_over_privileged = False  # simulate a prior successful validation
+        _seed_bootstrap_connection(conn)
+
+        with patch(
+            'awslabs.postgres_mcp_server.server.privilege_check_policy', PRIVILEGE_CHECK_ENFORCE
+        ):
+            result = await connect_to_database(
+                region=_REGION,
+                database_type=DatabaseType.APG,
+                connection_method=_METHOD,
+                cluster_identifier=_CLUSTER,
+                db_endpoint=_ENDPOINT,
+                port=_PORT,
+                database=_DATABASE,
+            )
+
+        parsed = json.loads(result)
+        assert parsed.get('status') != 'Failed', f'expected success, got {parsed}'
+        # No privilege probe was issued on the already-validated cache hit.
+        assert conn.queries == [], f'expected no re-validation probe, got {conn.queries}'
+        assert db_connection_map.get(_METHOD, _CLUSTER, _ENDPOINT, _DATABASE, _PORT) is conn
+        db_connection_map.map.clear()
+
+    @pytest.mark.asyncio
+    async def test_bootstrap_over_privileged_allowed_with_advisory_under_warn(self):
+        """warn: an unvalidated over-privileged bootstrap conn is allowed, with advisory."""
+        conn = FakeConnection(response=privilege_response(False, True))  # rds_superuser
+        _seed_bootstrap_connection(conn)
+
+        with patch(
+            'awslabs.postgres_mcp_server.server.privilege_check_policy', PRIVILEGE_CHECK_WARN
+        ):
+            result = await connect_to_database(
+                region=_REGION,
+                database_type=DatabaseType.APG,
+                connection_method=_METHOD,
+                cluster_identifier=_CLUSTER,
+                db_endpoint=_ENDPOINT,
+                port=_PORT,
+                database=_DATABASE,
+            )
+
+        parsed = json.loads(result)
+        assert parsed.get('status') != 'Failed', f'expected allow under warn, got {parsed}'
+        # The posture is now determined and surfaced to the caller.
+        assert conn.effective_is_over_privileged is True
+        advisories = parsed.get('advisories', [])
+        assert any(a.get('code') == 'over_privileged_role' for a in advisories), (
+            f'expected over_privileged advisory, got {parsed}'
+        )
+        # Under warn the connection remains cached (allowed).
+        assert db_connection_map.get(_METHOD, _CLUSTER, _ENDPOINT, _DATABASE, _PORT) is conn
+        db_connection_map.map.clear()
+
+
+# A superuser-only read used as the "attacker payload" in the direct-run_query
+# scenario. Read-only (passes run_query's readonly gate) and free of mutating /
+# injection patterns, so the ONLY thing that can stop it is the privilege gate.
+_SENSITIVE_SQL = 'SELECT rolname FROM pg_authid'
+
+
+class TestRunQueryBootstrapGuardrail:
+    """Direct run_query must not trust a never-validated (bootstrap) connection.
+
+    Closes the residual path left open by the connect_to_database fix: an
+    attacker who calls run_query directly -- with NO intervening
+    connect_to_database -- would otherwise execute against a create_cluster-
+    seeded rds_superuser connection whose privilege posture was never checked
+    (effective_is_over_privileged is None). run_query now validates such a
+    connection lazily on first use, honoring the active policy.
+    """
+
+    @pytest.mark.asyncio
+    async def test_direct_run_query_rejects_unvalidated_over_privileged_under_enforce(self):
+        """enforce: a direct run_query on an unvalidated rds_superuser conn is refused."""
+        conn = FakeConnection(response=privilege_response(False, True))  # rds_superuser
+        _seed_bootstrap_connection(conn)
+        assert conn.effective_is_over_privileged is None  # never validated (bootstrap)
+
+        with patch(
+            'awslabs.postgres_mcp_server.server.privilege_check_policy', PRIVILEGE_CHECK_ENFORCE
+        ):
+            rows = await run_query(
+                sql=_SENSITIVE_SQL,
+                ctx=DummyCtx(),
+                connection_method=_METHOD,
+                cluster_identifier=_CLUSTER,
+                db_endpoint=_ENDPOINT,
+                database=_DATABASE,
+            )
+
+        # The query is refused with an error payload, never data rows.
+        assert len(rows) == 1 and 'error' in rows[0], f'expected rejection, got {rows}'
+        # The privilege probe ran, but the sensitive read never executed.
+        assert POSTGRES_PRIVILEGE_QUERY in conn.queries
+        assert _SENSITIVE_SQL not in conn.queries, 'sensitive query must not execute'
+        # And the rejected connection is evicted (fail-closed).
+        assert db_connection_map.get(_METHOD, _CLUSTER, _ENDPOINT, _DATABASE, _PORT) is None
+        db_connection_map.map.clear()
+
+    @pytest.mark.asyncio
+    async def test_direct_run_query_allows_unvalidated_over_privileged_under_warn(self):
+        """warn: the query runs, the posture is recorded, the connection stays cached."""
+        conn = FakeConnection(response=privilege_response(False, True))  # rds_superuser
+        _seed_bootstrap_connection(conn)
+
+        with patch(
+            'awslabs.postgres_mcp_server.server.privilege_check_policy', PRIVILEGE_CHECK_WARN
+        ):
+            rows = await run_query(
+                sql=_SENSITIVE_SQL,
+                ctx=DummyCtx(),
+                connection_method=_METHOD,
+                cluster_identifier=_CLUSTER,
+                db_endpoint=_ENDPOINT,
+                database=_DATABASE,
+            )
+
+        # Allowed: real rows, not an error payload.
+        assert not (len(rows) == 1 and 'error' in rows[0]), (
+            f'expected allow under warn, got {rows}'
+        )
+        # The posture was probed and recorded, and the sensitive read executed.
+        assert conn.effective_is_over_privileged is True
+        assert POSTGRES_PRIVILEGE_QUERY in conn.queries
+        assert _SENSITIVE_SQL in conn.queries
+        assert db_connection_map.get(_METHOD, _CLUSTER, _ENDPOINT, _DATABASE, _PORT) is conn
+        db_connection_map.map.clear()
+
+    @pytest.mark.asyncio
+    async def test_direct_run_query_does_not_revalidate_already_validated_connection(self):
+        """A previously-validated connection is not re-probed on every run_query."""
+        conn = FakeConnection(response=privilege_response(False, False))  # clean role
+        conn.effective_is_over_privileged = False  # simulate a prior successful validation
+        _seed_bootstrap_connection(conn)
+
+        with patch(
+            'awslabs.postgres_mcp_server.server.privilege_check_policy', PRIVILEGE_CHECK_ENFORCE
+        ):
+            rows = await run_query(
+                sql=_SENSITIVE_SQL,
+                ctx=DummyCtx(),
+                connection_method=_METHOD,
+                cluster_identifier=_CLUSTER,
+                db_endpoint=_ENDPOINT,
+                database=_DATABASE,
+            )
+
+        assert not (len(rows) == 1 and 'error' in rows[0]), f'expected success, got {rows}'
+        # No re-validation probe; only the actual query ran.
+        assert POSTGRES_PRIVILEGE_QUERY not in conn.queries
+        assert conn.queries == [_SENSITIVE_SQL]
+        db_connection_map.map.clear()
+
+    @pytest.mark.asyncio
+    async def test_direct_run_query_skips_validation_when_policy_off(self):
+        """off: the operator opted out -- no lazy probe, no per-query overhead."""
+        conn = FakeConnection(response=privilege_response(False, True))  # rds_superuser
+        _seed_bootstrap_connection(conn)
+
+        with patch(
+            'awslabs.postgres_mcp_server.server.privilege_check_policy', PRIVILEGE_CHECK_OFF
+        ):
+            rows = await run_query(
+                sql=_SENSITIVE_SQL,
+                ctx=DummyCtx(),
+                connection_method=_METHOD,
+                cluster_identifier=_CLUSTER,
+                db_endpoint=_ENDPOINT,
+                database=_DATABASE,
+            )
+
+        assert not (len(rows) == 1 and 'error' in rows[0]), (
+            f'expected success under off, got {rows}'
+        )
+        # No privilege probe was issued; posture stays undetermined.
+        assert POSTGRES_PRIVILEGE_QUERY not in conn.queries
+        assert conn.effective_is_over_privileged is None
+        assert conn.queries == [_SENSITIVE_SQL]
+        db_connection_map.map.clear()
