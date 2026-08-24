@@ -659,19 +659,17 @@ async def recommend(
 
     ## Recommendation Types
 
-    The recommendations include four categories:
+    The recommendations include three categories:
 
-    1. **Highly Rated**: Popular pages within the same AWS service
-    2. **New**: Recently added pages within the same AWS service - useful for finding newly released features
-    3. **Similar**: Pages covering similar topics to the current page
-    4. **Journey**: Pages commonly viewed next by other users
+    1. **New**: Recently added pages within the same AWS service - useful for finding newly released features
+    2. **Similar**: Pages covering similar topics to the current page
+    3. **Journey**: Pages commonly viewed next by other users
 
     ## When to Use
 
     - After reading a documentation page to find related content
     - When exploring a new AWS service to discover important pages
     - To find alternative explanations of complex concepts
-    - To discover the most popular pages for a service
     - To find newly released information by using a service's welcome page URL and checking the **New** recommendations
 
     ## Finding New Features
