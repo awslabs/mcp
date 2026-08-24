@@ -24,6 +24,7 @@ import time
 from typing import Optional
 
 from awslabs.ecs_mcp_server.utils.aws import get_aws_account_id, get_aws_client
+from awslabs.ecs_mcp_server.utils.path_validation import validate_path
 
 logger = logging.getLogger(__name__)
 
@@ -84,10 +85,15 @@ async def build_and_push_image(
         Image tag
 
     Raises:
-        ValueError: If role_arn is not provided
+        ValueError: If role_arn is not provided, or if app_path is invalid
     """
     if not role_arn:
         raise ValueError("role_arn is required for ECR authentication")
+
+    # The whole directory is handed to the Docker daemon as the build context, so
+    # resolve it and reject anything that would pull in a sensitive directory.
+    app_path = validate_path(app_path)
+
     # Generate a timestamp-based tag if none provided
     if tag is None:
         tag = str(int(time.time()))
