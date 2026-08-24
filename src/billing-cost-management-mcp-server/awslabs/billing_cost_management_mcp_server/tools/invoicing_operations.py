@@ -29,14 +29,89 @@ from ..utilities.time_utils import (
     timestamp_to_utc_iso_string,
     utc_datetime_string_to_epoch_seconds,
 )
+from calendar import monthrange
+from datetime import datetime, timezone
 from fastmcp import Context
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 
 # InvoiceSummary fields that AWS returns as timestamps. We normalize these to
 # human-readable ISO 8601 UTC strings so the values are JSON-serializable and
 # self-explanatory to the agent, while leaving every other field untouched.
 _TIMESTAMP_FIELDS = ('IssuedDate', 'DueDate')
+
+_SECONDS_PER_DAY = 86400
+
+
+def _max_time_interval_days(start_epoch: int) -> int:
+    """Widest ``TimeInterval`` span, in whole days, accepted for a given start.
+
+    The Invoicing service rejects a longer range with "TimePeriod cannot last
+    more than a month", comparing the span against the number of days in the
+    *start* date's month rather than clamping to the same day of the next month.
+    Verified against the live API: a range starting 2026-01-31 is accepted up to
+    2026-03-03 (31 days, the length of January), while one starting 2026-02-15
+    is rejected past 2026-03-15 (28 days, the length of February).
+
+    Args:
+        start_epoch: Range start as epoch seconds (UTC).
+
+    Returns:
+        The maximum span in whole days, i.e. the length of the start date's month.
+    """
+    start = datetime.fromtimestamp(start_epoch, tz=timezone.utc)
+    return monthrange(start.year, start.month)[1]
+
+
+def _format_range_bound(moment: datetime) -> str:
+    """Render a range boundary in the format ``start_date``/``end_date`` accept."""
+    if (moment.hour, moment.minute, moment.second) == (0, 0, 0):
+        return moment.strftime('%Y-%m-%d')
+    return moment.strftime('%Y-%m-%dT%H:%M:%S')
+
+
+def _split_range_by_month(start_epoch: int, end_epoch: int) -> List[Dict[str, str]]:
+    """Split an over-long range into per-month sub-ranges the service accepts.
+
+    Used to turn an over-long ``start_date``/``end_date`` range into the exact
+    set of calls that together cover it. Sub-ranges are deliberately expressed
+    as dates rather than billing periods: a ``TimeInterval`` selects invoices by
+    their *issued date* while a ``BillingPeriod`` selects by *billing month*, so
+    substituting one for the other would silently answer a different question.
+
+    The caller's own endpoints are preserved and internal boundaries fall on the
+    first of each month, shared by the sub-ranges on either side so the union
+    covers the original range with no gap. Issued timestamps carry sub-second
+    precision, so landing exactly on a midnight boundary -- the only way a single
+    invoice could surface in two adjacent sub-ranges -- is a theoretical edge
+    rather than something seen in practice; de-duplicate by invoice ID if it
+    matters.
+
+    Args:
+        start_epoch: Range start as epoch seconds (UTC).
+        end_epoch: Range end as epoch seconds (UTC), later than ``start_epoch``.
+
+    Returns:
+        ``start_date``/``end_date`` pairs in chronological order, each spanning
+        at most one month.
+    """
+    start = datetime.fromtimestamp(start_epoch, tz=timezone.utc)
+    end = datetime.fromtimestamp(end_epoch, tz=timezone.utc)
+
+    bounds: List[datetime] = [start]
+    year, month = start.year, start.month
+    while True:
+        year, month = (year + 1, 1) if month == 12 else (year, month + 1)
+        month_start = datetime(year, month, 1, tzinfo=timezone.utc)
+        if month_start >= end:
+            break
+        bounds.append(month_start)
+    bounds.append(end)
+
+    return [
+        {'start_date': _format_range_bound(lower), 'end_date': _format_range_bound(upper)}
+        for lower, upper in zip(bounds, bounds[1:])
+    ]
 
 
 def _create_invoicing_client() -> Any:
@@ -105,12 +180,12 @@ async def list_invoice_summaries(
         billing_period: Single calendar month in ``YYYY-MM`` format (for
             example ``"2026-05"``). Mutually exclusive with
             ``start_date``/``end_date``.
-        start_date: Inclusive range start in ``YYYY-MM-DD`` or
-            ``YYYY-MM-DDTHH:MM:SS`` (UTC) format. Must be paired with
-            ``end_date``.
-        end_date: Inclusive range end in ``YYYY-MM-DD`` or
-            ``YYYY-MM-DDTHH:MM:SS`` (UTC) format. Must be paired with
-            ``start_date``.
+        start_date: Range start in ``YYYY-MM-DD`` or ``YYYY-MM-DDTHH:MM:SS``
+            (UTC) format. Must be paired with ``end_date``.
+        end_date: Range end in ``YYYY-MM-DD`` or ``YYYY-MM-DDTHH:MM:SS`` (UTC)
+            format. Must be paired with ``start_date``. A date-only bound is
+            00:00:00 UTC, so covering a whole final day requires the following
+            day here -- ``"2026-06-30"`` excludes invoices issued during June 30.
         invoicing_entity: Filter by the AWS legal selling entity name (for
             example ``"Amazon Web Services, Inc."``).
         max_results: Maximum number of results per page (1-100).
@@ -145,6 +220,23 @@ async def list_invoice_summaries(
             return format_response(
                 'error',
                 {'message': 'start_date and end_date must be provided together.'},
+            )
+
+        # The ACCOUNT_ID selector flow requires a time filter -- the service
+        # rejects the request on arrival when both BillingPeriod and
+        # TimeInterval are absent. The INVOICE_ID flow takes a different path
+        # and needs no filter, so only guard the account case.
+        if not invoice_id and not billing_period and not start_date and not end_date:
+            return format_response(
+                'error',
+                {
+                    'message': (
+                        'A time filter is required when listing invoice summaries for an '
+                        'account. Provide billing_period="YYYY-MM" for a single calendar '
+                        'month, or start_date and end_date for a range spanning at most one '
+                        'month. To cover several months, make one call per month.'
+                    )
+                },
             )
 
         # Parse and validate the billing period (YYYY-MM) if provided.
@@ -193,6 +285,38 @@ async def list_invoice_summaries(
                 end_epoch = utc_datetime_string_to_epoch_seconds(end_date)
             except ValueError as parse_error:
                 return format_response('error', {'message': str(parse_error)})
+
+            if end_epoch <= start_epoch:
+                return format_response(
+                    'error',
+                    {
+                        'message': (
+                            'end_date must be later than start_date. The Invoicing service '
+                            'rejects an empty or reversed range.'
+                        )
+                    },
+                )
+
+            # Reject a span the service is guaranteed to refuse, and name the
+            # sub-ranges that together cover the request instead. The service
+            # truncates to whole days, so compare on the same basis.
+            span_days = (end_epoch - start_epoch) // _SECONDS_PER_DAY
+            max_days = _max_time_interval_days(start_epoch)
+            if span_days > max_days:
+                return format_response(
+                    'error',
+                    {
+                        'message': (
+                            f'start_date to end_date spans {span_days} days. The Invoicing '
+                            'service accepts at most one month per call, measured as the '
+                            f"number of days in the start date's month ({max_days} here). "
+                            'Issue one call per suggested_date_ranges entry instead of '
+                            'widening the range, then combine the results.'
+                        ),
+                        'suggested_date_ranges': _split_range_by_month(start_epoch, end_epoch),
+                    },
+                )
+
             api_filter['TimeInterval'] = {'StartDate': start_epoch, 'EndDate': end_epoch}
         if invoicing_entity:
             api_filter['InvoicingEntity'] = invoicing_entity

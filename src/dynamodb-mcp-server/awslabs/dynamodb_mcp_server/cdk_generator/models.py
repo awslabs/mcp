@@ -14,6 +14,7 @@
 
 """Data model classes for CDK generator."""
 
+import re
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -22,6 +23,27 @@ from typing import List, Optional
 # Source: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Limits.html
 MAX_GSI_PARTITION_KEYS = 4  # Maximum number of partition key attributes per GSI
 MAX_GSI_SORT_KEYS = 4  # Maximum number of sort key attributes per GSI
+
+# DynamoDB name constraints, taken from the DynamoDB API service model shapes
+# TableName, IndexName, KeySchemaAttributeName, NonKeyAttributeName and
+# TimeToLiveAttributeName.
+# Source: https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_CreateTable.html
+#
+# Table and index names are restricted to a fixed character set. The CDK template
+# interpolates those two values into TypeScript identifier positions (method names and
+# variable names), where escaping cannot be applied, so they must be validated here.
+#
+# Attribute names carry no character restriction in the DynamoDB API, so they cannot be
+# rejected. They reach only TypeScript string-literal positions, which the template escapes
+# with the tojson filter.
+#
+# DDB_NAME_PATTERN must be applied with fullmatch, not match: `$` also matches immediately
+# before a trailing newline, so `re.match` would accept a name like 'Users\n'.
+DDB_NAME_PATTERN = re.compile(r'^[a-zA-Z0-9_.-]+$')
+MIN_NAME_LENGTH = 3
+MAX_NAME_LENGTH = 255
+MIN_ATTRIBUTE_NAME_LENGTH = 1
+MAX_ATTRIBUTE_NAME_LENGTH = 255
 
 
 @dataclass
@@ -138,6 +160,60 @@ class DataModel:
             raise ValueError(f'{context}.{field_name} must be an array')
         return data[field_name]
 
+    @staticmethod
+    def _validate_ddb_name(value: str, field_path: str) -> str:
+        """Validate a table or index name against DynamoDB's name constraints.
+
+        These names are interpolated into TypeScript identifier positions in the generated
+        stack, where escaping is not possible, so an unexpected character must be rejected
+        rather than escaped.
+
+        Args:
+            value: The name to validate
+            field_path: Full field path for error messages (e.g. 'tables[0].TableName')
+
+        Returns:
+            The validated name
+
+        Raises:
+            ValueError: If the name is the wrong length or contains disallowed characters
+        """
+        if not MIN_NAME_LENGTH <= len(value) <= MAX_NAME_LENGTH:
+            raise ValueError(
+                f'{field_path} must be between {MIN_NAME_LENGTH} and {MAX_NAME_LENGTH} '
+                f'characters, found {len(value)}'
+            )
+        if not DDB_NAME_PATTERN.fullmatch(value):
+            raise ValueError(
+                f'{field_path} must contain only letters, digits, and the characters '
+                f'_ (underscore), . (dot) and - (hyphen)'
+            )
+        return value
+
+    @staticmethod
+    def _validate_attribute_name(value: str, field_path: str) -> str:
+        """Validate an attribute name length against DynamoDB's constraints.
+
+        DynamoDB places no character restriction on attribute names, so this checks length
+        only. The CDK template escapes attribute names with the tojson filter.
+
+        Args:
+            value: The attribute name to validate
+            field_path: Full field path for error messages
+
+        Returns:
+            The validated attribute name
+
+        Raises:
+            ValueError: If the attribute name is the wrong length
+        """
+        if not MIN_ATTRIBUTE_NAME_LENGTH <= len(value) <= MAX_ATTRIBUTE_NAME_LENGTH:
+            raise ValueError(
+                f'{field_path} must be between {MIN_ATTRIBUTE_NAME_LENGTH} and '
+                f'{MAX_ATTRIBUTE_NAME_LENGTH} characters, found {len(value)}'
+            )
+        return value
+
     @classmethod
     def from_json(cls, data: dict) -> 'DataModel':
         """Parse JSON dict into DataModel with validation.
@@ -189,6 +265,7 @@ class DataModel:
 
             cls._validate_is_object(attr_def, attr_context)
             attr_name = cls._validate_string_field(attr_def, 'AttributeName', attr_context)
+            cls._validate_attribute_name(attr_name, f'{attr_context}.AttributeName')
 
             if 'AttributeType' not in attr_def:
                 raise ValueError(f"{attr_context}.AttributeType must be 'S', 'N', or 'B'")
@@ -282,7 +359,8 @@ class DataModel:
             raise ValueError(f'{ttl_context}.Enabled must be a boolean')
 
         if ttl_data['Enabled']:
-            return cls._validate_string_field(ttl_data, 'AttributeName', ttl_context)
+            ttl_attribute = cls._validate_string_field(ttl_data, 'AttributeName', ttl_context)
+            return cls._validate_attribute_name(ttl_attribute, f'{ttl_context}.AttributeName')
 
         return None
 
@@ -305,6 +383,7 @@ class DataModel:
         cls._validate_is_object(table_data, context)
 
         table_name = cls._validate_string_field(table_data, 'TableName', context)
+        cls._validate_ddb_name(table_name, f'{context}.TableName')
         cls._validate_array_field(table_data, 'KeySchema', context)
         attr_definitions = cls._validate_array_field(table_data, 'AttributeDefinitions', context)
 
@@ -443,6 +522,7 @@ class DataModel:
                     raise ValueError(
                         f'{context}.Projection.NonKeyAttributes[{i}] must not be empty'
                     )
+                cls._validate_attribute_name(attr, f'{context}.Projection.NonKeyAttributes[{i}]')
         elif projection_type in ['ALL', 'KEYS_ONLY']:
             if non_key_attributes:
                 raise ValueError(
@@ -473,6 +553,7 @@ class DataModel:
 
         cls._validate_is_object(gsi_data, context)
         index_name = cls._validate_string_field(gsi_data, 'IndexName', context)
+        cls._validate_ddb_name(index_name, f'{context}.IndexName')
         cls._validate_array_field(gsi_data, 'KeySchema', context)
 
         partition_keys, sort_keys = cls._parse_gsi_key_schema(

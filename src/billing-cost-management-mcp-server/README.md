@@ -14,7 +14,7 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 
 - **Cost Explorer insights**: Analyze historical and forecasted AWS costs with flexible grouping and filtering
 - **Usage metrics analysis**: Track resource usage trends across your AWS environment
-- **Budget monitoring**: Check existing budgets and their status against actual spending
+- **Budget monitoring**: Check existing budgets and their status against actual spending, plus their configured enforcement actions and alert notifications (per-budget or account-wide)
 - **Cost anomaly detection**: Identify unusual spending patterns and their root causes
 
 ### Cost Optimization Recommendations
@@ -25,7 +25,11 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 ### Savings Plans and Reserved Instanaces
 
 - **Reserved Instance planning**: Analyze RI coverage and receive purchase recommendations
-- **Savings Plans guidance**: Get personalized Savings Plans recommendations based on usage patterns
+- **Savings Plans performance**: Analyze how much eligible spend existing plans cover and how much of their commitment is consumed over a lookback window
+- **Savings Plans inventory**: Describe the plans an account owns with their state, term, payment option, commitment, and expiry, including the queued, returned, and payment-failed plans that Cost Explorer does not report
+- **Savings Plans rates and offerings**: Look up the rates locked in on plans already owned, and the offerings available to purchase with their rates, to compare terms and payment options against real numbers
+- **Savings Plans recommendations**: Get personalized purchase recommendations based on usage patterns, the hourly data-points behind a recommendation, and the history of when recommendations were generated
+- **Savings Plans purchase analysis**: Run Purchase Analyzer what-if analyses — maximum savings, a specific commitment, or a target average coverage — and retrieve the projected cost, coverage, and utilization once an analysis completes
 
 ### S3 Storage Lens Analysis
 
@@ -210,6 +214,12 @@ Cost Explorer:
 - ce:GetSavingsPlansCoverage
 - ce:GetSavingsPlansUtilizationDetails
 - ce:GetSavingsPlansPurchaseRecommendation
+- ce:GetSavingsPlanPurchaseRecommendationDetails
+- ce:StartSavingsPlansPurchaseRecommendationGeneration
+- ce:ListSavingsPlansPurchaseRecommendationGeneration
+- ce:StartCommitmentPurchaseAnalysis
+- ce:GetCommitmentPurchaseAnalysis
+- ce:ListCommitmentPurchaseAnalyses
 - ce:GetCostAndUsageComparisons
 - ce:GetCostComparisonDrivers
 - ce:GetAnomalies
@@ -221,6 +231,12 @@ Cost Explorer:
 - ce:GetUsageForecast
 - ce:GetTags
 - ce:GetCostCategories
+
+Savings Plans:
+- savingsplans:DescribeSavingsPlans
+- savingsplans:DescribeSavingsPlanRates
+- savingsplans:DescribeSavingsPlansOfferings
+- savingsplans:DescribeSavingsPlansOfferingRates
 
 Cost Allocation Tags:
 - ce:ListCostAllocationTags
@@ -262,7 +278,9 @@ Compute Optimizer Automation:
 - ec2:DescribeVolumes (required by ListRecommendedActions and ListAutomationRulePreview)
 
 AWS Budgets:
-- budgets:ViewBudget
+- budgets:ViewBudget (also covers budget notifications, per-budget and account-wide)
+- budgets:DescribeBudgetActionsForBudget (required for budget actions by budget name)
+- budgets:DescribeBudgetActionsForAccount (required for account-wide budget actions)
 
 AWS Pricing:
 - pricing:DescribeServices
@@ -365,6 +383,8 @@ The server currently supports the following AWS services
 
 2. **AWS Budgets**
    - describe_budgets
+   - describe_budget_actions (DescribeBudgetActionsForBudget / DescribeBudgetActionsForAccount)
+   - describe_budget_notifications (DescribeNotificationsForBudget / DescribeBudgetNotificationsForAccount)
 
 3. **AWS Free Tier**
    - get_free_tier_usage
