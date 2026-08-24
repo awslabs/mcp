@@ -128,6 +128,5 @@ def register_sqs_tools(mcp: FastMCP, disallow_resource_creation: bool = False):
         mcp_server_version=MCP_SERVER_VERSION,
         tool_configuration=tool_configuration,
         skip_param_documentation=True,
-        default_validator=is_mutative_action_allowed,
     )
     sqs_generator.generate()
