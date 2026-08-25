@@ -1038,7 +1038,24 @@ Configure MCP servers in [fx](https://fx.sh) in `~/.fx/mcp.json`. Servers define
 
 1. Follow the steps above in the **Installation and Setup** section to install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/), install Python, and configure AWS credentials with the required services.
 
-2. Add the servers under the `mcp` key. fx uses `mcp` rather than `mcpServers`, `type` to select the transport, and a single `command` array holding the executable and its arguments.
+2. **Using fx slash commands**
+
+   Run these inside an fx session to register servers:
+
+   ```
+   /mcp add aws-api uvx awslabs.aws-api-mcp-server@latest
+   /mcp add aws-iac uvx awslabs.aws-iac-mcp-server@latest
+   /mcp add aws-docs uvx awslabs.aws-documentation-mcp-server@latest
+   /mcp add aws-pricing uvx awslabs.aws-pricing-mcp-server@latest
+
+   /mcp add --transport http aws-knowledge https://knowledge-mcp.global.api.aws
+
+   /mcp list
+   ```
+
+3. **Manual configuration (alternative)**
+
+   Add the servers under the `mcp` key. fx uses `mcp` rather than `mcpServers`, `type` to select the transport, and a single `command` array holding the executable and its arguments.
 
 #### `~/.fx/mcp.json`
 
@@ -1083,7 +1100,7 @@ The AWS Knowledge MCP Server is remote and needs no credentials:
 }
 ```
 
-3. Run `/mcp reload` to pick up the changes, then `/mcp list` to confirm each server reports `state=ready`.
+After editing the file by hand, run `/mcp reload` to pick it up, then `/mcp list` to confirm each server reports `state=ready`.
 
 </details>
 

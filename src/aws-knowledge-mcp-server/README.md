@@ -84,7 +84,13 @@ https://knowledge-mcp.global.api.aws
 
 **fx**
 
-[fx](https://fx.sh) reads MCP servers from `~/.fx/mcp.json`, under an `mcp` key rather than `mcpServers`. fx speaks Streamable HTTP natively, so no proxy is needed.
+[fx](https://fx.sh) speaks Streamable HTTP natively, so no proxy is needed. Register the server from inside an fx session:
+
+```
+/mcp add --transport http aws-knowledge-mcp-server https://knowledge-mcp.global.api.aws
+```
+
+Or add it by hand to `~/.fx/mcp.json`, under an `mcp` key rather than `mcpServers`:
 
 ```json
 {
