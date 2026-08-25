@@ -82,6 +82,23 @@ https://knowledge-mcp.global.api.aws
 }
 ```
 
+**fx**
+
+[fx](https://fx.sh) reads MCP servers from `~/.fx/mcp.json` only, never from the repository you are working in. It uses an `mcp` key rather than `mcpServers`.
+
+```json
+{
+  "mcp": {
+    "aws-knowledge-mcp-server": {
+      "type": "http",
+      "url": "https://knowledge-mcp.global.api.aws"
+    }
+  }
+}
+```
+
+Run `/mcp reload` and then `/mcp list` to confirm the server is connected.
+
 If the client you are using does not support HTTP transport for MCP or if it encounters issues during setup, you can use the [fastmcp](https://github.com/jlowin/fastmcp) utility to proxy from stdio to HTTP transport. Below is a configuration example for the fastmcp utility.
 
 **fastmcp**
