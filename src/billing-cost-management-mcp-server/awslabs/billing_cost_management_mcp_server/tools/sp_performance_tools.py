@@ -49,7 +49,15 @@ This tool provides insights into your Savings Plans usage patterns through three
 IMPORTANT: For get_savings_plans_coverage, `granularity` and `group_by` are mutually
 exclusive. If `group_by` is provided, `granularity` is ignored (the Cost Explorer
 GetSavingsPlansCoverage API does not allow both). Valid `group_by` dimensions for
-coverage are SERVICE, REGION, or INSTANCE_FAMILY.""",
+coverage are SERVICE, REGION, or INSTANCE_FAMILY.
+
+DATES: `end_date` IS EXCLUSIVE — it is the first instant NOT included. To cover a
+closed month, pass the FIRST day of the following month (start_date="2026-06-01",
+end_date="2026-07-01" is the whole of June).
+
+`end_date` CANNOT EXCEED TOMORROW, so a whole in-flight (current) month is refused rather than
+truncated. For month-to-date pass tomorrow and report the period as ending today, not as
+a full month.""",
 )
 async def sp_performance(
     ctx: Context,
@@ -234,7 +242,7 @@ async def get_savings_plans_utilization(
         )
 
         # Prepare the request parameters
-        request_params = {
+        request_params: Dict[str, Any] = {
             'TimePeriod': {'Start': start, 'End': end},
             'Granularity': granularity,
         }
@@ -243,147 +251,29 @@ async def get_savings_plans_utilization(
         if filter_expr:
             request_params['Filter'] = parse_json(filter_expr, 'filter')
 
-        # Use the paginate_aws_response utility for consistent pagination
-        all_utilizations, pagination_metadata = await paginate_aws_response(
-            ctx=ctx,
-            operation_name='GetSavingsPlansUtilization',
-            api_function=ce_client.get_savings_plans_utilization,
-            request_params=request_params,
-            result_key='SavingsPlansUtilizations',
-            token_param='NextToken',
-            token_key='NextToken',
-            max_pages=None,
-        )
+        response = ce_client.get_savings_plans_utilization(**request_params)
 
-        # Check if we have any utilization data
-        if not all_utilizations:
-            await ctx_logger.warning(
-                'No Savings Plans utilization data found for the specified period'
-            )
-            return format_response(
-                'success',
-                {
-                    'savings_plans_utilizations': [],
-                    'pagination': pagination_metadata,
-                    'time_period': {'start': start, 'end': end},
-                    'granularity': granularity,
-                    'message': 'No Savings Plans utilization data found for the specified period. This could be because you do not have any active Savings Plans, or because the specified date range is outside your Savings Plans period.',
-                },
-            )
+        utilizations_by_time = response.get('SavingsPlansUtilizationsByTime', [])
+        total = response.get('Total')
 
-        # Format utilization data for better readability with proper default values
-        formatted_utilizations = []
-        for utilization in all_utilizations:
-            # Helper function to parse monetary values with defaults
-            def parse_monetary_value(key: str) -> Dict[str, Union[float, str]]:
-                value = utilization.get(key, {})
-                if not value or not isinstance(value, dict):
-                    return {'amount': 0.0, 'currency': 'USD', 'formatted': '0.0 USD'}
-
-                amount = value.get('Amount', 0.0)
-                # Handle numeric strings or None values
-                try:
-                    amount = float(amount) if amount is not None else 0.0
-                except (ValueError, TypeError):
-                    amount = 0.0
-
-                currency = value.get('Unit', 'USD')
-                return {
-                    'amount': amount,
-                    'currency': currency,
-                    'formatted': f'{amount} {currency}',
-                }
-
-            # Get time period with defaults
-            time_period = utilization.get('TimePeriod', {})
-            if not time_period:
-                time_period = {'Start': start, 'End': end}
-
-            # Get utilization percentage with default
-            utilization_pct = utilization.get('UtilizationPercentage')
-            if utilization_pct is None:
-                utilization_pct = 0.0
-            else:
-                try:
-                    utilization_pct = float(utilization_pct)
-                except (ValueError, TypeError):
-                    utilization_pct = 0.0
-
-            # Build formatted utilization with proper defaults
-            formatted_utilization = {
-                'time_period': time_period,
-                'total_commitment': parse_monetary_value('TotalCommitment'),
-                'used_commitment': parse_monetary_value('UsedCommitment'),
-                'unused_commitment': parse_monetary_value('UnusedCommitment'),
-                'utilization_percentage': utilization_pct,
-                'savings_plans_count': utilization.get('SavingsPlansCount', 0),
-            }
-            formatted_utilizations.append(formatted_utilization)
-
-        # Format the response data
-        formatted_response = {
-            'savings_plans_utilizations': formatted_utilizations,
-            'pagination': pagination_metadata,
+        formatted_response: Dict[str, Any] = {
+            'savings_plans_utilizations': utilizations_by_time,
             'time_period': {'start': start, 'end': end},
             'granularity': granularity,
         }
 
-        # Add total utilization if available
-        try:
-            # We need to make one call to get the Total
-            initial_response = ce_client.get_savings_plans_utilization(**request_params)
-            if 'Total' in initial_response:
-                total = initial_response['Total']
+        if total is not None:
+            formatted_response['total'] = total
 
-                # Parse total values with defaults
-                def parse_total_monetary_value(key: str) -> Dict[str, Union[float, str]]:
-                    value = total.get(key, {})
-                    if not value or not isinstance(value, dict):
-                        return {'amount': 0.0, 'currency': 'USD', 'formatted': '0.0 USD'}
-
-                    amount = value.get('Amount', 0.0)
-                    # Handle numeric strings or None values
-                    try:
-                        amount = float(amount) if amount is not None else 0.0
-                    except (ValueError, TypeError):
-                        amount = 0.0
-
-                    currency = value.get('Unit', 'USD')
-                    return {
-                        'amount': amount,
-                        'currency': currency,
-                        'formatted': f'{amount} {currency}',
-                    }
-
-                # Get utilization percentage with default
-                total_utilization_pct = total.get('UtilizationPercentage')
-                if total_utilization_pct is None:
-                    total_utilization_pct = 0.0
-                else:
-                    try:
-                        total_utilization_pct = float(total_utilization_pct)
-                    except (ValueError, TypeError):
-                        total_utilization_pct = 0.0
-
-                formatted_response['total'] = {
-                    'total_commitment': parse_total_monetary_value('TotalCommitment'),
-                    'used_commitment': parse_total_monetary_value('UsedCommitment'),
-                    'unused_commitment': parse_total_monetary_value('UnusedCommitment'),
-                    'utilization_percentage': total_utilization_pct,
-                }
-
-        except Exception as e:
-            # Log but don't fail if we can't get total
-            await ctx_logger.warning(f'Could not retrieve total utilization data: {str(e)}')
-            # Provide default total based on summing values if possible
-            if formatted_utilizations:
-                total_util_pct = sum(
-                    item['utilization_percentage'] for item in formatted_utilizations
-                ) / len(formatted_utilizations)
-                formatted_response['total'] = {
-                    'utilization_percentage': total_util_pct,
-                    'note': 'Estimated from individual utilization data',
-                }
+        if not utilizations_by_time and total is None:
+            await ctx_logger.warning(
+                'No Savings Plans utilization data found for the specified period'
+            )
+            formatted_response['message'] = (
+                'No Savings Plans utilization data found for the specified period. This could be '
+                'because you do not have any active Savings Plans, or because the specified date '
+                'range is outside your Savings Plans period.'
+            )
 
         return format_response('success', formatted_response)
 
