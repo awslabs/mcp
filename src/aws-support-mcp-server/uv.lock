@@ -88,19 +88,14 @@ dependencies = [
     { name = "lxml" },
     { name = "markdownify" },
     { name = "mcp", extra = ["cli"] },
-    { name = "pre-commit" },
     { name = "protego" },
     { name = "pydantic" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
     { name = "python-dotenv" },
     { name = "python-multipart" },
     { name = "readabilipy" },
     { name = "requests" },
     { name = "starlette" },
     { name = "urllib3" },
-    { name = "virtualenv" },
 ]
 
 [package.optional-dependencies]
@@ -118,6 +113,9 @@ dev = [
     { name = "pre-commit" },
     { name = "pyright" },
     { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "virtualenv" },
 ]
 
 [package.metadata]
@@ -130,16 +128,12 @@ requires-dist = [
     { name = "lxml", specifier = ">=6.1.0" },
     { name = "markdownify", specifier = ">=0.13.1" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.23.0" },
-    { name = "pre-commit", specifier = ">=4.2.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.5.0" },
     { name = "protego", specifier = ">=0.3.1" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "pyright", marker = "extra == 'dev'", specifier = ">=1.1.350" },
-    { name = "pytest", specifier = ">=8.3.5" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
-    { name = "pytest-asyncio", specifier = ">=0.26.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
-    { name = "pytest-cov", specifier = ">=6.1.1" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.1.0" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "python-multipart", specifier = ">=0.0.27" },
@@ -148,7 +142,6 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.0.291" },
     { name = "starlette", specifier = ">=0.49.1" },
     { name = "urllib3", specifier = ">=2.6.3" },
-    { name = "virtualenv", specifier = ">=20.36.1" },
 ]
 provides-extras = ["dev"]
 
@@ -157,6 +150,9 @@ dev = [
     { name = "pre-commit", specifier = ">=4.2.0" },
     { name = "pyright", specifier = ">=1.1.400" },
     { name = "pytest", specifier = ">=9.0.3" },
+    { name = "pytest-asyncio", specifier = ">=0.26.0" },
+    { name = "pytest-cov", specifier = ">=6.1.1" },
+    { name = "virtualenv", specifier = ">=20.36.1" },
 ]
 
 [[package]]
