@@ -21,12 +21,12 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/amazon-bedrock-agentcore-mcp-server                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @theagenticguy @scottschreckengaust @theumbrella1 @Vivekbhadauria1 @jesseturner21 @AlexanderRichey @kevin-orellana @Bhavik-T @sundargthb @jariy17 @Sudip2403 @EA-b13
 /src/amazon-kendra-index-mcp-server                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @tomron-aws
 /src/amazon-keyspaces-mcp-server                               @awslabs/mcp-admins @awslabs/mcp-maintainers  @jcshepherd
-/src/amazon-mq-mcp-server                                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @kenliao94 @hashimsharkh
+/src/amazon-mq-mcp-server                                      @awslabs/mcp-admins @awslabs/mcp-maintainers  @hashimsharkh @BenAtAmazon
 /src/amazon-neptune-mcp-server                                 @awslabs/mcp-admins @awslabs/mcp-maintainers  @cornerwings @krlawrence @thompsonbry
 /src/amazon-qbusiness-anonymous-mcp-server                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @abhjaw
 /src/amazon-qindex-mcp-server                                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @tkoba-aws @akhileshamara
 /src/amazon-translate-mcp-server                               @awslabs/mcp-admins @awslabs/mcp-maintainers  @goviha01 @rahullks
-/src/amazon-sns-sqs-mcp-server                                 @awslabs/mcp-admins @awslabs/mcp-maintainers  @kenliao94 @hashimsharkh
+/src/amazon-sns-sqs-mcp-server                                 @awslabs/mcp-admins @awslabs/mcp-maintainers  @hashimsharkh @BenAtAmazon
 /src/aurora-dsql-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @anwesham-lab @benjscho @pkale @amaksimo @praba2210 @spencercorwin
 /src/aws-api-mcp-server                                        @awslabs/mcp-admins @awslabs/mcp-maintainers  @awslabs/aws-api-mcp @rshevchuk-git @PCManticore @iddv @arnewouters @bidesh
 /src/aws-appsync-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @phani-srikar @maxi114 @neelmurt

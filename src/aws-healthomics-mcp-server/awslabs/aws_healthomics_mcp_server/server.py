@@ -116,10 +116,10 @@ from awslabs.aws_healthomics_mcp_server.tools.workflow_management import (
     list_workflows,
 )
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 
-mcp = FastMCP(
+mcp = MCPServer(
     'awslabs.aws-healthomics-mcp-server',
     instructions="""
 # AWS HealthOmics MCP Server

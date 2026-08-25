@@ -92,7 +92,7 @@ class TestDataCatalogDatabaseManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is False
+            assert result.is_error is False
             assert len(result.content) == 2
             assert hasattr(result.content[0], 'text')
             assert f'Successfully created database: {database_name}' in result.content[0].text
@@ -121,7 +121,7 @@ class TestDataCatalogDatabaseManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is True
+            assert result.is_error is True
             assert len(result.content) == 1
             assert hasattr(result.content[0], 'text')
             assert 'Failed to create database' in result.content[0].text
@@ -162,7 +162,7 @@ class TestDataCatalogDatabaseManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is False
+            assert result.is_error is False
             assert len(result.content) == 2
             assert hasattr(result.content[0], 'text')
             assert f'Successfully deleted database: {database_name}' in result.content[0].text
@@ -197,7 +197,7 @@ class TestDataCatalogDatabaseManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is True
+            assert result.is_error is True
             assert len(result.content) == 1
             assert hasattr(result.content[0], 'text')
             assert 'not managed by the MCP server' in result.content[0].text
@@ -222,7 +222,7 @@ class TestDataCatalogDatabaseManager:
 
         # Verify the response
         assert isinstance(result, CallToolResult)
-        assert result.isError is True
+        assert result.is_error is True
         assert len(result.content) == 1
         assert hasattr(result.content[0], 'text')
         assert 'Database test-db not found' in result.content[0].text
@@ -262,7 +262,7 @@ class TestDataCatalogDatabaseManager:
 
         # Verify the response
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
         assert len(result.content) == 2
         assert hasattr(result.content[0], 'text')
         assert f'Successfully retrieved database: {database_name}' in result.content[0].text
@@ -287,7 +287,7 @@ class TestDataCatalogDatabaseManager:
 
         # Verify the response
         assert isinstance(result, CallToolResult)
-        assert result.isError is True
+        assert result.is_error is True
         assert len(result.content) == 1
         assert hasattr(result.content[0], 'text')
         assert 'Failed to get database' in result.content[0].text
@@ -345,7 +345,7 @@ class TestDataCatalogDatabaseManager:
 
         # Verify the response
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
         assert len(result.content) == 2
         assert hasattr(result.content[0], 'text')
         assert 'Successfully listed 2 databases' in result.content[0].text
@@ -365,7 +365,7 @@ class TestDataCatalogDatabaseManager:
 
         # Verify the response
         assert isinstance(result, CallToolResult)
-        assert result.isError is True
+        assert result.is_error is True
         assert len(result.content) == 1
         assert hasattr(result.content[0], 'text')
         assert 'Failed to list databases' in result.content[0].text
@@ -422,7 +422,7 @@ class TestDataCatalogDatabaseManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is False
+            assert result.is_error is False
             assert len(result.content) == 2
             assert hasattr(result.content[0], 'text')
             assert f'Successfully updated database: {database_name}' in result.content[0].text
@@ -457,7 +457,7 @@ class TestDataCatalogDatabaseManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is True
+            assert result.is_error is True
             assert len(result.content) == 1
             assert hasattr(result.content[0], 'text')
             assert 'not managed by the MCP server' in result.content[0].text
@@ -482,7 +482,7 @@ class TestDataCatalogDatabaseManager:
 
         # Verify the response
         assert isinstance(result, CallToolResult)
-        assert result.isError is True
+        assert result.is_error is True
         assert len(result.content) == 1
         assert hasattr(result.content[0], 'text')
         assert 'Database test-db not found' in result.content[0].text

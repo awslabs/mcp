@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Any, Dict, List, Optional
 
@@ -129,7 +129,7 @@ class UseCaseSpecificGuidance:
 class GetLambdaGuidanceTool:
     """Tool to provide guidance on when to use AWS Lambda as a deployment platform."""
 
-    def __init__(self, mcp: FastMCP):
+    def __init__(self, mcp: MCPServer):
         """Initialize the GetLambdaGuidanceTool."""
         mcp.tool(name='get_lambda_guidance')(self.get_lambda_guidance)
 

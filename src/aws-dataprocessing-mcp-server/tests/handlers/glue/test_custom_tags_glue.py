@@ -90,7 +90,7 @@ class TestCustomTagsGlue:
         """Test that create database operation respects CUSTOM_TAGS when enabled."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.operation = 'create-database'
@@ -133,7 +133,7 @@ class TestCustomTagsGlue:
         """Test that create table operation respects CUSTOM_TAGS when enabled."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.table_name = 'test-table'
@@ -199,7 +199,7 @@ class TestCustomTagsGlue:
         """Test that create connection operation respects CUSTOM_TAGS when enabled."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.connection_name = 'test-jdbc-connection'
         expected_response.operation = 'create-connection'
@@ -254,7 +254,7 @@ class TestCustomTagsGlue:
         """Test that create partition operation respects CUSTOM_TAGS when enabled."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.table_name = 'test-table'
@@ -324,7 +324,7 @@ class TestCustomTagsGlue:
         """Test that create catalog operation respects CUSTOM_TAGS when enabled."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.catalog_id = 'test-catalog'
         expected_response.operation = 'create-catalog'
@@ -367,7 +367,7 @@ class TestCustomTagsGlue:
         """Test that delete database operation respects CUSTOM_TAGS when enabled."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.operation = 'delete-database'
@@ -398,7 +398,7 @@ class TestCustomTagsGlue:
         """Test that delete table operation respects CUSTOM_TAGS when enabled."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.table_name = 'test-table'
@@ -434,7 +434,7 @@ class TestCustomTagsGlue:
         """Test that delete connection operation respects CUSTOM_TAGS when enabled."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.connection_name = 'test-connection'
         expected_response.operation = 'delete-connection'
@@ -469,7 +469,7 @@ class TestCustomTagsGlue:
         """Test that delete partition operation respects CUSTOM_TAGS when enabled."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.table_name = 'test-table'
@@ -508,7 +508,7 @@ class TestCustomTagsGlue:
         """Test that delete catalog operation respects CUSTOM_TAGS when enabled."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.catalog_id = 'test-catalog'
         expected_response.operation = 'delete-catalog'

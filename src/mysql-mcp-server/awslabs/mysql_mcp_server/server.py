@@ -41,7 +41,7 @@ from awslabs.mysql_mcp_server.mutable_sql_detector import (
 from botocore.exceptions import ClientError
 from datetime import datetime
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Annotated, Any, Dict, List, Optional, Tuple
 
@@ -61,10 +61,14 @@ readonly_query = True
 ca_bundle_path: Optional[str] = None
 
 
-class DummyCtx:
+class DummyCtx(Context):
     """A dummy context class for error handling in MCP tools."""
 
-    async def error(self, message):
+    def __init__(self) -> None:
+        """Initialize with no request context; nothing here needs one."""
+        super().__init__()
+
+    async def error(self, data: Any, *, logger_name: Optional[str] = None):
         """Raise a runtime error with the given message."""
         pass
 
@@ -98,7 +102,7 @@ def parse_execute_response(response: dict) -> list[dict]:
     return records
 
 
-mcp = FastMCP(
+mcp = MCPServer(
     'mysql-mcp MCP server. This is the starting point for all solutions created',
     dependencies=[
         'loguru',

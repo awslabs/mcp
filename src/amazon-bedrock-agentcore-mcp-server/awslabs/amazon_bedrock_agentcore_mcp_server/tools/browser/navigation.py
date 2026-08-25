@@ -24,7 +24,7 @@ from .snapshot_manager import (
     SnapshotManager,
 )
 from loguru import logger
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from os import getenv
 from playwright.async_api import Error as PlaywrightError
 from pydantic import Field

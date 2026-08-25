@@ -46,9 +46,9 @@ from awslabs.postgres_mcp_server.mutable_sql_detector import (
 from botocore.exceptions import ClientError
 from datetime import datetime
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
-from mcp.shared.exceptions import McpError
-from mcp.types import INVALID_PARAMS, ErrorData
+from mcp.server.mcpserver import Context, MCPServer
+from mcp.shared.exceptions import MCPError
+from mcp.types import INVALID_PARAMS
 from pydantic import Field
 from typing import Annotated, Any, Dict, List, Optional, Tuple
 
@@ -99,14 +99,19 @@ configured_secret_arns: Dict[str, str] = {}
 configured_default_secret_arn: Optional[str] = None
 
 
-class DummyCtx:
+class DummyCtx(Context):
     """A dummy context class for error handling in MCP tools."""
 
-    async def error(self, message):
+    def __init__(self) -> None:
+        """Initialize with no request context; nothing here needs one."""
+        super().__init__()
+
+    async def error(self, data: Any, *, logger_name: Optional[str] = None):
         """Raise a runtime error with the given message.
 
         Args:
-            message: The error message to include in the runtime error
+            data: The error message to include in the runtime error
+            logger_name: Accepted for signature compatibility with Context.error; unused
         """
         # Do nothing
         pass
@@ -337,7 +342,7 @@ def attach_privilege_advisory(llm_response: str, db_connection: AbstractDBConnec
     return json.dumps(payload, indent=2, default=str)
 
 
-mcp = FastMCP(
+mcp = MCPServer(
     'pg-mcp MCP server. This is the starting point for all solutions created',
     dependencies=[
         'loguru',
@@ -476,9 +481,7 @@ async def get_table_schema(
     )
 
     if not validate_table_name(table_name):
-        raise McpError(
-            ErrorData(code=INVALID_PARAMS, message=(f"Invalid table name: '{table_name}'. "))
-        )
+        raise MCPError(code=INVALID_PARAMS, message=(f"Invalid table name: '{table_name}'. "))
 
     sql = """
         SELECT
