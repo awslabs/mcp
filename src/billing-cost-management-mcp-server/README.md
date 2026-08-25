@@ -72,6 +72,12 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 - **Invoice units**: List and retrieve invoice unit definitions (groups of accounts that receive a separate invoice, with their receiver account and linked-account rules), filtered by name, receiver, or member account; and fetch invoice receiver profiles (legal name, address, tax registration number) for a set of accounts
 - **Procurement portal preferences**: List and retrieve procurement portal connections (SAP Business Network, Coupa) and e-invoice delivery / purchase-order retrieval settings
 
+### AWS Billing Preferences
+
+- **Discount sharing configuration**: Retrieve which member accounts participate in the Reserved Instance / Savings Plans discount pool and in credit sharing, whether newly created accounts join automatically, and whether sharing is open — the authoritative answer to "is this account excluded from commitment sharing", which cannot be inferred from RI/SP coverage data
+- **Sharing history**: The per-billing-period record of those settings, for reconciling a closed billing period against the sharing state that was actually in force at the time
+- **Billing alerts**: Whether billing alerts are enabled
+
 ### Specialized Cost Optimization Prompts
 
 - **Graviton migration analysis**: Guided analysis to identify EC2 instances suitable for AWS Graviton migration
@@ -343,6 +349,7 @@ AWS Invoicing:
 AWS Billing:
 - billing:GetCredits
 - billing:GetCreditAllocationHistory
+- billing:GetBillingPreferences
 
 #### Configuration
 
@@ -462,3 +469,6 @@ The server currently supports the following AWS services
 
 13. **AWS Credits**
     - `credits` tool: get_credits, get_credit_allocation_history
+
+14. **AWS Billing Preferences**
+    - get-billing-preferences
