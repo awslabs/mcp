@@ -84,7 +84,7 @@ https://knowledge-mcp.global.api.aws
 
 **fx**
 
-[fx](https://fx.sh) reads MCP servers from `~/.fx/mcp.json` only, never from the repository you are working in. It uses an `mcp` key rather than `mcpServers`.
+[fx](https://fx.sh) reads MCP servers from `~/.fx/mcp.json`, under an `mcp` key rather than `mcpServers`. fx speaks Streamable HTTP natively, so no proxy is needed.
 
 ```json
 {

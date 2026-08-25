@@ -76,6 +76,8 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
       - [`.vscode/mcp.json`](#vscodemcpjson)
     - [Getting Started with Claude Code](#getting-started-with-claude-code)
       - [`.mcp.json`](#mcpjson)
+    - [Getting Started with fx](#getting-started-with-fx)
+      - [`~/.fx/mcp.json`](#fxmcpjson)
   - [Samples](#samples)
   - [Vibe coding](#vibe-coding)
   - [Additional Resources](#additional-resources)
@@ -1025,6 +1027,64 @@ For macOS/Linux:
   }
 }
 ```
+</details>
+
+### Getting Started with fx
+
+<details>
+<summary>Install in fx</summary>
+
+Configure MCP servers in [fx](https://fx.sh) in `~/.fx/mcp.json`. Servers defined there are available in every project.
+
+1. Follow the steps above in the **Installation and Setup** section to install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/), install Python, and configure AWS credentials with the required services.
+
+2. Add the servers under the `mcp` key. fx uses `mcp` rather than `mcpServers`, `type` to select the transport, and a single `command` array holding the executable and its arguments.
+
+#### `~/.fx/mcp.json`
+
+```json
+{
+  "mcp": {
+    "awslabs.aws-iac-mcp-server": {
+      "type": "local",
+      "command": ["uvx", "awslabs.aws-iac-mcp-server@latest"],
+      "environment": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "awslabs.aws-documentation-mcp-server": {
+      "type": "local",
+      "command": ["uvx", "awslabs.aws-documentation-mcp-server@latest"],
+      "environment": {
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "AWS_DOCUMENTATION_PARTITION": "aws"
+      }
+    }
+  }
+}
+```
+
+The first launch of a `uvx` server downloads the package, which can exceed the default startup timeout. Raise it for that server if needed:
+
+```json
+"startup_timeout_ms": 30000
+```
+
+The AWS Knowledge MCP Server is remote and needs no credentials:
+
+```json
+{
+  "mcp": {
+    "aws-knowledge-mcp-server": {
+      "type": "http",
+      "url": "https://knowledge-mcp.global.api.aws"
+    }
+  }
+}
+```
+
+3. Run `/mcp reload` to pick up the changes, then `/mcp list` to confirm each server reports `state=ready`.
+
 </details>
 
 ## Samples
