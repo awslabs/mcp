@@ -31,6 +31,7 @@ from awslabs.redshift_mcp_server.consts import (
     SCHEMAS_SQL,
     SESSION_KEEPALIVE,
     TABLES_SQL,
+    UDFS_SQL,
 )
 from awslabs.redshift_mcp_server.models import (
     RedshiftCluster,
@@ -39,6 +40,7 @@ from awslabs.redshift_mcp_server.models import (
     RedshiftDataModel,
     RedshiftSchema,
     RedshiftTable,
+    RedshiftUDF,
 )
 from awslabs.redshift_mcp_server.sql_guard import assert_executable
 from botocore.config import Config
@@ -713,6 +715,45 @@ async def discover_columns(
     except Exception as e:
         logger.error(
             f'Error discovering columns in table {column_table_name} in schema {column_schema_name} in database {column_database_name} in cluster {cluster_identifier}: {str(e)}'
+        )
+        raise
+
+
+async def discover_udfs(
+    cluster_identifier: str, database_name: str, schema_name: str
+) -> list[RedshiftUDF]:
+    """Discover user-defined functions in a Redshift schema using the Data API.
+
+    Args:
+        cluster_identifier: The cluster identifier to query.
+        database_name: The database to connect to for querying system views.
+        schema_name: The schema name to filter UDFs for.
+
+    Returns:
+        List of RedshiftUDF models.
+    """
+    try:
+        logger.info(
+            f'Discovering UDFs in schema {schema_name} in database {database_name} in cluster {cluster_identifier}'
+        )
+
+        results_response, _ = await _execute_protected_statement(
+            cluster_identifier=cluster_identifier,
+            database_name=database_name,
+            sql=UDFS_SQL.format(
+                schema=_sql_identifier(schema_name),
+            ),
+        )
+
+        udfs = RedshiftUDF.from_redshift_response(results_response)
+        logger.info(
+            f'Found {len(udfs)} UDFs in schema {schema_name} in database {database_name} in cluster {cluster_identifier}'
+        )
+        return udfs
+
+    except Exception as e:
+        logger.error(
+            f'Error discovering UDFs in schema {schema_name} in database {database_name} in cluster {cluster_identifier}: {str(e)}'
         )
         raise
 
