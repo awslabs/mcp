@@ -311,3 +311,41 @@ Configure MCP servers in VS Code settings or in `.vscode/mcp.json` (see [VS Code
   }
 }
 ```
+
+### Getting Started with fx
+
+Configure MCP servers in [fx](https://fx.sh) in `~/.fx/mcp.json`. Servers defined there are available in every project. fx ships macOS and Linux binaries.
+
+Register servers from inside an fx session:
+
+```
+/mcp add aws-docs uvx awslabs.aws-documentation-mcp-server@latest
+/mcp add --transport http aws-knowledge https://knowledge-mcp.global.api.aws
+/mcp list
+```
+
+#### `~/.fx/mcp.json`
+
+To configure by hand, add the servers under the `mcp` key. fx uses `mcp` rather than `mcpServers`, `type` to select the transport, and a single `command` array holding the executable and its arguments.
+
+```json
+{
+  "mcp": {
+    "awslabs.aws-documentation-mcp-server": {
+      "type": "local",
+      "command": ["uvx", "awslabs.aws-documentation-mcp-server@latest"],
+      "environment": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "aws-knowledge-mcp-server": {
+      "type": "http",
+      "url": "https://knowledge-mcp.global.api.aws"
+    }
+  }
+}
+```
+
+The first launch of a `uvx` server downloads the package, which can exceed the default startup timeout. Raise it for that server with `"startup_timeout_ms": 30000`.
+
+Run `/mcp reload` after editing the file, then `/mcp list` to confirm each server reports `state=ready`.
