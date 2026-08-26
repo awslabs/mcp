@@ -1310,5 +1310,5 @@ class TestSecretArnIsOperatorOnly:
         mocker.patch.object(server.mcp, 'run')
         mocker.patch.object(server.db_connection_map, 'close_all')
         server.main()
-        assert server.server_config.default_secret_arn == 'arn:only'
+        assert server.server_config.default_secret_arn == 'arn:only'  # pragma: allowlist secret
         assert server.server_config.configured_secret_arns == {}
