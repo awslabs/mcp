@@ -35,7 +35,25 @@ read-only:
   Rewrite such queries without `UNION` (e.g. run the two `SELECT`s separately). This is a
   conscious safety-over-convenience choice; open an issue if it blocks a real workflow.
 - Stacked queries, `CALL ... ADMIN_CMD`, `SYSPROC.*`, and authorization-catalog views
-  (`SYSCAT.DBAUTH`, etc.) are also rejected.
+  (`SYSCAT.DBAUTH`, `SYSCAT.SCHEMAAUTH`, and the other `*AUTH` views) are also rejected.
+  These are matched by object-name shape, so quoting or spacing (`SYSCAT."DBAUTH"`,
+  `SYSCAT . DBAUTH`) does not evade them.
+
+#### What is *not* treated as SQL
+
+Two forms of over-matching were removed, because they rejected ordinary read-only queries:
+
+- **Delimited identifiers are names, not syntax.** Their contents are not keyword-scanned,
+  so `SELECT "SET" FROM T`, `SELECT * FROM "DELETE"` and `SELECT "a;b" FROM T` are all
+  permitted. (They *are* still inspected by the object-name patterns above, which is how
+  `SYSCAT."DBAUTH"` stays blocked.)
+- **Db2 utility verbs are only mutating when they lead the statement.** `REORG`,
+  `RUNSTATS`, `IMPORT`, `LOAD`, `EXPORT`, `FLUSH` and `REFRESH` are not reserved words, so
+  they are perfectly ordinary column names — `REFRESH` is a real `CHAR(1)` column on
+  `SYSCAT.TABLES`. `REFRESH TABLE MV1` is rejected; `SELECT REFRESH FROM SYSCAT.TABLES` is
+  not. `INSERT`/`UPDATE`/`MERGE` are still matched anywhere, because they genuinely mutate
+  from a nested position via a data-change-table-reference
+  (`SELECT a FROM FINAL TABLE (INSERT ...)`).
 - **`SET`** statements (including `SET CURRENT ...` session-state changes) are treated as
   mutating and rejected in read-only mode, since they can alter session behavior
   (e.g. `SET CURRENT SCHEMA`, `SET CURRENT QUERY OPTIMIZATION`).

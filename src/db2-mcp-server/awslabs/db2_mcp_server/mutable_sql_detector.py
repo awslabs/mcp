@@ -79,7 +79,27 @@ MUTATING_KEYWORDS = {
     # Session / object state
     'SET',
     'SET INTEGRITY',
-    # Db2 admin / maintenance operations (executed via ADMIN_CMD)
+}
+
+# Utility keywords that are a mutation only when they LEAD the statement.
+#
+# These are Db2 utility/command verbs (REORG, RUNSTATS, IMPORT, LOAD, EXPORT run via
+# SYSPROC.ADMIN_CMD; FLUSH and REFRESH TABLE are statements in their own right). None of
+# them can appear nested inside a SELECT and still mutate anything -- unlike INSERT, which
+# genuinely can, via a data-change-table-reference
+# (``SELECT a FROM FINAL TABLE (INSERT ...)``), and so stays in MUTATING_KEYWORDS above.
+#
+# Crucially, none of these words is RESERVED in Db2, so they are perfectly ordinary column
+# names -- ``REFRESH`` is a real CHAR(1) column on SYSCAT.TABLES. Matching them anywhere
+# rejected textbook read-only catalog queries:
+#
+#     SELECT TABSCHEMA, TABNAME, REFRESH FROM SYSCAT.TABLES WHERE REFRESH <> ' '
+#
+# Anchoring to statement start keeps the mutating spelling blocked (``REFRESH TABLE MV1``,
+# ``LOAD FROM ... INSERT INTO T``) while letting the identifier spelling through. Attempts
+# to reach these through ADMIN_CMD are caught independently by the ``admin_cmd`` and
+# ``sysproc.`` patterns, and by CALL, which remains matched anywhere.
+LEADING_MUTATING_KEYWORDS = {
     'REORG',
     'RUNSTATS',
     'IMPORT',
@@ -99,6 +119,15 @@ _sorted_keywords = sorted(MUTATING_KEYWORDS, key=lambda k: -len(k.split()))
 
 MUTATING_PATTERN = re.compile(
     r'(?i)\b(' + '|'.join(_keyword_to_pattern(k) for k in _sorted_keywords) + r')\b'
+)
+
+# Anchored at the start of the (comment-stripped) statement, allowing leading whitespace
+# and any number of opening parens. Stacked forms such as 'SELECT 1; REORG TABLE T' are
+# caught by the stacked-query pattern instead, which rejects the ';' outright.
+LEADING_MUTATING_PATTERN = re.compile(
+    r'(?i)^[\s(]*\b('
+    + '|'.join(_keyword_to_pattern(k) for k in sorted(LEADING_MUTATING_KEYWORDS))
+    + r')\b'
 )
 
 # Operations that stay blocked even with --allow_write_query.
@@ -142,6 +171,22 @@ ALWAYS_BLOCKED_PATTERNS = [
     r'(?i)\bset\s+current\s+sqlid\b',
 ]
 
+# Patterns that must inspect the CONTENTS of a delimited identifier, so they run on the
+# form where those identifiers are preserved. They match a system object by name, and the
+# name is exactly what an attacker delimits to hide it -- SYSPROC."ADMIN_GET_TAB_INFO" and
+# SYSCAT."DBAUTH" are the two real cases. Blanking would erase the very token they look
+# for, and the qualifier alone cannot distinguish SYSCAT."DBAUTH" from SYSCAT."TABLES".
+OBJECT_NAME_PATTERNS = [
+    r'(?i)\badmin_cmd\b',  # SYSPROC.ADMIN_CMD — runs arbitrary admin commands
+    r'(?i)\bdbms_\w+',  # Db2 DBMS_* compatibility packages (e.g. DBMS_PIPE)
+    # System stored procedures. Quotes/whitespace tolerated around the '.' so a delimited
+    # routine name cannot step around it.
+    r'(?i)\b"?sysproc"?\s*\.\s*"?\w+',
+    # UTL_* file/HTTP/SMTP packages, the sibling of the dbms_ guard above.
+    r'(?i)\butl_\w+',
+    r'(?i)\bsysinstallobjects\b',  # system object installer
+]
+
 SUSPICIOUS_PATTERNS = [
     r"(?i)'.*?--",  # comment injection
     r'(?i)\bor\b\s+\d+\s*=\s*\d+',  # numeric tautology e.g. OR 1=1
@@ -154,20 +199,7 @@ SUSPICIOUS_PATTERNS = [
     r'(?i)\bunion\b.*\bselect\b',
     r';\s*(?!($|\s*--|\s*/\*))(?=\S)',  # stacked queries
     r'(?i)\bsleep\s*\(',  # delay-based probes
-    # Db2-specific high-risk patterns
-    r'(?i)\badmin_cmd\b',  # SYSPROC.ADMIN_CMD — runs arbitrary admin commands
     r'(?i)\bexecute\s+immediate\b',  # dynamic SQL execution (SQL PL)
-    r'(?i)\bdbms_\w+',  # Db2 DBMS_* compatibility packages (e.g. DBMS_PIPE)
-    # System stored procedures. Quotes and whitespace around the '.' are tolerated:
-    # the previous r'\bsysproc\.\w+' required a word character immediately after the
-    # dot, so SYSPROC."ADMIN_GET_TAB_INFO" (a delimited routine name) slipped past while
-    # the unquoted spelling was blocked -- the same quoting hole already closed for the
-    # authorization-catalog list below.
-    r'(?i)\b"?sysproc"?\s*\.\s*"?\w+',
-    # UTL_* file/HTTP/SMTP packages. The sibling \bdbms_\w+ guard was present but this
-    # one was dropped, so UTL_FILE.FOPEN was allowed while DBMS_PIPE was blocked.
-    r'(?i)\butl_\w+',
-    r'(?i)\bsysinstallobjects\b',  # system object installer
 ]
 
 READONLY_SUSPICIOUS_PATTERNS = [
@@ -204,6 +236,8 @@ READONLY_SUSPICIOUS_PATTERNS = [
 # newlines; without it an injected newline between tokens bypasses the pattern.
 COMPILED_ALWAYS_BLOCKED_PATTERNS = [re.compile(p, re.DOTALL) for p in ALWAYS_BLOCKED_PATTERNS]
 COMPILED_SUSPICIOUS_PATTERNS = [re.compile(p, re.DOTALL) for p in SUSPICIOUS_PATTERNS]
+# Run against the delimited-preserving form -- see OBJECT_NAME_PATTERNS.
+COMPILED_OBJECT_NAME_PATTERNS = [re.compile(p, re.DOTALL) for p in OBJECT_NAME_PATTERNS]
 COMPILED_READONLY_SUSPICIOUS_PATTERNS = [
     re.compile(p, re.DOTALL) for p in READONLY_SUSPICIOUS_PATTERNS
 ]
@@ -213,14 +247,24 @@ TRANSACTION_CONTROL_PATTERN = re.compile(
 )
 
 
-def _strip_sql_comments(sql_text: str) -> str:
+def _strip_sql_comments(sql_text: str, *, blank_delimited: bool = False) -> str:
     """Remove SQL comments and string-literal contents for security analysis.
 
     Parses character-by-character so that ``--`` and ``/*`` inside single-quoted
     Db2 string literals or double-quoted identifiers are not treated as comments.
     Comments become a single space; string-literal contents become ``''`` so that
-    keywords inside string values do not trigger false positives. Double-quoted
-    identifiers are preserved as-is (they name schema objects worth checking).
+    keywords inside string values do not trigger false positives.
+
+    Args:
+        sql_text: the SQL to normalize.
+        blank_delimited: when True, the CONTENTS of double-quoted identifiers are
+            replaced with ``""``. A delimited identifier is a NAME, never syntax, so
+            for keyword and structural scanning its contents must not be read as SQL:
+            preserving them made ``SELECT "SET" FROM T`` look like a session change and
+            ``SELECT "a;b" FROM T`` look like a stacked query, rejecting ordinary
+            read-only queries. When False (the default) the identifier is preserved, which
+            the OBJECT-NAME patterns need -- they have to see the name to tell
+            ``SYSCAT."DBAUTH"`` from ``SYSCAT."TABLES"``.
     """
     result: list[str] = []
     i = 0
@@ -229,6 +273,20 @@ def _strip_sql_comments(sql_text: str) -> str:
     while i < n:
         # --- double-quoted identifier ---
         if sql_text[i] == '"':
+            if blank_delimited:
+                # Skip the whole identifier, emitting an empty one so surrounding
+                # structure (commas, parens) is preserved for the structural patterns.
+                i += 1
+                while i < n:
+                    if sql_text[i] == '"':
+                        i += 1
+                        if i < n and sql_text[i] == '"':
+                            i += 1  # doubled quote = one escaped quote inside
+                            continue
+                        break
+                    i += 1
+                result.append('""')
+                continue
             result.append('"')
             i += 1
             while i < n:
@@ -285,10 +343,19 @@ def _strip_sql_comments(sql_text: str) -> str:
 
 
 def detect_mutating_keywords(sql_text: str) -> list[str]:
-    """Return a list of mutating keywords found in the SQL (excluding comments)."""
-    stripped = _strip_sql_comments(sql_text)
-    matches = MUTATING_PATTERN.findall(stripped)
-    return list({m.upper() for m in matches})
+    """Return the mutating keywords found in the SQL (excluding comments and identifiers).
+
+    Delimited identifiers are blanked before matching -- a quoted name is data, not syntax,
+    so ``SELECT "SET" FROM T`` and ``SELECT * FROM "DELETE"`` are ordinary read-only
+    queries. The utility verbs in LEADING_MUTATING_KEYWORDS are matched only at statement
+    start, so ``REFRESH`` as a SYSCAT.TABLES column is not mistaken for ``REFRESH TABLE``.
+    """
+    stripped = _strip_sql_comments(sql_text, blank_delimited=True)
+    matches = set(MUTATING_PATTERN.findall(stripped))
+    leading = LEADING_MUTATING_PATTERN.match(stripped)
+    if leading:
+        matches.add(leading.group(1))
+    return list({re.sub(r'\s+', ' ', m).upper() for m in matches})
 
 
 def check_sql_injection_risk(sql: str, readonly: bool = False) -> list[dict]:
@@ -302,26 +369,34 @@ def check_sql_injection_risk(sql: str, readonly: bool = False) -> list[dict]:
         list of dictionaries describing each detected security issue
     """
     issues = []
-    stripped = _strip_sql_comments(sql)
+    # Two normalizations, because the two pattern families need opposite treatment of
+    # delimited identifiers. Structural/keyword patterns must NOT read inside them (a
+    # quoted name is data: 'SELECT "a;b" FROM T' is not a stacked query), while
+    # object-name patterns MUST, since the name is what an attacker delimits to hide
+    # (SYSCAT."DBAUTH").
+    structural = _strip_sql_comments(sql, blank_delimited=True)
+    with_identifiers = _strip_sql_comments(sql)
 
     # ALWAYS_BLOCKED_PATTERNS apply in BOTH modes -- see the comment on that list.
     # --allow_write_query turns off the mutating-keyword and transaction screens, so
     # without these DDL, GRANT/REVOKE and SET SESSION AUTHORIZATION had no guard at all
     # in write mode.
-    patterns = COMPILED_ALWAYS_BLOCKED_PATTERNS + COMPILED_SUSPICIOUS_PATTERNS
+    structural_patterns = COMPILED_ALWAYS_BLOCKED_PATTERNS + COMPILED_SUSPICIOUS_PATTERNS
+    object_patterns = COMPILED_OBJECT_NAME_PATTERNS
     if readonly:
-        patterns = patterns + COMPILED_READONLY_SUSPICIOUS_PATTERNS
+        object_patterns = object_patterns + COMPILED_READONLY_SUSPICIOUS_PATTERNS
 
-    for compiled_pattern in patterns:
-        if compiled_pattern.search(stripped):
-            issues.append(
-                {
-                    'type': 'sql',
-                    'message': f'Suspicious pattern in query: {sql}',
-                    'severity': 'high',
-                }
-            )
-            break
+    matched = any(p.search(structural) for p in structural_patterns) or any(
+        p.search(with_identifiers) for p in object_patterns
+    )
+    if matched:
+        issues.append(
+            {
+                'type': 'sql',
+                'message': f'Suspicious pattern in query: {sql}',
+                'severity': 'high',
+            }
+        )
     return issues
 
 
@@ -337,6 +412,8 @@ def detect_transaction_bypass_attempt(sql: str) -> list[str]:
     Returns:
         list of detected transaction control keywords (uppercase, deduplicated)
     """
-    stripped = _strip_sql_comments(sql)
+    # Delimited identifiers blanked: 'SELECT "COMMIT" FROM T' selects a column named
+    # COMMIT, it does not commit.
+    stripped = _strip_sql_comments(sql, blank_delimited=True)
     matches = TRANSACTION_CONTROL_PATTERN.findall(stripped)
     return list({m.upper().split()[0] for m in matches})

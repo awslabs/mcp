@@ -119,8 +119,17 @@ class TestDetectMutatingKeywords:
             'FLUSH',
             'REFRESH',
         }
-        missing = MUTATING_KEYWORDS - exercised
-        assert not missing, f'MUTATING_KEYWORDS added without test coverage: {missing}'
+        from awslabs.db2_mcp_server.mutable_sql_detector import LEADING_MUTATING_KEYWORDS
+
+        # Both sets are guarded. Watching only MUTATING_KEYWORDS would let a new entry in
+        # LEADING_MUTATING_KEYWORDS ship with no detection test -- and a leading-only
+        # keyword is the easier of the two to get wrong, since it is anchored.
+        missing = (MUTATING_KEYWORDS | LEADING_MUTATING_KEYWORDS) - exercised
+        assert not missing, f'mutating keyword added without test coverage: {missing}'
+        # The two sets must stay disjoint: a keyword in both would be matched anywhere by
+        # MUTATING_PATTERN, silently defeating the leading-only anchor.
+        overlap = MUTATING_KEYWORDS & LEADING_MUTATING_KEYWORDS
+        assert not overlap, f'keyword in both sets (anchor is defeated): {overlap}'
 
     def test_keyword_in_string_literal_is_ignored(self):
         """A keyword inside a string literal must not trigger detection."""
@@ -129,6 +138,79 @@ class TestDetectMutatingKeywords:
     def test_keyword_in_comment_is_ignored(self):
         """A keyword inside a comment must not trigger detection."""
         assert detect_mutating_keywords('SELECT 1 FROM SYSIBM.SYSDUMMY1 -- DROP TABLE T') == []
+
+
+class TestOverMatching:
+    """Legitimate read-only queries must not be rejected by keyword collisions."""
+
+    @pytest.mark.parametrize(
+        'sql,why',
+        [
+            (
+                "SELECT TABSCHEMA, TABNAME, REFRESH FROM SYSCAT.TABLES WHERE REFRESH <> ' '",
+                'REFRESH is a real CHAR(1) column on SYSCAT.TABLES',
+            ),
+            ('SELECT REFRESH, LOAD, EXPORT FROM SYSCAT.TABLES', 'none of these is reserved'),
+            ('SELECT LOAD FROM T', 'LOAD is not a Db2 reserved word'),
+            ('SELECT "SET" FROM T', 'delimited identifier: a name, not syntax'),
+            ('SELECT "a;b" FROM T', "';' inside a delimited identifier is data"),
+            ('SELECT * FROM "DELETE"', 'a table named DELETE; the query is read-only'),
+            ('SELECT "COMMIT" FROM T', 'a column named COMMIT does not commit'),
+            ('SELECT "IMPORT" AS "EXPORT" FROM T', 'both are delimited names'),
+        ],
+    )
+    def test_legitimate_readonly_queries_are_allowed(self, sql, why):
+        """These were all rejected before the two-form normalization and leading-verb split."""
+        assert detect_mutating_keywords(sql) == [], why
+        assert detect_transaction_bypass_attempt(sql) == [], why
+        assert check_sql_injection_risk(sql, readonly=True) == [], why
+
+    @pytest.mark.parametrize(
+        'sql,keyword',
+        [
+            ('REFRESH TABLE MV1', 'REFRESH'),
+            ('REORG TABLE T', 'REORG'),
+            ('RUNSTATS ON TABLE T', 'RUNSTATS'),
+            ('LOAD FROM file.del OF DEL INSERT INTO T', 'LOAD'),
+            ('IMPORT FROM file.del OF DEL INSERT INTO T', 'IMPORT'),
+            ('EXPORT TO file.del OF DEL SELECT * FROM T', 'EXPORT'),
+            ('FLUSH PACKAGE CACHE DYNAMIC', 'FLUSH'),
+            ('  \n  REFRESH TABLE MV1', 'REFRESH'),  # leading whitespace
+            ('(REFRESH TABLE MV1)', 'REFRESH'),  # leading paren
+            ('refresh table mv1', 'REFRESH'),  # case-insensitive
+        ],
+    )
+    def test_leading_utility_verbs_are_still_caught(self, sql, keyword):
+        """The mutating spelling of each utility verb is statement-initial, and blocked.
+
+        This is the other half of the leading-verb split: anchoring must not let the actual
+        command form through.
+        """
+        assert keyword in detect_mutating_keywords(sql)
+
+    def test_stacked_utility_verb_is_caught_by_the_semicolon_pattern(self):
+        """A non-initial utility verb reached via stacking is caught by the ';' guard.
+
+        The leading anchor deliberately does not match here -- the stacked-query pattern
+        does, which is why anchoring is safe.
+        """
+        sql = 'SELECT 1 FROM SYSIBM.SYSDUMMY1; REORG TABLE T'
+        assert 'REORG' not in detect_mutating_keywords(sql)
+        assert check_sql_injection_risk(sql, readonly=True) != []
+
+    @pytest.mark.parametrize(
+        'sql,keyword',
+        [
+            # INSERT/UPDATE genuinely mutate when nested, via a data-change-table-reference,
+            # so they must stay matched ANYWHERE rather than only at statement start.
+            ('SELECT a FROM FINAL TABLE (INSERT INTO t(a) VALUES (1))', 'INSERT'),
+            ('SELECT a FROM OLD TABLE (UPDATE t SET a = 2 WHERE a = 1)', 'UPDATE'),
+            ('SELECT a FROM NEW TABLE (MERGE INTO t USING s ON t.a = s.a)', 'MERGE'),
+        ],
+    )
+    def test_nested_data_change_references_still_caught(self, sql, keyword):
+        """Anchoring must NOT be applied to keywords that can mutate from a nested position."""
+        assert keyword in detect_mutating_keywords(sql)
 
 
 class TestInjectionRisk:
@@ -340,9 +422,40 @@ class TestStripComments:
         """String-literal contents are emptied."""
         assert 'secret' not in _strip_sql_comments("SELECT 'secret'")
 
-    def test_quoted_identifier_preserved(self):
-        """Double-quoted identifiers are preserved (and still keyword-scanned)."""
-        assert detect_mutating_keywords('SELECT * FROM "DELETE"') == ['DELETE']
+    def test_quoted_identifier_is_not_keyword_scanned(self):
+        """A delimited identifier is a NAME, so it is not scanned for keywords.
+
+        DELIBERATE BEHAVIOUR CHANGE. This previously asserted that
+        `SELECT * FROM "DELETE"` reported DELETE. That was over-conservative and wrong:
+        the statement selects from a table *named* DELETE and mutates nothing, so
+        rejecting it refused a legitimate read-only query. The same over-matching also
+        rejected `SELECT "SET" FROM T` and made `SELECT "a;b" FROM T` look like a stacked
+        query.
+
+        Delimited identifiers are still PRESERVED for the object-name patterns, which have
+        to see the name -- see test_quoted_identifier_still_visible_to_object_patterns.
+        """
+        assert detect_mutating_keywords('SELECT * FROM "DELETE"') == []
+        assert detect_mutating_keywords('SELECT "SET", "UPDATE" FROM T') == []
+        assert detect_transaction_bypass_attempt('SELECT "COMMIT" FROM T') == []
+        assert check_sql_injection_risk('SELECT "a;b" FROM T', readonly=True) == []
+
+    def test_quoted_identifier_still_visible_to_object_patterns(self):
+        """Blanking applies only to keyword/structural scanning, not object-name scanning.
+
+        The two families need opposite treatment: an attacker delimits the object NAME to
+        hide it (SYSCAT."DBAUTH"), so those patterns must read inside the quotes, while the
+        keyword patterns must not.
+        """
+        assert check_sql_injection_risk('SELECT * FROM SYSCAT."DBAUTH"', readonly=True) != []
+        assert (
+            check_sql_injection_risk(
+                'SELECT * FROM TABLE(SYSPROC."ADMIN_GET_TAB_INFO"(NULL,NULL))', readonly=True
+            )
+            != []
+        )
+        # ...and a legitimate system view is still allowed.
+        assert check_sql_injection_risk('SELECT * FROM SYSCAT."TABLES"', readonly=True) == []
 
     def test_escaped_quote_in_identifier(self):
         """An escaped double-quote inside an identifier is handled."""
