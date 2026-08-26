@@ -1096,12 +1096,12 @@ class TestRecommend:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            'highlyRated': {
+            'new': {
                 'items': [
                     {
                         'url': 'https://docs.aws.amazon.com/rec1',
                         'assetTitle': 'Recommendation 1',
-                        'abstract': 'This is recommendation 1.',
+                        'dateCreated': '2026-01-01',
                     }
                 ]
             },
@@ -1124,7 +1124,7 @@ class TestRecommend:
             assert len(results) == 2
             assert results[0].url == 'https://docs.aws.amazon.com/rec1'
             assert results[0].title == 'Recommendation 1'
-            assert results[0].context == 'This is recommendation 1.'
+            assert results[0].context == 'New content added on 2026-01-01'
             assert results[1].url == 'https://docs.aws.amazon.com/rec2'
             assert results[1].title == 'Recommendation 2'
             assert results[1].context == 'This is recommendation 2.'

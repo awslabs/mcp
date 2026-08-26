@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.oracle-mcp-server"
-version = "0.1.9223372036854775807"
+version = "0.2.0"
 description = "An AWS Labs Model Context Protocol (MCP) server for Oracle Database on AWS RDS"
 readme = "README.md"
 requires-python = ">=3.10"
