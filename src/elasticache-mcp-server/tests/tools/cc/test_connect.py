@@ -186,6 +186,30 @@ async def test_configure_security_groups_vpc_mismatch():
 
 
 @pytest.mark.asyncio
+async def test_configure_security_groups_no_cache_nodes():
+    """Test that a cluster with no cache nodes yet (still provisioning) raises ValueError, not IndexError."""
+    mock_ec2 = MagicMock()
+    mock_elasticache = MagicMock()
+
+    mock_elasticache.describe_cache_clusters.return_value = {
+        'CacheClusters': [
+            {
+                'CacheSubnetGroupName': 'subnet-group-1',
+                'SecurityGroups': [{'SecurityGroupId': 'sg-cache'}],
+                'CacheNodes': [],
+            }
+        ]
+    }
+    mock_elasticache.describe_cache_subnet_groups.return_value = {
+        'CacheSubnetGroups': [{'VpcId': 'vpc-1234'}]
+    }
+    with pytest.raises(ValueError) as exc_info:
+        await _configure_security_groups('cluster-1', 'i-1234', mock_ec2, mock_elasticache)
+
+    assert 'No cache nodes found for cluster cluster-1' in str(exc_info.value)
+
+
+@pytest.mark.asyncio
 async def test_connect_jump_host_cc_success():
     """Test successful jump host connection."""
     with patch(
