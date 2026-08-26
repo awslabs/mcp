@@ -1043,12 +1043,11 @@ Configure MCP servers in [fx](https://fx.sh) in `~/.fx/mcp.json`. Servers define
    Run these inside an fx session to register servers:
 
    ```
+   /mcp add --transport http aws-knowledge https://knowledge-mcp.global.api.aws
+
    /mcp add aws-api uvx awslabs.aws-api-mcp-server@latest
    /mcp add aws-iac uvx awslabs.aws-iac-mcp-server@latest
-   /mcp add aws-docs uvx awslabs.aws-documentation-mcp-server@latest
-   /mcp add aws-pricing uvx awslabs.aws-pricing-mcp-server@latest
-
-   /mcp add --transport http aws-knowledge https://knowledge-mcp.global.api.aws
+   /mcp add aws-iam uvx awslabs.iam-mcp-server@latest
 
    /mcp list
    ```
@@ -1069,12 +1068,11 @@ Configure MCP servers in [fx](https://fx.sh) in `~/.fx/mcp.json`. Servers define
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
     },
-    "awslabs.aws-documentation-mcp-server": {
+    "awslabs.iam-mcp-server": {
       "type": "local",
-      "command": ["uvx", "awslabs.aws-documentation-mcp-server@latest"],
+      "command": ["uvx", "awslabs.iam-mcp-server@latest"],
       "environment": {
-        "FASTMCP_LOG_LEVEL": "ERROR",
-        "AWS_DOCUMENTATION_PARTITION": "aws"
+        "FASTMCP_LOG_LEVEL": "ERROR"
       }
     }
   }
