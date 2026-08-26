@@ -385,6 +385,30 @@ class TestExecuteQuery:
         fake.rollback.assert_called_once()
         fake.commit.assert_not_called()
 
+    async def test_duplicate_column_names_are_refused_not_collapsed(self, mocker):
+        """A result set with duplicate column names must not silently lose columns.
+
+        fetch_assoc keys rows by column name with a bare PyDict_SetItem and no
+        de-duplication, so an ordinary join --
+        SELECT E.NAME, D.NAME FROM EMP E JOIN DEPT D ON ... -- returns ONE 'NAME' key
+        holding the LAST value, i.e. the department name. The model then reports department
+        names as employee names with no indication anything was dropped. num_fields already
+        held the true column count but was only coerced to a bool, so the mismatch was never
+        compared.
+        """
+        _fake_ibm_db(mocker, rows=[{'NAME': 'engineering'}], num_fields=2)
+        c = _conn(readonly=True)
+        with pytest.raises(ValueError, match='duplicate names would silently collapse'):
+            await c.execute_query('SELECT E.NAME, D.NAME FROM EMP E JOIN DEPT D ON 1=1')
+
+    async def test_matching_column_count_is_accepted(self, mocker):
+        """The guard must not fire when the row genuinely has every column."""
+        fake = _fake_ibm_db(mocker, rows=[{'A': 1, 'B': 2}], num_fields=2)
+        c = _conn(readonly=True)
+        out = await c.execute_query('SELECT A, B FROM T')
+        assert out == [{'A': 1, 'B': 2}]
+        assert fake.rollback.called
+
     async def test_num_fields_failure_falls_back_to_fetching(self, mocker):
         """If num_fields raises, fall back to fetching (prior behavior, correct for SELECT)."""
         fake = _fake_ibm_db(mocker, rows=[{'A': 1}])

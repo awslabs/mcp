@@ -485,8 +485,10 @@ class IbmDbConnection(AbstractDBConnection):
         # nResultCols == 0, and _python_ibm_db_bind_fetch_helper then does
         # PyErr_SetString(...) / return NULL. Fetching unconditionally therefore
         # made every write fail before ever reaching commit() below.
+        column_count: Optional[int] = None
         try:
-            has_result_set = bool(ibm_db.num_fields(stmt))
+            column_count = ibm_db.num_fields(stmt)
+            has_result_set = bool(column_count)
         except Exception as e:
             # If the column count can't be determined, fall back to attempting the
             # fetch: that is the pre-existing behavior and is correct for SELECT.
@@ -496,6 +498,20 @@ class IbmDbConnection(AbstractDBConnection):
         if has_result_set:
             limit = max_rows + 1 if max_rows and max_rows > 0 else None
             row = cast(Any, ibm_db.fetch_assoc(stmt))
+            # Duplicate column names silently collapse. fetch_assoc keys rows by column
+            # name via a bare PyDict_SetItem with no de-duplication, so an ordinary join --
+            # SELECT E.NAME, D.NAME FROM EMP E JOIN DEPT D ... -- returns ONE 'NAME' key
+            # holding the LAST value, i.e. the department name. The model then reports
+            # department names as employee names with no indication anything was dropped.
+            # num_fields holds the true column count, so a mismatch is detectable: refuse
+            # rather than return a row that is quietly missing columns.
+            if row and column_count is not None and len(row) != column_count:
+                raise ValueError(
+                    f'Result set has {column_count} columns but only {len(row)} distinct '
+                    f'column names: duplicate names would silently collapse (last value '
+                    f'wins). Alias the duplicates, e.g. '
+                    f'SELECT E.NAME AS EMP_NAME, D.NAME AS DEPT_NAME.'
+                )
             while row:
                 results.append({k: self._normalize(v) for k, v in row.items()})
                 if limit is not None and len(results) >= limit:

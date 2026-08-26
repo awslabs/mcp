@@ -24,6 +24,16 @@ DDL, `CALL ... ADMIN_CMD`, etc.), transaction-control bypasses, and common SQL-i
 patterns are rejected before execution; the connection runs with autocommit off and rolls
 back after every query. Pass `--allow_write_query` to permit writes.
 
+> **What read-only mode does and does not guarantee.** Enforcement is by inspection of the
+> SQL text, plus autocommit-off and a post-query `ROLLBACK`. There is no Db2-side
+> enforcement behind it, so `ROLLBACK` cannot undo non-transactional side effects. Two known
+> cases: **sequences** are explicitly non-transactional in Db2, so
+> `SELECT NEXT VALUE FOR seq` increments and stays incremented; and a **function or table
+> function declared `MODIFIES SQL DATA`** can write from inside a `SELECT`, which the
+> keyword denylist does not see. If you need a hard guarantee, point `--secret_arn` at a
+> credential for a user that has no write privilege — that is enforced by Db2 itself rather
+> than by this server.
+
 #### SQL restrictions (intentional)
 
 The injection guard is deliberately conservative and rejects some SQL that is technically

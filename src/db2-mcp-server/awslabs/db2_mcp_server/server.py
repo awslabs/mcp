@@ -361,9 +361,22 @@ async def run_query(
                 f'Use a more specific query to see additional data.'
             )
         if db_connection.readonly_query:
+            # Deliberately narrower than "any uncommitted changes are rolled back", which
+            # was not true. Read-only mode is enforced by a keyword denylist over SQL text
+            # plus autocommit-off and a post-query ROLLBACK -- there is no Db2-side
+            # enforcement (SQL_ATTR_ACCESS_MODE, or connecting as a user without write
+            # privilege) behind it. Sequences are explicitly non-transactional in Db2, so
+            # SELECT NEXT VALUE FOR seq increments and the ROLLBACK does not undo it; and a
+            # function or table function declared MODIFIES SQL DATA can write from inside a
+            # SELECT, which the denylist does not see. Claiming a guarantee the
+            # implementation does not provide is worse than stating the actual mechanism.
             wrapped += (
-                '\n\nNote: MCP server is in read-only mode. Queries run with autocommit off '
-                'and any uncommitted changes are rolled back.'
+                '\n\nNote: MCP server is in read-only mode. Mutating statements are rejected '
+                'by SQL inspection, and queries run with autocommit off followed by a '
+                'ROLLBACK. Note that ROLLBACK does not undo non-transactional side effects '
+                '(e.g. sequence increments from NEXT VALUE FOR, or writes performed inside a '
+                'MODIFIES SQL DATA function). For a hard guarantee, connect as a user '
+                'without write privilege.'
             )
         return wrapped
     except ClientError as e:
