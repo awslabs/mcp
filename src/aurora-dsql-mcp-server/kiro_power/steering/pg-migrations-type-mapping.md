@@ -51,6 +51,10 @@ DSQL accepts PostgreSQL's bounds for explicitly declared `NUMERIC(p,s)`: precisi
 be from 1 through 1000, and scale `s` **MUST** be from -1000 through 1000. Scale **MAY**
 exceed precision or be negative.
 
+A bare `NUMERIC` defaults to `NUMERIC(18,6)` in DSQL; it does not retain PostgreSQL's
+unconstrained `NUMERIC` behavior. During migration, you **MUST** choose explicit `(p,s)` bounds
+when source values may not fit that default.
+
 Preserve valid explicit `NUMERIC(p,s)` declarations during migration; no DSQL-specific narrowing
 is required:
 
