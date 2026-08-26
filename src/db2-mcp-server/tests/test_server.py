@@ -83,7 +83,12 @@ class FakeConn:
         self.secret_arn = 'arn:secret'  # pragma: allowlist secret
 
     async def execute_query(self, sql, parameters=None, max_rows=0):
-        """Return canned rows or raise the configured exception."""
+        """Return canned rows or raise the configured exception.
+
+        Records max_rows so a test can assert the row cap was actually forwarded to the
+        driver rather than only applied as a post-hoc slice by the caller.
+        """
+        self.last_max_rows = max_rows
         if self._exc:
             raise self._exc
         return self._rows
@@ -190,6 +195,31 @@ class TestRunQuery:
         mocker.patch.object(server.db_connection_map, 'get', return_value=FakeConn(readonly=False))
         with pytest.raises(McpError):
             await server.run_query('SELECT * FROM T WHERE 1=1 OR 1=1', FakeCtx(), 'h', 'DB2DB')
+
+    async def test_max_rows_is_forwarded_to_the_driver(self, mocker):
+        """run_query must pass the configured max_rows down to execute_query.
+
+        Nothing asserted the forwarding: hardcoding max_rows=0 at the execute_query call
+        left all 318 tests green, because run_query also slices the result afterwards --
+        so the cap looked enforced while the driver was told to fetch an unbounded result
+        set. On a large table that is the whole row set crossing the wire and being
+        materialised in memory before the slice discards it.
+        """
+        server.server_config.readonly_query = True
+        server.server_config.max_rows = 250
+        conn = FakeConn(rows=[{'A': 1}])
+        mocker.patch.object(server.db_connection_map, 'get', return_value=conn)
+        await server.run_query('SELECT A FROM T', FakeCtx(), 'host', 'DB2DB')
+        assert conn.last_max_rows == 250
+
+    async def test_max_rows_zero_is_forwarded_as_zero(self, mocker):
+        """max_rows=0 ("no limit") must also be forwarded verbatim, not silently changed."""
+        server.server_config.readonly_query = True
+        server.server_config.max_rows = 0
+        conn = FakeConn(rows=[{'A': 1}])
+        mocker.patch.object(server.db_connection_map, 'get', return_value=conn)
+        await server.run_query('SELECT A FROM T', FakeCtx(), 'host', 'DB2DB')
+        assert conn.last_max_rows == 0
 
     async def test_truncation_note(self, mocker):
         """Results beyond max_rows are truncated with a note."""
@@ -479,6 +509,37 @@ class TestResolvePort:
         assert server._resolve_port(None) == DEFAULT_DB2_SSL_PORT
         server.server_config.ssl_encryption_mode = 'off'
         assert server._resolve_port(None) == DB2_TCP_PORT
+
+    def test_is_database_connected_resolves_the_port_before_lookup(self):
+        """is_database_connected must look up under _resolve_port(port), not a raw None.
+
+        Nothing asserted this: dropping the _resolve_port() call at that lookup left all
+        318 tests green. It is the same regression _resolve_port's own comment describes,
+        one layer along -- the startup pre-connect caches under the operator's port, and a
+        lookup passing port=None misses it and reports False for a validated, healthy
+        connection.
+
+        Drives the real DBConnectionMap and caches under configured_port DIRECTLY (not via
+        _resolve_port) so the two sides of the assertion can actually disagree.
+        """
+        server.server_config.ssl_encryption_mode = 'require'
+        server.server_config.configured_port = 50999
+        conn = FakeConn(rows=[])
+        server.db_connection_map.set(
+            ConnectionMethod.DB2_PASSWORD,
+            'host',
+            'host',
+            'DB2DB',
+            cast(AbstractDBConnection, conn),
+            server.server_config.configured_port,
+        )
+        try:
+            # port omitted -> only a resolving lookup finds the 50999-keyed entry
+            assert server.is_database_connected('host', database='DB2DB') is True
+        finally:
+            server.db_connection_map.remove(
+                ConnectionMethod.DB2_PASSWORD, 'host', 'host', 'DB2DB', 50999
+            )
 
     def test_startup_cached_connection_is_reachable_without_explicit_port(self):
         """End-to-end: a tool call omitting `port` finds the startup-cached connection.
@@ -831,14 +892,47 @@ class TestLooksLikeRdsEndpoint:
         [
             ('db2.abc123.us-east-1.rds.amazonaws.com', True),
             ('db2-prod.xyz.eu-west-1.rds.amazonaws.com', True),
+            ('db2.abc.cn-north-1.rds.amazonaws.com.cn', True),  # China partition
+            ('DB2.ABC.US-EAST-1.RDS.AMAZONAWS.COM', True),  # case-insensitive
+            ('db2.abc.us-east-1.rds.amazonaws.com.', True),  # trailing-dot FQDN
             ('host', False),  # dotless (e.g. a local alias)
             ('127.0.0.1', False),  # IPv4 tunnel host
             ('', False),
+            # These are the security-relevant cases. Without the rds.amazonaws.com
+            # suffix check this returned True for ANY dotted hostname, and the caller
+            # then treats the first label as an RDS instance id: it calls
+            # DescribeDBInstances for an unrelated instance, fetches that instance's
+            # managed master secret, and connects with it to the host supplied here.
+            ('evil.example.com', False),
+            ('db2.tunnel.corp.internal', False),
+            ('notrds.amazonaws.com', False),  # lookalike; suffix not dot-anchored
+            ('db2.rds.amazonaws.com.evil.test', False),  # suffix not at the end
+            ('rds.amazonaws.com', False),  # bare suffix, no instance-id label
         ],
     )
     def test_looks_like_rds_endpoint(self, host, expected):
         """Only standard RDS DNS endpoints are treated as id-derivable."""
         assert server._looks_like_rds_endpoint(host) is expected
+
+    def test_non_rds_endpoint_without_secret_exits_rather_than_deriving_an_id(
+        self, mocker, monkeypatch
+    ):
+        """A non-RDS endpoint with no secret must exit, not derive a bogus instance id.
+
+        This is the end-to-end consequence of the suffix check: with
+        --db_endpoint evil.example.com and no --secret_arn, the old behaviour treated
+        'evil' as an RDS instance id and went looking for its managed master secret.
+        """
+        monkeypatch.setattr(
+            sys, 'argv', ['prog', '--region', 'us-east-1', '--db_endpoint', 'evil.example.com']
+        )
+        server.server_config.default_secret_arn = ''
+        create = mocker.patch.object(server, 'internal_create_connection')
+        mocker.patch.object(server.mcp, 'run')
+        mocker.patch.object(server.db_connection_map, 'close_all')
+        with pytest.raises(SystemExit):
+            server.main()
+        create.assert_not_called()
 
 
 def test_main_dotless_endpoint_without_secret_exits(mocker, monkeypatch):

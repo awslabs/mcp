@@ -220,7 +220,14 @@ def _fake_ibm_db(
     # never observe a connection opened with autocommit ON.
     _connect_state: Dict[str, Any] = {'autocommit': fake.SQL_AUTOCOMMIT_OFF}
 
-    def _fake_connect(_conn_str, _user, _password, options=None):
+    def _fake_connect(conn_str, _user, _password, options=None):
+        # Record the DSN. Naming this parameter `_conn_str` (as it was) advertised that
+        # the connection string was being discarded -- and it was: no test inspected
+        # connect.call_args.args[0], so replacing the real DSN with a hardcoded
+        # 'HOSTNAME=evil.example.com;...;SECURITY=NONE;UID=u;PWD=p' left all 318 tests
+        # green. Every SSL attribute was verified in isolation via _build_conn_string and
+        # unverified at the point it takes effect.
+        _connect_state['conn_str'] = conn_str
         if options and fake.SQL_ATTR_AUTOCOMMIT in options:
             _connect_state['autocommit'] = options[fake.SQL_ATTR_AUTOCOMMIT]
         else:
@@ -526,6 +533,40 @@ def test_isnull_true_and_false_bind_none():
     assert IbmDbConnection._to_positional(params) == (None, None)
 
 
+@pytest.mark.parametrize(
+    'value',
+    [
+        {'isNull': True, 'stringValue': 'oops'},
+        {'isNull': True, 'longValue': 7},
+        {'isNull': True, 'doubleValue': 1.5},
+        {'isNull': True, 'booleanValue': True},
+        {'isNull': True, 'blobValue': b'x'},
+    ],
+)
+def test_isnull_is_authoritative_over_any_typed_value(value):
+    """The isNull marker wins when a typed value is also present (RDS Data API shape).
+
+    isNull used to be checked LAST, so {'isNull': True, 'stringValue': 'oops'} bound
+    'oops' -- inverting NULL semantics. `WHERE COL IS ?` then compared against a
+    sentinel string, and in write mode an insert stored that string instead of NULL.
+    """
+    assert IbmDbConnection._to_positional([{'name': 'a', 'value': value}]) == (None,)
+
+
+@pytest.mark.parametrize('bad', ['abc', ['stringValue'], 42, None, 3.14])
+def test_non_dict_parameter_value_raises_actionable_error(bad):
+    """A flat (non-dict) `value` must raise the documented ValueError, not a raw TypeError.
+
+    {'name': 'p', 'value': 'abc'} is the shape a model naturally guesses. Before the
+    isinstance guard these fell through the membership tests and raised
+    AttributeError/TypeError from the interpreter, which run_query surfaced as an opaque
+    {'error': 'TypeError: argument of type 'int' is not iterable'} -- giving the model
+    nothing to correct against.
+    """
+    with pytest.raises(ValueError, match='must be a dict'):
+        IbmDbConnection._to_positional([{'name': 'p', 'value': bad}])
+
+
 def test_ssl_require_missing_cert_file_rejected():
     """A cert path that does not point at a real file is rejected (fast-fail)."""
     with pytest.raises(ValueError, match='not found'):
@@ -770,6 +811,109 @@ async def test_connect_accepts_when_autocommit_confirmed_off(mocker):
     c = _conn(readonly=True)
     out = await c.execute_query('SELECT A FROM T')
     assert out == [{'A': 1}]
+
+
+async def test_connect_passes_the_built_dsn_to_the_driver(mocker):
+    """The DSN handed to ibm_db.connect must be exactly what _build_conn_string produced.
+
+    This is the assertion the suite was missing. Nothing inspected
+    `ibm_db.connect.call_args.args[0]` -- the ~15 DSN tests call _build_conn_string
+    directly, and the _connect_sync tests looked only at args[3] (the options dict). So
+    substituting a hardcoded plaintext DSN pointing at another host, with
+    SECURITY=NONE and different credentials, left all 318 tests passing.
+
+    Asserting the whole string rather than probing for substrings is deliberate: it
+    pins host, port, database, SSL posture, hostname validation, credentials AND their
+    ordering in one comparison, so any substitution or reordering fails here.
+    """
+    fake = _fake_ibm_db(mocker, rows=[{'A': 1}])
+    c = _conn(readonly=True, ssl_encryption='require', ssl_server_certificate=_CERT_PATH)
+    await c.execute_query('SELECT A FROM T')
+
+    expected = c._build_conn_string('test_user', 'test_password')  # is_test credentials
+    assert fake.connect.call_args.args[0] == expected
+
+
+@pytest.mark.parametrize(
+    'kwargs,must_contain',
+    [
+        (
+            {'ssl_encryption': 'require', 'ssl_server_certificate': _CERT_PATH},
+            ['SECURITY=SSL', 'SSLClientHostnameValidation=BASIC'],
+        ),
+        (
+            {
+                'ssl_encryption': 'require',
+                'ssl_server_certificate': _CERT_PATH,
+                'ssl_hostname_validation': False,
+            },
+            ['SECURITY=SSL', 'SSLClientHostnameValidation=OFF'],
+        ),
+    ],
+)
+async def test_connect_dsn_carries_the_ssl_posture(mocker, kwargs, must_contain):
+    """The SSL attributes must be present in the DSN the driver actually receives.
+
+    Complements the exact-match test above by naming the specific attributes, so a
+    failure message points at the security property rather than a whole-string diff.
+    """
+    fake = _fake_ibm_db(mocker, rows=[{'A': 1}])
+    c = _conn(readonly=True, **kwargs)
+    await c.execute_query('SELECT A FROM T')
+    dsn = fake.connect.call_args.args[0]
+    for token in must_contain:
+        assert token in dsn
+    assert 'SECURITY=NONE' not in dsn
+    assert c.host in dsn
+
+
+async def test_connect_dsn_carries_host_database_and_credentials(mocker):
+    """Host, database and the resolved credentials all reach the driver."""
+    fake = _fake_ibm_db(mocker, rows=[{'A': 1}])
+    c = _conn(readonly=True, host='db2.example.com', database='DB2DB', port=50443)
+    await c.execute_query('SELECT A FROM T')
+    dsn = fake.connect.call_args.args[0]
+    assert 'HOSTNAME=db2.example.com;' in dsn
+    assert 'DATABASE=DB2DB;' in dsn
+    assert 'PORT=50443;' in dsn
+    assert 'UID=test_user;' in dsn
+    assert 'PWD=test_password;' in dsn
+
+
+def test_secret_fetch_uses_the_configured_arn(mocker):
+    """GetSecretValue must be called with this connection's secret_arn.
+
+    Nothing asserted this: hardcoding a different ARN in _get_credentials_from_secret
+    left all 318 tests green, so the server could fetch (and connect with) an
+    entirely different principal's credentials undetected.
+    """
+    arn = 'arn:aws:secretsmanager:us-east-1:111122223333:secret:the-right-one'  # pragma: allowlist secret
+    c = _conn(is_test=False, secret_arn=arn)
+    fake_client = mocker.Mock()
+    fake_client.get_secret_value.return_value = {
+        'SecretString': json.dumps({'username': 'admin', 'password': DUMMY_PASSWORD})
+    }
+    fake_session = mocker.Mock()
+    fake_session.client.return_value = fake_client
+    mocker.patch('boto3.Session', return_value=fake_session)
+
+    c._get_credentials_from_secret()
+    fake_client.get_secret_value.assert_called_once_with(SecretId=arn)
+
+
+async def test_max_rows_is_forwarded_to_the_driver(mocker):
+    """The row cap must reach execute_query, not just post-slice the result.
+
+    Nothing asserted the forwarding: passing max_rows=0 to the driver left the suite
+    green, because the caller also slices afterwards -- so the cap looked enforced while
+    the driver was actually fetching every row of an unbounded result set.
+    """
+    fake = _fake_ibm_db(mocker, rows=[{'A': i} for i in range(5)])
+    c = _conn(readonly=True)
+    await c.execute_query('SELECT A FROM T', max_rows=2)
+    # The fake records nothing itself, so assert via the observable effect: fetching
+    # stops at max_rows + 1 rather than draining all five rows.
+    assert fake.fetch_assoc.call_count == 3
 
 
 async def test_connect_requests_autocommit_off(mocker):

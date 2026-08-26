@@ -605,20 +605,46 @@ def validate_identifier(name: str | None) -> bool:
     return True
 
 
+# Recognised RDS endpoint suffixes, each leading-dot anchored so a lookalike domain
+# ('notrds.amazonaws.com', 'rds.amazonaws.com.evil.test') cannot match. Covers the
+# commercial partition plus China (.com.cn); GovCloud uses the commercial suffix.
+_RDS_ENDPOINT_SUFFIXES = (
+    '.rds.amazonaws.com',
+    '.rds.amazonaws.com.cn',
+)
+
+
 def _looks_like_rds_endpoint(host: str) -> bool:
-    """Return True if host looks like a standard RDS DNS endpoint.
+    """Return True if host is a standard RDS DNS endpoint we can derive an id from.
 
     RDS endpoints are DNS names of the form
     ``<instance-id>.<token>.<region>.rds.amazonaws.com``, so the instance id can be
     derived from the first label. An IP address or a dotless host (e.g. an SSM
     tunnel to 127.0.0.1) is not derivable and must not be split into a bogus id.
+
+    The ``rds.amazonaws.com`` suffix check is security-relevant, not cosmetic. Without
+    it this returned True for ANY dotted hostname -- 'evil.example.com' and
+    'db2.tunnel.corp.internal' both passed -- and the caller then treats the first
+    label as an RDS instance id: it calls DescribeDBInstances for an unrelated
+    instance, fetches THAT instance's managed master secret, and connects with it to
+    the host originally supplied. A one-character typo, or an attacker-supplied
+    db_endpoint, becomes credential misdirection. A non-RDS host must fall through to
+    requiring an explicit secret_arn instead.
+
+    Suffixes are matched against a fixed tuple covering the standard commercial and
+    partition-specific RDS domains (China uses .com.cn), each anchored with a leading
+    dot so 'notrds.amazonaws.com' cannot match.
     """
     if not host or '.' not in host:
         return False
     labels = host.split('.')
     if all(label.isdigit() for label in labels):  # IPv4 literal
         return False
-    return bool(labels[0])
+    lowered = host.lower().rstrip('.')
+    if not lowered.endswith(_RDS_ENDPOINT_SUFFIXES):
+        return False
+    # Reject a bare suffix ('rds.amazonaws.com') -- there is no instance-id label.
+    return bool(labels[0]) and len(labels) > len(_RDS_ENDPOINT_SUFFIXES[0].strip('.').split('.'))
 
 
 def main():

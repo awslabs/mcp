@@ -73,14 +73,27 @@ Content from the linked blogs was summarized; see the originals for full detail.
 
 ## Installation
 
-Add this to your MCP client configuration (e.g. Kiro, Cline, Cursor, Claude Desktop):
+Add this to your MCP client configuration (e.g. Kiro, Cline, Cursor, Claude Desktop).
+
+`--ssl_server_certificate` is **required**: `--ssl_encryption` defaults to `require`, and
+without the RDS regional certificate bundle the server certificate cannot be validated.
+Download the bundle for your region first — see [Using SSL/TLS to encrypt a connection to
+a DB instance](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html).
+There is no environment-variable fallback for this path, so it must be passed as a CLI
+argument.
 
 ```json
 {
   "mcpServers": {
     "awslabs.db2-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.db2-mcp-server@latest"],
+      "args": [
+        "awslabs.db2-mcp-server@latest",
+        "--region",
+        "us-east-1",
+        "--ssl_server_certificate",
+        "/path/to/us-east-1-bundle.pem"
+      ],
       "env": {
         "AWS_PROFILE": "your-profile",
         "AWS_REGION": "us-east-1",

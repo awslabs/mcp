@@ -323,7 +323,30 @@ class IbmDbConnection(AbstractDBConnection):
         values: List[Any] = []
         for param in parameters:
             value = param.get('value', {})
-            if 'stringValue' in value:
+            # Reject a non-dict `value` up front. Without this the membership tests
+            # below raise a raw AttributeError/TypeError from the interpreter
+            # ('str' object has no attribute 'keys', 'argument of type 'int' is not
+            # iterable'), which run_query surfaces as an opaque {'error': 'TypeError:
+            # ...'}. The flat shape {'name': 'p', 'value': 'abc'} is what a model
+            # naturally guesses, so it needs the actionable message, not a stack-type
+            # error it cannot act on.
+            if not isinstance(value, dict):
+                raise ValueError(
+                    f'Parameter value must be a dict of the form '
+                    f"{{'stringValue': ...}}, got {type(value).__name__}"
+                )
+            # isNull is checked FIRST and is authoritative. This matches the RDS Data
+            # API parameter shape this structure copies, where isNull wins regardless of
+            # what else is present. Checked last (as it was), a payload carrying both
+            # keys -- {'isNull': True, 'stringValue': 'oops'} -- bound 'oops' instead of
+            # NULL, so `WHERE COL IS ?` silently compared against a sentinel string and
+            # in write mode an insert stored that string in place of NULL.
+            if 'isNull' in value:
+                # A lone {'isNull': False} carries no typed value to bind, so it is
+                # treated as NULL as well rather than raising the unrecognized-format
+                # error. An explicit True obviously binds NULL.
+                values.append(None)
+            elif 'stringValue' in value:
                 values.append(value['stringValue'])
             elif 'longValue' in value:
                 values.append(value['longValue'])
@@ -333,11 +356,6 @@ class IbmDbConnection(AbstractDBConnection):
                 values.append(value['booleanValue'])
             elif 'blobValue' in value:
                 values.append(value['blobValue'])
-            elif 'isNull' in value:
-                # An explicit null marker binds NULL. A lone {'isNull': False} carries
-                # no typed value to bind, so it is treated as NULL as well rather than
-                # raising the generic "unrecognized format" error.
-                values.append(None)
             else:
                 raise ValueError(f'Parameter has unrecognized value format: {list(value.keys())}')
         return tuple(values)
