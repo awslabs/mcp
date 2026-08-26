@@ -2503,3 +2503,51 @@ def test_parse_instance_identifier_rds_cluster_arn_raises():
     """RDS cluster ARN (resource type != 'db') is rejected with a clear error."""
     with pytest.raises(ValueError, match='Unsupported RDS ARN'):
         _parse_instance_identifier('arn:aws:rds:us-east-1:123456789012:cluster:my-cluster')
+
+
+def test_resolve_odb_private_endpoint_client_error(mocker):
+    """get_autonomous_database ClientError surfaces a clear ValueError."""
+    server_config.configured_default_secret_arn = (
+        'arn:aws:secretsmanager:us-east-1:123:secret:cfg'  # pragma: allowlist secret
+    )
+    mocker.patch.object(db_connection_map, 'get', return_value=None)
+    mock_odb = MagicMock()
+    mock_odb.get_autonomous_database.side_effect = ClientError(
+        {'Error': {'Code': 'AccessDeniedException', 'Message': 'not onboarded'}},
+        'GetAutonomousDatabase',
+    )
+    mocker.patch('boto3.client', return_value=mock_odb)
+
+    with pytest.raises(ValueError, match='Failed to get autonomous database'):
+        internal_create_connection(
+            region='us-east-1',
+            connection_method=ConnectionMethod.ORACLE_PASSWORD,
+            instance_identifier='adb_err',
+            db_endpoint=None,
+            port=1522,
+            database='ORCL',
+            service_name='HIGH',
+        )
+
+
+def test_internal_create_connection_tenant_describe_client_error(mocker):
+    """describe_tenant_databases ClientError surfaces a clear ValueError."""
+    mocker.patch.object(db_connection_map, 'get', return_value=None)
+    mock_rds = MagicMock()
+    mock_rds.describe_tenant_databases.side_effect = ClientError(
+        {'Error': {'Code': 'DBInstanceNotFound', 'Message': 'nope'}},
+        'DescribeTenantDatabases',
+    )
+    mocker.patch('boto3.client', return_value=mock_rds)
+
+    with pytest.raises(ValueError, match='Failed to describe tenant database'):
+        internal_create_connection(
+            region='us-east-1',
+            connection_method=ConnectionMethod.ORACLE_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='ep1',
+            port=1521,
+            database='ORCL',
+            service_name='ORCL',
+            tenant_database_name='MYPDB',
+        )
