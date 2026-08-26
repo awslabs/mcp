@@ -43,7 +43,7 @@ wheels = [
 
 [[package]]
 name = "awslabs-healthlake-mcp-server"
-version = "0.0.18"
+version = "0.0.19"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
