@@ -37,6 +37,7 @@ from awslabs.aws_healthomics_mcp_server.consts import (
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_omics_client
 from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
 from awslabs.aws_healthomics_mcp_server.utils.s3_utils import ensure_s3_uri_ends_with_slash
+from awslabs.aws_healthomics_mcp_server.utils.validation_utils import validate_workflow_type
 from datetime import datetime
 from loguru import logger
 from mcp.server.mcpserver import Context
@@ -147,6 +148,10 @@ async def start_run(
        necessary to inspect the workflow definition to determine the appropriate parameter type.
        """,
     ),
+    workflow_type: Optional[str] = Field(
+        None,
+        description='REQUIRED for Ready2Run workflows. Set to READY2RUN for any AWS-provided workflow. Omitting this for a Ready2Run workflow causes ResourceNotFoundException. Set to PRIVATE for user-created workflows. Defaults to PRIVATE if omitted.',
+    ),
     workflow_version_name: Optional[str] = Field(
         None,
         description='Optional version name to run',
@@ -157,7 +162,7 @@ async def start_run(
     ),
     storage_capacity: Optional[int] = Field(
         None,
-        description='Storage capacity in GB (required for STATIC). Storage is allocated in 1200 GiB chunks',
+        description='Storage capacity in GB (required for STATIC). Storage is allocated in 1200 GiB chunks.',
         ge=1200,
     ),
     cache_id: Optional[str] = Field(
@@ -213,6 +218,7 @@ async def start_run(
            names are allowed.
            The descriptions of the parameters in the parameter template may provide clues to the type of the parameter. It may be
            necessary to inspect the workflow definition to determine the appropriate parameter type.
+        workflow_type: Optional workflow type (PRIVATE or READY2RUN). Required for Ready2Run workflows.
         workflow_version_name: Optional version name to run
         storage_type: Storage type (STATIC or DYNAMIC)
         storage_capacity: Storage capacity in GB (required for STATIC)
@@ -229,6 +235,36 @@ async def start_run(
         Dictionary containing the run information or error dict
     """
     # Validate parameters first, before creating client
+    # Validate workflow type (using shared utility from validation_utils)
+    if workflow_type is not None and isinstance(workflow_type, str):
+        validation_result = await validate_workflow_type(ctx, workflow_type)
+        if isinstance(validation_result, dict):
+            return validation_result
+    # Normalize workflow_type: only pass to API if it's a valid string
+    effective_workflow_type = workflow_type if isinstance(workflow_type, str) else None
+
+    # Validate that storage parameters are not set for Ready2Run workflows
+    if effective_workflow_type == 'READY2RUN':
+        if storage_capacity is not None:
+            return await handle_tool_error(
+                ctx,
+                ValueError(
+                    'storage_capacity cannot be set when workflow_type is READY2RUN. '
+                    'Ready2Run workflows use fixed storage managed by AWS.'
+                ),
+                'Invalid parameter for Ready2Run workflow',
+            )
+        if storage_type != 'DYNAMIC':
+            # storage_type has a default of 'DYNAMIC', so only error if explicitly changed
+            return await handle_tool_error(
+                ctx,
+                ValueError(
+                    'storage_type cannot be set when workflow_type is READY2RUN. '
+                    'Ready2Run workflows use fixed storage managed by AWS.'
+                ),
+                'Invalid parameter for Ready2Run workflow',
+            )
+
     # Validate storage type
     if storage_type not in STORAGE_TYPES:
         return await handle_tool_error(
@@ -315,15 +351,21 @@ async def start_run(
         'name': name,
         'outputUri': output_uri,
         'parameters': parameters,
-        'storageType': storage_type,
-        'scratchStorageMode': effective_scratch_storage_mode,
     }
+
+    if effective_workflow_type:
+        params['workflowType'] = effective_workflow_type
+
+    # Ready2Run workflows use fixed storage settings and reject storageType/storageCapacity
+    if effective_workflow_type != 'READY2RUN':
+        params['storageType'] = storage_type
+        params['scratchStorageMode'] = effective_scratch_storage_mode
+
+        if storage_type == STORAGE_TYPE_STATIC and storage_capacity:
+            params['storageCapacity'] = storage_capacity
 
     if workflow_version_name:
         params['workflowVersionName'] = workflow_version_name
-
-    if storage_type == STORAGE_TYPE_STATIC and storage_capacity:
-        params['storageCapacity'] = storage_capacity
 
     if cache_id:
         params['cacheId'] = cache_id
@@ -508,31 +550,24 @@ async def list_runs(
                 if len(filtered_so_far) >= max_results:
                     break
 
-        # Apply client-side filtering if needed
-        if needs_filtering:
-            filtered_runs = filter_runs_by_creation_time(all_runs, created_after, created_before)
+        # Apply client-side filtering
+        filtered_runs = filter_runs_by_creation_time(all_runs, created_after, created_before)
 
-            # Apply max_results limit to filtered results
-            result_runs = filtered_runs[:max_results]
+        # Apply max_results limit to filtered results
+        result_runs = filtered_runs[:max_results]
 
-            result = {'runs': result_runs}
+        result = {'runs': result_runs}
 
-            # If we have more filtered results than max_results, we could implement
-            # a custom pagination token, but for simplicity we'll omit nextToken
-            # when client-side filtering is applied
-            if len(filtered_runs) > max_results:
-                logger.info(
-                    f'Client-side filtering returned {len(filtered_runs)} results, '
-                    f'truncated to {max_results}. Pagination not supported with date filters.'
-                )
+        # If we have more filtered results than max_results, we could implement
+        # a custom pagination token, but for simplicity we'll omit nextToken
+        # when client-side filtering is applied
+        if len(filtered_runs) > max_results:
+            logger.info(
+                f'Client-side filtering returned {len(filtered_runs)} results, '
+                f'truncated to {max_results}. Pagination not supported with date filters.'
+            )
 
-            return result
-        else:
-            # No filtering needed, return all collected runs
-            result: Dict[str, Any] = {'runs': all_runs}
-            if current_token:
-                result['nextToken'] = current_token
-            return result
+        return result
 
     except Exception as e:
         return await handle_tool_error(ctx, e, 'Error listing runs')
