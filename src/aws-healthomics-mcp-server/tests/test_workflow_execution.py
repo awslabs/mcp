@@ -1074,6 +1074,103 @@ async def test_start_run_success():
 
 
 @pytest.mark.asyncio
+async def test_start_run_with_tags():
+    """Test start_run passes tags to the HealthOmics API when provided."""
+    test_tags = {'session_id': 'sess-123', 'context_id': 'ctx-456', 'environment': 'test'}
+    mock_response = {
+        'id': 'run-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:run/run-12345',
+        'status': 'PENDING',
+        'name': 'tagged-run',
+        'workflowId': 'wfl-12345',
+        'uuid': 'uuid-abc-123',
+        'tags': test_tags,
+    }
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.start_run.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await start_run(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            role_arn='arn:aws:iam::123456789012:role/HealthOmicsRole',
+            name='tagged-run',
+            output_uri='s3://my-bucket/outputs/',
+            parameters={'param1': 'value1'},
+            workflow_version_name=None,
+            storage_type='DYNAMIC',
+            storage_capacity=None,
+            cache_id=None,
+            cache_behavior=None,
+            run_group_id=None,
+            networking_mode=None,
+            configuration_name=None,
+            scratch_storage_mode=None,
+            tags=test_tags,
+        )
+
+    # Verify tags were passed to the API
+    call_kwargs = mock_client.start_run.call_args[1]
+    assert call_kwargs['tags'] == test_tags
+
+    # Verify result includes tags from response
+    assert result['tags'] == test_tags
+
+
+@pytest.mark.asyncio
+async def test_start_run_without_tags():
+    """Test start_run does not pass tags parameter when tags is None."""
+    mock_response = {
+        'id': 'run-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:run/run-12345',
+        'status': 'PENDING',
+        'name': 'untagged-run',
+        'workflowId': 'wfl-12345',
+        'uuid': 'uuid-abc-123',
+        'tags': {},
+    }
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.start_run.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await start_run(
+            mock_ctx,
+            workflow_id='wfl-12345',
+            role_arn='arn:aws:iam::123456789012:role/HealthOmicsRole',
+            name='untagged-run',
+            output_uri='s3://my-bucket/outputs/',
+            parameters={'param1': 'value1'},
+            workflow_version_name=None,
+            storage_type='DYNAMIC',
+            storage_capacity=None,
+            cache_id=None,
+            cache_behavior=None,
+            run_group_id=None,
+            networking_mode=None,
+            configuration_name=None,
+            scratch_storage_mode=None,
+            tags=None,
+        )
+
+    # Verify tags were NOT passed to the API when None
+    call_kwargs = mock_client.start_run.call_args[1]
+    assert 'tags' not in call_kwargs
+
+    # Verify result still includes empty tags from response
+    assert result['tags'] == {}
+
+
+@pytest.mark.asyncio
 async def test_start_run_null_response_fields():
     """Test start_run handles null/missing uuid and tags in API response."""
     mock_response = {
