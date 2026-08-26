@@ -18,6 +18,7 @@ import asyncio
 import pytest
 from awslabs.db2_mcp_server.connection.abstract_db_connection import AbstractDBConnection
 from awslabs.db2_mcp_server.connection.db_connection_map import (
+    AmbiguousConnectionError,
     ConnectionMethod,
     DBConnectionMap,
 )
@@ -85,12 +86,73 @@ def test_get_missing_returns_none():
 
 
 def test_get_fallback_when_identifier_equals_endpoint():
-    """When instance_identifier == db_endpoint, any matching stored conn is found."""
+    """When instance_identifier == db_endpoint, a single matching stored conn is found."""
     m = DBConnectionMap()
     c = FakeConn()
     m.set(M, 'real-id', 'host', 'DB2DB', c, 50443)
     # Caller did not supply an identifier (defaults to db_endpoint).
     assert m.get(M, 'host', 'host', 'DB2DB', 50443) is c
+
+
+def test_ambiguous_fallback_refuses_instead_of_picking_by_dict_order():
+    """Two connections under different identifiers must not be silently disambiguated.
+
+    instance_identifier IS part of the cache key, so a read-only and an admin connection to
+    the same endpoint/database/port coexist. The fallback never compared key[1] and returned
+    the first match in dict order, and run_query omits secret_arn (so _secret_ok is
+    vacuously true and cannot disambiguate) -- meaning a query that omitted
+    instance_identifier could silently execute as the admin.
+    """
+    m = DBConnectionMap()
+    ro, admin = FakeConn(), FakeConn()
+    ro.secret_arn = 'arn:readonly'  # pragma: allowlist secret
+    admin.secret_arn = 'arn:master'  # pragma: allowlist secret
+    m.set(M, 'ro', 'host', 'DB2DB', ro, 50443)
+    m.set(M, 'admin', 'host', 'DB2DB', admin, 50443)
+
+    with pytest.raises(AmbiguousConnectionError) as exc:
+        m.get(M, 'host', 'host', 'DB2DB', 50443)
+    # The message must name both candidates so the caller can pick.
+    assert 'admin' in str(exc.value) and 'ro' in str(exc.value)
+
+
+def test_ambiguity_is_resolved_by_an_explicit_identifier():
+    """Naming the identifier selects deterministically, with no ambiguity error."""
+    m = DBConnectionMap()
+    ro, admin = FakeConn(), FakeConn()
+    m.set(M, 'ro', 'host', 'DB2DB', ro, 50443)
+    m.set(M, 'admin', 'host', 'DB2DB', admin, 50443)
+    assert m.get(M, 'ro', 'host', 'DB2DB', 50443) is ro
+    assert m.get(M, 'admin', 'host', 'DB2DB', 50443) is admin
+
+
+def test_ambiguity_not_raised_for_different_endpoints_or_databases():
+    """Entries that differ on endpoint/database/port are not candidates, so no ambiguity."""
+    m = DBConnectionMap()
+    a, b, c = FakeConn(), FakeConn(), FakeConn()
+    m.set(M, 'x', 'host', 'DB2DB', a, 50443)
+    m.set(M, 'y', 'other-host', 'DB2DB', b, 50443)  # different endpoint
+    m.set(M, 'z', 'host', 'OTHERDB', c, 50443)  # different database
+    assert m.get(M, 'host', 'host', 'DB2DB', 50443) is a
+
+
+def test_ambiguous_candidates_filtered_by_secret_arn():
+    """A supplied secret_arn narrows the candidates, so a unique match is still returned."""
+    m = DBConnectionMap()
+    ro, admin = FakeConn(), FakeConn()
+    ro.secret_arn = 'arn:readonly'  # pragma: allowlist secret
+    admin.secret_arn = 'arn:master'  # pragma: allowlist secret
+    m.set(M, 'ro', 'host', 'DB2DB', ro, 50443)
+    m.set(M, 'admin', 'host', 'DB2DB', admin, 50443)
+    got = m.get(
+        M,
+        'host',
+        'host',
+        'DB2DB',
+        50443,
+        secret_arn='arn:readonly',  # pragma: allowlist secret
+    )
+    assert got is ro
 
 
 def test_get_secret_arn_match_filters_exact_and_fallback():

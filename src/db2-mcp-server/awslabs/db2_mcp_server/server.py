@@ -37,13 +37,13 @@ from awslabs.db2_mcp_server.mutable_sql_detector import (
 )
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from loguru import logger
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.shared.exceptions import McpError
 from mcp.types import INTERNAL_ERROR, INVALID_PARAMS, ErrorData
 from pydantic import Field
-from typing import Annotated, Any, List, Optional
+from typing import Annotated, Any, Dict, List, Optional
 
 
 MAX_IDENTIFIER_BYTES = 128
@@ -92,6 +92,10 @@ class ServerConfig:
     # configured_port: `database` is also part of the connection-map cache key, so the
     # two fields need identical treatment. See _resolve_database.
     configured_database: Optional[str] = None
+    # instance_identifier -> Secrets Manager ARN, populated from repeated
+    # --secret_arn "<instance_identifier>=<arn>" flags. Operator-only by design: see
+    # _resolve_secret_arn for why the ARN is not a tool parameter.
+    configured_secret_arns: Dict[str, str] = field(default_factory=dict)
     max_rows: int = 1000
     query_timeout_s: int = 30
     login_timeout_s: int = 15
@@ -101,6 +105,38 @@ server_config = ServerConfig()
 
 # Fallback database name, used only when neither the caller nor the operator named one.
 DEFAULT_DATABASE = 'DB2DB'
+
+
+def _resolve_secret_arn(instance_identifier: str) -> str:
+    """Resolve the Secrets Manager ARN for a target, from OPERATOR configuration only.
+
+    Precedence: an ARN the operator pinned to this ``instance_identifier`` > the
+    operator's bare default ARN > ``''``, which lets the caller fall back to the RDS
+    managed master secret discovered via DescribeDBInstances.
+
+    Why the ARN is not a tool parameter
+    -----------------------------------
+    ``connect_to_database`` used to accept ``secret_arn``, and an LLM-supplied value won
+    over the operator's default. Since the server calls ``GetSecretValue`` under its OWN
+    IAM role, that made the tool a general-purpose Secrets Manager read oracle for every
+    secret that role can reach -- Db2-related or not. Combined with an unconstrained
+    ``db_endpoint``, a fetched master password could then be directed at an arbitrary
+    host. That is the confused-deputy shape: the server holds the permissions, the model
+    picks the target, and nothing checked that the two belong together.
+
+    So the model now chooses only WHICH instance to target, by name, and the mapping from
+    name to ARN is operator-controlled. This matches oracle-mcp-server, which this package
+    otherwise follows closely, and whose ``--secret_arn`` help says the same thing: "The
+    LLM cannot supply a secret ARN value -- it only chooses which instance to target."
+    """
+    pinned = server_config.configured_secret_arns.get(instance_identifier, '')
+    if pinned:
+        logger.info(f'Using operator-pinned secret_arn for instance {instance_identifier}')
+        return pinned
+    if server_config.default_secret_arn:
+        logger.info('Using the operator default secret_arn from startup configuration')
+        return server_config.default_secret_arn
+    return ''
 
 
 def _resolve_database(database: Optional[str]) -> str:
@@ -464,15 +500,17 @@ async def connect_to_database(
         Field(description='RDS instance identifier (defaults to db_endpoint if omitted)'),
     ] = None,
     port: Annotated[Optional[int], Field(description='Db2 port (default 50443 for SSL)')] = None,
-    secret_arn: Annotated[
-        Optional[str],
-        Field(description='Secrets Manager ARN for credentials (overrides the RDS master secret)'),
-    ] = None,
 ) -> str | dict:
-    """Connect to an RDS for Db2 instance and save the connection internally."""
+    """Connect to an RDS for Db2 instance and save the connection internally.
+
+    NOTE: there is deliberately no ``secret_arn`` parameter. The caller chooses only
+    which instance to target; ARN values come exclusively from the operator's
+    ``--secret_arn`` flags. See _resolve_secret_arn for why.
+    """
     instance_identifier = instance_identifier or db_endpoint
     database = _resolve_database(database)
     resolved_port = _resolve_port(port)
+    secret_arn = _resolve_secret_arn(instance_identifier)
     try:
         # internal_create_connection does synchronous boto3 calls and a full
         # TCP/TLS connect + validation probe; offload to a worker thread so a
@@ -814,7 +852,22 @@ def main():
     )
     parser.add_argument('--port', type=int, default=None, help='Db2 port (default 50443 for SSL)')
     parser.add_argument('--allow_write_query', action='store_true', help='Allow write queries')
-    parser.add_argument('--secret_arn', help='AWS Secrets Manager ARN for database credentials')
+    parser.add_argument(
+        '--secret_arn',
+        action='append',
+        default=None,
+        help=(
+            'Secrets Manager ARN for database credentials. May be repeated. Each value is '
+            'either:\n'
+            '  - "<instance_identifier>=<arn>" -- pin the ARN to a specific RDS instance '
+            '(matched against the instance_identifier parameter of connect_to_database).\n'
+            '  - "<arn>" without "=" -- a bare default used for any target the operator '
+            'did not pin explicitly (at most one allowed).\n'
+            'Resolution order: pinned ARN > bare default > the RDS MasterUserSecret '
+            'discovered via DescribeDBInstances. The LLM cannot supply an ARN value -- it '
+            'only chooses which instance to target; ARNs come exclusively from this flag.'
+        ),
+    )
     parser.add_argument(
         '--ssl_encryption',
         default='require',
@@ -868,8 +921,27 @@ def main():
     server_config.max_rows = args.max_rows
     server_config.query_timeout_s = args.query_timeout_s
     server_config.login_timeout_s = args.login_timeout_s
-    if args.secret_arn:
-        server_config.default_secret_arn = args.secret_arn
+    # --secret_arn is repeatable and accepts both "<instance_identifier>=<arn>" (pinned)
+    # and a bare "<arn>" (default). Parsed here so the ARN never has to be a tool
+    # parameter -- see _resolve_secret_arn.
+    for raw in args.secret_arn or []:
+        # Split on the FIRST '=' only: an ARN itself never contains '=', but splitting
+        # greedily would corrupt any value that did.
+        target, sep, arn = raw.partition('=')
+        if sep and target and arn:
+            server_config.configured_secret_arns[target] = arn
+        elif not sep:
+            if server_config.default_secret_arn:
+                parser.error(
+                    'at most one bare --secret_arn (without "<identifier>=") may be given; '
+                    'use "<instance_identifier>=<arn>" to pin additional instances'
+                )
+            server_config.default_secret_arn = raw
+        else:
+            parser.error(
+                f'invalid --secret_arn value {raw!r}: expected "<arn>" or '
+                '"<instance_identifier>=<arn>"'
+            )
 
     logger.info(
         f'MCP configuration:\n'

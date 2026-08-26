@@ -15,6 +15,7 @@
 """Tests for the ibm_db connection wrapper (no live Db2 required)."""
 
 import atexit
+import base64
 import contextlib
 import json
 import os
@@ -123,9 +124,57 @@ class TestPositionalParams:
 class TestNormalize:
     """Tests for value normalization."""
 
-    def test_decimal_to_float(self):
-        """Decimals are coerced to float."""
-        assert IbmDbConnection._normalize(Decimal('1.5')) == 1.5
+    def test_decimal_becomes_an_exact_string(self):
+        """Decimals are returned as strings so full precision survives.
+
+        float() silently corrupted them: Db2 DECIMAL holds up to 31 significant digits and
+        an IEEE double holds ~15-17, so Decimal('12345678901234567890.12') came back as
+        1.2345678901234567e+19 -- for a money column, a confidently wrong number with no
+        error and no warning. JSON has no exact decimal type, so a string is the only
+        lossless option.
+        """
+        assert IbmDbConnection._normalize(Decimal('1.5')) == '1.5'
+
+    @pytest.mark.parametrize(
+        'raw',
+        [
+            '12345678901234567890.12',
+            '9999999999999999999999999999.99',
+            '0.01',
+            '-42.50',
+        ],
+    )
+    def test_decimal_precision_is_exact(self, raw):
+        """Every digit round-trips, including beyond IEEE double precision."""
+        assert IbmDbConnection._normalize(Decimal(raw)) == raw
+
+    @pytest.mark.parametrize('raw', ['sNaN', 'NaN', 'Infinity', '-Infinity'])
+    def test_non_finite_decimal_becomes_none(self, raw):
+        """Non-finite DECFLOAT values must not raise, and must not emit invalid JSON.
+
+        float(Decimal('sNaN')) RAISES ValueError, which aborted an otherwise valid query
+        mid-fetch. And str() of these yields 'NaN'/'Infinity', which json.dumps would emit
+        as bare tokens that are not valid JSON.
+        """
+        assert IbmDbConnection._normalize(Decimal(raw)) is None
+
+    @pytest.mark.parametrize('raw', [float('nan'), float('inf'), float('-inf')])
+    def test_non_finite_float_becomes_none(self, raw):
+        """NaN/Infinity floats are not representable in JSON, so they become null.
+
+        json.dumps emits them as bare NaN / Infinity tokens -- invalid JSON that throws in
+        any strict parser -- and its `default=` hook is never consulted for floats.
+        """
+        assert IbmDbConnection._normalize(raw) is None
+
+    def test_normalized_row_is_strictly_valid_json(self):
+        """A row mixing decimals and non-finite floats serializes to parseable JSON."""
+        row = {
+            'D': IbmDbConnection._normalize(Decimal('1.5')),
+            'N': IbmDbConnection._normalize(float('nan')),
+            'I': IbmDbConnection._normalize(float('inf')),
+        }
+        json.loads(json.dumps(row, separators=(',', ':'), default=str))
 
     def test_date_iso(self):
         """Dates are ISO-formatted."""
@@ -136,22 +185,36 @@ class TestNormalize:
         assert IbmDbConnection._normalize('x') == 'x'
         assert IbmDbConnection._normalize(None) is None
 
-    def test_bytes_and_bytearray_decode(self):
-        """bytes/bytearray (e.g. BINARY/BLOB columns) decode to text."""
-        assert IbmDbConnection._normalize(b'hello') == 'hello'
-        assert IbmDbConnection._normalize(bytearray(b'hello')) == 'hello'
+    def test_binary_is_base64_encoded(self):
+        """Binary columns are base64-encoded, not UTF-8 'decoded'.
 
-    def test_memoryview_decodes_like_bytes(self):
-        """A memoryview must decode the same way as bytes/bytearray, not fall through to str().
-
-        ibm_db can return BINARY/BLOB columns as memoryview. Before the fix, that
-        fell through to str(value), which serializes as the per-run,
-        address-dependent '<memory at 0x...>' -- silently corrupting the row with
-        no error raised.
+        errors='replace' was lossy rather than an encoding: a measured 1 MiB BLOB produced
+        1,048,576 characters of which 524,288 (50%) were U+FFFD, so the model was handed
+        garbage that looked like text. Base64 is reversible and signals "these are bytes".
         """
-        mv = memoryview(b'hello')
-        out = IbmDbConnection._normalize(mv)
-        assert out == 'hello'
+        assert IbmDbConnection._normalize(b'hello') == base64.b64encode(b'hello').decode()
+        assert (
+            IbmDbConnection._normalize(bytearray(b'hello')) == base64.b64encode(b'hello').decode()
+        )
+
+    def test_binary_round_trips_for_non_utf8_bytes(self):
+        """Bytes that are not valid UTF-8 survive intact, which errors='replace' destroyed."""
+        raw = bytes(range(256))
+        out = IbmDbConnection._normalize(raw)
+        assert base64.b64decode(out) == raw
+        # The old path lost half the bytes to the replacement character.
+        assert raw.decode('utf-8', errors='replace').count('\ufffd') > 0
+
+    def test_memoryview_encodes_like_bytes(self):
+        """A memoryview must encode the same way as bytes/bytearray, not fall through to str().
+
+        ibm_db can return BINARY/BLOB columns as memoryview. Unlike bytes/bytearray it has
+        no meaningful str() -- it would serialize as the per-run, address-dependent
+        '<memory at 0x...>', silently corrupting the row with no error raised.
+        """
+        raw = b'hello'
+        out = IbmDbConnection._normalize(memoryview(raw))
+        assert out == IbmDbConnection._normalize(raw)
         assert '<memory at' not in out
 
 

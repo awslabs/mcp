@@ -14,6 +14,7 @@
 
 """Tests for server tools, helpers, the connection factory, and main()."""
 
+import copy
 import pytest
 import sys
 from awslabs.db2_mcp_server import server
@@ -46,7 +47,10 @@ def restore_server_config():
     (not to any per-instance state), so without restoring them here, tests that call
     main() would leak the mutation across the suite.
     """
-    snapshot = dict(server.server_config.__dict__)
+    # deepcopy, not dict(): a shallow copy shares any MUTABLE field value (e.g. the
+    # configured_secret_arns dict) with the live config, so restoring it would hand back
+    # the same object a test had already mutated and the pollution would leak on.
+    snapshot = copy.deepcopy(server.server_config.__dict__)
     tool_descriptions = {}
     for name in ('run_query', 'get_table_schema'):
         tool = server.mcp._tool_manager.get_tool(name)
@@ -1217,9 +1221,94 @@ async def test_connect_to_database_validation_failure_returns_failed(mocker):
     bad = MagicMock()
     bad.validate_sync.side_effect = RuntimeError('SSL handshake failed')
     mocker.patch.object(server, 'IbmDbConnection', return_value=bad)
-    out = await server.connect_to_database(
-        'us-east-1',
-        'host',
-        secret_arn='arn:x',  # pragma: allowlist secret
-    )
+    # The ARN comes from operator config, not a tool argument -- see _resolve_secret_arn.
+    server.server_config.default_secret_arn = 'arn:x'  # pragma: allowlist secret
+    out = await server.connect_to_database('us-east-1', 'host')
     assert out['status'] == 'Failed' and 'SSL handshake failed' in out['error']
+
+
+class TestSecretArnIsOperatorOnly:
+    """The LLM must not be able to name a Secrets Manager ARN."""
+
+    def test_connect_tool_has_no_secret_arn_parameter(self):
+        """`secret_arn` must not appear in the tool schema at all.
+
+        With it exposed, an LLM-supplied ARN won over the operator's default and the
+        server fetched it under its OWN IAM role -- making connect_to_database a
+        general-purpose Secrets Manager read oracle for every secret that role can reach.
+        Combined with an unconstrained db_endpoint, a fetched master password could then be
+        directed at an arbitrary host. Matches oracle-mcp-server, which forbids the same
+        thing.
+        """
+        tool = server.mcp._tool_manager.get_tool('connect_to_database')
+        assert tool is not None
+        assert 'secret_arn' not in tool.parameters['properties']
+
+    def test_pinned_arn_wins_for_its_target(self):
+        """A --secret_arn "id=arn" pin is used for that instance_identifier."""
+        server.server_config.configured_secret_arns = {
+            'db2-prod': 'arn:pinned'
+        }  # pragma: allowlist secret
+        server.server_config.default_secret_arn = 'arn:default'  # pragma: allowlist secret
+        assert server._resolve_secret_arn('db2-prod') == 'arn:pinned'  # pragma: allowlist secret
+
+    def test_bare_default_used_for_unpinned_targets(self):
+        """An unpinned target falls back to the operator's bare default ARN."""
+        server.server_config.configured_secret_arns = {
+            'db2-prod': 'arn:pinned'
+        }  # pragma: allowlist secret
+        server.server_config.default_secret_arn = 'arn:default'  # pragma: allowlist secret
+        assert server._resolve_secret_arn('db2-dev') == 'arn:default'  # pragma: allowlist secret
+
+    def test_empty_when_nothing_configured(self):
+        """With no operator ARN, the caller falls back to the RDS managed master secret."""
+        server.server_config.configured_secret_arns = {}
+        server.server_config.default_secret_arn = None
+        assert server._resolve_secret_arn('db2-prod') == ''
+
+    def test_main_parses_pinned_and_default_arns(self, mocker, monkeypatch):
+        """--secret_arn is repeatable and accepts both the pinned and bare forms."""
+        monkeypatch.setattr(
+            sys,
+            'argv',
+            [
+                'prog',
+                '--region',
+                'us-east-1',
+                '--secret_arn',
+                'db2-prod=arn:aws:secretsmanager:us-east-1:111122223333:secret:prod',  # pragma: allowlist secret
+                '--secret_arn',
+                'db2-dev=arn:aws:secretsmanager:us-east-1:111122223333:secret:dev',  # pragma: allowlist secret
+                '--secret_arn',
+                'arn:aws:secretsmanager:us-east-1:111122223333:secret:fallback',  # pragma: allowlist secret
+            ],
+        )
+        mocker.patch.object(server.mcp, 'run')
+        mocker.patch.object(server.db_connection_map, 'close_all')
+        server.main()
+        assert set(server.server_config.configured_secret_arns) == {'db2-prod', 'db2-dev'}
+        default_arn = server.server_config.default_secret_arn
+        assert default_arn is not None and default_arn.endswith(':fallback')
+
+    def test_main_rejects_two_bare_default_arns(self, mocker, monkeypatch):
+        """At most one bare --secret_arn may be given, so the default is unambiguous."""
+        monkeypatch.setattr(
+            sys,
+            'argv',
+            ['prog', '--region', 'us-east-1', '--secret_arn', 'arn:a', '--secret_arn', 'arn:b'],
+        )
+        mocker.patch.object(server.mcp, 'run')
+        mocker.patch.object(server.db_connection_map, 'close_all')
+        with pytest.raises(SystemExit):
+            server.main()
+
+    def test_main_still_accepts_a_single_bare_arn(self, mocker, monkeypatch):
+        """The pre-existing single-instance form keeps working unchanged."""
+        monkeypatch.setattr(
+            sys, 'argv', ['prog', '--region', 'us-east-1', '--secret_arn', 'arn:only']
+        )
+        mocker.patch.object(server.mcp, 'run')
+        mocker.patch.object(server.db_connection_map, 'close_all')
+        server.main()
+        assert server.server_config.default_secret_arn == 'arn:only'
+        assert server.server_config.configured_secret_arns == {}

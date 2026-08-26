@@ -186,6 +186,61 @@ class TestInjectionRisk:
         """Quoted SYSPROC routines and the UTL_* packages must both be caught."""
         assert check_sql_injection_risk(sql, readonly=True) != []
 
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            'DROP TABLE CUSTOMERS',
+            'DROP VIEW V1',
+            'DROP SCHEMA S1 RESTRICT',
+            'TRUNCATE TABLE CUSTOMERS IMMEDIATE',
+            'GRANT DBADM ON DATABASE TO USER ATTACKER',
+            'GRANT SELECT ON T TO PUBLIC',
+            'REVOKE CONNECT ON DATABASE FROM PUBLIC',
+            'TRANSFER OWNERSHIP OF TABLE T TO USER X',
+            'CREATE OR REPLACE FUNCTION F() RETURNS INT',
+            'CREATE PROCEDURE P() BEGIN END',
+            'ALTER TABLE T ADD COLUMN C INT',
+            'RENAME TABLE T TO T2',
+            # The worst of these: not a one-shot write. The connection is cached and
+            # long-lived, so the identity switch persists for every later tool call on it.
+            'SET SESSION AUTHORIZATION HR_ADMIN',
+            'set session authorization hr_admin',
+            'SET CURRENT SQLID = SYSADM',
+        ],
+    )
+    def test_dangerous_operations_blocked_in_BOTH_modes(self, sql):
+        """DDL, privilege and session-identity changes must be blocked even in write mode.
+
+        --allow_write_query gates OFF detect_mutating_keywords and
+        detect_transaction_bypass_attempt entirely, so before ALWAYS_BLOCKED_PATTERNS this
+        list was unguarded in write mode: all of these returned [] with readonly=False, and
+        _execute_locked commits in write mode. Write mode means "DML allowed", not "all
+        guards off".
+        """
+        assert check_sql_injection_risk(sql, readonly=True) != []
+        assert check_sql_injection_risk(sql, readonly=False) != []
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            "INSERT INTO T (C) VALUES ('x')",
+            'UPDATE T SET C = 1 WHERE ID = 2',
+            'DELETE FROM T WHERE ID = 2',
+            'MERGE INTO T USING S ON T.ID = S.ID WHEN MATCHED THEN UPDATE SET T.C = S.C',
+            'SELECT * FROM T',
+            'CREATE TABLE T2 (C INT)',
+            # A session default, not an identity switch -- must stay allowed.
+            'SET CURRENT SCHEMA = PAYROLL',
+        ],
+    )
+    def test_ordinary_dml_still_allowed_in_write_mode(self, sql):
+        """The documented purpose of write mode must survive the new guards.
+
+        Pins the false-positive boundary: ALWAYS_BLOCKED_PATTERNS must not creep into
+        blocking the INSERT/UPDATE/DELETE that --allow_write_query exists to permit.
+        """
+        assert check_sql_injection_risk(sql, readonly=False) == []
+
     def test_readonly_blocks_auth_catalog(self):
         """Read-only mode blocks authorization catalog views."""
         sql = 'SELECT * FROM SYSCAT.DBAUTH'

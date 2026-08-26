@@ -30,6 +30,17 @@ from typing import List, Optional
 DEFAULT_DB2_SSL_PORT = 50443
 
 
+class AmbiguousConnectionError(ValueError):
+    """Raised when a connection lookup matches several cached connections.
+
+    Signals that the caller omitted ``instance_identifier`` while more than one cached
+    connection matches the endpoint/database/port. Those connections may have been built
+    from different secrets, so returning an arbitrary one would run the query under an
+    unpredictable principal. Distinct from a plain miss (which returns None) so the caller
+    can tell "nothing is connected" from "be more specific".
+    """
+
+
 class ConnectionMethod(str, Enum):
     """Connection method enumeration."""
 
@@ -61,14 +72,26 @@ class DBConnectionMap:
         connection that matches on method, db_endpoint, database, and port regardless of
         the instance_identifier that was used at connect time.
 
+        The fallback refuses to guess when it is AMBIGUOUS. ``instance_identifier`` IS part
+        of the cache key, so two connections to the same endpoint/database/port under
+        different identifiers -- and therefore potentially different credentials -- coexist
+        happily. The fallback previously never compared ``key[1]`` and returned the first
+        match in dict order, so a ``run_query`` that omitted ``instance_identifier`` could
+        silently execute under whichever principal happened to be enumerated first. With a
+        read-only and an admin connection both cached, that is the query running as the
+        admin. When more than one candidate matches, this raises rather than picking one.
+
         When ``secret_arn`` is provided, only a connection created with the same secret
         is returned (for both the exact-match and fallback paths), so a cached connection
         built with different credentials is never handed back. When ``secret_arn`` is None
-        the secret is not considered (back-compatible) — callers on the query path
-        (``run_query``/``is_database_connected``) omit it and match on endpoint/db/port.
-        Note: ``secret_arn`` is NOT part of the cache key, so a reconnect under a different
-        secret replaces the prior connection (which ``set`` closes on overwrite) rather than
-        coexisting with it.
+        the secret is not considered — callers on the query path
+        (``run_query``/``is_database_connected``) omit it and match on endpoint/db/port,
+        which is exactly why the ambiguity check above is needed: ``_secret_ok`` is
+        vacuously true for them, so it cannot disambiguate.
+
+        Raises:
+            AmbiguousConnectionError: when the caller supplied no explicit
+                ``instance_identifier`` and more than one cached connection matches.
         """
         if not method:
             raise ValueError('method cannot be None')
@@ -84,15 +107,26 @@ class DBConnectionMap:
             if conn is not None and _secret_ok(conn):
                 return conn
             if instance_identifier == db_endpoint:
-                for key, stored_conn in self.map.items():
-                    if (
-                        key[0] == method
-                        and key[2] == db_endpoint
-                        and key[3] == database
-                        and key[4] == port
-                        and _secret_ok(stored_conn)
-                    ):
-                        return stored_conn
+                candidates = [
+                    (key, stored_conn)
+                    for key, stored_conn in self.map.items()
+                    if key[0] == method
+                    and key[2] == db_endpoint
+                    and key[3] == database
+                    and key[4] == port
+                    and _secret_ok(stored_conn)
+                ]
+                if len(candidates) > 1:
+                    identifiers = sorted(key[1] for key, _ in candidates)
+                    raise AmbiguousConnectionError(
+                        f'{len(candidates)} cached connections match db_endpoint='
+                        f'{db_endpoint!r}, database={database!r}, port={port} under different '
+                        f'instance_identifier values ({", ".join(identifiers)}). They may use '
+                        f'different credentials, so refusing to choose one. Pass an explicit '
+                        f'instance_identifier.'
+                    )
+                if candidates:
+                    return candidates[0][1]
             return None
 
     def set(

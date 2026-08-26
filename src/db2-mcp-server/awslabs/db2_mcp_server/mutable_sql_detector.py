@@ -101,6 +101,47 @@ MUTATING_PATTERN = re.compile(
     r'(?i)\b(' + '|'.join(_keyword_to_pattern(k) for k in _sorted_keywords) + r')\b'
 )
 
+# Operations that stay blocked even with --allow_write_query.
+#
+# `--allow_write_query` gates OFF detect_mutating_keywords and
+# detect_transaction_bypass_attempt entirely, so before this list SUSPICIOUS_PATTERNS was
+# the only guard left in write mode -- and it contained no DDL, no GRANT/REVOKE and no
+# session-setting pattern. Measured with readonly=False, all of these were ALLOWED, and
+# _execute_locked commits in write mode:
+#
+#     DROP TABLE CUSTOMERS
+#     TRUNCATE TABLE CUSTOMERS IMMEDIATE
+#     GRANT DBADM ON DATABASE TO USER ATTACKER
+#     REVOKE CONNECT ON DATABASE FROM PUBLIC
+#     SET SESSION AUTHORIZATION HR_ADMIN
+#
+# Write mode is meant to mean "DML allowed", not "all guards off": the documented purpose
+# is INSERT/UPDATE/DELETE, so a prompt-injected or simply mistaken model should not be
+# able to drop a table or grant itself DBADM. postgres-mcp-server and mysql-mcp-server
+# keep their DDL/privilege/session patterns mode-independent for the same reason.
+#
+# SET SESSION AUTHORIZATION is the most serious of these because it is not a one-shot
+# write: the connection is cached and long-lived, so the identity switch PERSISTS for
+# every subsequent tool call on that connection.
+#
+# An operator who genuinely needs DDL through this server should use a dedicated tool,
+# not an MCP endpoint an LLM drives.
+ALWAYS_BLOCKED_PATTERNS = [
+    # DDL -- schema destruction/alteration is never in scope for this server.
+    r'(?i)\bdrop\s+(table|view|index|schema|database|tablespace|sequence|alias|trigger|function|procedure|module|type)\b',
+    r'(?i)\btruncate\s+table\b',
+    r'(?i)\bcreate\s+(or\s+replace\s+)?(function|procedure|trigger|module)\b',
+    r'(?i)\balter\s+(table|tablespace|database|sequence|function|procedure|module)\b',
+    r'(?i)\brename\s+(table|index|tablespace)\b',
+    # Privilege changes.
+    r'(?i)\bgrant\b\s+\w+',
+    r'(?i)\brevoke\b\s+\w+',
+    r'(?i)\btransfer\s+ownership\b',
+    # Identity / session state that outlives the statement on a cached connection.
+    r'(?i)\bset\s+session\s+authorization\b',
+    r'(?i)\bset\s+current\s+sqlid\b',
+]
+
 SUSPICIOUS_PATTERNS = [
     r"(?i)'.*?--",  # comment injection
     r'(?i)\bor\b\s+\d+\s*=\s*\d+',  # numeric tautology e.g. OR 1=1
@@ -161,6 +202,7 @@ READONLY_SUSPICIOUS_PATTERNS = [
 
 # DOTALL so that '.*' / '.*?' (e.g. the UNION ... SELECT guard) match across
 # newlines; without it an injected newline between tokens bypasses the pattern.
+COMPILED_ALWAYS_BLOCKED_PATTERNS = [re.compile(p, re.DOTALL) for p in ALWAYS_BLOCKED_PATTERNS]
 COMPILED_SUSPICIOUS_PATTERNS = [re.compile(p, re.DOTALL) for p in SUSPICIOUS_PATTERNS]
 COMPILED_READONLY_SUSPICIOUS_PATTERNS = [
     re.compile(p, re.DOTALL) for p in READONLY_SUSPICIOUS_PATTERNS
@@ -262,9 +304,13 @@ def check_sql_injection_risk(sql: str, readonly: bool = False) -> list[dict]:
     issues = []
     stripped = _strip_sql_comments(sql)
 
-    patterns = COMPILED_SUSPICIOUS_PATTERNS
+    # ALWAYS_BLOCKED_PATTERNS apply in BOTH modes -- see the comment on that list.
+    # --allow_write_query turns off the mutating-keyword and transaction screens, so
+    # without these DDL, GRANT/REVOKE and SET SESSION AUTHORIZATION had no guard at all
+    # in write mode.
+    patterns = COMPILED_ALWAYS_BLOCKED_PATTERNS + COMPILED_SUSPICIOUS_PATTERNS
     if readonly:
-        patterns = COMPILED_SUSPICIOUS_PATTERNS + COMPILED_READONLY_SUSPICIOUS_PATTERNS
+        patterns = patterns + COMPILED_READONLY_SUSPICIOUS_PATTERNS
 
     for compiled_pattern in patterns:
         if compiled_pattern.search(stripped):

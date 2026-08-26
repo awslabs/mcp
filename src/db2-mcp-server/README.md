@@ -137,7 +137,7 @@ To pre-connect a single instance at startup, pass arguments after the package na
 | `--instance_identifier` | first DNS label of `db_endpoint` | RDS instance identifier |
 | `--database` | `DB2DB` | Db2 database name |
 | `--port` | `50443` (SSL) / `50000` (off) | Db2 port |
-| `--secret_arn` | RDS managed master secret | Secrets Manager ARN for credentials |
+| `--secret_arn` | RDS managed master secret | Secrets Manager ARN. **Repeatable.** `<arn>` sets a default; `<instance_identifier>=<arn>` pins an ARN to one instance. See below. |
 | `--ssl_encryption` | `require` | `require` (SSL) or `off` (plain TCP) |
 | `--ssl_server_certificate` | — | Path to the RDS regional PEM bundle (required when `--ssl_encryption require`) |
 | `--ssl_hostname_validation` | `basic` | `basic` validates the cert hostname; `off` disables it (tunnel testing only) |
@@ -145,6 +145,45 @@ To pre-connect a single instance at startup, pass arguments after the package na
 | `--max_rows` | `1000` | Max rows per query (0 = no limit; negative values are rejected) |
 | `--query_timeout_s` | `30` | Per-query timeout in seconds (0 = none; negative values are rejected) |
 | `--login_timeout_s` | `15` | Per-connect (TCP/TLS handshake + auth) timeout in seconds (0 = none; negative values are rejected) |
+
+### Credentials are operator-controlled
+
+`connect_to_database` has **no `secret_arn` parameter**. The model chooses only *which
+instance* to target, by `instance_identifier`; the mapping from identifier to ARN comes
+exclusively from `--secret_arn`.
+
+This is deliberate. The server calls `GetSecretValue` under its own IAM role, so a
+model-supplied ARN would make the tool a general-purpose Secrets Manager read oracle for
+every secret that role can reach — and combined with an unconstrained `db_endpoint`, a
+fetched master password could be directed at an arbitrary host. `oracle-mcp-server`
+forbids the same thing for the same reason.
+
+```bash
+# Single instance — the ARN applies to any target
+--secret_arn arn:aws:secretsmanager:us-east-1:111122223333:secret:db2-prod
+
+# Several instances — pin each, optionally with a bare default for the rest
+--secret_arn db2-prod=arn:aws:secretsmanager:...:secret:prod \
+--secret_arn db2-dev=arn:aws:secretsmanager:...:secret:dev \
+--secret_arn arn:aws:secretsmanager:...:secret:fallback
+```
+
+Resolution order: pinned ARN → bare default → the RDS managed master secret discovered via
+`DescribeDBInstances`. At most one bare default may be given.
+
+### Data types in results
+
+Two conversions trade convenience for correctness:
+
+| Db2 type | Returned as | Why |
+|---|---|---|
+| `DECIMAL`, `DECFLOAT` | JSON **string** (`"12345678901234567890.12"`) | Db2 holds up to 31 significant digits; an IEEE double holds ~15–17. Returning a float silently corrupted money columns. JSON has no exact decimal type, so a string is the only lossless option. |
+| `BLOB`, `BINARY`, `VARBINARY` | **base64** string | Binary is not text. Decoding with `errors='replace'` was lossy, not an encoding — a 1 MiB BLOB came back 50% U+FFFD. |
+| non-finite `DOUBLE`/`DECFLOAT` (`NaN`, `Infinity`) | `null` | Not representable in JSON; emitting them bare produced output that is not valid JSON. |
+
+Note the asymmetry this creates: a `DECIMAL` column renders as a JSON string while a
+`DOUBLE` column renders as a JSON number. That is intentional — an exact string beats a
+confidently wrong number.
 
 ## The deploy → connect → query journey
 

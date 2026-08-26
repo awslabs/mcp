@@ -21,9 +21,11 @@ worker thread via ``asyncio.to_thread`` so the MCP tools remain ``async``.
 """
 
 import asyncio
+import base64
 import boto3
 import ibm_db
 import json
+import math
 import os
 import threading
 from awslabs.db2_mcp_server.connection.abstract_db_connection import AbstractDBConnection
@@ -362,20 +364,45 @@ class IbmDbConnection(AbstractDBConnection):
 
     @staticmethod
     def _normalize(value: Any) -> Any:
-        """Coerce Db2/Python values into JSON-friendly primitives."""
-        if value is None or isinstance(value, (str, bool, int, float)):
+        """Coerce Db2/Python values into JSON-friendly primitives.
+
+        Two deliberate type choices, both trading convenience for correctness:
+
+        * ``DECIMAL``/``DECFLOAT`` are returned as STRINGS, not floats. Db2 DECIMAL holds
+          up to 31 significant digits; an IEEE double holds ~15-17. float() therefore
+          silently corrupted values with no error and no warning --
+          ``Decimal('12345678901234567890.12')`` became ``1.2345678901234567e+19`` -- which
+          for a money column means the model confidently reports a wrong number. JSON has
+          no exact decimal type, so a string is the only lossless representation.
+          Consequence worth knowing: a DECIMAL column renders as a JSON string while a
+          DOUBLE column renders as a JSON number. Documented in the README.
+        * Binary columns are returned BASE64-encoded, not UTF-8 "decoded". Binary is not
+          text, and ``errors='replace'`` was lossy rather than an encoding: a measured
+          1 MiB BLOB produced 1,048,576 characters of which 524,288 (50%) were U+FFFD,
+          i.e. the model was handed garbage that looks like text. Base64 is reversible and
+          honestly signals "this is bytes".
+        """
+        if value is None or isinstance(value, (str, bool, int)):
             return value
+        if isinstance(value, float):
+            # NaN/Infinity are not representable in JSON. json.dumps emits them as bare
+            # NaN / Infinity tokens (its `default=` hook is never consulted for floats),
+            # producing output that is not valid JSON and throws in any strict parser.
+            # Emit None instead, which is a truthful "no representable value".
+            return value if math.isfinite(value) else None
         if isinstance(value, Decimal):
-            return float(value)
+            # str() on a non-finite Decimal yields 'NaN' / 'sNaN' / 'Infinity'. Normalize
+            # those to None for the same reason as floats above, and because
+            # float(Decimal('sNaN')) used to RAISE ValueError and abort an otherwise
+            # valid query mid-fetch (DECFLOAT can hold sNaN).
+            return str(value) if value.is_finite() else None
         if isinstance(value, (datetime, date, time)):
             return value.isoformat()
         if isinstance(value, (bytes, bytearray, memoryview)):
-            # ibm_db can return BINARY/BLOB columns as memoryview, which -- unlike
-            # bytes/bytearray -- has no meaningful str() representation (it would
-            # serialize as the per-run, address-dependent '<memory at 0x...>' and
-            # silently corrupt the row with no error raised). Convert to bytes first
-            # so all three binary types decode the same way.
-            return bytes(value).decode('utf-8', errors='replace')
+            # memoryview must be converted to bytes first: unlike bytes/bytearray it has
+            # no meaningful str() (it would serialize as the per-run, address-dependent
+            # '<memory at 0x...>' and silently corrupt the row with no error raised).
+            return base64.b64encode(bytes(value)).decode('ascii')
         return str(value)
 
     def _rollback_quietly(self, conn: Any) -> None:
