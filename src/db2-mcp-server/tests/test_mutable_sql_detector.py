@@ -166,6 +166,26 @@ class TestInjectionRisk:
             check_sql_injection_risk('SELECT COLNAME FROM SYSCAT.COLUMNS WHERE TABNAME = ?') == []
         )
 
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            # The unquoted spelling was blocked, but r'\bsysproc\.\w+' required a word
+            # character immediately after the dot, so a delimited routine name slipped
+            # past -- the same quoting hole already closed for the auth-catalog list.
+            'SELECT * FROM TABLE(SYSPROC."ADMIN_GET_TAB_INFO"(NULL,NULL))',
+            'SELECT * FROM TABLE(SYSPROC . "ADMIN_GET_TAB_INFO"(NULL,NULL))',
+            'SELECT * FROM TABLE("SYSPROC".ADMIN_GET_TAB_INFO(NULL,NULL))',
+            # The \bdbms_\w+ guard was kept but its \butl_\w+ sibling was dropped, so
+            # the UTL_* file/HTTP/SMTP packages were allowed while DBMS_* was blocked.
+            'SELECT UTL_FILE.FOPEN(1) FROM SYSIBM.SYSDUMMY1',
+            'SELECT UTL_HTTP.REQUEST(1) FROM SYSIBM.SYSDUMMY1',
+            'SELECT UTL_SMTP.OPEN_CONNECTION(1) FROM SYSIBM.SYSDUMMY1',
+        ],
+    )
+    def test_system_routine_evasions_are_blocked(self, sql):
+        """Quoted SYSPROC routines and the UTL_* packages must both be caught."""
+        assert check_sql_injection_risk(sql, readonly=True) != []
+
     def test_readonly_blocks_auth_catalog(self):
         """Read-only mode blocks authorization catalog views."""
         sql = 'SELECT * FROM SYSCAT.DBAUTH'

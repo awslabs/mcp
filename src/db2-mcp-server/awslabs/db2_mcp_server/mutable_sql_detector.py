@@ -117,7 +117,15 @@ SUSPICIOUS_PATTERNS = [
     r'(?i)\badmin_cmd\b',  # SYSPROC.ADMIN_CMD — runs arbitrary admin commands
     r'(?i)\bexecute\s+immediate\b',  # dynamic SQL execution (SQL PL)
     r'(?i)\bdbms_\w+',  # Db2 DBMS_* compatibility packages (e.g. DBMS_PIPE)
-    r'(?i)\bsysproc\.\w+',  # system stored procedures
+    # System stored procedures. Quotes and whitespace around the '.' are tolerated:
+    # the previous r'\bsysproc\.\w+' required a word character immediately after the
+    # dot, so SYSPROC."ADMIN_GET_TAB_INFO" (a delimited routine name) slipped past while
+    # the unquoted spelling was blocked -- the same quoting hole already closed for the
+    # authorization-catalog list below.
+    r'(?i)\b"?sysproc"?\s*\.\s*"?\w+',
+    # UTL_* file/HTTP/SMTP packages. The sibling \bdbms_\w+ guard was present but this
+    # one was dropped, so UTL_FILE.FOPEN was allowed while DBMS_PIPE was blocked.
+    r'(?i)\butl_\w+',
     r'(?i)\bsysinstallobjects\b',  # system object installer
 ]
 
