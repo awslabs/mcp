@@ -1343,6 +1343,11 @@ def test_internal_create_connection_replaces_on_secret_change(mocker):
     mock_remove = mocker.patch.object(db_connection_map, 'remove')
     mocker.patch.object(db_connection_map, 'set')
     server_config.configured_default_secret_arn = 'arn:new'  # pragma: allowlist secret
+    mock_rds = MagicMock()
+    mock_rds.describe_db_instances.return_value = {
+        'DBInstances': [{'MasterUsername': 'admin', 'MultiTenant': False}]
+    }
+    mocker.patch('boto3.client', return_value=mock_rds)
 
     conn, response, replaced = internal_create_connection(
         region='us-east-1',
@@ -1364,6 +1369,11 @@ def test_internal_create_connection_uses_default_secret_arn(mocker):
     server_config.configured_default_secret_arn = 'arn:default'  # pragma: allowlist secret
     mocker.patch.object(db_connection_map, 'get', return_value=None)
     mocker.patch.object(db_connection_map, 'set')
+    mock_rds = MagicMock()
+    mock_rds.describe_db_instances.return_value = {
+        'DBInstances': [{'MasterUsername': 'admin', 'MultiTenant': False}]
+    }
+    mocker.patch('boto3.client', return_value=mock_rds)
 
     conn, response, replaced = internal_create_connection(
         region='us-east-1',
@@ -2176,7 +2186,7 @@ def test_main_secret_arn_mixed_per_target_and_default(mocker):
 
 
 def test_internal_create_connection_uses_per_target_secret_arn(mocker):
-    """Per-target --secret_arn overrides default and skips RDS describe."""
+    """Per-target --secret_arn overrides the bare default ARN."""
     mocker.patch.object(db_connection_map, 'get', return_value=None)
     mocker.patch.object(db_connection_map, 'set')
 
@@ -2186,7 +2196,13 @@ def test_internal_create_connection_uses_per_target_secret_arn(mocker):
         'arn:aws:secretsmanager:us-east-1:123:secret:default'
     )
 
-    mock_boto = mocker.patch('boto3.client')
+    # describe_db_instances still runs for the multi-tenant guard; it must not
+    # override the operator-configured per-target secret.
+    mock_rds = MagicMock()
+    mock_rds.describe_db_instances.return_value = {
+        'DBInstances': [{'MasterUsername': 'admin', 'MultiTenant': False}]
+    }
+    mocker.patch('boto3.client', return_value=mock_rds)
 
     conn, response, replaced = internal_create_connection(
         region='us-east-1',
@@ -2200,7 +2216,6 @@ def test_internal_create_connection_uses_per_target_secret_arn(mocker):
 
     assert isinstance(conn, OracledbPoolConnection)
     assert conn.secret_arn == per_target_arn
-    mock_boto.assert_not_called()
 
 
 def test_main_secret_arn_empty_value_exits(mocker):
@@ -2421,3 +2436,70 @@ def test_internal_create_connection_empty_instances_raises(mocker):
             database='ORCL',
             service_name='ORCL',
         )
+
+
+# --- regression coverage for review findings (multi-tenant guard, ssl reconnect, ARN) ---
+
+
+def test_internal_create_connection_multitenant_with_secret_still_validates(mocker):
+    """Multi-tenant guard runs even when a secret_arn is configured (not bypassed)."""
+    mocker.patch.object(db_connection_map, 'get', return_value=None)
+    server_config.configured_default_secret_arn = (
+        'arn:aws:secretsmanager:us-east-1:123:secret:cfg'  # pragma: allowlist secret
+    )
+    mock_rds = MagicMock()
+    mock_rds.describe_db_instances.return_value = {
+        'DBInstances': [{'MasterUsername': 'admin', 'MultiTenant': True}]
+    }
+    mocker.patch('boto3.client', return_value=mock_rds)
+
+    with pytest.raises(ValueError, match='multi-tenant.*tenant_database_name'):
+        internal_create_connection(
+            region='us-east-1',
+            connection_method=ConnectionMethod.ORACLE_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='ep1',
+            port=1521,
+            database='ORCL',
+            service_name='ORCL',
+        )
+
+
+def test_internal_create_connection_replaces_on_ssl_change(mocker):
+    """Reconnecting a cached target with a different ssl_encryption replaces the pool."""
+    old_conn = MagicMock()
+    old_conn.secret_arn = (
+        'arn:aws:secretsmanager:us-east-1:123:secret:cfg'  # pragma: allowlist secret
+    )
+    old_conn.ssl_encryption = 'off'
+    mocker.patch.object(db_connection_map, 'get', return_value=old_conn)
+    mock_remove = mocker.patch.object(db_connection_map, 'remove')
+    mocker.patch.object(db_connection_map, 'set')
+    server_config.configured_default_secret_arn = (
+        'arn:aws:secretsmanager:us-east-1:123:secret:cfg'  # pragma: allowlist secret
+    )
+    mock_rds = MagicMock()
+    mock_rds.describe_db_instances.return_value = {
+        'DBInstances': [{'MasterUsername': 'admin', 'MultiTenant': False}]
+    }
+    mocker.patch('boto3.client', return_value=mock_rds)
+
+    conn, response, replaced = internal_create_connection(
+        region='us-east-1',
+        connection_method=ConnectionMethod.ORACLE_PASSWORD,
+        instance_identifier='inst1',
+        db_endpoint='ep1',
+        port=1521,
+        database='ORCL',
+        service_name='ORCL',
+        ssl_encryption='require',
+    )
+
+    assert replaced is old_conn
+    mock_remove.assert_called_once()
+
+
+def test_parse_instance_identifier_rds_cluster_arn_raises():
+    """RDS cluster ARN (resource type != 'db') is rejected with a clear error."""
+    with pytest.raises(ValueError, match='Unsupported RDS ARN'):
+        _parse_instance_identifier('arn:aws:rds:us-east-1:123456789012:cluster:my-cluster')

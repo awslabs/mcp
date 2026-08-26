@@ -79,6 +79,23 @@ class DBConnectionMap:
             conn = self.map.get(key)
             if conn is not None:
                 return conn
+            # Fallback: the caller did not specify a target_name (service_name/sid/
+            # tenant database). A connection is stored under the target_name it was
+            # created with, so an exact lookup with target_name='' misses. If exactly
+            # one stored connection matches the remaining fields, return it — this
+            # avoids spurious "no connection" errors when the model omits target_name.
+            if not target_name:
+                candidates = [
+                    stored_conn
+                    for stored_key, stored_conn in self.map.items()
+                    if stored_key[0] == method
+                    and stored_key[1] == instance_identifier
+                    and stored_key[2] == db_endpoint
+                    and stored_key[3] == database
+                    and stored_key[4] == port
+                ]
+                if len(candidates) == 1:
+                    return candidates[0]
             # Fallback: if the caller did not supply an explicit instance_identifier
             # (signalled by instance_identifier == db_endpoint), search for any stored
             # connection that matches on the remaining fields.

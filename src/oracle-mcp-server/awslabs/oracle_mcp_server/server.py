@@ -456,9 +456,10 @@ def _parse_instance_identifier(identifier: str) -> Tuple[str, str]:
             return ('odb', identifier)
         elif service == 'rds':
             # RDS ARN: arn:aws:rds:region:account:db:instance-name
-            if len(parts) < 7 or not parts[6]:
+            if len(parts) < 7 or parts[5] != 'db' or not parts[6]:
                 raise ValueError(
-                    f"Cannot extract instance identifier from RDS ARN: '{identifier}'"
+                    f"Unsupported RDS ARN '{identifier}': expected a DB instance ARN of the "
+                    "form 'arn:aws:rds:<region>:<account>:db:<instance-name>'."
                 )
             return ('rds', parts[6])
         else:
@@ -469,6 +470,34 @@ def _parse_instance_identifier(identifier: str) -> Tuple[str, str]:
         return ('odb', identifier)
     else:
         return ('rds', identifier)
+
+
+def _resolve_odb_private_endpoint(region: str, resolved_id: str) -> str:
+    """Resolve an ODB Autonomous Database's private endpoint.
+
+    Calls odb:GetAutonomousDatabase and returns privateEndpointIp (preferred) or
+    privateEndpoint. Raises ValueError if the API call fails or no private endpoint
+    is configured on the database.
+    """
+    odb_client = boto3.client(
+        'odb', region_name=region, config=Config(user_agent_extra=__user_agent__)
+    )
+    try:
+        adb_response = odb_client.get_autonomous_database(autonomousDatabaseId=resolved_id)
+    except ClientError as e:
+        code = e.response['Error']['Code']
+        raise ValueError(
+            f"Failed to get autonomous database '{resolved_id}': "
+            f'{code} - {e.response["Error"]["Message"]}'
+        ) from e
+    adb_props = adb_response.get('autonomousDatabase', {})
+    endpoint = adb_props.get('privateEndpointIp') or adb_props.get('privateEndpoint')
+    if not endpoint:
+        raise ValueError(
+            f"Autonomous database '{resolved_id}' has no private endpoint. "
+            'Ensure the database has a private endpoint configured.'
+        )
+    return endpoint
 
 
 def internal_create_connection(
@@ -541,12 +570,19 @@ def internal_create_connection(
         connection_method, instance_identifier, db_endpoint or '', database, port, target_name
     )
     if existing_conn:
-        # If a secret_arn was resolved and differs from the existing connection's,
-        # replace the connection with one using the new credentials.
-        if secret_arn and getattr(existing_conn, 'secret_arn', '') != secret_arn:
+        # Replace the cached connection when a connection-defining setting changed:
+        # the resolved secret_arn, or the requested TLS mode (ssl_encryption). Without
+        # the ssl_encryption check, reconnecting the same target with a different TLS
+        # mode would silently keep the pool built with the old mode.
+        secret_changed = (
+            bool(secret_arn) and getattr(existing_conn, 'secret_arn', '') != secret_arn
+        )
+        existing_ssl = getattr(existing_conn, 'ssl_encryption', None)
+        ssl_changed = isinstance(existing_ssl, str) and existing_ssl != ssl_encryption
+        if secret_changed or ssl_changed:
             logger.info(
                 f'Replacing existing connection for {instance_identifier}/{database}/{target_name}: '
-                f'secret_arn changed'
+                f'{"secret_arn" if secret_changed else "ssl_encryption"} changed'
             )
             db_connection_map.remove(
                 connection_method,
@@ -570,61 +606,22 @@ def internal_create_connection(
             }
             return (existing_conn, llm_response, None)
 
-    # For ORACLE_PASSWORD with a resolved secret ARN, skip API calls for credential lookup
-    # (masteruser is not needed — credentials come from the secret itself).
-    if connection_method == ConnectionMethod.ORACLE_PASSWORD and secret_arn:
-        masteruser = ''
-        # For ODB without db_endpoint, still need to resolve the endpoint
-        if service_type == 'odb' and not db_endpoint:
-            odb_client = boto3.client(
-                'odb', region_name=region, config=Config(user_agent_extra=__user_agent__)
-            )
-            try:
-                adb_response = odb_client.get_autonomous_database(autonomousDatabaseId=resolved_id)
-            except ClientError as e:
-                code = e.response['Error']['Code']
-                raise ValueError(
-                    f"Failed to get autonomous database '{resolved_id}': "
-                    f'{code} - {e.response["Error"]["Message"]}'
-                ) from e
-            adb_props = adb_response.get('autonomousDatabase', {})
-            db_endpoint = adb_props.get('privateEndpointIp') or adb_props.get('privateEndpoint')
-            if not db_endpoint:
-                raise ValueError(
-                    f"Autonomous database '{resolved_id}' has no private endpoint. "
-                    'Ensure the database has a private endpoint configured.'
-                )
-    elif service_type == 'odb':
-        # ODB Autonomous Database path — secret_arn is required
+    # Resolve endpoint and validate/complete credentials per service type.
+    # secret_arn may already be set from operator config above; the API calls below
+    # only *fill* it when unset. Crucially, RDS validation (e.g. the multi-tenant CDB
+    # guard) runs regardless of whether a secret was configured, so it is never
+    # silently bypassed just because --secret_arn was supplied.
+    masteruser = ''
+    if service_type == 'odb':
+        # ODB Autonomous Database requires an explicitly configured secret_arn.
         if not secret_arn:
             raise ValueError(
                 f"secret_arn is required for ODB Autonomous Database '{resolved_id}'. "
                 'Pass --secret_arn with the Secrets Manager ARN containing database credentials.'
             )
-
-        # Resolve endpoint if not explicitly provided
+        # Resolve the private endpoint if not explicitly provided.
         if not db_endpoint:
-            odb_client = boto3.client(
-                'odb', region_name=region, config=Config(user_agent_extra=__user_agent__)
-            )
-            try:
-                adb_response = odb_client.get_autonomous_database(autonomousDatabaseId=resolved_id)
-            except ClientError as e:
-                code = e.response['Error']['Code']
-                raise ValueError(
-                    f"Failed to get autonomous database '{resolved_id}': "
-                    f'{code} - {e.response["Error"]["Message"]}'
-                ) from e
-
-            adb_props = adb_response.get('autonomousDatabase', {})
-            db_endpoint = adb_props.get('privateEndpointIp') or adb_props.get('privateEndpoint')
-            if not db_endpoint:
-                raise ValueError(
-                    f"Autonomous database '{resolved_id}' has no private endpoint. "
-                    'Ensure the database has a private endpoint configured.'
-                )
-
-        masteruser = ''
+            db_endpoint = _resolve_odb_private_endpoint(region, resolved_id)
     else:
         # RDS path
         rds_client = boto3.client(

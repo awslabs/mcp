@@ -299,3 +299,25 @@ def test_fallback_requires_matching_target_name(conn_map, mock_conn):
         'SVC_X',
     )
     assert result is mock_conn
+
+
+def test_get_falls_back_when_target_name_omitted(conn_map, mock_conn):
+    """get() returns the unique matching connection when the caller omits target_name."""
+    conn_map.set(
+        ConnectionMethod.ORACLE_PASSWORD, 'inst1', 'ep1', 'ORCL', mock_conn, 1521, 'MYPDB'
+    )
+    # Caller omits target_name (e.g. the LLM didn't echo it back) — still resolves.
+    got = conn_map.get(ConnectionMethod.ORACLE_PASSWORD, 'inst1', 'ep1', 'ORCL', 1521, '')
+    assert got is mock_conn
+
+
+def test_get_target_name_fallback_ambiguous_returns_none(conn_map):
+    """When target_name is omitted and multiple connections match, get() returns None."""
+    conn_map.set(
+        ConnectionMethod.ORACLE_PASSWORD, 'inst1', 'ep1', 'ORCL', MagicMock(), 1521, 'PDB_A'
+    )
+    conn_map.set(
+        ConnectionMethod.ORACLE_PASSWORD, 'inst1', 'ep1', 'ORCL', MagicMock(), 1521, 'PDB_B'
+    )
+    got = conn_map.get(ConnectionMethod.ORACLE_PASSWORD, 'inst1', 'ep1', 'ORCL', 1521, '')
+    assert got is None
