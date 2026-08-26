@@ -84,13 +84,13 @@ https://knowledge-mcp.global.api.aws
 
 **fx**
 
-[fx](https://fx.sh) speaks Streamable HTTP natively, so no proxy is needed. Register the server from inside an fx session:
+[fx](https://fx.sh) speaks Streamable HTTP natively, so no proxy is needed. Register the server from your terminal:
 
-```
-/mcp add --transport http aws-knowledge-mcp-server https://knowledge-mcp.global.api.aws
+```bash
+fx mcp add --transport http aws-knowledge-mcp-server https://knowledge-mcp.global.api.aws
 ```
 
-Or add it by hand to `~/.fx/mcp.json`, under an `mcp` key rather than `mcpServers`:
+Run `fx mcp list` to confirm it was saved. Or add it to `~/.fx/mcp.json`, under an `mcp` key rather than `mcpServers`:
 
 ```json
 {
@@ -103,7 +103,7 @@ Or add it by hand to `~/.fx/mcp.json`, under an `mcp` key rather than `mcpServer
 }
 ```
 
-Run `/mcp reload` and then `/mcp list` to confirm the server is connected.
+If a session is already open when you edit the file, run `/mcp reload` to pick up the change.
 
 If the client you are using does not support HTTP transport for MCP or if it encounters issues during setup, you can use the [fastmcp](https://github.com/jlowin/fastmcp) utility to proxy from stdio to HTTP transport. Below is a configuration example for the fastmcp utility.
 

@@ -1034,22 +1034,23 @@ For macOS/Linux:
 <details>
 <summary>Install in fx</summary>
 
-Configure MCP servers in [fx](https://fx.sh) in `~/.fx/mcp.json`. Servers defined there are available in every project.
+[fx](https://fx.sh) manages MCP servers from the terminal and stores them in `~/.fx/mcp.json`, so they are available in every project.
 
 1. Follow the steps above in the **Installation and Setup** section to install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/), install Python, and configure AWS credentials with the required services.
 
-2. **Using fx slash commands**
+2. **Using fx CLI commands**
 
-   Run these inside an fx session to register servers:
+   ```bash
+   # The hosted AWS Knowledge MCP Server needs no credentials
+   fx mcp add --transport http aws-knowledge https://knowledge-mcp.global.api.aws
 
-   ```
-   /mcp add --transport http aws-knowledge https://knowledge-mcp.global.api.aws
+   # Local servers take the executable and its arguments
+   fx mcp add aws-api uvx awslabs.aws-api-mcp-server@latest
+   fx mcp add aws-iac uvx awslabs.aws-iac-mcp-server@latest
+   fx mcp add aws-iam uvx awslabs.iam-mcp-server@latest
 
-   /mcp add aws-api uvx awslabs.aws-api-mcp-server@latest
-   /mcp add aws-iac uvx awslabs.aws-iac-mcp-server@latest
-   /mcp add aws-iam uvx awslabs.iam-mcp-server@latest
-
-   /mcp list
+   # List configured servers
+   fx mcp list
    ```
 
 3. **Manual configuration (alternative)**
@@ -1061,16 +1062,13 @@ Configure MCP servers in [fx](https://fx.sh) in `~/.fx/mcp.json`. Servers define
 ```json
 {
   "mcp": {
+    "aws-knowledge-mcp-server": {
+      "type": "http",
+      "url": "https://knowledge-mcp.global.api.aws"
+    },
     "awslabs.aws-iac-mcp-server": {
       "type": "local",
       "command": ["uvx", "awslabs.aws-iac-mcp-server@latest"],
-      "environment": {
-        "FASTMCP_LOG_LEVEL": "ERROR"
-      }
-    },
-    "awslabs.iam-mcp-server": {
-      "type": "local",
-      "command": ["uvx", "awslabs.iam-mcp-server@latest"],
       "environment": {
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
@@ -1085,20 +1083,7 @@ The first launch of a `uvx` server downloads the package, which can exceed the d
 "startup_timeout_ms": 30000
 ```
 
-The AWS Knowledge MCP Server is remote and needs no credentials:
-
-```json
-{
-  "mcp": {
-    "aws-knowledge-mcp-server": {
-      "type": "http",
-      "url": "https://knowledge-mcp.global.api.aws"
-    }
-  }
-}
-```
-
-After editing the file by hand, run `/mcp reload` to pick it up, then `/mcp list` to confirm each server reports `state=ready`.
+If a session is already open when you edit the file, run `/mcp reload` to pick up the change.
 
 </details>
 
