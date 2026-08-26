@@ -20,7 +20,7 @@ from awslabs.cloudwatch_mcp_server.aws_common import get_aws_client
 from awslabs.cloudwatch_mcp_server.common import remove_null_values
 from botocore.exceptions import ClientError
 from loguru import logger
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from pydantic import BaseModel, Field
 from timeit import default_timer as timer
 from typing import Annotated, Dict, List, Optional

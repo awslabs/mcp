@@ -17,7 +17,7 @@
 import json
 import pytest
 from awslabs.eks_mcp_server.vpc_config_handler import VpcConfigHandler
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from mcp.types import TextContent
 from unittest.mock import MagicMock, patch
 
@@ -177,7 +177,7 @@ class TestVpcConfigHandler:
         mock_eks_client.describe_cluster.assert_called_once_with(name='test-cluster')
 
         # Verify the result
-        assert not result.isError
+        assert not result.is_error
 
         # Parse JSON data from content
         data = json.loads(result.content[1].text)
@@ -220,7 +220,7 @@ class TestVpcConfigHandler:
         mock_ec2_client.describe_vpcs.assert_called_once_with(VpcIds=['vpc-nonexistent'])
 
         # Verify error response
-        assert result.isError
+        assert result.is_error
         assert isinstance(
             result.content[0], TextContent
         )  # Ensure it's TextContent before accessing .text
@@ -255,7 +255,7 @@ class TestVpcConfigHandler:
         mock_ec2_client.describe_vpcs.assert_not_called()
 
         # Verify error response
-        assert result.isError
+        assert result.is_error
         assert isinstance(
             result.content[0], TextContent
         )  # Ensure it's TextContent before accessing .text
@@ -283,7 +283,7 @@ class TestVpcConfigHandler:
         mock_eks_client.describe_cluster.assert_called_once_with(name='test-cluster')
 
         # Verify error response
-        assert result.isError
+        assert result.is_error
         assert isinstance(
             result.content[0], TextContent
         )  # Ensure it's TextContent before accessing .text
@@ -372,7 +372,7 @@ class TestVpcConfigHandler:
         mock_ec2_client.describe_vpcs.assert_called_once_with(VpcIds=['vpc-remote'])
 
         # Verify the result
-        assert not result.isError
+        assert not result.is_error
 
         # Parse JSON data from content
         data = json.loads(result.content[1].text)
@@ -468,7 +468,7 @@ class TestVpcConfigHandler:
         mock_ec2_client.describe_vpcs.assert_called_once_with(VpcIds=['vpc-nopod'])
 
         # Verify the result
-        assert not result.isError
+        assert not result.is_error
 
         # Parse JSON data from content
         data = json.loads(result.content[1].text)
@@ -579,7 +579,7 @@ class TestVpcConfigHandler:
         mock_ec2_client.describe_route_tables.assert_called_once()
 
         # Verify the result
-        assert not result.isError
+        assert not result.is_error
         assert isinstance(
             result.content[0], TextContent
         )  # Ensure it's TextContent before accessing .text
@@ -1080,7 +1080,7 @@ class TestVpcConfigHandler:
         mock_eks_client.describe_cluster.assert_called_once_with(name='test-cluster')
 
         # Verify error response - the error is caught at the inner level first
-        assert result.isError
+        assert result.is_error
         assert isinstance(result.content[0], TextContent)
         # The error message will be "Error getting cluster information" from the inner try-catch
         assert 'Error getting cluster information' in result.content[0].text
@@ -1114,7 +1114,7 @@ class TestVpcConfigHandler:
         mock_ec2_client.describe_vpcs.assert_called_once_with(VpcIds=['vpc-12345'])
 
         # Verify error response
-        assert result.isError
+        assert result.is_error
         assert isinstance(result.content[0], TextContent)
         assert 'Error retrieving VPC configuration' in result.content[0].text
         assert 'VPC retrieval failed' in result.content[0].text

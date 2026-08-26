@@ -20,7 +20,7 @@ import time
 from awslabs.eks_mcp_server.aws_helper import AwsHelper
 from awslabs.eks_mcp_server.logging_helper import LogLevel, log_with_request_id
 from awslabs.eks_mcp_server.models import CloudWatchLogsData, CloudWatchMetricsData
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from mcp.types import CallToolResult, TextContent
 from pydantic import Field
 from typing import Optional, Union
@@ -182,7 +182,7 @@ class CloudWatchHandler:
                 )
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
                 return CallToolResult(
-                    isError=True,
+                    is_error=True,
                     content=[TextContent(type='text', text=error_message)],
                 )
 
@@ -274,7 +274,7 @@ class CloudWatchHandler:
 
             # Return CallToolResult with structured content
             return CallToolResult(
-                isError=False,
+                is_error=False,
                 content=[
                     TextContent(
                         type='text',
@@ -293,7 +293,7 @@ class CloudWatchHandler:
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -412,7 +412,7 @@ class CloudWatchHandler:
                 error_message = f"Provided cluster_name '{cluster_name}' does not match ClusterName dimension '{dimensions['ClusterName']}'"
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
                 return CallToolResult(
-                    isError=True,
+                    is_error=True,
                     content=[TextContent(type='text', text=error_message)],
                 )
 
@@ -491,7 +491,7 @@ class CloudWatchHandler:
 
             # Return CallToolResult with structured content
             return CallToolResult(
-                isError=False,
+                is_error=False,
                 content=[
                     TextContent(
                         type='text',
@@ -509,7 +509,7 @@ class CloudWatchHandler:
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[TextContent(type='text', text=error_message)],
             )
 
