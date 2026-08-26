@@ -38,6 +38,18 @@ class DBConnectionMap:
         self.map = {}
         self._lock = threading.Lock()
 
+    def _make_key(
+        self,
+        method: ConnectionMethod,
+        instance_identifier: str,
+        db_endpoint: str,
+        database: str,
+        port: int,
+        target_name: str,
+    ) -> tuple:
+        """Build a cache key tuple including the connection target."""
+        return (method, instance_identifier, db_endpoint, database, port, target_name)
+
     def get(
         self,
         method: ConnectionMethod,
@@ -45,13 +57,14 @@ class DBConnectionMap:
         db_endpoint: str,
         database: str,
         port: int = 1521,
+        target_name: str = '',
     ) -> AbstractDBConnection | None:
         """Get a database connection from the map.
 
         If no exact match is found and instance_identifier equals db_endpoint (i.e. the
         caller did not supply an explicit identifier), fall back to searching for any
-        connection that matches on method, db_endpoint, database, and port regardless of
-        the instance_identifier that was used at connect time.
+        connection that matches on method, db_endpoint, database, port, and target_name
+        regardless of the instance_identifier that was used at connect time.
         """
         if not method:
             raise ValueError('method cannot be None')
@@ -60,19 +73,23 @@ class DBConnectionMap:
             raise ValueError('database cannot be None or empty')
 
         with self._lock:
-            conn = self.map.get((method, instance_identifier, db_endpoint, database, port))
+            key = self._make_key(
+                method, instance_identifier, db_endpoint, database, port, target_name
+            )
+            conn = self.map.get(key)
             if conn is not None:
                 return conn
             # Fallback: if the caller did not supply an explicit instance_identifier
             # (signalled by instance_identifier == db_endpoint), search for any stored
             # connection that matches on the remaining fields.
             if instance_identifier == db_endpoint:
-                for key, stored_conn in self.map.items():
+                for stored_key, stored_conn in self.map.items():
                     if (
-                        key[0] == method
-                        and key[2] == db_endpoint
-                        and key[3] == database
-                        and key[4] == port
+                        stored_key[0] == method
+                        and stored_key[2] == db_endpoint
+                        and stored_key[3] == database
+                        and stored_key[4] == port
+                        and stored_key[5] == target_name
                     ):
                         return stored_conn
             return None
@@ -85,6 +102,7 @@ class DBConnectionMap:
         database: str,
         conn: AbstractDBConnection,
         port: int = 1521,
+        target_name: str = '',
     ) -> None:
         """Set a database connection in the map."""
         if not database:
@@ -94,7 +112,10 @@ class DBConnectionMap:
             raise ValueError('conn cannot be None')
 
         with self._lock:
-            self.map[(method, instance_identifier, db_endpoint, database, port)] = conn
+            key = self._make_key(
+                method, instance_identifier, db_endpoint, database, port, target_name
+            )
+            self.map[key] = conn
 
     def remove(
         self,
@@ -103,6 +124,7 @@ class DBConnectionMap:
         db_endpoint: str,
         database: str,
         port: int = 1521,
+        target_name: str = '',
     ) -> None:
         """Remove a database connection from the map."""
         if not database:
@@ -110,10 +132,13 @@ class DBConnectionMap:
 
         with self._lock:
             try:
-                self.map.pop((method, instance_identifier, db_endpoint, database, port))
+                key = self._make_key(
+                    method, instance_identifier, db_endpoint, database, port, target_name
+                )
+                self.map.pop(key)
             except KeyError:
                 logger.info(
-                    f'Try to remove a non-existing connection. {method} {instance_identifier} {db_endpoint} {database} {port}'
+                    f'Try to remove a non-existing connection. {method} {instance_identifier} {db_endpoint} {database} {port} {target_name}'
                 )
 
     def get_keys(self) -> List[dict]:
@@ -127,6 +152,7 @@ class DBConnectionMap:
                     'db_endpoint': key[2],
                     'database': key[3],
                     'port': key[4],
+                    'target_name': key[5],
                     'service_name': getattr(conn, 'service_name', None),
                     'sid': getattr(conn, 'sid', None),
                     'secret_arn': getattr(conn, 'secret_arn', None),

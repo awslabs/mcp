@@ -29,6 +29,7 @@ from awslabs.oracle_mcp_server.server import (
     ServerConfig,
     _catalog_form,
     _identifier_to_catalog_form,
+    _parse_instance_identifier,
     db_connection_map,
     internal_create_connection,
     is_database_connected,
@@ -1129,6 +1130,73 @@ async def test_connect_to_database_success(mocker):
 
 
 @pytest.mark.asyncio
+async def test_connect_to_database_ssl_encryption_passed_through(mocker):
+    """An explicit ssl_encryption value is forwarded to internal_create_connection."""
+    from awslabs.oracle_mcp_server.server import connect_to_database
+
+    mock_pool_conn = MagicMock(spec=OracledbPoolConnection)
+    mock_pool_conn.initialize_pool = AsyncMock()
+    llm_response = {
+        'connection_method': ConnectionMethod.ORACLE_PASSWORD,
+        'instance_identifier': 'inst1',
+        'db_endpoint': 'ep1',
+        'database': 'ORCL',
+        'port': 1521,
+        'service_name': 'ORCL',
+        'sid': None,
+    }
+    mock_create = mocker.patch(
+        'awslabs.oracle_mcp_server.server.internal_create_connection',
+        return_value=(mock_pool_conn, llm_response, None),
+    )
+
+    await connect_to_database(
+        region='us-east-1',
+        connection_method=ConnectionMethod.ORACLE_PASSWORD,
+        instance_identifier='inst1',
+        db_endpoint='ep1',
+        service_name='ORCL',
+        ssl_encryption='off',
+    )
+
+    assert mock_create.call_args.kwargs['ssl_encryption'] == 'off'
+
+
+@pytest.mark.asyncio
+async def test_connect_to_database_ssl_encryption_defaults_to_server_config(mocker):
+    """When ssl_encryption is omitted, it falls back to the server launch value."""
+    from awslabs.oracle_mcp_server.server import connect_to_database, server_config
+
+    server_config.ssl_encryption_mode = 'require'
+
+    mock_pool_conn = MagicMock(spec=OracledbPoolConnection)
+    mock_pool_conn.initialize_pool = AsyncMock()
+    llm_response = {
+        'connection_method': ConnectionMethod.ORACLE_PASSWORD,
+        'instance_identifier': 'inst1',
+        'db_endpoint': 'ep1',
+        'database': 'ORCL',
+        'port': 1521,
+        'service_name': 'ORCL',
+        'sid': None,
+    }
+    mock_create = mocker.patch(
+        'awslabs.oracle_mcp_server.server.internal_create_connection',
+        return_value=(mock_pool_conn, llm_response, None),
+    )
+
+    await connect_to_database(
+        region='us-east-1',
+        connection_method=ConnectionMethod.ORACLE_PASSWORD,
+        instance_identifier='inst1',
+        db_endpoint='ep1',
+        service_name='ORCL',
+    )
+
+    assert mock_create.call_args.kwargs['ssl_encryption'] == 'require'
+
+
+@pytest.mark.asyncio
 async def test_connect_to_database_both_service_and_sid():
     """Both service_name and sid returns an error."""
     from awslabs.oracle_mcp_server.server import connect_to_database
@@ -1136,6 +1204,7 @@ async def test_connect_to_database_both_service_and_sid():
     result = await connect_to_database(
         region='us-east-1',
         connection_method=ConnectionMethod.ORACLE_PASSWORD,
+        instance_identifier='inst1',
         db_endpoint='ep1',
         service_name='ORCL',
         sid='ORCL',
@@ -1153,6 +1222,7 @@ async def test_connect_to_database_neither_service_nor_sid():
     result = await connect_to_database(
         region='us-east-1',
         connection_method=ConnectionMethod.ORACLE_PASSWORD,
+        instance_identifier='inst1',
         db_endpoint='ep1',
     )
     assert isinstance(result, dict)
@@ -1205,6 +1275,7 @@ async def test_connect_to_database_closes_replaced_connection(mocker):
     await connect_to_database(
         region='us-east-1',
         connection_method=ConnectionMethod.ORACLE_PASSWORD,
+        instance_identifier='inst1',
         db_endpoint='ep1',
         service_name='ORCL',
     )
@@ -1230,6 +1301,7 @@ async def test_connect_to_database_replaced_close_failure_is_non_fatal(mocker):
     result = await connect_to_database(
         region='us-east-1',
         connection_method=ConnectionMethod.ORACLE_PASSWORD,
+        instance_identifier='inst1',
         db_endpoint='ep1',
         service_name='ORCL',
     )
@@ -1358,6 +1430,434 @@ def test_internal_create_connection_empty_secret_arn_raises(mocker):
             connection_method=ConnectionMethod.ORACLE_PASSWORD,
             instance_identifier='inst1',
             db_endpoint='ep1',
+            port=1521,
+            database='ORCL',
+            service_name='ORCL',
+        )
+
+
+def test_internal_create_connection_tenant_database(mocker):
+    """Retrieves secret_arn from describe_tenant_databases when tenant_database_name is given."""
+    mocker.patch.object(db_connection_map, 'get', return_value=None)
+    mocker.patch.object(db_connection_map, 'set')
+
+    mock_rds = MagicMock()
+    mock_rds.describe_tenant_databases.return_value = {
+        'TenantDatabases': [
+            {
+                'MasterUsername': 'tenant_admin',
+                'MasterUserSecret': {
+                    'SecretArn': 'arn:aws:secretsmanager:us-east-1:123:secret:tenant-secret'  # pragma: allowlist secret
+                },
+            }
+        ]
+    }
+    mocker.patch('boto3.client', return_value=mock_rds)
+
+    conn, response, replaced = internal_create_connection(
+        region='us-east-1',
+        connection_method=ConnectionMethod.ORACLE_PASSWORD,
+        instance_identifier='inst1',
+        db_endpoint='ep1',
+        port=1521,
+        database='ORCL',
+        service_name='ORCL',
+        tenant_database_name='MY_TENANT_DB',
+    )
+
+    assert isinstance(conn, OracledbPoolConnection)
+    assert (
+        conn.secret_arn
+        == 'arn:aws:secretsmanager:us-east-1:123:secret:tenant-secret'  # pragma: allowlist secret
+    )
+    assert response['target_name'] == 'MY_TENANT_DB'
+    mock_rds.describe_tenant_databases.assert_called_once_with(
+        DBInstanceIdentifier='inst1',
+        TenantDBName='MY_TENANT_DB',
+    )
+    mock_rds.describe_db_instances.assert_not_called()
+
+
+def test_internal_create_connection_tenant_database_no_secret_raises(mocker):
+    """Raises ValueError when tenant database has no managed master secret."""
+    mocker.patch.object(db_connection_map, 'get', return_value=None)
+
+    mock_rds = MagicMock()
+    mock_rds.describe_tenant_databases.return_value = {
+        'TenantDatabases': [{'MasterUsername': 'tenant_admin'}]
+    }
+    mocker.patch('boto3.client', return_value=mock_rds)
+
+    with pytest.raises(ValueError, match='Tenant database.*has no managed master secret'):
+        internal_create_connection(
+            region='us-east-1',
+            connection_method=ConnectionMethod.ORACLE_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='ep1',
+            port=1521,
+            database='ORCL',
+            service_name='ORCL',
+            tenant_database_name='MY_TENANT_DB',
+        )
+
+
+def test_internal_create_connection_tenant_database_not_found_raises(mocker):
+    """Raises ValueError when no tenant database is found."""
+    mocker.patch.object(db_connection_map, 'get', return_value=None)
+
+    mock_rds = MagicMock()
+    mock_rds.describe_tenant_databases.return_value = {'TenantDatabases': []}
+    mocker.patch('boto3.client', return_value=mock_rds)
+
+    with pytest.raises(ValueError, match='No tenant database'):
+        internal_create_connection(
+            region='us-east-1',
+            connection_method=ConnectionMethod.ORACLE_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='ep1',
+            port=1521,
+            database='ORCL',
+            service_name='ORCL',
+            tenant_database_name='NONEXISTENT_DB',
+        )
+
+
+def test_internal_create_connection_target_name_differentiates_cache(mocker):
+    """Same instance with different service_name values use different cache entries."""
+    conn_a = MagicMock()
+    conn_a.secret_arn = 'arn:a'  # pragma: allowlist secret
+    conn_a.service_name = 'SVC_A'
+    conn_a.sid = None
+
+    conn_b = MagicMock()
+    conn_b.secret_arn = 'arn:b'  # pragma: allowlist secret
+    conn_b.service_name = 'SVC_B'
+    conn_b.sid = None
+
+    # First call returns conn_a, second returns conn_b
+    mocker.patch.object(db_connection_map, 'get', side_effect=[conn_a, conn_b])
+
+    result_a, resp_a, _ = internal_create_connection(
+        region='us-east-1',
+        connection_method=ConnectionMethod.ORACLE_PASSWORD,
+        instance_identifier='inst1',
+        db_endpoint='ep1',
+        port=1521,
+        database='ORCL',
+        service_name='SVC_A',
+    )
+    result_b, resp_b, _ = internal_create_connection(
+        region='us-east-1',
+        connection_method=ConnectionMethod.ORACLE_PASSWORD,
+        instance_identifier='inst1',
+        db_endpoint='ep1',
+        port=1521,
+        database='ORCL',
+        service_name='SVC_B',
+    )
+
+    assert result_a is conn_a
+    assert result_b is conn_b
+    assert resp_a['target_name'] == 'SVC_A'
+    assert resp_b['target_name'] == 'SVC_B'
+
+
+def test_internal_create_connection_multitenant_without_tenant_db_name_raises(mocker):
+    """Raises ValueError when instance is multi-tenant but no tenant_database_name provided."""
+    mocker.patch.object(db_connection_map, 'get', return_value=None)
+
+    mock_rds = MagicMock()
+    mock_rds.describe_db_instances.return_value = {
+        'DBInstances': [
+            {
+                'MasterUsername': 'admin',
+                'MultiTenant': True,
+                'MasterUserSecret': {
+                    'SecretArn': 'arn:aws:secretsmanager:us-east-1:123:secret:master'  # pragma: allowlist secret
+                },
+            }
+        ]
+    }
+    mocker.patch('boto3.client', return_value=mock_rds)
+
+    with pytest.raises(ValueError, match='multi-tenant.*tenant_database_name'):
+        internal_create_connection(
+            region='us-east-1',
+            connection_method=ConnectionMethod.ORACLE_PASSWORD,
+            instance_identifier='inst1',
+            db_endpoint='ep1',
+            port=1521,
+            database='ORCL',
+            service_name='ORCL',
+        )
+
+
+def test_internal_create_connection_non_multitenant_without_tenant_db_name_succeeds(mocker):
+    """Non-multi-tenant instance connects fine without tenant_database_name."""
+    mocker.patch.object(db_connection_map, 'get', return_value=None)
+    mocker.patch.object(db_connection_map, 'set')
+
+    mock_rds = MagicMock()
+    mock_rds.describe_db_instances.return_value = {
+        'DBInstances': [
+            {
+                'MasterUsername': 'admin',
+                'MultiTenant': False,
+                'MasterUserSecret': {
+                    'SecretArn': 'arn:aws:secretsmanager:us-east-1:123:secret:master'  # pragma: allowlist secret
+                },
+            }
+        ]
+    }
+    mocker.patch('boto3.client', return_value=mock_rds)
+
+    conn, response, replaced = internal_create_connection(
+        region='us-east-1',
+        connection_method=ConnectionMethod.ORACLE_PASSWORD,
+        instance_identifier='inst1',
+        db_endpoint='ep1',
+        port=1521,
+        database='ORCL',
+        service_name='ORCL',
+    )
+
+    assert isinstance(conn, OracledbPoolConnection)
+    assert response['target_name'] == 'ORCL'
+    assert replaced is None
+
+
+# --- _parse_instance_identifier ---
+
+
+def test_parse_instance_identifier_rds_plain_name():
+    """Plain name without prefix is detected as RDS."""
+    service_type, resolved_id = _parse_instance_identifier('my-rds-instance')
+    assert service_type == 'rds'
+    assert resolved_id == 'my-rds-instance'
+
+
+def test_parse_instance_identifier_odb_short_id():
+    """ID starting with adb_ is detected as ODB autonomous database."""
+    service_type, resolved_id = _parse_instance_identifier('adb_zkt79n0iin')
+    assert service_type == 'odb'
+    assert resolved_id == 'adb_zkt79n0iin'
+
+
+def test_parse_instance_identifier_odb_arn():
+    """ODB ARN is detected and full ARN is returned as resolved_id."""
+    arn = 'arn:aws:odb:us-east-1:361769571788:autonomous-database/adb_zkt79n0iin'
+    service_type, resolved_id = _parse_instance_identifier(arn)
+    assert service_type == 'odb'
+    assert resolved_id == arn
+
+
+def test_parse_instance_identifier_rds_arn():
+    """RDS ARN is detected and instance name is extracted."""
+    arn = 'arn:aws:rds:us-east-1:123456789012:db:my-oracle-instance'
+    service_type, resolved_id = _parse_instance_identifier(arn)
+    assert service_type == 'rds'
+    assert resolved_id == 'my-oracle-instance'
+
+
+def test_parse_instance_identifier_empty_raises():
+    """Empty identifier raises ValueError."""
+    with pytest.raises(ValueError, match="can't be None or empty"):
+        _parse_instance_identifier('')
+
+
+def test_parse_instance_identifier_invalid_arn_raises():
+    """ARN with too few parts raises ValueError."""
+    with pytest.raises(ValueError, match='Invalid ARN format'):
+        _parse_instance_identifier('arn:aws:odb:us-east-1')
+
+
+def test_parse_instance_identifier_unsupported_service_raises():
+    """ARN with unsupported service raises ValueError."""
+    with pytest.raises(ValueError, match="Unsupported service 's3'"):
+        _parse_instance_identifier('arn:aws:s3:us-east-1:123456789012:bucket:my-bucket')
+
+
+# --- ODB Autonomous Database in internal_create_connection ---
+
+
+def test_internal_create_connection_odb_autonomous_db(mocker):
+    """ODB autonomous database path resolves endpoint from get_autonomous_database."""
+    mocker.patch.object(db_connection_map, 'get', return_value=None)
+    mocker.patch.object(db_connection_map, 'set')
+
+    mock_odb = MagicMock()
+    mock_odb.get_autonomous_database.return_value = {
+        'autonomousDatabase': {
+            'privateEndpointIp': '10.0.1.50',
+            'privateEndpoint': 'adb-private.us-east-1.example.com',
+        }
+    }
+    mocker.patch('boto3.client', return_value=mock_odb)
+    server_config.configured_default_secret_arn = (
+        'arn:aws:secretsmanager:us-east-1:123:secret:adb-admin'  # pragma: allowlist secret
+    )
+
+    conn, response, replaced = internal_create_connection(
+        region='us-east-1',
+        connection_method=ConnectionMethod.ORACLE_PASSWORD,
+        instance_identifier='adb_zkt79n0iin',
+        db_endpoint=None,
+        port=1522,
+        database='ORCL',
+        service_name='HIGH',
+    )
+
+    assert isinstance(conn, OracledbPoolConnection)
+    assert conn.host == '10.0.1.50'
+    assert (
+        conn.secret_arn
+        == 'arn:aws:secretsmanager:us-east-1:123:secret:adb-admin'  # pragma: allowlist secret
+    )
+    assert response['db_endpoint'] == '10.0.1.50'
+    assert response['instance_identifier'] == 'adb_zkt79n0iin'
+    mock_odb.get_autonomous_database.assert_called_once_with(autonomousDatabaseId='adb_zkt79n0iin')
+
+
+def test_internal_create_connection_odb_arn(mocker):
+    """ODB ARN is correctly detected and used with get_autonomous_database."""
+    mocker.patch.object(db_connection_map, 'get', return_value=None)
+    mocker.patch.object(db_connection_map, 'set')
+
+    arn = 'arn:aws:odb:us-east-1:361769571788:autonomous-database/adb_zkt79n0iin'
+    mock_odb = MagicMock()
+    mock_odb.get_autonomous_database.return_value = {
+        'autonomousDatabase': {
+            'privateEndpointIp': '10.0.1.100',
+        }
+    }
+    mocker.patch('boto3.client', return_value=mock_odb)
+    server_config.configured_default_secret_arn = (
+        'arn:aws:secretsmanager:us-east-1:123:secret:odb-secret'  # pragma: allowlist secret
+    )
+
+    conn, response, replaced = internal_create_connection(
+        region='us-east-1',
+        connection_method=ConnectionMethod.ORACLE_PASSWORD,
+        instance_identifier=arn,
+        db_endpoint=None,
+        port=1522,
+        database='ORCL',
+        service_name='MEDIUM',
+    )
+
+    assert isinstance(conn, OracledbPoolConnection)
+    assert response['db_endpoint'] == '10.0.1.100'
+    mock_odb.get_autonomous_database.assert_called_once_with(autonomousDatabaseId=arn)
+
+
+def test_internal_create_connection_odb_no_endpoint_raises(mocker):
+    """Raises ValueError when autonomous database has no private endpoint."""
+    mocker.patch.object(db_connection_map, 'get', return_value=None)
+
+    mock_odb = MagicMock()
+    mock_odb.get_autonomous_database.return_value = {'autonomousDatabase': {}}
+    mocker.patch('boto3.client', return_value=mock_odb)
+    server_config.configured_default_secret_arn = (
+        'arn:aws:secretsmanager:us-east-1:123:secret:s'  # pragma: allowlist secret
+    )
+
+    with pytest.raises(ValueError, match='no private endpoint'):
+        internal_create_connection(
+            region='us-east-1',
+            connection_method=ConnectionMethod.ORACLE_PASSWORD,
+            instance_identifier='adb_test123',
+            db_endpoint=None,
+            port=1522,
+            database='ORCL',
+            service_name='HIGH',
+        )
+
+
+def test_internal_create_connection_odb_no_secret_raises(mocker):
+    """Raises ValueError when autonomous database is used without secret_arn."""
+    mocker.patch.object(db_connection_map, 'get', return_value=None)
+
+    with pytest.raises(ValueError, match='secret_arn is required for ODB Autonomous Database'):
+        internal_create_connection(
+            region='us-east-1',
+            connection_method=ConnectionMethod.ORACLE_PASSWORD,
+            instance_identifier='adb_test456',
+            db_endpoint=None,
+            port=1522,
+            database='ORCL',
+            service_name='HIGH',
+        )
+
+
+def test_internal_create_connection_odb_with_explicit_endpoint(mocker):
+    """When db_endpoint is explicitly provided for ODB, skips get_autonomous_database call."""
+    mocker.patch.object(db_connection_map, 'get', return_value=None)
+    mocker.patch.object(db_connection_map, 'set')
+
+    mock_boto = mocker.patch('boto3.client')
+    server_config.configured_default_secret_arn = (
+        'arn:aws:secretsmanager:us-east-1:123:secret:s'  # pragma: allowlist secret
+    )
+
+    conn, response, _ = internal_create_connection(
+        region='us-east-1',
+        connection_method=ConnectionMethod.ORACLE_PASSWORD,
+        instance_identifier='adb_test789',
+        db_endpoint='custom-endpoint.example.com',
+        port=1522,
+        database='ORCL',
+        service_name='LOW',
+    )
+
+    assert conn.host == 'custom-endpoint.example.com'
+    assert response['db_endpoint'] == 'custom-endpoint.example.com'
+    # No API call needed since both endpoint and secret are provided
+    mock_boto.assert_not_called()
+
+
+def test_internal_create_connection_odb_with_explicit_secret(mocker):
+    """When secret_arn is provided but no endpoint, calls get_autonomous_database to resolve endpoint."""
+    mocker.patch.object(db_connection_map, 'get', return_value=None)
+    mocker.patch.object(db_connection_map, 'set')
+
+    mock_odb = MagicMock()
+    mock_odb.get_autonomous_database.return_value = {
+        'autonomousDatabase': {
+            'privateEndpointIp': '10.0.2.100',
+        }
+    }
+    mocker.patch('boto3.client', return_value=mock_odb)
+    server_config.configured_default_secret_arn = (
+        'arn:aws:secretsmanager:us-east-1:123:secret:my-custom-secret'  # pragma: allowlist secret
+    )
+
+    conn, response, _ = internal_create_connection(
+        region='us-east-1',
+        connection_method=ConnectionMethod.ORACLE_PASSWORD,
+        instance_identifier='adb_secrettest',
+        db_endpoint=None,
+        port=1522,
+        database='ORCL',
+        service_name='HIGH',
+    )
+
+    assert conn.host == '10.0.2.100'
+    assert (
+        conn.secret_arn
+        == 'arn:aws:secretsmanager:us-east-1:123:secret:my-custom-secret'  # pragma: allowlist secret
+    )
+    # Calls get_autonomous_database to resolve endpoint
+    mock_odb.get_autonomous_database.assert_called_once()
+
+
+def test_internal_create_connection_rds_no_endpoint_raises():
+    """RDS instance without db_endpoint raises ValueError."""
+    with pytest.raises(ValueError, match='db_endpoint is required for RDS'):
+        internal_create_connection(
+            region='us-east-1',
+            connection_method=ConnectionMethod.ORACLE_PASSWORD,
+            instance_identifier='my-rds-instance',
+            db_endpoint=None,
             port=1521,
             database='ORCL',
             service_name='ORCL',

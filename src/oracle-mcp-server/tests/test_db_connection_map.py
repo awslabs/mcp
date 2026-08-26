@@ -217,3 +217,85 @@ def test_get_exact_match_takes_priority_over_fallback(conn_map):
     )
     result = conn_map.get(ConnectionMethod.ORACLE_PASSWORD, endpoint, endpoint, 'ORCL', 1521)
     assert result is conn_exact
+
+
+def test_different_target_names_are_separate_entries(conn_map):
+    """Same instance with different target_name values are stored as separate connections."""
+    conn_svc1 = MagicMock()
+    conn_svc2 = MagicMock()
+    conn_map.set(
+        ConnectionMethod.ORACLE_PASSWORD, 'inst1', 'ep1', 'db1', conn_svc1, 1521, 'SERVICE_A'
+    )
+    conn_map.set(
+        ConnectionMethod.ORACLE_PASSWORD, 'inst1', 'ep1', 'db1', conn_svc2, 1521, 'SERVICE_B'
+    )
+    assert (
+        conn_map.get(ConnectionMethod.ORACLE_PASSWORD, 'inst1', 'ep1', 'db1', 1521, 'SERVICE_A')
+        is conn_svc1
+    )
+    assert (
+        conn_map.get(ConnectionMethod.ORACLE_PASSWORD, 'inst1', 'ep1', 'db1', 1521, 'SERVICE_B')
+        is conn_svc2
+    )
+
+
+def test_target_name_included_in_get_keys(conn_map):
+    """get_keys returns the target_name field for each connection."""
+    conn = MagicMock()
+    conn.service_name = 'ORCL'
+    conn.sid = None
+    conn.secret_arn = None
+    conn_map.set(ConnectionMethod.ORACLE_PASSWORD, 'inst1', 'ep1', 'ORCL', conn, 1521, 'MY_TENANT')
+    keys = conn_map.get_keys()
+    assert len(keys) == 1
+    assert keys[0]['target_name'] == 'MY_TENANT'
+
+
+def test_remove_with_target_name(conn_map):
+    """Remove correctly targets connection by target_name."""
+    conn_a = MagicMock()
+    conn_b = MagicMock()
+    conn_map.set(ConnectionMethod.ORACLE_PASSWORD, 'inst1', 'ep1', 'db1', conn_a, 1521, 'SVC_A')
+    conn_map.set(ConnectionMethod.ORACLE_PASSWORD, 'inst1', 'ep1', 'db1', conn_b, 1521, 'SVC_B')
+    conn_map.remove(ConnectionMethod.ORACLE_PASSWORD, 'inst1', 'ep1', 'db1', 1521, 'SVC_A')
+    assert (
+        conn_map.get(ConnectionMethod.ORACLE_PASSWORD, 'inst1', 'ep1', 'db1', 1521, 'SVC_A')
+        is None
+    )
+    assert (
+        conn_map.get(ConnectionMethod.ORACLE_PASSWORD, 'inst1', 'ep1', 'db1', 1521, 'SVC_B')
+        is conn_b
+    )
+
+
+def test_fallback_requires_matching_target_name(conn_map, mock_conn):
+    """Fallback lookup matches only when target_name also matches."""
+    conn_map.set(
+        ConnectionMethod.ORACLE_PASSWORD,
+        'my-instance',
+        'my-instance.rds.amazonaws.com',
+        'ORCL',
+        mock_conn,
+        1521,
+        'SVC_X',
+    )
+    # Same endpoint-as-identifier fallback should NOT match a different target_name
+    result = conn_map.get(
+        ConnectionMethod.ORACLE_PASSWORD,
+        'my-instance.rds.amazonaws.com',
+        'my-instance.rds.amazonaws.com',
+        'ORCL',
+        1521,
+        'SVC_Y',
+    )
+    assert result is None
+    # But matching target_name should find it via fallback
+    result = conn_map.get(
+        ConnectionMethod.ORACLE_PASSWORD,
+        'my-instance.rds.amazonaws.com',
+        'my-instance.rds.amazonaws.com',
+        'ORCL',
+        1521,
+        'SVC_X',
+    )
+    assert result is mock_conn
