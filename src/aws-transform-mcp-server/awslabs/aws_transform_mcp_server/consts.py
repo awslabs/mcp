@@ -14,6 +14,7 @@
 
 """Constants for aws-transform-mcp-server."""
 
+import httpx
 from typing import List, Set
 
 
@@ -38,6 +39,22 @@ STARTUP_TIMEOUT_SECONDS: float = 5.0
 STARTUP_MAX_RETRIES: int = 0
 MAX_RETRIES: int = 3
 RETRYABLE_STATUSES: Set[int] = {429, 500, 502, 503, 504}
+
+# ── Artifact transfer timeout ────────────────────────────────────────────
+# Uploads are buffered and sent as a single byte stream, so large files need
+# a longer write timeout than ordinary API requests.
+ARTIFACT_UPLOAD_TIMEOUT = httpx.Timeout(
+    connect=10.0,
+    read=60.0,
+    write=900.0,
+    pool=10.0,
+)
+ARTIFACT_DOWNLOAD_TIMEOUT = httpx.Timeout(
+    connect=10.0,
+    read=60.0,
+    write=60.0,
+    pool=10.0,
+)
 
 # ── Token refresh ────────────────────────────────────────────────────────
 TOKEN_REFRESH_BUFFER_SECS: int = 300  # refresh if < 5 min left
