@@ -155,20 +155,6 @@ class TestRequestParameters:
         assert result['status'] == 'success'
 
     @pytest.mark.asyncio
-    async def test_omitted_features_is_refused_by_the_sdk(self, mock_context):
-        """Omitting the required feature is refused before any request is sent.
-
-        Nothing is validated locally, so the missing parameter surfaces through the
-        shared error handler exactly as the service's own constraints do. botocore
-        raises before reaching the network, so no stub is needed.
-        """
-        with patch(CREATE_CLIENT_PATH, return_value=_client()):
-            result = await get_billing_preferences(mock_context)
-
-        assert result['status'] == 'error'
-        assert 'features' in str(result)
-
-    @pytest.mark.asyncio
     async def test_largest_page_is_requested_by_default(self, mock_context):
         """The default page size is the API maximum, so a list arrives in fewer calls."""
         client = _client()

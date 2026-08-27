@@ -47,7 +47,7 @@ def _create_billing_client() -> Any:
 
 async def get_billing_preferences(
     ctx: Context,
-    features: Optional[Union[str, List[str]]] = None,
+    features: Union[str, List[str]],
     filters: Optional[str] = None,
     max_results: Optional[int] = 50,
     next_token: Optional[str] = None,
@@ -57,8 +57,8 @@ async def get_billing_preferences(
 
     Args:
         ctx: The MCP context object.
-        features: The feature to retrieve. The API accepts exactly one; a bare
-            string is wrapped into the single-item list it expects.
+        features: The feature to retrieve (required). The API accepts exactly one;
+            a bare string is wrapped into the single-item list it expects.
         filters: Filters as a JSON string, for example
             ``[{"name": "PREFERENCE_KEY", "value": ["credit/4242"]}]``.
         max_results: Maximum number of results per page (1-50). Defaults to the
@@ -74,11 +74,9 @@ async def get_billing_preferences(
         block, or a standardized error response.
     """
     try:
-        request_params: Dict[str, Any] = {}
-        if features is not None:
-            request_params['features'] = (
-                [features] if isinstance(features, str) else list(features)
-            )
+        request_params: Dict[str, Any] = {
+            'features': [features] if isinstance(features, str) else list(features)
+        }
         if filters:
             request_params['filters'] = parse_json(filters, 'filters')
         if max_results is not None:

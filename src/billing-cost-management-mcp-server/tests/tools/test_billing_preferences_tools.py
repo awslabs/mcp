@@ -64,6 +64,15 @@ class TestToolRegistration:
         assert tool.name == 'get-billing-preferences'
 
     @pytest.mark.asyncio
+    async def test_features_is_declared_required_in_the_schema(self):
+        """The API rejects a call without `features`, so the schema must say it is required."""
+        tool = await _registered_tool()
+        schema = tool.parameters
+
+        assert 'features' in schema.get('required', [])
+        assert 'null' not in str(schema['properties']['features'])
+
+    @pytest.mark.asyncio
     async def test_description_states_the_one_feature_limit(self):
         """The one-feature-per-call constraint is the easiest thing to get wrong."""
         tool = await _registered_tool()

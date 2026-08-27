@@ -33,11 +33,11 @@ billing_preferences_server = FastMCP(
 
 @billing_preferences_server.tool(
     name='get-billing-preferences',
-    description="""Retrieves the AWS billing preferences for one feature.
+    description="""Retrieves billing preferences for the specified feature. Each feature controls a
+distinct billing capability: which accounts can share Reserved Instances / Savings Plans or credits,
+whether billing alerts are enabled, the historical record of sharing changes, and per-credit options.
 
-Reports which member accounts share the Reserved Instance / Savings Plans discount pool and credits,
-whether newly created accounts join automatically, whether sharing is open, whether billing alerts are
-on, and the per-billing-period history of those settings.
+RI_SHARING covers BOTH Reserved Instances and Savings Plans discounts.
 
 `features` TAKES EXACTLY ONE VALUE. Current state and history are separate features, so "what is shared
 now, and when did it change" is two calls: RI_SHARING then RI_SHARING_HISTORY (CREDIT_SHARING and
@@ -85,7 +85,7 @@ Example 4 (one credit): {"features": "CREDIT_PREFERENCE_OPTIONS",
 )
 async def get_billing_preferences(
     ctx: Context,
-    features: Optional[Union[str, List[str]]] = None,
+    features: Union[str, List[str]],
     filters: Optional[str] = None,
     max_results: Optional[int] = 50,
     next_token: Optional[str] = None,
@@ -95,7 +95,7 @@ async def get_billing_preferences(
 
     Args:
         ctx: The MCP context object.
-        features: The single billing feature to retrieve.
+        features: The single billing feature to retrieve (required).
         filters: Filters as a JSON string.
         max_results: Maximum number of results per page (1-50).
         next_token: Pagination token from a previous response.
