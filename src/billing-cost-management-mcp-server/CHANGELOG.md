@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 ### Added
+- Added AWS Billing Enterprise Support data via an `enterprise_support` tool (`GetEnterpriseSupportChargeSummary`, `GetEnterpriseSupportContractDetails`, `ListEnterpriseSupportLinkedAccountCharges`) covering a billing period's Enterprise Support charge and the Support-eligible spend it was calculated from, the contract terms that govern how the charge is allocated, and the per-linked-account charge breakdown
 - Added AWS Billing credits support via a `credits` tool (`GetCredits`, `GetCreditAllocationHistory`) covering credit balance, expiration, product applicability, sharing configuration, and the per-service allocation ledger
 - Added AWS Compute Optimizer Automation support via a `compute-optimizer-automation` tool (`GetAutomationEvent`, `GetAutomationRule`, `GetEnrollmentConfiguration`, `ListAccounts`, `ListAutomationEvents`, `ListAutomationEventSteps`, `ListAutomationEventSummaries`, `ListAutomationRules`, `ListRecommendedActions`, `ListRecommendedActionSummaries`, `ListAutomationRulePreview`, `ListAutomationRulePreviewSummaries`, `ListTagsForResource`)
 - Extending support for Billing and Cost Management Pricing Calculator's Workload estimate (`CreateWorkloadEstimate`, `BatchCreateWorkloadEstimateUsage`).

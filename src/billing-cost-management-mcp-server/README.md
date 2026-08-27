@@ -72,6 +72,12 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 - **Invoice units**: List and retrieve invoice unit definitions (groups of accounts that receive a separate invoice, with their receiver account and linked-account rules), filtered by name, receiver, or member account; and fetch invoice receiver profiles (legal name, address, tax registration number) for a set of accounts
 - **Procurement portal preferences**: List and retrieve procurement portal connections (SAP Business Network, Coupa) and e-invoice delivery / purchase-order retrieval settings
 
+### AWS Enterprise Support
+
+- **Enterprise Support charge summary**: Retrieve a billing period's Enterprise Support charge with the Support-eligible spend it was calculated from, the effective pricing plan, and any applied discounts
+- **Support contract details**: Review the contract terms that govern how a billing period's charge is allocated, including the allocation method, Reserved Instance and Savings Plan treatment, and the payer accounts covered
+- **Per-account charge breakdown**: Break a billing period's charge down by linked account with prorated Support-eligible spend, subscription periods, and per-service spend
+
 ### Specialized Cost Optimization Prompts
 
 - **Graviton migration analysis**: Guided analysis to identify EC2 instances suitable for AWS Graviton migration
@@ -343,6 +349,9 @@ AWS Invoicing:
 AWS Billing:
 - billing:GetCredits
 - billing:GetCreditAllocationHistory
+- billing:GetEnterpriseSupportChargeSummary
+- billing:GetEnterpriseSupportContractDetails
+- billing:ListEnterpriseSupportLinkedAccountCharges
 
 #### Configuration
 
@@ -462,3 +471,6 @@ The server currently supports the following AWS services
 
 13. **AWS Credits**
     - `credits` tool: get_credits, get_credit_allocation_history
+
+14. **AWS Enterprise Support**
+    - `enterprise_support` tool: get_charge_summary, get_contract_details, list_linked_account_charges

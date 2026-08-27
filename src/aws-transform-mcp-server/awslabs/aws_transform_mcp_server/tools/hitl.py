@@ -19,6 +19,7 @@ import os
 import uuid
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
+from awslabs.aws_transform_mcp_server.consts import ARTIFACT_DOWNLOAD_TIMEOUT
 from awslabs.aws_transform_mcp_server.file_validation import validate_read_path
 from awslabs.aws_transform_mcp_server.guidance_nudge import job_needs_check
 from awslabs.aws_transform_mcp_server.hitl_schemas import format_and_validate
@@ -96,7 +97,7 @@ async def download_agent_artifact(
         )
         s3_url = url_result['s3PreSignedUrl']
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=ARTIFACT_DOWNLOAD_TIMEOUT) as client:
             # Stream GET to check Content-Length before reading body
             async with client.stream('GET', s3_url, follow_redirects=True) as resp:
                 if resp.status_code >= 400:
