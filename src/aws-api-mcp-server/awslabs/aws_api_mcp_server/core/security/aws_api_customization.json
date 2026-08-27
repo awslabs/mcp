@@ -330,7 +330,8 @@
         "aws s3api upload-part",
         "aws s3api head-object",
         "aws s3api get-object",
-        "aws s3api delete-object"
+        "aws s3api delete-object",
+        "aws s3api list-objects-v2"
       ]
     },
     "s3 presign": {
@@ -356,7 +357,8 @@
         "aws s3api upload-part",
         "aws s3api head-object",
         "aws s3api get-object",
-        "aws s3api delete-object"
+        "aws s3api delete-object",
+        "aws s3api list-objects-v2"
       ]
     },
     "s3 website": {
