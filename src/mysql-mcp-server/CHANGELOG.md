@@ -43,6 +43,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+
+- **BREAKING (CWE-319):** TLS is now enforced on the Secrets Manager credential
+  path (`mysqlwire` with a managed secret), not just IAM auth. Previously these
+  connections were plaintext-capable; the server now upgrades them to verified
+  TLS against the bundled Amazon RDS CA bundle. Installations that relied on
+  plaintext or a server-certificate-managed TLS setup must supply `--ca_bundle
+  <path>` (or reinstall to restore the bundled CA bundle), otherwise the
+  connection fails with `CERTIFICATE_VERIFY_FAILED`. The `--ca_bundle` override
+  is now correctly honoured on the `mysqlwire` path as well.
+
 ### Added
 
 - `database_type` parameter on `connect_to_database` accepts `aurora-mysql`,

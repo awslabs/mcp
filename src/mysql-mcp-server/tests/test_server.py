@@ -309,11 +309,18 @@ class TestInternalConnectToDatabaseRouting:
         assert kwargs['db_user'] == 'admin'
         assert kwargs['secret_arn'] == ''
 
+    @patch('awslabs.mysql_mcp_server.server.ca_bundle_path', '/tmp/operator-supplied.pem')
     @patch('awslabs.mysql_mcp_server.server.db_connection_map')
     @patch('awslabs.mysql_mcp_server.server.internal_get_cluster_properties')
     @patch('awslabs.mysql_mcp_server.server.AsyncmyPoolConnection')
     def test_mysql_wire_protocol_builds_secret_pool(self, mock_pool_cls, mock_get_props, mock_map):
-        """MYSQL_WIRE_PROTOCOL routes to AsyncmyPoolConnection with is_iam_auth=False."""
+        """MYSQL_WIRE_PROTOCOL routes to AsyncmyPoolConnection with is_iam_auth=False.
+
+        Also asserts that the operator's --ca_bundle override (the module-level
+        ca_bundle_path) is threaded into the constructor through the real entry
+        point. This is the regression guard for the server.py wiring: reverting
+        that one-line change makes this assertion fail.
+        """
         from awslabs.mysql_mcp_server.server import internal_connect_to_database
 
         mock_map.get.return_value = None
@@ -339,6 +346,8 @@ class TestInternalConnectToDatabaseRouting:
         kwargs = mock_pool_cls.call_args.kwargs
         assert kwargs['is_iam_auth'] is False
         assert kwargs['secret_arn'] == 'arn:secret'
+        # The --ca_bundle override must reach the constructor via the real path.
+        assert kwargs['ca_bundle_path'] == '/tmp/operator-supplied.pem'
 
     @patch('awslabs.mysql_mcp_server.server.db_connection_map')
     @patch('awslabs.mysql_mcp_server.server.internal_get_instance_properties')
