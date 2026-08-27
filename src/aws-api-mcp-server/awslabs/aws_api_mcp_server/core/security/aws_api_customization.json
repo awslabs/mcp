@@ -326,6 +326,10 @@
       "api_calls": [
         "aws s3api copy-object",
         "aws s3api upload-part-copy",
+        "aws s3api put-object",
+        "aws s3api upload-part",
+        "aws s3api head-object",
+        "aws s3api get-object",
         "aws s3api delete-object"
       ]
     },
@@ -351,7 +355,8 @@
         "aws s3api put-object",
         "aws s3api upload-part",
         "aws s3api head-object",
-        "aws s3api get-object"
+        "aws s3api get-object",
+        "aws s3api delete-object"
       ]
     },
     "s3 website": {
