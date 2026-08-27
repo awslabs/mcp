@@ -77,6 +77,11 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 - **Discount sharing configuration**: Retrieve which member accounts participate in the Reserved Instance / Savings Plans discount pool and in credit sharing, whether newly created accounts join automatically, and whether sharing is open — the authoritative answer to "is this account excluded from commitment sharing", which cannot be inferred from RI/SP coverage data
 - **Sharing history**: The per-billing-period record of those settings, for reconciling a closed billing period against the sharing state that was actually in force at the time
 - **Billing alerts**: Whether billing alerts are enabled
+### AWS Enterprise Support
+
+- **Enterprise Support charge summary**: Retrieve a billing period's Enterprise Support charge with the Support-eligible spend it was calculated from, the effective pricing plan, and any applied discounts
+- **Support contract details**: Review the contract terms that govern how a billing period's charge is allocated, including the allocation method, Reserved Instance and Savings Plan treatment, and the payer accounts covered
+- **Per-account charge breakdown**: Break a billing period's charge down by linked account with prorated Support-eligible spend, subscription periods, and per-service spend
 
 ### Specialized Cost Optimization Prompts
 
@@ -350,6 +355,9 @@ AWS Billing:
 - billing:GetCredits
 - billing:GetCreditAllocationHistory
 - billing:GetBillingPreferences
+- billing:GetEnterpriseSupportChargeSummary
+- billing:GetEnterpriseSupportContractDetails
+- billing:ListEnterpriseSupportLinkedAccountCharges
 
 #### Configuration
 
@@ -472,3 +480,5 @@ The server currently supports the following AWS services
 
 14. **AWS Billing Preferences**
     - get-billing-preferences
+14. **AWS Enterprise Support**
+    - `enterprise_support` tool: get_charge_summary, get_contract_details, list_linked_account_charges

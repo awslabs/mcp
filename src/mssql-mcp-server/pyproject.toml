@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.mssql-mcp-server"
-version = "0.1.9223372036854775807"
+version = "0.2.0"
 description = "An AWS Labs Model Context Protocol (MCP) server for Microsoft SQL Server on AWS RDS"
 readme = "README.md"
 requires-python = ">=3.10"

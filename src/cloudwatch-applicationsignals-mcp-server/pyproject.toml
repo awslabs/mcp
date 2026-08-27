@@ -1,6 +1,6 @@
 [project]
 name = "awslabs.cloudwatch-applicationsignals-mcp-server"
-version = "0.1.9223372036854775807"
+version = "0.2.0"
 description = "An AWS Labs Model Context Protocol (MCP) server for AWS Application Signals"
 readme = "README.md"
 requires-python = ">=3.10"
