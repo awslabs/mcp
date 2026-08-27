@@ -376,17 +376,6 @@ def parse_recommendation_results(data: Dict[str, Any]) -> List[RecommendationRes
     """
     results = []
 
-    # Process highly rated recommendations
-    if 'highlyRated' in data and 'items' in data['highlyRated']:
-        for item in data['highlyRated']['items']:
-            context = item.get('abstract') if 'abstract' in item else None
-
-            results.append(
-                RecommendationResult(
-                    url=item.get('url', ''), title=item.get('assetTitle', ''), context=context
-                )
-            )
-
     # Process journey recommendations (organized by intent)
     if 'journey' in data and 'items' in data['journey']:
         for intent_group in data['journey']['items']:

@@ -21,15 +21,15 @@ import os
 import sys
 from botocore.config import Config
 from botocore.exceptions import ClientError
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 from typing import Annotated, Any, Callable, Dict, List
 
 
 # Defining type alias
 BOTO3_CLIENT_GETTER = Callable[[str], Any]
-OVERRIDE_FUNC_TYPE = Callable[[FastMCP, BOTO3_CLIENT_GETTER, str], None]
-VALIDATOR = Callable[[FastMCP, Any, Dict[str, Any]], tuple[bool, str | None]]
+OVERRIDE_FUNC_TYPE = Callable[[MCPServer, BOTO3_CLIENT_GETTER, str], None]
+VALIDATOR = Callable[[MCPServer, Any, Dict[str, Any]], tuple[bool, str | None]]
 
 
 class AWSToolGenerator:
@@ -39,7 +39,7 @@ class AWSToolGenerator:
         self,
         service_name: str,
         service_display_name: str,
-        mcp: FastMCP,
+        mcp: MCPServer,
         mcp_server_version: str,
         tool_configuration: Dict[str, Dict[str, Any]] | None = None,
         skip_param_documentation: bool = False,

@@ -53,7 +53,7 @@ from awslabs.aws_transform_mcp_server.transform_api_client import (
     call_fes_direct_cookie,
 )
 from loguru import logger
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from pydantic import BaseModel, Field
 from typing import Annotated, Any, Dict, List, Literal, Optional
 

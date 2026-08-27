@@ -397,7 +397,6 @@ class CreateJobRequest(FESRequest):
     idempotencyToken: Optional[str] = None
     intent: str
     jobName: str
-    jobType: Optional[str] = None
     objective: str
     orchestratorAgent: Optional[str] = None
     workspaceId: str

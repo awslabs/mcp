@@ -34,7 +34,7 @@ from boto3 import Session
 from botocore.exceptions import ClientError
 from datetime import datetime, timedelta, timezone
 from loguru import logger
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from pydantic import Field
 from typing import Annotated, Any, Dict, List, Optional
 

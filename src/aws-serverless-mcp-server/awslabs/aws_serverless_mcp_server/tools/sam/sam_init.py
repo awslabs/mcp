@@ -14,7 +14,7 @@
 
 from awslabs.aws_serverless_mcp_server.utils.process import run_command
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Any, Literal, Optional
 
@@ -22,7 +22,7 @@ from typing import Any, Literal, Optional
 class SamInitTool:
     """Tool to initialize AWS Serverless Application Model (SAM) projects using the SAM CLI."""
 
-    def __init__(self, mcp: FastMCP):
+    def __init__(self, mcp: MCPServer):
         """Initialize the SAM init tool."""
         mcp.tool(name='sam_init')(self.handle_sam_init)
 

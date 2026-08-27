@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Missing api calls for s3 customizations in static map (#4548)
+
+## [1.5.1] - 2026-08-11
+
+### Fixed
+
+- Operation name matching in security policy (#4432)
+
+## [1.5.0] - 2026-08-05
+
+### Changed
+
+- Upgrade AWS CLI to v1.46.0 (#4444)
+
+## [1.4.0] - 2026-07-23
+
 ### Added
 
 - Deprecation warning and feature flag to suppress (#4313)

@@ -18,7 +18,7 @@ import base64
 from .client import get_session_client
 from .models import FileListResult, FileOperationResult
 from loguru import logger
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from typing import Any
 
 

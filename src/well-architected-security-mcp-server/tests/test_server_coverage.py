@@ -22,7 +22,6 @@ from awslabs.well_architected_security_mcp_server.server import (
     check_network_security_prompt,
     check_storage_security_prompt,
     main,
-    mcp,
     security_assessment_precheck,
 )
 
@@ -109,8 +108,7 @@ def test_main_with_sse():
                 # Verify asyncio.run was not called since initialize was removed
                 mock_run.assert_not_called()
 
-                # Verify mcp.settings.port was set
-                assert mcp.settings.port == 9999
-
-                # Verify mcp.run was called with transport="sse"
-                mock_mcp_run.assert_called_once_with(transport="sse")
+                # Verify the port was passed to run(). SDK v2 dropped `port` from the
+                # `Settings` model in favour of a run() keyword, so the port is now asserted
+                # on the call rather than on `mcp.settings`.
+                mock_mcp_run.assert_called_once_with(transport="sse", port=9999)
