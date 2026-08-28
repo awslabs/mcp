@@ -31,7 +31,7 @@
 # BUILD CONTEXT: this Dockerfile MUST be built from the PROJECT ROOT so the
 # server sources, lockfiles, and the integration/ package are all in context:
 #
-#   docker build -f integration/deploy/image/Dockerfile -t aho-mcp-itest .
+#   docker build -f integration/deploy/image/mcp.Dockerfile -t aho-mcp-itest .
 #
 # PORT / TRANSPORT (Req 2.1): AgentCore Runtime routes inbound MCP traffic to
 # the container on port 8080 (the standard AgentCore container port), so the

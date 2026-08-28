@@ -292,7 +292,7 @@ tenant roles, identity provider, or bearer tokens need to be prepared by hand. P
    tenant's bearer token. The user pool is the OIDC provider the AgentCore JWT authorizer
    trusts; each user's `sub` becomes that tenant's registry identity.
 4. Creates the **DynamoDB role registry** mapping each `sub` to its Tenant_Role.
-5. Builds/pushes the container image (`integration/deploy/image/Dockerfile`, `streamable-http`
+5. Builds/pushes the container image (`integration/deploy/image/mcp.Dockerfile`, `streamable-http`
    on port `8000`) and creates the **AgentCore Runtime**, wired with the execution role and a
    `customJWTAuthorizer` pinned to the Cognito discovery URL + app-client id.
 

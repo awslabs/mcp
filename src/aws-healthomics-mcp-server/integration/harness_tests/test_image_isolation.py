@@ -30,7 +30,7 @@ import re
 from pathlib import Path
 
 
-_DOCKERFILE = Path(__file__).resolve().parents[1] / 'deploy' / 'image' / 'Dockerfile'
+_DOCKERFILE = Path(__file__).resolve().parents[1] / 'deploy' / 'image' / 'mcp.Dockerfile'
 
 # Provisioning / test modules that must never be copied into the deployed container.
 _FORBIDDEN = (

@@ -15,7 +15,7 @@
 """AgentCore_Deployment provisioning and teardown for the integration harness.
 
 This module stands up the AgentCore_Deployment: the AWS HealthOmics MCP Server packaged as a
-container image (``image/Dockerfile``) and hosted on Amazon Bedrock AgentCore Runtime with
+container image (``image/mcp.Dockerfile``) and hosted on Amazon Bedrock AgentCore Runtime with
 ``server_protocol: MCP``, serving ``streamable-http`` on the AgentCore container port, with
 AgentCore Runtime as the *sole* network-reachable ingress and a JWT inbound authorizer
 terminating authentication at the boundary.
@@ -157,7 +157,7 @@ DEFAULT_TENANT_LABELS = ('Tenant_A', 'Tenant_B')
 # The build context for the harness image. The Dockerfile lives beside this module under
 # ``image/`` and must be built from the project root (see the Dockerfile header).
 _IMAGE_DIR = Path(__file__).resolve().parent / 'image'
-DOCKERFILE_PATH = _IMAGE_DIR / 'Dockerfile'
+DOCKERFILE_PATH = _IMAGE_DIR / 'mcp.Dockerfile'
 
 
 def partition_for_region(region: str) -> str:
