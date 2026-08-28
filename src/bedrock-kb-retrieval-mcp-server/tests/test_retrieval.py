@@ -23,13 +23,14 @@ class TestQueryKnowledgeBase:
     """Tests for the query_knowledge_base function."""
 
     @pytest.mark.asyncio
-    async def test_query_knowledge_base_default(self, mock_bedrock_agent_runtime_client):
+    async def test_query_knowledge_base_default(self, mock_bedrock_agent_runtime_client, mock_bedrock_agent_client):
         """Test querying a knowledge base with default parameters."""
         # Call the function
         result = await query_knowledge_base(
             query='test query',
             knowledge_base_id='kb-12345',
             kb_agent_client=mock_bedrock_agent_runtime_client,
+            kb_agent_mgmt_client=mock_bedrock_agent_client,
         )
 
         # Parse the result as JSON
@@ -64,7 +65,7 @@ class TestQueryKnowledgeBase:
 
     @pytest.mark.asyncio
     async def test_query_knowledge_base_with_custom_parameters(
-        self, mock_bedrock_agent_runtime_client
+        self, mock_bedrock_agent_runtime_client, mock_bedrock_agent_client
     ):
         """Test querying a knowledge base with custom parameters."""
         # Call the function with custom parameters
@@ -72,6 +73,7 @@ class TestQueryKnowledgeBase:
             query='test query',
             knowledge_base_id='kb-12345',
             kb_agent_client=mock_bedrock_agent_runtime_client,
+            kb_agent_mgmt_client=mock_bedrock_agent_client,
             number_of_results=10,
             reranking=True,
             reranking_model_name='COHERE',
@@ -110,13 +112,14 @@ class TestQueryKnowledgeBase:
         )
 
     @pytest.mark.asyncio
-    async def test_query_knowledge_base_without_reranking(self, mock_bedrock_agent_runtime_client):
+    async def test_query_knowledge_base_without_reranking(self, mock_bedrock_agent_runtime_client, mock_bedrock_agent_client):
         """Test querying a knowledge base without reranking."""
         # Call the function with reranking disabled
         result = await query_knowledge_base(
             query='test query',
             knowledge_base_id='kb-12345',
             kb_agent_client=mock_bedrock_agent_runtime_client,
+            kb_agent_mgmt_client=mock_bedrock_agent_client,
             reranking=False,
         )
 
@@ -139,7 +142,7 @@ class TestQueryKnowledgeBase:
 
     @pytest.mark.asyncio
     async def test_query_knowledge_base_with_unsupported_region(
-        self, mock_bedrock_agent_runtime_client
+        self, mock_bedrock_agent_runtime_client, mock_bedrock_agent_client
     ):
         """Test querying a knowledge base with an unsupported region for reranking."""
         # Modify the mock to use an unsupported region
@@ -151,6 +154,7 @@ class TestQueryKnowledgeBase:
                 query='test query',
                 knowledge_base_id='kb-12345',
                 kb_agent_client=mock_bedrock_agent_runtime_client,
+                kb_agent_mgmt_client=mock_bedrock_agent_client,
                 reranking=True,
             )
 
@@ -162,7 +166,7 @@ class TestQueryKnowledgeBase:
 
     @pytest.mark.asyncio
     async def test_query_knowledge_base_with_image_content(
-        self, mock_bedrock_agent_runtime_client
+        self, mock_bedrock_agent_runtime_client, mock_bedrock_agent_client
     ):
         """Test querying a knowledge base that returns image content."""
         # Modify the mock to return image content
@@ -186,6 +190,7 @@ class TestQueryKnowledgeBase:
             query='test query',
             knowledge_base_id='kb-12345',
             kb_agent_client=mock_bedrock_agent_runtime_client,
+            kb_agent_mgmt_client=mock_bedrock_agent_client,
         )
 
         # Parse the result as JSON
@@ -197,3 +202,49 @@ class TestQueryKnowledgeBase:
         assert documents[0]['content']['type'] == 'TEXT'
         assert documents[0]['location']['s3Location']['uri'] == 's3://test-bucket/document.txt'
         assert documents[0]['score'] == 0.85
+
+    @pytest.mark.asyncio
+    async def test_query_managed_knowledge_base(
+        self, mock_bedrock_agent_runtime_client, mock_bedrock_agent_client
+    ):
+        """Test querying an Amazon Bedrock Managed Knowledge Base uses managedSearchConfiguration."""
+        result = await query_knowledge_base(
+            query='test query',
+            knowledge_base_id='kb-managed-1',
+            kb_agent_client=mock_bedrock_agent_runtime_client,
+            kb_agent_mgmt_client=mock_bedrock_agent_client,
+            number_of_results=10,
+            reranking=True,
+            reranking_model_name='COHERE',
+            data_source_ids=['ds-12345'],
+        )
+
+        documents = [json.loads(doc) for doc in result.split('\n\n')]
+        assert len(documents) == 2
+
+        mock_bedrock_agent_client.get_knowledge_base.assert_called_once_with(
+            knowledgeBaseId='kb-managed-1'
+        )
+        mock_bedrock_agent_runtime_client.retrieve.assert_called_once_with(
+            knowledgeBaseId='kb-managed-1',
+            retrievalQuery={'text': 'test query'},
+            retrievalConfiguration={
+                'managedSearchConfiguration': {
+                    'numberOfResults': 10,
+                    'filter': {
+                        'in': {
+                            'key': 'x-amz-bedrock-kb-data-source-id',
+                            'value': ['ds-12345'],
+                        }
+                    },
+                    'rerankingConfiguration': {
+                        'type': 'BEDROCK_RERANKING_MODEL',
+                        'bedrockRerankingConfiguration': {
+                            'modelConfiguration': {
+                                'modelArn': 'arn:aws:bedrock:us-west-2::foundation-model/cohere.rerank-v3-5:0'
+                            }
+                        },
+                    },
+                }
+            },
+        )

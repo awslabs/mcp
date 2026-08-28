@@ -84,12 +84,19 @@ def mock_bedrock_agent_client():
         }
     ]
 
-    # Mock the get_knowledge_base method
-    client.get_knowledge_base.side_effect = lambda knowledgeBaseId: {
-        'knowledgeBase': {
-            'knowledgeBaseArn': f'arn:aws:bedrock:us-west-2:123456789012:knowledge-base/{knowledgeBaseId}'
+    # Mock the get_knowledge_base method. kb-managed-1 simulates a Managed Knowledge Base
+    # (knowledgeBaseConfiguration.type == 'MANAGED'); every other id simulates a self-managed
+    # knowledge base, which has no 'type' field with that value (e.g. 'VECTOR').
+    def get_knowledge_base_side_effect(knowledgeBaseId: str):
+        kb_type = 'MANAGED' if knowledgeBaseId == 'kb-managed-1' else 'VECTOR'
+        return {
+            'knowledgeBase': {
+                'knowledgeBaseArn': f'arn:aws:bedrock:us-west-2:123456789012:knowledge-base/{knowledgeBaseId}',
+                'knowledgeBaseConfiguration': {'type': kb_type},
+            }
         }
-    }
+
+    client.get_knowledge_base.side_effect = get_knowledge_base_side_effect
 
     def list_tags_for_resource_side_effect(resourceArn: str):
         kb_id = resourceArn.split('/')[-1]

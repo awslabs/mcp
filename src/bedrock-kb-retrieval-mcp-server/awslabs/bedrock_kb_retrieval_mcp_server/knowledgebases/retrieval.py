@@ -17,22 +17,50 @@ from typing import TYPE_CHECKING, Literal
 
 
 if TYPE_CHECKING:
+    from mypy_boto3_bedrock_agent.client import AgentsforBedrockClient
     from mypy_boto3_bedrock_agent_runtime.client import AgentsforBedrockRuntimeClient
     from mypy_boto3_bedrock_agent_runtime.type_defs import (
         KnowledgeBaseRetrievalConfigurationTypeDef,
     )
 else:
+    AgentsforBedrockClient = object
     AgentsforBedrockRuntimeClient = object
     KnowledgeBaseRetrievalConfigurationTypeDef = object
+
+
+# Reranking models available per AWS region. Amazon's reranking model is not offered in every
+# region a knowledge base can live in (e.g. not in us-east-1), unlike Cohere's.
+RERANKING_MODEL_NAME_MAPPING = {
+    'COHERE': 'cohere.rerank-v3-5:0',
+    'AMAZON': 'amazon.rerank-v1:0',
+}
+
+
+async def _is_managed_knowledge_base(
+    kb_agent_mgmt_client: AgentsforBedrockClient, knowledge_base_id: str
+) -> bool:
+    """Determine whether a knowledge base is an Amazon Bedrock Managed Knowledge Base.
+
+    Managed Knowledge Bases (AgentCore's native-connector KB type, e.g. backed by Confluence,
+    SharePoint, Salesforce, etc.) use a different `Retrieve` request shape
+    (`managedSearchConfiguration`) than a self-managed knowledge base with a customer-owned
+    vector store (`vectorSearchConfiguration`) - the two are not interchangeable, and Bedrock
+    rejects the wrong one with a `ValidationException`.
+    """
+    kb = kb_agent_mgmt_client.get_knowledge_base(knowledgeBaseId=knowledge_base_id)[
+        'knowledgeBase'
+    ]
+    return kb.get('knowledgeBaseConfiguration', {}).get('type') == 'MANAGED'
 
 
 async def query_knowledge_base(
     query: str,
     knowledge_base_id: str,
     kb_agent_client: AgentsforBedrockRuntimeClient,
+    kb_agent_mgmt_client: AgentsforBedrockClient,
     number_of_results: int = 20,
     reranking: bool = False,
-    reranking_model_name: Literal['COHERE', 'AMAZON'] = 'AMAZON',
+    reranking_model_name: Literal['COHERE', 'AMAZON'] = 'COHERE',
     data_source_ids: list[str] | None = None,
 ) -> str:
     """# Amazon Bedrock Knowledge Base query tool.
@@ -40,10 +68,11 @@ async def query_knowledge_base(
     Args:
         query (str): The query to search the knowledge base with.
         knowledge_base_id (str): The knowledge base ID to query.
-        kb_agent_client (AgentsforBedrockRuntimeClient): The Bedrock agent client.
+        kb_agent_client (AgentsforBedrockRuntimeClient): The Bedrock agent runtime client.
+        kb_agent_mgmt_client (AgentsforBedrockClient): The Bedrock agent management client, used to detect whether the knowledge base is a Managed Knowledge Base.
         number_of_results (int): The number of results to return.
         reranking (bool): Whether to rerank the results. Can be globally configured using the BEDROCK_KB_RERANKING_ENABLED environment variable.
-        reranking_model_name (Literal['COHERE', 'AMAZON']): The name of the reranking model to use.
+        reranking_model_name (Literal['COHERE', 'AMAZON']): The name of the reranking model to use. Not every reranking model is available in every region - if this fails, try 'COHERE'.
         data_source_ids (list[str] | None): The data source IDs to filter the knowledge base by.
 
     ## Warning: You must use the `ListKnowledgeBases` tool to get the knowledge base ID and optionally a data source ID first.
@@ -62,14 +91,19 @@ async def query_knowledge_base(
             f'Reranking is not supported in region {kb_agent_client.meta.region_name}'
         )
 
+    is_managed_kb = await _is_managed_knowledge_base(kb_agent_mgmt_client, knowledge_base_id)
+    search_configuration_key = (
+        'managedSearchConfiguration' if is_managed_kb else 'vectorSearchConfiguration'
+    )
+
     retrieve_request: KnowledgeBaseRetrievalConfigurationTypeDef = {
-        'vectorSearchConfiguration': {
+        search_configuration_key: {
             'numberOfResults': number_of_results,
         }
     }
 
     if data_source_ids:
-        retrieve_request['vectorSearchConfiguration']['filter'] = {  # type: ignore
+        retrieve_request[search_configuration_key]['filter'] = {  # type: ignore
             'in': {
                 'key': 'x-amz-bedrock-kb-data-source-id',
                 'value': data_source_ids,  # type: ignore
@@ -77,15 +111,11 @@ async def query_knowledge_base(
         }
 
     if reranking:
-        model_name_mapping = {
-            'COHERE': 'cohere.rerank-v3-5:0',
-            'AMAZON': 'amazon.rerank-v1:0',
-        }
-        retrieve_request['vectorSearchConfiguration']['rerankingConfiguration'] = {
+        retrieve_request[search_configuration_key]['rerankingConfiguration'] = {
             'type': 'BEDROCK_RERANKING_MODEL',
             'bedrockRerankingConfiguration': {
                 'modelConfiguration': {
-                    'modelArn': f'arn:aws:bedrock:{kb_agent_client.meta.region_name}::foundation-model/{model_name_mapping[reranking_model_name]}'
+                    'modelArn': f'arn:aws:bedrock:{kb_agent_client.meta.region_name}::foundation-model/{RERANKING_MODEL_NAME_MAPPING[reranking_model_name]}'
                 },
             },
         }
