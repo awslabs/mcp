@@ -22,6 +22,13 @@ import sys
 from awslabs.aws_pricing_mcp_server import consts
 from awslabs.aws_pricing_mcp_server.alternative_pricing import get_pricing_alternatives
 from awslabs.aws_pricing_mcp_server.cdk_analyzer import analyze_cdk_project
+from awslabs.aws_pricing_mcp_server.forecast import (
+    MAX_COMPONENTS,
+    MAX_DECIMAL_PLACES,
+    MAX_MONTHS,
+    ForecastCostComponent,
+    calculate_forecast,
+)
 from awslabs.aws_pricing_mcp_server.models import (
     ATTRIBUTE_NAMES_FIELD,
     ATTRIBUTE_VALUES_FILTERS_FIELD,
@@ -81,7 +88,7 @@ async def create_error_response(
 
 mcp = MCPServer(
     name='awslabs.aws-pricing-mcp-server',
-    instructions="""This server provides two primary functionalities:
+    instructions="""This server provides three primary functionalities:
 
     # USE CASE 1: AWS SERVICE CATALOG & PRICING DISCOVERY
     Access AWS service catalog information and pricing details through a structured workflow:
@@ -143,6 +150,14 @@ mcp = MCPServer(
        - Source of the data (web scraping, API, or websearch)
        - List of attempted data retrieval methods
 
+    # USE CASE 3: MULTI-PERIOD SCENARIO FORECASTING
+    Use calculate_cost_scenario() after gathering baseline costs and current prices.
+    Classify architecture units that do not grow with demand as fixed. Classify a usage-driven
+    cost as linear only when its effective rate is expected to remain constant over the modeled
+    range, and assign each such component its own final-month multiplier. Keep tiered, stepped,
+    commitment-sensitive, or otherwise nonlinear costs separate. Do not apply a single growth
+    multiplier to the entire bill.
+
     ACCURACY GUIDELINES:
     - When uncertain about service compatibility or pricing details, EXCLUDE them rather than making assumptions
     - For database compatibility, only include CONFIRMED supported databases
@@ -157,6 +172,63 @@ mcp = MCPServer(
     serverless services and pay-as-you-go pricing models.""",
     dependencies=['pydantic', 'loguru', 'boto3', 'beautifulsoup4', 'websearch'],
 )
+
+
+@mcp.tool(
+    name='calculate_cost_scenario',
+    description="""Calculate a deterministic month-by-month cost scenario from classified components.
+
+Use fixed components for architecture units that do not grow with demand, such as control
+planes, proxy capacity, gateway hours, keys, and subscriptions. Use linear components only
+when the baseline cost's effective rate is expected to remain constant over the modeled range.
+Tiering, free allowances, commitments, capacity steps, and price changes must be modeled
+separately. Each linear component can have its own final-month multiplier.
+Monetary amounts are returned as fixed-precision decimal strings so every breakdown remains
+exactly auditable at decimal_places.
+
+This tool performs arithmetic only. It does not retrieve account data, query AWS pricing, or
+create an AWS Pricing Calculator estimate. Obtain baseline costs and current unit prices with
+the appropriate pricing or billing tools first.
+""",
+    annotations=ToolAnnotations(readOnlyHint=True),
+    structured_output=False,
+)
+async def calculate_cost_scenario(
+    components: List[ForecastCostComponent] = Field(
+        ...,
+        min_length=1,
+        max_length=MAX_COMPONENTS,
+        description='Baseline monthly cost components with explicit scaling behavior',
+    ),
+    months: int = Field(12, ge=2, le=MAX_MONTHS, description='Forecast horizon in months'),
+    currency: str = Field(
+        'USD',
+        min_length=3,
+        max_length=3,
+        pattern=r'^[A-Z]{3}$',
+        description='Three-letter uppercase currency display label',
+    ),
+    decimal_places: int = Field(
+        2,
+        ge=0,
+        le=MAX_DECIMAL_PLACES,
+        description='Number of decimal places used for monetary output',
+    ),
+) -> Dict:
+    """Calculate a cost scenario while preserving fixed and usage-scaled boundaries."""
+    if isinstance(months, FieldInfo):
+        months = months.default
+    if isinstance(currency, FieldInfo):
+        currency = currency.default
+    if isinstance(decimal_places, FieldInfo):
+        decimal_places = decimal_places.default
+
+    return calculate_forecast(
+        components=components,
+        months=months,
+        currency=currency,
+        decimal_places=decimal_places,
+    )
 
 
 @mcp.tool(
