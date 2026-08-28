@@ -21,7 +21,11 @@ Run: uv run python -m pytest tests/test_search.py -v
 """
 
 import json
-from awslabs.roda_mcp_server.server import search_datasets
+from awslabs.roda_mcp_server.server import (
+    _relevance_score,
+    _word_match,
+    search_datasets,
+)
 
 
 async def test_search_by_keyword(setup_server, patch_fetch):
@@ -128,3 +132,60 @@ async def test_search_result_omits_internal_score(setup_server, patch_fetch):
 
     assert data['results']
     assert all('score' not in r for r in data['results'])
+
+
+# --- Direct unit tests for the relevance scorer -------------------------------
+# The tests above exercise scoring through search_datasets; these pin each
+# scoring tier of _relevance_score (and _word_match) directly so every branch
+# is covered and the weighting is documented by example.
+
+
+def test_word_match_whole_word_vs_substring():
+    """_word_match is True only on a whole-word hit, not a bare substring."""
+    assert _word_match('ocean', 'ocean temperature') is True
+    assert _word_match('cean', 'ocean') is False
+
+
+def test_score_exact_tag_match():
+    """An exact tag match scores 6.0, plus 1 coverage bonus for the term."""
+    assert _relevance_score('x', 'y', ['climate'], ['climate']) == 7.0
+
+
+def test_score_partial_tag_match():
+    """A substring of a tag (not an exact tag) scores 3.0 (+1)."""
+    assert _relevance_score('x', 'y', ['climate'], ['clim']) == 4.0
+
+
+def test_score_whole_word_name_match():
+    """A whole-word hit in the name scores 5.0 (+1)."""
+    assert _relevance_score('ocean temperature', 'y', [], ['ocean']) == 6.0
+
+
+def test_score_substring_name_match():
+    """A substring of the name that is not a whole word scores 2.5 (+1)."""
+    assert _relevance_score('ocean', 'y', [], ['cean']) == 3.5
+
+
+def test_score_whole_word_description_match():
+    """A whole-word hit only in the description scores 1.5 (+1)."""
+    assert _relevance_score('x', 'sea salinity levels', [], ['salinity']) == 2.5
+
+
+def test_score_substring_description_match():
+    """A substring of the description that is not a whole word scores 0.5 (+1)."""
+    assert _relevance_score('x', 'salinity', [], ['alin']) == 1.5
+
+
+def test_score_no_match_is_zero():
+    """A term appearing nowhere contributes nothing and is not counted."""
+    assert _relevance_score('x', 'y', ['tag'], ['zzz']) == 0.0
+
+
+def test_score_stronger_field_wins_via_max():
+    """A whole-word name hit (5.0) supersedes a weaker substring tag hit (3.0)."""
+    assert _relevance_score('climate data', 'y', ['climatology'], ['climate']) == 6.0
+
+
+def test_score_coverage_bonus_rewards_more_terms():
+    """Two matched terms (6.0 tag + 5.0 name) earn a +2 coverage bonus = 13.0."""
+    assert _relevance_score('ocean', 'y', ['climate'], ['climate', 'ocean']) == 13.0
