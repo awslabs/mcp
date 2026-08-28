@@ -363,29 +363,6 @@ class TestParseRecommendationResults:
         results = parse_recommendation_results(data)
         assert results == []
 
-    def test_highly_rated_recommendations(self):
-        """Test parsing highly rated recommendations."""
-        data = {
-            'highlyRated': {
-                'items': [
-                    {
-                        'url': 'https://docs.aws.amazon.com/test1',
-                        'assetTitle': 'Test 1',
-                        'abstract': 'Abstract 1',
-                    },
-                    {'url': 'https://docs.aws.amazon.com/test2', 'assetTitle': 'Test 2'},
-                ]
-            }
-        }
-        results = parse_recommendation_results(data)
-        assert len(results) == 2
-        assert results[0].url == 'https://docs.aws.amazon.com/test1'
-        assert results[0].title == 'Test 1'
-        assert results[0].context == 'Abstract 1'
-        assert results[1].url == 'https://docs.aws.amazon.com/test2'
-        assert results[1].title == 'Test 2'
-        assert results[1].context is None
-
     def test_journey_recommendations(self):
         """Test parsing journey recommendations."""
         data = {
@@ -464,9 +441,6 @@ class TestParseRecommendationResults:
     def test_all_recommendation_types(self):
         """Test parsing all recommendation types together."""
         data = {
-            'highlyRated': {
-                'items': [{'url': 'https://docs.aws.amazon.com/hr', 'assetTitle': 'HR'}]
-            },
             'journey': {
                 'items': [
                     {
@@ -483,10 +457,9 @@ class TestParseRecommendationResults:
             },
         }
         results = parse_recommendation_results(data)
-        assert len(results) == 4
+        assert len(results) == 3
         # Check that we have one of each type (order doesn't matter for this test)
         urls = [r.url for r in results]
-        assert 'https://docs.aws.amazon.com/hr' in urls
         assert 'https://docs.aws.amazon.com/journey' in urls
         assert 'https://docs.aws.amazon.com/new' in urls
         assert 'https://docs.aws.amazon.com/similar' in urls

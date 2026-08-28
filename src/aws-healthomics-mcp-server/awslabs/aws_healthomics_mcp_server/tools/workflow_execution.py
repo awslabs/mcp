@@ -39,7 +39,7 @@ from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_err
 from awslabs.aws_healthomics_mcp_server.utils.s3_utils import ensure_s3_uri_ends_with_slash
 from datetime import datetime
 from loguru import logger
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from pydantic import Field
 from typing import Any, Dict, List, Optional
 

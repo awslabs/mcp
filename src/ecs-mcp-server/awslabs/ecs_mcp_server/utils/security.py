@@ -19,9 +19,10 @@ Security utilities for the ECS MCP Server.
 import functools
 import json
 import logging
-import os.path
 import re
 from typing import Any, Awaitable, Callable, Dict, Literal, Optional, Set
+
+from awslabs.ecs_mcp_server.utils.path_validation import validate_path
 
 logger = logging.getLogger(__name__)
 
@@ -97,41 +98,6 @@ def validate_app_name(app_name: str) -> bool:
     return True
 
 
-def validate_file_path(path: str) -> str:
-    """
-    Validates file path to prevent directory traversal attacks.
-
-    Args:
-        path: The file path to validate
-
-    Returns:
-        str: The normalized absolute path
-
-    Raises:
-        ValidationError: If the path is invalid or doesn't exist
-    """
-    # Convert to absolute path and normalize
-    abs_path = os.path.abspath(os.path.normpath(path))
-
-    # Check if the path exists
-    if not os.path.exists(abs_path):
-        raise ValidationError(f"Path '{path}' does not exist")
-
-    # Check for suspicious path components that might indicate traversal attempts
-    suspicious_patterns = [
-        r"/\.\./",  # /../
-        r"\\\.\.\\",  # \..\ (Windows)
-        r"^\.\./",  # ../
-        r"^\.\.\\",  # ..\ (Windows)
-    ]
-
-    for pattern in suspicious_patterns:
-        if re.search(pattern, path):
-            raise ValidationError(f"Path '{path}' contains suspicious traversal patterns")
-
-    return abs_path
-
-
 def validate_cloudformation_template(template_path: str) -> bool:
     """
     Validates a CloudFormation template against basic schema requirements.
@@ -143,10 +109,13 @@ def validate_cloudformation_template(template_path: str) -> bool:
         bool: Whether the template is valid
 
     Raises:
-        ValidationError: If the template is invalid
+        ValidationError: If the path or the template is invalid
     """
     # First validate the file path
-    validated_path = validate_file_path(template_path)
+    try:
+        validated_path = validate_path(template_path, must_exist=True)
+    except ValueError as e:
+        raise ValidationError(str(e)) from e
 
     # Read template file
     try:

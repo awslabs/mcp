@@ -104,7 +104,7 @@ class TestDataCatalogTableManager:
             # Verify that the MCP tags were added to Parameters
             assert call_args['TableInput']['Parameters']['ManagedBy'] == 'DataprocessingMCPServer'
             # Verify the response structure
-            assert result.isError is False
+            assert result.is_error is False
             assert len(result.content) == 2
             assert (
                 f'Successfully created table: {database_name}.{table_name}'
@@ -153,7 +153,7 @@ class TestDataCatalogTableManager:
             # Verify the response indicates an error
             mock_glue_client.create_table.assert_called_once()
             assert isinstance(result, CallToolResult)
-            assert result.isError is True
+            assert result.is_error is True
             assert f'Failed to create table {database_name}.{table_name}' in result.content[0].text
             assert 'AlreadyExistsException' in result.content[0].text
 
@@ -196,7 +196,7 @@ class TestDataCatalogTableManager:
             )
 
             # Verify the response structure
-            assert result.isError is False
+            assert result.is_error is False
             assert len(result.content) == 2
             assert (
                 f'Successfully deleted table: {database_name}.{table_name}'
@@ -251,7 +251,7 @@ class TestDataCatalogTableManager:
             mock_ctx, database_name=database_name, table_name=table_name, catalog_id=catalog_id
         )
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
         assert 'Successfully retrieved table:' in result.content[0].text
 
         # Verify that the Glue client was called with the correct parameters
@@ -317,7 +317,7 @@ class TestDataCatalogTableManager:
         )
 
         # Verify the response structure
-        assert result.isError is False
+        assert result.is_error is False
         assert len(result.content) == 2
         assert 'Successfully listed 2 tables in database' in result.content[0].text
 
@@ -390,7 +390,7 @@ class TestDataCatalogTableManager:
             assert call_args['TableInput']['Parameters']['mcp:managed'] == 'true'
 
             # Verify the response structure
-            assert result.isError is False
+            assert result.is_error is False
             assert len(result.content) == 2
             assert (
                 f'Successfully updated table: {database_name}.{table_name}'
@@ -463,7 +463,7 @@ class TestDataCatalogTableManager:
         )
 
         # Verify the response structure
-        assert result.isError is False
+        assert result.is_error is False
         assert len(result.content) == 2
         assert 'Search found 2 tables' in result.content[0].text
 
@@ -496,12 +496,12 @@ class TestDataCatalogTableManager:
         mock_glue_client.get_tables.side_effect = ClientError(error_response, 'GetTables')
         result = await manager.list_tables(mock_ctx, database_name='test-db')
         assert isinstance(result, CallToolResult)
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Failed to list tables in database' in result.content[0].text
 
         # Test search_tables error handling
         mock_glue_client.search_tables.side_effect = ClientError(error_response, 'SearchTables')
         result = await manager.search_tables(mock_ctx, search_text='test')
         assert isinstance(result, CallToolResult)
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Failed to search tables' in result.content[0].text

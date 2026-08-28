@@ -5,13 +5,13 @@ from awslabs.aws_dataprocessing_mcp_server.handlers.glue.glue_commons_handler im
 )
 from botocore.exceptions import ClientError
 from datetime import datetime
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from unittest.mock import Mock, patch
 
 
 def extract_response_data(response):
     """Helper function to extract data from CallToolResult content."""
-    if response.isError:
+    if response.is_error:
         return {}
     # Find the JSON content in the response
     for content_item in response.content:
@@ -119,7 +119,7 @@ class TestGlueCommonsHandler:
             tags={'Environment': 'Production', 'Team': 'DataEngineering'},
         )
 
-        assert result.isError is False
+        assert result.is_error is False
         response_data = extract_response_data(result)
         assert response_data.get('profile_name') == 'production-etl-profile'
 
@@ -161,7 +161,7 @@ class TestGlueCommonsHandler:
             encryption_configuration=comprehensive_encryption,
         )
 
-        assert result.isError is False
+        assert result.is_error is False
         response_data = extract_response_data(result)
         assert response_data.get('config_name') == 'comprehensive-encryption-config'
         assert response_data.get('encryption_configuration') == comprehensive_encryption
@@ -190,7 +190,7 @@ class TestGlueCommonsHandler:
             connection_password_encryption=connection_password_encryption,
         )
 
-        assert result.isError is False
+        assert result.is_error is False
 
         # Verify the API was called with correct parameters
         call_args = handler.glue_client.put_data_catalog_encryption_settings.call_args
@@ -254,7 +254,7 @@ class TestGlueCommonsHandler:
             resource_arn='arn:aws:glue:us-east-1:123456789012:catalog',
         )
 
-        assert result.isError is False
+        assert result.is_error is False
         response_data = extract_response_data(result)
         assert response_data.get('policy_hash') == 'complex-policy-hash-12345'
 
@@ -294,7 +294,7 @@ class TestGlueCommonsHandler:
             )
 
             # Should still succeed as MCP management is verified
-            assert result.isError is False
+            assert result.is_error is False
 
     @pytest.mark.asyncio
     async def test_boundary_values_and_edge_cases(self, handler, mock_context):
@@ -311,7 +311,7 @@ class TestGlueCommonsHandler:
             tags={},  # Empty tags
         )
 
-        assert result.isError is False
+        assert result.is_error is False
 
         # Test with very long profile name (at AWS limits)
         long_profile_name = 'a' * 255  # AWS Glue profile name limit
@@ -323,7 +323,7 @@ class TestGlueCommonsHandler:
             configuration={'test': 'config'},
         )
 
-        assert result.isError is False
+        assert result.is_error is False
         response_data = extract_response_data(result)
         assert response_data.get('profile_name') == long_profile_name
 
@@ -346,7 +346,7 @@ class TestGlueCommonsHandler:
             )
 
             # Should handle None region gracefully (defaults to us-east-1)
-            assert result.isError is False
+            assert result.is_error is False
             mock_aws_helper.get_or_default_aws_region.assert_called()
 
     @pytest.mark.asyncio
@@ -374,7 +374,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='put-resource-policy', policy=json.dumps(special_policy)
         )
 
-        assert result.isError is False
+        assert result.is_error is False
 
         # Test delete with all optional parameters
         handler.glue_client.delete_resource_policy.return_value = {}
@@ -386,7 +386,7 @@ class TestGlueCommonsHandler:
             resource_arn='arn:aws:glue:us-east-1:123456789012:catalog',
         )
 
-        assert result.isError is False
+        assert result.is_error is False
 
         # Verify delete was called with all parameters
         call_args = handler.glue_client.delete_resource_policy.call_args
@@ -405,7 +405,7 @@ class TestGlueCommonsHandler:
             connection_password_encryption={'ReturnConnectionPasswordEncrypted': False},
         )
 
-        assert result.isError is False
+        assert result.is_error is False
 
         # Verify only connection password encryption was set
         call_args = handler.glue_client.put_data_catalog_encryption_settings.call_args
@@ -426,7 +426,7 @@ class TestGlueCommonsHandler:
             encryption_configuration={'S3Encryption': [{'S3EncryptionMode': 'SSE-S3'}]},
         )
 
-        assert result.isError is False
+        assert result.is_error is False
         response_data = extract_response_data(result)
         assert response_data.get('creation_time') == ''
 
@@ -442,7 +442,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='get-security-configuration', config_name='no-timestamp-config'
         )
 
-        assert result.isError is False
+        assert result.is_error is False
         response_data = extract_response_data(result)
         assert response_data.get('creation_time') == ''
 
@@ -460,7 +460,7 @@ class TestGlueCommonsHandler:
             tags={'tag1': 'value1'},
         )
 
-        assert result.isError is False
+        assert result.is_error is False
         response_data = extract_response_data(result)
         assert response_data.get('profile_name') == 'test-profile'
         assert response_data.get('operation') == 'create-usage-profile'
@@ -477,7 +477,7 @@ class TestGlueCommonsHandler:
             configuration={'test': 'config'},
         )
 
-        assert result.isError is True
+        assert result.is_error is True
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_security_create_success(self, handler, mock_context):
@@ -493,7 +493,7 @@ class TestGlueCommonsHandler:
             encryption_configuration={'test': 'config'},
         )
 
-        assert result.isError is False
+        assert result.is_error is False
         response_data = extract_response_data(result)
         assert response_data.get('config_name') == 'test-config'
         assert response_data.get('operation') == 'create-security-configuration'
@@ -510,7 +510,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='get-security-configuration', config_name='test-config'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_encryption_get_success(self, handler, mock_context):
@@ -523,7 +523,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='get-catalog-encryption-settings'
         )
 
-        assert result.isError is False
+        assert result.is_error is False
         response_data = extract_response_data(result)
         assert response_data.get('encryption_settings') == {'test': 'settings'}
         assert response_data.get('operation') == 'get-datacatalog-encryption'
@@ -537,7 +537,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='put-resource-policy', policy='{"Version": "2012-10-17"}'
         )
 
-        assert result.isError is False
+        assert result.is_error is False
         response_data = extract_response_data(result)
         assert response_data.get('policy_hash') == 'test-hash'
         assert response_data.get('operation') == 'put-resource-policy'
@@ -549,13 +549,13 @@ class TestGlueCommonsHandler:
         result = await handler.manage_aws_glue_usage_profiles(
             mock_context, operation='invalid-operation', profile_name='test'
         )
-        assert result.isError is True
+        assert result.is_error is True
 
         # Test invalid operation for security configurations
         result = await handler.manage_aws_glue_security(
             mock_context, operation='invalid-operation', config_name='test'
         )
-        assert result.isError is True
+        assert result.is_error is True
 
     @pytest.mark.asyncio
     async def test_error_handling(self, handler, mock_context):
@@ -566,7 +566,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='get-profile', profile_name='test'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Test error' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -586,7 +586,7 @@ class TestGlueCommonsHandler:
                 mock_context, operation='delete-profile', profile_name='test-profile'
             )
 
-            assert result.isError is False
+            assert result.is_error is False
             response_data = extract_response_data(result)
             assert response_data.get('profile_name') == 'test-profile'
             assert response_data.get('operation') == 'delete-usage-profile'
@@ -603,7 +603,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='delete-profile', profile_name='test-profile'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not found' in result.content[0].text.lower()
 
     @pytest.mark.asyncio
@@ -624,7 +624,7 @@ class TestGlueCommonsHandler:
                 mock_context, operation='delete-profile', profile_name='test-profile'
             )
 
-            assert result.isError is True
+            assert result.is_error is True
             assert 'not managed by the MCP server' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -639,7 +639,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='get-profile', profile_name='test-profile'
         )
 
-        assert result.isError is False
+        assert result.is_error is False
         response_data = extract_response_data(result)
         assert response_data.get('profile_name') == 'test-profile'
         assert response_data.get('operation') == 'get-usage-profile'
@@ -664,7 +664,7 @@ class TestGlueCommonsHandler:
                 configuration={'test': 'updated-config'},
             )
 
-            assert result.isError is False
+            assert result.is_error is False
             response_data = extract_response_data(result)
             assert response_data.get('profile_name') == 'test-profile'
             assert response_data.get('operation') == 'update-usage-profile'
@@ -707,7 +707,7 @@ class TestGlueCommonsHandler:
             configuration={'test': 'config'},
         )
 
-        assert result.isError is True
+        assert result.is_error is True
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_usage_profiles_delete_no_write_access(
@@ -718,7 +718,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='delete-profile', profile_name='test-profile'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_security_delete_success(self, handler, mock_context):
@@ -732,7 +732,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='delete-security-configuration', config_name='test-config'
         )
 
-        assert result.isError is False
+        assert result.is_error is False
         response_data = extract_response_data(result)
         assert response_data.get('config_name') == 'test-config'
         assert response_data.get('operation') == 'delete-security-configuration'
@@ -749,7 +749,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='delete-security-configuration', config_name='test-config'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not found' in result.content[0].text.lower()
 
     @pytest.mark.asyncio
@@ -767,7 +767,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='get-security-configuration', config_name='test-config'
         )
 
-        assert result.isError is False
+        assert result.is_error is False
         response_data = extract_response_data(result)
         assert response_data.get('config_name') == 'test-config'
         assert response_data.get('operation') == 'get-security-configuration'
@@ -795,7 +795,7 @@ class TestGlueCommonsHandler:
             encryption_configuration={'test': 'config'},
         )
 
-        assert result.isError is True
+        assert result.is_error is True
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_security_delete_no_write_access(
@@ -806,7 +806,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='delete-security-configuration', config_name='test-config'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_security_delete_other_error(self, handler, mock_context):
@@ -819,7 +819,7 @@ class TestGlueCommonsHandler:
         result = await handler.manage_aws_glue_security(
             mock_context, operation='delete-security-configuration', config_name='test-config'
         )
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Access denied' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -833,7 +833,7 @@ class TestGlueCommonsHandler:
             encryption_at_rest={'test': 'encryption'},
         )
 
-        assert result.isError is False
+        assert result.is_error is False
         response_data = extract_response_data(result)
         assert response_data.get('operation') == 'put-datacatalog-encryption'
 
@@ -846,7 +846,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='put-catalog-encryption-settings'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_encryption_put_missing_settings(self, handler, mock_context):
@@ -873,7 +873,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='get-catalog-encryption-settings', catalog_id='123456789012'
         )
 
-        assert result.isError is False
+        assert result.is_error is False
         handler.glue_client.get_data_catalog_encryption_settings.assert_called_with(
             CatalogId='123456789012'
         )
@@ -890,7 +890,7 @@ class TestGlueCommonsHandler:
             encryption_at_rest={'test': 'encryption'},
         )
 
-        assert result.isError is False
+        assert result.is_error is False
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_encryption_invalid_operation(self, handler, mock_context):
@@ -899,7 +899,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='invalid-operation'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_resource_policies_get_success(self, handler, mock_context):
@@ -915,7 +915,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='get-resource-policy'
         )
 
-        assert result.isError is False
+        assert result.is_error is False
         response_data = extract_response_data(result)
         assert response_data.get('policy_hash') == 'test-hash'
         assert response_data.get('operation') == 'get-resource-policy'
@@ -929,7 +929,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='delete-resource-policy'
         )
 
-        assert result.isError is False
+        assert result.is_error is False
         response_data = extract_response_data(result)
         assert response_data.get('operation') == 'delete-resource-policy'
 
@@ -947,7 +947,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='get-resource-policy'
         )
 
-        assert result.isError is False
+        assert result.is_error is False
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_resource_policies_put_no_write_access(
@@ -958,7 +958,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='put-resource-policy', policy='{"Version": "2012-10-17"}'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_resource_policies_delete_no_write_access(
@@ -969,7 +969,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='delete-resource-policy'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_resource_policies_put_missing_policy(
@@ -990,7 +990,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='invalid-operation'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
 
     @pytest.mark.asyncio
     async def test_manage_aws_glue_resource_policies_with_all_params(self, handler, mock_context):
@@ -1007,7 +1007,7 @@ class TestGlueCommonsHandler:
             resource_arn='arn:aws:glue:us-east-1:123456789012:catalog',
         )
 
-        assert result.isError is False
+        assert result.is_error is False
         response_data = extract_response_data(result)
         assert response_data.get('policy_hash') == 'test-hash'
 
@@ -1032,7 +1032,7 @@ class TestGlueCommonsHandler:
                 configuration={'test': 'config'},
             )
 
-            assert result.isError is True
+            assert result.is_error is True
             assert 'not managed by the MCP server' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1050,7 +1050,7 @@ class TestGlueCommonsHandler:
             configuration={'test': 'config'},
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not found' in result.content[0].text.lower()
 
     @pytest.mark.asyncio
@@ -1065,7 +1065,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='delete-profile', profile_name='test-profile'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Access denied' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1083,7 +1083,7 @@ class TestGlueCommonsHandler:
             configuration={'test': 'config'},
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Access denied' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1098,7 +1098,7 @@ class TestGlueCommonsHandler:
             connection_password_encryption={'test': 'password_encryption'},
         )
 
-        assert result.isError is False
+        assert result.is_error is False
         response_data = extract_response_data(result)
         assert response_data.get('operation') == 'put-datacatalog-encryption'
 
@@ -1113,7 +1113,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='get-catalog-encryption-settings'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Test error' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1129,7 +1129,7 @@ class TestGlueCommonsHandler:
             encryption_at_rest={'test': 'encryption'},
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Test error' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1141,7 +1141,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='get-resource-policy'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Test error' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1153,7 +1153,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='put-resource-policy', policy='{"Version": "2012-10-17"}'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Test error' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1165,7 +1165,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='delete-resource-policy'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Test error' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1180,7 +1180,7 @@ class TestGlueCommonsHandler:
             encryption_configuration={'test': 'config'},
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Test error' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1196,7 +1196,7 @@ class TestGlueCommonsHandler:
             tags=None,
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Test error' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1215,7 +1215,7 @@ class TestGlueCommonsHandler:
             resource_arn='arn:aws:glue:region:account:catalog',
         )
 
-        assert result.isError is False
+        assert result.is_error is False
         handler.glue_client.get_resource_policy.assert_called_with(
             ResourceArn='arn:aws:glue:region:account:catalog'
         )
@@ -1234,7 +1234,7 @@ class TestGlueCommonsHandler:
             resource_arn=None,
         )
 
-        assert result.isError is False
+        assert result.is_error is False
         handler.glue_client.delete_resource_policy.assert_called_with(
             PolicyHashCondition='test-hash'
         )
@@ -1251,7 +1251,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='get-security-configuration', config_name='test-config'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Invalid input' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1292,7 +1292,7 @@ class TestGlueCommonsHandler:
                 tags={'Project': 'IntegrationTest'},
             )
 
-            assert result.isError is False
+            assert result.is_error is False
             create_data = extract_response_data(result)
             assert create_data.get('profile_name') == 'integration-test-profile'
 
@@ -1317,7 +1317,7 @@ class TestGlueCommonsHandler:
                 mock_context, operation='get-profile', profile_name='integration-test-profile'
             )
 
-            assert result.isError is False
+            assert result.is_error is False
             get_data = extract_response_data(result)
             assert get_data.get('profile_name') == 'integration-test-profile'
 
@@ -1344,7 +1344,7 @@ class TestGlueCommonsHandler:
                 },
             )
 
-            assert result.isError is False
+            assert result.is_error is False
             update_data = extract_response_data(result)
             assert update_data.get('operation') == 'update-usage-profile'
 
@@ -1355,7 +1355,7 @@ class TestGlueCommonsHandler:
                 mock_context, operation='delete-profile', profile_name='integration-test-profile'
             )
 
-            assert result.isError is False
+            assert result.is_error is False
             delete_data = extract_response_data(result)
             assert delete_data.get('operation') == 'delete-usage-profile'
 
@@ -1393,7 +1393,7 @@ class TestGlueCommonsHandler:
             encryption_configuration=security_config,
         )
 
-        assert result.isError is False
+        assert result.is_error is False
 
         # Step 2: Verify security configuration exists
         handler.glue_client.get_security_configuration.return_value = {
@@ -1410,7 +1410,7 @@ class TestGlueCommonsHandler:
             config_name='integration-security-config',
         )
 
-        assert result.isError is False
+        assert result.is_error is False
 
         # Step 3: Configure catalog encryption to match security config
         handler.glue_client.put_data_catalog_encryption_settings.return_value = {}
@@ -1428,7 +1428,7 @@ class TestGlueCommonsHandler:
             },
         )
 
-        assert result.isError is False
+        assert result.is_error is False
 
         # Step 4: Verify encryption settings
         handler.glue_client.get_data_catalog_encryption_settings.return_value = {
@@ -1448,7 +1448,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='get-catalog-encryption-settings'
         )
 
-        assert result.isError is False
+        assert result.is_error is False
 
         # Step 5: Clean up security configuration
         handler.glue_client.delete_security_configuration.return_value = {}
@@ -1459,7 +1459,7 @@ class TestGlueCommonsHandler:
             config_name='integration-security-config',
         )
 
-        assert result.isError is False
+        assert result.is_error is False
 
     @pytest.mark.asyncio
     async def test_edge_case_malformed_json_in_resource_policy(self, handler, mock_context):
@@ -1479,7 +1479,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='put-resource-policy', policy=malformed_json
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Invalid policy document' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1500,7 +1500,7 @@ class TestGlueCommonsHandler:
             tags={'Unicode': 'tëst-välue-测试'},
         )
 
-        assert result.isError is False
+        assert result.is_error is False
         response_data = extract_response_data(result)
         assert response_data.get('profile_name') == unicode_profile_name
 
@@ -1529,7 +1529,7 @@ class TestGlueCommonsHandler:
             configuration=large_config,
         )
 
-        assert result.isError is False
+        assert result.is_error is False
 
     @pytest.mark.asyncio
     async def test_edge_case_null_and_empty_values_handling(self, handler, mock_context):
@@ -1546,7 +1546,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='get-profile', profile_name='test-profile'
         )
 
-        assert result.isError is False
+        assert result.is_error is False
         response_data = extract_response_data(result)
         assert response_data.get('profile_name') == 'test-profile'
 
@@ -1562,7 +1562,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='get-resource-policy'
         )
 
-        assert result.isError is False
+        assert result.is_error is False
         response_data = extract_response_data(result)
         assert response_data.get('policy_hash') is None
 
@@ -1595,7 +1595,7 @@ class TestGlueCommonsHandler:
                 configuration={'test': 'config'},
             )
 
-            assert result.isError is True
+            assert result.is_error is True
             assert 'Resource being modified' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1616,7 +1616,7 @@ class TestGlueCommonsHandler:
             configuration={'test': 'config'},
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Too many usage profiles' in result.content[0].text
 
         # Test security configuration with resource limit
@@ -1637,7 +1637,7 @@ class TestGlueCommonsHandler:
             encryption_configuration={'test': 'config'},
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Security config limit exceeded' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1658,7 +1658,7 @@ class TestGlueCommonsHandler:
                 mock_context, operation='delete-profile', profile_name='cross-region-profile'
             )
 
-            assert result.isError is False
+            assert result.is_error is False
             # Verify the correct region was used in ARN construction
             mock_aws_helper.is_resource_mcp_managed.assert_called()
 
@@ -1680,7 +1680,7 @@ class TestGlueCommonsHandler:
             configuration={'test': 'config'},
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'User not authorized' in result.content[0].text
 
         # Test KMS key permission issues for encryption
@@ -1700,7 +1700,7 @@ class TestGlueCommonsHandler:
             },
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'KMS key not accessible' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1717,7 +1717,7 @@ class TestGlueCommonsHandler:
             mock_context, operation='get-profile', profile_name='test-profile'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Invalid input' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1734,5 +1734,5 @@ class TestGlueCommonsHandler:
             encryption_at_rest={'test': 'encryption'},
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Invalid input' in result.content[0].text

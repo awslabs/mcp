@@ -47,7 +47,7 @@ from awslabs.ccapi_mcp_server.models.models import (
     UpdateResourceRequest,
 )
 from awslabs.ccapi_mcp_server.schema_manager import schema_manager
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 from typing import Any
 
@@ -56,7 +56,7 @@ from typing import Any
 _workflow_store: dict[str, dict] = {}
 
 
-mcp = FastMCP(
+mcp = MCPServer(
     'awslabs.ccapi-mcp-server',
     instructions="""
 # AWS Resource Management Protocol - MANDATORY INSTRUCTIONS

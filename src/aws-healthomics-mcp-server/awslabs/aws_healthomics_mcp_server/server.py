@@ -142,11 +142,11 @@ from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
     set_active_resolver,
 )
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from typing import cast
 
 
-mcp = FastMCP(
+mcp = MCPServer(
     'awslabs.aws-healthomics-mcp-server',
     instructions="""
 # AWS HealthOmics MCP Server
@@ -467,34 +467,37 @@ def _build_inbound_mechanisms(config: ServerConfig) -> list[InboundMechanism]:
     return built
 
 
-def _serve_asgi_app(mcp_instance: FastMCP, app) -> None:
+def _serve_asgi_app(mcp_instance: MCPServer, config: ServerConfig, app) -> None:
     """Serve a wrapped ASGI application on the configured host/port.
 
     The MCP SDK's ``run_streamable_http_async`` / ``run_sse_async`` entry points
     build and serve the server's *own* Starlette app and do not accept a custom
     (middleware-wrapped) application. To actually serve the
     :class:`IdentityMiddleware`-wrapped app, this replicates the SDK's own uvicorn
-    setup — reading host/port/log level from ``mcp_instance.settings`` exactly as
-    the SDK does — and serves the supplied ``app``.
+    setup — reading host/port from the resolved config (SDK v2 moved these off
+    ``Settings`` and onto ``run()``/``*_app()`` keyword arguments) and log level
+    from ``mcp_instance.settings``, which still carries it — and serves the
+    supplied ``app``.
 
     Args:
-        mcp_instance: The ``FastMCP`` instance whose settings provide the bind
-            host, port, and log level.
+        mcp_instance: The ``MCPServer`` instance whose settings provide the log
+            level.
+        config: The resolved server configuration providing the bind host/port.
         app: The wrapped ASGI application to serve.
     """
     import uvicorn
 
     uvicorn_config = uvicorn.Config(
         app,
-        host=mcp_instance.settings.host,
-        port=mcp_instance.settings.port,
+        host=config.host,
+        port=config.port,
         log_level=mcp_instance.settings.log_level.lower(),
     )
     server = uvicorn.Server(uvicorn_config)
     anyio.run(server.serve)
 
 
-def _run_multi_tenant(mcp_instance: FastMCP, config: ServerConfig) -> None:
+def _run_multi_tenant(mcp_instance: MCPServer, config: ServerConfig) -> None:
     """Start the server in request-scoped multi-tenant mode (Phase 2).
 
     Installs the :class:`RequestScopedCredentialResolver` as the active resolver so
@@ -508,7 +511,7 @@ def _run_multi_tenant(mcp_instance: FastMCP, config: ServerConfig) -> None:
     assumed to be ``'streamable-http'`` or ``'sse'`` here.
 
     Args:
-        mcp_instance: The ``FastMCP`` instance to serve.
+        mcp_instance: The ``MCPServer`` instance to serve.
         config: The resolved server configuration (multi-tenant enabled).
 
     Raises:
@@ -534,20 +537,21 @@ def _run_multi_tenant(mcp_instance: FastMCP, config: ServerConfig) -> None:
     set_active_resolver(RequestScopedCredentialResolver())
 
     mode = config.transport
-    # Reuse the Phase 1 bind-settings application and exposure check so behavior is
-    # identical to the single-tenant network path.
-    TransportSelector._apply_network_settings(mcp_instance, config, mode)
+    # Reuse the Phase 1 exposure check so behavior is identical to the
+    # single-tenant network path.
     TransportSelector._check_secure_exposure(config)
 
     if mode == 'streamable-http':
-        base_app = mcp_instance.streamable_http_app()
+        base_app = mcp_instance.streamable_http_app(
+            host=config.host, streamable_http_path=config.path
+        )
     else:  # 'sse'
-        base_app = mcp_instance.sse_app()
+        base_app = mcp_instance.sse_app(host=config.host, sse_path=config.path)
 
     # The SDK returns a Starlette app; cast to the middleware's ASGIApp callable
     # alias (the two describe the same ASGI callable with differing dict typings).
     app = IdentityMiddleware(cast(ASGIApp, base_app), enabled_mechanisms)
-    _serve_asgi_app(mcp_instance, app)
+    _serve_asgi_app(mcp_instance, config, app)
 
 
 def main():

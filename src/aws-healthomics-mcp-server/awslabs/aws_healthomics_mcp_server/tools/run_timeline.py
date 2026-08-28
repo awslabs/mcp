@@ -27,7 +27,7 @@ from awslabs.aws_healthomics_mcp_server.utils.s3_utils import write_svg_to_s3
 from awslabs.aws_healthomics_mcp_server.visualization.gantt_generator import GanttGenerator
 from botocore.exceptions import ClientError, NoCredentialsError
 from loguru import logger
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from pydantic import Field
 from typing import Optional
 

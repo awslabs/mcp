@@ -19,7 +19,7 @@ import sys
 from awslabs.amazon_neptune_mcp_server.models import GraphSchema
 from awslabs.amazon_neptune_mcp_server.neptune import NeptuneServer
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from typing import Optional
 
 
@@ -27,8 +27,8 @@ from typing import Optional
 logger.remove()
 logger.add(sys.stderr, level='INFO')
 
-# Initialize FastMCP
-mcp = FastMCP(
+# Initialize MCPServer
+mcp = MCPServer(
     'awslabs.neptune-mcp-server',
     instructions='This server provides the ability to check connectivity, status and schema for working with Amazon Neptune.',
     dependencies=['pydantic', 'loguru', 'boto3'],

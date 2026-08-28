@@ -34,7 +34,7 @@ from awslabs.eks_mcp_server.models import (
     ResourceSummary,
 )
 from awslabs.eks_mcp_server.path_validation import validate_directory_path, validate_file_path
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from mcp.types import CallToolResult, TextContent
 from pydantic import Field
 from typing import Any, Dict, Optional
@@ -145,7 +145,7 @@ class K8sHandler:
                 error_msg = 'Operation apply_yaml is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_msg)
                 return CallToolResult(
-                    isError=True,
+                    is_error=True,
                     content=[TextContent(type='text', text=error_msg)],
                 )
 
@@ -156,7 +156,7 @@ class K8sHandler:
                 error_msg = f'Invalid yaml_path: {e}'
                 log_with_request_id(ctx, LogLevel.ERROR, error_msg)
                 return CallToolResult(
-                    isError=True,
+                    is_error=True,
                     content=[TextContent(type='text', text=error_msg)],
                 )
 
@@ -173,14 +173,14 @@ class K8sHandler:
                 error_msg = f'YAML file not found: {yaml_path}'
                 log_with_request_id(ctx, LogLevel.ERROR, error_msg)
                 return CallToolResult(
-                    isError=True,
+                    is_error=True,
                     content=[TextContent(type='text', text=error_msg)],
                 )
             except IOError as e:
                 error_msg = f'Error reading YAML file {yaml_path}: {str(e)}'
                 log_with_request_id(ctx, LogLevel.ERROR, error_msg)
                 return CallToolResult(
-                    isError=True,
+                    is_error=True,
                     content=[TextContent(type='text', text=error_msg)],
                 )
 
@@ -215,7 +215,7 @@ class K8sHandler:
                 )
 
                 return CallToolResult(
-                    isError=False,
+                    is_error=False,
                     content=[
                         TextContent(type='text', text=success_msg),
                         TextContent(type='text', text=json.dumps(data.model_dump())),
@@ -228,7 +228,7 @@ class K8sHandler:
                 log_with_request_id(ctx, LogLevel.ERROR, error_msg)
 
                 return CallToolResult(
-                    isError=True,
+                    is_error=True,
                     content=[TextContent(type='text', text=error_msg)],
                 )
 
@@ -237,7 +237,7 @@ class K8sHandler:
             log_with_request_id(ctx, LogLevel.ERROR, error_msg)
 
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[TextContent(type='text', text=error_msg)],
             )
 
@@ -413,7 +413,7 @@ class K8sHandler:
                 error_msg = f'Invalid operation: {operation}. Valid operations are: {valid_ops}'
                 log_with_request_id(ctx, LogLevel.ERROR, error_msg)
                 return CallToolResult(
-                    isError=True,
+                    is_error=True,
                     content=[TextContent(type='text', text=error_msg)],
                 )
 
@@ -422,7 +422,7 @@ class K8sHandler:
                 error_msg = f'Operation {operation} is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_msg)
                 return CallToolResult(
-                    isError=True,
+                    is_error=True,
                     content=[TextContent(type='text', text=error_msg)],
                 )
 
@@ -437,7 +437,7 @@ class K8sHandler:
                 )
                 log_with_request_id(ctx, LogLevel.ERROR, error_msg)
                 return CallToolResult(
-                    isError=True,
+                    is_error=True,
                     content=[TextContent(type='text', text=error_msg)],
                 )
 
@@ -491,7 +491,7 @@ class K8sHandler:
             )
 
             return CallToolResult(
-                isError=False,
+                is_error=False,
                 content=[
                     TextContent(
                         type='text',
@@ -512,7 +512,7 @@ class K8sHandler:
 
             # Return error response
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[TextContent(type='text', text=error_msg)],
             )
 
@@ -634,7 +634,7 @@ class K8sHandler:
             )
 
             return CallToolResult(
-                isError=False,
+                is_error=False,
                 content=[
                     TextContent(
                         type='text',
@@ -654,7 +654,7 @@ class K8sHandler:
 
             # Return error response
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[TextContent(type='text', text=error_msg)],
             )
 
@@ -733,7 +733,7 @@ class K8sHandler:
                 error_msg = 'Operation generate_app_manifest is not allowed without write access'
                 log_with_request_id(ctx, LogLevel.ERROR, error_msg)
                 return CallToolResult(
-                    isError=True,
+                    is_error=True,
                     content=[TextContent(type='text', text=error_msg)],
                 )
 
@@ -744,7 +744,7 @@ class K8sHandler:
                 error_msg = f'Invalid output_dir: {e}'
                 log_with_request_id(ctx, LogLevel.ERROR, error_msg)
                 return CallToolResult(
-                    isError=True,
+                    is_error=True,
                     content=[TextContent(type='text', text=error_msg)],
                 )
 
@@ -777,7 +777,7 @@ class K8sHandler:
             if app_name_error:
                 log_with_request_id(ctx, LogLevel.ERROR, app_name_error)
                 return CallToolResult(
-                    isError=True,
+                    is_error=True,
                     content=[TextContent(type='text', text=app_name_error)],
                 )
 
@@ -805,7 +805,7 @@ class K8sHandler:
             )
 
             return CallToolResult(
-                isError=False,
+                is_error=False,
                 content=[
                     TextContent(type='text', text=success_message),
                     TextContent(type='text', text=json.dumps(data.model_dump())),
@@ -817,7 +817,7 @@ class K8sHandler:
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -951,7 +951,7 @@ class K8sHandler:
             error_msg = 'Access to pod logs requires --allow-sensitive-data-access flag'
             log_with_request_id(ctx, LogLevel.ERROR, error_msg)
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[TextContent(type='text', text=error_msg)],
             )
 
@@ -996,7 +996,7 @@ class K8sHandler:
             )
 
             return CallToolResult(
-                isError=False,
+                is_error=False,
                 content=[
                     TextContent(
                         type='text',
@@ -1021,7 +1021,7 @@ class K8sHandler:
 
             # Return error response
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[TextContent(type='text', text=error_msg)],
             )
 
@@ -1081,7 +1081,7 @@ class K8sHandler:
             error_msg = 'Access to Kubernetes events requires --allow-sensitive-data-access flag'
             log_with_request_id(ctx, LogLevel.ERROR, error_msg)
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[TextContent(type='text', text=error_msg)],
             )
 
@@ -1133,7 +1133,7 @@ class K8sHandler:
             )
 
             return CallToolResult(
-                isError=False,
+                is_error=False,
                 content=[
                     TextContent(
                         type='text',
@@ -1156,7 +1156,7 @@ class K8sHandler:
 
             # Return error response
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[TextContent(type='text', text=error_msg)],
             )
 
@@ -1215,7 +1215,7 @@ class K8sHandler:
             )
 
             return CallToolResult(
-                isError=False,
+                is_error=False,
                 content=[
                     TextContent(
                         type='text',
@@ -1235,6 +1235,6 @@ class K8sHandler:
 
             # Return error response
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[TextContent(type='text', text=error_msg)],
             )

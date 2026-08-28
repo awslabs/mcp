@@ -72,7 +72,7 @@ class TestCustomTagsAthena:
         """Test that create data catalog operation respects CUSTOM_TAGS when enabled."""
         # Mock the create_data_catalog method to return a response
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.name = 'test-catalog'
         mock_response.operation = 'create-data-catalog'
@@ -115,7 +115,7 @@ class TestCustomTagsAthena:
         """Test that delete data catalog operation respects CUSTOM_TAGS when enabled."""
         # Mock the delete_data_catalog method to return a response
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.name = 'test-catalog'
         mock_response.operation = 'delete-data-catalog'
@@ -146,7 +146,7 @@ class TestCustomTagsAthena:
         """Test that update data catalog operation respects CUSTOM_TAGS when enabled."""
         # Mock the update_data_catalog method to return a response
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.name = 'test-catalog'
         mock_response.operation = 'update-data-catalog'
@@ -185,7 +185,7 @@ class TestCustomTagsAthena:
         """Test that get data catalog operation respects CUSTOM_TAGS when enabled."""
         # Mock the get_data_catalog method to return a response
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.name = 'test-catalog'
         mock_response.type = 'GLUE'
@@ -220,7 +220,7 @@ class TestCustomTagsAthena:
         """Test that create workgroup operation respects CUSTOM_TAGS when enabled."""
         # Mock the create_workgroup method to return a response
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.name = 'test-workgroup'
         mock_response.operation = 'create-workgroup'
@@ -274,7 +274,7 @@ class TestCustomTagsAthena:
         """Test that delete workgroup operation respects CUSTOM_TAGS when enabled."""
         # Mock the delete_workgroup method to return a response
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.name = 'test-workgroup'
         mock_response.operation = 'delete-workgroup'
@@ -305,7 +305,7 @@ class TestCustomTagsAthena:
         """Test that update workgroup operation respects CUSTOM_TAGS when enabled."""
         # Mock the update_workgroup method to return a response
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.name = 'test-workgroup'
         mock_response.operation = 'update-workgroup'
@@ -351,7 +351,7 @@ class TestCustomTagsAthena:
         """Test that get workgroup operation respects CUSTOM_TAGS when enabled."""
         # Mock the get_workgroup method to return a response
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.name = 'test-workgroup'
         mock_response.description = 'Test workgroup'

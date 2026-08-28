@@ -51,7 +51,7 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.promql_models import (
 )
 from datetime import datetime, timedelta, timezone
 from loguru import logger
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from pathlib import Path
 from pydantic import Field
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union

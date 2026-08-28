@@ -18,7 +18,7 @@ import os
 from awslabs.aws_serverless_mcp_server.tools.common.base_tool import BaseTool
 from awslabs.aws_serverless_mcp_server.utils.data_scrubber import DataScrubber
 from boto3 import client as boto3_client
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Any, Dict, List, Literal, Optional
 
@@ -68,11 +68,11 @@ class EsmRecommendTool(BaseTool):
         },
     }
 
-    def __init__(self, mcp: FastMCP, allow_write: bool = False):
+    def __init__(self, mcp: MCPServer, allow_write: bool = False):
         """Initialize the ESM recommendation tool and AWS client connections.
 
         Args:
-            mcp: FastMCP instance for tool registration
+            mcp: MCPServer instance for tool registration
             allow_write: Whether write operations are allowed
         """
         super().__init__(allow_write=allow_write)

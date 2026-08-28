@@ -20,7 +20,7 @@ from awslabs.aws_healthomics_mcp_server.tools.troubleshooting import (
     diagnose_run_failure,
 )
 from datetime import datetime, timezone
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from unittest.mock import AsyncMock, MagicMock, patch
 
 

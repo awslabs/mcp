@@ -40,22 +40,22 @@ def register_tools(mcp) -> None:
     mcp.tool(
         annotations=ToolAnnotations(
             title='Create Instrumentation',
-            readOnlyHint=False,
-            destructiveHint=False,
-            idempotentHint=False,
-            openWorldHint=True,
+            read_only_hint=False,
+            destructive_hint=False,
+            idempotent_hint=False,
+            open_world_hint=True,
         )
     )(create_instrumentation)
 
     # Read-only queries.
     mcp.tool(
         annotations=ToolAnnotations(
-            title='List Instrumentations', readOnlyHint=True, openWorldHint=True
+            title='List Instrumentations', read_only_hint=True, open_world_hint=True
         )
     )(list_instrumentations)
     mcp.tool(
         annotations=ToolAnnotations(
-            title='Get Instrumentation', readOnlyHint=True, openWorldHint=True
+            title='Get Instrumentation', read_only_hint=True, open_world_hint=True
         )
     )(get_instrumentation)
 
@@ -63,28 +63,28 @@ def register_tools(mcp) -> None:
     mcp.tool(
         annotations=ToolAnnotations(
             title='Delete Instrumentation',
-            readOnlyHint=False,
-            destructiveHint=True,
-            idempotentHint=True,
-            openWorldHint=True,
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=True,
         )
     )(delete_instrumentation)
     mcp.tool(
         annotations=ToolAnnotations(
             title='Batch Delete Instrumentations by Scope',
-            readOnlyHint=False,
-            destructiveHint=True,
-            idempotentHint=True,
-            openWorldHint=True,
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=True,
         )
     )(batch_delete_instrumentations_by_scope)
     mcp.tool(
         annotations=ToolAnnotations(
             title='Batch Delete Instrumentations by ARNs',
-            readOnlyHint=False,
-            destructiveHint=True,
-            idempotentHint=True,
-            openWorldHint=True,
+            read_only_hint=False,
+            destructive_hint=True,
+            idempotent_hint=True,
+            open_world_hint=True,
         )
     )(batch_delete_instrumentations_by_arns)
 
@@ -92,13 +92,13 @@ def register_tools(mcp) -> None:
     mcp.tool(
         annotations=ToolAnnotations(
             title='Get Instrumentation Configuration Status',
-            readOnlyHint=True,
-            openWorldHint=True,
+            read_only_hint=True,
+            open_world_hint=True,
         )
     )(get_instrumentation_configuration_status)
     mcp.tool(
         annotations=ToolAnnotations(
-            title='Check Instrumentation Status', readOnlyHint=True, openWorldHint=True
+            title='Check Instrumentation Status', read_only_hint=True, open_world_hint=True
         )
     )(check_instrumentation_status)
 
@@ -106,14 +106,14 @@ def register_tools(mcp) -> None:
     mcp.tool(
         annotations=ToolAnnotations(
             title='Search Snapshots for Status Event',
-            readOnlyHint=True,
-            openWorldHint=True,
+            read_only_hint=True,
+            open_world_hint=True,
         )
     )(search_snapshots_for_status_event)
     mcp.tool(
         annotations=ToolAnnotations(
             title='Get Sample Snapshot for Breakpoint',
-            readOnlyHint=True,
-            openWorldHint=True,
+            read_only_hint=True,
+            open_world_hint=True,
         )
     )(get_sample_snapshot_for_breakpoint)

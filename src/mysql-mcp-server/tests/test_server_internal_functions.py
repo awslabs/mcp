@@ -314,7 +314,7 @@ class TestInternalConnectToDatabaseRDSMySQL:
         mock_get_inst.return_value = {
             'MasterUsername': 'admin',
             'MasterUserSecret': {'SecretArn': 'arn:secret'},
-            'Endpoint': {'Port': 3306},
+            'Endpoint': {'Address': 'resolved-instance.rds.amazonaws.com', 'Port': 3306},
         }
 
         mock_conn = MagicMock()
@@ -355,7 +355,7 @@ class TestInternalConnectToDatabaseRDSMariaDB:
         mock_get_inst.return_value = {
             'MasterUsername': 'admin',
             'MasterUserSecret': {'SecretArn': 'arn:secret'},
-            'Endpoint': {'Port': 3306},
+            'Endpoint': {'Address': 'resolved-instance.rds.amazonaws.com', 'Port': 3306},
         }
 
         mock_conn = MagicMock()
