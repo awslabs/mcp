@@ -60,7 +60,12 @@ Supported dimensions for grouping reservation coverage:
 - SERVICE: AWS service (EC2, RDS, etc.)
 - TENANCY: Instance tenancy (default, dedicated)
 
-Reservation utilization can only be grouped by SUBSCRIPTION_ID.""",
+Reservation utilization can only be grouped by SUBSCRIPTION_ID.
+
+IMPORTANT: `granularity` and `group_by` are mutually exclusive. If `group_by` is
+provided, `granularity` is ignored (the Cost Explorer API does not allow both for
+GetReservationCoverage or GetReservationUtilization). Provide one or the other,
+not both.""",
 )
 async def ri_performance(
     ctx: Context,
@@ -81,7 +86,7 @@ async def ri_performance(
         operation: The operation to perform: 'get_reservation_coverage' or 'get_reservation_utilization'
         start_date: Start date in YYYY-MM-DD format (inclusive). Defaults to 30 days ago if not provided.
         end_date: End date in YYYY-MM-DD format (exclusive). Defaults to today if not provided.
-        granularity: Time granularity of the data (DAILY or MONTHLY). Defaults to DAILY.
+        granularity: Time granularity of the data (DAILY or MONTHLY). Defaults to DAILY. Ignored when group_by is provided (granularity and group_by are mutually exclusive).
         metrics: List of metrics to retrieve for coverage as a JSON string (e.g., '["HoursCoverage", "CostCoverage"]'). Defaults to all metrics.
         group_by: Optional grouping of results as a JSON string. For coverage, supports multiple dimensions. For utilization, only supports SUBSCRIPTION_ID.
         filter: Optional filter to apply to the results as a JSON string, such as filtering by service, region, or instance type.
@@ -174,9 +179,8 @@ async def get_reservation_coverage(
         )
 
         # Prepare the request parameters
-        request_params = {
+        request_params: Dict[str, Any] = {
             'TimePeriod': {'Start': start, 'End': end},
-            'Granularity': granularity,
         }
 
         # Add optional parameters if provided
@@ -185,6 +189,13 @@ async def get_reservation_coverage(
 
         if group_by:
             request_params['GroupBy'] = parse_json(group_by, 'group_by')
+
+        # GetReservationCoverage treats Granularity and GroupBy as mutually
+        # exclusive: "Granularity is not supported when specifying groupBy".
+        # Only send Granularity when the request is not grouped, otherwise the
+        # API returns a ValidationException.
+        if not group_by:
+            request_params['Granularity'] = granularity
 
         if filter_expr:
             request_params['Filter'] = parse_json(filter_expr, 'filter')
@@ -295,14 +306,20 @@ async def get_reservation_utilization(
         )
 
         # Prepare the request parameters
-        request_params = {
+        request_params: Dict[str, Any] = {
             'TimePeriod': {'Start': start, 'End': end},
-            'Granularity': granularity,
         }
 
         # Add optional parameters if provided
         if group_by:
             request_params['GroupBy'] = parse_json(group_by, 'group_by')
+
+        # GetReservationUtilization treats Granularity and GroupBy as mutually
+        # exclusive: "If GroupBy is set, Granularity can't be set". Only send
+        # Granularity when the request is not grouped, otherwise the API returns
+        # a ValidationException.
+        if not group_by:
+            request_params['Granularity'] = granularity
 
         if filter_expr:
             request_params['Filter'] = parse_json(filter_expr, 'filter')

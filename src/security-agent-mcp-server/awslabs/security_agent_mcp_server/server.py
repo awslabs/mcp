@@ -14,10 +14,14 @@
 
 """AWS Security Agent MCP Server implementation."""
 
+import functools
 import json
 import os
 import sys
-from awslabs.security_agent_mcp_server.aws_client import SecurityAgentClient
+from awslabs.security_agent_mcp_server.aws_client import (
+    DEFAULT_MCP_CLIENT_NAME,
+    SecurityAgentClient,
+)
 from awslabs.security_agent_mcp_server.consts import (
     DEFAULT_REGION,
     SERVER_INSTRUCTIONS,
@@ -27,7 +31,7 @@ from awslabs.security_agent_mcp_server.state import StateManager
 from botocore.exceptions import ClientError
 from datetime import datetime, timezone
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Optional
 
@@ -48,7 +52,7 @@ _REMEDIATION = {
     'EntityAlreadyExistsException': 'The resource already exists; reuse it or pick a different name.',
     'ResourceNotFoundException': 'The resource does not exist or was deleted; run setup again.',
     'NoSuchEntity': 'The IAM resource does not exist; run setup again.',
-    'BucketAlreadyExists': 'The S3 bucket name is taken globally; pick a different name.',
+    'BucketAlreadyExists': 'SECURITY ALERT: this bucket name is owned by a different AWS account — possible squatting; investigate before retrying.',
     'BucketAlreadyOwnedByYou': 'You already own this bucket; reuse it.',
     'ValidationException': 'Request parameters were invalid; check the operation inputs.',
     'ThrottlingException': 'Request was throttled; retry with backoff.',
@@ -80,7 +84,7 @@ logger.remove()
 logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
 
 # Initialize MCP server
-mcp = FastMCP(
+mcp = MCPServer(
     'awslabs.security-agent-mcp-server',
     instructions=SERVER_INSTRUCTIONS,
     dependencies=['boto3', 'filelock', 'gitignorefile', 'pydantic', 'loguru'],
@@ -132,12 +136,50 @@ def _client_prefix(ctx: Context) -> str:
         client_params = session.client_params
         if client_params is None:
             return 'ide'
-        name = client_params.clientInfo.name  # type: ignore[union-attr]
+        name = client_params.client_info.name  # type: ignore[union-attr]
         if not isinstance(name, str):
             return 'ide'
         return name.lower().replace(' ', '-')
     except (AttributeError, TypeError):
         return 'ide'
+
+
+def _ensure_client_ua(ctx: Context) -> None:
+    """Inject MCP clientInfo into the SecurityAgentClient user-agent on first use.
+
+    Called at the start of each tool invocation. Since the module-level _client
+    singleton is created before any MCP session connects, this defers the
+    user-agent configuration until clientInfo is actually available.
+    """
+    try:
+        session = ctx.session
+        if session is None:
+            return
+        client_params = session.client_params
+        if client_params is None:
+            return
+        info = client_params.client_info  # type: ignore[union-attr]
+        if info is None:
+            return
+        name = info.name if isinstance(info.name, str) else DEFAULT_MCP_CLIENT_NAME
+        version = (
+            info.version if hasattr(info, 'version') and isinstance(info.version, str) else ''
+        )
+        _client.set_mcp_client_info(name, version)
+    except (AttributeError, TypeError) as e:
+        # Best-effort enrichment only; missing/invalid session client metadata
+        # must not fail tool execution.
+        logger.debug(f'Unable to set MCP client info for user-agent: {e}')
+
+
+def ensure_client_ua(func):
+    """Decorator that ensures MCP client info is set in the user-agent before tool execution."""
+
+    @functools.wraps(func)
+    async def wrapper(ctx: Context, *args, **kwargs):
+        return await func(ctx, *args, **kwargs)
+
+    return wrapper
 
 
 def _ensure_s3_bucket(config: dict, kind: str = 'scans') -> None:
@@ -149,12 +191,27 @@ def _ensure_s3_bucket(config: dict, kind: str = 'scans') -> None:
     config_key = 's3_bucket' if kind == 'scans' else 'threat_model_s3_bucket'
     if config.get(config_key):
         return
-    account_id = _client.get_caller_identity()['Account']
+    account_id = _client._account_id()
     bucket = f'security-agent-{kind}-{account_id}-{_region}'
     try:
         _client.create_s3_bucket(bucket)
     except ClientError as e:
+        # Reuse only if we already own it; BucketAlreadyExists (squatted) stays fatal.
         if e.response.get('Error', {}).get('Code') != 'BucketAlreadyOwnedByYou':
+            raise
+
+    # Only 403 means squat; upload_to_s3 re-checks ownership so transient errors are safe to swallow.
+    try:
+        _client.verify_bucket_owner(bucket)
+    except ClientError as e:
+        err = e.response.get('Error', {}) if hasattr(e, 'response') else {}
+        code = err.get('Code')
+        status = (
+            e.response.get('ResponseMetadata', {}).get('HTTPStatusCode')
+            if hasattr(e, 'response')
+            else None
+        )
+        if code in ('403', 'AccessDenied', 'Forbidden') or status == 403:
             raise
 
     # Register bucket on agent space so the service can access it
@@ -175,6 +232,7 @@ def _ensure_s3_bucket(config: dict, kind: str = 'scans') -> None:
 
 
 @mcp.tool()
+@ensure_client_ua
 async def setup_check(ctx: Context) -> str:
     """Check if AWS Security Agent prerequisites are configured.
 
@@ -227,6 +285,7 @@ async def setup_check(ctx: Context) -> str:
 
 
 @mcp.tool()
+@ensure_client_ua
 async def setup(
     ctx: Context,
     name: Optional[str] = Field(
@@ -323,6 +382,7 @@ async def setup(
 
 
 @mcp.tool()
+@ensure_client_ua
 async def start_security_scan(
     ctx: Context,
     path: str = Field(
@@ -372,6 +432,7 @@ async def start_security_scan(
 
 
 @mcp.tool()
+@ensure_client_ua
 async def start_diff_scan(
     ctx: Context,
     path: str = Field(
@@ -425,6 +486,7 @@ async def start_diff_scan(
 
 
 @mcp.tool()
+@ensure_client_ua
 async def start_threat_model_review(
     ctx: Context,
     path: str = Field(
@@ -480,6 +542,7 @@ async def start_threat_model_review(
 
 
 @mcp.tool()
+@ensure_client_ua
 async def get_scan_status(
     ctx: Context,
     scan_id: Optional[str] = Field(
@@ -506,6 +569,7 @@ async def get_scan_status(
 
 
 @mcp.tool()
+@ensure_client_ua
 async def get_scan_findings(
     ctx: Context,
     scan_id: Optional[str] = Field(
@@ -537,6 +601,7 @@ async def get_scan_findings(
 
 
 @mcp.tool()
+@ensure_client_ua
 async def list_scans(ctx: Context) -> str:
     """List all recent security scans tracked locally with their status."""
     try:
@@ -553,6 +618,7 @@ async def list_scans(ctx: Context) -> str:
 
 
 @mcp.tool()
+@ensure_client_ua
 async def stop_scan(
     ctx: Context,
     scan_id: str = Field(..., description='The scan ID to stop.'),
@@ -573,6 +639,7 @@ async def stop_scan(
 
 
 @mcp.tool()
+@ensure_client_ua
 async def call_api(
     ctx: Context,
     operation: str = Field(
@@ -613,6 +680,7 @@ _cached_operations = None
 
 
 @mcp.tool()
+@ensure_client_ua
 async def get_api_guide(ctx: Context) -> str:
     """Get all available SecurityAgent API operations.
 
@@ -625,7 +693,7 @@ async def get_api_guide(ctx: Context) -> str:
             import boto3
 
             session = boto3.Session(region_name=_region)
-            client = session.client('securityagent')
+            client = session.client('securityagent', config=_client._config)
             _cached_operations = sorted(client.meta.service_model.operation_names)
         except Exception as load_err:
             logger.warning(f'Could not load SecurityAgent service model: {load_err}')

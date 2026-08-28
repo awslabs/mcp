@@ -86,7 +86,7 @@ sampled in [mcp/.mcp.json](mcp/.mcp.json)
 
 #### [ddl-migrations/constraint-operations.md](references/ddl-migrations/constraint-operations.md)
 
-**When:** Load for ADD/DROP CONSTRAINT, MODIFY PRIMARY KEY, column split/merge migrations
+**When:** Load for ADD/DROP CONSTRAINT, VALIDATE CONSTRAINT, MODIFY PRIMARY KEY, column split/merge migrations
 **Contains:** Step-by-step migration patterns for constraint and structural changes
 
 #### [ddl-migrations/batched-migration.md](references/ddl-migrations/batched-migration.md)

@@ -18,7 +18,6 @@ A Model Context Protocol (MCP) server that provides tools for Billing and Cost M
 by wrapping boto3 SDK functions for AWS Billing and Cost Management services.
 """
 
-import asyncio
 import os
 import sys
 
@@ -61,6 +60,10 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_tools import
 from awslabs.billing_cost_management_mcp_server.tools.cost_optimization_hub_tools import (
     cost_optimization_hub_server,
 )
+from awslabs.billing_cost_management_mcp_server.tools.credits_tools import credits_server
+from awslabs.billing_cost_management_mcp_server.tools.enterprise_support_tools import (
+    enterprise_support_server,
+)
 from awslabs.billing_cost_management_mcp_server.tools.free_tier_usage_tools import (
     free_tier_usage_server,
 )
@@ -77,8 +80,17 @@ from awslabs.billing_cost_management_mcp_server.tools.recommendation_details_too
 from awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools import (
     ri_performance_server,
 )
+from awslabs.billing_cost_management_mcp_server.tools.sp_explorer_tools import (
+    sp_explorer_server,
+)
 from awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools import (
     sp_performance_server,
+)
+from awslabs.billing_cost_management_mcp_server.tools.sp_purchase_analyzer_tools import (
+    sp_purchase_analyzer_server,
+)
+from awslabs.billing_cost_management_mcp_server.tools.sp_recommendation_tools import (
+    sp_recommendation_server,
 )
 from awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools import storage_lens_server
 from awslabs.billing_cost_management_mcp_server.tools.unified_sql_tools import unified_sql_server
@@ -158,12 +170,17 @@ TOOLS:
 - rec-details: Get enhanced cost optimization recommendations
 - ri-performance: Analyze Reserved Instance coverage and utilization
 - sp-performance: Analyze Savings Plans coverage and utilization
+- sp-explorer: Describe the Savings Plans an account owns, including queued, returned, and payment-failed plans that Cost Explorer does not report, plus rates on owned plans and the offerings available to purchase
+- sp-recommendation: Get Savings Plans purchase recommendations, the hourly data-points behind one, and the recommendation generation history
+- sp-purchase-analyzer: Run Savings Plans Purchase Analyzer what-if analyses (max savings, custom commitment, target average coverage) and retrieve their results
 - session-sql: Execute SQL queries on the session database
 - billing-conductor: AWS Billing Conductor tools for AWS Proforma billing (billing groups and associated accounts and cost reports, pricing rules/plans, custom line items)
 - billing-view: AWS Billing View tools for managing and querying billing views (get-billing-view, list-billing-views, list-source-views-for-billing-view, get-resource-policy)
 - cost-allocation-tags: List cost allocation tags and backfill history (list-cost-allocation-tags, list-cost-allocation-tag-backfill-history)
 - cost-category: Describe and list cost category definitions (describe-cost-category-definition, list-cost-category-definitions)
 - invoicing: AWS Invoicing data — invoice summaries with amounts, tax, discounts/fees, currency/FX, due dates, PO numbers, and credit memos (operation: list_invoice_summaries)
+- credits: AWS Billing credits — credit balance, expiration, product applicability, sharing configuration, and the per-service allocation ledger (operations: get_credits, get_credit_allocation_history)
+- enterprise_support: AWS Enterprise Support charge data for a closed billing period — the Support charge and the Support-eligible spend it was calculated from, the contract terms that govern how the charge is allocated, and the per-linked-account breakdown (operations: get_charge_summary, get_contract_details, list_linked_account_charges)
 
 PROMPTS:
 - savings_plans: Analyzes AWS usage and identifies opportunities for Savings Plans purchases
@@ -192,7 +209,7 @@ For multi-account environments:
 mcp.add_middleware(ErrorSignalingMiddleware())
 
 
-async def register_prompts():
+def register_prompts():
     """Register all prompts with the MCP server."""
     try:
         from awslabs.billing_cost_management_mcp_server.prompts import register_all_prompts
@@ -203,32 +220,37 @@ async def register_prompts():
         logger.error(f'Error registering prompts: {e}')
 
 
-async def setup():
-    """Initialize the MCP server by importing all tool servers."""
-    await mcp.import_server(cost_explorer_server)
-    await mcp.import_server(compute_optimizer_server)
-    await mcp.import_server(compute_optimizer_automation_server)
-    await mcp.import_server(cost_optimization_hub_server)
-    await mcp.import_server(storage_lens_server)
-    await mcp.import_server(aws_pricing_server)
-    await mcp.import_server(bcm_pricing_calculator_server)
-    await mcp.import_server(budget_server)
-    await mcp.import_server(cost_anomaly_server)
-    await mcp.import_server(cost_comparison_server)
-    await mcp.import_server(free_tier_usage_server)
-    await mcp.import_server(recommendation_details_server)
-    await mcp.import_server(ri_performance_server)
-    await mcp.import_server(sp_performance_server)
-    await mcp.import_server(unified_sql_server)
-    await mcp.import_server(billing_conductor_server)
-    await mcp.import_server(bvs_server)
-    await mcp.import_server(cost_allocation_tags_server)
-    await mcp.import_server(cost_category_server)
-    await mcp.import_server(invoicing_server)
-    await mcp.import_server(invoice_units_server)
-    await mcp.import_server(procurement_preferences_server)
+def setup():
+    """Initialize the MCP server by mounting all tool servers."""
+    mcp.mount(cost_explorer_server)
+    mcp.mount(compute_optimizer_server)
+    mcp.mount(compute_optimizer_automation_server)
+    mcp.mount(cost_optimization_hub_server)
+    mcp.mount(storage_lens_server)
+    mcp.mount(aws_pricing_server)
+    mcp.mount(bcm_pricing_calculator_server)
+    mcp.mount(budget_server)
+    mcp.mount(cost_anomaly_server)
+    mcp.mount(cost_comparison_server)
+    mcp.mount(free_tier_usage_server)
+    mcp.mount(recommendation_details_server)
+    mcp.mount(ri_performance_server)
+    mcp.mount(sp_performance_server)
+    mcp.mount(sp_explorer_server)
+    mcp.mount(sp_recommendation_server)
+    mcp.mount(sp_purchase_analyzer_server)
+    mcp.mount(unified_sql_server)
+    mcp.mount(billing_conductor_server)
+    mcp.mount(bvs_server)
+    mcp.mount(cost_allocation_tags_server)
+    mcp.mount(cost_category_server)
+    mcp.mount(invoicing_server)
+    mcp.mount(invoice_units_server)
+    mcp.mount(procurement_preferences_server)
+    mcp.mount(credits_server)
+    mcp.mount(enterprise_support_server)
 
-    await register_prompts()
+    register_prompts()
 
     logger.info('AWS Billing and Cost Management MCP Server initialized successfully')
 
@@ -248,6 +270,9 @@ async def setup():
         'rec-details',
         'ri-performance',
         'sp-performance',
+        'sp-explorer',
+        'sp-recommendation',
+        'sp-purchase-analyzer',
         'session-sql',
         'list-billing-groups',
         'list-billing-group-cost-reports',
@@ -282,7 +307,7 @@ async def setup():
 def main():
     """Main entry point for the server."""
     # Run the setup function to initialize the server
-    asyncio.run(setup())
+    setup()
 
     # Start the MCP server
     mcp.run()

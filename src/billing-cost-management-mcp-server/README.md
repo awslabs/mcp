@@ -14,7 +14,7 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 
 - **Cost Explorer insights**: Analyze historical and forecasted AWS costs with flexible grouping and filtering
 - **Usage metrics analysis**: Track resource usage trends across your AWS environment
-- **Budget monitoring**: Check existing budgets and their status against actual spending
+- **Budget monitoring**: Check existing budgets and their status against actual spending, plus their configured enforcement actions and alert notifications (per-budget or account-wide)
 - **Cost anomaly detection**: Identify unusual spending patterns and their root causes
 
 ### Cost Optimization Recommendations
@@ -25,7 +25,11 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 ### Savings Plans and Reserved Instanaces
 
 - **Reserved Instance planning**: Analyze RI coverage and receive purchase recommendations
-- **Savings Plans guidance**: Get personalized Savings Plans recommendations based on usage patterns
+- **Savings Plans performance**: Analyze how much eligible spend existing plans cover and how much of their commitment is consumed over a lookback window
+- **Savings Plans inventory**: Describe the plans an account owns with their state, term, payment option, commitment, and expiry, including the queued, returned, and payment-failed plans that Cost Explorer does not report
+- **Savings Plans rates and offerings**: Look up the rates locked in on plans already owned, and the offerings available to purchase with their rates, to compare terms and payment options against real numbers
+- **Savings Plans recommendations**: Get personalized purchase recommendations based on usage patterns, the hourly data-points behind a recommendation, and the history of when recommendations were generated
+- **Savings Plans purchase analysis**: Run Purchase Analyzer what-if analyses — maximum savings, a specific commitment, or a target average coverage — and retrieve the projected cost, coverage, and utilization once an analysis completes
 
 ### S3 Storage Lens Analysis
 
@@ -67,6 +71,12 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 - **Invoice summaries**: List invoice-level details (invoice ID, type, billing period, issued/due dates, issuing entity, and amounts with discount/tax/fee breakdowns across base, tax, and payment currencies) for an account or a single invoice, filtered by month or date range
 - **Invoice units**: List and retrieve invoice unit definitions (groups of accounts that receive a separate invoice, with their receiver account and linked-account rules), filtered by name, receiver, or member account; and fetch invoice receiver profiles (legal name, address, tax registration number) for a set of accounts
 - **Procurement portal preferences**: List and retrieve procurement portal connections (SAP Business Network, Coupa) and e-invoice delivery / purchase-order retrieval settings
+
+### AWS Enterprise Support
+
+- **Enterprise Support charge summary**: Retrieve a billing period's Enterprise Support charge with the Support-eligible spend it was calculated from, the effective pricing plan, and any applied discounts
+- **Support contract details**: Review the contract terms that govern how a billing period's charge is allocated, including the allocation method, Reserved Instance and Savings Plan treatment, and the payer accounts covered
+- **Per-account charge breakdown**: Break a billing period's charge down by linked account with prorated Support-eligible spend, subscription periods, and per-service spend
 
 ### Specialized Cost Optimization Prompts
 
@@ -210,6 +220,12 @@ Cost Explorer:
 - ce:GetSavingsPlansCoverage
 - ce:GetSavingsPlansUtilizationDetails
 - ce:GetSavingsPlansPurchaseRecommendation
+- ce:GetSavingsPlanPurchaseRecommendationDetails
+- ce:StartSavingsPlansPurchaseRecommendationGeneration
+- ce:ListSavingsPlansPurchaseRecommendationGeneration
+- ce:StartCommitmentPurchaseAnalysis
+- ce:GetCommitmentPurchaseAnalysis
+- ce:ListCommitmentPurchaseAnalyses
 - ce:GetCostAndUsageComparisons
 - ce:GetCostComparisonDrivers
 - ce:GetAnomalies
@@ -221,6 +237,12 @@ Cost Explorer:
 - ce:GetUsageForecast
 - ce:GetTags
 - ce:GetCostCategories
+
+Savings Plans:
+- savingsplans:DescribeSavingsPlans
+- savingsplans:DescribeSavingsPlanRates
+- savingsplans:DescribeSavingsPlansOfferings
+- savingsplans:DescribeSavingsPlansOfferingRates
 
 Cost Allocation Tags:
 - ce:ListCostAllocationTags
@@ -262,7 +284,9 @@ Compute Optimizer Automation:
 - ec2:DescribeVolumes (required by ListRecommendedActions and ListAutomationRulePreview)
 
 AWS Budgets:
-- budgets:ViewBudget
+- budgets:ViewBudget (also covers budget notifications, per-budget and account-wide)
+- budgets:DescribeBudgetActionsForBudget (required for budget actions by budget name)
+- budgets:DescribeBudgetActionsForAccount (required for account-wide budget actions)
 
 AWS Pricing:
 - pricing:DescribeServices
@@ -322,6 +346,13 @@ AWS Invoicing:
 - invoicing:ListProcurementPortalPreferences
 - invoicing:GetProcurementPortalPreference
 
+AWS Billing:
+- billing:GetCredits
+- billing:GetCreditAllocationHistory
+- billing:GetEnterpriseSupportChargeSummary
+- billing:GetEnterpriseSupportContractDetails
+- billing:ListEnterpriseSupportLinkedAccountCharges
+
 #### Configuration
 
 The server uses these key environment variables:
@@ -361,6 +392,8 @@ The server currently supports the following AWS services
 
 2. **AWS Budgets**
    - describe_budgets
+   - describe_budget_actions (DescribeBudgetActionsForBudget / DescribeBudgetActionsForAccount)
+   - describe_budget_notifications (DescribeNotificationsForBudget / DescribeBudgetNotificationsForAccount)
 
 3. **AWS Free Tier**
    - get_free_tier_usage
@@ -435,3 +468,9 @@ The server currently supports the following AWS services
     - `invoicing` tool: list_invoice_summaries
     - `invoice-units` tool: list_invoice_units, get_invoice_unit, batch_get_invoice_profile
     - `procurement-preferences` tool: list_procurement_portal_preferences, get_procurement_portal_preference
+
+13. **AWS Credits**
+    - `credits` tool: get_credits, get_credit_allocation_history
+
+14. **AWS Enterprise Support**
+    - `enterprise_support` tool: get_charge_summary, get_contract_details, list_linked_account_charges

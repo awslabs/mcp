@@ -19,13 +19,13 @@ from awslabs.aws_dataprocessing_mcp_server.handlers.athena.athena_query_handler 
     AthenaQueryHandler,
 )
 from botocore.exceptions import ClientError
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from unittest.mock import Mock, patch
 
 
 def extract_response_data(response):
     """Helper function to extract data from CallToolResult content."""
-    if response.isError:
+    if response.is_error:
         return {}
     # Find the JSON content in the response
     for content_item in response.content:
@@ -98,7 +98,7 @@ async def test_batch_get_query_execution_success(handler, mock_athena_client):
     )
 
     data = extract_response_data(response)
-    assert not response.isError
+    assert not response.is_error
     assert len(data.get('query_executions', [])) == 2
     assert len(data.get('unprocessed_query_execution_ids', [])) == 0
     mock_athena_client.batch_get_query_execution.assert_called_once_with(
@@ -130,7 +130,7 @@ async def test_get_query_execution_success(handler, mock_athena_client):
     )
 
     data = extract_response_data(response)
-    assert not response.isError
+    assert not response.is_error
     assert data.get('query_execution_id') == 'query1'
     assert data.get('query_execution', {}).get('Status', {}).get('State') == 'SUCCEEDED'
     mock_athena_client.get_query_execution.assert_called_once_with(QueryExecutionId='query1')
@@ -170,7 +170,7 @@ async def test_get_query_results_success(handler, mock_athena_client):
     )
 
     data = extract_response_data(response)
-    assert not response.isError
+    assert not response.is_error
     assert data.get('query_execution_id') == 'query1'
     assert data.get('next_token') == 'next-token'
     assert data.get('update_count') == 0
@@ -205,7 +205,7 @@ async def test_get_query_runtime_statistics_success(handler, mock_athena_client)
         ctx, operation='get-query-runtime-statistics', query_execution_id='query1'
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert data['query_execution_id'] == 'query1'
     assert data['statistics']['Timeline']['QueryQueueTime'] == 100
@@ -242,7 +242,7 @@ async def test_list_query_executions_success(handler, mock_athena_client):
         work_group='primary',
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert len(data['query_execution_ids']) == 3
     assert data['count'] == 3
@@ -271,7 +271,7 @@ async def test_start_query_execution_success(handler, mock_athena_client):
         result_reuse_configuration={'ResultReuseByAgeConfiguration': {'Enabled': True}},
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert data['query_execution_id'] == 'query1'
     mock_athena_client.start_query_execution.assert_called_once_with(
@@ -303,7 +303,7 @@ async def test_start_query_execution_without_write_permission_non_select(handler
         ctx, operation='start-query-execution', query_string='INSERT INTO table VALUES (1, 2, 3)'
     )
 
-    assert response.isError
+    assert response.is_error
 
 
 @pytest.mark.asyncio
@@ -319,7 +319,7 @@ async def test_start_query_execution_without_write_permission_select(
         ctx, operation='start-query-execution', query_string='SELECT * FROM table'
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert data['query_execution_id'] == 'query1'
 
@@ -332,7 +332,7 @@ async def test_start_query_execution_without_write_permission_ctas(handler_reado
         ctx, operation='start-query-execution', query_string='CREATE TABLE AS SELECT * FROM table'
     )
 
-    assert response.isError
+    assert response.is_error
 
 
 @pytest.mark.asyncio
@@ -345,7 +345,7 @@ async def test_stop_query_execution_success(handler, mock_athena_client):
         ctx, operation='stop-query-execution', query_execution_id='query1'
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert data['query_execution_id'] == 'query1'
     mock_athena_client.stop_query_execution.assert_called_once_with(QueryExecutionId='query1')
@@ -367,7 +367,7 @@ async def test_invalid_query_operation(handler):
     ctx = Mock()
     response = await handler.manage_aws_athena_queries(ctx, operation='invalid-operation')
 
-    assert response.isError
+    assert response.is_error
     assert 'Invalid operation' in response.content[0].text
 
 
@@ -385,7 +385,7 @@ async def test_query_client_error_handling(handler, mock_athena_client):
         ctx, operation='get-query-execution', query_execution_id='query1'
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'Error in manage_aws_athena_queries' in response.content[0].text
 
 
@@ -406,7 +406,7 @@ async def test_batch_get_named_query_success(handler, mock_athena_client):
         ctx, operation='batch-get-named-query', named_query_ids=['id1', 'id2']
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert len(data['named_queries']) == 2
     assert len(data['unprocessed_named_query_ids']) == 0
@@ -441,7 +441,7 @@ async def test_create_named_query_success(handler, mock_athena_client):
         work_group='primary',
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert data['named_query_id'] == 'id1'
     mock_athena_client.create_named_query.assert_called_once_with(
@@ -477,7 +477,7 @@ async def test_create_named_query_without_write_permission(handler_readonly):
         query_string='SELECT * FROM table',
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'not allowed without write access' in response.content[0].text
 
 
@@ -491,7 +491,7 @@ async def test_delete_named_query_success(handler, mock_athena_client):
         ctx, operation='delete-named-query', named_query_id='id1'
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert data['named_query_id'] == 'id1'
     mock_athena_client.delete_named_query.assert_called_once_with(NamedQueryId='id1')
@@ -515,7 +515,7 @@ async def test_delete_named_query_without_write_permission(handler_readonly):
         ctx, operation='delete-named-query', named_query_id='id1'
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'not allowed without write access' in response.content[0].text
 
 
@@ -538,7 +538,7 @@ async def test_get_named_query_success(handler, mock_athena_client):
         ctx, operation='get-named-query', named_query_id='id1'
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert data['named_query_id'] == 'id1'
     assert data['named_query']['Name'] == 'My Query'
@@ -573,7 +573,7 @@ async def test_list_named_queries_success(handler, mock_athena_client):
         work_group='primary',
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert len(data['named_query_ids']) == 3
     assert data['count'] == 3
@@ -599,7 +599,7 @@ async def test_update_named_query_success(handler, mock_athena_client):
         query_string='SELECT * FROM new_table',
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert data['named_query_id'] == 'id1'
     mock_athena_client.update_named_query.assert_called_once_with(
@@ -629,7 +629,7 @@ async def test_update_named_query_without_write_permission(handler_readonly):
         ctx, operation='update-named-query', named_query_id='id1', name='Updated Query'
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'not allowed without write access' in response.content[0].text
 
 
@@ -639,7 +639,7 @@ async def test_invalid_named_query_operation(handler):
     ctx = Mock()
     response = await handler.manage_aws_athena_named_queries(ctx, operation='invalid-operation')
 
-    assert response.isError
+    assert response.is_error
     assert 'Invalid operation' in response.content[0].text
 
 
@@ -657,7 +657,7 @@ async def test_named_query_client_error_handling(handler, mock_athena_client):
         ctx, operation='get-named-query', named_query_id='id1'
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'Error in manage_aws_athena_named_queries' in response.content[0].text
 
 
@@ -698,7 +698,7 @@ async def test_get_query_results_with_minimal_parameters(handler, mock_athena_cl
         ctx, operation='get-query-results', query_execution_id='query1'
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert data['query_execution_id'] == 'query1'
     assert data.get('next_token') is None
@@ -716,7 +716,7 @@ async def test_list_query_executions_with_minimal_parameters(handler, mock_athen
     ctx = Mock()
     response = await handler.manage_aws_athena_queries(ctx, operation='list-query-executions')
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert len(data['query_execution_ids']) == 2
     assert data['count'] == 2
@@ -735,7 +735,7 @@ async def test_start_query_execution_with_minimal_parameters(handler, mock_athen
         ctx, operation='start-query-execution', query_string='SELECT * FROM table'
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert data['query_execution_id'] == 'query1'
     mock_athena_client.start_query_execution.assert_called_once_with(
@@ -754,7 +754,7 @@ async def test_list_named_queries_with_minimal_parameters(handler, mock_athena_c
     ctx = Mock()
     response = await handler.manage_aws_athena_named_queries(ctx, operation='list-named-queries')
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert len(data['named_query_ids']) == 2
     assert data['count'] == 2
@@ -775,7 +775,7 @@ async def test_update_named_query_with_partial_parameters(handler, mock_athena_c
         name='Updated Query',
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert data['named_query_id'] == 'id1'
     mock_athena_client.update_named_query.assert_called_once_with(
@@ -797,7 +797,7 @@ async def test_start_query_execution_with_select_in_uppercase(
         ctx, operation='start-query-execution', query_string='SELECT * FROM table'
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert data['query_execution_id'] == 'query1'
 
@@ -812,7 +812,7 @@ async def test_start_query_execution_with_ctas_in_query_string(handler_readonly)
         query_string='WITH temp AS (SELECT * FROM table) CREATE TABLE AS SELECT * FROM temp',
     )
 
-    assert response.isError
+    assert response.is_error
 
 
 @pytest.mark.asyncio
@@ -822,7 +822,7 @@ async def test_get_query_execution_with_none_id(handler):
     response = await handler.manage_aws_athena_queries(ctx, operation='invalid-operation')
 
     # This should return an error response
-    assert response.isError
+    assert response.is_error
 
 
 @pytest.mark.asyncio
@@ -832,7 +832,7 @@ async def test_get_named_query_with_none_id(handler):
     response = await handler.manage_aws_athena_named_queries(ctx, operation='invalid-operation')
 
     # This should return an error response
-    assert response.isError
+    assert response.is_error
 
 
 # Security Integration Tests
@@ -848,7 +848,7 @@ async def test_sql_injection_prevention_insert(handler_readonly):
         query_string='INSERT /* SELECT */ INTO table VALUES (1, 2, 3)',
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'contains write operations' in response.content[0].text
 
 
@@ -863,7 +863,7 @@ async def test_legitimate_select_query_allowed(handler_readonly, mock_athena_cli
         ctx, operation='start-query-execution', query_string='SELECT * FROM table'
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert data['query_execution_id'] == 'query1'
 
@@ -878,7 +878,7 @@ async def test_ctas_detection_in_handler(handler_readonly):
         query_string='CREATE TABLE new_table AS SELECT * FROM existing_table',
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'contains write operations' in response.content[0].text
 
 
@@ -893,7 +893,7 @@ async def test_write_operations_allowed_with_write_access(handler, mock_athena_c
         ctx, operation='start-query-execution', query_string='INSERT INTO table VALUES (1, 2, 3)'
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert data['query_execution_id'] == 'query1'
 
@@ -906,7 +906,7 @@ async def test_error_message_includes_query_type(handler_readonly):
         ctx, operation='start-query-execution', query_string='UPDATE table SET col=1'
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'contains write operations' in response.content[0].text
     assert 'Detected query type: UPDATE' in response.content[0].text
 
@@ -925,7 +925,7 @@ async def test_output_location_blocked_without_sensitive_data_access(handler_no_
         result_configuration={'OutputLocation': 's3://attacker-bucket/exfil/'},
     )
 
-    assert response.isError
+    assert response.is_error
     assert (
         'Custom OutputLocation in ResultConfiguration is not allowed' in response.content[0].text
     )
@@ -946,7 +946,7 @@ async def test_output_location_allowed_with_sensitive_data_access(handler, mock_
         result_configuration={'OutputLocation': 's3://my-bucket/results/'},
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert data['query_execution_id'] == 'query1'
 
@@ -967,7 +967,7 @@ async def test_result_configuration_without_output_location_allowed(
         result_configuration={'EncryptionConfiguration': {'EncryptionOption': 'SSE_S3'}},
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert data['query_execution_id'] == 'query1'
 
@@ -985,7 +985,7 @@ async def test_unload_blocked_in_readonly_mode(handler_readonly):
         query_string="UNLOAD (SELECT * FROM table) TO 's3://bucket/prefix/' WITH (format='JSON')",
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'contains write operations' in response.content[0].text
 
 
@@ -1002,6 +1002,6 @@ async def test_unload_allowed_with_write_access(handler, mock_athena_client):
         query_string="UNLOAD (SELECT * FROM table) TO 's3://bucket/prefix/' WITH (format='JSON')",
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert data['query_execution_id'] == 'query1'

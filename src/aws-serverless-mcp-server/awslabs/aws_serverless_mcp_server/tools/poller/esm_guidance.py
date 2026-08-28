@@ -14,7 +14,7 @@
 
 import os
 import re
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Any, Dict, Literal, Optional
 
@@ -27,11 +27,11 @@ class EsmGuidanceTool:
     security groups, and deployment validation for proper ESM configuration.
     """
 
-    def __init__(self, mcp: FastMCP):
+    def __init__(self, mcp: MCPServer):
         """Initialize the ESM guidance tool and register all available tools.
 
         Args:
-            mcp: FastMCP instance for tool registration
+            mcp: MCPServer instance for tool registration
         """
         # Register core guidance tool for general ESM setup instructions
         mcp.tool(name='esm_guidance')(self.esm_guidance_tool)

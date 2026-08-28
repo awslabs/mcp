@@ -13,6 +13,7 @@ const config: Config = {
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
     v4: true, // Improve compatibility with the upcoming Docusaurus v4
+    faster: false, // Keep the webpack bundler; v4:true would otherwise enable Rspack (needs @docusaurus/faster), whose SWC HTML minifier errors on the existing i18n markup
   },
 
   // Set the production url of your site here
@@ -30,7 +31,14 @@ const config: Config = {
   markdown: {
     hooks:  {
       onBrokenMarkdownLinks: 'throw'
-    }
+    },
+    // `future.v4: true` disables MDX v1 compat by default in Docusaurus 3.10,
+    // which makes `.md` files parse `## Heading {#anchor}` as a strict MDX
+    // expression and fail. Re-enable heading-id compat so the existing
+    // explicit heading anchors (used across the ja/ i18n docs) keep working.
+    mdx1Compat: {
+      headingIds: true,
+    },
   },
 
   // Add plugins

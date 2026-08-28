@@ -19,7 +19,7 @@ from awslabs.aws_dataprocessing_mcp_server.handlers.commons.common_resource_hand
 )
 from botocore.exceptions import ClientError
 from datetime import datetime, timedelta
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from tests.test_utils import CallToolResultWrapper
 from typing import Type
 from unittest.mock import Mock, patch
@@ -159,7 +159,7 @@ async def test_get_policies_for_role_success(handler, mock_iam_client):
     result = await handler.get_policies_for_role(ctx, role_name='test-role')
     response = CallToolResultWrapper(result)
 
-    assert not response.isError
+    assert not response.is_error
     assert response.role_arn == 'arn:aws:iam::123456789012:role/test-role'
     assert response.description == 'Test role description'
     assert len(response.managed_policies) == 1
@@ -203,7 +203,7 @@ async def test_get_policies_for_role_with_string_assume_role_policy(handler, moc
     result = await handler.get_policies_for_role(ctx, role_name='test-role')
     response = CallToolResultWrapper(result)
 
-    assert not response.isError
+    assert not response.is_error
     assert response.assume_role_policy_document['Version'] == '2012-10-17'
     assert len(response.assume_role_policy_document['Statement']) == 1
 
@@ -220,7 +220,7 @@ async def test_get_policies_for_role_error_handling(handler, mock_iam_client):
     result = await handler.get_policies_for_role(ctx, role_name='nonexistent-role')
     response = CallToolResultWrapper(result)
 
-    assert response.isError
+    assert response.is_error
     assert 'Failed to describe IAM role' in response.content[0].text
     assert response.role_arn == ''
 
@@ -246,7 +246,7 @@ async def test_add_inline_policy_success(handler):
     )
     response = CallToolResultWrapper(result)
 
-    assert not response.isError
+    assert not response.is_error
     assert response.policy_name == 'test-policy'
     assert response.role_name == 'test-role'
     assert response.permissions_added == permissions
@@ -278,7 +278,7 @@ async def test_add_inline_policy_with_list_permissions(handler):
     )
     response = CallToolResultWrapper(result)
 
-    assert not response.isError
+    assert not response.is_error
     assert response.policy_name == 'test-policy'
     assert response.role_name == 'test-role'
     # Handle AttributeDict objects from CallToolResultWrapper
@@ -303,7 +303,7 @@ async def test_add_inline_policy_without_write_permission(read_only_handler):
     )
     response = CallToolResultWrapper(result)
 
-    assert response.isError
+    assert response.is_error
     assert 'requires --allow-write flag' in response.content[0].text
 
 
@@ -326,7 +326,7 @@ async def test_add_inline_policy_already_exists(handler, mock_iam_client):
     )
     response = CallToolResultWrapper(result)
 
-    assert response.isError
+    assert response.is_error
     assert 'already exists' in response.content[0].text
 
 
@@ -349,7 +349,7 @@ async def test_create_data_processing_role_glue_success(handler, mock_iam_client
     )
     response = CallToolResultWrapper(result)
 
-    assert not response.isError
+    assert not response.is_error
     assert response.role_name == 'test-glue-role'
     assert response.role_arn == 'arn:aws:iam::123456789012:role/test-glue-role'
 
@@ -380,7 +380,7 @@ async def test_create_data_processing_role_emr_success(handler, mock_iam_client)
     )
     response = CallToolResultWrapper(result)
 
-    assert not response.isError
+    assert not response.is_error
     assert response.role_name == 'test-emr-role'
 
     # Verify create_role was called with correct trust relationship
@@ -407,7 +407,7 @@ async def test_create_data_processing_role_athena_success(handler, mock_iam_clie
     )
     response = CallToolResultWrapper(result)
 
-    assert not response.isError
+    assert not response.is_error
     assert response.role_name == 'test-athena-role'
 
     # Verify create_role was called with correct trust relationship
@@ -437,7 +437,7 @@ async def test_create_data_processing_role_with_inline_policy(handler, mock_iam_
     )
     response = CallToolResultWrapper(result)
 
-    assert not response.isError
+    assert not response.is_error
 
     # Verify inline policy was added
     mock_iam_client.put_role_policy.assert_called_once()
@@ -455,7 +455,7 @@ async def test_create_data_processing_role_invalid_service_type(handler):
     )
     response = CallToolResultWrapper(result)
 
-    assert response.isError
+    assert response.is_error
     assert 'Invalid service type' in response.content[0].text
 
 
@@ -468,7 +468,7 @@ async def test_create_data_processing_role_without_write_permission(read_only_ha
     )
     response = CallToolResultWrapper(result)
 
-    assert response.isError
+    assert response.is_error
     assert 'requires --allow-write flag' in response.content[0].text
 
 
@@ -524,7 +524,7 @@ async def test_get_roles_for_service_success(handler, mock_iam_client):
     result = await handler.get_roles_for_service(ctx, service_type='glue')
     response = CallToolResultWrapper(result)
 
-    assert not response.isError
+    assert not response.is_error
     assert response.service_type == 'glue'
     assert len(response.roles) == 1  # Only the Glue role should be returned
     assert response.roles[0].role_name == 'glue-role-1'
@@ -570,7 +570,7 @@ async def test_get_roles_for_service_with_string_assume_role_policy(handler, moc
     result = await handler.get_roles_for_service(ctx, service_type='glue')
     response = CallToolResultWrapper(result)
 
-    assert not response.isError
+    assert not response.is_error
     assert len(response.roles) == 1
     assert response.roles[0].role_name == 'glue-role-1'
 
@@ -587,7 +587,7 @@ async def test_get_roles_for_service_error_handling(handler, mock_iam_client):
     result = await handler.get_roles_for_service(ctx, service_type='glue')
     response = CallToolResultWrapper(result)
 
-    assert response.isError
+    assert response.is_error
     assert 'Failed to list IAM roles' in response.content[0].text
 
 
@@ -622,7 +622,7 @@ async def test_list_s3_buckets_success(handler, mock_s3_client):
     result = await handler.list_s3_buckets(ctx, region='us-east-1')
     response = CallToolResultWrapper(result)
 
-    assert not response.isError
+    assert not response.is_error
     assert response.region == 'us-east-1'
     assert response.bucket_count == 1  # Only the bucket with 'glue' in name
     assert len(response.buckets) == 1
@@ -641,7 +641,7 @@ async def test_list_s3_buckets_with_environment_region(handler, mock_s3_client):
         result = await handler.list_s3_buckets(ctx)
         response = CallToolResultWrapper(result)
 
-        assert not response.isError
+        assert not response.is_error
         assert response.region == 'us-west-2'
 
 
@@ -657,7 +657,7 @@ async def test_list_s3_buckets_error_handling(handler, mock_s3_client):
     result = await handler.list_s3_buckets(ctx)
     response = CallToolResultWrapper(result)
 
-    assert response.isError
+    assert response.is_error
     assert 'AWS Error' in response.content[0].text
 
 
@@ -699,7 +699,7 @@ async def test_analyze_s3_usage_glue_connections_error(handler, mock_s3_client):
         result = await handler.analyze_s3_usage_for_data_processing(ctx)
         response = CallToolResultWrapper(result)
 
-        assert not response.isError
+        assert not response.is_error
         # Should still return results but with error details in the text
         assert 'Error checking Glue usage' in response.analysis_summary
 
@@ -745,7 +745,7 @@ async def test_analyze_s3_usage_athena_workgroups_error(handler, mock_s3_client)
         result = await handler.analyze_s3_usage_for_data_processing(ctx)
         response = CallToolResultWrapper(result)
 
-        assert not response.isError
+        assert not response.is_error
         # Should still return results but with error details in the text
         assert 'Error checking Athena usage' in response.analysis_summary
 
@@ -796,7 +796,7 @@ async def test_analyze_s3_usage_athena_workgroup_details_error(handler, mock_s3_
         result = await handler.analyze_s3_usage_for_data_processing(ctx)
         response = CallToolResultWrapper(result)
 
-        assert not response.isError
+        assert not response.is_error
         # Should still return results but with warning about workgroup check
         assert 'Warning: Could not check workgroup test-workgroup' in response.analysis_summary
 
@@ -841,7 +841,7 @@ async def test_analyze_s3_usage_emr_clusters_error(handler, mock_s3_client):
         result = await handler.analyze_s3_usage_for_data_processing(ctx)
         response = CallToolResultWrapper(result)
 
-        assert not response.isError
+        assert not response.is_error
         # Should still return results but with error details in the text
         assert 'Error checking EMR usage' in response.analysis_summary
 
@@ -891,7 +891,7 @@ async def test_analyze_s3_usage_emr_cluster_details_error(handler, mock_s3_clien
         result = await handler.analyze_s3_usage_for_data_processing(ctx)
         response = CallToolResultWrapper(result)
 
-        assert not response.isError
+        assert not response.is_error
         # Should still return results but with warning about cluster check
         assert 'Warning: Could not check cluster j-1234567890123' in response.analysis_summary
 
@@ -934,7 +934,7 @@ async def test_analyze_s3_usage_last_activity_error(handler, mock_s3_client):
         result = await handler.analyze_s3_usage_for_data_processing(ctx)
         response = CallToolResultWrapper(result)
 
-        assert not response.isError
+        assert not response.is_error
         # Should still return results but with error details in the text
         assert 'Error checking last activity' in response.analysis_summary
 
@@ -982,7 +982,7 @@ async def test_analyze_s3_usage_bucket_name_hints(handler, mock_s3_client):
         result = await handler.analyze_s3_usage_for_data_processing(ctx)
         response = CallToolResultWrapper(result)
 
-        assert not response.isError
+        assert not response.is_error
         # Should detect bucket name hints
         assert (
             'Likely Glue bucket (based on name) but no active usage detected'
@@ -1015,7 +1015,7 @@ async def test_upload_to_s3_success(handler, mock_s3_client):
     )
     response = CallToolResultWrapper(result)
 
-    assert not response.isError
+    assert not response.is_error
     assert response.s3_uri == 's3://test-bucket/scripts/test.py'
     assert response.bucket_name == 'test-bucket'
     assert response.s3_key == 'scripts/test.py'
@@ -1046,7 +1046,7 @@ async def test_upload_to_s3_make_public(handler, mock_s3_client):
     )
     response = CallToolResultWrapper(result)
 
-    assert not response.isError
+    assert not response.is_error
 
     # Verify put_object_acl was called
     mock_s3_client.put_object_acl.assert_called_once_with(
@@ -1063,7 +1063,7 @@ async def test_upload_to_s3_without_write_permission(read_only_handler):
     )
     response = CallToolResultWrapper(result)
 
-    assert response.isError
+    assert response.is_error
     assert 'requires --allow-write flag' in response.content[0].text
 
 
@@ -1083,7 +1083,7 @@ async def test_upload_to_s3_bucket_not_found(handler, mock_s3_client):
     )
     response = CallToolResultWrapper(result)
 
-    assert response.isError
+    assert response.is_error
     assert 'does not exist' in response.content[0].text
 
 
@@ -1126,7 +1126,7 @@ async def test_analyze_s3_usage_for_data_processing_success(handler, mock_s3_cli
         result = await handler.analyze_s3_usage_for_data_processing(ctx)
         response = CallToolResultWrapper(result)
 
-        assert not response.isError
+        assert not response.is_error
         assert 'S3 Usage Analysis' in response.analysis_summary
         assert response.service_usage is not None
         assert 'glue' in response.service_usage
@@ -1172,7 +1172,7 @@ async def test_analyze_s3_usage_specific_bucket(handler, mock_s3_client):
         result = await handler.analyze_s3_usage_for_data_processing(ctx, bucket_name='test-bucket')
         response = CallToolResultWrapper(result)
 
-        assert not response.isError
+        assert not response.is_error
         assert 'S3 Usage Analysis' in response.analysis_summary
 
 
@@ -1192,7 +1192,7 @@ async def test_analyze_s3_usage_bucket_not_found(handler, mock_s3_client):
     )
     response = CallToolResultWrapper(result)
 
-    assert response.isError
+    assert response.is_error
     assert 'does not exist or is not accessible' in response.content[0].text
 
 
@@ -1208,7 +1208,7 @@ async def test_analyze_s3_usage_error_handling(handler, mock_s3_client):
     result = await handler.analyze_s3_usage_for_data_processing(ctx)
     response = CallToolResultWrapper(result)
 
-    assert response.isError
+    assert response.is_error
     assert 'AWS Error' in response.content[0].text
 
 
@@ -1471,7 +1471,7 @@ async def test_create_data_processing_role_create_role_error(handler, mock_iam_c
         ctx, role_name='existing-role', service_type='glue'
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'Failed to create IAM role' in response.content[0].text
 
 
@@ -1515,7 +1515,7 @@ async def test_analyze_s3_usage_idle_bucket_detection(handler, mock_s3_client):
         result = await handler.analyze_s3_usage_for_data_processing(ctx)
         response = CallToolResultWrapper(result)
 
-        assert not response.isError
+        assert not response.is_error
         # Should detect idle bucket
         assert (
             'IDLE: No data processing service usage detected and no activity for 90+ days'
@@ -1569,7 +1569,7 @@ async def test_analyze_s3_usage_glue_job_detection(handler, mock_s3_client):
         result = await handler.analyze_s3_usage_for_data_processing(ctx)
         response = CallToolResultWrapper(result)
 
-        assert not response.isError
+        assert not response.is_error
         # Should detect Glue usage
         assert '✅ Used by AWS Glue' in response.analysis_summary
 
@@ -1617,7 +1617,7 @@ async def test_analyze_s3_usage_glue_crawler_detection(handler, mock_s3_client):
         result = await handler.analyze_s3_usage_for_data_processing(ctx)
         response = CallToolResultWrapper(result)
 
-        assert not response.isError
+        assert not response.is_error
         # Should detect Glue usage
         assert '✅ Used by AWS Glue' in response.analysis_summary
 
@@ -1670,7 +1670,7 @@ async def test_analyze_s3_usage_athena_workgroup_detection(handler, mock_s3_clie
         result = await handler.analyze_s3_usage_for_data_processing(ctx)
         response = CallToolResultWrapper(result)
 
-        assert not response.isError
+        assert not response.is_error
         # Should detect Athena usage
         assert '✅ Used by Amazon Athena' in response.analysis_summary
 
@@ -1718,7 +1718,7 @@ async def test_analyze_s3_usage_emr_cluster_detection(handler, mock_s3_client):
         result = await handler.analyze_s3_usage_for_data_processing(ctx)
         response = CallToolResultWrapper(result)
 
-        assert not response.isError
+        assert not response.is_error
         # Should detect EMR usage
         assert '✅ Used by Amazon EMR' in response.analysis_summary
 
@@ -1746,7 +1746,7 @@ async def test_list_s3_buckets_us_east_1_location_constraint(handler, mock_s3_cl
     result = await handler.list_s3_buckets(ctx, region='us-east-1')
     response = CallToolResultWrapper(result)
 
-    assert not response.isError
+    assert not response.is_error
     assert response.region == 'us-east-1'
     assert response.bucket_count == 1
     assert len(response.buckets) == 1
@@ -1777,7 +1777,7 @@ async def test_list_s3_buckets_truncated_objects(handler, mock_s3_client):
     result = await handler.list_s3_buckets(ctx, region='us-east-1')
     response = CallToolResultWrapper(result)
 
-    assert not response.isError
+    assert not response.is_error
     assert response.region == 'us-east-1'
     assert response.bucket_count == 1
     assert len(response.buckets) == 1
@@ -1805,7 +1805,7 @@ async def test_upload_to_s3_us_east_1_location_constraint(handler, mock_s3_clien
     )
     response = CallToolResultWrapper(result)
 
-    assert not response.isError
+    assert not response.is_error
     assert response.s3_uri == 's3://test-bucket/scripts/test.py'
     assert response.bucket_name == 'test-bucket'
     assert response.s3_key == 'scripts/test.py'
@@ -1867,7 +1867,7 @@ async def test_list_s3_buckets_bucket_location_error(handler, mock_s3_client):
     result = await handler.list_s3_buckets(ctx, region='us-east-1')
     response = CallToolResultWrapper(result)
 
-    assert not response.isError
+    assert not response.is_error
     # Should still return results but with error details in the text
     assert 'Error getting details' in response.content[0].text
 
@@ -1894,7 +1894,7 @@ async def test_list_s3_buckets_list_objects_error(handler, mock_s3_client):
     result = await handler.list_s3_buckets(ctx, region='us-east-1')
     response = CallToolResultWrapper(result)
 
-    assert not response.isError
+    assert not response.is_error
     # Should still return results but with error details in the text
     assert 'Error getting details' in response.content[0].text
 
@@ -1915,7 +1915,7 @@ async def test_upload_to_s3_bucket_access_denied(handler, mock_s3_client):
     )
     response = CallToolResultWrapper(result)
 
-    assert response.isError
+    assert response.is_error
     assert 'Access denied to bucket' in response.content[0].text
 
 
@@ -1943,7 +1943,7 @@ async def test_create_data_processing_role_attach_policy_error(handler, mock_iam
     )
     response = CallToolResultWrapper(result)
 
-    assert response.isError
+    assert response.is_error
     assert 'Failed to create IAM role' in response.content[0].text
 
 
@@ -1975,5 +1975,5 @@ async def test_create_data_processing_role_inline_policy_error(handler, mock_iam
     )
     response = CallToolResultWrapper(result)
 
-    assert response.isError
+    assert response.is_error
     assert 'Failed to create IAM role' in response.content[0].text

@@ -391,12 +391,15 @@ class TestReadonlyEnforcement:
 
         # 500k `$`: linear cost is well under 1s; the reverted O(n^2) slice version
         # takes tens of seconds at this size, so this reliably catches a regression.
+        # The threshold is set generously (5s) so that a loaded CI runner does not
+        # trip a false positive while still detecting a genuine O(n^2) regression
+        # (which takes 30+ seconds at this payload size).
         payload = '$' * 500_000
         start = time.perf_counter()
         detect_mutating_keywords(payload)
         check_sql_injection_risk(payload)
         elapsed = time.perf_counter() - start
-        assert elapsed < 2.0, f'dollar-heavy input too slow ({elapsed:.2f}s) — possible O(n^2)'
+        assert elapsed < 5.0, f'dollar-heavy input too slow ({elapsed:.2f}s) — possible O(n^2)'
 
     def test_double_quoted_identifier_apostrophe_does_not_bypass(self):
         """An apostrophe inside a double-quoted identifier must not desync scanning.

@@ -306,15 +306,21 @@
         "aws s3api copy-object",
         "aws s3api upload-part-copy",
         "aws s3api put-object",
+        "aws s3api create-multipart-upload",
         "aws s3api upload-part",
+        "aws s3api complete-multipart-upload",
+        "aws s3api abort-multipart-upload",
         "aws s3api head-object",
-        "aws s3api get-object"
+        "aws s3api get-object",
+        "aws s3api list-objects-v2",
+        "aws s3api create-session"
       ]
     },
     "s3 ls": {
       "api_calls": [
         "aws s3api list-buckets",
-        "aws s3api list-objects-v2"
+        "aws s3api list-objects-v2",
+        "aws s3api create-session"
       ]
     },
     "s3 mb": {
@@ -326,7 +332,16 @@
       "api_calls": [
         "aws s3api copy-object",
         "aws s3api upload-part-copy",
-        "aws s3api delete-object"
+        "aws s3api put-object",
+        "aws s3api create-multipart-upload",
+        "aws s3api upload-part",
+        "aws s3api complete-multipart-upload",
+        "aws s3api abort-multipart-upload",
+        "aws s3api head-object",
+        "aws s3api get-object",
+        "aws s3api delete-object",
+        "aws s3api list-objects-v2",
+        "aws s3api create-session"
       ]
     },
     "s3 presign": {
@@ -336,12 +351,17 @@
     },
     "s3 rb": {
       "api_calls": [
-        "aws s3api delete-bucket"
+        "aws s3api delete-bucket",
+        "aws s3api list-objects-v2",
+        "aws s3api delete-object",
+        "aws s3api create-session"
       ]
     },
     "s3 rm": {
       "api_calls": [
-        "aws s3api delete-object"
+        "aws s3api delete-object",
+        "aws s3api list-objects-v2",
+        "aws s3api create-session"
       ]
     },
     "s3 sync": {
@@ -349,9 +369,15 @@
         "aws s3api copy-object",
         "aws s3api upload-part-copy",
         "aws s3api put-object",
+        "aws s3api create-multipart-upload",
         "aws s3api upload-part",
+        "aws s3api complete-multipart-upload",
+        "aws s3api abort-multipart-upload",
         "aws s3api head-object",
-        "aws s3api get-object"
+        "aws s3api get-object",
+        "aws s3api delete-object",
+        "aws s3api list-objects-v2",
+        "aws s3api create-session"
       ]
     },
     "s3 website": {

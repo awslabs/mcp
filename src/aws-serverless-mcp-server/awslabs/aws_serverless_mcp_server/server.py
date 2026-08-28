@@ -59,14 +59,14 @@ from awslabs.aws_serverless_mcp_server.tools.webapps import (
 from awslabs.aws_serverless_mcp_server.utils.aws_client_helper import get_aws_client
 from awslabs.aws_serverless_mcp_server.utils.const import AWS_REGION, DEPLOYMENT_STATUS_DIR
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from typing import Any, Dict
 
 
 # Initialize boto3 client
 schemas_client = get_aws_client('schemas', AWS_REGION)
 
-mcp = FastMCP(
+mcp = MCPServer(
     'awslabs.aws-serverless-mcp-server',
     instructions="""AWS Serverless MCP
 

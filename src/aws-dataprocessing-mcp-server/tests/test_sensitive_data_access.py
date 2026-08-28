@@ -106,7 +106,7 @@ class TestSensitiveDataAccess:
             call_args = mock_glue_client.get_connection.call_args[1]
             assert call_args['HidePassword'] is True, 'HidePassword should be enforced to True'
 
-            assert result.isError is False
+            assert result.is_error is False
 
     @pytest.mark.asyncio
     async def test_get_connection_respects_hide_password_when_flag_enabled(
@@ -143,7 +143,7 @@ class TestSensitiveDataAccess:
                 'HidePassword should be False when flag enabled'
             )
 
-            assert result.isError is False
+            assert result.is_error is False
 
     @pytest.mark.asyncio
     async def test_list_connections_enforces_hide_password_when_flag_disabled(
@@ -166,7 +166,7 @@ class TestSensitiveDataAccess:
             call_args = mock_glue_client.get_connections.call_args[1]
             assert call_args['HidePassword'] is True, 'HidePassword should be enforced to True'
 
-            assert result.isError is False
+            assert result.is_error is False
 
     # ==================== HIGH: Query Result Protection Tests ====================
 
@@ -185,7 +185,7 @@ class TestSensitiveDataAccess:
 
             # Verify operation was blocked
             mock_glue_client.get_entity_records.assert_not_called()
-            assert result.isError is True
+            assert result.is_error is True
             assert 'requires --allow-sensitive-data-access flag' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -208,7 +208,7 @@ class TestSensitiveDataAccess:
 
             # Verify operation was allowed
             mock_glue_client.get_entity_records.assert_called_once()
-            assert result.isError is False
+            assert result.is_error is False
 
     @pytest.mark.asyncio
     async def test_athena_get_query_results_blocked_without_flag(
@@ -228,7 +228,7 @@ class TestSensitiveDataAccess:
 
             # Verify operation was blocked
             mock_athena_client.get_query_results.assert_not_called()
-            assert result.isError is True
+            assert result.is_error is True
             assert 'requires --allow-sensitive-data-access flag' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -252,7 +252,7 @@ class TestSensitiveDataAccess:
 
             # Verify operation was allowed
             mock_athena_client.get_query_results.assert_called_once()
-            assert result.isError is False
+            assert result.is_error is False
 
     @pytest.mark.asyncio
     async def test_glue_get_statement_blocked_without_flag(self, mock_ctx, mock_glue_client):
@@ -272,7 +272,7 @@ class TestSensitiveDataAccess:
 
             # Verify operation was blocked
             mock_glue_client.get_statement.assert_not_called()
-            assert result.isError is True
+            assert result.is_error is True
             assert 'requires --allow-sensitive-data-access flag' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -301,7 +301,7 @@ class TestSensitiveDataAccess:
 
             # Verify operation was allowed
             mock_glue_client.get_statement.assert_called_once()
-            assert result.isError is False
+            assert result.is_error is False
 
     # ==================== MEDIUM: Job Output Protection Tests ====================
 
@@ -321,7 +321,7 @@ class TestSensitiveDataAccess:
 
             # Verify operation was blocked
             mock_glue_client.get_job_run.assert_not_called()
-            assert result.isError is True
+            assert result.is_error is True
             assert 'requires --allow-sensitive-data-access flag' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -344,7 +344,7 @@ class TestSensitiveDataAccess:
 
             # Verify operation was allowed
             mock_glue_client.get_job_run.assert_called_once()
-            assert result.isError is False
+            assert result.is_error is False
 
     @pytest.mark.asyncio
     async def test_emr_serverless_get_job_run_blocked_without_flag(
@@ -369,7 +369,7 @@ class TestSensitiveDataAccess:
 
             # Verify operation was blocked
             mock_emr_serverless_client.get_job_run.assert_not_called()
-            assert result.isError is True
+            assert result.is_error is True
             assert 'requires --allow-sensitive-data-access flag' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -399,7 +399,7 @@ class TestSensitiveDataAccess:
 
             # Verify operation was allowed
             mock_emr_serverless_client.get_job_run.assert_called_once()
-            assert result.isError is False
+            assert result.is_error is False
 
     @pytest.mark.asyncio
     async def test_emr_describe_step_blocked_without_flag(self, mock_ctx, mock_emr_client):
@@ -417,7 +417,7 @@ class TestSensitiveDataAccess:
 
             # Verify operation was blocked
             mock_emr_client.describe_step.assert_not_called()
-            assert result.isError is True
+            assert result.is_error is True
             assert 'requires --allow-sensitive-data-access flag' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -445,7 +445,7 @@ class TestSensitiveDataAccess:
 
             # Verify operation was allowed
             mock_emr_client.describe_step.assert_called_once()
-            assert result.isError is False
+            assert result.is_error is False
 
     # ==================== Read-Only Operations Should Still Work ====================
 
@@ -469,7 +469,7 @@ class TestSensitiveDataAccess:
 
             # Verify operation was allowed (list operations show IDs, not data)
             mock_athena_client.list_query_executions.assert_called_once()
-            assert result.isError is False
+            assert result.is_error is False
 
     @pytest.mark.asyncio
     async def test_glue_list_statements_not_blocked(self, mock_ctx, mock_glue_client):
@@ -493,4 +493,4 @@ class TestSensitiveDataAccess:
 
             # Verify operation was allowed (list operations show status, not output data)
             mock_glue_client.list_statements.assert_called_once()
-            assert result.isError is False
+            assert result.is_error is False
