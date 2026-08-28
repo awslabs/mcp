@@ -23,7 +23,9 @@ class TestQueryKnowledgeBase:
     """Tests for the query_knowledge_base function."""
 
     @pytest.mark.asyncio
-    async def test_query_knowledge_base_default(self, mock_bedrock_agent_runtime_client, mock_bedrock_agent_client):
+    async def test_query_knowledge_base_default(
+        self, mock_bedrock_agent_runtime_client, mock_bedrock_agent_client
+    ):
         """Test querying a knowledge base with default parameters."""
         # Call the function
         result = await query_knowledge_base(
@@ -112,7 +114,9 @@ class TestQueryKnowledgeBase:
         )
 
     @pytest.mark.asyncio
-    async def test_query_knowledge_base_without_reranking(self, mock_bedrock_agent_runtime_client, mock_bedrock_agent_client):
+    async def test_query_knowledge_base_without_reranking(
+        self, mock_bedrock_agent_runtime_client, mock_bedrock_agent_client
+    ):
         """Test querying a knowledge base without reranking."""
         # Call the function with reranking disabled
         result = await query_knowledge_base(
@@ -159,7 +163,9 @@ class TestQueryKnowledgeBase:
             )
 
         # Check that the error message is correct
-        assert 'Reranking is not supported in region eu-west-1' in str(excinfo.value)
+        assert "'COHERE' reranking model is not available in region eu-west-1" in str(
+            excinfo.value
+        )
 
         # Check that the client methods were not called
         mock_bedrock_agent_runtime_client.retrieve.assert_not_called()
