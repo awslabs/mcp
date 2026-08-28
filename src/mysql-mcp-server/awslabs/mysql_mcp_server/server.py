@@ -25,6 +25,7 @@ from awslabs.mysql_mcp_server.connection.cp_api_connection import (
     internal_create_aurora_cluster,
     internal_get_cluster_properties,
     internal_get_instance_properties,
+    internal_get_instance_properties_by_identifier,
     setup_aurora_iam_policy_for_current_user,
 )
 from awslabs.mysql_mcp_server.connection.db_connection_map import (
@@ -601,6 +602,26 @@ def create_cluster_worker(
             async_job_status_lock.release()
 
 
+def is_db_instance_not_found(error: Exception) -> bool:
+    """Return True iff `error` means "no such DB instance", not a real failure.
+
+    The two instance lookups signal "not found" differently: the
+    endpoint scan in :func:`internal_get_instance_properties` exhausts
+    the paginator and raises ``ValueError``, while the direct lookup in
+    :func:`internal_get_instance_properties_by_identifier` surfaces
+    RDS's ``DBInstanceNotFound`` as a ``ClientError``.
+
+    Narrow on purpose: an ``AccessDenied`` or throttling ``ClientError``
+    must propagate rather than be retried as a cluster lookup, which
+    would only fail again with a less informative error.
+    """
+    if isinstance(error, ValueError):
+        return True
+    if isinstance(error, ClientError):
+        return error.response.get('Error', {}).get('Code') == 'DBInstanceNotFound'
+    return False
+
+
 def internal_connect_to_database(
     region: Annotated[str, Field(description='region')],
     database_type: Annotated[DatabaseType, Field(description='database type')],
@@ -691,7 +712,16 @@ def internal_connect_to_database(
     cluster_arn: str = ''
     secret_arn: str = ''
 
-    if cluster_identifier:
+    # Aurora MySQL is always a cluster, so cluster_identifier always names
+    # one and describe_db_clusters is the only lookup that applies.
+    #
+    # RDS MySQL / MariaDB are ambiguous: the deployment can be a standalone
+    # DB instance (issue #3787) or — for MySQL — an RDS Multi-AZ DB cluster.
+    # Both report Engine='mysql' but live behind different APIs, so neither
+    # database_type nor the identifier string tells us which lookup to use.
+    # Try the instance lookup first (the common case) and fall back to the
+    # cluster lookup only when RDS reports no such instance.
+    if database_type == DatabaseType.AURORA_MYSQL:
         cluster_properties = internal_get_cluster_properties(
             cluster_identifier=cluster_identifier, region=region
         )
@@ -705,10 +735,52 @@ def internal_connect_to_database(
             db_endpoint = cluster_properties.get('Endpoint', '')
             port = int(cluster_properties.get('Port', ''))
     else:
-        instance_properties = internal_get_instance_properties(db_endpoint, region)
-        masteruser = instance_properties.get('MasterUsername', '')
-        secret_arn = instance_properties.get('MasterUserSecret', {}).get('SecretArn')
-        port = int(instance_properties.get('Endpoint', {}).get('Port'))
+        # Multi-AZ DB clusters support only MySQL and PostgreSQL, so RDS
+        # MariaDB is instance-only and gets no cluster fallback. Nor can we
+        # fall back without an identifier to look the cluster up by.
+        cluster_fallback_applies = bool(cluster_identifier) and (
+            database_type == DatabaseType.RDS_MYSQL
+        )
+
+        instance_properties: Optional[Dict[str, Any]] = None
+        try:
+            if db_endpoint:
+                instance_properties = internal_get_instance_properties(db_endpoint, region)
+            else:
+                instance_properties = internal_get_instance_properties_by_identifier(
+                    cluster_identifier, region
+                )
+        except (ClientError, ValueError) as e:
+            if not (cluster_fallback_applies and is_db_instance_not_found(e)):
+                raise
+            logger.info(
+                f'No DB instance matched for database_type={database_type.value!r}; '
+                f"retrying '{cluster_identifier}' as an RDS Multi-AZ DB cluster"
+            )
+
+        if instance_properties is not None:
+            masteruser = instance_properties.get('MasterUsername', '')
+            secret_arn = instance_properties.get('MasterUserSecret', {}).get('SecretArn')
+            port = int(instance_properties.get('Endpoint', {}).get('Port'))
+
+            if not db_endpoint:
+                db_endpoint = instance_properties.get('Endpoint', {}).get('Address', '')
+        else:
+            # RDS Multi-AZ DB cluster. Same DBCluster shape as Aurora, minus
+            # the Data API (HttpEndpointEnabled is absent), which is already
+            # unreachable here: is_connection_method_supported rejects rdsapi
+            # for every non-Aurora engine.
+            cluster_properties = internal_get_cluster_properties(
+                cluster_identifier=cluster_identifier, region=region
+            )
+
+            masteruser = cluster_properties.get('MasterUsername', '')
+            cluster_arn = cluster_properties.get('DBClusterArn', '')
+            secret_arn = cluster_properties.get('MasterUserSecret', {}).get('SecretArn')
+
+            if not db_endpoint:
+                db_endpoint = cluster_properties.get('Endpoint', '')
+                port = int(cluster_properties.get('Port', ''))
 
     logger.info(
         f'About to create internal DB connections with:'
