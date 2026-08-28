@@ -46,7 +46,6 @@ The following ALTER TABLE operations MUST use the **Table Recreation Pattern**:
 
 | Operation                      | Key Approach                                   |
 | ------------------------------ | ---------------------------------------------- |
-| DROP COLUMN                    | Exclude column from new table                  |
 | ALTER COLUMN TYPE              | Cast data type in SELECT                       |
 | ALTER COLUMN SET/DROP NOT NULL | Change constraint in new table definition      |
 | ALTER COLUMN SET/DROP DEFAULT  | Define default in new table definition         |
@@ -60,6 +59,9 @@ The following ALTER TABLE operations MUST use the **Table Recreation Pattern**:
 - `ALTER TABLE ... RENAME COLUMN` - Rename a column
 - `ALTER TABLE ... RENAME TO` - Rename a table
 - `ALTER TABLE ... ADD COLUMN` - Add a new column
+- `ALTER TABLE ... DROP COLUMN` - Drop a column. Use this instead of table recreation. Dropping a
+  primary key column is unsupported — that still requires the Table Recreation Pattern. See
+  [column-operations.md](column-operations.md#drop-column)
 
 ---
 

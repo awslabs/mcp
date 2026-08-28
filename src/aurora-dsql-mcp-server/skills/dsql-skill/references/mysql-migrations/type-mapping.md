@@ -133,6 +133,7 @@ These MySQL operations have direct DSQL equivalents:
 | `ALTER TABLE ... ADD COLUMN col type`      | `ALTER TABLE ... ADD COLUMN col type`               |
 | `ALTER TABLE ... RENAME COLUMN old TO new` | `ALTER TABLE ... RENAME COLUMN old TO new`          |
 | `ALTER TABLE ... RENAME TO new_name`       | `ALTER TABLE ... RENAME TO new_name`                |
+| `ALTER TABLE ... DROP COLUMN col`          | `ALTER TABLE ... DROP COLUMN col` (not a PK column) |
 | `CREATE INDEX idx ON t(col)`               | `CREATE INDEX ASYNC idx ON t(col)` (MUST use ASYNC) |
 | `DROP INDEX idx ON t`                      | `DROP INDEX idx` (MUST omit the ON clause)          |
 
@@ -145,7 +146,6 @@ These MySQL operations MUST use the **Table Recreation Pattern** in DSQL:
 | `ALTER TABLE ... MODIFY COLUMN col new_type`                   | Table recreation with type cast                               |
 | `ALTER TABLE ... CHANGE COLUMN old new new_type`               | Table recreation (type change) or RENAME COLUMN (rename only) |
 | `ALTER TABLE ... ALTER COLUMN col datatype`                    | Table recreation with type cast                               |
-| `ALTER TABLE ... DROP COLUMN col`                              | Table recreation excluding the column                         |
 | `ALTER TABLE ... ALTER COLUMN col SET DEFAULT val`             | Table recreation with DEFAULT in new definition               |
 | `ALTER TABLE ... ALTER COLUMN col DROP DEFAULT`                | Table recreation without DEFAULT                              |
 | `ALTER TABLE ... ADD CONSTRAINT ... UNIQUE`                    | Table recreation with constraint                              |

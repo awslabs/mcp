@@ -55,10 +55,10 @@ This power includes the following steering files in [steering](./steering)
   - MUST load when writing OCC retry code or mitigating commit-time conflicts
   - DSQL Connectors, manual retry pattern, conflict mitigation, idempotent transaction design
 - **ddl-migrations-overview**
-  - MUST load when performing DROP COLUMN, ALTER COLUMN TYPE, or DROP CONSTRAINT
+  - MUST load when performing ALTER COLUMN TYPE, DROP CONSTRAINT, MODIFY PRIMARY KEY, or dropping a primary key column
   - Table recreation pattern overview, transaction rules, verify & swap pattern
 - **ddl-migrations-column-operations**
-  - Load for DROP COLUMN, ALTER COLUMN TYPE, SET/DROP NOT NULL, SET/DROP DEFAULT
+  - MUST load for DROP COLUMN, ALTER COLUMN TYPE, SET/DROP NOT NULL, SET/DROP DEFAULT
 - **ddl-migrations-constraint-operations**
   - Load for ADD/DROP CONSTRAINT, VALIDATE CONSTRAINT, MODIFY PRIMARY KEY, column split/merge
 - **ddl-migrations-batched**
@@ -223,9 +223,11 @@ Authorize the caller against the tenant **before** validating format or calling 
 
 **MUST** load [access-control.md](steering/access-control.md) for role setup, IAM mapping, and schema permissions.
 
-### Workflow 6: Table Recreation DDL Migration
+### Workflow 6: Column and Constraint DDL Migration
 
-DSQL does NOT support direct `ALTER COLUMN TYPE`, `DROP COLUMN`, `DROP CONSTRAINT`, or `MODIFY PRIMARY KEY`. These require the **Table Recreation Pattern**. This is a destructive workflow that requires user confirmation at each step. Validate the new CREATE TABLE with `dsql_lint(sql=..., fix=true)` before execution.
+To drop a column, issue the native statement — `transact(["ALTER TABLE orders DROP COLUMN legacy_promo_code"])`. DSQL applies it as a synchronous, metadata-only change. **MUST** load [ddl-migrations-column-operations.md](steering/ddl-migrations-column-operations.md#drop-column) for the `CASCADE`, primary-key, and column-budget rules, and **MUST** confirm the table and column with the user before issuing it.
+
+Use the **Table Recreation Pattern** for `ALTER COLUMN TYPE`, `DROP CONSTRAINT`, `MODIFY PRIMARY KEY`, or dropping a primary key column. This is a destructive workflow that requires user confirmation at each step. Validate the new CREATE TABLE with `dsql_lint(sql=..., fix=true)` before execution.
 
 **MUST** load [ddl-migrations-overview.md](steering/ddl-migrations-overview.md) before attempting any of these operations.
 

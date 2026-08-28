@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add `ALTER TABLE ASYNC ... VALIDATE CONSTRAINT` guidance to DSQL steering. CHECK constraints can now be added with `NOT VALID` and validated asynchronously, following the same async DDL pattern as `CREATE INDEX ASYNC`.
 
+### Changed
+
+- Update DSQL steering for native `ALTER TABLE ... DROP COLUMN` support. Dropping a column no longer requires the destructive Table Recreation Pattern — it is a synchronous, metadata-only change, so agents stop generating a CREATE/INSERT-SELECT/DROP/RENAME sequence for it. Steering documents the primary-key restriction, `CASCADE` for dependent objects, and the 255-active/1,600-lifetime column budget. Unlike `VALIDATE CONSTRAINT`, `DROP COLUMN` has no `ALTER TABLE ASYNC` form and returns no `job_id`.
+
 ### Security
 
 - Close read-only bypasses in `readonly_query` / `transact` (read-only mode), aligning the SQL classifier with the `postgres-mcp-server` sibling:

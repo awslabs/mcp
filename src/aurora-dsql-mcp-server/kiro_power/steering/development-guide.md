@@ -83,6 +83,7 @@ effortless scaling, multi-region viability, among other advantages.
   2. MUST then issue UPDATE to populate existing rows
   3. MAY then issue ALTER COLUMN to apply the constraint
 - MUST issue a **separate ALTER TABLE statement for each column** modification.
+- To drop a column, MUST issue **`ALTER TABLE t DROP COLUMN c`** — a direct, synchronous, metadata-only change; table recreation is unnecessary. Add `CASCADE` when a view, an inbound foreign key, or a `GENERATED ... STORED` column depends on it. Dropping a primary key key-column requires the Table Recreation Pattern — see [ddl-migrations/column-operations.md](ddl-migrations/column-operations.md#drop-column)
 
 ### Transaction Rules
 
