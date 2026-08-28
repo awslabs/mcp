@@ -36,6 +36,9 @@ from awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_too
 from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_tools import (
     billing_conductor_server,
 )
+from awslabs.billing_cost_management_mcp_server.tools.billing_preferences_tools import (
+    billing_preferences_server,
+)
 from awslabs.billing_cost_management_mcp_server.tools.budget_tools import budget_server
 from awslabs.billing_cost_management_mcp_server.tools.bvs_tools import bvs_server
 from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_automation_tools import (
@@ -248,6 +251,7 @@ def setup():
     mcp.mount(invoice_units_server)
     mcp.mount(procurement_preferences_server)
     mcp.mount(credits_server)
+    mcp.mount(billing_preferences_server)
     mcp.mount(enterprise_support_server)
 
     register_prompts()
@@ -294,6 +298,7 @@ def setup():
         'describe-cost-category-definition',
         'list-cost-category-definitions',
         'invoicing',
+        'get-billing-preferences',
     ]
     for tool in tools:
         logger.info(f'- {tool}')

@@ -25,6 +25,8 @@ from awslabs.mysql_mcp_server.connection.cp_api_connection import (
     internal_create_aurora_cluster,
     internal_get_cluster_properties,
     internal_get_instance_properties,
+    internal_require_aws_port,
+    internal_resolve_cluster_endpoint,
     setup_aurora_iam_policy_for_current_user,
 )
 from awslabs.mysql_mcp_server.connection.db_connection_map import (
@@ -669,11 +671,17 @@ def internal_connect_to_database(
             f'for database_type={database_type.value!r}'
         )
 
-    existing_conn = db_connection_map.get(
-        connection_method, cluster_identifier, db_endpoint, database, port
+    # Endpoint validation only matters for methods that actually dial
+    # db_endpoint over the MySQL wire. RDS_API connects via the Data API
+    # using cluster_arn and never touches db_endpoint/port, so validating
+    # them would reject callers for a value the method ignores.
+    is_wire_protocol = connection_method in (
+        ConnectionMethod.MYSQL_WIRE_PROTOCOL,
+        ConnectionMethod.MYSQL_WIRE_IAM_PROTOCOL,
     )
-    if existing_conn:
-        llm_response = json.dumps(
+
+    def _connected_response() -> str:
+        return json.dumps(
             {
                 'connection_method': connection_method,
                 'cluster_identifier': cluster_identifier,
@@ -684,7 +692,20 @@ def internal_connect_to_database(
             indent=2,
             default=str,
         )
-        return (existing_conn, llm_response)
+
+    # RDS_API is safe to short-circuit on a cache hit without endpoint
+    # validation, because it never dials db_endpoint. Wire-protocol methods
+    # must NOT short-circuit here: their endpoint has to be validated against
+    # AWS first (see below), otherwise the relaxed cache scan — which matches
+    # on (method, cluster, database) and ignores db_endpoint — would return a
+    # warm connection for a bogus caller-supplied endpoint, making validation
+    # inert.
+    if not is_wire_protocol:
+        existing_conn = db_connection_map.get(
+            connection_method, cluster_identifier, db_endpoint, database, port
+        )
+        if existing_conn:
+            return (existing_conn, _connected_response())
 
     enable_data_api: bool = False
     masteruser: str = ''
@@ -702,13 +723,73 @@ def internal_connect_to_database(
         secret_arn = cluster_properties.get('MasterUserSecret', {}).get('SecretArn')
 
         if not db_endpoint:
+            # No endpoint supplied: use the cluster's AWS-sourced writer
+            # endpoint and port. A missing writer endpoint or a missing/
+            # malformed port fails closed rather than connecting to an empty
+            # host or guessing a default port.
             db_endpoint = cluster_properties.get('Endpoint', '')
-            port = int(cluster_properties.get('Port', ''))
+            if not db_endpoint:
+                raise ValueError(
+                    f"cluster '{cluster_identifier}' has no writer endpoint; cannot connect."
+                )
+            port = internal_require_aws_port(
+                cluster_properties.get('Port'), f"cluster '{cluster_identifier}' writer endpoint"
+            )
+        elif is_wire_protocol:
+            # Endpoint supplied on a wire-protocol connection: resolve it
+            # against the cluster's AWS-advertised endpoints (writer, reader,
+            # custom, members). If it matches none, refuse the connection —
+            # this prevents directing credentials or IAM auth tokens at an
+            # attacker-controlled host. On match we adopt the AWS-sourced host
+            # and port, so the connection string is never built from caller
+            # input and a wrong (guessed) port is normalized rather than
+            # rejected. Host comparison and port sourcing live in the resolver.
+            matched = internal_resolve_cluster_endpoint(
+                cluster_properties=cluster_properties,
+                region=region,
+                requested_host=db_endpoint,
+            )
+            if matched is None:
+                logger.error(
+                    "db_endpoint '%s' does not match any endpoint of cluster '%s'",
+                    db_endpoint,
+                    cluster_identifier,
+                )
+                raise ValueError(
+                    f"db_endpoint '{db_endpoint}' does not match any endpoint of "
+                    f"cluster '{cluster_identifier}'."
+                )
+
+            db_endpoint, port = matched
     else:
+        # Standalone instance path (no cluster). Connect with the AWS-sourced
+        # host and port so the connection string never comes from caller input.
+        # A missing address or a missing/malformed AWS port fails closed — we
+        # never fall back to the caller-supplied host or guess a default port.
         instance_properties = internal_get_instance_properties(db_endpoint, region)
         masteruser = instance_properties.get('MasterUsername', '')
         secret_arn = instance_properties.get('MasterUserSecret', {}).get('SecretArn')
-        port = int(instance_properties.get('Endpoint', {}).get('Port'))
+        instance_endpoint = instance_properties.get('Endpoint', {}) or {}
+        resolved_host = instance_endpoint.get('Address', '')
+        if not resolved_host:
+            raise ValueError(
+                f"AWS returned no endpoint address for instance '{db_endpoint}'; "
+                'refusing to connect to a caller-supplied host.'
+            )
+        db_endpoint = resolved_host
+        port = internal_require_aws_port(
+            instance_endpoint.get('Port'), f"instance endpoint '{db_endpoint}'"
+        )
+
+    # Wire-protocol endpoint is now AWS-sourced/validated — safe to consult the
+    # connection cache without a bogus endpoint short-circuiting to a warm
+    # connection.
+    if is_wire_protocol:
+        existing_conn = db_connection_map.get(
+            connection_method, cluster_identifier, db_endpoint, database, port
+        )
+        if existing_conn:
+            return (existing_conn, _connected_response())
 
     logger.info(
         f'About to create internal DB connections with:'
@@ -722,7 +803,6 @@ def internal_connect_to_database(
         f'readonly:{readonly_query}'
     )
 
-    db_connection = None
     if connection_method == ConnectionMethod.MYSQL_WIRE_IAM_PROTOCOL:
         db_connection = AsyncmyPoolConnection(
             host=db_endpoint,
@@ -762,24 +842,23 @@ def internal_connect_to_database(
             is_iam_auth=False,
         )
 
-    if db_connection:
-        db_connection_map.set(
-            connection_method, cluster_identifier, db_endpoint, database, db_connection
-        )
-        llm_response = json.dumps(
-            {
-                'connection_method': connection_method,
-                'cluster_identifier': cluster_identifier,
-                'db_endpoint': db_endpoint,
-                'database': database,
-                'port': port,
-            },
-            indent=2,
-            default=str,
-        )
-        return (db_connection, llm_response)
-
-    raise ValueError("Can't create connection because invalid input parameter combination")
+    # Every supported connection_method assigns db_connection above (the
+    # (engine, method) pair was validated earlier), so it is always set here.
+    db_connection_map.set(
+        connection_method, cluster_identifier, db_endpoint, database, db_connection
+    )
+    llm_response = json.dumps(
+        {
+            'connection_method': connection_method,
+            'cluster_identifier': cluster_identifier,
+            'db_endpoint': db_endpoint,
+            'database': database,
+            'port': port,
+        },
+        indent=2,
+        default=str,
+    )
+    return (db_connection, llm_response)
 
 
 def main():

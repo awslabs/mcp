@@ -351,7 +351,7 @@ class TestInternalConnectToDatabaseRouting:
         mock_get_instance.return_value = {
             'MasterUsername': 'admin',
             'MasterUserSecret': {'SecretArn': 'arn:secret'},
-            'Endpoint': {'Port': 3306},
+            'Endpoint': {'Address': 'instance-1.xyz.rds.amazonaws.com', 'Port': 3306},
         }
 
         internal_connect_to_database(
