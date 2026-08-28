@@ -37,7 +37,7 @@ from awslabs.aws_healthomics_mcp_server.server import main, mcp
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_aws_session
 from integration.harness.headers import TENANT_TOKEN_HEADER
 from loguru import logger
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from typing import Any, Dict
 
 
@@ -106,40 +106,54 @@ class _AuthorizationHeaderShim:
         await self.app(scope, receive, send)
 
 
-def _relax_transport_security() -> None:
-    """Disable the server's DNS-rebinding Host allow-list so AgentCore requests are accepted.
+def _wrap_app_builders_for_agentcore() -> None:
+    """Force stateless mode and a relaxed Host allow-list on every app the server builds.
 
-    The server's streamable-http transport enables DNS-rebinding protection with an allow-list
-    of only loopback hosts. AgentCore Runtime forwards requests to the container with a
-    non-loopback ``Host`` header, which that protection rejects with HTTP 421 (Misdirected
-    Request). DNS-rebinding protection guards browser-origin attacks against locally-bound
-    servers; behind AgentCore the container is not browser-reachable and AgentCore is the sole,
-    authenticated ingress, so disabling the check is safe here. Harness deployment glue -- no
-    server-package source is modified.
+    AgentCore Runtime automatically injects an ``Mcp-Session-Id`` header on every request; a
+    stateful MCP server treats that as an unknown session and rejects the request with HTTP 421
+    (Misdirected Request), so the streamable-http transport must run stateless. AgentCore also
+    forwards requests with a non-loopback ``Host`` header, which the transport's default
+    DNS-rebinding allow-list (loopback-only) likewise rejects with HTTP 421; that protection
+    guards browser-origin attacks against locally-bound servers, and behind AgentCore the
+    container is not browser-reachable and AgentCore is the sole, authenticated ingress, so
+    relaxing it here is safe.
+
+    SDK v2 moved both ``stateless_http`` and ``transport_security`` off ``mcp.settings`` and onto
+    ``streamable_http_app()``/``sse_app()`` keyword arguments (mirroring host/port/path), so
+    there is no longer a settings object to mutate before ``main()`` runs. Both the single-tenant
+    path (``TransportSelector.start`` -> ``mcp.run`` -> ``run_streamable_http_async`` /
+    ``run_sse_async``) and the multi-tenant path (``_run_multi_tenant`` calling
+    ``mcp_instance.streamable_http_app()`` / ``sse_app()`` directly) end up calling those same two
+    methods on the ``mcp`` instance, so wrapping them here covers both without touching
+    server-package source. Idempotent.
     """
+    if getattr(mcp.streamable_http_app, '_aho_agentcore_wrapped', False):
+        return
+
     try:
         from mcp.server.transport_security import TransportSecuritySettings
 
-        mcp.settings.transport_security = TransportSecuritySettings(
-            enable_dns_rebinding_protection=False
-        )
-    except (AttributeError, ImportError):  # pragma: no cover - SDK without this setting
-        pass
+        transport_security = TransportSecuritySettings(enable_dns_rebinding_protection=False)
+    except ImportError:  # pragma: no cover - SDK without this setting
+        transport_security = None
 
+    real_streamable_http_app = mcp.streamable_http_app
+    real_sse_app = mcp.sse_app
 
-def _enable_stateless_http() -> None:
-    """Put the server's streamable-http transport into stateless mode for AgentCore.
+    def _streamable_http_app(**kwargs: Any):
+        kwargs.setdefault('stateless_http', True)
+        if transport_security is not None:
+            kwargs.setdefault('transport_security', transport_security)
+        return real_streamable_http_app(**kwargs)
 
-    AgentCore Runtime automatically injects an ``Mcp-Session-Id`` header on every request. A
-    stateful MCP server treats that as an unknown session and rejects the request with HTTP 421
-    (Misdirected Request). AgentCore therefore requires the hosted MCP server to run stateless.
-    This sets ``stateless_http`` on the already-constructed ``mcp`` instance's settings before
-    ``main()`` builds the app -- harness deployment glue that changes no server-package source.
-    """
-    try:
-        mcp.settings.stateless_http = True
-    except AttributeError:  # pragma: no cover - SDK without this setting
-        pass
+    def _sse_app(**kwargs: Any):
+        if transport_security is not None:
+            kwargs.setdefault('transport_security', transport_security)
+        return real_sse_app(**kwargs)
+
+    _streamable_http_app._aho_agentcore_wrapped = True  # type: ignore[attr-defined]
+    mcp.streamable_http_app = _streamable_http_app  # type: ignore[assignment]
+    mcp.sse_app = _sse_app  # type: ignore[assignment]
 
 
 def _install_header_shim() -> None:
@@ -161,12 +175,11 @@ def _install_header_shim() -> None:
     server_module.IdentityMiddleware = _wrapped  # type: ignore[assignment]
 
 
-# Install the shim and stateless-http setting at import time (before ``main()`` serves) so the
+# Install the shim and app-builder wrapper at import time (before ``main()`` serves) so the
 # deployed server both receives the caller's bearer token via Authorization and runs stateless
-# as AgentCore Runtime requires.
+# with a relaxed Host allow-list, as AgentCore Runtime requires.
 _install_header_shim()
-_enable_stateless_http()
-_relax_transport_security()
+_wrap_app_builders_for_agentcore()
 
 
 if __name__ == '__main__':

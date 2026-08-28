@@ -94,14 +94,14 @@ network_transports = st.sampled_from(consts.NETWORK_TRANSPORTS)
 
 
 def _make_mcp(captured_run_warning_count):
-    """Build a fake FastMCP whose ``run`` records the warning count at call time.
+    """Build a fake MCPServer whose ``run`` records the warning count at call time.
 
     Args:
         captured_run_warning_count: A single-element list used to record how many
             warnings had been captured at the moment ``mcp.run`` was invoked.
 
     Returns:
-        A tuple of (the captured-warnings list, the fake FastMCP instance).
+        A tuple of (the captured-warnings list, the fake MCPServer instance).
     """
     captured_warnings = []
 
@@ -109,9 +109,8 @@ def _make_mcp(captured_run_warning_count):
         captured_warnings.append(message.record['message'])
 
     mcp = MagicMock()
-    mcp.settings = MagicMock()
 
-    def _run(transport):
+    def _run(transport, **_kwargs):
         # Record how many warnings existed at the time serving begins so the
         # test can assert ordering (warning emitted before serving).
         captured_run_warning_count[0] = len(captured_warnings)
@@ -156,7 +155,10 @@ class TestNonLoopbackExposureWarnsBeforeServing:
         assert len(exposure_warnings) == 1
 
         # Startup still proceeds to bind/serve with exactly the selected mode.
-        mcp.run.assert_called_once_with(transport=transport)
+        path_kwarg = 'streamable_http_path' if transport == 'streamable-http' else 'sse_path'
+        mcp.run.assert_called_once_with(
+            transport=transport, host=host, port=8000, **{path_kwarg: '/mcp'}
+        )
 
         # The warning was emitted before the server began accepting requests:
         # at least one warning had been captured by the time ``run`` was called.
@@ -188,7 +190,10 @@ class TestNonLoopbackExposureWarnsBeforeServing:
         assert len(exposure_warnings) == 0
 
         # Startup still proceeds to bind/serve with exactly the selected mode.
-        mcp.run.assert_called_once_with(transport=transport)
+        path_kwarg = 'streamable_http_path' if transport == 'streamable-http' else 'sse_path'
+        mcp.run.assert_called_once_with(
+            transport=transport, host=host, port=8000, **{path_kwarg: '/mcp'}
+        )
 
         # No warning existed at the time serving began.
         assert captured_run_warning_count[0] == 0

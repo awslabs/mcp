@@ -49,13 +49,14 @@ def _patch_transport(monkeypatch) -> dict:
     captured: dict = {}
 
     @asynccontextmanager
-    async def _fake_streamable(url, headers, timeout):
+    async def _fake_streamable(url, *, http_client, terminate_on_close=True):
         captured['url'] = url
-        captured['headers'] = headers
-        captured['timeout'] = timeout
-        yield ('read', 'write', None)
+        # httpx2.Headers is case-insensitive, matching the transport's real behavior.
+        captured['headers'] = http_client.headers
+        captured['timeout'] = http_client.timeout
+        yield ('read', 'write')
 
-    monkeypatch.setattr(mcp_client, 'streamablehttp_client', _fake_streamable)
+    monkeypatch.setattr(mcp_client, 'streamable_http_client', _fake_streamable)
     monkeypatch.setattr(mcp_client, 'ClientSession', _FakeSession)
     return captured
 

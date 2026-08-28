@@ -47,7 +47,7 @@ those tests.
 
 from __future__ import annotations
 
-import httpx
+import httpx2
 import pytest
 from collections.abc import Callable, Mapping, Sequence
 from integration.harness.credential_scan import (
@@ -98,7 +98,7 @@ _BASE_HEADERS: dict[str, str] = {
 }
 
 
-def _attempt_request(endpoint: str, auth_header: Mapping[str, str]) -> httpx.Response:
+def _attempt_request(endpoint: str, auth_header: Mapping[str, str]) -> httpx2.Response:
     """POST a minimal MCP ``initialize`` to ``endpoint`` with ``auth_header`` merged in.
 
     Returns the HTTP response so the caller can inspect its status. A direct HTTP request is
@@ -106,11 +106,11 @@ def _attempt_request(endpoint: str, auth_header: Mapping[str, str]) -> httpx.Res
     the most direct evidence that authentication is terminated at the HTTP layer.
     """
     headers = {**_BASE_HEADERS, **auth_header}
-    with httpx.Client(timeout=_REQUEST_TIMEOUT_SECONDS, follow_redirects=False) as client:
+    with httpx2.Client(timeout=_REQUEST_TIMEOUT_SECONDS, follow_redirects=False) as client:
         return client.post(endpoint, headers=headers, json=_INITIALIZE_BODY)
 
 
-def _assert_rejected_at_boundary(response: httpx.Response, *, attempt: str) -> None:
+def _assert_rejected_at_boundary(response: httpx2.Response, *, attempt: str) -> None:
     """Assert ``response`` shows the boundary rejected the request before any tool ran.
 
     The response must not be a successful (2xx) exchange, and it must carry a rejection status
@@ -200,7 +200,7 @@ KNOWN_SECRET_ACCESS_KEY_ENV = 'AHO_ITEST_KNOWN_SECRET_ACCESS_KEY'  # pragma: all
 KNOWN_SESSION_TOKEN_ENV = 'AHO_ITEST_KNOWN_SESSION_TOKEN'  # pragma: allowlist secret
 
 
-def _assert_rejected_with_401(response: httpx.Response, *, attempt: str) -> None:
+def _assert_rejected_with_401(response: httpx2.Response, *, attempt: str) -> None:
     """Assert the Server rejected the request with HTTP 401 before any tool ran.
 
     The fail-closed multi-tenant scenarios require the specific 401 status (not merely the
@@ -243,7 +243,7 @@ def _build_credential_scanner(
 
 
 def _assert_401_leaks_no_material_or_identity(
-    response: httpx.Response,
+    response: httpx2.Response,
     *,
     scanner: CredentialMaterialScanner,
     other_tenant_identity: 'str | None',

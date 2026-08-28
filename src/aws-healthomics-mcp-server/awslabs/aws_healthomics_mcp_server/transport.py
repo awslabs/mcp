@@ -15,16 +15,15 @@
 """Transport selection and startup wiring (Phase 1).
 
 This module selects the configured MCP transport and starts it. For network
-transports (``streamable-http`` / ``sse``) it applies the resolved host, port,
-and request path onto the ``FastMCP`` instance's settings before invoking
-``mcp.run(transport=...)`` with exactly the selected mode.
+transports (``streamable-http`` / ``sse``) the resolved host, port, and
+request path are passed straight through as ``mcp.run(transport=...)``
+keyword arguments.
 
-The ``mcp`` object is a :class:`mcp.server.fastmcp.FastMCP` instance (the
-official MCP Python SDK). ``FastMCP.run(transport=...)`` accepts ``stdio``,
-``streamable-http``, and ``sse``. Network bind configuration is read from
-``FastMCP.settings`` (a settings model exposing ``host``, ``port``,
-``sse_path``, and ``streamable_http_path``), so those fields are set on the
-instance before ``run()`` is called.
+The ``mcp`` object is a :class:`mcp.server.mcpserver.MCPServer` instance (the
+official MCP Python SDK, v2). ``MCPServer.run(transport=...)`` accepts
+``stdio``, ``streamable-http``, and ``sse``; for the two network transports it
+forwards its keyword arguments (``host``, ``port``, and either
+``streamable_http_path`` or ``sse_path``) to the corresponding async runner.
 """
 
 from awslabs.aws_healthomics_mcp_server import consts
@@ -34,7 +33,7 @@ from awslabs.aws_healthomics_mcp_server.config import (
     is_loopback,
 )
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from typing import Literal, Optional, cast
 
 
@@ -97,19 +96,19 @@ class TransportSelector:
         return mode
 
     @classmethod
-    def start(cls, mcp: FastMCP, config: ServerConfig) -> None:
-        """Apply bind settings and the exposure check, then run the transport.
+    def start(cls, mcp: MCPServer, config: ServerConfig) -> None:
+        """Apply the exposure check, then run the transport.
 
-        For network transports the resolved host, port, and request path are
-        applied onto ``mcp.settings`` before ``run()`` is invoked. The
-        secure-by-default exposure check is then performed: a non-loopback host
-        triggers exactly one warning (emitted before the server begins accepting
-        requests) while startup still proceeds to bind. For the ``stdio``
-        transport, bind settings and the exposure check are skipped. In all cases
-        ``mcp.run(transport=mode)`` is invoked with exactly the selected mode.
+        For network transports the secure-by-default exposure check is
+        performed first: a non-loopback host triggers exactly one warning
+        (emitted before the server begins accepting requests) while startup
+        still proceeds to bind. For the ``stdio`` transport the exposure check
+        is skipped. In all cases ``mcp.run(transport=mode, ...)`` is invoked
+        with exactly the selected mode; for network transports the resolved
+        host, port, and request path are passed as keyword arguments.
 
         Args:
-            mcp: The ``FastMCP`` instance to start.
+            mcp: The ``MCPServer`` instance to start.
             config: The resolved server configuration.
 
         Raises:
@@ -117,13 +116,27 @@ class TransportSelector:
         """
         mode = cls.select(config)
 
-        if mode in consts.NETWORK_TRANSPORTS:
-            cls._apply_network_settings(mcp, config, mode)
-            cls._check_secure_exposure(config)
+        if mode not in consts.NETWORK_TRANSPORTS:
+            mcp.run(transport=cast(Literal['stdio'], mode))
+            return
 
-        # ``mode`` is validated against SUPPORTED by ``select``; cast narrows it to
-        # the literal type expected by ``FastMCP.run``.
-        mcp.run(transport=cast(Literal['stdio', 'sse', 'streamable-http'], mode))
+        cls._check_secure_exposure(config)
+
+        network_mode = cast(Literal['sse', 'streamable-http'], mode)
+        if network_mode == 'streamable-http':
+            mcp.run(
+                transport=network_mode,
+                host=config.host,
+                port=config.port,
+                streamable_http_path=config.path,
+            )
+        else:  # 'sse'
+            mcp.run(
+                transport=network_mode,
+                host=config.host,
+                port=config.port,
+                sse_path=config.path,
+            )
 
     @staticmethod
     def _check_secure_exposure(config: ServerConfig) -> None:
@@ -145,20 +158,3 @@ class TransportSelector:
             return
 
         logger.warning(consts.WARN_NON_LOOPBACK_EXPOSURE.format(config.host))
-
-    @staticmethod
-    def _apply_network_settings(mcp: FastMCP, config: ServerConfig, mode: str) -> None:
-        """Apply host/port/path bind settings onto the FastMCP instance.
-
-        Args:
-            mcp: The ``FastMCP`` instance whose settings are updated.
-            config: The resolved server configuration providing host/port/path.
-            mode: The selected network transport mode determining which path
-                setting (``streamable_http_path`` or ``sse_path``) is applied.
-        """
-        mcp.settings.host = config.host
-        mcp.settings.port = config.port
-        if mode == 'streamable-http':
-            mcp.settings.streamable_http_path = config.path
-        else:  # 'sse'
-            mcp.settings.sse_path = config.path

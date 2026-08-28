@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import anyio
 import enum
+import httpx2
 import time
 from collections.abc import Awaitable, Callable, Collection, Mapping
 from contextlib import AsyncExitStack
@@ -36,7 +37,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from integration.harness.headers import TENANT_TOKEN_HEADER
 from mcp.client.session import ClientSession
-from mcp.client.streamable_http import streamablehttp_client
+from mcp.client.streamable_http import streamable_http_client
 from mcp.types import CallToolResult, Tool
 from typing import Any, Protocol, TypeVar, runtime_checkable
 
@@ -191,12 +192,16 @@ class HarnessMcpClient:
 
         exit_stack = AsyncExitStack()
         try:
-            read_stream, write_stream, _ = await exit_stack.enter_async_context(
-                streamablehttp_client(
-                    url=endpoint,
+            # SDK v2's streamable_http_client no longer takes headers/timeout directly;
+            # both are carried by an httpx2.AsyncClient passed as http_client=.
+            http_client = await exit_stack.enter_async_context(
+                httpx2.AsyncClient(
                     headers=request_headers,
-                    timeout=connect_timeout_s,
+                    timeout=httpx2.Timeout(connect_timeout_s),
                 )
+            )
+            read_stream, write_stream = await exit_stack.enter_async_context(
+                streamable_http_client(url=endpoint, http_client=http_client)
             )
             session = await exit_stack.enter_async_context(
                 ClientSession(read_stream, write_stream)

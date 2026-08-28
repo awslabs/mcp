@@ -95,7 +95,7 @@ async def test_aws_calling_tools_expose_credential_parameters():
         if tool.name in _TOOLS_WITHOUT_CREDENTIAL_PARAMS:
             continue
 
-        properties = (tool.inputSchema or {}).get('properties', {})
+        properties = (tool.input_schema or {}).get('properties', {})
         for param_name in _CREDENTIAL_PARAMS:
             assert param_name in properties, (
                 f"Tool '{tool.name}' is missing the '{param_name}' parameter. Every "
@@ -115,7 +115,7 @@ async def test_credential_parameters_are_never_required():
     tools = await mcp.list_tools()
 
     for tool in sorted(tools, key=lambda t: t.name):
-        required = set((tool.inputSchema or {}).get('required', []))
+        required = set((tool.input_schema or {}).get('required', []))
         offending = sorted(required.intersection(_CREDENTIAL_PARAMS))
         assert not offending, (
             f"Tool '{tool.name}' marks {offending} as required; the credential "
@@ -138,7 +138,7 @@ async def test_tools_without_credential_parameters_are_exactly_the_local_tools()
     actual = {
         tool.name
         for tool in tools
-        if not set(_CREDENTIAL_PARAMS).issubset((tool.inputSchema or {}).get('properties', {}))
+        if not set(_CREDENTIAL_PARAMS).issubset((tool.input_schema or {}).get('properties', {}))
     }
 
     assert actual == set(_TOOLS_WITHOUT_CREDENTIAL_PARAMS), (

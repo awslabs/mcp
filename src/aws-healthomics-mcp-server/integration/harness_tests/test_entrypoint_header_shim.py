@@ -38,6 +38,7 @@ os.environ.setdefault('AWS_SESSION_TOKEN', 'testing')  # pragma: allowlist secre
 from awslabs.aws_healthomics_mcp_server import server as server_module  # noqa: E402
 from integration.deploy.image import entrypoint  # noqa: E402
 from integration.harness.headers import TENANT_TOKEN_HEADER  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
 
 
 class _RecordingApp:
@@ -123,17 +124,54 @@ class TestHeaderShimInstalled:
 class TestStatelessHttpEnabled:
     """Importing the entrypoint puts the server into stateless-http mode for AgentCore.
 
+    SDK v2 moved ``stateless_http``/``transport_security`` off ``mcp.settings`` and onto
+    ``streamable_http_app()``/``sse_app()`` keyword arguments, so these tests exercise the
+    wrapping behavior directly against a fake ``mcp`` object rather than the real (already
+    module-level-wrapped) server instance.
+
     Validates: Requirements AgentCore deployment demonstration.
     """
 
-    def test_stateless_http_is_enabled(self) -> None:
-        """The imported mcp instance has ``stateless_http`` enabled (AgentCore requirement)."""
-        from awslabs.aws_healthomics_mcp_server.server import mcp
+    def _fake_mcp(self):
+        captured = {}
+        fake_mcp = SimpleNamespace(
+            streamable_http_app=lambda **kwargs: captured.setdefault('streamable_http', kwargs),
+            sse_app=lambda **kwargs: captured.setdefault('sse', kwargs),
+        )
+        return fake_mcp, captured
 
-        assert mcp.settings.stateless_http is True
+    def test_stateless_http_is_enabled(self, monkeypatch) -> None:
+        """The wrapped streamable_http_app() defaults stateless_http to True."""
+        fake_mcp, captured = self._fake_mcp()
+        monkeypatch.setattr(entrypoint, 'mcp', fake_mcp)
 
-    def test_dns_rebinding_protection_disabled(self) -> None:
-        """DNS-rebinding Host allow-listing is disabled so AgentCore's Host is accepted."""
-        from awslabs.aws_healthomics_mcp_server.server import mcp
+        entrypoint._wrap_app_builders_for_agentcore()
+        fake_mcp.streamable_http_app()
 
-        assert mcp.settings.transport_security.enable_dns_rebinding_protection is False
+        assert captured['streamable_http']['stateless_http'] is True
+
+    def test_dns_rebinding_protection_disabled(self, monkeypatch) -> None:
+        """DNS-rebinding Host allow-listing is disabled for both network app builders."""
+        fake_mcp, captured = self._fake_mcp()
+        monkeypatch.setattr(entrypoint, 'mcp', fake_mcp)
+
+        entrypoint._wrap_app_builders_for_agentcore()
+        fake_mcp.streamable_http_app()
+        fake_mcp.sse_app()
+
+        assert (
+            captured['streamable_http']['transport_security'].enable_dns_rebinding_protection
+            is False
+        )
+        assert captured['sse']['transport_security'].enable_dns_rebinding_protection is False
+
+    def test_caller_supplied_values_are_not_overridden(self, monkeypatch) -> None:
+        """A caller-supplied stateless_http/transport_security value is left untouched."""
+        fake_mcp, captured = self._fake_mcp()
+        monkeypatch.setattr(entrypoint, 'mcp', fake_mcp)
+
+        entrypoint._wrap_app_builders_for_agentcore()
+        fake_mcp.streamable_http_app(stateless_http=False, transport_security='explicit')
+
+        assert captured['streamable_http']['stateless_http'] is False
+        assert captured['streamable_http']['transport_security'] == 'explicit'

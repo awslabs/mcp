@@ -132,7 +132,7 @@ class TestMultiTenantWiring:
 
         mock_mcp.streamable_http_app.assert_called_once()
         mock_mcp.sse_app.assert_not_called()
-        served_app = mock_serve.call_args[0][1]
+        served_app = mock_serve.call_args[0][2]
         assert isinstance(served_app, IdentityMiddleware)
         assert served_app.app is base_app
 
@@ -152,12 +152,12 @@ class TestMultiTenantWiring:
 
         mock_mcp.sse_app.assert_called_once()
         mock_mcp.streamable_http_app.assert_not_called()
-        served_app = mock_serve.call_args[0][1]
+        served_app = mock_serve.call_args[0][2]
         assert isinstance(served_app, IdentityMiddleware)
         assert served_app.app is base_app
 
     def test_network_bind_settings_applied(self):
-        """Host/port/path bind settings are applied onto the FastMCP instance."""
+        """Host/path are passed as streamable_http_app() keyword arguments."""
         config = _config(
             transport='streamable-http',
             multi_tenant=True,
@@ -169,12 +169,15 @@ class TestMultiTenantWiring:
         mock_mcp = MagicMock()
         mock_mcp.streamable_http_app.return_value = MagicMock()
 
-        with patch.object(server, '_serve_asgi_app'):
+        with patch.object(server, '_serve_asgi_app') as mock_serve:
             server._run_multi_tenant(mock_mcp, config)
 
-        assert mock_mcp.settings.host == '0.0.0.0'
-        assert mock_mcp.settings.port == 9001
-        assert mock_mcp.settings.streamable_http_path == '/custom'
+        mock_mcp.streamable_http_app.assert_called_once_with(
+            host='0.0.0.0', streamable_http_path='/custom'
+        )
+        # Port is no longer a Settings/*_app() field in SDK v2; it is passed
+        # straight through to uvicorn via _serve_asgi_app's config argument.
+        assert mock_serve.call_args[0][1] is config
 
 
 class TestMechanismBuilding:
@@ -385,13 +388,12 @@ class TestJwtMissingRoleArnExits:
 
 
 class TestServeEntryPoint:
-    """The serve entry point builds a uvicorn server from FastMCP settings."""
+    """The serve entry point builds a uvicorn server from the resolved config."""
 
     def test_serve_asgi_app_runs_uvicorn_with_settings(self):
-        """_serve_asgi_app configures uvicorn from mcp.settings and serves the app."""
+        """_serve_asgi_app configures uvicorn from config host/port and mcp.settings.log_level."""
+        config = _config(host='0.0.0.0', port=9002)
         mock_mcp = MagicMock()
-        mock_mcp.settings.host = '0.0.0.0'
-        mock_mcp.settings.port = 9002
         mock_mcp.settings.log_level = 'INFO'
         app = MagicMock(name='wrapped_app')
 
@@ -401,7 +403,7 @@ class TestServeEntryPoint:
             patch('uvicorn.Server', return_value=fake_server) as mock_server_cls,
             patch.object(server, 'anyio') as mock_anyio,
         ):
-            server._serve_asgi_app(mock_mcp, app)
+            server._serve_asgi_app(mock_mcp, config, app)
 
         mock_config.assert_called_once_with(app, host='0.0.0.0', port=9002, log_level='info')
         mock_server_cls.assert_called_once_with(mock_config.return_value)

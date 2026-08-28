@@ -35,8 +35,7 @@ from awslabs.aws_healthomics_mcp_server.config import (
     parse_config,
 )
 from awslabs.aws_healthomics_mcp_server.transport import TransportSelector
-from mcp.server.fastmcp import FastMCP
-from types import SimpleNamespace
+from mcp.server.mcpserver import MCPServer
 from unittest.mock import MagicMock
 
 
@@ -59,15 +58,8 @@ def _clear_mcp_env(monkeypatch):
 
 
 def _make_mcp() -> MagicMock:
-    """Build a mock FastMCP whose ``run`` and ``settings`` can be inspected.
-
-    ``settings`` is a plain namespace (not a mock) so that attribute
-    assignments are observable and, crucially, attributes that were never
-    assigned remain genuinely absent.
-    """
-    mcp = MagicMock(spec=FastMCP)
-    mcp.settings = SimpleNamespace()
-    return mcp
+    """Build a mock MCPServer whose ``run`` calls can be inspected."""
+    return MagicMock(spec=MCPServer)
 
 
 # ---------------------------------------------------------------------------
@@ -85,16 +77,12 @@ def test_start_stdio_runs_stdio_without_bind_settings():
 
     TransportSelector.start(mcp, config)
 
+    # stdio must not pass any network bind kwargs.
     mcp.run.assert_called_once_with(transport='stdio')
-    # stdio must not apply any network bind settings.
-    assert not hasattr(mcp.settings, 'host')
-    assert not hasattr(mcp.settings, 'port')
-    assert not hasattr(mcp.settings, 'streamable_http_path')
-    assert not hasattr(mcp.settings, 'sse_path')
 
 
 def test_start_streamable_http_applies_settings_and_runs_mode():
-    """start() applies host/port/streamable_http_path and runs streamable-http.
+    """start() runs streamable-http with host/port/streamable_http_path kwargs.
 
     Validates: Requirements Transport selection, Network bind configuration.
     """
@@ -103,14 +91,16 @@ def test_start_streamable_http_applies_settings_and_runs_mode():
 
     TransportSelector.start(mcp, config)
 
-    assert mcp.settings.host == '127.0.0.1'
-    assert mcp.settings.port == 9001
-    assert mcp.settings.streamable_http_path == '/custom'
-    mcp.run.assert_called_once_with(transport='streamable-http')
+    mcp.run.assert_called_once_with(
+        transport='streamable-http',
+        host='127.0.0.1',
+        port=9001,
+        streamable_http_path='/custom',
+    )
 
 
 def test_start_sse_applies_settings_and_runs_mode():
-    """start() applies host/port/sse_path and runs the sse transport.
+    """start() runs the sse transport with host/port/sse_path kwargs.
 
     Validates: Requirements Transport selection, Network bind configuration.
     """
@@ -119,10 +109,12 @@ def test_start_sse_applies_settings_and_runs_mode():
 
     TransportSelector.start(mcp, config)
 
-    assert mcp.settings.host == '127.0.0.1'
-    assert mcp.settings.port == 9002
-    assert mcp.settings.sse_path == '/events'
-    mcp.run.assert_called_once_with(transport='sse')
+    mcp.run.assert_called_once_with(
+        transport='sse',
+        host='127.0.0.1',
+        port=9002,
+        sse_path='/events',
+    )
 
 
 # ---------------------------------------------------------------------------
