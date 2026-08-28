@@ -119,7 +119,7 @@ class TestEMRServerlessApplicationHandler:
             )
 
         # Verify result
-        assert not result.isError
+        assert not result.is_error
         assert len(result.content) == 2
         assert 'Successfully created EMR Serverless application' in result.content[0].text
 
@@ -150,7 +150,7 @@ class TestEMRServerlessApplicationHandler:
             # Missing name, release_label, and type
         )
 
-        assert result.isError
+        assert result.is_error
         assert 'name, release_label, and type are required' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -164,7 +164,7 @@ class TestEMRServerlessApplicationHandler:
             type='Spark',
         )
 
-        assert result.isError
+        assert result.is_error
         assert 'not allowed without write access' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -189,7 +189,7 @@ class TestEMRServerlessApplicationHandler:
                 type='Spark',
             )
 
-        assert result.isError
+        assert result.is_error
         assert 'Invalid release label' in result.content[0].text
 
     # Get Application Tests
@@ -225,7 +225,7 @@ class TestEMRServerlessApplicationHandler:
             application_id='app-12345abcdef',
         )
 
-        assert not result.isError
+        assert not result.is_error
         assert 'Successfully retrieved EMR Serverless application' in result.content[0].text
 
         data = self.extract_data_from_result(result)
@@ -242,7 +242,7 @@ class TestEMRServerlessApplicationHandler:
             operation='get-application',
         )
 
-        assert result.isError
+        assert result.is_error
         assert 'application_id is required' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -259,7 +259,7 @@ class TestEMRServerlessApplicationHandler:
             application_id='app-nonexistent',
         )
 
-        assert result.isError
+        assert result.is_error
         assert 'Application not found' in result.content[0].text
 
     # Update Application Tests
@@ -297,7 +297,7 @@ class TestEMRServerlessApplicationHandler:
                 },
             )
 
-        assert not result.isError
+        assert not result.is_error
         assert 'Successfully updated EMR Serverless application' in result.content[0].text
 
         data = self.extract_data_from_result(result)
@@ -324,7 +324,7 @@ class TestEMRServerlessApplicationHandler:
                 name='updated-app',
             )
 
-        assert result.isError
+        assert result.is_error
         assert 'Cannot update application' in result.content[0].text
         assert 'not managed by MCP' in result.content[0].text
 
@@ -347,7 +347,7 @@ class TestEMRServerlessApplicationHandler:
                 application_id='app-12345abcdef',
             )
 
-        assert not result.isError
+        assert not result.is_error
         assert 'Successfully deleted EMR Serverless application' in result.content[0].text
 
         data = self.extract_data_from_result(result)
@@ -379,7 +379,7 @@ class TestEMRServerlessApplicationHandler:
                 application_id='app-12345abcdef',
             )
 
-        assert result.isError
+        assert result.is_error
         assert 'Application must be in STOPPED state' in result.content[0].text
 
     # List Applications Tests
@@ -420,7 +420,7 @@ class TestEMRServerlessApplicationHandler:
             states=['CREATED', 'STARTED'],
         )
 
-        assert not result.isError
+        assert not result.is_error
         assert 'Successfully listed EMR Serverless applications' in result.content[0].text
 
         data = self.extract_data_from_result(result)
@@ -454,7 +454,7 @@ class TestEMRServerlessApplicationHandler:
             max_results=10,
         )
 
-        assert not result.isError
+        assert not result.is_error
         data = self.extract_data_from_result(result)
         assert len(data['applications']) == 1
         assert data['applications'][0]['name'] == 'next-page-app'
@@ -482,7 +482,7 @@ class TestEMRServerlessApplicationHandler:
                 application_id='app-12345abcdef',
             )
 
-        assert not result.isError
+        assert not result.is_error
         assert 'Successfully started EMR Serverless application' in result.content[0].text
 
         data = self.extract_data_from_result(result)
@@ -506,7 +506,7 @@ class TestEMRServerlessApplicationHandler:
                 application_id='app-12345abcdef',
             )
 
-        assert not result.isError
+        assert not result.is_error
         assert 'Successfully stopped EMR Serverless application' in result.content[0].text
 
         data = self.extract_data_from_result(result)
@@ -522,7 +522,7 @@ class TestEMRServerlessApplicationHandler:
             operation='invalid-operation',
         )
 
-        assert result.isError
+        assert result.is_error
         assert 'Invalid operation' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -630,7 +630,7 @@ class TestEMRServerlessApplicationHandler:
                 },
             )
 
-        assert not result.isError
+        assert not result.is_error
         data = self.extract_data_from_result(result)
         assert data['application_id'] == 'app-comprehensive'
         assert data['name'] == 'comprehensive-app'
@@ -675,7 +675,7 @@ class TestEMRServerlessApplicationHandler:
                 name='updated-name',
             )
 
-        assert result.isError
+        assert result.is_error
         assert 'Application is being updated by another process' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -691,7 +691,7 @@ class TestEMRServerlessApplicationHandler:
             operation='list-applications',
         )
 
-        assert result.isError
+        assert result.is_error
         assert 'Rate exceeded' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -707,6 +707,6 @@ class TestEMRServerlessApplicationHandler:
             application_id='app-12345abcdef',
         )
 
-        assert result.isError
+        assert result.is_error
         assert 'Error in manage_aws_emr_serverless_applications' in result.content[0].text
         assert 'Unexpected error occurred' in result.content[0].text

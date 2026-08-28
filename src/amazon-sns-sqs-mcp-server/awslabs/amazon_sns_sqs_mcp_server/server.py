@@ -17,11 +17,11 @@
 import argparse
 from awslabs.amazon_sns_sqs_mcp_server.sns import register_sns_tools
 from awslabs.amazon_sns_sqs_mcp_server.sqs import register_sqs_tools
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 
 # instantiate base server
-mcp = FastMCP(
+mcp = MCPServer(
     'awslabs.amazon-sns-sqs-mcp-server',
     instructions="""Manage Amazon SNS topics, subscriptions, and Amazon SQS queues for messaging.""",
     dependencies=['pydantic', 'boto3'],
