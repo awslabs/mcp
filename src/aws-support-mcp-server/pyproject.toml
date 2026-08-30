@@ -13,19 +13,14 @@ dependencies = [
     "lxml>=6.1.0",
     "markdownify>=0.13.1",
     "mcp[cli]>=1.23.0",
-    "pre-commit>=4.2.0",
     "protego>=0.3.1",
     "pydantic>=2.0.0",
-    "pytest>=8.3.5",
-    "pytest-asyncio>=0.26.0",
-    "pytest-cov>=6.1.1",
     "python-dotenv>=1.2.2",
     "python-multipart>=0.0.27",
     "readabilipy>=0.2.0",
     "requests>=2.33.0",
     "starlette>=0.49.1",
     "urllib3>=2.6.3",
-    "virtualenv>=20.36.1",
 ]
 
 authors = [
@@ -135,4 +130,6 @@ dev = [
     "pre-commit>=4.2.0",
     "pyright>=1.1.400",
     "pytest>=9.0.3",
+    "pytest-asyncio>=0.26.0",
+    "pytest-cov>=6.1.1",
 ]
