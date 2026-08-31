@@ -85,6 +85,13 @@ maintainable; it does not replace least-privilege role configuration.
   matched by resolved function name from the AST (schema-qualified or not).
 - FR6: In both modes, reject changes to security-sensitive GUCs
   (`row_security`, `session_replication_role`) via `SET` or `set_config()`.
+- FR6a: Name- and string-literal-based checks (FR5 dangerous functions, FR6 GUC
+  names) MUST match against a value decoded to PostgreSQL's own
+  identifier/string semantics — Unicode escapes (`U&"…"`/`U&'…'`, `UESCAPE`),
+  double-quote unwrapping, and case-folding. The chosen parser does **not**
+  guarantee this (sqlglot does not decode `U&` — see §5.5), so decoding must be
+  performed explicitly (or a PG-fidelity parser used) for these checks;
+  otherwise the encoding bypass is carried forward.
 - FR7: Fail closed — reject on parse/tokenize error, recursion limit, oversized
   input (`MAX_SQL_LEN`), or an unrecognized root statement type in read-only
   mode.
@@ -114,12 +121,21 @@ maintainable; it does not replace least-privilege role configuration.
 | In-repo precedent | Yes — `redshift-mcp-server` uses it | None |
 | Exotic PG syntax | May fail to parse some constructs → fail-closed rejection | Parses anything PG parses |
 
-**Recommendation: `sqlglot`.** Pure-Python distribution and in-repo consistency
-outweigh pglast's grammar exactness for a defense-in-depth layer. The main
-tradeoff — sqlglot may fail to parse some valid-but-exotic PostgreSQL, which we
-reject fail-closed — is acceptable for the LLM-generated read queries this tool
-serves, and is far safer than the current text matching. Keep pglast as a
-documented fallback if false-positive parse failures prove common in practice.
+**Recommendation: `sqlglot` for structure/read-only, with an explicit escape
+decoder (or pglast) for the name-based checks.** Pure-Python distribution and
+in-repo consistency make sqlglot the right base, and it is sound for the
+primary goal (read-only enforcement is keyword-driven and cannot be
+encoding-evaded). However, sqlglot does **not** decode `U&` Unicode escapes
+(empirically confirmed, §5.5), so the dangerous-function and security-GUC
+name checks would silently carry the encoding bypass forward if built on
+sqlglot names alone. For those checks, either decode to PostgreSQL semantics
+ourselves (FR6a) or use pglast/libpg_query — the real PG parser, which decodes
+identically. pglast's cost is a native dependency; weigh a hybrid only if the
+explicit decoder proves hard to maintain. Two tradeoffs to note either way:
+sqlglot may fail to parse some valid-but-exotic PostgreSQL (rejected
+fail-closed, acceptable), and — the subtler risk — it may *silently misparse*
+(parse without error but differently from PG), which fail-closed does not
+catch.
 
 ## 5. Design
 
@@ -161,22 +177,90 @@ generic `exp.Command`, the command name), exactly as redshift's guard does — s
 a denied word used as an identifier, alias, or string literal is not flagged,
 and a denied operation cannot be hidden by comments or quoting.
 
-### 5.3 Why this closes the known bypasses
+### 5.3 Which bypasses this closes — and which it does not
+
+Structural checks (closed, robustly):
 - **Missing verbs** (`COPY`, `CALL`, `DO`, `LOCK`, `SET`): recognized as
   statement/command nodes, not as an enumerated keyword list — the read-only
-  pass rejects any non-read node type.
-- **Unicode-escape / quoted-identifier / comment evasion**: the parser resolves
-  identifiers and strips comments as part of parsing, so
-  `U&"pg_read_fil\0065"(…)` is a `pg_read_file` function node before our check
-  ever runs. No text normalization needed.
+  pass rejects any non-read node type. PostgreSQL keywords cannot be
+  Unicode-escaped (only identifiers can), so an attacker cannot encode a write
+  into a read.
+- **Quoted-identifier and comment evasion**: the parser folds `"pg_read_file"`
+  to `pg_read_file` and strips comments as part of parsing (empirically
+  confirmed for sqlglot).
 - **Stacked queries**: rejected by the single-statement rule.
-- **Data-modifying CTEs**: rejected by the whole-tree walk, not just root type.
+- **Data-modifying CTEs**: rejected by the whole-tree walk, not just root type
+  (`WITH x AS (INSERT … RETURNING *) SELECT …` has an `Insert` node in the tree
+  even though the root is `Select`).
+
+Name/string-based checks (NOT closed by sqlglot alone — see §5.5):
+- **Unicode-escaped identifiers/strings** (`U&"pg_read_fil\0065"`,
+  `U&'row_securit\0079'`, `UESCAPE`): sqlglot does **not** decode these, so the
+  function/GUC name it exposes is the raw escaped text, and a denylist match
+  against the real name misses. This must be handled explicitly (§5.5) or the
+  encoding bypass survives for the dangerous-function and security-GUC checks.
+  The read-only statement-type check is unaffected (keyword-driven).
 
 ### 5.4 Constants
 - `MAX_SQL_LEN` — cap input size (align with redshift's value).
 - `DANGEROUS_FUNCTIONS` — reuse the existing set from `mutable_sql_detector.py`.
 - `SECURITY_SENSITIVE_GUCS` — reuse existing set.
 - `READ_ONLY_ALLOWED_ROOT` / `MUTATING_NODE_TYPES` — new, sqlglot node types.
+
+### 5.5 Threat model: parser differentials and encoding evasion
+
+An evasion exists whenever the **checker** and **PostgreSQL** interpret the same
+bytes differently. sqlglot is a re-implementation of a Postgres-like dialect,
+not PostgreSQL's lexer, so any decoding it does not replicate is a differential
+and a potential bypass.
+
+Empirical results (sqlglot `read='postgres'`, pinned line), confirmed on this
+branch:
+
+| Input | sqlglot sees | Robust? |
+|---|---|---|
+| `pg_read_file('/x')` | func `pg_read_file` | yes |
+| `"pg_read_file"(1)` | func `pg_read_file` | yes (quote folded) |
+| `pg_read_file /**/ (1)` | func `pg_read_file` | yes (comment stripped) |
+| `U&"pg_read_fil\0065"(1)` | func `pg_read_fil\0065` | **NO — not decoded** |
+| `set_config(U&'row_securit\0079',…)` | GUC arg not decoded | **NO** |
+| `COPY … TO PROGRAM 'id'` | root `Copy` | yes (structural) |
+| `WITH x AS (INSERT … RETURNING *) SELECT …` | `Insert` node in tree | yes (tree walk) |
+
+Consequences:
+- **Structural checks are sound.** Read-only classification, `COPY`, DML, and
+  DML-in-CTE are keyword/grammar-driven; keywords cannot be Unicode-escaped, so
+  encoding cannot turn a write into a read.
+- **Name/string denylists are not sound under sqlglot alone.** Because sqlglot
+  does not decode `U&"…"`/`U&'…'`, the dangerous-function and security-GUC checks
+  retain the same encoding bypass the regex had. **Fail-closed does not help
+  here** — sqlglot parses the escaped form successfully with a benign-looking
+  name, so there is no parse error to reject on. This is a *silent misparse*,
+  the dangerous kind of differential.
+
+Mitigations (choose per check; not mutually exclusive):
+1. **Decode to PostgreSQL semantics ourselves** before matching a name/string:
+   apply `U&`/`UESCAPE` decoding, `""` unquoting, and case-folding to the
+   identifier/literal node value. Scope is small (one identifier/string at a
+   time) versus the old whole-query text normalization, but it re-implements a
+   slice of the PG lexer and must track its rules.
+2. **Use pglast / libpg_query for the name-based checks.** It *is* PostgreSQL's
+   parser and decodes escapes identically, eliminating the differential. This
+   is the one place pglast has a concrete advantage over sqlglot; the cost is a
+   native dependency. A hybrid (sqlglot for structure/read-only, pglast for
+   name resolution) is possible but adds two parsers.
+3. **Rely on the database role as the authoritative control.** The
+   function/GUC denylists are defense-in-depth; PostgreSQL's own permission
+   check runs on the *decoded* object, so an encoding evasion of our denylist
+   only has impact if the connected role can actually execute the function or
+   owns the table. A least-privilege, non-superuser role without EXECUTE on the
+   dangerous functions and without `pg_execute_server_program` neutralizes the
+   residual regardless of parser fidelity.
+
+Recommendation: adopt (1) or (2) for the name-based checks so the parser
+migration does not silently carry the encoding bypass forward, and document (3)
+as the authoritative control. Do not claim encoding closure for the name-based
+checks on the strength of sqlglot alone.
 
 ## 6. Backward compatibility and migration
 
@@ -213,6 +297,10 @@ and a denied operation cannot be hidden by comments or quoting.
 
 ## 8. Risks and open questions
 
+- **Encoding differential on name checks (confirmed).** sqlglot does not decode
+  `U&` escapes, so the dangerous-function/GUC name checks need an explicit
+  decoder or pglast (§5.5, FR6a). This is the highest-priority design item — if
+  skipped, the migration carries the known bypass forward silently.
 - **Parse-failure false positives.** How often does sqlglot's Postgres dialect
   reject valid queries LLMs emit? Needs measurement (shadow mode). If material,
   reconsider pglast or a narrow fallback.
@@ -231,9 +319,12 @@ and a denied operation cannot be hidden by comments or quoting.
 ## 9. Rollout plan
 
 1. Add `sqlglot` dependency (pinned, aligned with redshift).
-2. Implement `sql_guard.py::assert_executable` + constants.
+2. Implement `sql_guard.py::assert_executable` + constants, including the
+   PostgreSQL escape/quote/case decoder for name-based checks (FR6a) — or wire
+   pglast for those checks.
 3. Port and expand the test corpus; add the regression corpus from existing
-   tests.
+   tests. The corpus MUST include the `U&`/`UESCAPE`/`E''` escape variants for
+   every dangerous function and security GUC, asserting they are still rejected.
 4. Wire `run_query` to the new guard; keep the tool's error-response contract.
 5. (Optional) shadow mode to measure parse-failure rate on real traffic.
 6. Remove/trim `mutable_sql_detector.py` once validated.
