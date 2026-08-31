@@ -1033,7 +1033,8 @@ async def test_sandbox_enforced_under_ci_env_end_to_end(tmp_path):
         inside_file.write_bytes(b'%PDF-1.4 ok')
         assert validate_file_path(ctx, str(inside_file)) is None
 
-    # Sanity: with no base configured the default is the secure cwd, never '/'.
+    # Sanity: with no base configured the default remains the resolved cwd 
+    # even when CI env vars are present.
     with patch.dict(os.environ, {'CI': 'true'}, clear=True):
         assert _get_base_directory() == Path.cwd().resolve()
     print('✓ sandbox enforced end-to-end under ambient CI env')

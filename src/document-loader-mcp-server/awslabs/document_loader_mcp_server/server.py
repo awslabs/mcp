@@ -93,8 +93,6 @@ def _get_base_directory() -> Path:
     return Path.cwd().resolve()
 
 
-BASE_DIRECTORY = _get_base_directory()
-
 # Timeout Constants
 DEFAULT_TIMEOUT_SECONDS = 30  # 30 second default timeout
 MAX_TIMEOUT_SECONDS = 300  # 5 minute maximum timeout
