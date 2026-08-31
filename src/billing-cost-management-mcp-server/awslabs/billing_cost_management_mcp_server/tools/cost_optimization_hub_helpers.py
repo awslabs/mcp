@@ -285,6 +285,11 @@ async def get_recommendation(
         }
 
         # Add complex nested fields if they exist
+        if 'currentResourceDetails' in recommendation:
+            formatted_response['current_resource_details'] = recommendation.get(
+                'currentResourceDetails'
+            )
+
         if 'recommendedResourceDetails' in recommendation:
             formatted_response['recommended_resource_details'] = recommendation.get(
                 'recommendedResourceDetails'

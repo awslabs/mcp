@@ -35,9 +35,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 
 # Path to the bundled Amazon RDS global CA bundle. The bundle is fetched
-# at build time by hatch_build.py and shipped inside the wheel so that IAM
-# authenticated connections can perform strict TLS verification out of the
-# box. The PEM is gitignored; rebuilding the package fetches a fresh copy.
+# at build time by hatch_build.py and shipped inside the wheel so that
+# credentialed connections (IAM auth and Secrets Manager) can perform strict
+# TLS verification out of the box. The PEM is gitignored; rebuilding the
+# package fetches a fresh copy.
 #
 # Users who maintain their own trust store can override the bundled file
 # by passing --ca_bundle <path> on the server command line.
@@ -114,8 +115,9 @@ class AsyncmyPoolConnection(AbstractDBConnection):
             max_size: Maximum number of connections in the pool
             is_test: Whether this is a test connection
             ca_bundle_path: Optional path to an alternate CA bundle to trust
-                for IAM-auth SSL verification. When set, the bundled Amazon
-                RDS CA bundle is ignored.
+                for SSL verification on credentialed connections (IAM auth or
+                Secrets Manager). When set, the bundled Amazon RDS CA bundle is
+                ignored.
         """
         super().__init__(readonly)
         self.host = host
@@ -168,25 +170,33 @@ class AsyncmyPoolConnection(AbstractDBConnection):
 
         self.created_time = datetime.now()
 
-        # Build SSL context for IAM auth (required for RDS IAM tokens).
+        # Build SSL context whenever real credentials go on the wire:
+        #   - IAM auth tokens (is_iam_auth)
+        #   - Secrets Manager passwords (secret_arn)
+        # Without TLS a MITM or attacker-controlled endpoint can capture the
+        # credential in cleartext. The two paths share identical trust logic;
+        # the auth flavour only affects the log message.
+        #
         # Trust decisions, in order of preference:
         #   1. --ca_bundle override supplied by the operator (explicit trust)
         #   2. Bundled Amazon RDS CA bundle verified against a pinned SHA-256
         #      (protects against silent tampering of the PEM on disk)
         #   3. System trust store (may not include RDS regional CAs — warned)
         ssl_ctx = None
-        if self.is_iam_auth:
+        if self.is_iam_auth or self.secret_arn:
+            auth_flavour = 'IAM auth' if self.is_iam_auth else 'Secrets Manager auth'
             cafile = self.ca_bundle_path or _bundled_ca_file()
             if cafile:
                 ssl_ctx = ssl_module.create_default_context(cafile=cafile)
-                logger.debug('Using CA bundle for IAM auth: {}', cafile)
+                logger.debug('Using CA bundle for {}: {}', auth_flavour, cafile)
             else:
                 ssl_ctx = ssl_module.create_default_context()
                 logger.warning(
-                    'No verified RDS CA bundle available; falling back to '
-                    'the system trust store. IAM auth may fail with '
+                    'No verified RDS CA bundle available for {}; falling back '
+                    'to the system trust store. The connection may fail with '
                     'CERTIFICATE_VERIFY_FAILED. Supply --ca_bundle <path> '
-                    'or reinstall the package to restore the bundled bundle.'
+                    'or reinstall the package to restore the bundled bundle.',
+                    auth_flavour,
                 )
 
         self.pool = await asyncmy.create_pool(
