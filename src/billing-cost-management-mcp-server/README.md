@@ -423,7 +423,6 @@ The server currently supports the following AWS services
    - get_rds_database_recommendations
    - get_lambda_function_recommendations
    - get_idle_recommendations
-   - get_enrollment_status
 
 7. **Compute Optimizer Automation**
    - get_automation_event
