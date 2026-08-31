@@ -22,6 +22,10 @@ import string
 import zipfile
 from awslabs.aws_healthomics_mcp_server.consts import AGENT_ENV
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
+    CredentialContext,
+    CredentialDerivationError,
+    InboundAuthError,
+    NoRequestIdentityError,
     create_aws_client,
     create_zip_file,
     decode_from_base64,
@@ -30,12 +34,15 @@ from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
     get_agent_value,
     get_aws_session,
     get_codeconnections_client,
+    get_credential_context,
     get_logs_client,
     get_omics_client,
     get_omics_endpoint_url,
     get_omics_service_name,
     get_partition,
     get_region,
+    reset_credential_context,
+    set_credential_context,
 )
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -1215,3 +1222,193 @@ class TestProfileAndRegionOverride:
             assert mock_get_session.call_count == 2
 
         get_partition.cache_clear()
+
+
+class TestPhase2Exceptions:
+    """Test cases for the Phase 2 inbound-auth exception hierarchy."""
+
+    def test_no_request_identity_is_inbound_auth_error(self):
+        """NoRequestIdentityError is a subclass of InboundAuthError."""
+        assert issubclass(NoRequestIdentityError, InboundAuthError)
+
+    def test_credential_derivation_is_inbound_auth_error(self):
+        """CredentialDerivationError is a subclass of InboundAuthError."""
+        assert issubclass(CredentialDerivationError, InboundAuthError)
+
+    def test_inbound_auth_error_is_exception(self):
+        """InboundAuthError is a subclass of Exception."""
+        assert issubclass(InboundAuthError, Exception)
+
+    def test_subclasses_caught_as_inbound_auth_error(self):
+        """Both derived errors can be caught as InboundAuthError."""
+        for err in (NoRequestIdentityError('x'), CredentialDerivationError('y')):
+            with pytest.raises(InboundAuthError):
+                raise err
+
+
+class TestCredentialContext:
+    """Test cases for the Phase 2 CredentialContext data model."""
+
+    def _make_context(self, **overrides):
+        """Build a CredentialContext with sensible defaults for tests."""
+        kwargs = {
+            'identity_key': 'identity-abc',
+            'access_key_id': 'AKIAEXAMPLE',
+            'secret_access_key': 'super-secret-value',  # pragma: allowlist secret
+            'session_token': 'session-token-value',
+            'source': 'sigv4',
+        }
+        kwargs.update(overrides)
+        return CredentialContext(**kwargs)
+
+    def test_is_frozen(self):
+        """CredentialContext is immutable (frozen dataclass)."""
+        ctx = self._make_context()
+        with pytest.raises(Exception):
+            ctx.identity_key = 'mutated'  # type: ignore[misc]
+
+    def test_repr_redacts_secret_material(self):
+        """repr() must never expose credential material."""
+        ctx = self._make_context()
+        text = repr(ctx)
+
+        # Non-secret fields are visible.
+        assert 'identity-abc' in text
+        assert 'sigv4' in text
+
+        # Secret material must not appear in any form.
+        assert 'AKIAEXAMPLE' not in text
+        assert 'super-secret-value' not in text
+        assert 'session-token-value' not in text
+        assert "access_key_id='***'" in text
+        assert "secret_access_key='***'" in text
+        assert "session_token='***'" in text
+
+    def test_str_redacts_secret_material(self):
+        """str()/f-string interpolation must never expose credential material."""
+        ctx = self._make_context()
+        text = f'{ctx}'
+        assert 'AKIAEXAMPLE' not in text
+        assert 'super-secret-value' not in text
+        assert 'session-token-value' not in text
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
+    def test_build_session_uses_explicit_credentials_and_region(
+        self, mock_boto3_session, mock_bc_session
+    ):
+        """build_session passes explicit credentials and region to boto3.Session."""
+        mock_bc_session.return_value = MagicMock()
+        ctx = self._make_context()
+
+        ctx.build_session(region='eu-west-1')
+
+        expected_secret = 'super-secret-value'  # pragma: allowlist secret
+        call_kwargs = mock_boto3_session.call_args.kwargs
+        assert call_kwargs['aws_access_key_id'] == 'AKIAEXAMPLE'
+        assert call_kwargs['aws_secret_access_key'] == expected_secret
+        assert call_kwargs['aws_session_token'] == 'session-token-value'
+        assert call_kwargs['region_name'] == 'eu-west-1'
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
+    def test_build_session_supports_none_session_token(self, mock_boto3_session, mock_bc_session):
+        """build_session passes None when there is no session token."""
+        mock_bc_session.return_value = MagicMock()
+        ctx = self._make_context(session_token=None)
+
+        ctx.build_session(region='us-east-1')
+
+        call_kwargs = mock_boto3_session.call_args.kwargs
+        assert call_kwargs['aws_session_token'] is None
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
+    @patch.dict(os.environ, {AGENT_ENV: 'KIRO'})
+    def test_build_session_applies_user_agent_extra(self, mock_boto3_session):
+        """build_session applies the same user_agent_extra string as the default resolver."""
+        captured = MagicMock()
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session',
+            return_value=captured,
+        ):
+            ctx = self._make_context()
+            ctx.build_session(region='us-east-1')
+
+        assert 'aws-healthomics-mcp-server' in captured.user_agent_extra
+        assert 'agent/kiro' in captured.user_agent_extra
+
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.botocore.session.Session')
+    @patch('awslabs.aws_healthomics_mcp_server.utils.aws_utils.boto3.Session')
+    def test_build_session_creates_fresh_session_each_call(
+        self, mock_boto3_session, mock_bc_session
+    ):
+        """build_session constructs a new session on every call (no reuse)."""
+        mock_bc_session.return_value = MagicMock()
+        ctx = self._make_context()
+
+        ctx.build_session(region='us-east-1')
+        ctx.build_session(region='us-east-1')
+
+        assert mock_boto3_session.call_count == 2
+
+
+class TestCredentialContextVar:
+    """Test cases for the credential-context contextvar accessors."""
+
+    def test_default_context_is_none(self):
+        """get_credential_context returns None when nothing is set."""
+        assert get_credential_context() is None
+
+    def test_set_then_get_returns_context(self):
+        """set_credential_context makes the context observable via get."""
+        ctx = CredentialContext(
+            identity_key='k',
+            access_key_id='AKIA',
+            secret_access_key='secret',  # pragma: allowlist secret
+            session_token=None,
+            source='explicit',
+        )
+        token = set_credential_context(ctx)
+        try:
+            assert get_credential_context() is ctx
+        finally:
+            reset_credential_context(token)
+
+    def test_reset_restores_previous_value(self):
+        """reset_credential_context restores the prior (None) value."""
+        ctx = CredentialContext(
+            identity_key='k',
+            access_key_id='AKIA',
+            secret_access_key='secret',  # pragma: allowlist secret
+            session_token=None,
+            source='jwt',
+        )
+        token = set_credential_context(ctx)
+        reset_credential_context(token)
+        assert get_credential_context() is None
+
+    def test_isolation_across_async_tasks(self):
+        """Concurrent asyncio tasks never observe each other's context."""
+        import asyncio
+
+        async def worker(identity: str) -> str | None:
+            ctx = CredentialContext(
+                identity_key=identity,
+                access_key_id='AKIA',
+                secret_access_key='secret',  # pragma: allowlist secret
+                session_token=None,
+                source='sigv4',
+            )
+            token = set_credential_context(ctx)
+            try:
+                await asyncio.sleep(0)
+                observed = get_credential_context()
+                return observed.identity_key if observed else None
+            finally:
+                reset_credential_context(token)
+
+        async def main() -> list[str | None]:
+            return list(await asyncio.gather(worker('a'), worker('b'), worker('c')))
+
+        results = asyncio.run(main())
+        assert results == ['a', 'b', 'c']

@@ -365,3 +365,111 @@ ERROR_CONFIGURATION_NAME_REQUIRES_VPC_MODE = (
 )
 ERROR_RESERVED_CONFIGURATION_NAME = "Configuration name '{}' is reserved and cannot be used"
 ERROR_CONFIGURATION_NAME_TOO_LONG = 'Configuration name exceeds maximum length of {} characters'
+
+# Transport selection (Phase 1)
+MCP_TRANSPORT_ENV = 'MCP_TRANSPORT'
+MCP_HOST_ENV = 'MCP_HOST'
+MCP_PORT_ENV = 'MCP_PORT'
+MCP_PATH_ENV = 'MCP_PATH'
+
+# Transport and network defaults (Phase 1)
+DEFAULT_TRANSPORT = 'stdio'
+DEFAULT_HTTP_HOST = '127.0.0.1'  # Loopback_Address
+DEFAULT_HTTP_PORT = 8000
+DEFAULT_HTTP_PATH = '/mcp'
+
+# Supported transports (Phase 1)
+SUPPORTED_TRANSPORTS = ('stdio', 'streamable-http', 'sse')
+NETWORK_TRANSPORTS = ('streamable-http', 'sse')
+
+# Error messages for transport and network configuration (Phase 1)
+ERROR_UNSUPPORTED_TRANSPORT = "Unsupported transport '{}'. Supported transports: {}"
+ERROR_INVALID_PORT = "Invalid port '{}'. Port must be an integer in the range 1-65535."
+ERROR_INVALID_HOST = "Invalid host '{}'. Must be a valid IPv4 address, IPv6 address, or hostname."
+
+# Warning emitted when binding a network transport to a non-loopback host (Phase 1).
+# Phase 1 performs no inbound authentication of its own; non-loopback exposure
+# requires an external fronting authentication layer.
+WARN_NON_LOOPBACK_EXPOSURE = (
+    "Binding network transport to non-loopback host '{}'. The server does not "
+    'perform inbound authentication; non-loopback exposure requires an external '
+    'fronting authentication layer (for example SigV4 via mcp-proxy-for-aws, a '
+    'reverse proxy, or an API gateway).'
+)
+
+# Multi-tenant selection (Phase 2)
+MCP_MULTI_TENANT_ENV = 'MCP_MULTI_TENANT'
+MCP_INBOUND_AUTH_ENV = 'MCP_INBOUND_AUTH'
+
+# ARN of the role assumed by the inbound JWT-to-STS exchange mechanism (Phase 2).
+# Required only when the 'jwt' inbound mechanism is enabled; supplied via this
+# environment variable because the JWT exchange mechanism has no other source
+# for the target role ARN.
+MCP_JWT_ROLE_ARN_ENV = 'MCP_JWT_ROLE_ARN'
+
+# Provider-controlled registry source for per-request role/ExternalId resolution
+# (customer-account role assumption). Selects the RegistryRoleResolver; its value
+# names exactly one backend, either a file-based JSON map (file:///path/map.json)
+# or a DynamoDB table (dynamodb://table-name). Mutually exclusive with
+# MCP_JWT_ROLE_ARN.
+MCP_JWT_ROLE_REGISTRY_ENV = 'MCP_JWT_ROLE_REGISTRY'
+
+# Optional session duration (in seconds) applied to the inbound JWT-to-STS
+# AssumeRole exchange. When unset the exchange uses DEFAULT_JWT_SESSION_DURATION.
+MCP_JWT_SESSION_DURATION_ENV = 'MCP_JWT_SESSION_DURATION'
+
+# Session-duration bounds for the inbound JWT-to-STS AssumeRole exchange.
+# The inclusive range mirrors the AWS STS AssumeRole DurationSeconds limits.
+JWT_SESSION_DURATION_MIN = 900
+JWT_SESSION_DURATION_MAX = 43200
+DEFAULT_JWT_SESSION_DURATION = 3600
+
+# Inbound authentication mechanisms (Phase 2).
+# INBOUND_PRECEDENCE documents the deterministic order in which mechanisms apply.
+INBOUND_MECHANISMS = ('sigv4', 'jwt', 'explicit')
+INBOUND_PRECEDENCE = ('sigv4', 'jwt', 'explicit')
+
+# Error messages for multi-tenant configuration (Phase 2)
+ERROR_MULTI_TENANT_REQUIRES_NETWORK = (
+    'Multi-tenant mode is incompatible with the stdio transport. '
+    'Select a network transport (streamable-http or sse).'
+)
+ERROR_INVALID_MULTI_TENANT_VALUE = "Invalid multi-tenant value '{}'. Accepted values: {}"
+ERROR_INVALID_INBOUND_AUTH = "Invalid inbound authentication mechanism '{}'. Accepted values: {}"
+ERROR_MISSING_JWT_ROLE_ARN = (
+    "The 'jwt' inbound mechanism is enabled but no role ARN is configured. "
+    'Set the {} environment variable to the ARN of the role to assume.'
+)
+ERROR_MULTI_TENANT_REQUIRES_MECHANISM = (
+    'Multi-tenant mode is enabled but no inbound identity mechanisms are '
+    'configured. Select at least one mechanism ({}) via the --inbound-auth flag '
+    'or the {} environment variable; otherwise every inbound request would be '
+    'rejected.'
+)
+
+# Startup error messages for the customer-account role-assumption resolver surface.
+# Both role-resolution sources configured is a conflict (fail fast at startup):
+# the '{}' placeholders name the two conflicting sources (MCP_JWT_ROLE_ARN and
+# MCP_JWT_ROLE_REGISTRY).
+ERROR_CONFLICTING_ROLE_RESOLUTION_SOURCES = (
+    'Conflicting JWT role-resolution sources configured: both {} and {} are set. '
+    'Configure exactly one of them.'
+)
+# Invalid session duration: the first '{}' is the rejected value, the following
+# two are the inclusive minimum and maximum of the accepted range.
+ERROR_INVALID_JWT_SESSION_DURATION = (
+    "Invalid JWT session duration '{}'. Must be an integer within the inclusive "
+    'range {} to {} seconds.'
+)
+# The 'jwt' inbound mechanism is enabled but neither role-resolution source is
+# configured. The two '{}' placeholders name the acceptable sources
+# (MCP_JWT_ROLE_ARN for the static resolver and MCP_JWT_ROLE_REGISTRY for the
+# registry resolver); exactly one of them must be set.
+ERROR_MISSING_JWT_ROLE_SOURCE = (
+    "The 'jwt' inbound mechanism is enabled but no role-resolution source is "
+    'configured. Set exactly one of {} (a static role ARN) or {} (a registry '
+    'source) to select the role to assume.'
+)
+# An MCP_JWT_ROLE_REGISTRY value that names an unsupported source backend. The
+# first '{}' is the env-var name and the second '{}' is the underlying reason.
+ERROR_INVALID_JWT_ROLE_REGISTRY = 'Invalid {} value: {}'
