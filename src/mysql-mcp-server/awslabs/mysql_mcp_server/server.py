@@ -57,8 +57,9 @@ write_query_prohibited_key = 'Your MCP tool only allows readonly query. If you w
 query_comment_prohibited_key = 'The comment in query is prohibited because of injection risk'
 query_injection_risk_key = 'Your query contains risky injection patterns'
 readonly_query = True
-# Optional path to a CA bundle trusted for IAM-auth SSL verification. Set by
-# the CLI flag --ca_bundle on server start. When None, the package's bundled
+# Optional path to a CA bundle trusted for SSL verification on credentialed
+# connections (IAM auth or Secrets Manager). Set by the CLI flag --ca_bundle
+# on server start. When None, the package's bundled
 # Amazon RDS global bundle (verified against a pinned hash) is used.
 ca_bundle_path: Optional[str] = None
 
@@ -840,6 +841,9 @@ def internal_connect_to_database(
             db_user='',
             region=region,
             is_iam_auth=False,
+            # Wire the operator's --ca_bundle override into the Secrets Manager
+            # TLS path too; without this the override is unreachable here.
+            ca_bundle_path=ca_bundle_path,
         )
 
     # Every supported connection_method assigns db_connection above (the
@@ -898,7 +902,8 @@ def main():
         '--ca_bundle',
         default=None,
         help=(
-            'Path to an alternate CA bundle (PEM) for IAM-auth SSL verification. '
+            'Path to an alternate CA bundle (PEM) for SSL verification on '
+            'credentialed connections (IAM auth or Secrets Manager). '
             'Overrides the bundled Amazon RDS global bundle shipped with the '
             'package. Use this if you maintain your own trust store or if AWS '
             'rotates CAs faster than the package release cadence.'
