@@ -209,11 +209,11 @@ The MCP server includes built-in workflow linting capabilities for validating WD
    - **Best practices**: Get warnings about potential improvements
 
 2. **Supported Formats**:
-   - **WDL**: Uses miniwdl for comprehensive validation
+   - **WDL**: Uses a vendored subset of miniwdl's parser/lint modules for comprehensive validation (see [docs/workflow_linting.md](https://github.com/awslabs/mcp/blob/main/src/aws-healthomics-mcp-server/docs/workflow_linting.md))
    - **CWL**: Uses cwltool for standards-compliant validation
 
 3. **No Additional Installation Required**:
-   Both miniwdl and cwltool are included as dependencies and available immediately after installing the MCP server.
+   Both the WDL and CWL linters are available immediately after installing the MCP server, with no dependency on GPL/MPL-licensed packages.
 
 ### Genomics File Discovery
 

@@ -1,3 +1,4 @@
+exclude: '(^|/)vendor/wdl/'
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -68,6 +69,10 @@ repos:
         entry: bash -c 'for x in "$@"; do (cd `dirname $x`; pwd; uv run --frozen --all-extras --dev pyright --stats;); done;' --
         stages: [pre-push]
         files: (src|samples)\/.*\/pyproject.toml
+        # third_party_stubs/* pyproject.toml files are local uv.sources path overrides
+        # (see e.g. aws-healthomics-mcp-server/third_party_stubs/spython), not standalone
+        # packages with their own lockfile/dev dependencies -- exclude them.
+        exclude: \/third_party_stubs\/
     -   id: pytest
         name: pytest
         pass_filenames: true
@@ -75,3 +80,4 @@ repos:
         entry: bash -c 'for x in "$@"; do (cd `dirname $x`; pwd; uv run --frozen pytest --cov --cov-branch --cov-report=term-missing;); done;' --
         stages: [pre-push]
         files: src\/.*\/pyproject.toml
+        exclude: \/third_party_stubs\/

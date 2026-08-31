@@ -10,8 +10,17 @@ dependencies = [
     "loguru>=0.7.0",
     "mcp[cli]>=2.0.0,<3.0.0",
     "pydantic>=2.10.6",
-    "miniwdl>=1.12.0",
     "cwltool[deps]>=3.1.0",
+    # Direct declaration required so [tool.uv.sources] below can redirect this
+    # transitive cwltool dependency to a local stub instead of PyPI.
+    "spython>=0.3.0",
+    # Direct dependencies of the vendored WDL parser/lint modules under
+    # awslabs/aws_healthomics_mcp_server/vendor/wdl/ (see VENDORED.md there).
+    # We depend on these instead of `miniwdl` itself to avoid miniwdl's hard
+    # dependency on the GPL-licensed `pygtail`.
+    "regex>=2020.4.4",
+    "lark~=1.2",
+    "python-json-logger>=2,<4",
     "coloredlogs>=15.0",
     "ruamel-yaml>=0.18.0",
     "isodate>=0.6.0",
@@ -68,6 +77,13 @@ build-backend = "hatchling.build"
 [tool.hatch.metadata]
 allow-direct-references = true
 
+[tool.uv.sources]
+# cwltool unconditionally depends on spython (MPL-2.0) for Singularity support,
+# a feature this server never exercises (only `cwltool --validate` is used).
+# Satisfy that dependency from a local no-op stub instead of installing the
+# real MPL-2.0 package. See third_party_stubs/spython/README.md.
+spython = { path = "third_party_stubs/spython", editable = true }
+
 [tool.ruff]
 line-length = 99
 extend-include = ["*.ipynb"]
@@ -80,7 +96,10 @@ exclude = [
     "**/env",
     "**/.ruff_cache",
     "**/.venv",
-    "**/.ipynb_checkpoints"
+    "**/.ipynb_checkpoints",
+    # Vendored verbatim from upstream miniwdl; not reformatted/relinted so
+    # re-vendoring produces a clean diff against upstream. See VENDORED.md.
+    "awslabs/aws_healthomics_mcp_server/vendor/wdl",
 ]
 force-exclude = true
 
@@ -109,7 +128,14 @@ docstring-code-format = true
 
 [tool.pyright]
 include = ["awslabs", "tests"]
-exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
+exclude = [
+    "**/__pycache__",
+    "**/.venv",
+    "**/node_modules",
+    "**/dist",
+    "**/build",
+    "awslabs/aws_healthomics_mcp_server/vendor/wdl",
+]
 
 [tool.commitizen]
 name = "cz_conventional_commits"
@@ -125,7 +151,7 @@ update_changelog_on_bump = true
 packages = ["awslabs"]
 
 [tool.bandit]
-exclude_dirs = ["venv", ".venv", "tests"]
+exclude_dirs = ["venv", ".venv", "tests", "awslabs/aws_healthomics_mcp_server/vendor/wdl"]
 
 [tool.pytest.ini_options]
 python_files = "test_*.py"
@@ -146,3 +172,4 @@ exclude_also = [
 
 [tool.coverage.run]
 source = ["awslabs"]
+omit = ["awslabs/aws_healthomics_mcp_server/vendor/wdl/*"]
