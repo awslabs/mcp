@@ -115,8 +115,8 @@ sampled in [mcp/.mcp.json](mcp/.mcp.json)
 
 #### [pg-migrations/type-mapping.md](references/pg-migrations/type-mapping.md)
 
-**When:** MUST load for PostgreSQL → DSQL type questions
-**Contains:** C collation rules, NUMERIC precision, JSON/JSONB, types mapped to TEXT by `dsql_lint`
+**When:** MUST load for DSQL NUMERIC or PostgreSQL → DSQL type questions
+**Contains:** C collation rules, NUMERIC(p,s), JSON/JSONB, types mapped to TEXT by `dsql_lint`
 
 #### [pg-migrations/fk-replacement.md](references/pg-migrations/fk-replacement.md)
 

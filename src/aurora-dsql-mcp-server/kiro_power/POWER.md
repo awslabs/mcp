@@ -71,8 +71,8 @@ This power includes the following steering files in [steering](./steering)
 - **mysql-full-example**
   - Load when migrating a complete MySQL table to DSQL
 - **pg-migrations-type-mapping**
-  - MUST load for PostgreSQL → DSQL type questions
-  - C collation rules, NUMERIC precision, JSON/JSONB, types mapped to TEXT by `dsql_lint`
+  - MUST load for DSQL NUMERIC or PostgreSQL → DSQL type questions
+  - C collation rules, NUMERIC(p,s), JSON/JSONB, types mapped to TEXT by `dsql_lint`
 - **pg-migrations-fk-replacement**
   - MUST load for foreign-key validation code generation — tenant-scoped `validate_fk_*()` template, cascade handling
 - **pg-migrations-index-conversion**
