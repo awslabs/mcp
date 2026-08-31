@@ -411,6 +411,12 @@ def _get_specialized_converter(operation_name: str) -> Optional[str]:
     if operation_name.startswith('credits_get_'):
         return 'records'
 
+    # Billing preference operations return {billing_preferences: [...]}.
+    # One row per preference keeps an offloaded organization
+    # filterable by account and value
+    if operation_name.startswith('billing_preferences_'):
+        return 'records'
+
     return None
 
 
