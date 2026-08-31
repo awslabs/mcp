@@ -428,7 +428,11 @@ async def _execute_statement(
 
     long_poll_params = {'WaitTimeSeconds': query_long_poll} if query_long_poll else {}
 
-    response = data_client.execute_statement(**request_params, **long_poll_params)
+    # boto3 is synchronous and a long poll holds the caller for up to query_long_poll
+    # seconds, so every Data API call here runs off the event loop.
+    response = await asyncio.to_thread(
+        data_client.execute_statement, **request_params, **long_poll_params
+    )
     statement_id = response['Id']
 
     logger.debug(
@@ -448,9 +452,10 @@ async def _execute_statement(
             error_msg = response.get('Error')
             if error_msg is None:
                 # ExecuteStatement carries no Error field, so the reason takes a describe.
-                error_msg = data_client.describe_statement(Id=statement_id).get(
-                    'Error', 'Unknown error'
+                described = await asyncio.to_thread(
+                    data_client.describe_statement, Id=statement_id
                 )
+                error_msg = described.get('Error', 'Unknown error')
             logger.error(f'Statement failed: {error_msg}')
             raise Exception(f'Statement failed: {error_msg}')
 
@@ -461,7 +466,9 @@ async def _execute_statement(
         await asyncio.sleep(query_poll_interval)
 
         try:
-            response = data_client.describe_statement(Id=statement_id, **long_poll_params)
+            response = await asyncio.to_thread(
+                data_client.describe_statement, Id=statement_id, **long_poll_params
+            )
         except ClientError as e:
             if e.response.get('Error', {}).get('Code') != 'ActiveWaitingRequestsExceededException':
                 raise

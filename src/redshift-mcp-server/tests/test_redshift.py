@@ -912,6 +912,40 @@ class TestExecuteStatement:
         assert calls[2][1] == {'Id': 'stmt-123'}
 
     @pytest.mark.asyncio
+    async def test_execute_statement_does_not_block_the_event_loop(self, mocker):
+        """A long-polled Data API call must not stall other coroutines."""
+        block_seconds = 0.3
+
+        def blocking_describe(**kwargs):
+            time.sleep(block_seconds)  # stands in for a held long poll
+            return {'Status': 'FINISHED'}
+
+        mock_client = mocker.Mock()
+        mock_client.execute_statement.return_value = {'Id': 'stmt-123', 'Status': 'STARTED'}
+        mock_client.describe_statement.side_effect = blocking_describe
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
+            return_value=mock_client,
+        )
+
+        ticks = 0
+
+        async def heartbeat():
+            nonlocal ticks
+            while True:
+                await asyncio.sleep(block_seconds / 10)
+                ticks += 1
+
+        beat = asyncio.create_task(heartbeat())
+        await _execute_statement(
+            _fake_cluster(), 'test-cluster', 'dev', 'SELECT 1', query_poll_interval=0
+        )
+        beat.cancel()
+
+        assert ticks >= 5, f'event loop stalled during the Data API call (only {ticks} ticks)'
+
+    @pytest.mark.asyncio
     async def test_execute_statement_other_client_error_propagates(self, mocker):
         """A describe_statement ClientError other than the waiter limit is not swallowed."""
         mock_client = mocker.Mock()
