@@ -145,7 +145,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.40.76" },
     { name = "botocore", specifier = ">=1.34.0" },
     { name = "cfn-lint", specifier = ">=0.83.0" },
-    { name = "fastmcp", specifier = ">=3.2.0" },
+    { name = "fastmcp", specifier = ">=3.2.0,<4" },
     { name = "guardpycfn", specifier = ">=0.1.0" },
     { name = "loguru", specifier = ">=0.7.0" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.23.0" },
