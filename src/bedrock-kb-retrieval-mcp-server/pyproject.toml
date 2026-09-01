@@ -5,7 +5,7 @@ description = "An AWS Labs Model Context Protocol (MCP) server for Bedrock Knowl
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "boto3>=1.37.24",
+    "boto3>=1.43.0",
     "loguru>=0.7.3",
     "mcp[cli]>=2.0.0,<3.0.0",
     "pydantic>=2.11.1",
@@ -45,7 +45,7 @@ Changelog = "https://github.com/awslabs/mcp/blob/main/src/bedrock-kb-retrieval-m
 
 [dependency-groups]
 dev = [
-    "boto3-stubs[bedrock-agent,bedrock-agent-runtime]>=1.37.24",
+    "boto3-stubs[bedrock-agent,bedrock-agent-runtime]>=1.43.0",
     "commitizen>=4.4.1",
     "pre-commit>=4.2.0",
     "pyright>=1.1.398",

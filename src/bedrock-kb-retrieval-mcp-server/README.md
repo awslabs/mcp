@@ -22,8 +22,14 @@ MCP server for accessing Amazon Bedrock Knowledge Bases
 - Include or exclude specific data sources
 - Prioritize results from specific data sources
 
-### Rerank results
+### Support both managed and vector knowledge bases
 
+* Works with vector knowledge bases (`type: VECTOR`) and managed knowledge bases (`type: MANAGED`)
+* The knowledge base type is detected automatically and the correct `Retrieve` configuration is sent (`vectorSearchConfiguration` or `managedSearchConfiguration`)
+* Data-source filtering uses the metadata key appropriate to the knowledge base type
+* The `ListKnowledgeBases` tool reports each knowledge base's `type`
+
+### Rerank results
 - Improve relevance of retrieval results
 - Use Amazon Bedrock reranking capabilities
 - Sort results by relevance to your query

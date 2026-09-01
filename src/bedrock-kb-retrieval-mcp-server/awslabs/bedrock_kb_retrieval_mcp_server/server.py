@@ -188,6 +188,7 @@ async def query_knowledge_bases_tool(
         reranking=reranking,
         reranking_model_name=reranking_model_name,
         data_source_ids=data_source_ids,
+        kb_agent_mgmt_client=kb_agent_mgmt_client,
     )
 
 

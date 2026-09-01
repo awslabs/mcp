@@ -134,6 +134,7 @@ class TestQueryKnowledgeBasesTool:
             reranking=True,
             reranking_model_name='AMAZON',
             data_source_ids=['ds-12345', 'ds-67890'],
+            kb_agent_mgmt_client=mock.ANY,  # We can't directly access the global variable in tests
         )
 
 
