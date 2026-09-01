@@ -31,6 +31,38 @@ SCHEMAS_SQL = 'SHOW SCHEMAS FROM DATABASE {database};'
 TABLES_SQL = 'SHOW TABLES FROM SCHEMA {database}.{schema};'
 COLUMNS_SQL = 'SHOW COLUMNS FROM TABLE {database}.{schema}.{table};'
 
+# UDF discovery SQL. Queries pg_proc for user-defined functions.
+# {schema} is filled with a quoted identifier by the caller.
+UDFS_SQL = """
+SELECT
+    n.nspname AS schema_name,
+    p.proname AS function_name,
+    CASE p.prolang
+        WHEN (SELECT oid FROM pg_language WHERE lanname = 'plpythonu') THEN 'python'
+        WHEN (SELECT oid FROM pg_language WHERE lanname = 'sql') THEN 'sql'
+        WHEN (SELECT oid FROM pg_language WHERE lanname = 'exfunc') THEN 'lambda'
+        ELSE l.lanname
+    END AS language_type,
+    CASE p.provolatile
+        WHEN 'i' THEN 'IMMUTABLE'
+        WHEN 's' THEN 'STABLE'
+        WHEN 'v' THEN 'VOLATILE'
+    END AS volatility,
+    pg_catalog.pg_get_function_result(p.oid) AS return_type,
+    pg_catalog.pg_get_function_arguments(p.oid) AS arguments,
+    p.prosrc AS source_code,
+    COALESCE(d.description, '') AS description,
+    pg_catalog.pg_get_functiondef(p.oid) AS full_definition
+FROM pg_proc p
+JOIN pg_namespace n ON p.pronamespace = n.oid
+JOIN pg_language l ON p.prolang = l.oid
+LEFT JOIN pg_description d ON d.objoid = p.oid
+WHERE n.nspname = {schema}
+    AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+    AND p.proowner != 1
+ORDER BY n.nspname, p.proname;
+"""
+
 # SQL guardrails
 
 # Read-only guard limits and deny-list (used by sql_guard.py; sqlglot AST-based).
