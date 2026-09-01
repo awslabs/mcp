@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Deprecated
+
+- Deprecate the standalone DSQL skill and its compatibility aliases in favor
+  of the canonical `dsql` skill in the
+  [`databases-on-aws` plugin](https://github.com/awslabs/agent-plugins/tree/main/plugins/databases-on-aws/skills/dsql).
+
 ### Added
 
 - Add `ALTER TABLE ASYNC ... VALIDATE CONSTRAINT` guidance to DSQL steering. CHECK constraints can now be added with `NOT VALID` and validated asynchronously, following the same async DDL pattern as `CREATE INDEX ASYNC`.

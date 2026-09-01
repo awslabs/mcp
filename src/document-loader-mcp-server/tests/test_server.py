@@ -928,6 +928,118 @@ def test_get_base_directory_from_env():
         print('✓ _get_base_directory returns path from env var')
 
 
+def test_get_base_directory_defaults_to_cwd_without_env():
+    """Test _get_base_directory defaults to the resolved cwd when unconfigured."""
+    from pathlib import Path
+
+    # Clean environment: no DOCUMENT_BASE_DIR, no ambient CI/test signals.
+    with patch.dict(os.environ, {}, clear=True):
+        result = _get_base_directory()
+        assert result == Path.cwd().resolve()
+        print('✓ _get_base_directory defaults to cwd when unconfigured')
+
+
+@pytest.mark.parametrize(
+    'ambient_env',
+    [
+        {'CI': 'true'},
+        {'GITHUB_ACTIONS': 'true'},
+        {'PYTEST_CURRENT_TEST': 'tests/test_server.py::something (call)'},
+        {'CI': 'true', 'GITHUB_ACTIONS': 'true', 'PYTEST_CURRENT_TEST': 'x'},
+    ],
+)
+def test_get_base_directory_ignores_ambient_ci_env(ambient_env):
+    """Ambient CI/test env vars must NOT widen the sandbox to '/'.
+
+    Regression test for the path-containment bypass: CI platforms set CI /
+    GITHUB_ACTIONS unconditionally and pytest sets PYTEST_CURRENT_TEST, so any
+    of these silently disabling the sandbox is the vulnerability. With no
+    DOCUMENT_BASE_DIR configured, the base directory must remain the secure
+    cwd default regardless of these signals.
+    """
+    from pathlib import Path
+
+    with patch.dict(os.environ, ambient_env, clear=True):
+        result = _get_base_directory()
+        assert result != Path('/')
+        assert result == Path.cwd().resolve()
+        print(f'✓ _get_base_directory ignores ambient env {sorted(ambient_env)}')
+
+
+def test_get_base_directory_explicit_base_wins_over_ci_env():
+    """Explicit DOCUMENT_BASE_DIR is honored even with ambient CI env present."""
+    from pathlib import Path
+
+    env = {
+        'DOCUMENT_BASE_DIR': '/var/app/documents',
+        'CI': 'true',
+        'GITHUB_ACTIONS': 'true',
+        'PYTEST_CURRENT_TEST': 'x',
+    }
+    with patch.dict(os.environ, env, clear=True):
+        result = _get_base_directory()
+        # Compare against the resolved expectation: some system dirs (e.g. /var
+        # on macOS) are symlinks, and _get_base_directory canonicalizes them.
+        assert result == Path('/var/app/documents').resolve()
+        assert result != Path('/')
+        print('✓ explicit DOCUMENT_BASE_DIR wins over ambient CI env')
+
+
+def test_get_base_directory_resolves_symlinks_and_relative_paths():
+    """DOCUMENT_BASE_DIR is resolved to a canonical absolute path."""
+    from pathlib import Path
+
+    # A relative base is resolved against cwd to an absolute path.
+    with patch.dict(os.environ, {'DOCUMENT_BASE_DIR': 'subdir'}, clear=True):
+        result = _get_base_directory()
+        assert result.is_absolute()
+        assert result == (Path.cwd() / 'subdir').resolve()
+        print('✓ _get_base_directory resolves to a canonical absolute path')
+
+
+@pytest.mark.asyncio
+async def test_sandbox_enforced_under_ci_env_end_to_end(tmp_path):
+    """End-to-end: an out-of-base absolute read is denied even with CI env set.
+
+    This exercises the real enforcement path (validate_file_path ->
+    _is_within_base_directory) rather than just the helper, proving the tool
+    surface is sandboxed regardless of ambient CI signals.
+    """
+    from pathlib import Path
+
+    # A real file that exists and has an allowed extension, placed OUTSIDE
+    # the configured base directory.
+    outside_file = tmp_path / 'secret.pdf'
+    outside_file.write_bytes(b'%PDF-1.4 sensitive')
+
+    base_dir = tmp_path / 'sandbox'
+    base_dir.mkdir()
+
+    ctx = MockContext()
+    # DOCUMENT_BASE_DIR points at the sandbox; ambient CI vars are present.
+    env = {
+        'DOCUMENT_BASE_DIR': str(base_dir),
+        'CI': 'true',
+        'GITHUB_ACTIONS': 'true',
+        'PYTEST_CURRENT_TEST': 'x',
+    }
+    with patch.dict(os.environ, env, clear=True):
+        error = validate_file_path(ctx, str(outside_file))
+        assert error is not None
+        assert 'Access denied' in error
+
+        # And a file INSIDE the sandbox passes containment.
+        inside_file = base_dir / 'ok.pdf'
+        inside_file.write_bytes(b'%PDF-1.4 ok')
+        assert validate_file_path(ctx, str(inside_file)) is None
+
+    # Sanity: with no base configured the default remains the resolved cwd
+    # even when CI env vars are present.
+    with patch.dict(os.environ, {'CI': 'true'}, clear=True):
+        assert _get_base_directory() == Path.cwd().resolve()
+    print('✓ sandbox enforced end-to-end under ambient CI env')
+
+
 def test_get_soffice_timeout_default():
     """Test _get_soffice_timeout returns default when env var not set."""
     with patch.dict(os.environ, {}, clear=False):

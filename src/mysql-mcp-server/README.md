@@ -127,6 +127,17 @@ directly via `mysqlwire` with the endpoint, port, and credentials.
 - VPC security group must allow inbound connections from your MCP server to the database
 - For `mysqlwire_iam`: IAM authentication must be enabled on the Aurora MySQL cluster
 - The AWS identity needs `rds:DescribeDBClusters` and `rds:DescribeDBInstances`. A caller-supplied `db_endpoint` is validated against the cluster's AWS-resolved endpoints before connecting; resolving those endpoints requires both permissions. Without them, endpoint validation cannot enumerate the cluster's real endpoints and the connection is refused.
+- **TLS is required whenever real credentials are on the wire** — both IAM auth
+  (`mysqlwire_iam`) and Secrets Manager passwords (`mysqlwire` with a managed
+  secret). The server verifies the server certificate against the bundled Amazon
+  RDS global CA bundle. If your server certificate does not chain to that bundle,
+  supply your own trust store with `--ca_bundle <path>`; otherwise the connection
+  fails with `CERTIFICATE_VERIFY_FAILED`.
+
+  > **Breaking change:** earlier versions left `mysqlwire` (non-IAM) connections
+  > plaintext-capable. They are now upgraded to verified TLS. Installations that
+  > relied on plaintext or a server-certificate-managed TLS setup must pass
+  > `--ca_bundle <path>` (or reinstall to restore the bundled CA bundle).
 
 #### rdsapi
 - RDS Data API must be enabled on the Aurora MySQL cluster
