@@ -1,6 +1,8 @@
 # MySQL to DSQL: AUTO_INCREMENT Migration
 
-Part of [MySQL to DSQL DDL Migration](ddl-operations.md). See [Common Verify & Swap Pattern](ddl-operations.md#common-verify--swap-pattern) for the shared migration end-pattern.
+Part of [MySQL to DSQL DDL Migration](ddl-operations.md). For table recreation, read
+[Table Recreation](../ddl-migrations/overview.md#table-recreation), then follow the
+[Common Verify & Swap Pattern](ddl-operations.md#common-verify--swap-pattern).
 
 ---
 
@@ -15,9 +17,9 @@ CREATE TABLE users (
 );
 ```
 
-DSQL provides three options for replacing MySQL's AUTO_INCREMENT. Choose based on your workload requirements. See [Choosing Identifier Types](../auth/scaling-guide.md#choosing-identifier-types) in the scaling guide for detailed guidance.
-
-**ALWAYS use `GENERATED AS IDENTITY`** for auto-incrementing integer columns.
+DSQL provides three identifier designs. Use `GENERATED AS IDENTITY` when preserving MySQL integer
+AUTO_INCREMENT semantics; choose UUID only when deliberately changing the identifier design. See
+[Choosing Identifier Types](../auth/scaling-guide.md#choosing-identifier-types) for detail.
 
 ### Option 1: UUID Primary Key (Recommended for Scalability)
 
@@ -86,7 +88,7 @@ transact([
 transact([
   "CREATE TABLE users_new (
      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-     legacy_id INTEGER,  -- Preserve original AUTO_INCREMENT ID for reference
+     legacy_id INTEGER UNIQUE,  -- Preserve a valid FK target during remapping
      name VARCHAR(255)
    )"
 ])
@@ -98,7 +100,11 @@ transact([
 ])
 ```
 
-If other tables reference the old integer ID, update those references to use the new UUID or the `legacy_id` column.
+When inbound FKs reference the integer ID, prefer the IDENTITY path below so imported IDs and
+relationships remain unchanged. Convert to UUID only through a coordinated recreation plan:
+inventory every inbound FK, preserve `legacy_id` as a unique mapping key, recreate referencing
+columns with the new type, backfill from `legacy_id`, then add each FK with `NOT VALID` and validate
+it asynchronously. Existing FKs prevent an in-place referenced-ID rewrite.
 
 #### To IDENTITY Column (Preserving Integer IDs)
 

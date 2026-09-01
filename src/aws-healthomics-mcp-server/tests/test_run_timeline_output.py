@@ -23,6 +23,12 @@ from hypothesis import strategies as st
 from unittest.mock import AsyncMock, MagicMock
 
 
+# Timeline generation computes per-task cost, which would otherwise reach the real
+# AWS Pricing API once per task (up to 500 per Hypothesis example). See the fixture
+# docstring in conftest.py.
+pytestmark = pytest.mark.usefixtures('stub_pricing_lookup')
+
+
 # ---------------------------------------------------------------------------
 # Shared Hypothesis strategies
 # ---------------------------------------------------------------------------
