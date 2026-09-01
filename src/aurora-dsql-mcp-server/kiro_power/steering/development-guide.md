@@ -9,14 +9,15 @@ effortless scaling, multi-region viability, among other advantages.
 
 - **SHOULD read guidelines first** - Check [development-guide.md](development-guide.md) before making schema changes
 - **SHOULD use preferred language patterns** - Check [language.md](language.md)
-- **SHOULD Execute queries directly** - PREFER MCP tools for ad-hoc queries
+- **SHOULD Execute queries directly** - PREFER MCP tools for ad-hoc queries **only when the `aurora-dsql` MCP already targets the intended cluster**; otherwise use the CLI + `psql` path rather than reconfiguring — see "Choosing How to Connect" in [SKILL.md](../SKILL.md)
 - **REQUIRED: Follow DDL Guidelines** - Refer to [DDL Rules](#schema-ddl-rules)
 - **SHALL repeatedly generate fresh tokens** - Refer to [Connection Limits](auth/authentication-guide.md#connection-rules)
 - **ALWAYS use ASYNC indexes** - `CREATE INDEX ASYNC` is mandatory
-- **MUST serialize arrays** into a single-column representation; **PREFER `JSONB`** (operators work directly); **MAY use `TEXT`** when the column is opaque to the database; **ASK** the user (see [Schema Design Rules](#schema-design-rules))
+- **MUST serialize arrays** into a single-column representation; **PREFER `JSONB`** (operators work directly); **MAY use `TEXT`** when the column is opaque to the database; **ASK** the user - see [Schema Design Rules](#schema-design-rules)
 - **ALWAYS Batch within row limit** - maintain transaction limits (verify via `awsknowledge`: `aurora dsql transaction limits`)
-- **REQUIRED: Sanitize SQL inputs with allowlists, regex, and quote escaping** - See [Input Validation](../mcp/tools/input-validation.md#input-validation-critical)
-- **MUST follow correct Application Layer Patterns** - when multi-tenant isolation or application referential integrity are required; refer to [Application Layer Patterns](#application-layer-patterns)
+- **REQUIRED: Build and sanitize all SQL with `safe_query.build()`** - See [Input Validation](../mcp/tools/input-validation.md#required-pattern)
+- **MUST use foreign key constraints** when database-enforced referential integrity is required; refer to [Foreign Key Rules](#foreign-key-rules)
+- **MUST enforce tenant authorization** for multi-tenant isolation; refer to [Tenant Authorization Patterns](#tenant-authorization-patterns)
 - **REQUIRED use DELETE for truncation** - DELETE is the only supported operation for truncation
 - **SHOULD test any migrations** - Verify DDL on dev clusters before production
 - **Plan for Horizontal Scale** - DSQL is designed to optimize for massive scales without latency drops; refer to [Horizontal Scaling](auth/scaling-guide.md)
@@ -40,7 +41,7 @@ effortless scaling, multi-region viability, among other advantages.
 
 **For Ad-Hoc Queries and Data Exploration:**
 
-- MUST ALWAYS Execute DIRECTLY using MCP server or psql one-liners
+- MUST ALWAYS Execute DIRECTLY using the MCP server (when it targets the intended cluster) or psql one-liners (`scripts/psql-connect.sh`) otherwise — never reconfigure the MCP mid-task just to switch clusters
 - SHOULD Return results immediately
 
 **Writing Scripts REQUIRES at least 1 of:**
@@ -53,15 +54,16 @@ effortless scaling, multi-region viability, among other advantages.
 
 ### Schema Design Rules
 
-- MUST use **simple PostgreSQL types:** VARCHAR, TEXT, INTEGER, BOOLEAN, TIMESTAMP, JSON, JSONB
-- MUST serialize arrays into a single-column representation:
-  - **PREFER `JSONB`** — `@>`, `?`, `?|`, `?&`, and `jsonb_array_elements_text` work directly; values validated and normalized at write
+- MUST verify column types via `awsknowledge`: `aurora dsql supported data types` or the [DSQL supported data types list](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with-postgresql-compatibility-supported-data-types.html)
+- MUST serialize arrays into a single-column representation — DSQL has no array column type:
+  - **PREFER `JSONB`** — `@>`, `?`, `?|`, `?&`, and `jsonb_array_elements_text(data)` work directly; values validated and normalized at write
   - **MAY use `TEXT`** when the column is opaque to the database (application reads the whole value, parses it, never queries inside)
 - For document columns:
   - **`JSONB`** when querying with `@>`, `?`, or indexed JSONB paths
   - **`JSON`** when writes dominate (no parse/sort overhead), when byte-exact input matters (audit, replay, payloads with duplicate keys), or when only `->`/`->>` is needed
   - **SHOULD keep** existing `JSON` columns as `JSON` when migrating; **MAY upgrade to `JSONB`** if the application needs JSONB-only operators or indexed paths
   - ASK the user about query patterns and read/write ratio before defaulting
+- **MUST NOT** add per-column `COLLATE` clauses — DSQL uses C collation database-wide and rejects `COLLATE "C"` in DDL. `dsql_lint(fix=true)` auto-strips `COLLATE` clauses from migrated schemas (rule `collation`, fix status `fixed`).
 - ALWAYS include tenant_id in tables for multi-tenant isolation
 - SHOULD create async indexes for tenant_id and common query patterns
 
@@ -72,16 +74,23 @@ effortless scaling, multi-region viability, among other advantages.
 - MUST use **`CREATE INDEX ASYNC`:** No synchronous creation (verify limits via `awsknowledge`: `aurora dsql index limits`)
   - MAXIMUM: **24 indexes per table**
   - MAXIMUM: **8 columns per index**
+  - **MUST** verify index is ready before relying on it: `SELECT indisvalid FROM pg_index WHERE indexrelid = 'index_name'::regclass` — queries work but skip the index until `indisvalid = true`
 - MUST use **`ALTER TABLE ASYNC ... VALIDATE CONSTRAINT`** for constraint validation: No synchronous validation
   - **MUST** add CHECK constraints with `NOT VALID`: `ALTER TABLE t ADD CONSTRAINT c CHECK (expr) NOT VALID`
   - Then validate asynchronously: `ALTER TABLE ASYNC t VALIDATE CONSTRAINT c` — returns a `job_id`
-  - **MUST** monitor via `sys.jobs` or block with `SELECT sys.wait_for_job('job_id')`
+  - **MUST** monitor via `sys.jobs` when using MCP tools
+  - **MAY** block with `CALL sys.wait_for_job('job_id')` only through an autocommit database client outside the MCP tools' explicit transactions
   - Constraint applies to new rows immediately; existing rows validated in background
-- **Asynchronous Execution:** DDL ALWAYS runs asynchronously
+- **MUST** add post-creation foreign keys with `NOT VALID`
+  - Validate with `ALTER TABLE ASYNC ... VALIDATE CONSTRAINT`
+  - Monitor via `sys.jobs`; `CALL sys.wait_for_job('job_id')` **MAY** run only through an
+    autocommit database client outside the MCP tools' explicit transactions
+- **MUST** use `ASYNC` for `CREATE INDEX` and `VALIDATE CONSTRAINT`; post-creation `ADD CONSTRAINT ... FOREIGN KEY ... NOT VALID` is synchronous and returns no `job_id`
 - To add a column with DEFAULT or NOT NULL:
   1. MUST issue ADD COLUMN specifying only the column name and data type
   2. MUST then issue UPDATE to populate existing rows
-  3. MAY then issue ALTER COLUMN to apply the constraint
+  3. MAY then issue direct `ALTER COLUMN ... SET DEFAULT` for future writes; use Table Recreation
+     only when applying unsupported `SET NOT NULL`
 - MUST issue a **separate ALTER TABLE statement for each column** modification.
 
 ### Transaction Rules
@@ -95,16 +104,14 @@ Verify current limits via `awsknowledge`: `aurora dsql transaction limits`
 
 ---
 
-### Application-Layer Patterns
+### Foreign Key Rules
 
-**MANDATORY for Application Referential Integrity:**
-If foreign key constraints (application referential integrity) are required,
-instead implementation:
+**MUST** load [Foreign Key Constraints](foreign-keys.md) before creating, altering,
+dropping, or migrating a foreign key.
 
-- MUST validate parent references before INSERT
-- MUST check for dependents before DELETE
-- MUST implement cascade logic in application code
-- MUST handle orphaned records in application layer
+---
+
+### Tenant Authorization Patterns
 
 **MANDATORY for Multi-Tenant Isolation:**
 
@@ -137,18 +144,15 @@ UPDATE table SET c = 'default' WHERE c IS NULL;                      ← AFTER A
 
 ### Supported Data Types
 
-```
-VARCHAR, TEXT, INTEGER, DECIMAL, BOOLEAN, TIMESTAMP, UUID, JSON, JSONB
-```
+**MUST verify** column types against the [DSQL supported data types docs](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with-postgresql-compatibility-supported-data-types.html) or via `awsknowledge`: `aurora dsql supported data types` — the supported set evolves, so do not treat any static list as exhaustive.
+
+Arrays and `INET` are **[runtime-only](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with-postgresql-compatibility-supported-data-types.html#working-with-postgresql-compatibility-query-runtime)** — cast at query time. For structured data, **PREFER `JSONB`** when querying inside the value (`@>`, `?`, indexed JSONB paths); `JSON` is valid when writes dominate, byte-exact input matters, or only `->`/`->>` is needed. ASK the user about query patterns before defaulting.
 
 ### Supported Key
 
 ```
-PRIMARY KEY, UNIQUE, NOT NULL, CHECK, DEFAULT (in CREATE TABLE)
+PRIMARY KEY, UNIQUE, FOREIGN KEY, NOT NULL, CHECK, DEFAULT (CREATE TABLE or direct ALTER COLUMN)
 ```
-
-Join on any keys; DSQL preserves DB referential integrity, when needed application referential
-integrity must be separately enforced.
 
 ### Transaction Requirements
 

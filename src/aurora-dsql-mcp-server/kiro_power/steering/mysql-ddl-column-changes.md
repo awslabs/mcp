@@ -1,6 +1,9 @@
 # MySQL to DSQL: Column Changes
 
-Part of [MySQL to DSQL DDL Migration](ddl-operations.md). See [Common Verify & Swap Pattern](ddl-operations.md#common-verify--swap-pattern) for the shared migration end-pattern.
+Part of [MySQL to DSQL DDL Migration](ddl-operations.md). Complete the
+[Pre-Create Relationship and Dependency Gate](../ddl-migrations/overview.md#pre-create-relationship-and-dependency-gate)
+before every replacement-table Step 1, then follow the
+[Common Verify & Swap Pattern](ddl-operations.md#common-verify--swap-pattern).
 
 ---
 
