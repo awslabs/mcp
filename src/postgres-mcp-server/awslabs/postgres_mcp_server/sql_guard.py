@@ -178,26 +178,27 @@ def _reject(reason: str, cause: BaseException | None = None) -> NoReturn:
     raise SqlPolicyError(reason)
 
 
-def _walk_value(value, out: list) -> None:
-    """Recurse into a node attribute value, appending any nodes found to ``out``."""
-    if isinstance(value, ast.Node):
-        _collect_into(value, out)
-    elif isinstance(value, (tuple, list)):
-        for item in value:
-            _walk_value(item, out)
-
-
-def _collect_into(node: ast.Node, out: list) -> None:
-    """Append ``node`` and recurse into its attribute values."""
-    out.append(node)
-    for attr in node:  # pglast Node.__iter__ yields attribute names
-        _walk_value(getattr(node, attr, None), out)
-
-
 def _collect_nodes(raw_stmt: ast.Node) -> list:
-    """Return every node in the parse tree rooted at ``raw_stmt`` (RawStmt)."""
+    """Return every node in the parse tree rooted at ``raw_stmt`` (RawStmt).
+
+    Iterative (explicit stack) rather than recursive: a deeply nested statement
+    (e.g. thousands of nested ``NOT (...)``) produces a deep parse tree that
+    would blow Python's recursion limit and escape as an uncaught
+    ``RecursionError``. Input size is capped by ``MAX_SQL_LEN``, so the tree is
+    bounded. Traversal order does not matter -- the checks scan the flat list.
+    """
     out: list = []
-    _collect_into(raw_stmt, out)
+    stack: list = [raw_stmt]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, ast.Node):
+            out.append(item)
+            # pglast Node.__iter__ yields attribute names; push their values.
+            for attr in item:
+                stack.append(getattr(item, attr, None))
+        elif isinstance(item, (tuple, list)):
+            stack.extend(item)
+        # scalars (str / int / enum / None) hold no child nodes -> skip.
     return out
 
 
@@ -331,12 +332,21 @@ def assert_executable(sql: str, allow_write_query: bool = False) -> None:
     if root is None:
         _reject('Empty statement is not allowed')
 
-    nodes = _collect_nodes(raw_stmt)
+    # Analyze the parse tree. Any unexpected failure here (an unforeseen node
+    # shape, resource limit, etc.) must fail closed rather than escape as an
+    # uncaught exception, so we convert non-SqlPolicyError exceptions into a
+    # rejection. SqlPolicyError (the intended rejection) is re-raised as-is.
+    try:
+        nodes = _collect_nodes(raw_stmt)
 
-    # Dangerous-set pass runs in both modes.
-    for node in nodes:
-        _check_dangerous(node)
+        # Dangerous-set pass runs in both modes.
+        for node in nodes:
+            _check_dangerous(node)
 
-    # Write-set (read-only) pass runs only when writes are not permitted.
-    if not allow_write_query:
-        _check_read_only(root, nodes)
+        # Write-set (read-only) pass runs only when writes are not permitted.
+        if not allow_write_query:
+            _check_read_only(root, nodes)
+    except SqlPolicyError:
+        raise
+    except Exception as e:
+        _reject('SQL could not be analyzed', cause=e)

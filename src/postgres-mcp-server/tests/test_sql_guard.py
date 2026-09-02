@@ -70,66 +70,104 @@ def test_read_only_allowed(sql):
     assert_executable(sql, allow_write_query=False)
 
 
-# --- Read-only reject-set (write set, FR3) ---------------------------------
+# --- Write set (design section 3.1): one entry per category ----------------
+# Every write-set statement must be REJECTED in read-only mode (FR3) and
+# ALLOWED past the guard in write mode (none are in the dangerous set). The two
+# tests below drive this single list both ways, so the two invariants stay in
+# lock-step and every category is covered.
 
-READ_ONLY_REJECTED = [
+WRITE_SET_STATEMENTS = [
+    # DML
     'INSERT INTO t VALUES (1)',
     'UPDATE t SET x = 1',
     'DELETE FROM t',
     'MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN DELETE',
     'TRUNCATE t',
+    # DDL
     'CREATE TABLE t (id int)',
-    'DROP TABLE t',
     'ALTER TABLE t ADD COLUMN c int',
-    'GRANT SELECT ON t TO r',
-    'REVOKE SELECT ON t FROM r',
+    'DROP TABLE t',
+    'ALTER TABLE t RENAME TO t2',
+    'CREATE VIEW v AS SELECT 1',
+    'CREATE INDEX idx ON t (a)',
+    'CREATE SEQUENCE seq',
+    'CREATE SCHEMA s',
     'CREATE FUNCTION f() RETURNS int AS $$ SELECT 1 $$ LANGUAGE sql',
-    'CALL proc()',
-    'DO $$ BEGIN PERFORM 1; END $$',
-    'VACUUM t',
-    'REINDEX TABLE t',
-    'REFRESH MATERIALIZED VIEW mv',
-    'LOCK TABLE t',
-    'LISTEN chan',
-    'NOTIFY chan',
-    "LOAD 'lib'",
+    'CREATE EXTENSION IF NOT EXISTS citext',
     'CREATE TABLE t2 AS SELECT * FROM t',
     'CREATE MATERIALIZED VIEW mv AS SELECT 1',
-    # SelectStmt-that-writes (field checks)
-    'SELECT * INTO t2 FROM t',
-    "SELECT set_config('work_mem', '64MB', false)",
-    # EXPLAIN of a write
-    'EXPLAIN INSERT INTO t VALUES (1)',
-    'EXPLAIN ANALYZE INSERT INTO t VALUES (1)',
-    # data-modifying CTE
-    'WITH x AS (INSERT INTO t VALUES (1) RETURNING *) SELECT * FROM x',
-    'WITH x AS (UPDATE t SET a = 1 RETURNING *) SELECT * FROM x',
-    # latent-gap commands the old regex missed
-    'REASSIGN OWNED BY a TO b',
-    'CHECKPOINT',
-    "COMMIT PREPARED 'gid'",
-    'UNLISTEN chan',
+    # Metadata
+    "COMMENT ON TABLE t IS 'x'",
+    "SECURITY LABEL ON TABLE t IS 'x'",
+    'IMPORT FOREIGN SCHEMA remote FROM SERVER srv INTO local',
+    # Permissions
+    'GRANT SELECT ON t TO r',
+    'REVOKE SELECT ON t FROM r',
+    # Maintenance
+    'VACUUM t',
+    'ANALYZE t',
+    'CLUSTER t USING idx',
+    'REINDEX TABLE t',
+    'REFRESH MATERIALIZED VIEW mv',
+    # Procedural / dynamic
+    'DO $$ BEGIN PERFORM 1; END $$',
+    'CALL proc()',
+    # Prepared statements
+    'PREPARE p AS SELECT 1',
+    'EXECUTE p',
     'DEALLOCATE p',
+    # Async / locking
+    'LISTEN chan',
+    'NOTIFY chan',
+    'UNLISTEN chan',
+    'LOCK TABLE t',
+    # Session / backend state
+    "SET work_mem = '64MB'",
+    'RESET ALL',
+    'DISCARD ALL',
+    "LOAD 'lib'",
+    "SELECT set_config('work_mem', '64MB', false)",  # function form of SET
+    # Transaction control
     'BEGIN',
     'COMMIT',
     'ROLLBACK',
     'SAVEPOINT s',
     'ALTER SYSTEM SET wal_level = replica',
-    # cursor family (Decision A tightening)
+    # Client-side COPY (not PROGRAM, not a server file -> write set, not dangerous)
+    'COPY t FROM STDIN',
+    'COPY t TO STDOUT',
+    # SelectStmt-that-writes, EXPLAIN-of-write, and DML-in-CTE (FR3)
+    'SELECT * INTO t2 FROM t',
+    'EXPLAIN INSERT INTO t VALUES (1)',
+    'EXPLAIN ANALYZE INSERT INTO t VALUES (1)',
+    'WITH x AS (INSERT INTO t VALUES (1) RETURNING *) SELECT * FROM x',
+    'WITH x AS (UPDATE t SET a = 1 RETURNING *) SELECT * FROM x',
+    # Cursor family (Decision A tightening)
     'DECLARE c CURSOR FOR SELECT 1',
     'FETCH 1 FROM c',
     'MOVE 1 IN c',
     'CLOSE c',
-    # prepared statements
-    'PREPARE p AS SELECT 1',
-    'EXECUTE p',
+    # Latent-gap commands the old regex missed
+    'REASSIGN OWNED BY a TO b',
+    'CHECKPOINT',
+    "COMMIT PREPARED 'gid'",
 ]
 
 
-@pytest.mark.parametrize('sql', READ_ONLY_REJECTED)
-def test_read_only_rejected(sql):
-    """Write-set / cursor / latent-gap statements are rejected in read-only mode."""
+@pytest.mark.parametrize('sql', WRITE_SET_STATEMENTS)
+def test_write_set_rejected_in_read_only(sql):
+    """Every write-set statement is rejected in read-only mode (FR3)."""
     assert not _allowed(sql, allow_write_query=False)
+
+
+@pytest.mark.parametrize('sql', WRITE_SET_STATEMENTS)
+def test_write_set_allowed_in_write_mode(sql):
+    """Every write-set statement is allowed past the guard when writes are enabled.
+
+    None of these are in the dangerous set, so allow_write_query=True must let
+    them through (they may still fail at the DB, but the guard must not reject).
+    """
+    assert_executable(sql, allow_write_query=True)
 
 
 # --- Dangerous set: rejected in BOTH modes (FR4, FR5, FR6) -----------------
@@ -221,29 +259,6 @@ def test_qualified_negative_not_overblocked(sql):
     assert_executable(sql, allow_write_query=True)
 
 
-# --- Write mode: writes allowed, dangerous still blocked -------------------
-
-WRITE_MODE_ALLOWED = [
-    'INSERT INTO t VALUES (1)',
-    'UPDATE t SET x = 1',
-    'DELETE FROM t WHERE id = 1',
-    'DROP TABLE t',
-    'TRUNCATE t',
-    'GRANT SELECT ON t TO r',
-    'CREATE TABLE t (id int)',
-    'SELECT * INTO t2 FROM t',
-    "SELECT set_config('work_mem', '64MB', false)",  # generic GUC ok in write mode
-    'CALL proc()',
-    'DO $$ BEGIN PERFORM 1; END $$',
-]
-
-
-@pytest.mark.parametrize('sql', WRITE_MODE_ALLOWED)
-def test_write_mode_allows_writes(sql):
-    """With writes enabled, write-set statements are permitted."""
-    assert_executable(sql, allow_write_query=True)
-
-
 # --- Fail-closed (FR7, FR1) ------------------------------------------------
 
 FAIL_CLOSED = [
@@ -278,6 +293,32 @@ def test_reject_raises_sql_policy_error():
     with pytest.raises(SqlPolicyError) as exc:
         assert_executable('DROP TABLE t', allow_write_query=False)
     assert str(exc.value)
+
+
+@pytest.mark.parametrize('depth', [500, 2000, 5000, 8000])
+@pytest.mark.parametrize('allow_write_query', [False, True])
+def test_deeply_nested_input_never_raises_uncaught(depth, allow_write_query):
+    """Deeply nested input must fail closed or parse cleanly -- never crash (FR7).
+
+    A recursive tree walk would raise RecursionError on a deep parse tree and
+    escape as an uncaught exception (a DoS). The guard walks iteratively and
+    wraps analysis, so the only outcomes are: allowed (a valid deep read) or
+    SqlPolicyError. Any other exception fails the test.
+    """
+    sql = 'SELECT 1 WHERE ' + 'NOT (' * depth + 'true' + ')' * depth
+    try:
+        assert_executable(sql, allow_write_query=allow_write_query)
+    except SqlPolicyError:
+        pass  # fail-closed is an acceptable outcome
+
+
+def test_rejection_message_does_not_echo_sensitive_literal():
+    """Rejection messages name the construct, not the query's literal values (FR8)."""
+    with pytest.raises(SqlPolicyError) as exc:
+        assert_executable("SELECT pg_read_file('/etc/shadow_secret_path')")
+    message = str(exc.value)
+    assert 'pg_read_file' in message  # names the offending construct
+    assert '/etc/shadow_secret_path' not in message  # does not echo the literal
 
 
 # --- Data-driven drift guards ----------------------------------------------
