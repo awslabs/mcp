@@ -373,3 +373,41 @@ def test_named_placeholder_does_not_hide_dangerous():
     """A dangerous call using :name placeholders is rejected in both modes."""
     assert not _allowed('SELECT pg_read_file(:path)', allow_write_query=False)
     assert not _allowed('SELECT pg_read_file(:path)', allow_write_query=True)
+
+
+# --- set_config first-argument edge cases (non-security GUC) ----------------
+
+
+@pytest.mark.parametrize(
+    'sql',
+    [
+        'SELECT set_config()',  # no arguments
+        "SELECT set_config(col, 'x', false)",  # first arg is not a string literal
+    ],
+)
+def test_set_config_non_security_guc_allowed_in_write_mode(sql):
+    """set_config with no/non-literal GUC arg is not a security-GUC change.
+
+    It is allowed in write mode (the dangerous-set check finds no
+    security-sensitive GUC name to match).
+    """
+    assert_executable(sql, allow_write_query=True)
+
+
+# --- Fail-closed wrapper: any analysis error becomes a rejection (FR7) -------
+
+
+def test_analysis_exception_fails_closed(monkeypatch):
+    """An unexpected error during tree analysis is converted to a rejection.
+
+    Guards the wrapper that turns non-SqlPolicyError exceptions into a
+    fail-closed SqlPolicyError instead of letting them escape uncaught.
+    """
+    import awslabs.postgres_mcp_server.sql_guard as guard
+
+    def boom(_node):
+        raise ValueError('induced analysis failure')
+
+    monkeypatch.setattr(guard, '_check_dangerous', boom)
+    with pytest.raises(SqlPolicyError):
+        assert_executable('SELECT 1', allow_write_query=True)

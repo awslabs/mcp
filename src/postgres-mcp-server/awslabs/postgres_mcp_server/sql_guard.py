@@ -244,7 +244,7 @@ def _check_dangerous(node) -> None:
 
     if isinstance(node, ast.FuncCall):
         parts = _func_name_parts(node)
-        if not parts:
+        if not parts:  # pragma: no cover - defensive; a FuncCall always has a name
             return
         bare = parts[-1]
         if bare in DANGEROUS_FUNCTIONS:
@@ -329,7 +329,7 @@ def assert_executable(sql: str, allow_write_query: bool = False) -> None:
 
     raw_stmt = statements[0]
     root = raw_stmt.stmt
-    if root is None:
+    if root is None:  # pragma: no cover - defensive; empty/';' input yields 0 statements
         _reject('Empty statement is not allowed')
 
     # Analyze the parse tree. Any unexpected failure here (an unforeseen node
