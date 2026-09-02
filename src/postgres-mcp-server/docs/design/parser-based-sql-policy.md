@@ -121,21 +121,39 @@ maintainable; it does not replace least-privilege role configuration.
 | In-repo precedent | Yes — `redshift-mcp-server` uses it | None |
 | Exotic PG syntax | May fail to parse some constructs → fail-closed rejection | Parses anything PG parses |
 
-**Recommendation: `sqlglot` for structure/read-only, with an explicit escape
-decoder (or pglast) for the name-based checks.** Pure-Python distribution and
-in-repo consistency make sqlglot the right base, and it is sound for the
-primary goal (read-only enforcement is keyword-driven and cannot be
-encoding-evaded). However, sqlglot does **not** decode `U&` Unicode escapes
-(empirically confirmed, §5.5), so the dangerous-function and security-GUC
-name checks would silently carry the encoding bypass forward if built on
-sqlglot names alone. For those checks, either decode to PostgreSQL semantics
-ourselves (FR6a) or use pglast/libpg_query — the real PG parser, which decodes
-identically. pglast's cost is a native dependency; weigh a hybrid only if the
-explicit decoder proves hard to maintain. Two tradeoffs to note either way:
-sqlglot may fail to parse some valid-but-exotic PostgreSQL (rejected
-fail-closed, acceptable), and — the subtler risk — it may *silently misparse*
-(parse without error but differently from PG), which fail-closed does not
-catch.
+**Recommendation: prefer `pglast` (libpg_query) as the single parser for the
+security-critical checks.** pglast embeds PostgreSQL's own `raw_parser` C source
+(via libpg_query), so it lexes and parses byte-for-byte as the server does.
+That eliminates the entire parser-differential class *by construction*: any
+input we misjudge, PostgreSQL parses identically — there is no
+"benign-to-the-checker, dangerous-to-the-engine" gap at the syntax layer,
+including `U&`/`UESCAPE` identifier and string decoding, dollar-quoting,
+comments, and statement splitting. This is the decisive advantage over sqlglot,
+which was empirically shown to *not* decode `U&` and to silently misparse it
+(§5.5) — a gap fail-closed does not catch. Using pglast also removes the need to
+hand-maintain a PostgreSQL escape/quote decoder for FR6a.
+
+Tradeoffs to accept and manage:
+- **Native dependency.** pglast is a C extension. Prebuilt wheels exist for
+  Linux (manylinux/musllinux, x86_64/aarch64) and macOS (x86_64/arm64), so
+  `uvx`/`pip` needs no compiler there. **Windows wheel availability must be
+  verified** before committing — MCP servers run on user laptops, and a missing
+  Windows wheel would force a build toolchain or break install. If Windows
+  support is inadequate, fall back to sqlglot-plus-decoder on that platform, or
+  gate accordingly.
+- **PG version pinning.** pglast's grammar matches one PG major (v6→PG16,
+  v7→PG17, v8→PG18). Pick the major closest to the deployment targets
+  (Aurora/RDS track PG majors). A construct a *newer* server accepts that an
+  older pglast rejects fails **closed** (safe rejection), not open — so version
+  skew degrades toward over-rejection, not bypass.
+- **Semantic gaps remain regardless of parser** (see §5.6): exact-PG parsing
+  does not give catalog knowledge, so function-mediated side effects and
+  name-resolution indirection are still out of reach. "Matches PG's parser" is
+  not "matches PG's execution semantics."
+
+Keep `sqlglot` as the documented alternative if the native dependency proves
+unacceptable for distribution; in that case FR6a's explicit decoder becomes
+mandatory, not optional.
 
 ## 5. Design
 
@@ -260,7 +278,38 @@ Mitigations (choose per check; not mutually exclusive):
 Recommendation: adopt (1) or (2) for the name-based checks so the parser
 migration does not silently carry the encoding bypass forward, and document (3)
 as the authoritative control. Do not claim encoding closure for the name-based
-checks on the strength of sqlglot alone.
+checks on the strength of sqlglot alone. Choosing pglast (§4) subsumes (1)/(2)
+because it decodes exactly as PostgreSQL does.
+
+### 5.6 Semantic gaps that no parser closes
+
+Exact-PG *parsing* (pglast) removes syntactic differentials, but a parser only
+sees structure, not runtime semantics or catalog state. These gaps remain and
+are **not** parser bugs — they are legitimate PostgreSQL behavior our filter
+cannot see, so they must be owned by the database role, not the filter:
+
+- **Function-mediated side effects.** `SELECT some_func()` where `some_func` is
+  volatile / `SECURITY DEFINER` and internally writes, calls dblink, or reads
+  files. The parse tree is a benign `SELECT` calling a function; volatility and
+  the function body require the catalog. Read-only cannot be guaranteed against
+  this from syntax.
+- **Name resolution / overloading / `search_path`.** Our denylist matches
+  function/GUC names syntactically, but which function actually executes depends
+  on `search_path` and argument-type overload resolution at run time. A
+  user-defined wrapper (`my_helper()` that calls `pg_read_file` inside) is not
+  on any name denylist, and shadowing via `search_path` can redirect a name.
+- **Dynamic SQL.** SQL assembled and executed at run time inside functions or
+  procedures is opaque to a static parse. (`DO`/`CALL` are blocked in read-only
+  mode, but this remains relevant in write mode and inside callable objects.)
+
+Implication: "any bypass of a pglast-based checker is also a bypass of
+PostgreSQL's parser" is true and valuable **at the syntactic layer** — it closes
+the class we were actually hit by. It does **not** extend to these semantic
+gaps. The authoritative control for them is a least-privilege, non-superuser
+role that lacks EXECUTE on the dangerous functions, lacks
+`pg_execute_server_program`/server-file roles, and does not own the RLS-protected
+tables — because PostgreSQL enforces those privileges on the *resolved* object
+regardless of how the SQL was written.
 
 ## 6. Backward compatibility and migration
 
@@ -297,10 +346,18 @@ checks on the strength of sqlglot alone.
 
 ## 8. Risks and open questions
 
-- **Encoding differential on name checks (confirmed).** sqlglot does not decode
-  `U&` escapes, so the dangerous-function/GUC name checks need an explicit
-  decoder or pglast (§5.5, FR6a). This is the highest-priority design item — if
-  skipped, the migration carries the known bypass forward silently.
+- **pglast Windows wheel availability (blocking for the pglast choice).** Verify
+  current pglast/libpg_query provides Windows wheels for supported Python
+  versions. If not, decide the fallback (sqlglot-plus-decoder on Windows) before
+  committing — otherwise Windows installs break or require a compiler.
+- **pglast PG-version selection.** Pin the pglast major to the PG grammar
+  closest to deployment targets (Aurora/RDS majors). Version skew degrades to
+  over-rejection (fail-closed), not bypass, but pick deliberately and document.
+- **Encoding differential (resolved by pglast; a risk only if sqlglot is
+  chosen).** sqlglot does not decode `U&` escapes, so under a sqlglot-based
+  build the dangerous-function/GUC name checks require the explicit decoder
+  (§5.5, FR6a) or they silently carry the known bypass forward. pglast removes
+  this concern entirely.
 - **Parse-failure false positives.** How often does sqlglot's Postgres dialect
   reject valid queries LLMs emit? Needs measurement (shadow mode). If material,
   reconsider pglast or a narrow fallback.
@@ -318,10 +375,14 @@ checks on the strength of sqlglot alone.
 
 ## 9. Rollout plan
 
-1. Add `sqlglot` dependency (pinned, aligned with redshift).
-2. Implement `sql_guard.py::assert_executable` + constants, including the
-   PostgreSQL escape/quote/case decoder for name-based checks (FR6a) — or wire
-   pglast for those checks.
+0. Decide the parser: confirm pglast wheel coverage for target platforms
+   (esp. Windows) and pick the pglast major matching the deployment PG version;
+   if native distribution is unacceptable, fall back to sqlglot + FR6a decoder.
+1. Add the chosen parser dependency (pinned): `pglast` (preferred) or `sqlglot`
+   (aligned with redshift) as the fallback.
+2. Implement `sql_guard.py::assert_executable` + constants. With pglast, name
+   resolution is exact; with sqlglot, also implement the PostgreSQL
+   escape/quote/case decoder for name-based checks (FR6a).
 3. Port and expand the test corpus; add the regression corpus from existing
    tests. The corpus MUST include the `U&`/`UESCAPE`/`E''` escape variants for
    every dangerous function and security GUC, asserting they are still rejected.
