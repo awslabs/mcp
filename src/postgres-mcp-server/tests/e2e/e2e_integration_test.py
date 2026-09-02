@@ -1034,21 +1034,29 @@ async def run_test_suite(config: ClusterConfig, table_suffix: str) -> TestResult
     except Exception as e:
         record(step, False, str(e))
 
-    # 9. run_query DROP TABLE (should be rejected as risky command)
-    step = f'run_query(DROP TABLE {table_name}) - expect rejection'
+    # 9. run_query with a dangerous-set command: rejected regardless of mode.
+    # This cell runs write-enabled (the CREATE/INSERT above succeeded), so DROP
+    # is intentionally allowed here -- the parser-based guard blocks writes only
+    # in read-only mode. Dangerous constructs (RCE/SSRF/filesystem), however, are
+    # blocked in BOTH modes, so we assert one is rejected on the functional path.
+    step = 'run_query(COPY ... TO PROGRAM) - expect rejection (dangerous, both modes)'
     try:
         rows = await run_query(
-            sql=f'DROP TABLE {table_name}',
+            sql="COPY (SELECT 1) TO PROGRAM 'id'",
             ctx=ctx,
             connection_method=config.connection_method,
             cluster_identifier=config.cluster_identifier,
             db_endpoint=config.db_endpoint,
             database=test_database,
         )
-        # Expect error because DROP is a risky command
+        # Expect error: COPY ... TO PROGRAM is command execution, always blocked.
         ok = rows and 'error' in rows[0]
         record(
-            step, ok, 'Correctly rejected DROP command' if ok else 'DROP should have been rejected'
+            step,
+            ok,
+            'Correctly rejected COPY ... TO PROGRAM'
+            if ok
+            else 'COPY ... TO PROGRAM should have been rejected',
         )
     except Exception as e:
         record(step, False, str(e))
