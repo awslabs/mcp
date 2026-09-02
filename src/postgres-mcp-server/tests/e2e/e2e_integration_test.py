@@ -1800,9 +1800,8 @@ def run_startup_secret_arn_validation_suite(
 
 
 # Read queries that MUST be allowed in both read-only and write mode.
-# These mirror the positive-path unit tests in
-# tests/test_mutable_sql_detector.py but exercise the full run_query
-# path against a real cluster.
+# These mirror the positive-path unit tests in tests/test_sql_guard.py but
+# exercise the full run_query path against a real cluster.
 ALLOWED_READ_QUERIES = [
     'SELECT 1',
     'SELECT version()',
@@ -1829,9 +1828,9 @@ READONLY_BLOCKED_QUERIES = [
     'GRANT SELECT ON t TO bob',
 ]
 
-# Queries that MUST be blocked in BOTH read-only and write mode because
-# they go through check_sql_injection_risk (dangerous functions and
-# security-sensitive GUCs), which runs regardless of the readonly flag.
+# Queries that MUST be blocked in BOTH read-only and write mode because they
+# are in the dangerous set (dangerous functions and security-sensitive GUCs),
+# which the parser-based guard rejects regardless of the readonly flag.
 ALWAYS_BLOCKED_QUERIES = [
     'SELECT pg_terminate_backend(99999)',
     'SELECT pg_cancel_backend(99999)',
@@ -1910,15 +1909,15 @@ async def run_query_enforcement_suite(
         return bool(rows) and isinstance(rows[0], dict) and 'error' in rows[0]
 
     def _is_readonly_rejection(rows) -> bool:
-        """Distinguish the readonly-guard rejection from other errors.
+        """Distinguish the read-only write-set rejection from other errors.
 
-        run_query returns the write_query_prohibited_key message when the
-        mutating-keyword guard fires. Other errors (injection risk,
-        database errors) use different keys.
+        The parser-based guard's read-only messages all say "not allowed in
+        read-only mode". Dangerous-set rejections, parse errors, and database
+        errors use different messages.
         """
         if not _is_rejected(rows):
             return False
-        return rows[0]['error'] == server.write_query_prohibited_key
+        return 'read-only mode' in str(rows[0]['error'])
 
     async def _connect():
         """(Re)establish the connection so it picks up readonly state.

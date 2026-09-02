@@ -39,10 +39,7 @@ from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import (
     get_credentials_from_secret,
 )
 from awslabs.postgres_mcp_server.connection.rds_api_connection import RDSDataAPIConnection
-from awslabs.postgres_mcp_server.mutable_sql_detector import (
-    check_sql_injection_risk,
-    detect_mutating_keywords,
-)
+from awslabs.postgres_mcp_server.sql_guard import SqlPolicyError, assert_executable
 from botocore.exceptions import ClientError
 from datetime import datetime
 from loguru import logger
@@ -63,9 +60,6 @@ db_connection_map = DBConnectionMap()
 async_job_status: Dict[str, dict] = {}
 async_job_status_lock = threading.Lock()
 client_error_code_key = 'run_query ClientError code'
-write_query_prohibited_key = 'Your MCP tool only allows readonly query. If you want to write, change the MCP configuration per README.md'
-query_comment_prohibited_key = 'The comment in query is prohibited because of injection risk'
-query_injection_risk_key = 'Your query contains risky injection patterns'
 readonly_query = True
 
 # Least-privilege guardrail policy for post-connect validation.
@@ -377,7 +371,6 @@ async def run_query(
         List of dictionary that contains query response rows
     """
     global client_error_code_key
-    global write_query_prohibited_key
     global db_connection_map
 
     logger.info(
@@ -402,27 +395,15 @@ async def run_query(
         await ctx.error(err)
         return [{'error': err}]
 
-    if db_connection.readonly_query:
-        matches = detect_mutating_keywords(sql)
-        if (bool)(matches):
-            logger.info(
-                (
-                    f'query is rejected because current setting only allows readonly query.'
-                    f'detected keywords: {matches}, SQL query: {sql}'
-                )
-            )
-            await ctx.error(write_query_prohibited_key)
-            return [{'error': write_query_prohibited_key}]
-
-    issues = check_sql_injection_risk(sql)
-    if issues:
-        logger.info(
-            f'query is rejected because it contains risky SQL pattern, SQL query: {sql}, reasons: {issues}'
-        )
-        await ctx.error(
-            str({'message': 'Query parameter contains suspicious pattern', 'details': issues})
-        )
-        return [{'error': query_injection_risk_key}]
+    # Parser-based policy guard (pglast). Rejects dangerous constructs in both
+    # modes and, in read-only mode, any non-read (write-set) statement. Fails
+    # closed on parse errors, oversized input, and multi-statement submissions.
+    try:
+        assert_executable(sql, allow_write_query=not db_connection.readonly_query)
+    except SqlPolicyError as e:
+        logger.info(f'query rejected by SQL policy guard: {e}. SQL query: {sql}')
+        await ctx.error(str(e))
+        return [{'error': str(e)}]
 
     try:
         logger.debug(

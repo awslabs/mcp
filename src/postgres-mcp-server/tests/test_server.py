@@ -39,7 +39,6 @@ from awslabs.postgres_mcp_server.server import (
     is_database_connected,
     main,
     run_query,
-    write_query_prohibited_key,
 )
 from conftest import DummyCtx, Mock_DBConnection, Mock_PsycopgPoolConnection, MockException
 from unittest.mock import AsyncMock, patch
@@ -634,11 +633,13 @@ async def test_run_query_write_queries_on_readonly_setting():
             sql_text, ctx, ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
         )
 
-        # All query should fail with below signature in response
+        # All query should fail with an error in response. The parser-based
+        # guard returns a message naming the rejected construct (FR8), so we
+        # assert a non-empty error rather than a fixed string.
         assert len(response) == 1
         assert len(response[0]) == 1
         assert 'error' in response[0]
-        assert response[0].get('error') == write_query_prohibited_key
+        assert response[0].get('error')
 
 
 @pytest.mark.asyncio
