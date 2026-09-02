@@ -2163,8 +2163,8 @@ async def run_query_enforcement_suite(
             step = f'write:always-block {sql[:48]}'
             try:
                 rows = await _run(sql)
-                # These go through check_sql_injection_risk which is
-                # mode-independent, so they must STILL be rejected.
+                # Dangerous-set constructs are mode-independent, so they must
+                # STILL be rejected by the guard even with writes enabled.
                 record(step, _is_rejected(rows), str(rows)[:120])
             except Exception as e:
                 record(step, False, f'{type(e).__name__}: {e}')
