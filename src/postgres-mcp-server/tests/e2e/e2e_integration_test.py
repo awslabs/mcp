@@ -63,6 +63,11 @@ from awslabs.postgres_mcp_server.server import (
     is_database_connected,
     run_query,
 )
+from awslabs.postgres_mcp_server.sql_guard import (
+    DANGEROUS_FUNCTIONS,
+    DANGEROUS_QUALIFIED_FUNCTIONS,
+    SECURITY_SENSITIVE_GUCS,
+)
 from dataclasses import dataclass
 from datetime import datetime
 from functools import partial
@@ -1802,17 +1807,26 @@ def run_startup_secret_arn_validation_suite(
 # Read queries that MUST be allowed in both read-only and write mode.
 # These mirror the positive-path unit tests in tests/test_sql_guard.py but
 # exercise the full run_query path against a real cluster.
+# Every allowed read node type from the design's read-only allowlist (FR2).
+# All must succeed in both read-only and write mode against a real cluster.
 ALLOWED_READ_QUERIES = [
+    # SelectStmt: plain SELECT, subquery, aggregate.
     'SELECT 1',
     'SELECT version()',
     "SELECT 'hello' AS greeting",
     'SELECT count(*) FROM pg_class',
     'SELECT id FROM (SELECT 1 AS id) sub WHERE id = 1',
-    # Parser-based guard: these are pure reads and must pass in both modes.
+    # SelectStmt: VALUES and TABLE spellings.
     'VALUES (1), (2)',
+    'TABLE pg_am',  # small catalog table
+    # SelectStmt: WITH ... SELECT (read-only CTE).
     'WITH cte AS (SELECT 1 AS n) SELECT n FROM cte',
+    # VariableShowStmt: SHOW.
+    'SHOW work_mem',
+    'SHOW ALL',
+    # ExplainStmt: plain and ANALYZE of a read (EXPLAIN ANALYZE SELECT executes
+    # a pure read and is allowed; the ANALYZE flag is not inspected -- FR2).
     'EXPLAIN SELECT 1',
-    # EXPLAIN ANALYZE of a read executes a read and is now allowed (FR2).
     'EXPLAIN ANALYZE SELECT 1',
     # UNION / OR 1=1 are valid reads -- the injection-pattern heuristic was
     # dropped, so they must no longer be false-positived.
@@ -1823,60 +1837,136 @@ ALLOWED_READ_QUERIES = [
 # Queries that MUST be blocked in read-only mode (mutating keywords).
 # Each is a real statement an LLM might emit; run_query should reject it
 # before it reaches the database when readonly is on.
+# Every write-set category from design section 3.1. Each MUST be rejected in
+# read-only mode (with a "not allowed in read-only mode" message) and MUST NOT
+# be rejected by the read-only guard in write mode (it may still error at the DB
+# for unrelated reasons, e.g. a missing table). None of these are in the
+# dangerous set, so write mode lets them past the guard.
 READONLY_BLOCKED_QUERIES = [
+    # DML
     'INSERT INTO t (a) VALUES (1)',
     'UPDATE t SET a = 1 WHERE id = 2',
     'DELETE FROM t WHERE id = 1',
+    'MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN DELETE',
+    'TRUNCATE TABLE t',
+    # DDL
     'CREATE TABLE t (id int)',
     'ALTER TABLE t ADD COLUMN c int',
-    'TRUNCATE TABLE t',
-    'SET search_path TO public, attacker_schema',
+    'DROP TABLE t',
+    'ALTER TABLE t RENAME TO t2',
+    'CREATE VIEW v AS SELECT 1',
+    'CREATE INDEX idx ON t (a)',
+    'CREATE SEQUENCE seq',
+    'CREATE SCHEMA s',
+    'CREATE FUNCTION f() RETURNS int AS $$ SELECT 1 $$ LANGUAGE sql',
+    'CREATE EXTENSION IF NOT EXISTS citext',
+    # Metadata
+    "COMMENT ON TABLE t IS 'x'",
+    "SECURITY LABEL ON TABLE t IS 'x'",
+    'IMPORT FOREIGN SCHEMA remote FROM SERVER srv INTO local',
+    # Permissions
+    'GRANT SELECT ON t TO bob',
+    'REVOKE SELECT ON t FROM bob',
+    # Maintenance
+    'VACUUM t',
+    'ANALYZE t',
+    'CLUSTER t USING idx',
+    'REINDEX TABLE t',
+    'REFRESH MATERIALIZED VIEW mv',
+    # Procedural / dynamic
+    'DO $$ BEGIN PERFORM 1; END $$',
+    'CALL some_proc()',
+    # Prepared statements
+    'PREPARE p AS SELECT 1',
+    'EXECUTE p',
+    'DEALLOCATE p',
+    # Async / locking
+    'LISTEN e2e_chan',
+    'NOTIFY e2e_chan',
+    'UNLISTEN e2e_chan',
+    'LOCK TABLE t',
+    # Session / backend state
+    "SET work_mem = '64MB'",
     'RESET ALL',
     'DISCARD ALL',
     "LOAD 'auto_explain'",
-    'DO $$ BEGIN PERFORM 1; END $$',
-    'GRANT SELECT ON t TO bob',
-    # New write-set coverage from the parser-based guard (all rejected only in
-    # read-only mode; allowed past the guard in write mode). Each produces a
-    # "not allowed in read-only mode" message.
-    'SELECT * INTO e2e_tmp FROM pg_class',  # SELECT ... INTO creates a table
-    "SELECT set_config('work_mem', '64MB', false)",  # session-state write
-    'DECLARE e2e_cur CURSOR FOR SELECT 1',  # cursor family (Decision A)
+    "SELECT set_config('work_mem', '64MB', false)",  # function form of SET
+    # Transaction control
+    'BEGIN',
+    'COMMIT',
+    'ROLLBACK',
+    'SAVEPOINT sp',
+    'ALTER SYSTEM SET wal_level = replica',
+    # Client-side COPY (not PROGRAM, not a server file -> write set, not dangerous)
+    'COPY t FROM STDIN',
+    'COPY t TO STDOUT',
+    # SelectStmt-that-writes and EXPLAIN-of-a-write (field/tree checks)
+    'SELECT * INTO e2e_tmp FROM pg_class',
+    'EXPLAIN INSERT INTO t (a) VALUES (1)',
+    'WITH x AS (INSERT INTO t VALUES (1) RETURNING *) SELECT * FROM x',  # FR3 DML-in-CTE
+    # Cursor family (Decision A tightening)
+    'DECLARE e2e_cur CURSOR FOR SELECT 1',
+    'FETCH 1 FROM e2e_cur',
+    'MOVE 1 IN e2e_cur',
     'CLOSE e2e_cur',
-    'CHECKPOINT',  # latent-gap command the old regex missed
-    'UNLISTEN e2e_chan',
-    'EXPLAIN INSERT INTO t (a) VALUES (1)',  # EXPLAIN of a write
+    # Latent-gap commands the old regex missed
+    'CHECKPOINT',
+    'REASSIGN OWNED BY bob TO alice',
+    "COMMIT PREPARED 'gid'",
 ]
 
 # Queries that MUST be blocked in BOTH read-only and write mode because they
 # are in the dangerous set (dangerous functions and security-sensitive GUCs),
 # which the parser-based guard rejects regardless of the readonly flag.
-ALWAYS_BLOCKED_QUERIES = [
-    'SELECT pg_terminate_backend(99999)',
-    'SELECT pg_cancel_backend(99999)',
-    'SELECT pg_sleep(30)',
+# The dangerous set (design section 3.1): rejected regardless of read/write
+# mode (FR4-FR6). The bare-function, schema-qualified, and security-GUC entries
+# are generated from the guard's own constants so this suite covers EVERY entry
+# and cannot drift out of sync with the implementation. The guard rejects by
+# resolved name before execution, so these hold even where the extension or
+# function is not installed on the test cluster.
+_DANGEROUS_FUNCTION_CALLS = [f'SELECT {fn}()' for fn in sorted(DANGEROUS_FUNCTIONS)]
+_DANGEROUS_QUALIFIED_CALLS = [
+    f'SELECT {schema}.{name}()' for (schema, name) in sorted(DANGEROUS_QUALIFIED_FUNCTIONS)
+]
+_SECURITY_GUC_STATEMENTS = [f'SET {g} = off' for g in sorted(SECURITY_SENSITIVE_GUCS)] + [
+    f"SELECT set_config('{g}', 'off', false)" for g in sorted(SECURITY_SENSITIVE_GUCS)
+]
+
+# Realistic shapes (real arguments), the COPY forms (FR4), and the reported
+# Unicode-escape evasion (FR6a) -- exercising the guard's structural/decoding
+# behavior beyond the generated name-only calls.
+_DANGEROUS_REALISTIC = [
     "SELECT pg_read_file('/etc/passwd')",
-    'SELECT pg_advisory_lock(42)',
-    'SELECT pg_advisory_xact_lock(42)',
-    "SELECT pg_notify('ch', 'x')",
-    'SET row_security = off',
-    'SET session_replication_role = replica',
-    # set_config() form of the security-GUC change (mode-independent).
-    "SELECT set_config('row_security', 'off', false)",
-    # Command execution / host filesystem.
-    "COPY (SELECT 1) TO PROGRAM 'id'",
-    # SSRF via dblink (the reported IMDS-credential-theft vector).
-    "SELECT dblink('host=169.254.169.254 port=80', 'SELECT 1')",
-    # Tier 1 (pg_ls_dir sibling) and Tier 2 (adminpack host-file write).
-    'SELECT pg_ls_waldir()',
-    "SELECT pg_file_write('/tmp/e2e', 'x', false)",
-    # Tier 3: Aurora-native SSRF/exfil/invoke (schema-qualified match).
+    'SELECT pg_sleep(30)',
+    "SELECT dblink('host=169.254.169.254 port=80', 'SELECT 1')",  # SSRF -> IMDS
+    "SELECT pg_file_write('/tmp/e2e', 'x', false)",  # adminpack host-file write
     "SELECT aws_lambda.invoke('arn', '{}')",
     "SELECT aws_s3.query_export_to_s3('SELECT 1', 'bucket', 'key')",
-    # Unicode-escape evasion resolving to pg_read_file (the reported bypass):
-    # the guard must still reject it because pglast decodes the identifier.
+    "COPY (SELECT 1) TO PROGRAM 'id'",  # command execution
+    "COPY t FROM PROGRAM 'curl http://169.254.169.254'",
+    "COPY t TO '/tmp/e2e.csv'",  # server-side file write
+    "COPY t FROM '/etc/passwd'",  # server-side file read
+    # Unicode-escape identifier PostgreSQL resolves to pg_read_file; the guard
+    # must still reject it because pglast decodes the escape (the reported bug).
     r"""SELECT U&"pg_read_fil\0065"('/etc/passwd')""",
 ]
+
+# Fail-closed cases (FR1 single statement, FR7 parse error / oversized), also
+# rejected regardless of mode.
+_FAIL_CLOSED = [
+    'SELECT 1; SELECT 2',  # multi-statement
+    'INSERT INTO t VALUES (1); DROP TABLE t',  # stacked
+    'SELCT bogus (((',  # parse error
+    'SELECT ' + ('1,' * 40000) + '1',  # exceeds MAX_SQL_LEN
+]
+
+ALWAYS_BLOCKED_QUERIES = (
+    _DANGEROUS_REALISTIC
+    + _DANGEROUS_FUNCTION_CALLS
+    + _DANGEROUS_QUALIFIED_CALLS
+    + _SECURITY_GUC_STATEMENTS
+    + _FAIL_CLOSED
+)
 
 
 async def run_query_enforcement_suite(
