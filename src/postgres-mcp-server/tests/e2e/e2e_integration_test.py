@@ -1808,6 +1808,16 @@ ALLOWED_READ_QUERIES = [
     "SELECT 'hello' AS greeting",
     'SELECT count(*) FROM pg_class',
     'SELECT id FROM (SELECT 1 AS id) sub WHERE id = 1',
+    # Parser-based guard: these are pure reads and must pass in both modes.
+    'VALUES (1), (2)',
+    'WITH cte AS (SELECT 1 AS n) SELECT n FROM cte',
+    'EXPLAIN SELECT 1',
+    # EXPLAIN ANALYZE of a read executes a read and is now allowed (FR2).
+    'EXPLAIN ANALYZE SELECT 1',
+    # UNION / OR 1=1 are valid reads -- the injection-pattern heuristic was
+    # dropped, so they must no longer be false-positived.
+    'SELECT 1 UNION SELECT 2',
+    'SELECT 1 WHERE 1 = 1 OR 1 = 1',
 ]
 
 # Queries that MUST be blocked in read-only mode (mutating keywords).
@@ -1826,6 +1836,16 @@ READONLY_BLOCKED_QUERIES = [
     "LOAD 'auto_explain'",
     'DO $$ BEGIN PERFORM 1; END $$',
     'GRANT SELECT ON t TO bob',
+    # New write-set coverage from the parser-based guard (all rejected only in
+    # read-only mode; allowed past the guard in write mode). Each produces a
+    # "not allowed in read-only mode" message.
+    'SELECT * INTO e2e_tmp FROM pg_class',  # SELECT ... INTO creates a table
+    "SELECT set_config('work_mem', '64MB', false)",  # session-state write
+    'DECLARE e2e_cur CURSOR FOR SELECT 1',  # cursor family (Decision A)
+    'CLOSE e2e_cur',
+    'CHECKPOINT',  # latent-gap command the old regex missed
+    'UNLISTEN e2e_chan',
+    'EXPLAIN INSERT INTO t (a) VALUES (1)',  # EXPLAIN of a write
 ]
 
 # Queries that MUST be blocked in BOTH read-only and write mode because they
@@ -1841,6 +1861,21 @@ ALWAYS_BLOCKED_QUERIES = [
     "SELECT pg_notify('ch', 'x')",
     'SET row_security = off',
     'SET session_replication_role = replica',
+    # set_config() form of the security-GUC change (mode-independent).
+    "SELECT set_config('row_security', 'off', false)",
+    # Command execution / host filesystem.
+    "COPY (SELECT 1) TO PROGRAM 'id'",
+    # SSRF via dblink (the reported IMDS-credential-theft vector).
+    "SELECT dblink('host=169.254.169.254 port=80', 'SELECT 1')",
+    # Tier 1 (pg_ls_dir sibling) and Tier 2 (adminpack host-file write).
+    'SELECT pg_ls_waldir()',
+    "SELECT pg_file_write('/tmp/e2e', 'x', false)",
+    # Tier 3: Aurora-native SSRF/exfil/invoke (schema-qualified match).
+    "SELECT aws_lambda.invoke('arn', '{}')",
+    "SELECT aws_s3.query_export_to_s3('SELECT 1', 'bucket', 'key')",
+    # Unicode-escape evasion resolving to pg_read_file (the reported bypass):
+    # the guard must still reject it because pglast decodes the identifier.
+    r"""SELECT U&"pg_read_fil\0065"('/etc/passwd')""",
 ]
 
 
