@@ -726,17 +726,40 @@ regardless of how the SQL was written.
     rejected. This risk is low — pglast is PostgreSQL's own parser, so it
     accepts what the engine accepts (modulo the PG18-vs-older-major skew in §8,
     which errs toward over-rejection). Mitigate with the regression corpus (§7).
-- **Decision (confirm): no shadow mode.** A shadow/observability pass (run the
-  new guard alongside the old, log disagreements without enforcing) was
-  considered to measure parse-failure rate on real traffic. Rejected as
-  unnecessary here: pglast parse-failures on valid PG SQL are not expected
-  (same parser as the engine), and this is a security fix we want enforced, not
-  observed. The regression corpus (§7) covers the concern.
-- **Decision (confirm): remove `mutable_sql_detector.py`** once the parser guard
-  passes its test suite, rather than keeping a re-export shim. It is an internal
-  module (imported only by `server.py` and its tests, both updated in the same
-  change), so there is no external contract to preserve and no reason to carry
-  two sources of truth.
+- **Decision: no shadow mode.** A shadow/observability pass (run the new guard
+  alongside the old, log disagreements without enforcing) was considered to
+  measure parse-failure rate on real traffic. Rejected: pglast parse-failures on
+  valid PG SQL are not expected (same parser as the engine), and this is a
+  security fix we want enforced, not observed. The regression corpus (§7) covers
+  the concern.
+- **Decision: remove `mutable_sql_detector.py` in its entirety** — no regex-based
+  matching remains anywhere. All three of its regex groups are superseded:
+  1. `MUTATING_KEYWORDS` (read-only gate) → the parser write-set allowlist (§3.1).
+  2. `DANGEROUS_FUNCTIONS` / security-GUC / `COPY … PROGRAM` regex → the parser
+     node/field checks (§3.1 dangerous set).
+  3. `SUSPICIOUS_PATTERNS` (SQL-injection heuristics: `OR 1=1`, `UNION SELECT`,
+     comment-injection, `sleep(`, `into outfile`, …) → **dropped, not
+     re-implemented.** Rationale: the parser subsumes every *dangerous* item the
+     heuristic caught, more robustly (comments/whitespace/encoding cannot evade
+     structural checks): stacked queries → single-statement rule (both modes);
+     `pg_sleep` → dangerous set (both modes); `DROP`/`TRUNCATE`/`GRANT` → write
+     set (read-only); `INTO OUTFILE` → invalid PG, fail-closed. What the
+     heuristic *uniquely* caught is tautology/`UNION`/comment signatures that
+     match **valid read SQL** — false positives with no security value here,
+     since the DB role (not a text pattern) governs what data a read may touch
+     (§5.6). Two behavior changes to note in the CHANGELOG:
+     - *Fewer false positives:* valid single reads containing `OR 1=1`,
+       `UNION SELECT`, a trailing `-- comment`, or even an innocent string
+       literal like `'please drop by'` (which the `\bdrop\b` pattern matched)
+       are now allowed.
+     - *Write mode:* `DROP`/`TRUNCATE`/`GRANT` are now allowed **in write mode**.
+       The old injection regex ran in *both* modes, so it blocked these even
+       when writes were enabled — the tool effectively could not issue DDL at
+       all. The parser correctly blocks them in read-only and permits them in
+       write mode (its intended purpose; `allow_write_query` is best-effort, not
+       a security boundary). Read-only behavior is unchanged (still blocked).
+  The module is internal (imported only by `server.py` and its tests, both
+  updated in the same change), so there is no external contract to preserve.
 
 ## 7. Testing strategy
 
@@ -839,4 +862,7 @@ Open / to manage:
    control); (c) the deliberate cursor-family tightening (Decision A, §5.4.1) —
    `DECLARE`/`FETCH`/`MOVE`/`CLOSE` are now rejected in read-only mode;
    (d) `EXPLAIN ANALYZE SELECT` is now allowed in read-only (intentional
-   loosening, §6).
+   loosening, §6); (e) the SQL-injection heuristics (`SUSPICIOUS_PATTERNS`) are
+   dropped — valid reads with `OR 1=1`/`UNION SELECT`/trailing comments are no
+   longer false-positived, and `DROP`/`TRUNCATE`/`GRANT` are now permitted in
+   write mode (previously blocked in all modes), read-only unchanged (§6).
