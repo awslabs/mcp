@@ -102,7 +102,7 @@ The AWS credentials used by this server need the following IAM permissions:
                 "iam:GetRolePolicy",
                 "iam:PutUserPolicy",
                 "iam:PutRolePolicy",
-                "iam:GetGroupsForUser",
+                "iam:ListGroupsForUser",
                 "iam:ListAccessKeys",
                 "iam:CreateAccessKey",
                 "iam:DeleteAccessKey",
