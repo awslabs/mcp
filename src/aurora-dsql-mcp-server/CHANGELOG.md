@@ -14,8 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Deprecated
+
+- Deprecate the standalone DSQL skill and its compatibility aliases in favor
+  of the canonical `dsql` skill in the
+  [`databases-on-aws` plugin](https://github.com/awslabs/agent-plugins/tree/main/plugins/databases-on-aws/skills/dsql).
+
 ### Added
 
+- Add native foreign key guidance across the DSQL skill and Kiro Power, including supported referential actions, match types, deferrable constraints, `SET CONSTRAINTS`, tenant-scoped composite keys, async validation for existing tables, cascade row-limit considerations, and retry handling for SQLSTATE `40001`.
+- Require `dsql-lint` 0.2.17 or newer so lint fixes preserve supported foreign keys and add `NOT VALID` to post-creation constraints.
 - Add `ALTER TABLE ASYNC ... VALIDATE CONSTRAINT` guidance to DSQL steering. CHECK constraints can now be added with `NOT VALID` and validated asynchronously, following the same async DDL pattern as `CREATE INDEX ASYNC`.
 
 ### Security

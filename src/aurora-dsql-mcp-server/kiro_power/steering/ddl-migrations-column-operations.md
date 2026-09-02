@@ -2,7 +2,10 @@
 
 Step-by-step migration patterns for column-level changes using the Table Recreation Pattern.
 
-**MUST read [overview.md](overview.md) first** for destructive operation warnings and the common verify & swap pattern.
+**MUST read [overview.md](overview.md) first** and complete the
+[Pre-Create Relationship and Dependency Gate](overview.md#pre-create-relationship-and-dependency-gate)
+before every Step 1. The examples abbreviate unchanged schema; the generated replacement **MUST**
+preserve every unchanged column, key, constraint, and default.
 
 ---
 
