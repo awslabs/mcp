@@ -16,6 +16,9 @@
 import json
 import os
 import sys
+from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.agentic import (
+    agentic_retrieve_knowledge_bases,
+)
 from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.clients import (
     get_bedrock_agent_client,
     get_bedrock_agent_runtime_client,
@@ -73,9 +76,10 @@ mcp = MCPServer(
     The AWS Labs Bedrock Knowledge Bases Retrieval MCP Server provides access to Amazon Bedrock Knowledge Bases for retrieving relevant information through natural language queries.
 
     ## Usage Workflow:
-    1. ALWAYS start by using the ListKnowledgeBases tool to discover available knowledge bases and their data sources
+    1. ALWAYS start by using the ListKnowledgeBases tool to discover available knowledge bases, their data sources, and their type
     2. Use the QueryKnowledgeBases tool to search specific knowledge bases with your natural language queries
     3. You can make multiple calls to QueryKnowledgeBases with different queries or targeting different knowledge bases
+    4. For MANAGED knowledge bases, the AgenticQueryKnowledgeBases tool can plan a multi-step retrieval and synthesise a cited answer. Prefer it for questions needing reasoning across several data sources; it invokes a foundation model and so costs more per call than QueryKnowledgeBases.
 
     ## Important Notes:
     - Knowledge bases contain structured data from various data sources (documents, websites, databases)
@@ -189,6 +193,79 @@ async def query_knowledge_bases_tool(
         reranking_model_name=reranking_model_name,
         data_source_ids=data_source_ids,
         kb_agent_mgmt_client=kb_agent_mgmt_client,
+    )
+
+
+@mcp.tool(name='AgenticQueryKnowledgeBases')
+async def agentic_query_knowledge_bases_tool(
+    query: str = Field(
+        ..., description='A natural language question to answer from the knowledge bases'
+    ),
+    knowledge_base_ids: List[str] = Field(
+        ...,
+        description='Managed knowledge base IDs to search. Must be IDs from the ListKnowledgeBases tool whose "type" is MANAGED. More than one may be given, and the agent decides which to search.',
+    ),
+    generate_response: bool = Field(
+        True,
+        description='Whether to synthesise a cited answer from the retrieved results. Set false to get results only, which is faster and cheaper.',
+    ),
+    number_of_results: Optional[int] = Field(
+        None, description='Maximum number of results per knowledge base.'
+    ),
+    data_source_ids: Optional[List[str]] = Field(
+        None,
+        description='Restrict retrieval to these data source IDs, from the ListKnowledgeBases tool.',
+    ),
+    max_agent_iterations: Optional[int] = Field(
+        None, description='Cap on the agent planning iterations (minimum 2).'
+    ),
+    include_trace: bool = Field(
+        False,
+        description="Include a condensed per-step trace of the agent's planning and retrieval. Useful for debugging why results were or were not found.",
+    ),
+) -> str:
+    """Answer a question from Amazon Bedrock **managed** knowledge bases using agentic retrieval.
+
+    Agentic retrieval plans a strategy, runs one or more searches across the knowledge
+    bases you give it, and optionally synthesises an answer with citations. Prefer it over
+    QueryKnowledgeBases for questions that need multi-step reasoning, span several data
+    sources or knowledge bases, or benefit from a written answer rather than raw passages.
+
+    ## Usage Requirements
+    - You MUST first use the ListKnowledgeBases tool to get valid knowledge base IDs
+    - This tool supports MANAGED knowledge bases only. For a knowledge base whose `type`
+      is not MANAGED, use QueryKnowledgeBases instead.
+
+    ## Choosing between this tool and QueryKnowledgeBases
+    - QueryKnowledgeBases: a single search, returns ranked passages. Cheaper and faster.
+    - AgenticQueryKnowledgeBases: multi-step planning, optional synthesised answer with
+      citations. Invokes a foundation model, so it costs more per call.
+
+    ## Tool output format
+    A single JSON object:
+    - `results`: retrieved items, each with `index`, `text`, `mimeType`, `metadata` and
+      `knowledgeBaseId`
+    - `answer`: the synthesised answer (only when `generate_response` is true)
+    - `citations`: spans of the answer mapped to `resultIndexes` into `results`
+    - `trace`: condensed per-step trace (only when `include_trace` is true)
+    - `warnings` / `failures` / `nextToken`: present only when non-empty
+
+    ## Interpretation Best Practices
+    1. When an answer is present, use the citations to attribute claims to specific results
+    2. Cross-check the answer against the `results` text rather than trusting it blindly
+    3. If results are empty, retry with `include_trace=true` to see what the agent searched
+    4. Narrow with `data_source_ids` when you know which source should hold the answer
+    """
+    return await agentic_retrieve_knowledge_bases(
+        query=query,
+        knowledge_base_ids=knowledge_base_ids,
+        kb_agent_client=kb_runtime_client,
+        kb_agent_mgmt_client=kb_agent_mgmt_client,
+        generate_response=generate_response,
+        number_of_results=number_of_results,
+        data_source_ids=data_source_ids,
+        max_agent_iterations=max_agent_iterations,
+        include_trace=include_trace,
     )
 
 

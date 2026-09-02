@@ -22,6 +22,13 @@ MCP server for accessing Amazon Bedrock Knowledge Bases
 - Include or exclude specific data sources
 - Prioritize results from specific data sources
 
+### Agentic retrieval on managed knowledge bases
+
+* Plan a multi-step retrieval strategy and synthesise a cited answer
+* Search several knowledge bases in one call
+* Optional condensed trace of the agent's planning and retrieval steps
+* Managed knowledge bases only; the tool rejects other types with a clear message
+
 ### Support both managed and vector knowledge bases
 
 * Works with vector knowledge bases (`type: VECTOR`) and managed knowledge bases (`type: MANAGED`)
@@ -58,6 +65,19 @@ If you intend to use reranking functionality, your Bedrock Knowledge Base needs 
 2. The Amazon Bedrock Knowledge Bases service role must also have these permissions
 3. Reranking is only available in specific regions. Please refer to the official [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/rerank-supported.html) for an up to date list of supported regions.
 4. Enable model access for the available reranking models in the specified region.
+
+### Agentic Retrieval Requirements
+
+The `AgenticQueryKnowledgeBases` tool calls `AgenticRetrieveStream`, which is supported for
+**managed knowledge bases only** (`type: MANAGED`). It plans a retrieval strategy and, unless
+you pass `generate_response=false`, invokes a foundation model to write a cited answer.
+
+1. Your IAM role needs `bedrock:AgenticRetrieveStream` on the knowledge base, in addition to
+   the permissions listed above
+2. Because it invokes a foundation model, it costs materially more per call than
+   `QueryKnowledgeBases`. Pass `generate_response=false` for retrieval without synthesis
+3. `RetrieveAndGenerate` is not supported for managed knowledge bases, so agentic retrieval
+   with `generate_response=true` is the way to get a generated answer from one
 
 ### Controlling Reranking
 
