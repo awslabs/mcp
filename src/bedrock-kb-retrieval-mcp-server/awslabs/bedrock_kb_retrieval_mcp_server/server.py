@@ -157,6 +157,10 @@ async def query_knowledge_bases_tool(
         None,
         description='The data source IDs to filter the knowledge base by. It must be a list of valid data source IDs from the ListKnowledgeBases tool',
     ),
+    user_id: Optional[str] = Field(
+        None,
+        description='End-user identity for access-control filtering. Required to reach content in ACL-aware data sources such as SharePoint, OneDrive or Confluence with per-document ACLs; that content is otherwise inaccessible. Omit for data sources without ACLs.',
+    ),
 ) -> str:
     """Query an Amazon Bedrock Knowledge Base using natural language.
 
@@ -193,6 +197,7 @@ async def query_knowledge_bases_tool(
         reranking_model_name=reranking_model_name,
         data_source_ids=data_source_ids,
         kb_agent_mgmt_client=kb_agent_mgmt_client,
+        user_id=user_id,
     )
 
 
@@ -222,6 +227,14 @@ async def agentic_query_knowledge_bases_tool(
     include_trace: bool = Field(
         False,
         description="Include a condensed per-step trace of the agent's planning and retrieval. Useful for debugging why results were or were not found.",
+    ),
+    user_id: Optional[str] = Field(
+        None,
+        description='End-user identity for access-control filtering. Required to reach content in ACL-aware data sources such as SharePoint, OneDrive or Confluence with per-document ACLs; that content is otherwise inaccessible. Omit for data sources without ACLs.',
+    ),
+    next_token: Optional[str] = Field(
+        None,
+        description="Continuation token from a previous call's `nextToken`, to fetch the next page of results.",
     ),
 ) -> str:
     """Answer a question from Amazon Bedrock **managed** knowledge bases using agentic retrieval.
@@ -266,6 +279,8 @@ async def agentic_query_knowledge_bases_tool(
         data_source_ids=data_source_ids,
         max_agent_iterations=max_agent_iterations,
         include_trace=include_trace,
+        user_id=user_id,
+        next_token=next_token,
     )
 
 

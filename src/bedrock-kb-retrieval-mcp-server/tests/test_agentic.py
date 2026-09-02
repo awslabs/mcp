@@ -320,3 +320,58 @@ class TestAgenticGuards:
         )
         assert payload['results'][0]['binaryContentOmitted'] is True
         assert 'byteContent' not in payload['results'][0]
+
+
+class TestAgenticUserContext:
+    """Tests for end-user identity propagation in agentic retrieval."""
+
+    @pytest.mark.asyncio
+    async def test_user_id_sent_as_user_context(self):
+        """A user id is sent as userContext so ACL-aware data sources are reachable."""
+        client = runtime_client([result_event()])
+        await agentic_retrieve_knowledge_bases(
+            query='q',
+            knowledge_base_ids=['kb-managed-1'],
+            kb_agent_client=client,
+            kb_agent_mgmt_client=mgmt_client(),
+            user_id='user@example.com',
+        )
+        request = client.agentic_retrieve_stream.call_args[1]
+        assert request['userContext'] == {'userId': 'user@example.com'}
+
+    @pytest.mark.asyncio
+    async def test_user_context_omitted_when_no_user_id(self):
+        """No userContext key is sent when no user id is supplied."""
+        client = runtime_client([result_event()])
+        await agentic_retrieve_knowledge_bases(
+            query='q',
+            knowledge_base_ids=['kb-managed-1'],
+            kb_agent_client=client,
+            kb_agent_mgmt_client=mgmt_client(),
+        )
+        assert 'userContext' not in client.agentic_retrieve_stream.call_args[1]
+
+    @pytest.mark.asyncio
+    async def test_next_token_forwarded_for_pagination(self):
+        """A continuation token is forwarded so a surfaced nextToken is usable."""
+        client = runtime_client([result_event()])
+        await agentic_retrieve_knowledge_bases(
+            query='q',
+            knowledge_base_ids=['kb-managed-1'],
+            kb_agent_client=client,
+            kb_agent_mgmt_client=mgmt_client(),
+            next_token='tok-abc',
+        )
+        assert client.agentic_retrieve_stream.call_args[1]['nextToken'] == 'tok-abc'
+
+    @pytest.mark.asyncio
+    async def test_next_token_omitted_when_absent(self):
+        """No nextToken key is sent when none is supplied."""
+        client = runtime_client([result_event()])
+        await agentic_retrieve_knowledge_bases(
+            query='q',
+            knowledge_base_ids=['kb-managed-1'],
+            kb_agent_client=client,
+            kb_agent_mgmt_client=mgmt_client(),
+        )
+        assert 'nextToken' not in client.agentic_retrieve_stream.call_args[1]

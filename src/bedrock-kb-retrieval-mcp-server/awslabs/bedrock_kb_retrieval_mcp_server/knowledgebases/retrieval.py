@@ -13,6 +13,9 @@
 # limitations under the License.
 import json
 from .kb_types import (
+    MANAGED_KB_TYPE,
+    VECTOR_KB_TYPE,
+    cache_knowledge_base_type,
     data_source_id_metadata_key,
     is_managed_knowledge_base,
     search_configuration_key,
@@ -31,6 +34,22 @@ else:
     AgentsforBedrockClient = object
     AgentsforBedrockRuntimeClient = object
     KnowledgeBaseRetrievalConfigurationTypeDef = object
+
+
+# Model id for each reranking model name this server accepts.
+RERANKING_MODEL_IDS = {
+    'COHERE': 'cohere.rerank-v3-5:0',
+    'AMAZON': 'amazon.rerank-v1:0',
+}
+
+# Regions each reranking model is actually offered in. Availability differs per model:
+# Amazon's reranking model is not offered in us-east-1, even though that region otherwise
+# supports Bedrock reranking, so a single flat region allowlist lets a request through that
+# then fails at the API with an opaque error.
+RERANKING_MODEL_REGIONS = {
+    'COHERE': {'us-west-2', 'us-east-1', 'ap-northeast-1', 'ca-central-1', 'eu-central-1'},
+    'AMAZON': {'us-west-2', 'ap-northeast-1', 'ca-central-1', 'eu-central-1'},
+}
 
 
 def _is_search_configuration_mismatch(exc: Exception) -> bool:
@@ -67,15 +86,11 @@ def _build_retrieval_configuration(
         }
 
     if reranking:
-        model_name_mapping = {
-            'COHERE': 'cohere.rerank-v3-5:0',
-            'AMAZON': 'amazon.rerank-v1:0',
-        }
         search_configuration['rerankingConfiguration'] = {
             'type': 'BEDROCK_RERANKING_MODEL',
             'bedrockRerankingConfiguration': {
                 'modelConfiguration': {
-                    'modelArn': f'arn:aws:bedrock:{region_name}::foundation-model/{model_name_mapping[reranking_model_name]}'
+                    'modelArn': f'arn:aws:bedrock:{region_name}::foundation-model/{RERANKING_MODEL_IDS[reranking_model_name]}'
                 },
             },
         }
@@ -92,6 +107,7 @@ async def query_knowledge_base(
     reranking_model_name: Literal['COHERE', 'AMAZON'] = 'AMAZON',
     data_source_ids: list[str] | None = None,
     kb_agent_mgmt_client: Optional[AgentsforBedrockClient] = None,
+    user_id: str | None = None,
 ) -> str:
     """# Amazon Bedrock Knowledge Base query tool.
 
@@ -103,6 +119,9 @@ async def query_knowledge_base(
         reranking (bool): Whether to rerank the results. Can be globally configured using the BEDROCK_KB_RERANKING_ENABLED environment variable.
         reranking_model_name (Literal['COHERE', 'AMAZON']): The name of the reranking model to use.
         data_source_ids (list[str] | None): The data source IDs to filter the knowledge base by.
+        user_id (str | None): End-user identity for access-control filtering. Required to
+            reach content in ACL-aware data sources (for example SharePoint, OneDrive or
+            Confluence with per-document ACLs); such content is otherwise inaccessible.
         kb_agent_mgmt_client (AgentsforBedrockClient | None): Management client used to
             determine whether the knowledge base is managed. Optional -- when omitted,
             the type is taken from the discovery cache, and an incorrect guess is
@@ -113,18 +132,15 @@ async def query_knowledge_base(
     ## Returns:
     - A string containing the results of the query.
     """
-    if reranking and kb_agent_client.meta.region_name not in [
-        'us-west-2',
-        'us-east-1',
-        'ap-northeast-1',
-        'ca-central-1',
-        'eu-central-1',
-    ]:
-        raise ValueError(
-            f'Reranking is not supported in region {kb_agent_client.meta.region_name}'
-        )
-
     region_name = kb_agent_client.meta.region_name
+
+    if reranking:
+        supported = RERANKING_MODEL_REGIONS.get(reranking_model_name, set())
+        if region_name not in supported:
+            raise ValueError(
+                f"The '{reranking_model_name}' reranking model is not available in region "
+                f'{region_name}. Supported regions: {sorted(supported)}'
+            )
     managed = is_managed_knowledge_base(knowledge_base_id, kb_agent_mgmt_client)
 
     # An unknown type defaults to the vector shape, matching prior behaviour. If that
@@ -139,11 +155,16 @@ async def query_knowledge_base(
         data_source_ids=data_source_ids,
     )
 
+    extra_args: dict = {}
+    if user_id:
+        extra_args['userContext'] = {'userId': user_id}
+
     try:
         response = kb_agent_client.retrieve(
             knowledgeBaseId=knowledge_base_id,
             retrievalQuery={'text': query},
             retrievalConfiguration=retrieve_request,
+            **extra_args,
         )
     except Exception as exc:  # noqa: BLE001 - inspect message to recover from a type mismatch
         if managed is not None or not _is_search_configuration_mismatch(exc):
@@ -165,18 +186,24 @@ async def query_knowledge_base(
             knowledgeBaseId=knowledge_base_id,
             retrievalQuery={'text': query},
             retrievalConfiguration=retrieve_request,
+            **extra_args,
+        )
+        # The retry succeeded, so the type is now known. Record it: otherwise every
+        # subsequent call would pay the same failed attempt before recovering.
+        cache_knowledge_base_type(
+            knowledge_base_id, VECTOR_KB_TYPE if attempt_managed else MANAGED_KB_TYPE
         )
 
     results = response['retrievalResults']
     documents: list[dict] = []
     for result in results:
-        if result['content'].get('type') == 'IMAGE':
+        if (result.get('content') or {}).get('type') == 'IMAGE':
             logger.warning('Images are not supported at this time. Skipping...')
             continue
         else:
             documents.append(
                 {
-                    'content': result['content'],
+                    'content': result.get('content', {}),
                     'location': result.get('location', ''),
                     'score': result.get('score', ''),
                 }

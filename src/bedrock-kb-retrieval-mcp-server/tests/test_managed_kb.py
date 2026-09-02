@@ -238,3 +238,142 @@ class TestConfigurationMismatchFallback:
                 kb_agent_mgmt_client=mgmt_client('MANAGED'),
             )
         assert kb_client.retrieve.call_count == 1
+
+
+class TestUserContext:
+    """Tests for end-user identity propagation."""
+
+    @pytest.mark.asyncio
+    async def test_user_id_sent_as_user_context(self):
+        """A user id is sent as userContext, which ACL-aware data sources require."""
+        kb_client = runtime_client()
+        await query_knowledge_base(
+            query='q',
+            knowledge_base_id='kb-1',
+            kb_agent_client=kb_client,
+            kb_agent_mgmt_client=mgmt_client('MANAGED'),
+            user_id='user@example.com',
+        )
+        assert kb_client.retrieve.call_args[1]['userContext'] == {'userId': 'user@example.com'}
+
+    @pytest.mark.asyncio
+    async def test_user_context_omitted_when_no_user_id(self):
+        """No userContext key is sent when no user id is supplied."""
+        kb_client = runtime_client()
+        await query_knowledge_base(
+            query='q',
+            knowledge_base_id='kb-1',
+            kb_agent_client=kb_client,
+            kb_agent_mgmt_client=mgmt_client('MANAGED'),
+        )
+        assert 'userContext' not in kb_client.retrieve.call_args[1]
+
+    @pytest.mark.asyncio
+    async def test_user_context_preserved_across_fallback_retry(self):
+        """The user id survives the retry when the search configuration is corrected."""
+
+        class ValidationException(Exception):
+            pass
+
+        kb_client = runtime_client()
+        kb_client.retrieve.side_effect = [
+            ValidationException(
+                'ValidationException: vectorSearchConfiguration is not supported for '
+                'managed knowledge bases. Use managedSearchConfiguration instead.'
+            ),
+            RESPONSE,
+        ]
+        await query_knowledge_base(
+            query='q',
+            knowledge_base_id='kb-1',
+            kb_agent_client=kb_client,
+            kb_agent_mgmt_client=None,
+            user_id='user@example.com',
+        )
+        assert kb_client.retrieve.call_count == 2
+        for call in kb_client.retrieve.call_args_list:
+            assert call[1]['userContext'] == {'userId': 'user@example.com'}
+
+
+class TestRerankingRegionValidation:
+    """Tests that reranking availability is validated per model, not per region alone."""
+
+    @pytest.mark.asyncio
+    async def test_amazon_model_rejected_in_us_east_1(self):
+        """The Amazon reranking model is not offered in us-east-1 and must be refused."""
+        kb_client = runtime_client(region='us-east-1')
+        with pytest.raises(ValueError, match="'AMAZON' reranking model is not available"):
+            await query_knowledge_base(
+                query='q',
+                knowledge_base_id='kb-1',
+                kb_agent_client=kb_client,
+                kb_agent_mgmt_client=mgmt_client('MANAGED'),
+                reranking=True,
+                reranking_model_name='AMAZON',
+            )
+        kb_client.retrieve.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_cohere_model_allowed_in_us_east_1(self):
+        """The Cohere reranking model is offered in us-east-1 and must be allowed."""
+        kb_client = runtime_client(region='us-east-1')
+        await query_knowledge_base(
+            query='q',
+            knowledge_base_id='kb-1',
+            kb_agent_client=kb_client,
+            kb_agent_mgmt_client=mgmt_client('MANAGED'),
+            reranking=True,
+            reranking_model_name='COHERE',
+        )
+        config = kb_client.retrieve.call_args[1]['retrievalConfiguration']
+        arn = config['managedSearchConfiguration']['rerankingConfiguration'][
+            'bedrockRerankingConfiguration'
+        ]['modelConfiguration']['modelArn']
+        assert 'cohere.rerank-v3-5:0' in arn
+
+    @pytest.mark.asyncio
+    async def test_both_models_allowed_in_us_west_2(self):
+        """Both reranking models are offered in us-west-2."""
+        for model in ('AMAZON', 'COHERE'):
+            kb_client = runtime_client()
+            await query_knowledge_base(
+                query='q',
+                knowledge_base_id='kb-1',
+                kb_agent_client=kb_client,
+                kb_agent_mgmt_client=mgmt_client('MANAGED'),
+                reranking=True,
+                reranking_model_name=model,
+            )
+            kb_client.retrieve.assert_called_once()
+
+
+class TestFallbackCachesLearnedType:
+    """Tests that a recovered type is remembered."""
+
+    @pytest.mark.asyncio
+    async def test_successful_retry_caches_type_so_next_call_is_direct(self):
+        """After recovering, a second call goes straight to the correct shape."""
+
+        class ValidationException(Exception):
+            pass
+
+        kb_client = runtime_client()
+        kb_client.retrieve.side_effect = [
+            ValidationException(
+                'ValidationException: vectorSearchConfiguration is not supported for '
+                'managed knowledge bases. Use managedSearchConfiguration instead.'
+            ),
+            RESPONSE,
+            RESPONSE,
+        ]
+        for _ in range(2):
+            await query_knowledge_base(
+                query='q',
+                knowledge_base_id='kb-1',
+                kb_agent_client=kb_client,
+                kb_agent_mgmt_client=None,
+            )
+        # 2 calls for the first query (failed + retry), 1 for the second: 3 total, not 4.
+        assert kb_client.retrieve.call_count == 3
+        last = kb_client.retrieve.call_args_list[-1][1]['retrievalConfiguration']
+        assert 'managedSearchConfiguration' in last

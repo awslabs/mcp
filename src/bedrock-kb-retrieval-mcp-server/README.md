@@ -29,6 +29,14 @@ MCP server for accessing Amazon Bedrock Knowledge Bases
 * Optional condensed trace of the agent's planning and retrieval steps
 * Managed knowledge bases only; the tool rejects other types with a clear message
 
+### Reach ACL-protected content
+
+* Pass `user_id` to retrieve content from ACL-aware data sources (SharePoint, OneDrive,
+  Confluence with per-document ACLs)
+* Without it, that content is inaccessible, and agentic retrieval's full-document
+  expansion step fails with "UserContext is required for ACL-aware data sources"
+* Results are filtered to what that user is authorised to see
+
 ### Support both managed and vector knowledge bases
 
 * Works with vector knowledge bases (`type: VECTOR`) and managed knowledge bases (`type: MANAGED`)
@@ -63,7 +71,7 @@ If you intend to use reranking functionality, your Bedrock Knowledge Base needs 
 
 1. Your IAM role must have permissions for both `bedrock:Rerank` and `bedrock:InvokeModel` actions
 2. The Amazon Bedrock Knowledge Bases service role must also have these permissions
-3. Reranking is only available in specific regions. Please refer to the official [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/rerank-supported.html) for an up to date list of supported regions.
+3. Reranking availability differs **per model**: `amazon.rerank-v1:0` is not offered in `us-east-1`, while `cohere.rerank-v3-5:0` is. The server validates the (region, model) pair and fails fast with a clear message. Please refer to the official [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/rerank-supported.html) for an up to date list of supported regions.
 4. Enable model access for the available reranking models in the specified region.
 
 ### Agentic Retrieval Requirements

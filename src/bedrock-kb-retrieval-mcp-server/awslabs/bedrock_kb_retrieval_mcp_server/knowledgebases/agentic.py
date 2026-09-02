@@ -136,6 +136,8 @@ async def agentic_retrieve_knowledge_bases(
     data_source_ids: Optional[list[str]] = None,
     max_agent_iterations: Optional[int] = None,
     include_trace: bool = False,
+    user_id: Optional[str] = None,
+    next_token: Optional[str] = None,
 ) -> str:
     """Run agentic retrieval across one or more managed knowledge bases.
 
@@ -152,6 +154,12 @@ async def agentic_retrieve_knowledge_bases(
         data_source_ids: Restrict retrieval to these data sources.
         max_agent_iterations: Cap on agent planning iterations (minimum 2).
         include_trace: Include a condensed per-step trace of the agent's work.
+        user_id: End-user identity for access-control filtering. Required to reach content
+            in ACL-aware data sources; without it the agent's full-document expansion step
+            fails with "UserContext is required for ACL-aware data sources" and such
+            content stays inaccessible.
+        next_token: Continuation token from a previous call's ``nextToken``, to fetch the
+            next page of results.
 
     Returns:
         A JSON object as a string, with ``results`` always present and ``answer`` /
@@ -181,6 +189,10 @@ async def agentic_retrieve_knowledge_bases(
         'agenticRetrieveConfiguration': agentic_configuration,
         'generateResponse': generate_response,
     }
+    if user_id:
+        request['userContext'] = {'userId': user_id}
+    if next_token:
+        request['nextToken'] = next_token
 
     response = kb_agent_client.agentic_retrieve_stream(**request)
 

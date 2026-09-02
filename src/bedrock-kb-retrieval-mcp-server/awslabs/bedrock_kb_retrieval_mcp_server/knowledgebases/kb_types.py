@@ -30,6 +30,7 @@ else:
 
 
 MANAGED_KB_TYPE = 'MANAGED'
+VECTOR_KB_TYPE = 'VECTOR'
 
 MANAGED_SEARCH_CONFIGURATION = 'managedSearchConfiguration'
 VECTOR_SEARCH_CONFIGURATION = 'vectorSearchConfiguration'
@@ -41,7 +42,9 @@ VECTOR_SEARCH_CONFIGURATION = 'vectorSearchConfiguration'
 MANAGED_DATA_SOURCE_ID_KEY = '_data_source_id'
 VECTOR_DATA_SOURCE_ID_KEY = 'x-amz-bedrock-kb-data-source-id'
 
-# Knowledge base id -> knowledgeBaseConfiguration.type
+# Knowledge base id -> knowledgeBaseConfiguration.type.
+# Keyed by id alone, which is safe because a server process talks to one account and
+# region, and a knowledge base's type never changes for its lifetime.
 _KB_TYPE_CACHE: dict[str, str] = {}
 
 
