@@ -25,6 +25,7 @@ This MCP server provides tools for:
 - **Performance analysis**: Analyze workflow execution performance and resource utilization
 - **Failure diagnosis**: Comprehensive troubleshooting tools for failed workflow runs
 - **Log access**: Retrieve detailed logs from runs, engines, tasks, and manifests
+- **Vended metrics**: Query the fine-grained CPU, memory, GPU, network, filesystem I/O, and scratch-storage metrics that HealthOmics delivers into your account as CloudWatch OpenTelemetry metrics — retrieve time series, compare runs, aggregate across a workflow's runs, and get right-sizing suggestions
 
 ### 🔍 File Discovery and Search
 - **Genomics file search**: Intelligent discovery of genomics files across S3 buckets, HealthOmics sequence stores, and reference stores
@@ -58,12 +59,21 @@ This MCP server provides tools for:
 
 ### Analysis and Troubleshooting Tools
 
-1. **AnalyzeAHORunPerformance** - Analyze workflow run performance and resource utilization
+1. **AnalyzeAHORunPerformance** - Analyze workflow run performance and resource utilization from manifest data, enriched with a vended-metrics pass: per-task resource signatures and bottleneck categories (CPU/memory/GPU/I/O), stuck-task verdicts for active runs, and observed-peak right-sizing suggestions
 2. **DiagnoseAHORunFailure** - Comprehensive diagnosis of failed workflow runs with remediation suggestions
 3. **GetAHORunLogs** - Access high-level workflow execution logs and events
 4. **GetAHORunEngineLogs** - Retrieve workflow engine logs (STDOUT/STDERR) for debugging
 5. **GetAHORunManifestLogs** - Access run manifest logs with runtime information and metrics
 6. **GetAHOTaskLogs** - Get task-specific logs for debugging individual workflow steps
+
+### Vended Metrics Tools
+
+HealthOmics can deliver fine-grained run/task metrics (CPU, memory, GPU, network, run-filesystem I/O, and scratch storage) into your account as CloudWatch OpenTelemetry metrics. These tools query them through the CloudWatch PromQL API with your credentials. Metrics exist only for runs started after the feature launched in your account/region, and availability varies with the run's storage configuration — the tools report expected absences with reasons instead of failing.
+
+1. **ListAHORunMetrics** - List which vended metric series actually exist for a run (per task), including which metrics are expected to be absent for the run's storage/scratch/GPU configuration and why. Use this first to detect availability.
+2. **GetAHORunMetrics** - Retrieve normalized time series and summary statistics for a run's metrics, with task, direction (read/write, receive/transmit), and time-window filtering. Counters report window totals and average rates; gauges report min/max/average/last.
+3. **CompareAHORunMetrics** - Compare two runs aligned by task name: wall-clock and per-task duration deltas plus the metric signatures with the largest changes. Useful for "why was this run slower?" and Static-vs-Dynamic storage comparisons.
+4. **GetAHOWorkflowMetrics** - Aggregate metrics across a workflow's recent completed runs into per-task-name distributions (p50/p90/max of durations and resource peaks) for right-sizing and regression detection.
 
 ### File Discovery Tools
 
@@ -194,6 +204,12 @@ When workflows fail, follow this diagnostic approach:
    - Use `AnalyzeAHORunPerformance` to identify resource bottlenecks
    - Review task resource utilization patterns
    - Optimize workflow parameters based on analysis results
+
+4. **Vended Metrics Analysis** (when available):
+   - Use `ListAHORunMetrics` first to check which metric series exist for a run — absence is often expected (feature launch date, storage configuration) and the tool explains why
+   - Use `GetAHORunMetrics` for point queries, graphing, and per-task aggregation; note that I/O metrics are task-level only (there is no run-level I/O metric) and DYNAMIC (EFS) run-filesystem usage lags ~35 minutes
+   - Use `CompareAHORunMetrics` to explain duration differences between two runs of the same workflow
+   - Use `GetAHOWorkflowMetrics` for right-sizing questions ("what local disk should I set?") based on observed p90/max usage across runs
 
 ### Workflow Linting and Validation
 
@@ -539,7 +555,9 @@ The following IAM permissions are required:
                 "omics:DeleteConfiguration",
                 "logs:DescribeLogGroups",
                 "logs:DescribeLogStreams",
-                "logs:GetLogEvents"
+                "logs:GetLogEvents",
+                "cloudwatch:GetMetricData",
+                "cloudwatch:ListMetrics"
             ],
             "Resource": "*"
         },

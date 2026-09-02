@@ -993,9 +993,15 @@ class TestAnalyzeRunPerformance:
     """Test the analyze_run_performance function."""
 
     @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_healthomics_mcp_server.tools.run_analysis.metrics_section_for_report',
+        return_value=[],
+    )
     @patch('awslabs.aws_healthomics_mcp_server.tools.run_analysis._get_run_analysis_data')
     @patch('awslabs.aws_healthomics_mcp_server.tools.run_analysis._generate_analysis_report')
-    async def test_analyze_run_performance_success(self, mock_generate_report, mock_get_data):
+    async def test_analyze_run_performance_success(
+        self, mock_generate_report, mock_get_data, mock_metrics_section
+    ):
         """Test analyze_run_performance with successful analysis."""
         # Arrange
         mock_ctx = AsyncMock()
@@ -1109,9 +1115,15 @@ class TestAnalyzeRunPerformance:
                 },
             }
 
-            with patch(
-                'awslabs.aws_healthomics_mcp_server.tools.run_analysis._generate_analysis_report'
-            ) as mock_generate_report:
+            with (
+                patch(
+                    'awslabs.aws_healthomics_mcp_server.tools.run_analysis._generate_analysis_report'
+                ) as mock_generate_report,
+                patch(
+                    'awslabs.aws_healthomics_mcp_server.tools.run_analysis.metrics_section_for_report',
+                    return_value=[],
+                ),
+            ):
                 mock_generate_report.return_value = 'Analysis report'
 
                 # Act
