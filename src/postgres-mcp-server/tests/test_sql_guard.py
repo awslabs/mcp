@@ -24,6 +24,7 @@ Covers, per docs/design/parser-based-sql-policy.md section 7:
 """
 
 import pytest
+import awslabs.postgres_mcp_server.sql_guard as guard
 from awslabs.postgres_mcp_server.sql_guard import (
     DANGEROUS_FUNCTIONS,
     DANGEROUS_QUALIFIED_FUNCTIONS,
@@ -403,8 +404,6 @@ def test_analysis_exception_fails_closed(monkeypatch):
     Guards the wrapper that turns non-SqlPolicyError exceptions into a
     fail-closed SqlPolicyError instead of letting them escape uncaught.
     """
-    import awslabs.postgres_mcp_server.sql_guard as guard
-
     def boom(_node):
         raise ValueError('induced analysis failure')
 
