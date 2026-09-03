@@ -317,15 +317,10 @@ def validate_key_template(value: object, field_path: str) -> list[ValidationErro
     Returns:
         List of validation errors, empty when the template is safe to render
     """
-    errors = validate_literal_safe(value, field_path, allow_braces=True)
-    if errors:
-        return errors
-
-    # validate_literal_safe has already rejected a non-string, but the check is repeated
-    # rather than asserted: an assert is removed under python -O, and this is a security
-    # boundary that must not depend on assertions being enabled. It is unreachable through
-    # this function, hence the coverage exclusion.
-    if not isinstance(value, str):  # pragma: no cover - defensive, unreachable via this path
+    # Checked before delegating so the string type is established for the brace scanning
+    # below. validate_literal_safe would also reject a non-string, but relying on that would
+    # leave this function's own type narrowing implicit.
+    if not isinstance(value, str):
         return [
             ValidationError(
                 path=field_path,
@@ -333,6 +328,10 @@ def validate_key_template(value: object, field_path: str) -> list[ValidationErro
                 suggestion='Use a string template such as USER#{user_id}',
             )
         ]
+
+    errors = validate_literal_safe(value, field_path, allow_braces=True)
+    if errors:
+        return errors
 
     for region in _ANY_BRACE_REGION.findall(value):
         if not _PLACEHOLDER_PATTERN.fullmatch(region):
