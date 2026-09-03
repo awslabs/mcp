@@ -397,12 +397,14 @@ HOSTILE_SCHEMAS = {
     ),
     'gsi_list_included_attributes': lambda s: s['tables'][0].__setitem__(
         'gsi_list',
-        [{
-            'name': 'ByX',
-            'partition_key': 'gsi_pk',
-            'projection_type': 'INCLUDE',
-            'included_attributes': ['ok', PAYLOAD_LITERAL],
-        }],
+        [
+            {
+                'name': 'ByX',
+                'partition_key': 'gsi_pk',
+                'projection_type': 'INCLUDE',
+                'included_attributes': ['ok', PAYLOAD_LITERAL],
+            }
+        ],
     ),
 }
 
