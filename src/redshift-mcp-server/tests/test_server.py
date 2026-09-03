@@ -22,6 +22,7 @@ from awslabs.redshift_mcp_server.models import (
     RedshiftDatabase,
     RedshiftSchema,
     RedshiftTable,
+    VerbosityLevel,
 )
 from awslabs.redshift_mcp_server.review.models import (
     ReviewFinding,
@@ -66,6 +67,155 @@ async def test_tool_annotations():
         assert annotations.destructive_hint is False
         assert annotations.idempotent_hint is True
         assert annotations.open_world_hint is True
+
+
+# Each discovery tool with the parameters it publishes and what it takes to call it.
+DISCOVERY_TOOLS = {
+    'list_databases': {
+        'parameters': {'cluster_identifier', 'database_name', 'verbosity_level'},
+        'tool': list_databases_tool,
+        'patch': 'awslabs.redshift_mcp_server.server.discover_databases',
+        'args': ('test-cluster', 'dev'),
+        'model': RedshiftDatabase,
+        'values': lambda index: {'database_name': f'db{index}'},
+    },
+    'list_schemas': {
+        'parameters': {'cluster_identifier', 'schema_database_name', 'verbosity_level'},
+        'tool': list_schemas_tool,
+        'patch': 'awslabs.redshift_mcp_server.server.discover_schemas',
+        'args': ('test-cluster', 'dev'),
+        'model': RedshiftSchema,
+        'values': lambda index: {'database_name': 'dev', 'schema_name': f'sc{index}'},
+    },
+    'list_tables': {
+        'parameters': {
+            'cluster_identifier',
+            'table_database_name',
+            'table_schema_name',
+            'verbosity_level',
+        },
+        'tool': list_tables_tool,
+        'patch': 'awslabs.redshift_mcp_server.server.discover_tables',
+        'args': ('test-cluster', 'dev', 'public'),
+        'model': RedshiftTable,
+        'values': lambda index: {
+            'database_name': 'dev',
+            'schema_name': 'public',
+            'table_name': f'tb{index}',
+        },
+    },
+    'list_columns': {
+        'parameters': {
+            'cluster_identifier',
+            'column_database_name',
+            'column_schema_name',
+            'column_table_name',
+            'verbosity_level',
+        },
+        'tool': list_columns_tool,
+        'patch': 'awslabs.redshift_mcp_server.server.discover_columns',
+        'args': ('test-cluster', 'dev', 'public', 'orders'),
+        'model': RedshiftColumn,
+        'values': lambda index: {
+            'database_name': 'dev',
+            'schema_name': 'public',
+            'table_name': 'orders',
+            'column_name': f'col{index}',
+            'ordinal_position': index,
+        },
+    },
+}
+
+
+def _discovery_items(spec, count):
+    """Build a discover_* return value of count items."""
+    return [spec['model'].model_validate(spec['values'](i)) for i in range(1, count + 1)]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('tool_name', list(DISCOVERY_TOOLS))
+async def test_discovery_tool_input_schema(tool_name):
+    """Each discovery tool publishes exactly the parameters it accepts.
+
+    The full parameter set is written out here rather than checking a few names, so a parameter
+    added later fails this test until it is added here too. That makes any change to what a
+    caller can pass a deliberate one.
+    """
+    tools = {tool.name: tool for tool in await mcp.list_tools()}
+    properties = tools[tool_name].input_schema['properties']
+
+    assert set(properties) == DISCOVERY_TOOLS[tool_name]['parameters']
+
+    verbosity = properties['verbosity_level']
+    assert verbosity['default'] == 'standard'
+    assert {'low', 'standard'} == {
+        value for option in verbosity['anyOf'] for value in option.get('enum', [])
+    }
+
+
+@pytest.mark.parametrize('tool_name', list(DISCOVERY_TOOLS))
+def test_discovery_tool_description_documents_response_shaping(tool_name):
+    """Each discovery tool description states what a caller needs to shape a response."""
+    raw_description = DISCOVERY_TOOLS[tool_name]['tool'].__doc__
+    assert raw_description is not None
+    # Collapse the docstring's wrapping so a phrase spanning two lines still matches.
+    description = ' '.join(raw_description.split())
+
+    # Both levels, and the field names each one returns.
+    assert "'low' or 'standard'" in description
+    for field_name in DISCOVERY_TOOLS[tool_name]['model'].fields_for(VerbosityLevel.STANDARD):
+        assert field_name in description
+
+    # The row cap, how it is configured, and what happens when it is exceeded.
+    assert 'REDSHIFT_MAX_RESULT_ROWS' in description
+    assert 'shipping as 1000' in description
+    assert 'where 0 means no cap' in description
+    assert 'fails rather than returning a short answer' in description
+
+    # Nothing added by this feature describes a Redshift feature as deprecated.
+    assert 'deprecat' not in description.lower()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('tool_name', list(DISCOVERY_TOOLS))
+async def test_discovery_tool_returns_a_bare_list(mocker, tool_name):
+    """A discovery tool returns every item it found, as a list of projected objects."""
+    spec = DISCOVERY_TOOLS[tool_name]
+    mocker.patch(spec['patch'], return_value=_discovery_items(spec, 3))
+
+    result = await spec['tool'](Context(), *spec['args'])
+
+    assert isinstance(result, list)
+    assert len(result) == 3
+    assert all(isinstance(item, dict) for item in result)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('level', [None, 'low', 'standard'])
+@pytest.mark.parametrize('tool_name', list(DISCOVERY_TOOLS))
+async def test_discovery_tool_applies_the_requested_level(mocker, tool_name, level):
+    """Each item carries exactly the level's fields; omitting the level means standard."""
+    spec = DISCOVERY_TOOLS[tool_name]
+    mocker.patch(spec['patch'], return_value=_discovery_items(spec, 1))
+    expected_level = VerbosityLevel(level or 'standard')
+
+    result = await spec['tool'](Context(), *spec['args'], verbosity_level=level)
+
+    assert set(result[0]) == set(spec['model'].fields_for(expected_level))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('tool_name', list(DISCOVERY_TOOLS))
+async def test_discovery_tool_low_returns_only_identifying_names(mocker, tool_name):
+    """The low level is a strict subset of standard, carrying only the names."""
+    spec = DISCOVERY_TOOLS[tool_name]
+    mocker.patch(spec['patch'], return_value=_discovery_items(spec, 1))
+
+    low = await spec['tool'](Context(), *spec['args'], verbosity_level='low')
+    standard = await spec['tool'](Context(), *spec['args'], verbosity_level='standard')
+
+    assert set(low[0]) < set(standard[0])
+    assert set(low[0]) == set(spec['model'].fields_for(VerbosityLevel.LOW))
 
 
 class TestListClustersTool:
@@ -193,17 +343,16 @@ class TestListDatabasesTool:
 
         result = await list_databases_tool(Context(), 'test-cluster', 'dev')
 
-        # Verify return type and structure
+        # Verify return type
         assert isinstance(result, list)
         assert len(result) == 2
-        assert all(isinstance(db, RedshiftDatabase) for db in result)
 
         # Verify database properties
-        assert result[0].database_name == 'dev'
-        assert result[0].database_type == 'local'
-        assert result[0].database_owner == 100
-        assert result[1].database_name == 'test'
-        assert result[1].database_type == 'shared'
+        assert result[0]['database_name'] == 'dev'
+        assert result[0]['database_type'] == 'local'
+        assert result[0]['database_owner'] == 100
+        assert result[1]['database_name'] == 'test'
+        assert result[1]['database_type'] == 'shared'
 
     @pytest.mark.asyncio
     async def test_list_databases_tool_empty(self, mocker):
@@ -217,7 +366,7 @@ class TestListDatabasesTool:
 
         # Verify return type
         assert isinstance(result, list)
-        assert len(result) == 0
+        assert result == []
 
     @pytest.mark.asyncio
     async def test_list_databases_tool_error(self, mocker):
@@ -270,17 +419,16 @@ class TestListSchemasTool:
 
         result = await list_schemas_tool(Context(), 'test-cluster', 'dev')
 
-        # Verify return type and structure
+        # Verify return type
         assert isinstance(result, list)
         assert len(result) == 2
-        assert all(isinstance(schema, RedshiftSchema) for schema in result)
 
         # Verify schema properties
-        assert result[0].schema_name == 'public'
-        assert result[0].schema_type == 'local'
-        assert result[0].database_name == 'dev'
-        assert result[1].schema_name == 'external_schema'
-        assert result[1].schema_type == 'external'
+        assert result[0]['schema_name'] == 'public'
+        assert result[0]['schema_type'] == 'local'
+        assert result[0]['database_name'] == 'dev'
+        assert result[1]['schema_name'] == 'external_schema'
+        assert result[1]['schema_type'] == 'external'
 
     @pytest.mark.asyncio
     async def test_list_schemas_tool_empty(self, mocker):
@@ -292,7 +440,7 @@ class TestListSchemasTool:
 
         # Verify return type
         assert isinstance(result, list)
-        assert len(result) == 0
+        assert result == []
 
     @pytest.mark.asyncio
     async def test_list_schemas_tool_error(self, mocker):
@@ -343,17 +491,16 @@ class TestListTablesTool:
 
         result = await list_tables_tool(Context(), 'test-cluster', 'dev', 'public')
 
-        # Verify return type and structure
+        # Verify return type
         assert isinstance(result, list)
         assert len(result) == 2
-        assert all(isinstance(table, RedshiftTable) for table in result)
 
         # Verify table properties
-        assert result[0].table_name == 'users'
-        assert result[0].table_type == 'TABLE'
-        assert result[0].schema_name == 'public'
-        assert result[1].table_name == 'user_view'
-        assert result[1].table_type == 'VIEW'
+        assert result[0]['table_name'] == 'users'
+        assert result[0]['table_type'] == 'TABLE'
+        assert result[0]['schema_name'] == 'public'
+        assert result[1]['table_name'] == 'user_view'
+        assert result[1]['table_type'] == 'VIEW'
 
     @pytest.mark.asyncio
     async def test_list_tables_tool_empty(self, mocker):
@@ -365,7 +512,7 @@ class TestListTablesTool:
 
         # Verify return type
         assert isinstance(result, list)
-        assert len(result) == 0
+        assert result == []
 
     @pytest.mark.asyncio
     async def test_list_tables_tool_error(self, mocker):
@@ -428,19 +575,18 @@ class TestListColumnsTool:
 
         result = await list_columns_tool(Context(), 'test-cluster', 'dev', 'public', 'users')
 
-        # Verify return type and structure
+        # Verify return type
         assert isinstance(result, list)
         assert len(result) == 2
-        assert all(isinstance(column, RedshiftColumn) for column in result)
 
         # Verify column properties
-        assert result[0].column_name == 'id'
-        assert result[0].data_type == 'integer'
-        assert result[0].is_nullable == 'NO'
-        assert result[0].ordinal_position == 1
-        assert result[1].column_name == 'name'
-        assert result[1].data_type == 'varchar'
-        assert result[1].character_maximum_length == 255
+        assert result[0]['column_name'] == 'id'
+        assert result[0]['data_type'] == 'integer'
+        assert result[0]['is_nullable'] == 'NO'
+        assert result[0]['ordinal_position'] == 1
+        assert result[1]['column_name'] == 'name'
+        assert result[1]['data_type'] == 'varchar'
+        assert result[1]['character_maximum_length'] == 255
 
     @pytest.mark.asyncio
     async def test_list_columns_tool_empty(self, mocker):
@@ -452,7 +598,7 @@ class TestListColumnsTool:
 
         # Verify return type
         assert isinstance(result, list)
-        assert len(result) == 0
+        assert result == []
 
     @pytest.mark.asyncio
     async def test_list_columns_tool_error(self, mocker):

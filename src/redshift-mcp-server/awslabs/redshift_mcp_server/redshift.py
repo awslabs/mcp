@@ -26,6 +26,8 @@ from awslabs.redshift_mcp_server.consts import (
     CLIENT_USER_AGENT_NAME,
     COLUMNS_SQL,
     DATABASES_SQL,
+    MAX_RESULT_ROWS_ENV_VAR,
+    MAX_RESULT_ROWS_FALLBACK,
     QUERY_POLL_INTERVAL,
     QUERY_TIMEOUT,
     SCHEMAS_SQL,
@@ -234,6 +236,136 @@ class RedshiftSessionManager:
         return (time.time() - session_info['created_at']) > self._session_keepalive
 
 
+def max_result_rows() -> int:
+    """Read the row cap an operator configured.
+
+    The environment is read on every call, so a change takes effect without a restart and a
+    test can vary it freely. An unusable value is logged and the shipped default used in its
+    place, so a mistake in configuration does not stop the server from serving requests.
+
+    Returns:
+        The configured number of rows, or MAX_RESULT_ROWS_FALLBACK when the variable is unset
+        or holds anything but a whole number of zero or more. Zero means no cap.
+    """
+    configured = os.environ.get(MAX_RESULT_ROWS_ENV_VAR)
+    if configured is None:
+        return MAX_RESULT_ROWS_FALLBACK
+
+    try:
+        value = int(configured.strip())
+    except ValueError:
+        logger.warning(
+            f'{MAX_RESULT_ROWS_ENV_VAR} is not an integer; '
+            f'using {MAX_RESULT_ROWS_FALLBACK} rows instead.'
+        )
+        return MAX_RESULT_ROWS_FALLBACK
+
+    if value < 0:
+        logger.warning(
+            f'{MAX_RESULT_ROWS_ENV_VAR} is negative; '
+            f'using {MAX_RESULT_ROWS_FALLBACK} rows instead.'
+        )
+        return MAX_RESULT_ROWS_FALLBACK
+
+    return value
+
+
+def _fetch_result_set(data_client, query_id: str) -> dict:
+    """Retrieve a completed statement's result set, following every result page.
+
+    GetStatementResult returns one page at a time, so a single call sees only the first page.
+    This asks for the first page, then keeps asking, each time passing back the token the
+    previous response gave, until a response comes back with no token.
+
+    The caller receives one whole result set. What bounds it is the row cap: retrieval stops and
+    raises as soon as the row count is known to exceed the cap, so a large statement neither
+    returns a silently short answer nor reads its whole result set into memory first.
+
+    Rows are returned only once every page has arrived, so a caller never receives a partial set.
+
+    Args:
+        data_client: The Redshift Data API client.
+        query_id: The identifier of the completed statement to retrieve the result set for.
+
+    Returns:
+        Dictionary holding the rows of every page and the column metadata describing them:
+        {'Records': [...], 'ColumnMetadata': [...]}. These are the only two keys any caller
+        reads. The other keys a page response carries, NextToken and TotalNumRows, are used
+        here to drive the loop and are not passed on.
+
+    Raises:
+        Exception: If the statement returns more rows than the cap allows, if a page request
+            fails, if the Redshift Data API repeats a continuation token, or if the rows
+            retrieved do not add up to the total it reported.
+    """
+    row_cap = max_result_rows()
+    # A statement that produced no result set (e.g. SET) is never asked for a page.
+    describe_response = data_client.describe_statement(Id=query_id)
+    if not describe_response.get('HasResultSet'):
+        return {'Records': [], 'ColumnMetadata': []}
+
+    records: list = []
+    column_metadata: list = []
+    total_num_rows: int | None = None
+    used_tokens: set[str] = set()
+    next_token: str | None = None
+
+    while True:
+        try:
+            if next_token is None:
+                page_response = data_client.get_statement_result(Id=query_id)
+            else:
+                page_response = data_client.get_statement_result(Id=query_id, NextToken=next_token)
+        except Exception as e:
+            raise Exception(
+                f'Result set of statement {query_id} was retrieved incompletely: {e}'
+            ) from e
+
+        records.extend(page_response.get('Records', []))
+
+        # Column metadata describes the whole result set; keep the first page that reports it.
+        if not column_metadata:
+            column_metadata = page_response.get('ColumnMetadata') or []
+
+        reported_total = page_response.get('TotalNumRows')
+        if total_num_rows is None and isinstance(reported_total, int) and reported_total >= 0:
+            total_num_rows = reported_total
+
+        # Enforce the cap as soon as it is known to be exceeded, so a large statement is
+        # refused without first reading its whole result set into memory. When the Data API
+        # reports the total on the first page, that happens after one page.
+        if row_cap:
+            known_rows = total_num_rows if total_num_rows is not None else len(records)
+            if known_rows > row_cap:
+                raise Exception(
+                    f'Statement {query_id} returned {known_rows} rows, more than the '
+                    f'{row_cap}-row maximum this server returns. Narrow the request: for a '
+                    'query add a LIMIT clause, a more selective WHERE predicate, or an '
+                    'aggregation; for a listing, choose a smaller schema or table. An operator '
+                    f'can raise the maximum with {MAX_RESULT_ROWS_ENV_VAR}.'
+                )
+
+        next_token = page_response.get('NextToken')
+        if not next_token:
+            break
+
+        # A repeated token would otherwise loop forever collecting the same page.
+        if next_token in used_tokens:
+            raise Exception(
+                f'Result set pagination of statement {query_id} did not advance: '
+                'the same continuation token was returned twice.'
+            )
+        used_tokens.add(next_token)
+
+    if total_num_rows is not None and total_num_rows != len(records):
+        raise Exception(
+            f'Result set of statement {query_id} was retrieved incompletely: '
+            f'{len(records)} rows were retrieved but {total_num_rows} rows were reported.'
+        )
+
+    return {'Records': records, 'ColumnMetadata': column_metadata}
+
+
 async def _execute_protected_statement(
     cluster_identifier: str,
     database_name: str,
@@ -362,12 +494,8 @@ async def _execute_protected_statement(
     data_client = client_manager.redshift_data_client()
     assert user_query_id is not None, 'user_query_id should not be None at this point'
 
-    # Only fetch results when the statement produced a result set (e.g. SET does not).
-    describe_response = data_client.describe_statement(Id=user_query_id)
-    if describe_response.get('HasResultSet'):
-        results_response = data_client.get_statement_result(Id=user_query_id)
-    else:
-        results_response = {'Records': [], 'ColumnMetadata': []}
+    # _fetch_result_set owns the result-set presence check and the retrieval of every page.
+    results_response = _fetch_result_set(data_client, user_query_id)
     return results_response, user_query_id
 
 

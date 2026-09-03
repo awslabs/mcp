@@ -18,12 +18,17 @@ import asyncio
 import pytest
 import sqlglot
 import time
+from awslabs.redshift_mcp_server.consts import (
+    MAX_RESULT_ROWS_ENV_VAR,
+    MAX_RESULT_ROWS_FALLBACK,
+)
 from awslabs.redshift_mcp_server.models import RedshiftCluster
 from awslabs.redshift_mcp_server.redshift import (
     RedshiftClientManager,
     RedshiftSessionManager,
     _execute_protected_statement,
     _execute_statement,
+    _fetch_result_set,
     _sql_identifier,
     discover_clusters,
     discover_columns,
@@ -31,6 +36,7 @@ from awslabs.redshift_mcp_server.redshift import (
     discover_schemas,
     discover_tables,
     execute_query,
+    max_result_rows,
 )
 from botocore.config import Config
 from botocore.exceptions import ClientError
@@ -451,6 +457,219 @@ class TestExecuteProtectedStatement:
         mock_data_client.get_statement_result.assert_called_once_with(Id='user-stmt-id')
         assert query_id == 'user-stmt-id'
         assert results_response == expected_result
+
+    @pytest.mark.parametrize(
+        'describe_response',
+        [{'Status': 'FINISHED'}, {'Status': 'FINISHED', 'HasResultSet': False}],
+        ids=['has_result_set_absent', 'has_result_set_false'],
+    )
+    def test_fetch_result_set_no_result_set_requests_no_page(self, mocker, describe_response):
+        """A statement with no result set yields empty collections and no page request."""
+        mock_data_client = mocker.Mock()
+        mock_data_client.describe_statement.return_value = describe_response
+
+        results_response = _fetch_result_set(mock_data_client, 'user-stmt-id')
+
+        assert results_response == {'Records': [], 'ColumnMetadata': []}
+        mock_data_client.get_statement_result.assert_not_called()
+        mock_data_client.describe_statement.assert_called_once_with(Id='user-stmt-id')
+
+    def test_fetch_result_set_follows_every_page(self, mocker):
+        """Every page is retrieved in order, each request after the first carrying its token."""
+        mock_data_client = mocker.Mock()
+        mock_data_client.describe_statement.return_value = {
+            'Status': 'FINISHED',
+            'HasResultSet': True,
+        }
+        mock_data_client.get_statement_result.side_effect = [
+            {
+                'Records': [[{'longValue': 1}]],
+                'ColumnMetadata': [{'name': 'n'}],
+                'TotalNumRows': 3,
+                'NextToken': 'page-2',
+            },
+            {'Records': [[{'longValue': 2}]], 'NextToken': 'page-3'},
+            {'Records': [[{'longValue': 3}]]},
+        ]
+
+        results_response = _fetch_result_set(mock_data_client, 'user-stmt-id')
+
+        # Rows arrive concatenated in page order, none omitted and none repeated.
+        assert results_response['Records'] == [
+            [{'longValue': 1}],
+            [{'longValue': 2}],
+            [{'longValue': 3}],
+        ]
+        # Column metadata is taken from the first page that reported it.
+        assert results_response['ColumnMetadata'] == [{'name': 'n'}]
+        assert mock_data_client.get_statement_result.call_args_list == [
+            mocker.call(Id='user-stmt-id'),
+            mocker.call(Id='user-stmt-id', NextToken='page-2'),
+            mocker.call(Id='user-stmt-id', NextToken='page-3'),
+        ]
+
+    def test_fetch_result_set_page_failure_returns_no_rows(self, mocker):
+        """A page failure discards what was retrieved and names the statement."""
+        mock_data_client = mocker.Mock()
+        mock_data_client.describe_statement.return_value = {
+            'Status': 'FINISHED',
+            'HasResultSet': True,
+        }
+        mock_data_client.get_statement_result.side_effect = [
+            {'Records': [[{'longValue': 1}]], 'NextToken': 'page-2'},
+            Exception('Data API unavailable'),
+        ]
+
+        with pytest.raises(Exception, match='user-stmt-id.*retrieved incompletely'):
+            _fetch_result_set(mock_data_client, 'user-stmt-id')
+
+    def test_fetch_result_set_row_count_mismatch_returns_no_rows(self, mocker):
+        """Retrieving fewer rows than were reported is an error, not a short result set."""
+        mock_data_client = mocker.Mock()
+        mock_data_client.describe_statement.return_value = {
+            'Status': 'FINISHED',
+            'HasResultSet': True,
+        }
+        mock_data_client.get_statement_result.return_value = {
+            'Records': [[{'longValue': 1}]],
+            'ColumnMetadata': [{'name': 'n'}],
+            'TotalNumRows': 2,
+        }
+
+        with pytest.raises(Exception, match='1 rows were retrieved but 2 rows were reported'):
+            _fetch_result_set(mock_data_client, 'user-stmt-id')
+
+    def test_fetch_result_set_repeated_token_stops(self, mocker):
+        """A token the Data API repeats stops paging instead of looping on one page."""
+        mock_data_client = mocker.Mock()
+        mock_data_client.describe_statement.return_value = {
+            'Status': 'FINISHED',
+            'HasResultSet': True,
+        }
+        mock_data_client.get_statement_result.return_value = {
+            'Records': [[{'longValue': 1}]],
+            'ColumnMetadata': [{'name': 'n'}],
+            'NextToken': 'stuck',
+        }
+
+        with pytest.raises(Exception, match='user-stmt-id did not advance'):
+            _fetch_result_set(mock_data_client, 'user-stmt-id')
+
+    @pytest.mark.parametrize(
+        'configured, expected',
+        [
+            (None, MAX_RESULT_ROWS_FALLBACK),
+            ('250', 250),
+            ('0', 0),
+            ('', MAX_RESULT_ROWS_FALLBACK),
+            ('   ', MAX_RESULT_ROWS_FALLBACK),
+            ('lots', MAX_RESULT_ROWS_FALLBACK),
+            ('12.5', MAX_RESULT_ROWS_FALLBACK),
+            ('-1', MAX_RESULT_ROWS_FALLBACK),
+        ],
+        ids=[
+            'unset',
+            'positive',
+            'zero_means_no_cap',
+            'empty',
+            'whitespace',
+            'not_a_number',
+            'not_an_integer',
+            'negative',
+        ],
+    )
+    def test_max_result_rows(self, monkeypatch, configured, expected):
+        """Anything but a whole number of zero or more falls back to the shipped default."""
+        if configured is None:
+            monkeypatch.delenv(MAX_RESULT_ROWS_ENV_VAR, raising=False)
+        else:
+            monkeypatch.setenv(MAX_RESULT_ROWS_ENV_VAR, configured)
+
+        assert max_result_rows() == expected
+
+    def test_fetch_result_set_over_the_cap_fails_closed(self, mocker, monkeypatch):
+        """A statement over the cap raises with advice rather than returning a short answer."""
+        monkeypatch.setenv(MAX_RESULT_ROWS_ENV_VAR, '2')
+        mock_data_client = mocker.Mock()
+        mock_data_client.describe_statement.return_value = {
+            'Status': 'FINISHED',
+            'HasResultSet': True,
+        }
+        mock_data_client.get_statement_result.return_value = {
+            'Records': [[{'longValue': n}] for n in range(3)],
+            'ColumnMetadata': [{'name': 'n'}],
+        }
+
+        with pytest.raises(Exception, match='returned 3 rows, more than the 2'):
+            _fetch_result_set(mock_data_client, 'user-stmt-id')
+
+    def test_fetch_result_set_stops_fetching_once_over_the_cap(self, mocker, monkeypatch):
+        """The cap is enforced during retrieval, so later pages are never requested."""
+        monkeypatch.setenv(MAX_RESULT_ROWS_ENV_VAR, '1')
+        mock_data_client = mocker.Mock()
+        mock_data_client.describe_statement.return_value = {
+            'Status': 'FINISHED',
+            'HasResultSet': True,
+        }
+        # The reported total already exceeds the cap on the first page.
+        mock_data_client.get_statement_result.return_value = {
+            'Records': [[{'longValue': 1}], [{'longValue': 2}]],
+            'ColumnMetadata': [{'name': 'n'}],
+            'TotalNumRows': 500,
+            'NextToken': 'page-2',
+        }
+
+        with pytest.raises(Exception, match='returned 500 rows, more than the 1'):
+            _fetch_result_set(mock_data_client, 'user-stmt-id')
+
+        # One page requested, then refused; the rest of the result set was never read.
+        assert mock_data_client.get_statement_result.call_count == 1
+
+    def test_fetch_result_set_at_the_cap_is_returned(self, mocker, monkeypatch):
+        """A statement exactly at the cap is within it, so the rows come back."""
+        monkeypatch.setenv(MAX_RESULT_ROWS_ENV_VAR, '2')
+        mock_data_client = mocker.Mock()
+        mock_data_client.describe_statement.return_value = {
+            'Status': 'FINISHED',
+            'HasResultSet': True,
+        }
+        mock_data_client.get_statement_result.return_value = {
+            'Records': [[{'longValue': 1}], [{'longValue': 2}]],
+            'ColumnMetadata': [{'name': 'n'}],
+        }
+
+        assert len(_fetch_result_set(mock_data_client, 'user-stmt-id')['Records']) == 2
+
+    def test_fetch_result_set_with_no_cap_returns_everything(self, mocker, monkeypatch):
+        """A configured 0 removes the cap, so a large result set is retrieved in full."""
+        monkeypatch.setenv(MAX_RESULT_ROWS_ENV_VAR, '0')
+        mock_data_client = mocker.Mock()
+        mock_data_client.describe_statement.return_value = {
+            'Status': 'FINISHED',
+            'HasResultSet': True,
+        }
+        mock_data_client.get_statement_result.return_value = {
+            'Records': [[{'longValue': n}] for n in range(5000)],
+            'ColumnMetadata': [{'name': 'n'}],
+        }
+
+        assert len(_fetch_result_set(mock_data_client, 'user-stmt-id')['Records']) == 5000
+
+    def test_fetch_result_set_without_reported_total_is_accepted(self, mocker):
+        """With no total reported there is nothing to reconcile, so the rows stand."""
+        mock_data_client = mocker.Mock()
+        mock_data_client.describe_statement.return_value = {
+            'Status': 'FINISHED',
+            'HasResultSet': True,
+        }
+        mock_data_client.get_statement_result.return_value = {
+            'Records': [[{'longValue': 1}]],
+            'ColumnMetadata': [{'name': 'n'}],
+        }
+
+        results_response = _fetch_result_set(mock_data_client, 'user-stmt-id')
+
+        assert results_response['Records'] == [[{'longValue': 1}]]
 
     @pytest.mark.asyncio
     async def test_execute_protected_statement_denylisted_statements_rejected(self, mocker):

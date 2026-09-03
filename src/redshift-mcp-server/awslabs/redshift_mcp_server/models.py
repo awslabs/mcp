@@ -15,11 +15,24 @@
 """Redshift MCP Server Pydantic models."""
 
 from datetime import datetime
+from enum import Enum
 from pydantic import BaseModel, Field
-from typing import Any, Dict, Optional, TypeVar
+from typing import Annotated, Any, Dict, Optional, TypeVar
 
 
 RedshiftDataModelT = TypeVar('RedshiftDataModelT', bound='RedshiftDataModel')
+
+
+class VerbosityLevel(str, Enum):
+    """How much detail a discovery tool returns on each item of its response."""
+
+    LOW = 'low'
+    STANDARD = 'standard'
+
+
+# The levels in increasing order of detail. A field marked with a level is returned at that
+# level and at every level after it, so `low` fields are a subset of `standard` fields.
+_VERBOSITY_ORDER = (VerbosityLevel.LOW, VerbosityLevel.STANDARD)
 
 
 class RedshiftDataModel(BaseModel):
@@ -28,7 +41,40 @@ class RedshiftDataModel(BaseModel):
     Subclasses declare their fields named to match the SHOW result columns.
     `from_redshift_response` maps result columns to those fields by name, so
     parsing is independent of column order; unknown columns are ignored.
+
+    Each field also carries the verbosity level it first appears at, as
+    `Annotated` metadata on the field itself rather than in a list kept
+    elsewhere. A field marked `low` is one of the identifying names an agent
+    needs in order to find an object; everything else is `standard`. Keeping
+    the marker on the field means the two cannot drift apart, and an unmarked
+    field counts as `standard`, so nothing reaches `low` by accident.
     """
+
+    @classmethod
+    def field_level(cls, name: str) -> VerbosityLevel:
+        """The level a field first appears at, defaulting to standard when unmarked."""
+        for marker in cls.model_fields[name].metadata:
+            if isinstance(marker, VerbosityLevel):
+                return marker
+        return VerbosityLevel.STANDARD
+
+    @classmethod
+    def fields_for(cls, level: VerbosityLevel) -> tuple[str, ...]:
+        """The fields the given level returns, in the order they were declared."""
+        ceiling = _VERBOSITY_ORDER.index(level)
+        return tuple(
+            name
+            for name in cls.model_fields
+            if _VERBOSITY_ORDER.index(cls.field_level(name)) <= ceiling
+        )
+
+    def project(self, level: VerbosityLevel) -> dict[str, Any]:
+        """This item cut down to the fields the given level returns.
+
+        `model_dump(include=...)` keeps the order the fields were declared in, so the
+        identifying names, declared first, stay first in every response.
+        """
+        return self.model_dump(include=set(self.fields_for(level)))
 
     @staticmethod
     def cell_value(cell: dict) -> Any:
@@ -76,7 +122,9 @@ class RedshiftCluster(BaseModel):
 class RedshiftDatabase(RedshiftDataModel):
     """Information about a database in a Redshift cluster."""
 
-    database_name: str = Field(..., description='The name of the database')
+    database_name: Annotated[str, VerbosityLevel.LOW] = Field(
+        ..., description='The name of the database'
+    )
     database_owner: Optional[int] = Field(None, description='The database owner user ID')
     database_type: Optional[str] = Field(
         None, description='The type of database (local or shared)'
@@ -94,8 +142,12 @@ class RedshiftDatabase(RedshiftDataModel):
 class RedshiftSchema(RedshiftDataModel):
     """Information about a schema in a Redshift database."""
 
-    database_name: str = Field(..., description='The name of the database where the schema exists')
-    schema_name: str = Field(..., description='The name of the schema')
+    database_name: Annotated[str, VerbosityLevel.LOW] = Field(
+        ..., description='The name of the database where the schema exists'
+    )
+    schema_name: Annotated[str, VerbosityLevel.LOW] = Field(
+        ..., description='The name of the schema'
+    )
     schema_owner: Optional[int] = Field(None, description='The user ID of the schema owner')
     schema_type: Optional[str] = Field(
         None, description='The type of the schema (external, local, or shared)'
@@ -114,9 +166,15 @@ class RedshiftSchema(RedshiftDataModel):
 class RedshiftTable(RedshiftDataModel):
     """Information about a table in a Redshift database."""
 
-    database_name: str = Field(..., description='The name of the database where the table exists')
-    schema_name: str = Field(..., description='The schema name for the table')
-    table_name: str = Field(..., description='The name of the table')
+    database_name: Annotated[str, VerbosityLevel.LOW] = Field(
+        ..., description='The name of the database where the table exists'
+    )
+    schema_name: Annotated[str, VerbosityLevel.LOW] = Field(
+        ..., description='The schema name for the table'
+    )
+    table_name: Annotated[str, VerbosityLevel.LOW] = Field(
+        ..., description='The name of the table'
+    )
     table_acl: Optional[str] = Field(
         None, description='The permissions for the specified user or user group for the table'
     )
@@ -130,10 +188,18 @@ class RedshiftTable(RedshiftDataModel):
 class RedshiftColumn(RedshiftDataModel):
     """Information about a column in a Redshift table."""
 
-    database_name: str = Field(..., description='The name of the database')
-    schema_name: str = Field(..., description='The name of the schema')
-    table_name: str = Field(..., description='The name of the table')
-    column_name: str = Field(..., description='The name of the column')
+    database_name: Annotated[str, VerbosityLevel.LOW] = Field(
+        ..., description='The name of the database'
+    )
+    schema_name: Annotated[str, VerbosityLevel.LOW] = Field(
+        ..., description='The name of the schema'
+    )
+    table_name: Annotated[str, VerbosityLevel.LOW] = Field(
+        ..., description='The name of the table'
+    )
+    column_name: Annotated[str, VerbosityLevel.LOW] = Field(
+        ..., description='The name of the column'
+    )
     ordinal_position: Optional[int] = Field(
         None, description='The position of the column in the table'
     )

@@ -16,16 +16,11 @@
 
 import os
 import sys
-from awslabs.redshift_mcp_server.consts import (
-    DEFAULT_LOG_LEVEL,
-)
+from awslabs.redshift_mcp_server.consts import DEFAULT_LOG_LEVEL
 from awslabs.redshift_mcp_server.models import (
     QueryResult,
     RedshiftCluster,
-    RedshiftColumn,
-    RedshiftDatabase,
-    RedshiftSchema,
-    RedshiftTable,
+    VerbosityLevel,
 )
 from awslabs.redshift_mcp_server.redshift import (
     discover_clusters,
@@ -41,6 +36,7 @@ from loguru import logger
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
+from typing import Annotated, Any, Literal
 
 
 # Remove default handler and add custom configuration
@@ -95,6 +91,21 @@ Requires the connected database user to hold the sys:monitor role (or be a super
 2. Use the list_clusters tool to discover available Redshift instances.
 3. Note the cluster identifiers for use with other tools (coming in future milestones).
 
+## Result Size
+
+Every tool returns a whole result set in one response. What bounds a response is a cap on the
+rows any one statement may return, configured with the `REDSHIFT_MAX_RESULT_ROWS` environment
+variable, shipping as 1000 rows, where 0 means no cap.
+
+A statement returning more rows than the cap fails rather than returning a short answer, so
+plan for small result sets. Beyond the query guidelines below:
+
+- With `execute_query`, retrieve a large table in parts using LIMIT and OFFSET, or by
+  filtering on a sort key. The discovery tools run a fixed SHOW command, so they take no
+  such clause; narrow those by listing one database or schema at a time.
+- Request the `low` verbosity level from the discovery tools while navigating, which returns
+  only the names identifying each object, and `standard` once you need column detail.
+
 ## Session Management and Concurrency
 
 The server reuses one Redshift Data API session per `cluster:database`:
@@ -147,6 +158,11 @@ def _read_only_annotations(title: str) -> ToolAnnotations:
         idempotent_hint=True,
         open_world_hint=True,
     )
+
+
+def _requested_level(verbosity_level: str | None) -> VerbosityLevel:
+    """The level to apply, treating an omitted or null parameter as the default."""
+    return VerbosityLevel(verbosity_level or VerbosityLevel.STANDARD.value)
 
 
 @mcp.tool(
@@ -225,7 +241,15 @@ async def list_databases_tool(
         'dev',
         description='The database to connect to for metadata discovery. Defaults to "dev".',
     ),
-) -> list[RedshiftDatabase]:
+    verbosity_level: Annotated[
+        Literal['low', 'standard'] | None,
+        Field(
+            description='How much detail to return per database. "low" returns only the names '
+            'that identify a database; "standard" returns every field this tool reports. '
+            'Defaults to "standard".'
+        ),
+    ] = 'standard',
+) -> list[dict[str, Any]]:
     """List all databases in a specified Amazon Redshift cluster.
 
     This tool runs the SHOW DATABASES command to discover all databases
@@ -244,10 +268,18 @@ async def list_databases_tool(
     - cluster_identifier: The unique identifier of the Redshift cluster to query.
                          IMPORTANT: Use a valid cluster identifier from the list_clusters tool.
     - database_name: The database to connect to for metadata discovery (defaults to 'dev').
+    - verbosity_level: How much detail to return per database, 'low' or 'standard'
+                      (defaults to 'standard').
 
     ## Response Structure
 
-    Returns a list of RedshiftDatabase objects with the following structure:
+    Returns a list of database objects. Which fields each carries depends on
+    verbosity_level:
+
+    - low: database_name.
+    - standard (the default): every field listed below.
+
+    The meaning of each field:
 
     - database_name: The name of the database.
     - database_owner: The database owner user ID.
@@ -255,6 +287,14 @@ async def list_databases_tool(
     - database_acl: Access control information (for internal use).
     - parameters: The properties of the database.
     - database_isolation_level: The isolation level (Snapshot Isolation or Serializable).
+
+    ## Result Size
+
+    Every matching database comes back in one response. A server-wide cap limits the rows any one
+    statement may return, set with REDSHIFT_MAX_RESULT_ROWS and shipping as 1000, where 0 means no
+    cap. A listing over the cap fails rather than returning a short answer, though Amazon Redshift
+    allows far fewer databases per cluster than the shipped cap, so a database listing is not
+    expected to reach it.
 
     ## Usage Tips
 
@@ -277,10 +317,12 @@ async def list_databases_tool(
             cluster_identifier=cluster_identifier, database_name=database_name
         )
 
+        level = _requested_level(verbosity_level)
+
         logger.info(
             f'Successfully retrieved {len(databases)} databases from cluster {cluster_identifier}'
         )
-        return databases
+        return [database.project(level) for database in databases]
 
     except Exception as e:
         logger.error(f'Error in list_databases_tool: {str(e)}')
@@ -302,7 +344,15 @@ async def list_schemas_tool(
         ...,
         description='The database name to list schemas for. Also used to connect to. Must be a valid database name from the list_databases tool.',
     ),
-) -> list[RedshiftSchema]:
+    verbosity_level: Annotated[
+        Literal['low', 'standard'] | None,
+        Field(
+            description='How much detail to return per schema. "low" returns only the names '
+            'that identify a schema; "standard" returns every field this tool reports. '
+            'Defaults to "standard".'
+        ),
+    ] = 'standard',
+) -> list[dict[str, Any]]:
     """List all schemas in a specified database within a Redshift cluster.
 
     This tool runs the SHOW SCHEMAS command to discover all schemas
@@ -322,10 +372,18 @@ async def list_schemas_tool(
                          IMPORTANT: Use a valid cluster identifier from the list_clusters tool.
     - schema_database_name: The database name to list schemas for. Also used to connect to.
                            IMPORTANT: Use a valid database name from the list_databases tool.
+    - verbosity_level: How much detail to return per schema, 'low' or 'standard'
+                      (defaults to 'standard').
 
     ## Response Structure
 
-    Returns a list of RedshiftSchema objects with the following structure:
+    Returns a list of schema objects. Which fields each carries depends on
+    verbosity_level:
+
+    - low: database_name, schema_name.
+    - standard (the default): every field listed below.
+
+    The meaning of each field:
 
     - database_name: The name of the database where the schema exists.
     - schema_name: The name of the schema.
@@ -334,6 +392,14 @@ async def list_schemas_tool(
     - schema_acl: The permissions for the specified user or user group for the schema.
     - source_database: The name of the source database for external schema.
     - schema_option: The options of the schema (external schema attribute).
+
+    ## Result Size
+
+    Every matching schema comes back in one response. A server-wide cap limits the rows any one
+    statement may return, set with REDSHIFT_MAX_RESULT_ROWS and shipping as 1000, where 0 means no
+    cap. A database may hold more schemas than the shipped cap allows, and a listing over the cap
+    fails rather than returning a short answer, so list a smaller database or ask an operator to
+    raise the cap.
 
     ## Usage Tips
 
@@ -360,10 +426,12 @@ async def list_schemas_tool(
             cluster_identifier=cluster_identifier, schema_database_name=schema_database_name
         )
 
+        level = _requested_level(verbosity_level)
+
         logger.info(
             f'Successfully retrieved {len(schemas)} schemas from database {schema_database_name} on cluster {cluster_identifier}'
         )
-        return schemas
+        return [schema.project(level) for schema in schemas]
 
     except Exception as e:
         logger.error(f'Error in list_schemas_tool: {str(e)}')
@@ -391,7 +459,15 @@ async def list_tables_tool(
         ...,
         description='The schema name to list tables for. Also used to connect to. Must be a valid schema name from the list_schemas tool.',
     ),
-) -> list[RedshiftTable]:
+    verbosity_level: Annotated[
+        Literal['low', 'standard'] | None,
+        Field(
+            description='How much detail to return per table. "low" returns only the names '
+            'that identify a table; "standard" returns every field this tool reports. '
+            'Defaults to "standard".'
+        ),
+    ] = 'standard',
+) -> list[dict[str, Any]]:
     """List all tables in a specified schema within a Redshift database.
 
     This tool runs the SHOW TABLES command to discover all tables
@@ -413,10 +489,18 @@ async def list_tables_tool(
                           IMPORTANT: Use a valid database name from the list_databases tool.
     - table_schema_name: The schema name to list tables for.
                         IMPORTANT: Use a valid schema name from the list_schemas tool.
+    - verbosity_level: How much detail to return per table, 'low' or 'standard'
+                      (defaults to 'standard').
 
     ## Response Structure
 
-    Returns a list of RedshiftTable objects with the following structure:
+    Returns a list of table objects. Which fields each carries depends on
+    verbosity_level:
+
+    - low: database_name, schema_name, table_name.
+    - standard (the default): every field listed below.
+
+    The meaning of each field:
 
     - database_name: The name of the database where the table exists.
     - schema_name: The schema name for the table.
@@ -424,6 +508,14 @@ async def list_tables_tool(
     - table_acl: The permissions for the specified user or user group for the table.
     - table_type: The type of the table (views, base tables, external tables, shared tables).
     - remarks: Remarks about the table.
+
+    ## Result Size
+
+    Every matching table comes back in one response. A server-wide cap limits the rows any one
+    statement may return, set with REDSHIFT_MAX_RESULT_ROWS and shipping as 1000, where 0 means no
+    cap. A schema may hold far more tables than the shipped cap allows, and a listing over the cap
+    fails rather than returning a short answer, so list a smaller schema or ask an operator to
+    raise the cap.
 
     ## Usage Tips
 
@@ -452,10 +544,12 @@ async def list_tables_tool(
             table_schema_name=table_schema_name,
         )
 
+        level = _requested_level(verbosity_level)
+
         logger.info(
             f'Successfully retrieved {len(tables)} tables from schema {table_schema_name} in database {table_database_name} on cluster {cluster_identifier}'
         )
-        return tables
+        return [table.project(level) for table in tables]
 
     except Exception as e:
         logger.error(f'Error in list_tables_tool: {str(e)}')
@@ -487,7 +581,15 @@ async def list_columns_tool(
         ...,
         description='The table name to list columns for. Must be a valid table name from the list_tables tool.',
     ),
-) -> list[RedshiftColumn]:
+    verbosity_level: Annotated[
+        Literal['low', 'standard'] | None,
+        Field(
+            description='How much detail to return per column. "low" returns only the names '
+            'that identify a column; "standard" returns every field this tool reports. '
+            'Defaults to "standard".'
+        ),
+    ] = 'standard',
+) -> list[dict[str, Any]]:
     """List all columns in a specified table within a Redshift schema.
 
     This tool runs the SHOW COLUMNS command to discover all columns
@@ -511,10 +613,18 @@ async def list_columns_tool(
                          IMPORTANT: Use a valid schema name from the list_schemas tool.
     - column_table_name: The table name to list columns for.
                         IMPORTANT: Use a valid table name from the list_tables tool.
+    - verbosity_level: How much detail to return per column, 'low' or 'standard'
+                      (defaults to 'standard').
 
     ## Response Structure
 
-    Returns a list of RedshiftColumn objects with the following structure:
+    Returns a list of column objects. Which fields each carries depends on
+    verbosity_level:
+
+    - low: database_name, schema_name, table_name, column_name.
+    - standard (the default): every field listed below.
+
+    The meaning of each field:
 
     - database_name: The name of the database.
     - schema_name: The name of the schema.
@@ -528,6 +638,14 @@ async def list_columns_tool(
     - numeric_precision: The numeric precision.
     - numeric_scale: The numeric scale.
     - remarks: Remarks about the column.
+
+    ## Result Size
+
+    Every matching column comes back in one response. A server-wide cap limits the rows any one
+    statement may return, set with REDSHIFT_MAX_RESULT_ROWS and shipping as 1000, where 0 means no
+    cap. A very wide table may have more columns than the shipped cap allows, and a listing over
+    the cap fails rather than returning a short answer. A column listing cannot be narrowed, so
+    that case needs an operator to raise the cap.
 
     ## Usage Tips
 
@@ -558,10 +676,12 @@ async def list_columns_tool(
             column_table_name=column_table_name,
         )
 
+        level = _requested_level(verbosity_level)
+
         logger.info(
             f'Successfully retrieved {len(columns)} columns from table {column_table_name} in schema {column_schema_name} in database {column_database_name} on cluster {cluster_identifier}'
         )
-        return columns
+        return [column.project(level) for column in columns]
 
     except Exception as e:
         logger.error(f'Error in list_columns_tool: {str(e)}')

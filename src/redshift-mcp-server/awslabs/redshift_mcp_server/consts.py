@@ -60,3 +60,11 @@ READ_ONLY_DENY_LIST = frozenset(
         'CANCEL',
     }
 )
+
+# Result size cap
+
+# Environment variable an operator sets to cap the rows any one statement may return, and the
+# value used when it is unset or holds something unusable. A configured 0 means no cap.
+# A statement returning more rows than this fails and asks the caller to narrow it.
+MAX_RESULT_ROWS_ENV_VAR = 'REDSHIFT_MAX_RESULT_ROWS'
+MAX_RESULT_ROWS_FALLBACK = 1000
