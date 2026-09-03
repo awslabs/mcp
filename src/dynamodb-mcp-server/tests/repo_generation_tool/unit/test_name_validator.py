@@ -222,6 +222,26 @@ class TestValidateProseSafe:
         assert validate_prose_safe(value, 'path') != []
 
 
+class TestNonStringValues:
+    """Every validator reports a non-string value rather than raising."""
+
+    @pytest.mark.parametrize(
+        'validator',
+        [
+            validate_identifier_fragment,
+            validate_literal_safe,
+            validate_prose_safe,
+            validate_key_template,
+        ],
+    )
+    @pytest.mark.parametrize('value', [None, 1, [], {}, True])
+    def test_reports_non_string(self, validator, value):
+        """A non-string is rejected with an error, not an exception."""
+        errors = validator(value, 'path')
+        assert len(errors) == 1
+        assert errors[0].path == 'path'
+
+
 BENIGN_SCHEMA = {
     'tables': [
         {

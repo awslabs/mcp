@@ -323,8 +323,9 @@ def validate_key_template(value: object, field_path: str) -> list[ValidationErro
 
     # validate_literal_safe has already rejected a non-string, but the check is repeated
     # rather than asserted: an assert is removed under python -O, and this is a security
-    # boundary that must not depend on assertions being enabled.
-    if not isinstance(value, str):
+    # boundary that must not depend on assertions being enabled. It is unreachable through
+    # this function, hence the coverage exclusion.
+    if not isinstance(value, str):  # pragma: no cover - defensive, unreachable via this path
         return [
             ValidationError(
                 path=field_path,
