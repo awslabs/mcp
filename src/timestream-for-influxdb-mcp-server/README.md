@@ -41,6 +41,7 @@ You can modify the settings of your MCP client to run your local server (e.g. fo
         "INFLUXDB_TOKEN": "your-influxdb-token",
         "INFLUXDB_ORG": "your-influxdb-org",
         "INFLUXDB_WRITE_MODE": "false",
+        "ALLOW_WRITE": "false",
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
       "disabled": false,
@@ -75,6 +76,7 @@ For Windows users, the MCP server configuration format is slightly different:
         "INFLUXDB_TOKEN": "your-influxdb-token",
         "INFLUXDB_ORG": "your-influxdb-org",
         "INFLUXDB_WRITE_MODE": "false",
+        "ALLOW_WRITE": "false",
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
     }
@@ -168,9 +170,20 @@ The Timestream for InfluxDB MCP server provides the following tools:
 | `INFLUXDB_ORG` | No | — | InfluxDB v2 organization name |
 | `INFLUXDB_ALLOWED_URLS` | No | — | Comma-separated list of additional approved InfluxDB URLs |
 | `INFLUXDB_WRITE_MODE` | No | `false` | Enable write-producing Flux operations in queries (see below) |
+| `ALLOW_WRITE` | No | `false` | Enable mutating tools (create/update/delete and data-plane writes). Operator-controlled; see below |
 | `FASTMCP_LOG_LEVEL` | No | — | Logging level (`ERROR`, `WARNING`, `INFO`, `DEBUG`) |
 
 ### Write Mode
+
+By default, the server runs **read-only**: all mutating tools (create/update/delete DB clusters and instances, tag/untag, create parameter group, and the data-plane writes `InfluxDBWritePoints`, `InfluxDBWriteLP`, `InfluxDBCreateBucket`, `InfluxDBCreateOrg`) are refused. Write authorization is **operator-controlled** via the `ALLOW_WRITE` environment variable and is evaluated once at startup — it is **not** a tool parameter and cannot be set or overridden by a tool caller. To enable mutating tools, start the server with:
+
+```
+ALLOW_WRITE=true
+```
+
+When `ALLOW_WRITE` is not enabled, mutating tools raise an error and never call the underlying AWS or InfluxDB APIs.
+
+### Flux Query Write Mode
 
 By default, the `InfluxDBQuery` tool rejects Flux queries that contain write-producing operations such as `to()`, `experimental.to()`, and `wideTo()`. This ensures that the query tool behaves as read-only, even when the configured InfluxDB token has write permissions.
 
@@ -182,4 +195,4 @@ INFLUXDB_WRITE_MODE=true
 
 This setting is operator-controlled and cannot be overridden by tool callers.
 
-> **Best practice:** For deployments that need both read and write capabilities, configure a **read-only InfluxDB token** for general use and enable the explicit write tools (`InfluxDBWritePoints`, `InfluxDBWriteLP`) with `tool_write_mode=True` only when needed. This provides the strongest data integrity guarantee regardless of the MCP server's write-mode setting.
+> **Best practice:** For deployments that need both read and write capabilities, configure a **read-only InfluxDB token** for general use and enable writes with `ALLOW_WRITE=true` (and `INFLUXDB_WRITE_MODE=true` for Flux-query writes) only when needed. This provides the strongest data integrity guarantee regardless of the MCP server's write-mode setting.

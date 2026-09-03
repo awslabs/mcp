@@ -204,7 +204,6 @@ class TestDbClusterOperations:
             vpc_security_group_ids=vpc_security_group_ids,
             vpc_subnet_ids=vpc_subnet_ids,
             tags=tags,
-            tool_write_mode=True,
         )
 
         # Assert
@@ -239,8 +238,10 @@ class TestDbClusterOperations:
         assert result == {'dbClusterId': 'test-cluster-id'}
 
     @pytest.mark.asyncio
-    async def test_create_db_cluster_read_only_mode(self):
+    async def test_create_db_cluster_read_only_mode(self, monkeypatch):
         """Test tool in read-only mode."""
+        # Operator write gate disabled: mutating tools must be refused.
+        monkeypatch.setattr('awslabs.timestream_for_influxdb_mcp_server.server.ALLOW_WRITE', False)
         # Test parameters
         name = 'test-cluster'
         db_instance_type = 'db.influx.large'
@@ -257,10 +258,9 @@ class TestDbClusterOperations:
                 allocated_storage_gb=allocated_storage_gb,
                 vpc_security_group_ids=vpc_security_group_ids,
                 vpc_subnet_ids=vpc_subnet_ids,
-                tool_write_mode=False,
             )
         assert (
-            'CreateDbCluster tool invocation not allowed when tool-write-mode is set to False'
+            'CreateDbCluster is a write operation and is disabled'
             in str(excinfo.value)
         )
 
@@ -293,7 +293,6 @@ class TestDbClusterOperations:
                 allocated_storage_gb=allocated_storage_gb,
                 vpc_security_group_ids=vpc_security_group_ids,
                 vpc_subnet_ids=vpc_subnet_ids,
-                tool_write_mode=True,
             )
 
         # Check if the exception is a ClientError with ValidationException code
@@ -357,7 +356,7 @@ class TestDbClusterOperations:
         }
 
         # Act
-        result = await delete_db_cluster(db_cluster_id='test-cluster-id', tool_write_mode=True)
+        result = await delete_db_cluster(db_cluster_id='test-cluster-id')
 
         # Assert
         mock_get_client.assert_called_once()
@@ -365,15 +364,17 @@ class TestDbClusterOperations:
         assert result == {'dbClusterId': 'test-cluster-id', 'dbClusterStatus': 'deleting'}
 
     @pytest.mark.asyncio
-    async def test_delete_db_cluster_read_only_mode(self):
+    async def test_delete_db_cluster_read_only_mode(self, monkeypatch):
         """Test tool in read-only mode."""
+        # Operator write gate disabled: mutating tools must be refused.
+        monkeypatch.setattr('awslabs.timestream_for_influxdb_mcp_server.server.ALLOW_WRITE', False)
         # Act
         with pytest.raises(Exception) as excinfo:
-            await delete_db_cluster(db_cluster_id='test-cluster-id', tool_write_mode=False)
+            await delete_db_cluster(db_cluster_id='test-cluster-id')
 
         # Assert
         assert (
-            'DeleteDbCluster tool invocation not allowed when tool-write-mode is set to False'
+            'DeleteDbCluster is a write operation and is disabled'
             in str(excinfo.value)
         )
 
@@ -396,7 +397,7 @@ class TestDbClusterOperations:
 
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
-            await delete_db_cluster(db_cluster_id='cluster-with-instances', tool_write_mode=True)
+            await delete_db_cluster(db_cluster_id='cluster-with-instances')
 
         assert 'InvalidDBClusterState' in str(excinfo.value)
         mock_get_client.assert_called_once()
@@ -475,7 +476,6 @@ class TestDbClusterOperations:
             db_instance_type=db_instance_type,
             port=port,
             failover_mode=failover_mode,
-            tool_write_mode=True,
         )
 
         # Assert
@@ -493,8 +493,10 @@ class TestDbClusterOperations:
         }
 
     @pytest.mark.asyncio
-    async def test_update_db_cluster_read_only_mode(self):
+    async def test_update_db_cluster_read_only_mode(self, monkeypatch):
         """Test tool in read-only mode."""
+        # Operator write gate disabled: mutating tools must be refused.
+        monkeypatch.setattr('awslabs.timestream_for_influxdb_mcp_server.server.ALLOW_WRITE', False)
         db_cluster_id = 'cluster-in-use'
         db_instance_type = 'db.influx.xlarge'
 
@@ -503,12 +505,11 @@ class TestDbClusterOperations:
             await update_db_cluster(
                 db_cluster_id=db_cluster_id,
                 db_instance_type=db_instance_type,
-                tool_write_mode=False,
             )
 
         # Assert
         assert (
-            'UpdateDbCluster tool invocation not allowed when tool-write-mode is set to False'
+            'UpdateDbCluster is a write operation and is disabled'
             in str(excinfo.value)
         )
 
@@ -537,7 +538,6 @@ class TestDbClusterOperations:
             await update_db_cluster(
                 db_cluster_id=db_cluster_id,
                 db_instance_type=db_instance_type,
-                tool_write_mode=True,
             )
 
         assert 'InvalidDBClusterState' in str(excinfo.value)
@@ -623,7 +623,6 @@ class TestDbClusterOperations:
                 vpc_security_group_ids=['sg-12345'],
                 vpc_subnet_ids=['subnet-12345', 'subnet-67890'],
                 tags=None,
-                tool_write_mode=True,
             )
 
         assert 'AWS API error' in str(excinfo.value)
@@ -655,7 +654,6 @@ class TestDbClusterOperations:
             failover_mode='AUTOMATIC',
             tags=None,
             log_delivery_configuration={'s3Configuration': {'bucketName': 'logs-bucket'}},
-            tool_write_mode=True,
         )
 
         mock_client.create_db_cluster.assert_called_once()
@@ -687,7 +685,6 @@ class TestDbClusterOperations:
             db_cluster_id='test-cluster-id',
             db_parameter_group_identifier='param-group-1',
             log_delivery_configuration={'s3Configuration': {'bucketName': 'logs-bucket'}},
-            tool_write_mode=True,
         )
 
         mock_client.update_db_cluster.assert_called_once()
@@ -727,7 +724,6 @@ class TestDbInstanceOperations:
             vpc_security_group_ids=vpc_security_group_ids,
             vpc_subnet_ids=vpc_subnet_ids,
             tags=tags,
-            tool_write_mode=True,
         )
 
         # Assert
@@ -762,8 +758,10 @@ class TestDbInstanceOperations:
         assert result == {'dbInstanceId': 'test-instance-id'}
 
     @pytest.mark.asyncio
-    async def test_create_db_instance_read_only_mode(self):
+    async def test_create_db_instance_read_only_mode(self, monkeypatch):
         """Test tool in read-only mode."""
+        # Operator write gate disabled: mutating tools must be refused.
+        monkeypatch.setattr('awslabs.timestream_for_influxdb_mcp_server.server.ALLOW_WRITE', False)
         # Test parameters
         db_instance_name = 'test-instance'
         db_instance_type = 'db.influx.large'
@@ -781,10 +779,9 @@ class TestDbInstanceOperations:
                 allocated_storage_gb=allocated_storage_gb,
                 vpc_security_group_ids=vpc_security_group_ids,
                 vpc_subnet_ids=vpc_subnet_ids,
-                tool_write_mode=False,
             )
         assert (
-            'CreateDbInstance tool invocation not allowed when tool-write-mode is set to False'
+            'CreateDbInstance is a write operation and is disabled'
             in str(excinfo.value)
         )
 
@@ -815,7 +812,6 @@ class TestDbInstanceOperations:
                 allocated_storage_gb=allocated_storage_gb,
                 vpc_security_group_ids=vpc_security_group_ids,
                 vpc_subnet_ids=vpc_subnet_ids,
-                tool_write_mode=True,
             )
 
         # Check if the exception is a ClientError with ResourceLimitExceeded code
@@ -879,7 +875,7 @@ class TestDbInstanceOperations:
         }
 
         # Act
-        result = await delete_db_instance(identifier='test-instance-id', tool_write_mode=True)
+        result = await delete_db_instance(identifier='test-instance-id')
 
         # Assert
         mock_get_client.assert_called_once()
@@ -887,14 +883,16 @@ class TestDbInstanceOperations:
         assert result == {'id': 'test-instance-id', 'status': 'deleting'}
 
     @pytest.mark.asyncio
-    async def test_delete_db_instance_read_only_mode(self):
+    async def test_delete_db_instance_read_only_mode(self, monkeypatch):
         """Test tool in read-only mode."""
+        # Operator write gate disabled: mutating tools must be refused.
+        monkeypatch.setattr('awslabs.timestream_for_influxdb_mcp_server.server.ALLOW_WRITE', False)
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
-            await delete_db_instance(identifier='instance-in-use', tool_write_mode=False)
+            await delete_db_instance(identifier='instance-in-use')
 
         assert (
-            'DeleteDbInstance tool invocation not allowed when tool-write-mode is set to False'
+            'DeleteDbInstance is a write operation and is disabled'
             in str(excinfo.value)
         )
 
@@ -917,7 +915,7 @@ class TestDbInstanceOperations:
 
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
-            await delete_db_instance(identifier='instance-in-use', tool_write_mode=True)
+            await delete_db_instance(identifier='instance-in-use')
 
         assert 'InvalidDBInstanceState' in str(excinfo.value)
         mock_get_client.assert_called_once()
@@ -1039,7 +1037,6 @@ class TestDbInstanceOperations:
             db_instance_type=db_instance_type,
             allocated_storage_gb=allocated_storage_gb,
             port=port,
-            tool_write_mode=True,
         )
 
         # Assert
@@ -1058,19 +1055,21 @@ class TestDbInstanceOperations:
         }
 
     @pytest.mark.asyncio
-    async def test_update_db_instance_read_only_mode(self):
+    async def test_update_db_instance_read_only_mode(self, monkeypatch):
         """Test tool in read-only mode."""
+        # Operator write gate disabled: mutating tools must be refused.
+        monkeypatch.setattr('awslabs.timestream_for_influxdb_mcp_server.server.ALLOW_WRITE', False)
         identifier = 'instance-in-use'
         db_instance_type = 'db.influx.xlarge'
 
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
             await update_db_instance(
-                identifier=identifier, db_instance_type=db_instance_type, tool_write_mode=False
+                identifier=identifier, db_instance_type=db_instance_type
             )
 
         assert (
-            'UpdateDbInstance tool invocation not allowed when tool-write-mode is set to False'
+            'UpdateDbInstance is a write operation and is disabled'
             in str(excinfo.value)
         )
 
@@ -1097,7 +1096,7 @@ class TestDbInstanceOperations:
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
             await update_db_instance(
-                identifier=identifier, db_instance_type=db_instance_type, tool_write_mode=True
+                identifier=identifier, db_instance_type=db_instance_type
             )
 
         assert 'InvalidDBInstanceState' in str(excinfo.value)
@@ -1183,7 +1182,6 @@ class TestDbInstanceOperations:
                 vpc_security_group_ids=['sg-12345'],
                 vpc_subnet_ids=['subnet-12345', 'subnet-67890'],
                 tags=None,
-                tool_write_mode=True,
             )
 
         assert 'AWS API error' in str(excinfo.value)
@@ -1213,7 +1211,6 @@ class TestDbInstanceOperations:
             port=8086,
             db_parameter_group_id='param-group-1',
             tags=None,
-            tool_write_mode=True,
         )
 
         mock_client.create_db_instance.assert_called_once()
@@ -1245,7 +1242,6 @@ class TestDbInstanceOperations:
             db_storage_type='InfluxIOIncludedT1',
             deployment_type='WITH_MULTIAZ_STANDBY',
             log_delivery_configuration={'s3Configuration': {'bucketName': 'logs-bucket'}},
-            tool_write_mode=True,
         )
 
         mock_client.update_db_instance.assert_called_once()
@@ -1306,7 +1302,6 @@ class TestParameterGroupOperations:
             description=description,
             parameters=parameters,
             tags=tags,
-            tool_write_mode=True,
         )
 
         # Assert
@@ -1325,19 +1320,21 @@ class TestParameterGroupOperations:
         }
 
     @pytest.mark.asyncio
-    async def test_create_db_parameter_group_read_only_mode(self):
+    async def test_create_db_parameter_group_read_only_mode(self, monkeypatch):
         """Test tool in read-only mode."""
+        # Operator write gate disabled: mutating tools must be refused.
+        monkeypatch.setattr('awslabs.timestream_for_influxdb_mcp_server.server.ALLOW_WRITE', False)
         name = 'existing-param-group'
         description = 'Test parameter group'
 
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
             await create_db_parameter_group(
-                name=name, description=description, tool_write_mode=False
+                name=name, description=description
             )
 
         assert (
-            'CreateDbParamGroup tool invocation not allowed when tool-write-mode is set to False'
+            'CreateDbParamGroup is a write operation and is disabled'
             in str(excinfo.value)
         )
 
@@ -1361,7 +1358,7 @@ class TestParameterGroupOperations:
 
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
-            await mock_create(name=name, description=description, tool_write_mode=True)
+            await mock_create(name=name, description=description)
 
         # Check if the exception is a ClientError with DBParameterGroupAlreadyExists code
         if isinstance(excinfo.value, botocore.exceptions.ClientError):
@@ -1485,7 +1482,6 @@ class TestParameterGroupOperations:
             await create_db_parameter_group(
                 name='test-param-group',
                 tags=None,
-                tool_write_mode=True,
             )
 
         assert 'AWS API error' in str(excinfo.value)
@@ -1558,7 +1554,7 @@ class TestTagOperations:
         tags = {'Environment': 'Production', 'Owner': 'DataTeam'}
 
         # Act
-        result = await tag_resource(resource_arn=resource_arn, tags=tags, tool_write_mode=True)
+        result = await tag_resource(resource_arn=resource_arn, tags=tags)
 
         # Assert
         mock_get_client.assert_called_once()
@@ -1571,18 +1567,20 @@ class TestTagOperations:
         assert result == {}
 
     @pytest.mark.asyncio
-    async def test_tag_resource_read_only_mode(self):
+    async def test_tag_resource_read_only_mode(self, monkeypatch):
         """Test tool in read-only mode."""
+        # Operator write gate disabled: mutating tools must be refused.
+        monkeypatch.setattr('awslabs.timestream_for_influxdb_mcp_server.server.ALLOW_WRITE', False)
         # Arrange
         resource_arn = 'arn:aws:timestream-influxdb:us-east-1:123456789012:db/non-existent-db'
         tags = {'Environment': 'Production'}
 
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
-            await tag_resource(resource_arn=resource_arn, tags=tags, tool_write_mode=False)
+            await tag_resource(resource_arn=resource_arn, tags=tags)
 
         assert (
-            'TagResource tool invocation not allowed when tool-write-mode is set to False'
+            'TagResource is a write operation and is disabled'
             in str(excinfo.value)
         )
 
@@ -1603,7 +1601,7 @@ class TestTagOperations:
 
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
-            await tag_resource(resource_arn=resource_arn, tags=tags, tool_write_mode=True)
+            await tag_resource(resource_arn=resource_arn, tags=tags)
 
         assert 'ResourceNotFoundException' in str(excinfo.value)
         mock_get_client.assert_called_once()
@@ -1623,7 +1621,7 @@ class TestTagOperations:
 
         # Act
         result = await untag_resource(
-            resource_arn=resource_arn, tag_keys=tag_keys, tool_write_mode=True
+            resource_arn=resource_arn, tag_keys=tag_keys
         )
 
         # Assert
@@ -1634,8 +1632,10 @@ class TestTagOperations:
         assert result == {}
 
     @pytest.mark.asyncio
-    async def test_untag_resource_read_only_mode(self):
+    async def test_untag_resource_read_only_mode(self, monkeypatch):
         """Test tool in read-only mode."""
+        # Operator write gate disabled: mutating tools must be refused.
+        monkeypatch.setattr('awslabs.timestream_for_influxdb_mcp_server.server.ALLOW_WRITE', False)
         # Arrange
         resource_arn = 'arn:aws:timestream-influxdb:us-east-1:123456789012:db/non-existent-db'
         tag_keys = ['Environment']
@@ -1643,11 +1643,11 @@ class TestTagOperations:
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
             await untag_resource(
-                resource_arn=resource_arn, tag_keys=tag_keys, tool_write_mode=False
+                resource_arn=resource_arn, tag_keys=tag_keys
             )
 
         assert (
-            'UntagResource tool invocation not allowed when tool-write-mode is set to False'
+            'UntagResource is a write operation and is disabled'
             in str(excinfo.value)
         )
 
@@ -1669,7 +1669,7 @@ class TestTagOperations:
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
             await untag_resource(
-                resource_arn=resource_arn, tag_keys=tag_keys, tool_write_mode=True
+                resource_arn=resource_arn, tag_keys=tag_keys
             )
 
         assert 'ResourceNotFoundException' in str(excinfo.value)
@@ -1718,7 +1718,6 @@ class TestInfluxDBOperations:
             time_precision='ns',
             sync_mode='synchronous',
             verify_ssl=True,
-            tool_write_mode=True,
         )
 
         # Assert
@@ -1730,8 +1729,10 @@ class TestInfluxDBOperations:
         assert result['status'] == 'success'
 
     @pytest.mark.asyncio
-    async def test_influxdb_write_points_read_only_mode(self):
+    async def test_influxdb_write_points_read_only_mode(self, monkeypatch):
         """Test tool in read-only mode."""
+        # Operator write gate disabled: mutating tools must be refused.
+        monkeypatch.setattr('awslabs.timestream_for_influxdb_mcp_server.server.ALLOW_WRITE', False)
         url = 'https://influxdb-example.aws:8086'
         token = 'test-token'
         bucket = 'test-bucket'
@@ -1755,12 +1756,11 @@ class TestInfluxDBOperations:
                 time_precision='ns',
                 sync_mode='synchronous',
                 verify_ssl=True,
-                tool_write_mode=False,
             )
 
         # Assert
         assert (
-            'InfluxDBWritePoints tool invocation not allowed when tool-write-mode is set to False'
+            'InfluxDBWritePoints is a write operation and is disabled'
             in str(excinfo.value)
         )
 
@@ -1797,7 +1797,6 @@ class TestInfluxDBOperations:
             time_precision='ns',
             sync_mode='synchronous',
             verify_ssl=True,
-            tool_write_mode=True,
         )
 
         # Assert
@@ -1832,7 +1831,6 @@ class TestInfluxDBOperations:
             data_line_protocol=data_line_protocol,
             time_precision='ns',
             sync_mode='synchronous',
-            tool_write_mode=True,
         )
 
         # Assert
@@ -1843,8 +1841,10 @@ class TestInfluxDBOperations:
         assert result['status'] == 'success'
 
     @pytest.mark.asyncio
-    async def test_influxdb_write_line_protocol_read_only_mode(self):
+    async def test_influxdb_write_line_protocol_read_only_mode(self, monkeypatch):
         """Test tool in read-only mode."""
+        # Operator write gate disabled: mutating tools must be refused.
+        monkeypatch.setattr('awslabs.timestream_for_influxdb_mcp_server.server.ALLOW_WRITE', False)
         url = 'https://influxdb-example.aws:8086'
         token = 'test-token'
         bucket = 'test-bucket'
@@ -1861,12 +1861,11 @@ class TestInfluxDBOperations:
                 data_line_protocol=data_line_protocol,
                 time_precision='ns',
                 sync_mode='synchronous',
-                tool_write_mode=False,
             )
 
         # Assert
         assert (
-            'InfluxDBWriteLineProtocol tool invocation not allowed when tool-write-mode is set to False'
+            'InfluxDBWriteLineProtocol is a write operation and is disabled'
             in str(excinfo.value)
         )
 
@@ -1896,7 +1895,6 @@ class TestInfluxDBOperations:
             data_line_protocol=data_line_protocol,
             time_precision='ns',
             sync_mode='synchronous',
-            tool_write_mode=True,
         )
 
         # Assert
@@ -2081,7 +2079,6 @@ class TestInfluxDBOperations:
             retention_seconds=None,
             description=None,
             verify_ssl=True,
-            tool_write_mode=True,
         )
 
         # Assert
@@ -2094,8 +2091,10 @@ class TestInfluxDBOperations:
         assert result['bucket']['name'] == 'new-bucket'
 
     @pytest.mark.asyncio
-    async def test_influxdb_create_bucket_read_only_mode(self):
+    async def test_influxdb_create_bucket_read_only_mode(self, monkeypatch):
         """Test influxdb_create_bucket in read-only mode."""
+        # Operator write gate disabled: mutating tools must be refused.
+        monkeypatch.setattr('awslabs.timestream_for_influxdb_mcp_server.server.ALLOW_WRITE', False)
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
             await influxdb_create_bucket(
@@ -2105,11 +2104,10 @@ class TestInfluxDBOperations:
                 org='test-org',
                 retention_seconds=None,
                 description=None,
-                tool_write_mode=False,
             )
 
         assert (
-            'InfluxDBCreateBucket tool invocation not allowed when tool-write-mode is set to False'
+            'InfluxDBCreateBucket is a write operation and is disabled'
             in str(excinfo.value)
         )
 
@@ -2137,7 +2135,6 @@ class TestInfluxDBOperations:
             retention_seconds=None,
             description=None,
             verify_ssl=True,
-            tool_write_mode=True,
         )
 
         # Assert
@@ -2226,7 +2223,6 @@ class TestInfluxDBOperations:
             url=url,
             token=token,
             verify_ssl=True,
-            tool_write_mode=True,
         )
 
         # Assert
@@ -2238,19 +2234,20 @@ class TestInfluxDBOperations:
         assert result['organization']['name'] == 'new-org'
 
     @pytest.mark.asyncio
-    async def test_influxdb_create_org_read_only_mode(self):
+    async def test_influxdb_create_org_read_only_mode(self, monkeypatch):
         """Test influxdb_create_org in read-only mode."""
+        # Operator write gate disabled: mutating tools must be refused.
+        monkeypatch.setattr('awslabs.timestream_for_influxdb_mcp_server.server.ALLOW_WRITE', False)
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
             await influxdb_create_org(
                 org_name='new-org',
                 url='https://influxdb-example.aws:8086',
                 token='test-token',
-                tool_write_mode=False,
             )
 
         assert (
-            'InfluxDBCreateOrg tool invocation not allowed when tool-write-mode is set to False'
+            'InfluxDBCreateOrg is a write operation and is disabled'
             in str(excinfo.value)
         )
 
@@ -2274,7 +2271,6 @@ class TestInfluxDBOperations:
             url=url,
             token=token,
             verify_ssl=True,
-            tool_write_mode=True,
         )
 
         # Assert
@@ -2306,7 +2302,6 @@ class TestInfluxDBOperations:
             time_precision='ns',
             sync_mode='synchronous',
             verify_ssl=True,
-            tool_write_mode=True,
         )
 
         mock_write_api.write.assert_called_once()
@@ -2594,7 +2589,6 @@ class TestInfluxDBAsyncWriteMode:
             time_precision='ns',
             sync_mode='asynchronous',
             verify_ssl=True,
-            tool_write_mode=True,
         )
 
         mock_client.write_api.assert_called_once()
@@ -2618,7 +2612,6 @@ class TestInfluxDBAsyncWriteMode:
             time_precision='ns',
             sync_mode='asynchronous',
             verify_ssl=True,
-            tool_write_mode=True,
         )
 
         mock_client.write_api.assert_called_once()
@@ -2665,7 +2658,6 @@ class TestInfluxDBCreateBucketWithRetention:
             retention_seconds=86400,
             description='Test bucket with retention',
             verify_ssl=True,
-            tool_write_mode=True,
         )
 
         mock_buckets_api.create_bucket.assert_called_once()
@@ -2692,7 +2684,6 @@ class TestInfluxDBCreateBucketWithRetention:
             retention_seconds=None,
             description=None,
             verify_ssl=True,
-            tool_write_mode=True,
         )
 
         assert result['status'] == 'error'
