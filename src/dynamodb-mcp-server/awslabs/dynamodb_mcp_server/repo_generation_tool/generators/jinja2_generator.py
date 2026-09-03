@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import re
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.key_template_parser import (
     KeyTemplateParser,
@@ -69,9 +70,15 @@ class Jinja2Generator(BaseGenerator):
         # This is appropriate because:
         # 1. We're generating source code (Python, TypeScript, etc.), not HTML/XML
         # 2. HTML escaping would corrupt code syntax (e.g., <, >, & in code)
-        # 3. All template inputs come from validated schema files, not user web input
-        # 4. Generated code is written to files, not rendered in browsers
-        # Security: Schema validation ensures all inputs are safe before template rendering
+        # 3. Generated code is written to files, not rendered in browsers
+        #
+        # Security: because nothing is escaped here, schema values must not be able to alter
+        # the structure of the generated code. That is enforced ahead of rendering by
+        # core.name_validator, which is applied during schema validation: names reaching
+        # identifier positions must be valid non-keyword Python identifiers, values reaching
+        # string literals cannot contain quotes, backslashes or newlines, and key templates
+        # may only contain supported {placeholder} brace expressions. Rendering an
+        # unvalidated schema through this environment is not safe.
         self.env = Environment(  # nosec B701 - Content is NOT HTML and NOT served
             loader=FileSystemLoader(templates_dir),
             autoescape=False,  # Explicitly disabled for code generation (not HTML)
@@ -590,7 +597,13 @@ class Jinja2Generator(BaseGenerator):
                     if param.get('default') is not None:
                         default_val = param['default']
                         if isinstance(default_val, str):
-                            default_val = f'"{default_val}"'
+                            # json.dumps produces a correctly escaped double-quoted literal.
+                            # Schema validation already rejects a default that could break
+                            # out of the quotes, but this must not be the only thing standing
+                            # between a schema value and an expression in a def signature,
+                            # which Python evaluates at import time. ensure_ascii is off so
+                            # non-ASCII defaults are not rewritten as escape sequences.
+                            default_val = json.dumps(default_val, ensure_ascii=False)
                         param_str += f' = {default_val}'
                         defaults.append(param_str)
                     else:
