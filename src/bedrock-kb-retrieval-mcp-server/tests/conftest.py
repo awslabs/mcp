@@ -15,7 +15,22 @@
 """Test fixtures for the bedrock-kb-retrieval-mcp-server tests."""
 
 import pytest
+from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.retrieval import _managed_kb_cache
 from unittest.mock import MagicMock, patch
+
+
+@pytest.fixture(autouse=True)
+def clear_managed_kb_cache():
+    """Clear the module-level Managed-KB-type cache before/after each test.
+
+    Without this, `_is_managed_knowledge_base`'s per-knowledge_base_id cache persists across
+    tests within the same pytest process, which can make a test pass or fail depending on
+    what ran before it (e.g. a `get_knowledge_base.assert_called_once_with` assertion would
+    fail if an earlier test already warmed the cache for that same knowledge base id).
+    """
+    _managed_kb_cache.clear()
+    yield
+    _managed_kb_cache.clear()
 
 
 @pytest.fixture
@@ -84,12 +99,19 @@ def mock_bedrock_agent_client():
         }
     ]
 
-    # Mock the get_knowledge_base method
-    client.get_knowledge_base.side_effect = lambda knowledgeBaseId: {
-        'knowledgeBase': {
-            'knowledgeBaseArn': f'arn:aws:bedrock:us-west-2:123456789012:knowledge-base/{knowledgeBaseId}'
+    # Mock the get_knowledge_base method. kb-managed-1 simulates a Managed Knowledge Base
+    # (knowledgeBaseConfiguration.type == 'MANAGED'); every other id simulates a self-managed
+    # knowledge base (e.g. type == 'VECTOR').
+    def get_knowledge_base_side_effect(knowledgeBaseId: str):
+        kb_type = 'MANAGED' if knowledgeBaseId == 'kb-managed-1' else 'VECTOR'
+        return {
+            'knowledgeBase': {
+                'knowledgeBaseArn': f'arn:aws:bedrock:us-west-2:123456789012:knowledge-base/{knowledgeBaseId}',
+                'knowledgeBaseConfiguration': {'type': kb_type},
+            }
         }
-    }
+
+    client.get_knowledge_base.side_effect = get_knowledge_base_side_effect
 
     def list_tags_for_resource_side_effect(resourceArn: str):
         kb_id = resourceArn.split('/')[-1]

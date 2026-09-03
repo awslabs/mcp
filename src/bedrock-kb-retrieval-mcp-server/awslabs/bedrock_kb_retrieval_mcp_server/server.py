@@ -146,8 +146,8 @@ async def query_knowledge_bases_tool(
         description='Whether to rerank the results. Useful for improving relevance and sorting. Can be globally configured with BEDROCK_KB_RERANKING_ENABLED environment variable.',
     ),
     reranking_model_name: Literal['COHERE', 'AMAZON'] = Field(
-        'AMAZON',
-        description="The name of the reranking model to use. Options: 'COHERE', 'AMAZON'",
+        'COHERE',
+        description="The name of the reranking model to use. Options: 'COHERE', 'AMAZON'. Not every model is available in every region - e.g. AMAZON's is not offered in us-east-1.",
     ),
     data_source_ids: Optional[List[str]] = Field(
         None,
@@ -184,6 +184,7 @@ async def query_knowledge_bases_tool(
         query=query,
         knowledge_base_id=knowledge_base_id,
         kb_agent_client=kb_runtime_client,
+        kb_agent_mgmt_client=kb_agent_mgmt_client,
         number_of_results=number_of_results,
         reranking=reranking,
         reranking_model_name=reranking_model_name,
