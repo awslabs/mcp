@@ -24,7 +24,6 @@ Covers, per docs/design/parser-based-sql-policy.md section 7:
 """
 
 import pytest
-import awslabs.postgres_mcp_server.sql_guard as guard
 from awslabs.postgres_mcp_server.sql_guard import (
     DANGEROUS_FUNCTIONS,
     DANGEROUS_QUALIFIED_FUNCTIONS,
