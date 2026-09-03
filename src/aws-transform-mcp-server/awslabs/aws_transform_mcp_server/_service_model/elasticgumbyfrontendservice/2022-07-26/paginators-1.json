@@ -23,12 +23,6 @@
       "output_token": "nextToken",
       "result_key": "hitlTasks"
     },
-    "ListIamRoleAssignments": {
-      "input_token": "nextToken",
-      "limit_key": "maxResults",
-      "output_token": "nextToken",
-      "result_key": "iamRoleAssignments"
-    },
     "ListJobPlanSteps": {
       "input_token": "nextToken",
       "limit_key": "maxResults",
@@ -50,12 +44,6 @@
       "input_token": "nextToken",
       "output_token": "nextToken",
       "result_key": "steps"
-    },
-    "ListPlans": {
-      "input_token": "nextToken",
-      "limit_key": "maxResults",
-      "output_token": "nextToken",
-      "result_key": "items"
     },
     "ListUserRoleMappings": {
       "input_token": "nextToken",
