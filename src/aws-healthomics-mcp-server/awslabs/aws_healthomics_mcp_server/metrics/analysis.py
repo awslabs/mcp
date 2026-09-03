@@ -402,14 +402,18 @@ def analyze_run_metrics(
 
     summaries = _collect_summaries(client, run, ANALYSIS_METRICS)
     if not summaries:
-        return {
-            'run_id': run_id,
-            'available': False,
-            'reason': (
+        if schema.predates_launch(run.start_time):
+            reason = schema.launch_date_reason()
+        else:
+            reason = (
                 'No vended metric series found for this run. Vended metrics exist only '
                 'for runs started after the feature launched; the manifest-based '
                 'analysis above is the applicable source.'
-            ),
+            )
+        return {
+            'run_id': run_id,
+            'available': False,
+            'reason': reason,
         }
 
     signatures = [build_task_signature(task, summaries) for task in run.tasks]

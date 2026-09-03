@@ -68,7 +68,13 @@ This MCP server provides tools for:
 
 ### Vended Metrics Tools
 
-HealthOmics can deliver fine-grained run/task metrics (CPU, memory, GPU, network, run-filesystem I/O, and scratch storage) into your account as CloudWatch OpenTelemetry metrics. These tools query them through the CloudWatch PromQL API with your credentials. Metrics exist only for runs started after the feature launched in your account/region, and availability varies with the run's storage configuration — the tools report expected absences with reasons instead of failing.
+HealthOmics can deliver fine-grained run/task metrics (CPU, memory, GPU, network, run-filesystem I/O, and scratch storage) into your account as CloudWatch OpenTelemetry metrics. These tools query them through the CloudWatch PromQL API with your credentials. Availability varies with the run's storage configuration — the tools report expected absences with reasons instead of failing. Known limitations the tools surface automatically:
+
+- Metrics exist only for runs started after the vended-metrics production launch (2026-09-07); older runs fall back to manifest-based analysis
+- Tasks shorter than ~60 seconds may produce no datapoints (~30s sampling cadence)
+- Scratch storage usage is sampled every ~20 minutes (measuring it walks the filesystem), so short-lived scratch peaks can be missed
+- DYNAMIC (EFS) run-filesystem usage lags ~35 minutes; ingestion adds ~2 minutes end to end
+- Delivery is at-least-once, not guaranteed, so isolated gaps are possible
 
 1. **ListAHORunMetrics** - List which vended metric series actually exist for a run (per task), including which metrics are expected to be absent for the run's storage/scratch/GPU configuration and why. Use this first to detect availability.
 2. **GetAHORunMetrics** - Retrieve normalized time series and summary statistics for a run's metrics, with task, direction (read/write, receive/transmit), and time-window filtering. Counters report window totals and average rates; gauges report min/max/average/last.

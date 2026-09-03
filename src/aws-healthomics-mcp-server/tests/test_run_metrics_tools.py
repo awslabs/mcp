@@ -393,3 +393,114 @@ class TestUnsupportedRegionGating:
 
         assert 'vended_metrics_supported' not in result
         client.series.assert_called_once()
+
+
+@pytest.mark.asyncio
+class TestLimitationSurfacing:
+    """Launch-date, short-task, and scratch-cadence limitations in tool output."""
+
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.VendedMetricsClient')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.resolve_run')
+    async def test_pre_launch_run_gets_launch_date_reason(self, mock_resolve, mock_client_cls):
+        pre_launch = datetime(2026, 9, 1, 12, 0, tzinfo=timezone.utc)
+        run = _run('123', [_task('t1', 'align')])
+        object.__setattr__(run, 'start_time', pre_launch)
+        object.__setattr__(run, 'stop_time', pre_launch + timedelta(hours=2))
+        mock_resolve.return_value = run
+        client = mock_client_cls.return_value
+        type(client).region = 'us-west-2'
+        client.series.return_value = []
+
+        result = await run_metrics.list_run_metrics(_mock_ctx(), run_id='123')
+
+        assert '2026-09-07' in result['note']
+        assert all(
+            '2026-09-07' in m['reason']
+            for m in result['missing_metrics']
+            if 'Expected' in m['reason']
+        )
+
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.VendedMetricsClient')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.resolve_run')
+    async def test_short_task_caveat_listed(self, mock_resolve, mock_client_cls):
+        short = _task('t1', 'quick', duration_hours=30 / 3600)  # 30 seconds
+        mock_resolve.return_value = _run('123', [short, _task('t2', 'align')])
+        client = mock_client_cls.return_value
+        type(client).region = 'us-west-2'
+        client.series.return_value = [
+            {'__name__': 'aws.omics.task.cpu.usage', '@resource.aws.omics.task.id': 't2'},
+        ]
+
+        result = await run_metrics.list_run_metrics(_mock_ctx(), run_id='123')
+
+        assert any('shorter than 60s' in c for c in result['caveats'])
+
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.VendedMetricsClient')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.resolve_run')
+    async def test_scratch_cadence_caveat_and_interval(self, mock_resolve, mock_client_cls):
+        mock_resolve.return_value = _run('123', [_task('t1', 'align')])
+        client = mock_client_cls.return_value
+        type(client).region = 'us-west-2'
+        client.series.return_value = [
+            {
+                '__name__': 'aws.omics.task.filesystem.scratch.storage.usage',
+                '@resource.aws.omics.task.id': 't1',
+            },
+        ]
+
+        result = await run_metrics.list_run_metrics(_mock_ctx(), run_id='123')
+
+        scratch = next(
+            m
+            for m in result['available_metrics']
+            if m['metric'] == 'aws.omics.task.filesystem.scratch.storage.usage'
+        )
+        assert scratch['sampling_interval_seconds'] == 1200
+        assert any('20 minutes' in c for c in result['caveats'])
+
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.VendedMetricsClient')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.resolve_run')
+    async def test_short_task_reason_on_get_run_metrics(self, mock_resolve, mock_client_cls):
+        short = _task('t1', 'quick', duration_hours=20 / 3600)  # 20 seconds
+        run = _run('123', [short])
+        # place the run after the production launch so the short-task reason applies
+        post_launch = datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc)
+        object.__setattr__(run, 'start_time', post_launch)
+        object.__setattr__(run, 'stop_time', post_launch + timedelta(hours=1))
+        mock_resolve.return_value = run
+        client = mock_client_cls.return_value
+        type(client).region = 'us-west-2'
+        client.query_range.return_value = []
+
+        result = await run_metrics.get_run_metrics(
+            _mock_ctx(),
+            run_id='123',
+            metric_names=['aws.omics.task.cpu.usage'],
+            task_id='t1',
+        )
+
+        assert 'shorter than the 60s minimum' in result['missing_metrics'][0]['reason']
+
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.VendedMetricsClient')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.resolve_run')
+    async def test_get_run_metrics_reports_scratch_sampling_interval(
+        self, mock_resolve, mock_client_cls
+    ):
+        mock_resolve.return_value = _run('123', [_task('t1', 'align')])
+        client = mock_client_cls.return_value
+        type(client).region = 'us-west-2'
+        client.query_range.return_value = [
+            TimeSeries(
+                labels={'@resource.aws.omics.task.id': 't1'},
+                timestamps=[0.0, 1200.0],
+                values=[1.0, 2.0],
+            )
+        ]
+
+        result = await run_metrics.get_run_metrics(
+            _mock_ctx(),
+            run_id='123',
+            metric_names=['aws.omics.task.filesystem.scratch.storage.usage'],
+        )
+
+        assert result['metrics'][0]['sampling_interval_seconds'] == 1200

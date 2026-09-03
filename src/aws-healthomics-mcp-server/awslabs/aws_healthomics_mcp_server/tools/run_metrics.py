@@ -70,6 +70,25 @@ def _default(value: Any) -> Any:
     return value.default if isinstance(value, FieldInfo) else value
 
 
+def _absence_reason(run: RunContext, task_id: Optional[str] = None) -> str:
+    """Best explanation for a metric that was expected but returned no series.
+
+    Precedence: run predates the production launch > the queried task was too
+    short to emit datapoints > generic at-least-once / feature-availability note.
+    """
+    if schema.predates_launch(run.start_time):
+        return schema.launch_date_reason()
+    if task_id:
+        task = run.task_by_id.get(task_id)
+        if (
+            task
+            and task.duration_seconds is not None
+            and task.duration_seconds < schema.MIN_TASK_DURATION_SECONDS
+        ):
+            return schema.short_task_reason(task.duration_seconds)
+    return 'No datapoints in the query window. ' + FEATURE_ABSENT_REASON
+
+
 def _unsupported_region_result(client_region: str) -> Optional[Dict[str, Any]]:
     """A structured no-data response if the region has no vended metrics."""
     if schema.is_region_supported(client_region):
@@ -215,20 +234,27 @@ async def list_run_metrics(
             if name:
                 by_metric.setdefault(name, set()).add(labels.get(schema.TASK_ID_LABEL))
 
+        predates_launch = schema.predates_launch(run.start_time)
+        unexpected_absence_reason = (
+            schema.launch_date_reason() if predates_launch else FEATURE_ABSENT_REASON
+        )
         expected_absent = {m.name: m.reason for m in run.presence.missing}
         available = []
         missing = []
         for name in schema.ALL_METRIC_NAMES:
+            metric = schema.metric_of(name)
             if name in by_metric:
                 task_ids = {t for t in by_metric[name] if t}
                 entry: Dict[str, Any] = {
                     'metric': name,
-                    'unit': schema.metric_of(name).unit,
-                    'is_counter': schema.metric_of(name).is_counter,
+                    'unit': metric.unit,
+                    'is_counter': metric.is_counter,
                     'per_task': schema.is_per_task(name),
                 }
                 if schema.is_per_task(name):
                     entry['tasks_with_data'] = len(task_ids)
+                if metric.sampling_interval_seconds != schema.DEFAULT_SAMPLING_INTERVAL_SECONDS:
+                    entry['sampling_interval_seconds'] = metric.sampling_interval_seconds
                 available.append(entry)
             elif name in expected_absent:
                 missing.append({'metric': name, 'reason': expected_absent[name]})
@@ -237,7 +263,7 @@ async def list_run_metrics(
                     {
                         'metric': name,
                         'reason': 'Expected for this run configuration but no series found. '
-                        + FEATURE_ABSENT_REASON,
+                        + unexpected_absence_reason,
                     }
                 )
 
@@ -249,7 +275,7 @@ async def list_run_metrics(
             'missing_metrics': missing,
         }
         if not available:
-            result['note'] = FEATURE_ABSENT_REASON
+            result['note'] = unexpected_absence_reason
         if run.storage_type == schema.StorageType.DYNAMIC.value:
             result.setdefault('caveats', []).append(
                 'DYNAMIC (EFS) run-filesystem usage lags ~35 minutes behind real time.'
@@ -257,6 +283,26 @@ async def list_run_metrics(
         if run.is_active:
             result.setdefault('caveats', []).append(
                 'Run is still active; recent datapoints may not be ingested yet (~2 min lag).'
+            )
+        short_tasks = [
+            t
+            for t in run.tasks
+            if t.duration_seconds is not None
+            and t.duration_seconds < schema.MIN_TASK_DURATION_SECONDS
+        ]
+        if short_tasks:
+            result.setdefault('caveats', []).append(
+                f'{len(short_tasks)} task(s) ran shorter than '
+                f'{schema.MIN_TASK_DURATION_SECONDS}s and may have produced no metric '
+                f'datapoints (~{schema.DEFAULT_SAMPLING_INTERVAL_SECONDS}s sampling cadence).'
+            )
+        if any(
+            m['metric'] == 'aws.omics.task.filesystem.scratch.storage.usage' for m in available
+        ):
+            result.setdefault('caveats', []).append(
+                'aws.omics.task.filesystem.scratch.storage.usage is sampled every ~20 minutes '
+                '(measuring it walks the filesystem); tasks shorter than that may have no '
+                'scratch datapoints and short-lived peaks can be missed.'
             )
         return result
     except Exception as e:
@@ -373,24 +419,22 @@ async def get_run_metrics(
             series_list = client.query_range(selector, start, end, step_seconds)
 
             if not series_list:
-                reason = expected_absent.get(
-                    metric.name,
-                    'No datapoints in the query window. ' + FEATURE_ABSENT_REASON,
-                )
+                reason = expected_absent.get(metric.name) or _absence_reason(run, task_id)
                 missing.append({'metric': metric.name, 'reason': reason})
                 continue
 
-            results.append(
-                {
-                    'metric': metric.name,
-                    'unit': metric.unit,
-                    'is_counter': metric.is_counter,
-                    'per_task': schema.is_per_task(metric.name),
-                    'series': [
-                        _series_output(s, metric, run, include_timeseries) for s in series_list
-                    ],
-                }
-            )
+            entry: Dict[str, Any] = {
+                'metric': metric.name,
+                'unit': metric.unit,
+                'is_counter': metric.is_counter,
+                'per_task': schema.is_per_task(metric.name),
+                'series': [
+                    _series_output(s, metric, run, include_timeseries) for s in series_list
+                ],
+            }
+            if metric.sampling_interval_seconds != schema.DEFAULT_SAMPLING_INTERVAL_SECONDS:
+                entry['sampling_interval_seconds'] = metric.sampling_interval_seconds
+            results.append(entry)
 
         return {
             'run': _run_config(run),

@@ -194,3 +194,40 @@ class TestRegionSupport:
         reason = schema.region_unsupported_reason('il-central-1')
         assert 'il-central-1' in reason
         assert 'AnalyzeAHORunPerformance' in reason
+
+
+class TestLaunchDateAndSampling:
+    """Production launch gating and per-metric sampling cadences."""
+
+    def test_run_before_launch_predates(self):
+        from datetime import datetime, timezone
+
+        before = datetime(2026, 9, 6, 23, 59, tzinfo=timezone.utc)
+        assert schema.predates_launch(before)
+
+    def test_run_on_or_after_launch_does_not_predate(self):
+        from datetime import datetime, timezone
+
+        on_launch = datetime(2026, 9, 7, 0, 0, tzinfo=timezone.utc)
+        assert not schema.predates_launch(on_launch)
+        assert not schema.predates_launch(None)
+
+    def test_launch_reason_names_date_and_fallback(self):
+        reason = schema.launch_date_reason()
+        assert '2026-09-07' in reason
+        assert 'AnalyzeAHORunPerformance' in reason
+
+    def test_short_task_reason_includes_duration(self):
+        reason = schema.short_task_reason(12.0)
+        assert '12s' in reason
+        assert str(schema.MIN_TASK_DURATION_SECONDS) in reason
+
+    def test_scratch_usage_has_slow_sampling_interval(self):
+        """Scratch usage walks the filesystem, so it is sampled every ~20 min."""
+        metric = schema.metric_of('aws.omics.task.filesystem.scratch.storage.usage')
+        assert metric.sampling_interval_seconds == 20 * 60
+
+    def test_other_metrics_use_default_sampling_interval(self):
+        for name in ('aws.omics.task.cpu.usage', 'aws.omics.task.filesystem.io'):
+            metric = schema.metric_of(name)
+            assert metric.sampling_interval_seconds == schema.DEFAULT_SAMPLING_INTERVAL_SECONDS

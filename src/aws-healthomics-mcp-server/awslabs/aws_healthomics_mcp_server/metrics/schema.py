@@ -38,6 +38,7 @@ window max.
 """
 
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Dict, List, Optional
 
@@ -119,6 +120,44 @@ EFS_RUN_FILESYSTEM_LAG_SECONDS = 35 * 60
 MIN_TASK_DURATION_SECONDS = 60
 """Tasks shorter than the ~30s sampling cadence may produce no datapoints."""
 
+DEFAULT_SAMPLING_INTERVAL_SECONDS = 30
+"""Emitter sampling cadence for metrics without a per-metric override."""
+
+SCRATCH_USAGE_SAMPLING_INTERVAL_SECONDS = 20 * 60
+"""Scratch storage usage is sampled every ~20 minutes: measuring it walks the
+filesystem, so the emitter uses a slow cadence to avoid adding I/O load."""
+
+VENDED_METRICS_LAUNCH_DATE = '2026-09-07'
+"""Production launch date (UTC) of HealthOmics vended metrics. Runs started
+before this date have no vended OTel metrics."""
+
+
+def predates_launch(run_start: Optional[datetime]) -> bool:
+    """Whether a run started before vended metrics launched in production."""
+    if run_start is None:
+        return False
+    launch = datetime.fromisoformat(VENDED_METRICS_LAUNCH_DATE).replace(tzinfo=timezone.utc)
+    return run_start < launch
+
+
+def launch_date_reason() -> str:
+    """Explanation for runs that predate the vended-metrics production launch."""
+    return (
+        f'This run started before the vended metrics production launch '
+        f'({VENDED_METRICS_LAUNCH_DATE}); no vended OTel metrics exist for it. '
+        'Use timeline/manifest analysis (AnalyzeAHORunPerformance) instead.'
+    )
+
+
+def short_task_reason(duration_seconds: float) -> str:
+    """Explanation for a task too short to produce metric datapoints."""
+    return (
+        f'Task ran for {duration_seconds:.0f}s, shorter than the '
+        f'{MIN_TASK_DURATION_SECONDS}s minimum for reliable metric emission '
+        f'(~{DEFAULT_SAMPLING_INTERVAL_SECONDS}s sampling cadence); '
+        'it may have produced no datapoints.'
+    )
+
 
 class StorageType(str, Enum):
     """Run storage types that carry the storage.type resource attribute.
@@ -163,6 +202,8 @@ class VendedMetric:
             (empty list = any value, e.g. gpu ids).
         emitted_only_when: Human-readable condition for conditional metrics,
             or None if the metric is emitted for every run.
+        sampling_interval_seconds: Emitter sampling cadence when it differs
+            from the ~30s default (e.g. scratch usage's slow cadence).
     """
 
     name: str
@@ -170,6 +211,7 @@ class VendedMetric:
     type: InstrumentType = InstrumentType.GAUGE
     datapoint_attributes: Dict[str, List[str]] = field(default_factory=dict)
     emitted_only_when: Optional[str] = None
+    sampling_interval_seconds: int = DEFAULT_SAMPLING_INTERVAL_SECONDS
 
     @property
     def is_conditional(self) -> bool:
@@ -273,6 +315,7 @@ PER_TASK_SCRATCH = VendedMetricGroup(
             datapoint_attributes={
                 SCRATCH_STORAGE_MODE_ATTRIBUTE: [m.value for m in ScratchStorageMode]
             },
+            sampling_interval_seconds=SCRATCH_USAGE_SAMPLING_INTERVAL_SECONDS,
         ),
         VendedMetric(
             'aws.omics.task.filesystem.scratch.storage.limit',
