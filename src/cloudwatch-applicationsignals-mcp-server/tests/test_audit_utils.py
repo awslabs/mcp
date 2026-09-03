@@ -27,7 +27,7 @@ from awslabs.cloudwatch_applicationsignals_mcp_server.audit_utils import (
     expand_slo_wildcard_patterns,
     parse_auditors,
 )
-from unittest.mock import Mock, mock_open, patch
+from unittest.mock import MagicMock, Mock, mock_open, patch
 
 
 class TestExecuteAuditApi:
@@ -36,9 +36,11 @@ class TestExecuteAuditApi:
     @pytest.fixture
     def mock_applicationsignals_client(self):
         """Mock applicationsignals client."""
+        mock_client = MagicMock()
         with patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.applicationsignals_client'
-        ) as mock_client:
+            'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.get_client',
+            return_value=mock_client,
+        ):
             yield mock_client
 
     @pytest.fixture

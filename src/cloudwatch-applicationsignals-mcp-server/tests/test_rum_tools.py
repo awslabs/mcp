@@ -61,7 +61,6 @@ def mock_aws_clients():
     """Mock all AWS clients used by rum_tools."""
     from awslabs.cloudwatch_applicationsignals_mcp_server import rum_tools as _rt
 
-    # Clear process-wide caches so test cases are independent.
     _rt._clear_module_caches()
 
     mock_rum = MagicMock()
@@ -76,18 +75,21 @@ def mock_aws_clients():
     mock_time.monotonic.side_effect = lambda: next(_time_counter)
     mock_time.sleep = MagicMock()
 
+    def _get_client(service_name):
+        return {
+            'rum': mock_rum,
+            'logs': mock_logs,
+            'cloudwatch': mock_cw,
+            'xray': mock_xray,
+            'application-signals': mock_appsignals,
+            'sts': mock_sts,
+        }.get(service_name, MagicMock())
+
     patches = [
-        patch('awslabs.cloudwatch_applicationsignals_mcp_server.rum_tools.rum_client', mock_rum),
-        patch('awslabs.cloudwatch_applicationsignals_mcp_server.rum_tools.logs_client', mock_logs),
         patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.rum_tools.cloudwatch_client', mock_cw
+            'awslabs.cloudwatch_applicationsignals_mcp_server.rum_tools.get_client',
+            side_effect=_get_client,
         ),
-        patch('awslabs.cloudwatch_applicationsignals_mcp_server.rum_tools.xray_client', mock_xray),
-        patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.rum_tools.applicationsignals_client',
-            mock_appsignals,
-        ),
-        patch('awslabs.cloudwatch_applicationsignals_mcp_server.rum_tools.sts_client', mock_sts),
         patch('awslabs.cloudwatch_applicationsignals_mcp_server.rum_tools.time', mock_time),
     ]
     for p in patches:
@@ -1697,7 +1699,10 @@ def test_get_partition_us_gov(mock_aws_clients):
     """us-gov-* regions resolve to the aws-us-gov partition."""
     from awslabs.cloudwatch_applicationsignals_mcp_server import rum_tools as _rt
 
-    with patch.object(_rt, 'AWS_REGION', 'us-gov-west-1'):
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.rum_tools.get_region',
+        return_value='us-gov-west-1',
+    ):
         _rt._get_partition.cache_clear()
         try:
             assert _rt._get_partition() == 'aws-us-gov'
@@ -1709,7 +1714,10 @@ def test_get_partition_cn(mock_aws_clients):
     """cn-* regions resolve to the aws-cn partition."""
     from awslabs.cloudwatch_applicationsignals_mcp_server import rum_tools as _rt
 
-    with patch.object(_rt, 'AWS_REGION', 'cn-north-1'):
+    with patch(
+        'awslabs.cloudwatch_applicationsignals_mcp_server.rum_tools.get_region',
+        return_value='cn-north-1',
+    ):
         _rt._get_partition.cache_clear()
         try:
             assert _rt._get_partition() == 'aws-cn'

@@ -3349,7 +3349,7 @@ class TestSnapshotQueriesPolling:
                     'messages': [],
                 }
 
-        monkeypatch.setattr(snapshot_queries.aws_clients, 'logs_client', _Logs())
+        monkeypatch.setattr(snapshot_queries.aws_clients, 'get_client', lambda *a, **k: _Logs())
         result = snapshot_queries._execute_cloudwatch_query(
             query_string='q',
             start_epoch=0,
@@ -3373,7 +3373,7 @@ class TestSnapshotQueriesPolling:
             def get_query_results(self, **kwargs):
                 return {'status': next(statuses), 'results': [], 'messages': []}
 
-        monkeypatch.setattr(snapshot_queries.aws_clients, 'logs_client', _Logs())
+        monkeypatch.setattr(snapshot_queries.aws_clients, 'get_client', lambda *a, **k: _Logs())
         result = snapshot_queries._execute_cloudwatch_query(
             query_string='q',
             start_epoch=0,
@@ -3390,7 +3390,7 @@ class TestSnapshotQueriesPolling:
             def start_query(self, **kwargs):
                 return {}
 
-        monkeypatch.setattr(snapshot_queries.aws_clients, 'logs_client', _Logs())
+        monkeypatch.setattr(snapshot_queries.aws_clients, 'get_client', lambda *a, **k: _Logs())
         result = snapshot_queries._execute_cloudwatch_query(
             query_string='q',
             start_epoch=0,
@@ -3407,7 +3407,7 @@ class TestSnapshotQueriesPolling:
             def start_query(self, **kwargs):
                 raise RuntimeError('start-boom')
 
-        monkeypatch.setattr(snapshot_queries.aws_clients, 'logs_client', _Logs())
+        monkeypatch.setattr(snapshot_queries.aws_clients, 'get_client', lambda *a, **k: _Logs())
         result = snapshot_queries._execute_cloudwatch_query(
             query_string='q',
             start_epoch=0,
@@ -3430,7 +3430,7 @@ class TestSnapshotQueriesPolling:
                     operation_name='GetQueryResults',
                 )
 
-        monkeypatch.setattr(snapshot_queries.aws_clients, 'logs_client', _Logs())
+        monkeypatch.setattr(snapshot_queries.aws_clients, 'get_client', lambda *a, **k: _Logs())
         result = snapshot_queries._execute_cloudwatch_query(
             query_string='q',
             start_epoch=0,
@@ -3455,7 +3455,7 @@ class TestSnapshotQueriesPolling:
             def get_query_results(self, **kwargs):
                 return {'status': 'Running', 'results': [], 'messages': []}
 
-        monkeypatch.setattr(snapshot_queries.aws_clients, 'logs_client', _Logs())
+        monkeypatch.setattr(snapshot_queries.aws_clients, 'get_client', lambda *a, **k: _Logs())
         result = snapshot_queries._execute_cloudwatch_query(
             query_string='q',
             start_epoch=0,
@@ -3476,7 +3476,7 @@ class TestSnapshotQueriesPolling:
             def get_query_results(self, **kwargs):
                 raise RuntimeError('boom')
 
-        monkeypatch.setattr(snapshot_queries.aws_clients, 'logs_client', _Logs())
+        monkeypatch.setattr(snapshot_queries.aws_clients, 'get_client', lambda *a, **k: _Logs())
         result = snapshot_queries._execute_cloudwatch_query(
             query_string='q',
             start_epoch=0,
