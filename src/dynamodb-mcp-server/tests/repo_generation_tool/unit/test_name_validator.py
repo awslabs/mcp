@@ -386,6 +386,24 @@ HOSTILE_SCHEMAS = {
         'gsi_list',
         [{'name': "ByX\n    __import__('os').system('id')", 'partition_key': 'gsi_pk'}],
     ),
+    # A composite GSI key is a list of attribute names, each reaching a Key('...') literal.
+    'gsi_list_composite_partition_key': lambda s: s['tables'][0].__setitem__(
+        'gsi_list',
+        [{'name': 'ByX', 'partition_key': ['gsi_pk', PAYLOAD_LITERAL]}],
+    ),
+    'gsi_list_composite_sort_key': lambda s: s['tables'][0].__setitem__(
+        'gsi_list',
+        [{'name': 'ByX', 'partition_key': 'gsi_pk', 'sort_key': ['a', PAYLOAD_LITERAL]}],
+    ),
+    'gsi_list_included_attributes': lambda s: s['tables'][0].__setitem__(
+        'gsi_list',
+        [{
+            'name': 'ByX',
+            'partition_key': 'gsi_pk',
+            'projection_type': 'INCLUDE',
+            'included_attributes': ['ok', PAYLOAD_LITERAL],
+        }],
+    ),
 }
 
 
@@ -433,3 +451,25 @@ class TestGenerationRejectsInjection:
 
         assert not result.success, f'{vector} was not rejected'
         assert not (out_dir / 'entities.py').exists(), f'{vector} wrote generated code'
+
+    def test_malformed_gsi_list_entry_does_not_crash(self, tmp_path):
+        """A gsi_list entry that is not an object is skipped by the name checks.
+
+        Structural validation reports the malformed entry; the name checks must not raise
+        while walking past it.
+        """
+        schema = _schema_with(
+            lambda s: s['tables'][0].__setitem__('gsi_list', ['not-an-object', 42])
+        )
+        schema_path = _write_schema(tmp_path, schema)
+
+        result = generate(
+            str(schema_path),
+            output_dir=str(tmp_path / 'out'),
+            language='python',
+            generate_sample_usage=False,
+            no_lint=True,
+            allowed_base_dirs=[tmp_path],
+        )
+
+        assert not result.success
