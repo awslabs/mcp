@@ -403,9 +403,13 @@ def test_analysis_exception_fails_closed(monkeypatch):
     Guards the wrapper that turns non-SqlPolicyError exceptions into a
     fail-closed SqlPolicyError instead of letting them escape uncaught.
     """
+
     def boom(_node):
         raise ValueError('induced analysis failure')
 
-    monkeypatch.setattr(guard, '_check_dangerous', boom)
+    # Patch by dotted path so we don't import the module under a second name
+    # (a top-level `from ... import` plus `import ... as guard` trips the
+    # "module imported with import and import from" lint finding).
+    monkeypatch.setattr('awslabs.postgres_mcp_server.sql_guard._check_dangerous', boom)
     with pytest.raises(SqlPolicyError):
         assert_executable('SELECT 1', allow_write_query=True)

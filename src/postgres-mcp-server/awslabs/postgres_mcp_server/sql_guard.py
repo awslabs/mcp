@@ -145,6 +145,12 @@ SECURITY_SENSITIVE_GUCS = frozenset({'row_security', 'session_replication_role'}
 # guard classifies. The negative lookbehind leaves the ``::`` cast operator
 # alone. This mirrors the connection layer's own ``:name`` conversion; the
 # ORIGINAL SQL is what executes.
+#
+# The substitution is not literal-aware, so a ``:name``-shaped sequence inside a
+# string literal (``SELECT 'ping :host'`` -> ``SELECT 'ping $1'``) is rewritten
+# too. This is deliberately safe: the guard only inspects statement node types,
+# function names, and GUC names -- never arbitrary string contents -- and ``$1``
+# inside quotes remains a string literal, so classification is unaffected.
 _NAMED_PARAM_PATTERN = re.compile(r'(?<!:):([a-zA-Z_]\w*)')
 
 
@@ -258,7 +264,11 @@ def _check_dangerous(node) -> None:
                 _reject(f'Security-sensitive session setting not allowed: {guc}')
         return
 
-    # SET / SET SESSION ... targeting a security-sensitive GUC.
+    # SET / RESET ... targeting a security-sensitive GUC. This matches any
+    # VariableSetStmt naming a sensitive GUC, so RESET row_security is rejected
+    # alongside SET -- intentional: RESET reverts the GUC to a default that a
+    # superuser could have set to a weaker value, so both are blocked in both
+    # modes (conservative, safe direction).
     if isinstance(node, ast.VariableSetStmt):
         name = (node.name or '').lower()
         if name in SECURITY_SENSITIVE_GUCS:
