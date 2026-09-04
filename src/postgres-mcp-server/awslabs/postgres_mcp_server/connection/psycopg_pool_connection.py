@@ -22,6 +22,7 @@ parameters (host, port, database, user, password) or via AWS Secrets Manager.
 import asyncio
 import boto3
 import json
+import os
 import re
 from aiorwlock import RWLock
 from awslabs.postgres_mcp_server import __user_agent__
@@ -29,8 +30,35 @@ from awslabs.postgres_mcp_server.connection.abstract_db_connection import Abstra
 from botocore.config import Config
 from datetime import datetime, timedelta
 from loguru import logger
+from psycopg.conninfo import make_conninfo
 from psycopg_pool import AsyncConnectionPool
 from typing import Any, Dict, List, Optional, Tuple
+
+
+# Path to the Amazon RDS global CA bundle shipped inside the wheel by
+# hatch_build.py. It lets the psycopg (PG Wire) path perform strict TLS
+# verification (sslmode=verify-full) against Aurora/RDS out of the box. The PEM
+# is gitignored and fetched at build time; operators can override it at runtime
+# with --ca_bundle (e.g. self-hosted PostgreSQL with a private CA).
+_RDS_CA_BUNDLE_PATH = os.path.join(os.path.dirname(__file__), 'rds_global_bundle.pem')
+
+
+def _bundled_ca_file() -> Optional[str]:
+    """Return the bundled RDS CA path if present on disk, else None.
+
+    Returns None (with a logged error) if the bundle is missing -- the package
+    was built without the hook, or is running from a source tree where
+    ``python hatch_build.py`` has not been run. Callers then fall back to the
+    system trust store.
+    """
+    if not os.path.isfile(_RDS_CA_BUNDLE_PATH):
+        logger.error(
+            f'Bundled RDS CA bundle is missing at {_RDS_CA_BUNDLE_PATH}. The build '
+            'hook should fetch it during package build; rebuild the package, run '
+            '`python hatch_build.py`, or pass --ca_bundle <path> to override.'
+        )
+        return None
+    return _RDS_CA_BUNDLE_PATH
 
 
 def get_credentials_from_secret(
@@ -127,6 +155,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
         min_size: int = 1,
         max_size: int = 10,
         is_test: bool = False,
+        ca_bundle_path: Optional[str] = None,
     ):
         """Initialize a new DB connection pool.
 
@@ -143,6 +172,8 @@ class PsycopgPoolConnection(AbstractDBConnection):
             min_size: Minimum number of connections in the pool
             max_size: Maximum number of connections in the pool
             is_test: Whether this is a test connection
+            ca_bundle_path: Optional path to an alternate CA bundle (PEM) used for
+                strict TLS verification, overriding the bundled Amazon RDS bundle.
         """
         super().__init__(readonly)
         self.host = host
@@ -156,6 +187,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
         self.pool_expiry_min = pool_expiry_min
         self.secret_arn = secret_arn
         self.is_test = is_test
+        self.ca_bundle_path = ca_bundle_path
         self.pool: Optional['AsyncConnectionPool[Any]'] = None
         self.rw_lock = RWLock()
         self.created_time = datetime.now()
@@ -168,6 +200,48 @@ class PsycopgPoolConnection(AbstractDBConnection):
             # set pool expiry before IAM auth token expiry of 15 minutes
             self.pool_expiry_min = 14
             logger.debug(f'Use IAM auth for user: {db_user}')
+
+    def _build_conninfo(self, password: str) -> str:
+        """Build the libpq conninfo string, enforcing strict TLS.
+
+        Credentials always go on the wire for this connector (an IAM auth token
+        or a Secrets Manager password), so the connection uses
+        ``sslmode=verify-full``: it requires TLS (no silent plaintext downgrade)
+        and verifies the server certificate and hostname (no MITM with a spoofed
+        cert). Verification needs a trusted CA:
+
+          1. ``--ca_bundle`` override, if the operator supplied one (e.g.
+             self-hosted PostgreSQL with a private CA), else
+          2. the bundled Amazon RDS global CA bundle shipped in the wheel, else
+          3. the system trust store (``sslrootcert=system``) with a warning --
+             may not include the Amazon RDS regional CAs.
+
+        ``make_conninfo`` escapes values, so passwords containing spaces or
+        special characters are handled correctly.
+        """
+        params: Dict[str, Any] = {
+            'host': self.host,
+            'port': self.port,
+            'dbname': self.database,
+            'user': self.user,
+            'password': password,
+            'sslmode': 'verify-full',
+        }
+        cafile = self.ca_bundle_path or _bundled_ca_file()
+        if cafile:
+            params['sslrootcert'] = cafile
+        else:
+            # No CA file available: fall back to the OS trust store. libpq's
+            # special value "system" selects the default system CA store.
+            params['sslrootcert'] = 'system'
+            logger.warning(
+                'No CA bundle available for TLS verification; falling back to the '
+                'system trust store (sslrootcert=system). The connection may fail '
+                'with certificate verification errors if the system store does not '
+                'include the server CA. Supply --ca_bundle <path> or rebuild the '
+                'package to restore the bundled Amazon RDS bundle.'
+            )
+        return make_conninfo(**params)
 
     async def initialize_pool(self):
         """Initialize the connection pool."""
@@ -206,7 +280,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
                 )
 
             self.created_time = datetime.now()
-            self.conninfo = f'host={self.host} port={self.port} dbname={self.database} user={self.user} password={password}'
+            self.conninfo = self._build_conninfo(password)
             self.pool = AsyncConnectionPool(
                 self.conninfo, min_size=self.min_size, max_size=self.max_size, open=False
             )

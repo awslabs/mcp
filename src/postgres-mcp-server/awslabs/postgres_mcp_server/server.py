@@ -61,6 +61,11 @@ async_job_status: Dict[str, dict] = {}
 async_job_status_lock = threading.Lock()
 client_error_code_key = 'run_query ClientError code'
 readonly_query = True
+# Optional operator-supplied CA bundle (PEM) path used for strict TLS
+# verification on psycopg (PG Wire) connections, overriding the bundled Amazon
+# RDS bundle. Set from the CLI flag --ca_bundle. None means use the bundled
+# bundle (or system trust store as a last resort).
+configured_ca_bundle: Optional[str] = None
 
 # Least-privilege guardrail policy for post-connect validation.
 #   'warn' (default): log a warning but allow a connection whose Postgres role
@@ -1103,6 +1108,7 @@ def internal_create_connection(
             db_user=iam_username,
             region=region,
             is_iam_auth=True,
+            ca_bundle_path=configured_ca_bundle,
         )
 
     elif connection_method == ConnectionMethod.RDS_API:
@@ -1124,6 +1130,7 @@ def internal_create_connection(
             db_user='',
             region=region,
             is_iam_auth=False,
+            ca_bundle_path=configured_ca_bundle,
         )
 
     if db_connection:
@@ -1323,6 +1330,7 @@ def main():
     global configured_secret_arns
     global configured_default_secret_arn
     global privilege_check_policy
+    global configured_ca_bundle
 
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for postgres'
@@ -1353,6 +1361,16 @@ def main():
     )
     parser.add_argument('--database', help='Database name')
     parser.add_argument('--port', type=int, default=5432, help='Database port (default: 5432)')
+    parser.add_argument(
+        '--ca_bundle',
+        default=None,
+        help=(
+            'Path to an alternate CA bundle (PEM) for strict TLS verification on '
+            'psycopg (PG Wire) connections. Overrides the bundled Amazon RDS global '
+            'bundle shipped with the package. Use this for self-hosted PostgreSQL '
+            'with a private CA, or if AWS rotates CAs faster than the release cadence.'
+        ),
+    )
     parser.add_argument(
         '--secret_arn',
         required=False,
@@ -1430,6 +1448,7 @@ def main():
 
     readonly_query = not args.allow_write_query
     privilege_check_policy = args.privilege_check
+    configured_ca_bundle = args.ca_bundle
     configured_secret_arns.clear()
     configured_secret_arns.update(secret_arn_map)
     configured_default_secret_arn = default_secret_arn

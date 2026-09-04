@@ -1113,3 +1113,71 @@ class TestPsycopgConnector:
         await conn.initialize_pool()
 
         mock_to_thread.assert_awaited_once_with(conn.get_iam_auth_token)
+
+
+class TestPsycopgTLS:
+    """TLS enforcement in the psycopg conninfo (sslmode=verify-full + CA)."""
+
+    def _make_conn(self, ca_bundle_path=None):
+        """Build a connection object without opening a pool."""
+        return PsycopgPoolConnection(
+            host='db.example.com',
+            port=5432,
+            database='test_db',
+            readonly=True,
+            secret_arn='arn:aws:secretsmanager:us-west-2:1:secret:x',
+            db_user='u',
+            region='us-west-2',
+            is_iam_auth=False,
+            is_test=True,
+            ca_bundle_path=ca_bundle_path,
+        )
+
+    def _to_dict(self, conninfo):
+        from psycopg.conninfo import conninfo_to_dict
+
+        return conninfo_to_dict(conninfo)
+
+    def test_conninfo_enforces_verify_full(self):
+        """Every connection uses sslmode=verify-full and never the insecure default."""
+        conn = self._make_conn(ca_bundle_path='/tmp/my-ca.pem')
+        info = self._to_dict(conn._build_conninfo('secret-pw'))
+        assert info['sslmode'] == 'verify-full'
+        assert info['sslmode'] != 'prefer'
+        assert info['password'] == 'secret-pw'
+        assert info['host'] == 'db.example.com'
+
+    def test_ca_bundle_override_used(self):
+        """An operator-supplied --ca_bundle path is used as sslrootcert."""
+        conn = self._make_conn(ca_bundle_path='/tmp/my-ca.pem')
+        info = self._to_dict(conn._build_conninfo('pw'))
+        assert info['sslrootcert'] == '/tmp/my-ca.pem'
+
+    def test_bundled_ca_used_when_no_override(self, monkeypatch):
+        """With no override, the bundled Amazon RDS CA bundle is used."""
+        monkeypatch.setattr(
+            'awslabs.postgres_mcp_server.connection.psycopg_pool_connection._bundled_ca_file',
+            lambda: '/pkg/rds_global_bundle.pem',
+        )
+        conn = self._make_conn(ca_bundle_path=None)
+        info = self._to_dict(conn._build_conninfo('pw'))
+        assert info['sslrootcert'] == '/pkg/rds_global_bundle.pem'
+
+    def test_system_trust_store_fallback(self, monkeypatch):
+        """With neither override nor bundle, fall back to the system trust store."""
+        monkeypatch.setattr(
+            'awslabs.postgres_mcp_server.connection.psycopg_pool_connection._bundled_ca_file',
+            lambda: None,
+        )
+        conn = self._make_conn(ca_bundle_path=None)
+        info = self._to_dict(conn._build_conninfo('pw'))
+        assert info['sslmode'] == 'verify-full'
+        assert info['sslrootcert'] == 'system'
+
+    def test_password_with_special_chars_is_escaped(self):
+        """make_conninfo safely quotes passwords containing spaces/quotes."""
+        conn = self._make_conn(ca_bundle_path='/tmp/ca.pem')
+        # Round-trips cleanly (would break a naive f-string conninfo).
+        info = self._to_dict(conn._build_conninfo("p ass'w\\ord"))
+        assert info['password'] == "p ass'w\\ord"
+        assert info['sslmode'] == 'verify-full'

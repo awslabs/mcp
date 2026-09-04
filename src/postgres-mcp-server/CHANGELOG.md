@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Enforce strict TLS on direct (psycopg / PG Wire) connections: the server now
+  connects with `sslmode=verify-full`, closing an opportunistic-TLS downgrade
+  and missing-certificate-verification gap (libpq previously defaulted to
+  `sslmode=prefer`, which allows silent plaintext fallback and does not verify
+  the server certificate). The Amazon RDS global CA bundle is shipped in the
+  wheel (fetched at build time) for out-of-the-box Aurora/RDS verification; a
+  new `--ca_bundle <path>` flag overrides it for self-hosted PostgreSQL or a
+  private trust store.
+
 - Replaced the regex-based read-only / dangerous-SQL detector with a
   parser-based guard built on `pglast` (libpg_query — PostgreSQL's own parser).
   Statements are now classified from the parse tree, closing the

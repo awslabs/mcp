@@ -201,6 +201,29 @@ a `SELECT some_function()` writes internally, that a `SECURITY DEFINER` function
 has side effects, or resolve which function a name refers to under a custom
 `search_path`. Do not rely on it as your only control.
 
+#### TLS is enforced on direct (PG Wire) connections
+
+For direct PostgreSQL connections (the psycopg / PG Wire path, used for IAM auth
+and Secrets Manager password auth), the server connects with
+`sslmode=verify-full`. This requires TLS — there is no silent plaintext
+downgrade — and verifies the server certificate and hostname, so a
+man-in-the-middle presenting a spoofed certificate is rejected. (The RDS Data
+API path already runs over verified HTTPS.)
+
+Certificate verification needs a trusted CA. The package ships the Amazon RDS
+global CA bundle (fetched at build time) so verification works against
+Aurora/RDS out of the box. If you connect to **self-hosted PostgreSQL with a
+private CA**, or you maintain your own trust store, point the server at your CA
+with:
+
+```
+--ca_bundle /path/to/ca-bundle.pem
+```
+
+Note: because credentials are never sent in cleartext, a server that does not
+offer TLS (or presents an untrusted certificate) will fail to connect. Supply
+`--ca_bundle` with the appropriate CA, or enable TLS on the server.
+
 #### Best practice: run the MCP server as a minimal-privilege Postgres role
 
 The strongest control is to connect the MCP server using a dedicated Postgres
