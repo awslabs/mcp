@@ -632,12 +632,13 @@ async def compare_run_metrics(
     the metrics with the largest relative deltas (peak for gauges, window total
     for counters) are reported as the task's changed signature.
 
-    Caveat: scattered tasks share a base name and are distinguished only by
-    the index in the task name, but scatter execution order is not
-    deterministic — the same index may process different shard data in each
-    run. Per-name comparisons aggregate scattered tasks (max duration, peak
-    metric values), so shard-level differences between runs cannot be
-    attributed to specific shards.
+    Caveat: for workflows with scattered tasks, the scatter index embedded in
+    the task name is not deterministic across runs — the same index may have
+    processed different shard data in each run. Name-based alignment can
+    therefore pair scattered tasks that did different work; treat per-task
+    deltas for scattered task names as indicative rather than a like-for-like
+    comparison. (Scattered tasks that share an identical name are aggregated:
+    max duration, peak metric value.)
 
     Returns:
         Dictionary with both run configurations, the wall-clock delta, and
@@ -812,11 +813,12 @@ async def get_workflow_metrics(
     should I set", "am I over-provisioned") and cross-run regression checks
     (high duration variance is flagged via coefficient_of_variation).
 
-    Caveat: scattered tasks are grouped by shared task name, but scatter
-    execution order is not deterministic across runs, so a given name index
-    may process different shard data in each run. Distributions therefore
-    describe the task family as a whole (which is the right basis for
-    right-sizing), not any particular shard.
+    Caveat: for workflows with scattered tasks, the scatter index embedded in
+    the task name is not deterministic across runs, so samples aggregated
+    under one scattered task name may come from different shard data in each
+    run. Such distributions describe arbitrary shards of the scatter, not a
+    consistent one; for right-sizing a scattered task, use the maximum across
+    all of its shards' entries.
 
     Returns:
         Dictionary with the aggregated per-task distributions and the list of
