@@ -2649,8 +2649,8 @@ async def run_tls_enforcement_suite(
         if throwaway_ca:
             try:
                 os.remove(throwaway_ca)
-            except OSError:
-                pass
+            except OSError as e:
+                logger.warning(f'Non-fatal cleanup failure removing throwaway CA bundle {throwaway_ca}: {e}')
         try:
             server.db_connection_map.remove(
                 connection_method, cluster_identifier, valid_endpoint, test_database, port
