@@ -209,7 +209,9 @@ def log_tls_diagnostics(
 
     try:
         proc = subprocess.run(cmd, input=b'', capture_output=True, timeout=20)
-        out = proc.stdout.decode('utf-8', 'replace') + '\n' + proc.stderr.decode('utf-8', 'replace')
+        out = (
+            proc.stdout.decode('utf-8', 'replace') + '\n' + proc.stderr.decode('utf-8', 'replace')
+        )
     except Exception as e:
         logger.info(f'{tag}: certificate probe failed: {type(e).__name__}: {e}')
         return
@@ -254,7 +256,9 @@ def _extract_leaf_san(s_client_output: str, openssl: str) -> str:
             capture_output=True,
             timeout=10,
         )
-        text = (proc.stdout.decode('utf-8', 'replace') + proc.stderr.decode('utf-8', 'replace')).strip()
+        text = (
+            proc.stdout.decode('utf-8', 'replace') + proc.stderr.decode('utf-8', 'replace')
+        ).strip()
     except Exception:
         return ''
     # Output is typically two lines: the extension name then the DNS: entries.
@@ -324,14 +328,11 @@ def resolve_run_plan(endpoint_types: List[str], auth_types: List[str]):
     unknown_eps = [e for e in endpoint_types if e not in ENDPOINT_AUTH_CAPABILITY]
     if unknown_eps:
         raise ValueError(
-            f'unknown endpoint type(s) {unknown_eps}; '
-            f'valid: {list(SUPPORTED_ENDPOINT_TYPES)}'
+            f'unknown endpoint type(s) {unknown_eps}; valid: {list(SUPPORTED_ENDPOINT_TYPES)}'
         )
     unknown_auths = [a for a in auth_types if a not in AUTH_TYPE_TO_METHOD]
     if unknown_auths:
-        raise ValueError(
-            f'unknown auth type(s) {unknown_auths}; valid: {list(ALL_AUTH_TYPES)}'
-        )
+        raise ValueError(f'unknown auth type(s) {unknown_auths}; valid: {list(ALL_AUTH_TYPES)}')
 
     plan_by_kind: dict = {}
     for ep in endpoint_types:
@@ -2653,7 +2654,9 @@ async def run_tls_enforcement_suite(
             try:
                 os.remove(throwaway_ca)
             except OSError as e:
-                logger.warning(f'Non-fatal cleanup failure removing throwaway CA bundle {throwaway_ca}: {e}')
+                logger.warning(
+                    f'Non-fatal cleanup failure removing throwaway CA bundle {throwaway_ca}: {e}'
+                )
         try:
             server.db_connection_map.remove(
                 connection_method, cluster_identifier, valid_endpoint, test_database, port
@@ -2957,9 +2960,7 @@ async def main_async(args):
         # still alive in AWS. internal_delete_cluster handles
         # not-found gracefully, so it's safe to register cleanup eagerly.
         if 'express' not in args.endpoint_kinds:
-            logger.info(
-                'Skipping express cluster creation (not in --endpoint-types).'
-            )
+            logger.info('Skipping express cluster creation (not in --endpoint-types).')
         else:
             clusters_to_delete.append(express_id)
             try:
@@ -3461,9 +3462,9 @@ def main():
         help=(
             'Comma-separated endpoint types to provision and test: '
             f'{",".join(SUPPORTED_ENDPOINT_TYPES)} '
-            "(rds-instance not yet supported). When omitted, falls back to the "
+            '(rds-instance not yet supported). When omitted, falls back to the '
             'legacy --test-serverless-cluster / --test-non-express-cluster flags '
-            "(default: express only). The wrapper script passes "
+            '(default: express only). The wrapper script passes '
             "'express,serverless' to enumerate all Aurora endpoints."
         ),
     )
@@ -3472,7 +3473,7 @@ def main():
         default=None,
         help=(
             'Comma-separated auth methods to include, filtered by each endpoint '
-            f'type\'s supported set: {",".join(ALL_AUTH_TYPES)}. Default (when '
+            f"type's supported set: {','.join(ALL_AUTH_TYPES)}. Default (when "
             '--endpoint-types is given) is all supported. An endpoint/auth '
             'combination the platform cannot do (e.g. express + rds_api) is '
             'rejected with an error.'

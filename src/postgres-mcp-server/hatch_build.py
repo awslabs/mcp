@@ -80,9 +80,7 @@ _BUNDLE_SOURCE_URLS = (_RDS_CA_BUNDLE_URL, *_AMAZON_ROOT_CA_URLS)
 
 # Where the combined bundle is written. Relative to the package root so the same
 # path works in both the source tree (for local dev) and the built wheel.
-_OUTPUT_PATH = os.path.join(
-    'awslabs', 'postgres_mcp_server', 'connection', 'aws_ca_bundle.pem'
-)
+_OUTPUT_PATH = os.path.join('awslabs', 'postgres_mcp_server', 'connection', 'aws_ca_bundle.pem')
 
 
 def _ssl_context_for_aws_endpoint():
