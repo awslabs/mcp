@@ -1,6 +1,6 @@
 # AWS Labs MCP Server for Oracle Database
 
-An AWS Labs Model Context Protocol (MCP) server for Oracle Database on AWS RDS.
+An AWS Labs Model Context Protocol (MCP) server for Oracle Database on AWS RDS and Oracle Database@AWS databases.
 
 ## Features
 
@@ -15,11 +15,13 @@ An AWS Labs Model Context Protocol (MCP) server for Oracle Database on AWS RDS.
 
 - `run_query` — Execute SQL queries against Oracle Database
 - `get_table_schema` — Fetch table column information from ALL_TAB_COLUMNS
-- `connect_to_database` — Connect to an Oracle RDS instance
+- `connect_to_database` — Connect to an Oracle RDS instance or Oracle Database@AWS database
 - `is_database_connected` — Check if a connection exists
 - `get_database_connection_info` — List all cached connections
 
 ## Usage
+
+### AWS RDS for Oracle
 
 ```bash
 awslabs.oracle-mcp-server \
@@ -31,13 +33,41 @@ awslabs.oracle-mcp-server \
   --service_name ORCL
 ```
 
+### Oracle Database@AWS
+
+**Autonomous Serverless (ADB-S)** connects over TCPS on port `1522`. Use
+`--ssl_encryption noverify` (or `require` if the wallet/CA is installed locally). The
+`--service_name` is the `_high` / `_medium` / `_low` service from the database's
+connection string (e.g. `<ocid-prefix>_<dbname>_high.adb.oraclecloud.com`).
+
+Pass the Autonomous Database as `--instance_identifier` using its ODB ARN
+(`arn:aws:odb:...:autonomous-database/adb_...`) or short `adb_...` id, and the private
+endpoint is resolved automatically via `odb:GetAutonomousDatabase` — so `--db_endpoint`
+is optional:
+
+```bash
+awslabs.oracle-mcp-server \
+  --connection_method ORACLE_PASSWORD \
+  --instance_identifier arn:aws:odb:us-east-1:123456789012:autonomous-database/adb_xxxxxxxxxx \
+  --port 1522 \
+  --service_name gxxxxxxxxxxxxxx_mydbname_high.adb.oraclecloud.com \
+  --secret_arn arn:aws:secretsmanager:us-east-1:123456789012:secret:my-readonly-user-AbCdEf \
+  --region us-east-1 \
+  --ssl_encryption noverify
+```
+
+For **Exadata Dedicated**, connect to a node VIP (not the SCAN address, which
+redirects across RAC nodes) on port `2484` using the PDB service name, e.g.
+`--service_name TESTDB_PDB1.paas.oracle.com --port 2484 --ssl_encryption noverify`.
+
 ## Connection Methods
 
 - `ORACLE_PASSWORD` — Uses credentials from AWS Secrets Manager (MasterUserSecret by default)
 
 ### Using a custom Secrets Manager secret
 
-By default the server discovers the RDS instance's **MasterUserSecret** by calling
+For Oracle Database@AWS you have to provide a secret's ARN. For AWS RDS for Oracle,
+by default the server discovers the RDS instance's **MasterUserSecret** by calling
 `describe_db_instances`. To connect as a different database user, create your own
 secret in AWS Secrets Manager and pass its ARN with `--secret_arn`:
 
@@ -89,6 +119,19 @@ only when that instance has no per-target ARN and no bare default is configured.
 By default the server connects with `--ssl_encryption require`, which encrypts the
 connection using Oracle TCPS and validates the server certificate against the system CA
 store.
+
+For Oracle Database@AWS download the client certificate from OCI for Exadata Dedicated Databases
+and from AWS ODB@AWS for Autonomous Serverless databases.
+
+   - **Exadata Dedicated**: Download the client certificate from the OCI Console
+     (PDB Database > More Action > PDB Connection > Download Connection Bundle)
+   - **Autonomous Serverless**: Download the wallet using the following command:
+    ```aws odb create-autonomous-database-wallet \
+       --autonomous-database-id <adb-id> \
+       --wallet-type REGIONAL \
+       --password "UseAStrongPassword" \ # pragma: allowlist secret
+       --region us-east-1
+    ```
 
 RDS Oracle certificates are signed by the **Amazon RDS CA**, which is not included
 in the default system trust store. If you see a certificate validation error on first
@@ -291,7 +334,7 @@ permissions prevent any mutation even if a query slips past the detector.
 
 ## Notes
 
-- RDS for Oracle does not support the RDS Data API; only direct connections are supported.
+- RDS for Oracle and Oracle Database@AWS do not support the RDS Data API; only direct connections are supported.
 - Uses python-oracledb thin mode — no Oracle Instant Client installation required.
 - Either `--service_name` or `--sid` must be provided (not both).
 - Oracle system catalog stores table names in UPPERCASE. Table names passed to `get_table_schema` are automatically uppercased.
