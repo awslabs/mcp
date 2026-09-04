@@ -35,6 +35,8 @@ from awslabs.postgres_mcp_server.connection.db_connection_map import (
     DBConnectionMap,
 )
 from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import (
+    ALLOWED_SSLMODES,
+    DEFAULT_SSLMODE,
     PsycopgPoolConnection,
     get_credentials_from_secret,
 )
@@ -61,11 +63,15 @@ async_job_status: Dict[str, dict] = {}
 async_job_status_lock = threading.Lock()
 client_error_code_key = 'run_query ClientError code'
 readonly_query = True
-# Optional operator-supplied CA bundle (PEM) path used for strict TLS
-# verification on psycopg (PG Wire) connections, overriding the bundled Amazon
-# RDS bundle. Set from the CLI flag --ca_bundle. None means use the bundled
-# bundle (or system trust store as a last resort).
+# Optional operator-supplied CA bundle for certificate verification on psycopg
+# (PG Wire) connections, overriding the bundled Amazon RDS bundle. Set from
+# --ca_bundle (a PEM path, or the sentinel 'system' for the OS trust store).
+# None means use the bundled bundle (or system trust store as a last resort).
 configured_ca_bundle: Optional[str] = None
+# libpq SSL mode for psycopg (PG Wire) connections. Set from --sslmode; always
+# one of ALLOWED_SSLMODES (the connection is always encrypted). Default is the
+# most secure mode (verify-full).
+configured_sslmode: str = DEFAULT_SSLMODE
 
 # Least-privilege guardrail policy for post-connect validation.
 #   'warn' (default): log a warning but allow a connection whose Postgres role
@@ -1109,6 +1115,7 @@ def internal_create_connection(
             region=region,
             is_iam_auth=True,
             ca_bundle_path=configured_ca_bundle,
+            sslmode=configured_sslmode,
         )
 
     elif connection_method == ConnectionMethod.RDS_API:
@@ -1131,6 +1138,7 @@ def internal_create_connection(
             region=region,
             is_iam_auth=False,
             ca_bundle_path=configured_ca_bundle,
+            sslmode=configured_sslmode,
         )
 
     if db_connection:
@@ -1331,6 +1339,7 @@ def main():
     global configured_default_secret_arn
     global privilege_check_policy
     global configured_ca_bundle
+    global configured_sslmode
 
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for postgres'
@@ -1362,13 +1371,30 @@ def main():
     parser.add_argument('--database', help='Database name')
     parser.add_argument('--port', type=int, default=5432, help='Database port (default: 5432)')
     parser.add_argument(
+        '--sslmode',
+        choices=ALLOWED_SSLMODES,
+        default=DEFAULT_SSLMODE,
+        help=(
+            'TLS mode for direct (psycopg / PG Wire) connections. The connection '
+            'is always encrypted; this tunes certificate verification: '
+            "'verify-full' (default) verifies the CA chain and the hostname; "
+            "'verify-ca' verifies the CA chain but not the hostname (use for "
+            'tunnels/IP/localhost where the hostname will not match); '
+            "'require' encrypts but does not verify the certificate (e.g. a "
+            'self-signed cert you do not want to validate). Plaintext modes are '
+            'not offered.'
+        ),
+    )
+    parser.add_argument(
         '--ca_bundle',
         default=None,
         help=(
-            'Path to an alternate CA bundle (PEM) for strict TLS verification on '
-            'psycopg (PG Wire) connections. Overrides the bundled Amazon RDS global '
-            'bundle shipped with the package. Use this for self-hosted PostgreSQL '
-            'with a private CA, or if AWS rotates CAs faster than the release cadence.'
+            'CA bundle for certificate verification on psycopg (PG Wire) '
+            "connections when --sslmode is 'verify-ca' or 'verify-full'. Either a "
+            'path to a PEM file (e.g. a private CA for self-hosted PostgreSQL) or '
+            "the literal 'system' to use the OS trust store. Overrides the bundled "
+            'Amazon RDS global bundle shipped with the package. Ignored when '
+            "--sslmode is 'require'."
         ),
     )
     parser.add_argument(
@@ -1449,6 +1475,21 @@ def main():
     readonly_query = not args.allow_write_query
     privilege_check_policy = args.privilege_check
     configured_ca_bundle = args.ca_bundle
+    configured_sslmode = args.sslmode
+    # Surface a reduced TLS posture so operators/auditors can see it in logs.
+    # The connection is still encrypted (plaintext modes are not offered), but
+    # certificate verification is weaker than the secure default.
+    if configured_sslmode != DEFAULT_SSLMODE:
+        logger.warning(
+            f'TLS certificate verification reduced: --sslmode={configured_sslmode} '
+            f'(default is {DEFAULT_SSLMODE}). Connections remain encrypted, but '
+            'the server certificate is '
+            + (
+                'not verified.'
+                if configured_sslmode == 'require'
+                else 'verified without a hostname check.'
+            )
+        )
     configured_secret_arns.clear()
     configured_secret_arns.update(secret_arn_map)
     configured_default_secret_arn = default_secret_arn

@@ -42,6 +42,21 @@ from typing import Any, Dict, List, Optional, Tuple
 # with --ca_bundle (e.g. self-hosted PostgreSQL with a private CA).
 _RDS_CA_BUNDLE_PATH = os.path.join(os.path.dirname(__file__), 'rds_global_bundle.pem')
 
+# Permitted libpq sslmode values. Deliberately restricted to modes that
+# guarantee the connection is encrypted -- ``disable``/``allow``/``prefer`` are
+# excluded so credentials (IAM token / Secrets Manager password) are never sent
+# in cleartext. Within this set the operator tunes certificate validation:
+#   require      -> encrypt only; do NOT validate the server certificate
+#   verify-ca    -> encrypt + validate the cert chains to a trusted CA (no host)
+#   verify-full  -> encrypt + validate CA chain AND hostname (most secure)
+DEFAULT_SSLMODE = 'verify-full'
+ALLOWED_SSLMODES = ('require', 'verify-ca', 'verify-full')
+# The modes that verify the server certificate and therefore need a CA
+# (sslrootcert). ``require`` performs no verification, so no CA is attached.
+_CA_VERIFYING_SSLMODES = frozenset({'verify-ca', 'verify-full'})
+# Sentinel accepted for --ca_bundle to select libpq's system trust store.
+_SYSTEM_TRUST_STORE = 'system'
+
 
 def _bundled_ca_file() -> Optional[str]:
     """Return the bundled RDS CA path if present on disk, else None.
@@ -156,6 +171,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
         max_size: int = 10,
         is_test: bool = False,
         ca_bundle_path: Optional[str] = None,
+        sslmode: str = DEFAULT_SSLMODE,
     ):
         """Initialize a new DB connection pool.
 
@@ -173,7 +189,11 @@ class PsycopgPoolConnection(AbstractDBConnection):
             max_size: Maximum number of connections in the pool
             is_test: Whether this is a test connection
             ca_bundle_path: Optional path to an alternate CA bundle (PEM) used for
-                strict TLS verification, overriding the bundled Amazon RDS bundle.
+                certificate verification, overriding the bundled Amazon RDS bundle.
+                The sentinel ``'system'`` selects libpq's system trust store.
+            sslmode: libpq SSL mode; one of ALLOWED_SSLMODES (default verify-full).
+                The connection is always encrypted; this tunes certificate
+                verification.
         """
         super().__init__(readonly)
         self.host = host
@@ -188,6 +208,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
         self.secret_arn = secret_arn
         self.is_test = is_test
         self.ca_bundle_path = ca_bundle_path
+        self.sslmode = sslmode
         self.pool: Optional['AsyncConnectionPool[Any]'] = None
         self.rw_lock = RWLock()
         self.created_time = datetime.now()
@@ -202,45 +223,66 @@ class PsycopgPoolConnection(AbstractDBConnection):
             logger.debug(f'Use IAM auth for user: {db_user}')
 
     def _build_conninfo(self, password: str) -> str:
-        """Build the libpq conninfo string, enforcing strict TLS.
+        """Build the libpq conninfo string, always encrypting the connection.
 
         Credentials always go on the wire for this connector (an IAM auth token
-        or a Secrets Manager password), so the connection uses
-        ``sslmode=verify-full``: it requires TLS (no silent plaintext downgrade)
-        and verifies the server certificate and hostname (no MITM with a spoofed
-        cert). Verification needs a trusted CA:
+        or a Secrets Manager password), so the connection is always encrypted:
+        ``sslmode`` is restricted to ALLOWED_SSLMODES (no plaintext fallback).
+        The operator tunes *certificate verification* via ``sslmode``:
 
-          1. ``--ca_bundle`` override, if the operator supplied one (e.g.
-             self-hosted PostgreSQL with a private CA), else
+          * ``require``     -- encrypt only; the server certificate is not
+            verified, so no CA is attached.
+          * ``verify-ca``   -- verify the certificate chains to a trusted CA
+            (hostname not checked).
+          * ``verify-full`` -- verify the CA chain and the hostname (default).
+
+        For the verifying modes the trust anchor (sslrootcert) is chosen as:
+
+          1. ``--ca_bundle`` override, if supplied (a PEM path, or the sentinel
+             ``'system'`` for the OS trust store), else
           2. the bundled Amazon RDS global CA bundle shipped in the wheel, else
           3. the system trust store (``sslrootcert=system``) with a warning --
-             may not include the Amazon RDS regional CAs.
+             may not include the server's CA.
 
         ``make_conninfo`` escapes values, so passwords containing spaces or
         special characters are handled correctly.
         """
+        if self.sslmode not in ALLOWED_SSLMODES:
+            # Fail closed: never silently fall through to an insecure mode.
+            raise ValueError(
+                f'Unsupported sslmode {self.sslmode!r}; allowed: {", ".join(ALLOWED_SSLMODES)}'
+            )
+
         params: Dict[str, Any] = {
             'host': self.host,
             'port': self.port,
             'dbname': self.database,
             'user': self.user,
             'password': password,
-            'sslmode': 'verify-full',
+            'sslmode': self.sslmode,
         }
-        cafile = self.ca_bundle_path or _bundled_ca_file()
-        if cafile:
-            params['sslrootcert'] = cafile
-        else:
-            # No CA file available: fall back to the OS trust store. libpq's
-            # special value "system" selects the default system CA store.
-            params['sslrootcert'] = 'system'
-            logger.warning(
-                'No CA bundle available for TLS verification; falling back to the '
-                'system trust store (sslrootcert=system). The connection may fail '
-                'with certificate verification errors if the system store does not '
-                'include the server CA. Supply --ca_bundle <path> or rebuild the '
-                'package to restore the bundled Amazon RDS bundle.'
-            )
+
+        # Attach a CA only for the modes that actually verify the certificate.
+        # ``require`` performs no verification, so sslrootcert is irrelevant.
+        if self.sslmode in _CA_VERIFYING_SSLMODES:
+            if self.ca_bundle_path == _SYSTEM_TRUST_STORE:
+                params['sslrootcert'] = _SYSTEM_TRUST_STORE
+            elif self.ca_bundle_path:
+                params['sslrootcert'] = self.ca_bundle_path
+            else:
+                cafile = _bundled_ca_file()
+                if cafile:
+                    params['sslrootcert'] = cafile
+                else:
+                    params['sslrootcert'] = _SYSTEM_TRUST_STORE
+                    logger.warning(
+                        'No CA bundle available for TLS verification; falling back '
+                        'to the system trust store (sslrootcert=system). The '
+                        'connection may fail with certificate verification errors '
+                        'if the system store does not include the server CA. Supply '
+                        '--ca_bundle <path> or rebuild the package to restore the '
+                        'bundled Amazon RDS bundle.'
+                    )
         return make_conninfo(**params)
 
     async def initialize_pool(self):

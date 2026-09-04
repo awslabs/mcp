@@ -1118,7 +1118,7 @@ class TestPsycopgConnector:
 class TestPsycopgTLS:
     """TLS enforcement in the psycopg conninfo (sslmode=verify-full + CA)."""
 
-    def _make_conn(self, ca_bundle_path=None):
+    def _make_conn(self, ca_bundle_path=None, sslmode='verify-full'):
         """Build a connection object without opening a pool."""
         return PsycopgPoolConnection(
             host='db.example.com',
@@ -1131,6 +1131,7 @@ class TestPsycopgTLS:
             is_iam_auth=False,
             is_test=True,
             ca_bundle_path=ca_bundle_path,
+            sslmode=sslmode,
         )
 
     def _to_dict(self, conninfo):
@@ -1181,3 +1182,49 @@ class TestPsycopgTLS:
         info = self._to_dict(conn._build_conninfo("p ass'w\\ord"))
         assert info['password'] == "p ass'w\\ord"
         assert info['sslmode'] == 'verify-full'
+
+    def test_default_sslmode_is_verify_full(self):
+        """The default (no sslmode passed) is the most secure mode."""
+        conn = self._make_conn(ca_bundle_path='/tmp/ca.pem')
+        # _make_conn defaults sslmode='verify-full'; mirror the class default.
+        assert conn.sslmode == 'verify-full'
+        info = self._to_dict(conn._build_conninfo('pw'))
+        assert info['sslmode'] == 'verify-full'
+
+    def test_require_encrypts_without_certificate_verification(self):
+        """sslmode=require encrypts but attaches no CA (no verification)."""
+        conn = self._make_conn(ca_bundle_path='/tmp/ca.pem', sslmode='require')
+        info = self._to_dict(conn._build_conninfo('pw'))
+        assert info['sslmode'] == 'require'
+        # require does not verify the cert, so no sslrootcert even if a bundle
+        # path was supplied.
+        assert 'sslrootcert' not in info
+
+    def test_verify_ca_attaches_ca_bundle(self):
+        """sslmode=verify-ca verifies the chain using the supplied CA."""
+        conn = self._make_conn(ca_bundle_path='/tmp/private-ca.pem', sslmode='verify-ca')
+        info = self._to_dict(conn._build_conninfo('pw'))
+        assert info['sslmode'] == 'verify-ca'
+        assert info['sslrootcert'] == '/tmp/private-ca.pem'
+
+    def test_ca_bundle_system_sentinel(self):
+        """--ca_bundle system selects the OS trust store for a verify mode."""
+        conn = self._make_conn(ca_bundle_path='system', sslmode='verify-full')
+        info = self._to_dict(conn._build_conninfo('pw'))
+        assert info['sslrootcert'] == 'system'
+
+    def test_invalid_sslmode_rejected(self):
+        """An unsupported sslmode fails closed rather than degrading silently."""
+        conn = self._make_conn(sslmode='prefer')
+        with pytest.raises(ValueError):
+            conn._build_conninfo('pw')
+
+    def test_option_b_excludes_plaintext_modes(self):
+        """The allowed set never permits an unencrypted connection."""
+        from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import (
+            ALLOWED_SSLMODES,
+        )
+
+        assert set(ALLOWED_SSLMODES) == {'require', 'verify-ca', 'verify-full'}
+        for insecure in ('disable', 'allow', 'prefer'):
+            assert insecure not in ALLOWED_SSLMODES

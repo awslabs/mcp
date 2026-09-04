@@ -210,19 +210,38 @@ downgrade — and verifies the server certificate and hostname, so a
 man-in-the-middle presenting a spoofed certificate is rejected. (The RDS Data
 API path already runs over verified HTTPS.)
 
-Certificate verification needs a trusted CA. The package ships the Amazon RDS
-global CA bundle (fetched at build time) so verification works against
-Aurora/RDS out of the box. If you connect to **self-hosted PostgreSQL with a
-private CA**, or you maintain your own trust store, point the server at your CA
-with:
+The connection is **always encrypted** — plaintext modes are not offered, so a
+credential is never sent in the clear. What you can tune is how much of the
+server's identity is verified, via `--sslmode`:
+
+| `--sslmode` | Encrypted | Verifies CA chain | Verifies hostname | Typical use |
+|---|---|---|---|---|
+| `verify-full` (default) | yes | yes | yes | RDS/Aurora via its endpoint; self-hosted with proper cert + matching hostname |
+| `verify-ca` | yes | yes | no | tunnel / bastion / IP / `localhost` where the hostname won't match the cert |
+| `require` | yes | no | no | self-signed cert you don't want to validate; encrypt-only on a trusted network |
+
+Certificate verification (the `verify-*` modes) needs a trusted CA. The package
+ships the Amazon RDS global CA bundle (fetched at build time) so `verify-full`
+works against Aurora/RDS out of the box. Select a different trust anchor with
+`--ca_bundle`:
 
 ```
---ca_bundle /path/to/ca-bundle.pem
+--ca_bundle /path/to/private-ca.pem   # e.g. self-hosted PostgreSQL with a private CA
+--ca_bundle system                    # use the OS trust store (e.g. a publicly-trusted cert)
 ```
 
-Note: because credentials are never sent in cleartext, a server that does not
-offer TLS (or presents an untrusted certificate) will fail to connect. Supply
-`--ca_bundle` with the appropriate CA, or enable TLS on the server.
+Self-signed / private-CA notes:
+
+- **Self-signed or private CA:** use `--sslmode verify-ca --ca_bundle <cert.pem>`
+  (validates the cert against your CA; skips the hostname check that a
+  self-signed cert usually can't satisfy). `verify-full` also works only if the
+  cert's hostname matches what you connect to.
+- **Don't want to manage a cert file:** use `--sslmode require` (encrypted, no
+  verification; `--ca_bundle` is ignored).
+
+Because credentials are never sent in cleartext, a server that offers no TLS
+will fail to connect under any mode. Enable TLS on the server (there is
+intentionally no plaintext option).
 
 #### Best practice: run the MCP server as a minimal-privilege Postgres role
 

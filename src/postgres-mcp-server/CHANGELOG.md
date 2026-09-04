@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   wheel (fetched at build time) for out-of-the-box Aurora/RDS verification; a
   new `--ca_bundle <path>` flag overrides it for self-hosted PostgreSQL or a
   private trust store.
+- Add a `--sslmode` option for direct (psycopg / PG Wire) connections, limited
+  to encrypted modes `require` / `verify-ca` / `verify-full` (default
+  `verify-full`); plaintext modes are intentionally not offered, so credentials
+  are always encrypted. This lets self-hosted / tunneled deployments tune
+  certificate verification (skip hostname check with `verify-ca`, or skip
+  verification entirely with `require`) without disabling encryption. A reduced
+  posture is logged at startup. `--ca_bundle` also accepts the sentinel
+  `system` to select the OS trust store.
 
 - Replaced the regex-based read-only / dangerous-SQL detector with a
   parser-based guard built on `pglast` (libpg_query — PostgreSQL's own parser).
