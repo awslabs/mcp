@@ -299,6 +299,40 @@ class PsycopgPoolConnection(AbstractDBConnection):
                     )
         return make_conninfo(**params)
 
+    def _log_tls_posture(self) -> None:
+        """Log the TLS validation posture and auth mode for this connection.
+
+        Emitted at pool initialization *before* the pool is opened, so the
+        record is present in the logs even when the connection subsequently
+        fails with an SSL or authentication error -- it answers "what SSL
+        validation and auth were we attempting?" for troubleshooting. The
+        password/IAM token is never logged; only the sslmode and the resolved
+        trust anchor (sslrootcert) are surfaced.
+        """
+        from psycopg.conninfo import conninfo_to_dict
+
+        try:
+            info = conninfo_to_dict(self.conninfo)
+        except Exception:
+            info = {}
+        sslmode = info.get('sslmode', self.sslmode)
+        sslrootcert = info.get('sslrootcert')
+        if self.sslmode == 'require':
+            trust = 'none (require: certificate not verified)'
+        elif sslrootcert == _SYSTEM_TRUST_STORE:
+            trust = 'system trust store'
+        elif sslrootcert == _AWS_CA_BUNDLE_PATH:
+            trust = f'bundled AWS CA (RDS private + public Amazon roots): {sslrootcert}'
+        elif sslrootcert:
+            trust = f'operator-supplied CA: {sslrootcert}'
+        else:
+            trust = '(none)'
+        logger.info(
+            f'TLS posture: sslmode={sslmode}, trust_anchor={trust}, '
+            f'auth={"iam" if self.is_iam_auth else "secrets_manager"}, '
+            f'user={self.user}, endpoint={self.host}:{self.port}, db={self.database}'
+        )
+
     async def initialize_pool(self):
         """Initialize the connection pool."""
         async with self.rw_lock.reader_lock:
@@ -337,6 +371,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
 
             self.created_time = datetime.now()
             self.conninfo = self._build_conninfo(password)
+            self._log_tls_posture()
             self.pool = AsyncConnectionPool(
                 self.conninfo, min_size=self.min_size, max_size=self.max_size, open=False
             )
