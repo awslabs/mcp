@@ -35,12 +35,16 @@ from psycopg_pool import AsyncConnectionPool
 from typing import Any, Dict, List, Optional, Tuple
 
 
-# Path to the Amazon RDS global CA bundle shipped inside the wheel by
-# hatch_build.py. It lets the psycopg (PG Wire) path verify the server
-# certificate against Aurora/RDS out of the box. The PEM is gitignored and
-# fetched at build time; operators can override it at runtime with --ca_bundle
-# (e.g. self-hosted PostgreSQL with a private CA).
-_RDS_CA_BUNDLE_PATH = os.path.join(os.path.dirname(__file__), 'rds_global_bundle.pem')
+# Path to the combined AWS CA bundle shipped inside the wheel by hatch_build.py.
+# It contains BOTH families of CA that Aurora/RDS PostgreSQL endpoints present:
+# the Amazon RDS private CAs (rds-ca-*-g1, used by direct instance/cluster
+# endpoints) and the public Amazon Trust Services roots (Amazon Root CA 1..4,
+# used by ACM-issued certs on RDS Proxy / Aurora Serverless v1). This lets the
+# psycopg (PG Wire) path verify the server certificate against any of them out
+# of the box. The PEM is gitignored and assembled at build time; operators can
+# override it at runtime with --ca_bundle (e.g. self-hosted PostgreSQL with a
+# private CA).
+_AWS_CA_BUNDLE_PATH = os.path.join(os.path.dirname(__file__), 'aws_ca_bundle.pem')
 
 # Permitted libpq sslmode values. Deliberately restricted to modes that
 # guarantee the connection is encrypted -- ``disable``/``allow``/``prefer`` are
@@ -50,13 +54,15 @@ _RDS_CA_BUNDLE_PATH = os.path.join(os.path.dirname(__file__), 'rds_global_bundle
 #   verify-ca    -> encrypt + validate the cert chains to a trusted CA (no host)
 #   verify-full  -> encrypt + validate CA chain AND hostname (most strict)
 #
-# The default is ``verify-ca``: it fully closes the reported vulnerability
-# (credentials are always encrypted -- no plaintext downgrade -- and the server
-# cert must chain to the pinned Amazon RDS CA), while connecting reliably through
-# the Aurora *cluster* endpoint, whose certificate SAN does not always match the
-# cluster hostname (``verify-full`` rejects that mismatch). Operators who connect
-# via an endpoint whose cert covers the hostname can opt into ``verify-full``.
-DEFAULT_SSLMODE = 'verify-ca'
+# The default is ``verify-full``, matching AWS's production guidance: the
+# connection is encrypted (closing the reported cleartext-credential gap) and
+# both the CA chain and the hostname are verified. The bundled combined CA
+# covers both the RDS private CAs and the public Amazon roots, and Aurora/RDS
+# server certificates carry the endpoint in their CN/SAN, so verify-full
+# connects to direct instances, cluster endpoints, and RDS Proxy alike.
+# Operators connecting via an IP/tunnel/CNAME that won't match the certificate
+# can opt down to ``verify-ca`` (skip hostname) or ``require`` (skip verification).
+DEFAULT_SSLMODE = 'verify-full'
 ALLOWED_SSLMODES = ('require', 'verify-ca', 'verify-full')
 # The modes that verify the server certificate and therefore need a CA
 # (sslrootcert). ``require`` performs no verification, so no CA is attached.
@@ -66,21 +72,21 @@ _SYSTEM_TRUST_STORE = 'system'
 
 
 def _bundled_ca_file() -> Optional[str]:
-    """Return the bundled RDS CA path if present on disk, else None.
+    """Return the bundled AWS CA path if present on disk, else None.
 
     Returns None (with a logged error) if the bundle is missing -- the package
     was built without the hook, or is running from a source tree where
     ``python hatch_build.py`` has not been run. Callers then fall back to the
     system trust store.
     """
-    if not os.path.isfile(_RDS_CA_BUNDLE_PATH):
+    if not os.path.isfile(_AWS_CA_BUNDLE_PATH):
         logger.error(
-            f'Bundled RDS CA bundle is missing at {_RDS_CA_BUNDLE_PATH}. The build '
-            'hook should fetch it during package build; rebuild the package, run '
+            f'Bundled AWS CA bundle is missing at {_AWS_CA_BUNDLE_PATH}. The build '
+            'hook should assemble it during package build; rebuild the package, run '
             '`python hatch_build.py`, or pass --ca_bundle <path> to override.'
         )
         return None
-    return _RDS_CA_BUNDLE_PATH
+    return _AWS_CA_BUNDLE_PATH
 
 
 def get_credentials_from_secret(
@@ -196,9 +202,9 @@ class PsycopgPoolConnection(AbstractDBConnection):
             max_size: Maximum number of connections in the pool
             is_test: Whether this is a test connection
             ca_bundle_path: Optional path to an alternate CA bundle (PEM) used for
-                certificate verification, overriding the bundled Amazon RDS bundle.
+                certificate verification, overriding the bundled AWS CA bundle.
                 The sentinel ``'system'`` selects libpq's system trust store.
-            sslmode: libpq SSL mode; one of ALLOWED_SSLMODES (default verify-ca).
+            sslmode: libpq SSL mode; one of ALLOWED_SSLMODES (default verify-full).
                 The connection is always encrypted; this tunes certificate
                 verification.
         """
@@ -240,14 +246,15 @@ class PsycopgPoolConnection(AbstractDBConnection):
           * ``require``     -- encrypt only; the server certificate is not
             verified, so no CA is attached.
           * ``verify-ca``   -- verify the certificate chains to a trusted CA
-            (hostname not checked). This is the default.
-          * ``verify-full`` -- verify the CA chain and the hostname (most strict).
+            (hostname not checked).
+          * ``verify-full`` -- verify the CA chain and the hostname (default).
 
         For the verifying modes the trust anchor (sslrootcert) is chosen as:
 
           1. ``--ca_bundle`` override, if supplied (a PEM path, or the sentinel
              ``'system'`` for the OS trust store), else
-          2. the bundled Amazon RDS global CA bundle shipped in the wheel, else
+          2. the bundled combined AWS CA bundle shipped in the wheel (RDS private
+             CAs + public Amazon roots), else
           3. the system trust store (``sslrootcert=system``) with a warning --
              may not include the server's CA.
 

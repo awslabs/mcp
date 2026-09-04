@@ -205,19 +205,25 @@ has side effects, or resolve which function a name refers to under a custom
 
 For direct PostgreSQL connections (the psycopg / PG Wire path, used for IAM auth
 and Secrets Manager password auth), the server connects with
-`sslmode=verify-ca`. This requires TLS — there is no silent plaintext
-downgrade — and verifies the server certificate chains to a trusted CA (the
-pinned Amazon RDS bundle), so a credential is never sent in the clear and a
-man-in-the-middle would need a certificate signed by an Amazon RDS CA. (The RDS
-Data API path already runs over verified HTTPS.)
+`sslmode=verify-full`. This requires TLS — there is no silent plaintext
+downgrade — and verifies both that the server certificate chains to a trusted CA
+and that its hostname matches, so a credential is never sent in the clear and a
+man-in-the-middle presenting a spoofed certificate is rejected. (The RDS Data
+API path already runs over verified HTTPS.)
 
-`verify-ca` is the default rather than `verify-full` because Aurora's **cluster**
-endpoint presents a certificate whose SAN does not always match the cluster
-hostname; `verify-full` (which adds a hostname check) would reject that and fail
-to connect out of the box. `verify-ca` still closes the reported issue — the
-connection is encrypted and the certificate is validated against a trusted CA.
-Opt into `verify-full` when your endpoint's certificate matches the hostname you
-connect to.
+Aurora / RDS PostgreSQL endpoints present certificates from two different Amazon
+PKIs, and this server trusts both out of the box:
+
+- **Amazon RDS private CAs** (`rds-ca-rsa2048-g1` / `rds-ca-rsa4096-g1` /
+  `rds-ca-ecc384-g1`) — used by direct DB instance / cluster endpoints. See
+  [Using SSL/TLS to encrypt a connection to a DB cluster](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.SSL.html).
+- **Public Amazon Trust Services roots** (`Amazon Root CA 1`–`4`) — used by
+  endpoints whose certificate is issued by AWS Certificate Manager (ACM), such
+  as RDS Proxy and Aurora Serverless v1.
+
+The package ships the union of both as a single combined bundle (assembled at
+build time), so `verify-full` works against any of these endpoints without extra
+configuration.
 
 The connection is **always encrypted** — plaintext modes are not offered, so a
 credential is never sent in the clear. What you can tune is how much of the
@@ -225,14 +231,13 @@ server's identity is verified, via `--sslmode`:
 
 | `--sslmode` | Encrypted | Verifies CA chain | Verifies hostname | Typical use |
 |---|---|---|---|---|
-| `verify-ca` (default) | yes | yes | no | RDS/Aurora via the cluster endpoint; tunnel / bastion / IP / `localhost` where the hostname won't match the cert |
-| `verify-full` | yes | yes | yes | endpoint whose certificate matches the connect hostname (e.g. RDS instance endpoint, self-hosted with a proper cert) |
+| `verify-full` (default) | yes | yes | yes | Aurora/RDS via its endpoint (direct instance, cluster, or RDS Proxy); self-hosted with a proper cert + matching hostname |
+| `verify-ca` | yes | yes | no | tunnel / bastion / IP / `localhost` / CNAME where the hostname won't match the cert |
 | `require` | yes | no | no | self-signed cert you don't want to validate; encrypt-only on a trusted network |
 
-Certificate verification (the `verify-*` modes) needs a trusted CA. The package
-ships the Amazon RDS global CA bundle (fetched at build time) so `verify-ca`
-works against Aurora/RDS out of the box. Select a different trust anchor with
-`--ca_bundle`:
+Certificate verification (the `verify-*` modes) needs a trusted CA. The combined
+Amazon bundle described above is used by default. Select a different trust anchor
+with `--ca_bundle`:
 
 ```
 --ca_bundle /path/to/private-ca.pem   # e.g. self-hosted PostgreSQL with a private CA

@@ -9,27 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-- Enforce TLS on direct (psycopg / PG Wire) connections: the server now
-  connects with `sslmode=verify-ca`, closing an opportunistic-TLS downgrade and
-  missing-certificate-verification gap (libpq previously defaulted to
+- Enforce strict TLS on direct (psycopg / PG Wire) connections: the server now
+  connects with `sslmode=verify-full`, closing an opportunistic-TLS downgrade
+  and missing-certificate-verification gap (libpq previously defaulted to
   `sslmode=prefer`, which allows silent plaintext fallback and does not verify
   the server certificate). Credentials — an IAM auth token or a Secrets Manager
-  password — are therefore always encrypted on the wire, and the server
-  certificate must chain to a trusted CA. The Amazon RDS global CA bundle is
-  shipped in the wheel (fetched at build time) for out-of-the-box Aurora/RDS
-  verification; a new `--ca_bundle <path>` flag overrides it for self-hosted
-  PostgreSQL or a private trust store. `verify-ca` (not `verify-full`) is the
-  default because Aurora's cluster endpoint serves a certificate whose SAN does
-  not always match the cluster hostname, so `verify-full` would fail to connect
-  out of the box; `verify-ca` still encrypts and validates the CA chain.
+  password — are therefore always encrypted on the wire, and both the server
+  certificate chain and hostname are verified. To make this work out of the box
+  across Aurora/RDS PostgreSQL, the wheel ships a combined CA bundle (assembled
+  at build time) containing both certificate families these endpoints present:
+  the Amazon RDS private CAs (`rds-ca-*-g1`, used by direct instance/cluster
+  endpoints) and the public Amazon Trust Services roots (`Amazon Root CA 1`–`4`,
+  used by ACM-issued certs on RDS Proxy / Aurora Serverless v1). A new
+  `--ca_bundle <path>` flag overrides it for self-hosted PostgreSQL or a private
+  trust store.
 - Add a `--sslmode` option for direct (psycopg / PG Wire) connections, limited
   to encrypted modes `require` / `verify-ca` / `verify-full` (default
-  `verify-ca`); plaintext modes are intentionally not offered, so credentials
-  are always encrypted. This lets deployments opt into a stricter posture
-  (`verify-full` adds a hostname check) or a looser one (`require` skips
-  certificate verification) without disabling encryption. A reduced posture
-  (`require`) is logged at startup. `--ca_bundle` also accepts the sentinel
-  `system` to select the OS trust store.
+  `verify-full`); plaintext modes are intentionally not offered, so credentials
+  are always encrypted. This lets deployments opt down to a looser posture for
+  endpoints the default can't verify — `verify-ca` skips the hostname check (for
+  IP/tunnel/CNAME endpoints), `require` skips certificate verification (for
+  self-signed certs) — without ever disabling encryption. A reduced posture is
+  logged at startup. `--ca_bundle` also accepts the sentinel `system` to select
+  the OS trust store.
 
 - Replaced the regex-based read-only / dangerous-SQL detector with a
   parser-based guard built on `pglast` (libpg_query — PostgreSQL's own parser).

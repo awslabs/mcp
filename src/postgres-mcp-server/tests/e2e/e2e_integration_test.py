@@ -2257,18 +2257,14 @@ async def run_tls_enforcement_suite(
     verified HTTPS and has no sslmode).
 
     Cases, all driven through the real connect_to_database / run_query tools:
-      1. verify-ca (default, bundled RDS CA): connect succeeds AND the session
-         is encrypted (``pg_stat_ssl.ssl`` is true) -- regression + a positive
-         proof that the out-of-the-box default connects to the real cluster and
-         TLS is actually in effect against the real RDS certificate.
+      1. verify-full (default, bundled combined AWS CA): connect succeeds AND the
+         session is encrypted (``pg_stat_ssl.ssl`` is true) -- regression + a
+         positive proof that the out-of-the-box default connects to the real
+         cluster (verifying both CA chain and hostname) and TLS is in effect.
       2. require: connect succeeds and the session is encrypted (no cert verify).
-      3. verify-ca + an unrelated (throwaway) CA: a query cannot succeed --
+      3. verify-full + an unrelated (throwaway) CA: a query cannot succeed --
          proves the default mode genuinely verifies the certificate against the
          trusted CA, not just "SSL on".
-      4. verify-full (informational): recorded but never fails the suite. Against
-         the Aurora *cluster* endpoint the cert SAN often does not match the
-         hostname, so verify-full is expected to be rejected there -- this is
-         exactly why verify-ca is the default. The observed outcome is logged.
     """
     result = TestResult(
         cluster_identifier=cluster_identifier,
@@ -2344,13 +2340,13 @@ async def run_tls_enforcement_suite(
     saved_ca_bundle = server.configured_ca_bundle
     throwaway_ca: Optional[str] = None
     try:
-        # Case 1: verify-ca (default) -- connect out of the box and prove TLS is on.
-        step = 'tls:verify-ca (default) connect + pg_stat_ssl'
+        # Case 1: verify-full (default) -- connect out of the box and prove TLS is on.
+        step = 'tls:verify-full (default) connect + pg_stat_ssl'
         if _bundled_ca_file() is None:
-            record(step, True, 'skipped: bundled RDS CA not present; run `python hatch_build.py`')
+            record(step, True, 'skipped: bundled AWS CA not present; run `python hatch_build.py`')
         else:
             try:
-                server.configured_sslmode = 'verify-ca'
+                server.configured_sslmode = 'verify-full'
                 server.configured_ca_bundle = None
                 resp = await _reconnect()
                 if 'Failed' in resp:
@@ -2373,20 +2369,20 @@ async def run_tls_enforcement_suite(
         except Exception as e:
             record(step, False, f'{type(e).__name__}: {e}')
 
-        # Case 3: verify-ca (the default) + an unrelated CA -- must NOT yield a
+        # Case 3: verify-full (the default) + an unrelated CA -- must NOT yield a
         # working session (proves the default mode verifies the cert, not just
         # encrypts).
-        step = 'tls:verify-ca wrong-CA rejected'
+        step = 'tls:verify-full wrong-CA rejected'
         throwaway_ca = _make_throwaway_ca()
         if throwaway_ca is None:
             record(step, True, 'skipped: openssl unavailable to generate a throwaway CA')
         else:
             try:
-                server.configured_sslmode = 'verify-ca'
+                server.configured_sslmode = 'verify-full'
                 server.configured_ca_bundle = throwaway_ca
                 resp = await _reconnect()
                 # Either the connect fails, or a trivial query fails -- either
-                # way verify-ca must refuse to run against an untrusted cert.
+                # way verify-full must refuse to run against an untrusted cert.
                 rejected = 'Failed' in resp or _is_rejected(await _run('SELECT 1'))
                 record(
                     step,
@@ -2398,35 +2394,6 @@ async def run_tls_enforcement_suite(
             except Exception as e:
                 # A raised TLS error is also a correct rejection.
                 record(step, True, f'rejected with {type(e).__name__}')
-
-        # Case 4: verify-full against the same endpoint -- INFORMATIONAL ONLY.
-        # Against an Aurora cluster endpoint the presented cert's SAN frequently
-        # does not match the cluster hostname, so verify-full is rejected; that
-        # is precisely why verify-ca is the default. We record the observed
-        # outcome without ever failing the suite.
-        step = 'tls:verify-full (informational, cluster-endpoint SAN)'
-        if _bundled_ca_file() is None:
-            record(step, True, 'skipped: bundled RDS CA not present')
-        else:
-            try:
-                server.configured_sslmode = 'verify-full'
-                server.configured_ca_bundle = None
-                resp = await _reconnect()
-                if 'Failed' in resp:
-                    record(
-                        step,
-                        True,
-                        'verify-full rejected (expected for a cluster endpoint whose '
-                        'cert SAN does not match the hostname -- use verify-ca)',
-                    )
-                else:
-                    record(
-                        step,
-                        True,
-                        'verify-full connected (this endpoint cert matches the hostname)',
-                    )
-            except Exception as e:
-                record(step, True, f'verify-full rejected with {type(e).__name__} (informational)')
     finally:
         server.configured_sslmode = saved_sslmode
         server.configured_ca_bundle = saved_ca_bundle

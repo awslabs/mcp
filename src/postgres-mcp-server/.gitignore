@@ -58,6 +58,7 @@ target/
 # PyPI
 .pypirc
 
-# Amazon RDS global CA bundle fetched at build time by hatch_build.py
-# (shipped in the wheel for strict TLS verification; not committed).
-awslabs/postgres_mcp_server/connection/rds_global_bundle.pem
+# Combined AWS CA bundle (RDS private CAs + public Amazon roots) assembled at
+# build time by hatch_build.py (shipped in the wheel for strict TLS
+# verification; not committed).
+awslabs/postgres_mcp_server/connection/aws_ca_bundle.pem
