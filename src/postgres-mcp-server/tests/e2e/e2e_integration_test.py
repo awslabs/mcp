@@ -607,14 +607,25 @@ async def provision_least_privilege_access(
         await conn.execute_query(f'GRANT USAGE, CREATE ON SCHEMA public TO {lp_role}')
         # rds_iam enables the IAM connection path; harmless if unused.
         if do_iam:
-            try:
-                await conn.execute_query(f'GRANT rds_iam TO {lp_role}')
-            except Exception as e:
-                logger.warning(f'GRANT rds_iam TO {lp_role} failed (non-fatal): {e}')
-
-        # 3. IAM path: authorize rds-db:connect for the new role.
-        if do_iam:
             props = internal_get_cluster_properties(cluster_identifier, region)
+            master_user = props.get('MasterUsername', '') or ''
+            # Grant rds_iam to the lp role AND to the master user. The master
+            # needs it so the secret-ARN and privilege-enforcement suites can
+            # authenticate as the superuser over PG_WIRE_IAM: express enables
+            # IAM auth for its master automatically, but a serverless cluster
+            # does not, so we match express here. (The master already has an
+            # rds-db:connect policy entry from cluster creation; the lp role's
+            # policy is created below.) GRANT rds_iam is idempotent, so
+            # re-granting on express is a harmless no-op.
+            for role in (lp_role, master_user):
+                if not role:
+                    continue
+                try:
+                    await conn.execute_query(f'GRANT rds_iam TO {role}')
+                except Exception as e:
+                    logger.warning(f'GRANT rds_iam TO {role} failed (non-fatal): {e}')
+
+            # 3. IAM path: authorize rds-db:connect for the new lp role.
             setup_aurora_iam_policy_for_current_user(
                 db_user=lp_role,
                 cluster_resource_id=props['DbClusterResourceId'],
