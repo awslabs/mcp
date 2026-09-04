@@ -1831,7 +1831,13 @@ ALLOWED_READ_QUERIES = [
     'SELECT id FROM (SELECT 1 AS id) sub WHERE id = 1',
     # SelectStmt: VALUES and TABLE spellings.
     'VALUES (1), (2)',
-    'TABLE pg_am',  # small catalog table
+    # TABLE spelling. Uses a single-column information_schema view (one varchar
+    # column) rather than a catalog like pg_am: pg_am.amhandler is a `regproc`,
+    # a type the RDS Data API cannot serialize (UnsupportedResultException), so
+    # the earlier vector failed on the RDS_API path even though the guard
+    # correctly allowed the read. This view's result is serializable on both the
+    # PG-Wire and RDS Data API paths.
+    'TABLE information_schema.information_schema_catalog_name',
     # SelectStmt: WITH ... SELECT (read-only CTE).
     'WITH cte AS (SELECT 1 AS n) SELECT n FROM cte',
     # VariableShowStmt: SHOW.
