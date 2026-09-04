@@ -349,6 +349,114 @@ class TestInternalConnectToDatabaseRouting:
         # The --ca_bundle override must reach the constructor via the real path.
         assert kwargs['ca_bundle_path'] == '/tmp/operator-supplied.pem'
 
+    @patch('awslabs.mysql_mcp_server.server.configured_secret_arn', 'arn:operator-secret')
+    @patch('awslabs.mysql_mcp_server.server.db_connection_map')
+    @patch('awslabs.mysql_mcp_server.server.internal_get_cluster_properties')
+    @patch('awslabs.mysql_mcp_server.server.AsyncmyPoolConnection')
+    def test_operator_secret_arn_overrides_master_user_secret_wire(
+        self, mock_pool_cls, mock_get_props, mock_map
+    ):
+        """--secret_arn overrides the AWS-managed MasterUserSecret on the wire path.
+
+        Regression guard for issues #3643 / #4099: when the operator supplies a
+        custom secret ARN, MYSQL_WIRE_PROTOCOL must connect with THAT secret
+        (a dedicated least-privilege user), not the cluster's MasterUserSecret
+        (the master user). Reverting the server.py override makes this fail.
+        """
+        from awslabs.mysql_mcp_server.server import internal_connect_to_database
+
+        mock_map.get.return_value = None
+        mock_get_props.return_value = {
+            'MasterUsername': 'admin',
+            'DBClusterArn': 'arn:aws:rds:us-east-1:123:cluster:my-cluster',
+            'MasterUserSecret': {'SecretArn': 'arn:master-user-secret'},
+            'Endpoint': 'ep.rds.amazonaws.com',
+            'Port': '3306',
+            'HttpEndpointEnabled': False,
+        }
+
+        internal_connect_to_database(
+            region='us-east-1',
+            database_type=DatabaseType.AURORA_MYSQL,
+            connection_method=ConnectionMethod.MYSQL_WIRE_PROTOCOL,
+            cluster_identifier='my-cluster',
+            db_endpoint='ep.rds.amazonaws.com',
+            port=3306,
+            database='app',
+        )
+
+        kwargs = mock_pool_cls.call_args.kwargs
+        assert kwargs['secret_arn'] == 'arn:operator-secret'
+        assert kwargs['secret_arn'] != 'arn:master-user-secret'
+
+    @patch('awslabs.mysql_mcp_server.server.configured_secret_arn', 'arn:operator-secret')
+    @patch('awslabs.mysql_mcp_server.server.db_connection_map')
+    @patch('awslabs.mysql_mcp_server.server.internal_get_cluster_properties')
+    @patch('awslabs.mysql_mcp_server.server.RDSDataAPIConnection')
+    @patch('awslabs.mysql_mcp_server.server.AsyncmyPoolConnection')
+    def test_operator_secret_arn_overrides_master_user_secret_rds_api(
+        self, mock_pool_cls, mock_rds_cls, mock_get_props, mock_map
+    ):
+        """--secret_arn also overrides MasterUserSecret on the RDS Data API path."""
+        from awslabs.mysql_mcp_server.server import internal_connect_to_database
+
+        mock_map.get.return_value = None
+        mock_get_props.return_value = {
+            'MasterUsername': 'admin',
+            'DBClusterArn': 'arn:aws:rds:us-east-1:123:cluster:my-cluster',
+            'MasterUserSecret': {'SecretArn': 'arn:master-user-secret'},
+            'Endpoint': 'ep.rds.amazonaws.com',
+            'Port': '3306',
+            'HttpEndpointEnabled': True,
+        }
+
+        internal_connect_to_database(
+            region='us-east-1',
+            database_type=DatabaseType.AURORA_MYSQL,
+            connection_method=ConnectionMethod.RDS_API,
+            cluster_identifier='my-cluster',
+            db_endpoint='ep.rds.amazonaws.com',
+            port=3306,
+            database='app',
+        )
+
+        kwargs = mock_rds_cls.call_args.kwargs
+        assert kwargs['secret_arn'] == 'arn:operator-secret'
+
+    @patch('awslabs.mysql_mcp_server.server.configured_secret_arn', 'arn:operator-secret')
+    @patch('awslabs.mysql_mcp_server.server.db_connection_map')
+    @patch('awslabs.mysql_mcp_server.server.internal_get_cluster_properties')
+    @patch('awslabs.mysql_mcp_server.server.AsyncmyPoolConnection')
+    def test_operator_secret_arn_ignored_for_iam_auth(
+        self, mock_pool_cls, mock_get_props, mock_map
+    ):
+        """--secret_arn must NOT leak into IAM auth, which uses no secret."""
+        from awslabs.mysql_mcp_server.server import internal_connect_to_database
+
+        mock_map.get.return_value = None
+        mock_get_props.return_value = {
+            'MasterUsername': 'admin',
+            'DBClusterArn': 'arn:aws:rds:us-east-1:123:cluster:my-cluster',
+            'MasterUserSecret': {'SecretArn': 'arn:master-user-secret'},
+            'Endpoint': 'ep.rds.amazonaws.com',
+            'Port': '3306',
+            'HttpEndpointEnabled': False,
+        }
+
+        internal_connect_to_database(
+            region='us-east-1',
+            database_type=DatabaseType.AURORA_MYSQL,
+            connection_method=ConnectionMethod.MYSQL_WIRE_IAM_PROTOCOL,
+            cluster_identifier='my-cluster',
+            db_endpoint='ep.rds.amazonaws.com',
+            port=3306,
+            database='app',
+        )
+
+        kwargs = mock_pool_cls.call_args.kwargs
+        assert kwargs['is_iam_auth'] is True
+        assert kwargs['secret_arn'] == ''
+
     @patch('awslabs.mysql_mcp_server.server.db_connection_map')
     @patch('awslabs.mysql_mcp_server.server.internal_get_instance_properties')
     @patch('awslabs.mysql_mcp_server.server.AsyncmyPoolConnection')
