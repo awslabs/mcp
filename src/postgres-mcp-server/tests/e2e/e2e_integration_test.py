@@ -48,10 +48,15 @@ import argparse
 import asyncio
 import awslabs.postgres_mcp_server.server as server
 import json
+import os
+import shutil
+import subprocess
 import sys
+import tempfile
 import time
 from awslabs.postgres_mcp_server.connection.cp_api_connection import internal_delete_cluster
 from awslabs.postgres_mcp_server.connection.db_connection_map import ConnectionMethod, DatabaseType
+from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import _bundled_ca_file
 from awslabs.postgres_mcp_server.server import (
     DummyCtx,
     connect_to_database,
@@ -2183,6 +2188,227 @@ async def run_query_enforcement_suite(
     return result
 
 
+def _make_throwaway_ca() -> Optional[str]:
+    """Generate an unrelated self-signed CA PEM for the wrong-CA TLS test.
+
+    Returns the path to a temp PEM, or None if ``openssl`` is unavailable. The
+    cert is unrelated to the Amazon RDS CA, so ``verify-full``/``verify-ca``
+    against it must fail -- proving the guard actually verifies the server cert
+    rather than merely encrypting.
+    """
+    openssl = shutil.which('openssl')
+    if not openssl:
+        return None
+    cert_fd, cert_path = tempfile.mkstemp(prefix='e2e-bogus-ca-', suffix='.pem')
+    os.close(cert_fd)
+    key_fd, key_path = tempfile.mkstemp(prefix='e2e-bogus-key-', suffix='.pem')
+    os.close(key_fd)
+    try:
+        subprocess.run(
+            [
+                openssl,
+                'req',
+                '-x509',
+                '-newkey',
+                'rsa:2048',
+                '-nodes',
+                '-keyout',
+                key_path,
+                '-out',
+                cert_path,
+                '-days',
+                '1',
+                '-subj',
+                '/CN=e2e-bogus-ca',
+            ],
+            check=True,
+            capture_output=True,
+            timeout=30,
+        )
+        return cert_path
+    except (subprocess.SubprocessError, OSError):
+        try:
+            os.remove(cert_path)
+        except OSError:
+            pass
+        return None
+    finally:
+        try:
+            os.remove(key_path)  # the private key is never needed
+        except OSError:
+            pass
+
+
+async def run_tls_enforcement_suite(
+    cluster_identifier: str,
+    region: str,
+    database: str,
+    valid_endpoint: str,
+    port: int,
+    cluster_kind: str,
+    connection_method: ConnectionMethod,
+    connection_method_name: str,
+) -> TestResult:
+    """Validate TLS enforcement on the psycopg (PG Wire) path against a real cluster.
+
+    Mirrors ``run_query_enforcement_suite``: toggles ``server.configured_sslmode``
+    / ``server.configured_ca_bundle`` in place and reconnects, so no cluster
+    changes or extra MCP processes are needed. Skipped on RDS_API (that path is
+    verified HTTPS and has no sslmode).
+
+    Cases, all driven through the real connect_to_database / run_query tools:
+      1. verify-full (default, bundled RDS CA): connect succeeds AND the session
+         is encrypted (``pg_stat_ssl.ssl`` is true) -- regression + a positive
+         proof that TLS is actually in effect against the real RDS certificate.
+      2. require: connect succeeds and the session is encrypted (no cert verify).
+      3. verify-full + an unrelated (throwaway) CA: a query cannot succeed --
+         proves certificate verification is genuinely enforced, not just "SSL on".
+    """
+    result = TestResult(
+        cluster_identifier=cluster_identifier,
+        connection_method_name=f'tls_enforcement_{connection_method_name}',
+        passed=[],
+        failed=[],
+    )
+
+    def record(step, ok, detail=''):
+        """Record a test step result as passed or failed."""
+        log_step(step, 'PASS' if ok else 'FAIL', detail)
+        if ok:
+            result.passed.append(step)
+        else:
+            result.failed.append((step, detail))
+
+    # sslmode applies only to the psycopg (PG Wire) path. The RDS Data API
+    # connects over verified HTTPS and has no sslmode, so there is nothing to
+    # test there.
+    if connection_method == ConnectionMethod.RDS_API:
+        record('tls:skipped', True, 'RDS Data API path is verified HTTPS (no sslmode)')
+        return result
+
+    logger.info(f'\n{"=" * 60}')
+    logger.info(
+        f'Running TLS-enforcement suite on {cluster_kind} '
+        f'({connection_method_name}) cluster: {cluster_identifier}'
+    )
+    logger.info(f'{"=" * 60}')
+
+    ctx = DummyCtx()
+    test_database = 'postgres'
+
+    def _is_rejected(rows) -> bool:
+        return bool(rows) and isinstance(rows[0], dict) and 'error' in rows[0]
+
+    async def _reconnect() -> str:
+        """Drop the cached connection and reconnect under the current TLS globals."""
+        server.db_connection_map.remove(
+            connection_method, cluster_identifier, valid_endpoint, test_database, port
+        )
+        return str(
+            await connect_to_database(
+                region=region,
+                database_type=DatabaseType.APG,
+                connection_method=connection_method,
+                cluster_identifier=cluster_identifier,
+                db_endpoint=valid_endpoint,
+                port=port,
+                database=test_database,
+            )
+        )
+
+    async def _run(sql):
+        return await run_query(
+            sql=sql,
+            ctx=ctx,
+            connection_method=connection_method,
+            cluster_identifier=cluster_identifier,
+            db_endpoint=valid_endpoint,
+            database=test_database,
+        )
+
+    async def _session_is_encrypted() -> bool:
+        """True if the current backend's connection is SSL (pg_stat_ssl)."""
+        rows = await _run('SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()')
+        if _is_rejected(rows) or not rows or not isinstance(rows[0], dict):
+            return False
+        val = rows[0].get('ssl')
+        return str(val).strip().lower() in ('true', 't', 'on', '1')
+
+    saved_sslmode = server.configured_sslmode
+    saved_ca_bundle = server.configured_ca_bundle
+    throwaway_ca: Optional[str] = None
+    try:
+        # Case 1: verify-full (default) -- connect and prove TLS is on.
+        step = 'tls:verify-full connect + pg_stat_ssl'
+        if _bundled_ca_file() is None:
+            record(step, True, 'skipped: bundled RDS CA not present; run `python hatch_build.py`')
+        else:
+            try:
+                server.configured_sslmode = 'verify-full'
+                server.configured_ca_bundle = None
+                resp = await _reconnect()
+                if 'Failed' in resp:
+                    record(step, False, f'connect failed: {resp[:160]}')
+                else:
+                    record(step, await _session_is_encrypted(), 'encrypted session confirmed')
+            except Exception as e:
+                record(step, False, f'{type(e).__name__}: {e}')
+
+        # Case 2: require -- encrypted, no certificate verification.
+        step = 'tls:require connect + pg_stat_ssl'
+        try:
+            server.configured_sslmode = 'require'
+            server.configured_ca_bundle = None
+            resp = await _reconnect()
+            if 'Failed' in resp:
+                record(step, False, f'connect failed: {resp[:160]}')
+            else:
+                record(step, await _session_is_encrypted(), 'encrypted session confirmed')
+        except Exception as e:
+            record(step, False, f'{type(e).__name__}: {e}')
+
+        # Case 3: verify-full + an unrelated CA -- must NOT yield a working
+        # session (proves verification actually happens).
+        step = 'tls:verify-full wrong-CA rejected'
+        throwaway_ca = _make_throwaway_ca()
+        if throwaway_ca is None:
+            record(step, True, 'skipped: openssl unavailable to generate a throwaway CA')
+        else:
+            try:
+                server.configured_sslmode = 'verify-full'
+                server.configured_ca_bundle = throwaway_ca
+                resp = await _reconnect()
+                # Either the connect fails, or a trivial query fails -- either
+                # way verify-full must refuse to run against an untrusted cert.
+                rejected = 'Failed' in resp or _is_rejected(await _run('SELECT 1'))
+                record(
+                    step,
+                    rejected,
+                    'untrusted cert correctly rejected'
+                    if rejected
+                    else 'ERROR: connected/queried with an untrusted CA',
+                )
+            except Exception as e:
+                # A raised TLS error is also a correct rejection.
+                record(step, True, f'rejected with {type(e).__name__}')
+    finally:
+        server.configured_sslmode = saved_sslmode
+        server.configured_ca_bundle = saved_ca_bundle
+        if throwaway_ca:
+            try:
+                os.remove(throwaway_ca)
+            except OSError:
+                pass
+        try:
+            server.db_connection_map.remove(
+                connection_method, cluster_identifier, valid_endpoint, test_database, port
+            )
+        except Exception as e:
+            logger.warning(f'Non-fatal cleanup failure removing test DB connection: {e}')
+
+    return result
+
+
 async def run_privilege_enforcement_suite(
     cluster_identifier: str,
     region: str,
@@ -2728,6 +2954,7 @@ async def main_async(args):
             'endpoint_validation',
             'secret_arn_validation',
             'query_enforcement',
+            'tls_enforcement',
             'privilege_enforcement',
             'startup_secret_arn_validation',
         )
@@ -2806,6 +3033,24 @@ async def main_async(args):
                     connection_method_name=mn,
                 )
 
+            async def _run_tls_enforcement(
+                c=cid,
+                e=valid_endpoint,
+                k=kind,
+                m=enforce_method,
+                mn=enforce_method_name,
+            ):
+                return await run_tls_enforcement_suite(
+                    cluster_identifier=c,
+                    region=args.region,
+                    database=args.database,
+                    valid_endpoint=e,
+                    port=args.port,
+                    cluster_kind=k,
+                    connection_method=m,
+                    connection_method_name=mn,
+                )
+
             async def _run_privilege_enforcement(
                 c=cid,
                 e=valid_endpoint,
@@ -2834,6 +3079,7 @@ async def main_async(args):
                 ('endpoint_validation', _run_endpoint_validation),
                 ('secret_arn_validation', _run_secret_arn_validation),
                 ('query_enforcement', _run_query_enforcement),
+                ('tls_enforcement', _run_tls_enforcement),
                 ('privilege_enforcement', _run_privilege_enforcement),
                 ('startup_secret_arn_validation', _run_startup_secret_arn_validation),
             ):

@@ -66,6 +66,16 @@ provisioning adds roughly 7–8 minutes to the run.
      modes; mutating keywords blocked in read-only mode and allowed past the
      guard in write mode; dangerous functions and security-sensitive GUCs blocked
      in **both** modes.
+   - `tls_enforcement` — validates TLS on the psycopg (PG Wire) path by toggling
+     `server.configured_sslmode` / `server.configured_ca_bundle` in-process and
+     reconnecting. Asserts: `verify-full` (default, bundled RDS CA) connects and
+     the session is actually encrypted (`pg_stat_ssl.ssl` is true); `require`
+     connects and is encrypted; and `verify-full` against an **unrelated CA** is
+     rejected (proving certificate verification, not just encryption). Skipped on
+     the `RDS_API` cell (verified HTTPS, no sslmode). The wrong-CA case needs
+     `openssl` on the host to mint a throwaway CA (skipped with a note if absent),
+     and the `verify-full` positive case needs the bundled RDS CA present — run
+     `python hatch_build.py` first if running from a source tree.
    - `privilege_enforcement` — drives the least-privilege guardrail
      (`--privilege_check`) by toggling `server.privilege_check_policy` and the
      resolved secret in-process. It asserts the **master user** (an
