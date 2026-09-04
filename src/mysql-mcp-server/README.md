@@ -155,6 +155,23 @@ The MCP server uses the AWS profile specified in the AWS_PROFILE environment var
 
 Make sure the AWS profile has permissions to access the RDS Data API and the secret from AWS Secrets Manager. Wire-protocol methods (`mysqlwire` / `mysqlwire_iam`) additionally require `rds:DescribeDBClusters` / `rds:DescribeDBInstances` — see the prerequisites above. The MCP server creates a boto3 session using the specified profile to authenticate with AWS services. Your AWS IAM credentials remain on your local machine and are strictly used for accessing AWS services.
 
+#### Connecting as a least-privilege user with `--secret_arn`
+
+By default, `mysqlwire` and `rdsapi` connections read credentials from the
+cluster/instance's AWS-managed `MasterUserSecret`, which connects as the master
+user (full privileges). To connect as a dedicated least-privilege user instead
+(for example a read-only `GRANT SELECT` user), store that user's credentials in
+an AWS Secrets Manager secret and pass its ARN with `--secret_arn`:
+
+```
+uvx awslabs.mysql-mcp-server@latest --secret_arn arn:aws:secretsmanager:us-east-1:123456789012:secret:my-readonly-user
+```
+
+When provided, `--secret_arn` overrides the managed `MasterUserSecret` for the
+`mysqlwire` (non-IAM) and `rdsapi` methods. It is ignored for `mysqlwire_iam`,
+which authenticates via IAM and uses no secret. The secret must be a standard
+RDS-style secret containing at least `username` and `password`.
+
 ## Security model
 
 > **The server's read-only mode is a best-effort SQL-text safeguard, not a security boundary.**
