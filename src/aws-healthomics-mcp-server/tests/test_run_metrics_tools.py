@@ -224,7 +224,7 @@ class TestGetRunMetricsTool:
         client = mock_client_cls.return_value
 
         def fake_query(selector, start, end, step=None):
-            if 'cpu.usage' in selector:
+            if selector.split('"')[1] == 'aws.omics.task.cpu.usage':
                 return [
                     TimeSeries(
                         labels={'@resource.aws.omics.task.id': 't1'},
@@ -296,7 +296,7 @@ class TestGetWorkflowMetricsTool:
                 {'id': '3', 'workflowId': 'wf1'},
             ]
         }
-        mock_resolve.side_effect = lambda run_id, region=None: _run(
+        mock_resolve.side_effect = lambda run_id, region=None, profile=None: _run(
             run_id, [_task(f't{run_id}', 'align')]
         )
         mock_client_cls.return_value.query_range.return_value = []
@@ -355,7 +355,7 @@ class TestUnsupportedRegionGating:
     @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.VendedMetricsClient')
     @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.resolve_run')
     async def test_compare_run_metrics(self, mock_resolve, mock_client_cls):
-        mock_resolve.side_effect = lambda run_id, region=None: _run(
+        mock_resolve.side_effect = lambda run_id, region=None, profile=None: _run(
             run_id, [_task(f't{run_id}', 'align')]
         )
         client = self._client_in(mock_client_cls, 'il-central-1')

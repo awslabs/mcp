@@ -92,12 +92,15 @@ class TestPresenceFor:
         """S3 (or unknown) storage: no run filesystem, no task filesystem I/O."""
         presence = schema.presence_for(None, 'LOCAL', has_gpu_tasks=False)
         missing_names = {m.name for m in presence.missing}
-        assert 'aws.omics.task.filesystem.io' in missing_names
-        assert 'aws.omics.task.filesystem.operations' in missing_names
-        assert 'aws.omics.run.filesystem.usage' in missing_names
-        assert 'aws.omics.run.filesystem.limit' in missing_names
+        expected_missing = {
+            'aws.omics.task.filesystem.io',
+            'aws.omics.task.filesystem.operations',
+            'aws.omics.run.filesystem.usage',
+            'aws.omics.run.filesystem.limit',
+        }
+        assert expected_missing.issubset(missing_names)
         # compute metrics still present
-        assert 'aws.omics.task.cpu.usage' in presence.present
+        assert 'aws.omics.task.cpu.usage' in set(presence.present)
 
     def test_every_missing_metric_has_a_reason(self):
         presence = schema.presence_for(None, 'SHARED', has_gpu_tasks=False)

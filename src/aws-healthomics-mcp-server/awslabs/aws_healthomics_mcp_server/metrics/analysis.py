@@ -382,7 +382,10 @@ def _collect_summaries(
 
 
 def analyze_run_metrics(
-    run_id: str, region: Optional[str] = None, headroom: float = 0.2
+    run_id: str,
+    region: Optional[str] = None,
+    profile: Optional[str] = None,
+    headroom: float = 0.2,
 ) -> Dict[str, Any]:
     """Run the vended-metrics analysis pass for one run.
 
@@ -391,8 +394,8 @@ def analyze_run_metrics(
     missing-metric notes — or an ``available: False`` result with a reason
     when metrics cannot be analyzed (unsupported region, feature off).
     """
-    run = resolve_run(run_id, region=region)
-    client = VendedMetricsClient(region=region)
+    run = resolve_run(run_id, region=region, profile=profile)
+    client = VendedMetricsClient(region=region, profile=profile)
 
     if not schema.is_region_supported(client.region):
         return {
@@ -530,11 +533,14 @@ def format_metrics_report_section(result: Dict[str, Any], max_tasks: int = 10) -
 
 
 def metrics_section_for_report(
-    run_id: str, region: Optional[str] = None, headroom: float = 0.2
+    run_id: str,
+    region: Optional[str] = None,
+    profile: Optional[str] = None,
+    headroom: float = 0.2,
 ) -> List[str]:
     """Analysis pass + formatting with a never-raise contract for report use."""
     try:
-        result = analyze_run_metrics(run_id, region=region, headroom=headroom)
+        result = analyze_run_metrics(run_id, region=region, profile=profile, headroom=headroom)
         return format_metrics_report_section(result)
     except Exception as e:  # never break the manifest-based report
         logger.warning(f'Vended metrics pass failed for run {run_id}: {e}')

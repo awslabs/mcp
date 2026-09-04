@@ -131,14 +131,16 @@ def compute_step_seconds(start: datetime, end: datetime, requested_step: Optiona
 class VendedMetricsClient:
     """Client for querying HealthOmics vended metrics via CloudWatch PromQL."""
 
-    def __init__(self, region: Optional[str] = None):
+    def __init__(self, region: Optional[str] = None, profile: Optional[str] = None):
         """Create a client bound to a region and the server's credential chain.
 
         Args:
             region: AWS region override; defaults to the server's configured
                 region (AWS_REGION or the server default).
+            profile: AWS profile override; defaults to the default credential
+                chain.
         """
-        session = get_aws_session(region_name=region)
+        session = get_aws_session(region_name=region, profile_name=profile)
         self._region = session.region_name
         self._credentials = session.get_credentials()
         if self._credentials is None:

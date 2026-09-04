@@ -210,15 +210,17 @@ class TestDetectStuckTasks:
                     )
                 ]
 
-            if 'cpu.usage' in selector and cpu is not None:
-                return series(cpu)
-            if 'filesystem.io' in selector and io is not None:
-                return series(io)
-            if 'memory.usage' in selector and mem is not None:
-                return series(mem)
-            if 'memory.limit' in selector and mem_limit is not None:
-                return series(mem_limit)
-            return []
+            # The metric name is the first quoted token of the selector; exact
+            # match avoids substring dispatch (and CodeQL's URL-substring rule).
+            metric_name = selector.split('"')[1]
+            responses = {
+                'aws.omics.task.cpu.usage': cpu,
+                'aws.omics.task.filesystem.io': io,
+                'aws.omics.task.memory.usage': mem,
+                'aws.omics.task.memory.limit': mem_limit,
+            }
+            values = responses.get(metric_name)
+            return series(values) if values is not None else []
 
         client = MagicMock()
         client.query_range.side_effect = fake_query
@@ -292,20 +294,21 @@ class TestAnalyzeRunMetrics:
 
         def fake_query(selector, start, end, step=None):
             values = {
-                'cpu.usage"': [0.5, 0.6],
-                'cpu.limit"': [8.0, 8.0],
-                'memory.usage"': [1 * GIB, 2 * GIB],
-                'memory.limit"': [32 * GIB, 32 * GIB],
+                'aws.omics.task.cpu.usage': [0.5, 0.6],
+                'aws.omics.task.cpu.limit': [8.0, 8.0],
+                'aws.omics.task.memory.usage': [1 * GIB, 2 * GIB],
+                'aws.omics.task.memory.limit': [32 * GIB, 32 * GIB],
             }
-            for key, vals in values.items():
-                if key in selector:
-                    return [
-                        TimeSeries(
-                            labels={'@resource.aws.omics.task.id': 't1'},
-                            timestamps=[0.0, 60.0],
-                            values=vals,
-                        )
-                    ]
+            metric_name = selector.split('"')[1]
+            vals = values.get(metric_name)
+            if vals is not None:
+                return [
+                    TimeSeries(
+                        labels={'@resource.aws.omics.task.id': 't1'},
+                        timestamps=[0.0, 60.0],
+                        values=vals,
+                    )
+                ]
             return []
 
         client.query_range.side_effect = fake_query

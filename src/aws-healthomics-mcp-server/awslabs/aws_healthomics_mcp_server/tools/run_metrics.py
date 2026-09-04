@@ -39,8 +39,8 @@ from awslabs.aws_healthomics_mcp_server.metrics.run_context import (
     resolve_run,
 )
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_omics_client
+from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
 from datetime import datetime, timezone
-from loguru import logger
 from mcp.server.mcpserver import Context
 from pydantic import Field
 from typing import Any, Dict, List, Optional
@@ -200,8 +200,13 @@ def _resolve_metric_names(
 async def list_run_metrics(
     ctx: Context,
     run_id: str = Field(..., description='ID of the run to inspect'),
-    region: Optional[str] = Field(
-        None, description='AWS region where the run executed (defaults to configured region)'
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
     ),
 ) -> Dict[str, Any]:
     """List which vended metric series actually exist for a HealthOmics run.
@@ -216,9 +221,10 @@ async def list_run_metrics(
         counts), and missing metrics with reasons.
     """
     try:
-        region = _default(region)
-        run = resolve_run(run_id, region=region)
-        client = VendedMetricsClient(region=region)
+        aws_profile = _default(aws_profile)
+        aws_region = _default(aws_region)
+        run = resolve_run(run_id, region=aws_region, profile=aws_profile)
+        client = VendedMetricsClient(region=aws_region, profile=aws_profile)
         unsupported = _unsupported_region_result(client.region)
         if unsupported:
             unsupported['run'] = _run_config(run)
@@ -307,9 +313,7 @@ async def list_run_metrics(
             )
         return result
     except Exception as e:
-        logger.error(f'Error listing run metrics for run {run_id}: {e}')
-        await ctx.error(f'Error listing run metrics: {e}')
-        return {'error': str(e)}
+        return await handle_tool_error(ctx, e, f'Error listing run metrics for run {run_id}')
 
 
 # ---------------------------------------------------------------------------
@@ -355,7 +359,14 @@ async def get_run_metrics(
             'set false for summaries only'
         ),
     ),
-    region: Optional[str] = Field(None, description='AWS region where the run executed'),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Retrieve vended metric time series and summary statistics for a run.
 
@@ -370,7 +381,8 @@ async def get_run_metrics(
         summary statistics, and missing-metric explanations.
     """
     try:
-        region = _default(region)
+        aws_profile = _default(aws_profile)
+        aws_region = _default(aws_region)
         metric_names = _default(metric_names)
         task_id = _default(task_id)
         direction = _default(direction)
@@ -379,7 +391,7 @@ async def get_run_metrics(
         step_seconds = _default(step_seconds)
         include_timeseries = _default(include_timeseries)
 
-        run = resolve_run(run_id, region=region)
+        run = resolve_run(run_id, region=aws_region, profile=aws_profile)
         metrics = _resolve_metric_names(metric_names, run)
 
         window_start, window_end = run.query_window()
@@ -388,7 +400,7 @@ async def get_run_metrics(
         start = explicit_start or window_start
         end = explicit_end or window_end
 
-        client = VendedMetricsClient(region=region)
+        client = VendedMetricsClient(region=aws_region, profile=aws_profile)
         unsupported = _unsupported_region_result(client.region)
         if unsupported:
             unsupported['run'] = _run_config(run)
@@ -454,9 +466,7 @@ async def get_run_metrics(
             'missing_metrics': missing,
         }
     except Exception as e:
-        logger.error(f'Error getting run metrics for run {run_id}: {e}')
-        await ctx.error(f'Error getting run metrics: {e}')
-        return {'error': str(e)}
+        return await handle_tool_error(ctx, e, f'Error getting run metrics for run {run_id}')
 
 
 # ---------------------------------------------------------------------------
@@ -606,7 +616,14 @@ async def compare_run_metrics(
         None,
         description='Vended metric names to compare (defaults to all per-task metrics)',
     ),
-    region: Optional[str] = Field(None, description='AWS region where the runs executed'),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Compare two runs' vended metrics, aligned by task name.
 
@@ -615,16 +632,24 @@ async def compare_run_metrics(
     the metrics with the largest relative deltas (peak for gauges, window total
     for counters) are reported as the task's changed signature.
 
+    Caveat: scattered tasks share a base name and are distinguished only by
+    the index in the task name, but scatter execution order is not
+    deterministic — the same index may process different shard data in each
+    run. Per-name comparisons aggregate scattered tasks (max duration, peak
+    metric values), so shard-level differences between runs cannot be
+    attributed to specific shards.
+
     Returns:
         Dictionary with both run configurations, the wall-clock delta, and
         per-task comparisons sorted by duration impact.
     """
     try:
-        region = _default(region)
+        aws_profile = _default(aws_profile)
+        aws_region = _default(aws_region)
         metric_names = _default(metric_names)
-        run_a = resolve_run(run_id_a, region=region)
-        run_b = resolve_run(run_id_b, region=region)
-        client = VendedMetricsClient(region=region)
+        run_a = resolve_run(run_id_a, region=aws_region, profile=aws_profile)
+        run_b = resolve_run(run_id_b, region=aws_region, profile=aws_profile)
+        client = VendedMetricsClient(region=aws_region, profile=aws_profile)
         unsupported = _unsupported_region_result(client.region)
         if unsupported:
             unsupported['run_a'] = _run_config(run_a)
@@ -673,9 +698,9 @@ async def compare_run_metrics(
             )
         return result
     except Exception as e:
-        logger.error(f'Error comparing runs {run_id_a} and {run_id_b}: {e}')
-        await ctx.error(f'Error comparing run metrics: {e}')
-        return {'error': str(e)}
+        return await handle_tool_error(
+            ctx, e, f'Error comparing run metrics for runs {run_id_a} and {run_id_b}'
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -770,7 +795,14 @@ async def get_workflow_metrics(
         ge=1,
         le=20,
     ),
-    region: Optional[str] = Field(None, description='AWS region where the runs executed'),
+    aws_profile: Optional[str] = Field(
+        None,
+        description='AWS profile name for this operation. Overrides the default credential chain.',
+    ),
+    aws_region: Optional[str] = Field(
+        None,
+        description='AWS region for this operation. Overrides the server default.',
+    ),
 ) -> Dict[str, Any]:
     """Aggregate vended metrics across a workflow's recent completed runs.
 
@@ -780,14 +812,21 @@ async def get_workflow_metrics(
     should I set", "am I over-provisioned") and cross-run regression checks
     (high duration variance is flagged via coefficient_of_variation).
 
+    Caveat: scattered tasks are grouped by shared task name, but scatter
+    execution order is not deterministic across runs, so a given name index
+    may process different shard data in each run. Distributions therefore
+    describe the task family as a whole (which is the right basis for
+    right-sizing), not any particular shard.
+
     Returns:
         Dictionary with the aggregated per-task distributions and the list of
         runs included.
     """
     try:
-        region = _default(region)
+        aws_profile = _default(aws_profile)
+        aws_region = _default(aws_region)
         max_runs = _default(max_runs)
-        client = get_omics_client(region_name=region)
+        client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
         run_ids: List[str] = []
         next_token: Optional[str] = None
@@ -812,7 +851,7 @@ async def get_workflow_metrics(
                 'note': f'No completed runs found for workflow {workflow_id}.',
             }
 
-        metrics_client = VendedMetricsClient(region=region)
+        metrics_client = VendedMetricsClient(region=aws_region, profile=aws_profile)
         unsupported = _unsupported_region_result(metrics_client.region)
         if unsupported:
             unsupported['workflow_id'] = workflow_id
@@ -822,7 +861,7 @@ async def get_workflow_metrics(
         runs: List[RunContext] = []
         summaries_by_run: Dict[str, Dict[str, Dict[str, SeriesSummary]]] = {}
         for run_id in run_ids:
-            run = resolve_run(run_id, region=region)
+            run = resolve_run(run_id, region=aws_region, profile=aws_profile)
             runs.append(run)
             summaries_by_run[run_id] = _collect_task_summaries(
                 metrics_client, run, WORKFLOW_AGGREGATE_METRICS
@@ -837,6 +876,6 @@ async def get_workflow_metrics(
             result['note'] = FEATURE_ABSENT_REASON
         return result
     except Exception as e:
-        logger.error(f'Error aggregating workflow metrics for {workflow_id}: {e}')
-        await ctx.error(f'Error aggregating workflow metrics: {e}')
-        return {'error': str(e)}
+        return await handle_tool_error(
+            ctx, e, f'Error aggregating workflow metrics for workflow {workflow_id}'
+        )

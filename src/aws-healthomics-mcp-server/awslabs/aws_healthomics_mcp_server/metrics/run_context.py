@@ -142,7 +142,9 @@ def _to_task_context(task: Dict) -> TaskContext:
     )
 
 
-def resolve_run(run_id: str, region: Optional[str] = None) -> RunContext:
+def resolve_run(
+    run_id: str, region: Optional[str] = None, profile: Optional[str] = None
+) -> RunContext:
     """Resolve a run into the context needed for metrics queries.
 
     Calls GetRun and paginates ListRunTasks with the caller's credentials.
@@ -150,11 +152,12 @@ def resolve_run(run_id: str, region: Optional[str] = None) -> RunContext:
     Args:
         run_id: HealthOmics run id.
         region: Optional region override.
+        profile: Optional AWS profile override.
 
     Returns:
         The resolved RunContext.
     """
-    client = get_omics_client(region_name=region)
+    client = get_omics_client(region_name=region, profile_name=profile)
 
     run = client.get_run(id=run_id)
 

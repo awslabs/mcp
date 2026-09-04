@@ -195,7 +195,9 @@ Please verify the run IDs and ensure the runs have completed successfully.
         metrics_sections: List[str] = []
         for run_id in normalized_run_ids:
             metrics_sections.extend(
-                metrics_section_for_report(run_id, region=aws_region, headroom=headroom)
+                metrics_section_for_report(
+                    run_id, region=aws_region, profile=aws_profile, headroom=headroom
+                )
             )
         if metrics_sections:
             report = report + '\n' + '\n'.join(metrics_sections)
