@@ -169,3 +169,66 @@ class TestVendedMetricsClient:
             mock_session.return_value.get_credentials.return_value = None
             with pytest.raises(ValueError, match='credentials'):
                 VendedMetricsClient()
+
+
+class TestQueryMetricSeries:
+    """Series-cap avoidance and truncation detection."""
+
+    def _client(self, batches):
+        from unittest.mock import MagicMock
+
+        client = MagicMock()
+        client.query_range.side_effect = batches
+        return client
+
+    def test_direction_metric_queried_per_direction(self):
+        from awslabs.aws_healthomics_mcp_server.metrics.client import query_metric_series
+
+        client = self._client(
+            [[TimeSeries(labels={'d': 'read'})], [TimeSeries(labels={'d': 'write'})]]
+        )
+        series, truncated = query_metric_series(
+            client, 'aws.omics.task.filesystem.io', START, START + timedelta(hours=1), run_id='1'
+        )
+        assert len(series) == 2
+        assert not truncated
+        selectors = [c.args[0] for c in client.query_range.call_args_list]
+        assert any('"filesystem.io.direction"="read"' in s for s in selectors)
+        assert any('"filesystem.io.direction"="write"' in s for s in selectors)
+
+    def test_explicit_direction_filter_disables_splitting(self):
+        from awslabs.aws_healthomics_mcp_server.metrics.client import query_metric_series
+
+        client = self._client([[]])
+        query_metric_series(
+            client,
+            'aws.omics.task.filesystem.io',
+            START,
+            START + timedelta(hours=1),
+            run_id='1',
+            extra_labels={'filesystem.io.direction': 'read'},
+        )
+        assert client.query_range.call_count == 1
+
+    def test_non_direction_metric_single_query(self):
+        from awslabs.aws_healthomics_mcp_server.metrics.client import query_metric_series
+
+        client = self._client([[]])
+        query_metric_series(
+            client, 'aws.omics.task.cpu.usage', START, START + timedelta(hours=1), run_id='1'
+        )
+        assert client.query_range.call_count == 1
+
+    def test_cap_hit_flags_truncation(self):
+        from awslabs.aws_healthomics_mcp_server.metrics.client import (
+            MAX_SERIES_PER_QUERY,
+            query_metric_series,
+        )
+
+        capped = [TimeSeries(labels={}) for _ in range(MAX_SERIES_PER_QUERY)]
+        client = self._client([capped])
+        series, truncated = query_metric_series(
+            client, 'aws.omics.task.cpu.usage', START, START + timedelta(hours=1), run_id='1'
+        )
+        assert truncated
+        assert len(series) == MAX_SERIES_PER_QUERY

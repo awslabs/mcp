@@ -31,6 +31,7 @@ from awslabs.aws_healthomics_mcp_server.metrics.client import (
     SeriesSummary,
     TimeSeries,
     VendedMetricsClient,
+    query_metric_series,
     summarize_series,
 )
 from awslabs.aws_healthomics_mcp_server.metrics.run_context import (
@@ -410,13 +411,16 @@ async def get_run_metrics(
                 if direction_attrs:
                     extra_labels[direction_attrs[0]] = direction
 
-            selector = schema.build_selector(
+            series_list, truncated = query_metric_series(
+                client,
                 metric.name,
+                start,
+                end,
+                step_seconds,
                 run_id=run_id,
                 task_id=task_id if schema.is_per_task(metric.name) else None,
                 extra_labels=extra_labels or None,
             )
-            series_list = client.query_range(selector, start, end, step_seconds)
 
             if not series_list:
                 reason = expected_absent.get(metric.name) or _absence_reason(run, task_id)
@@ -434,6 +438,13 @@ async def get_run_metrics(
             }
             if metric.sampling_interval_seconds != schema.DEFAULT_SAMPLING_INTERVAL_SECONDS:
                 entry['sampling_interval_seconds'] = metric.sampling_interval_seconds
+            if truncated:
+                entry['possibly_truncated'] = True
+                entry['truncation_note'] = (
+                    'The query hit the CloudWatch PromQL per-query series cap; some '
+                    'task series may be missing and aggregations may undercount. '
+                    'Narrow the query with task_id or direction filters.'
+                )
             results.append(entry)
 
         return {
@@ -568,9 +579,9 @@ def _collect_task_summaries(
         if not schema.is_per_task(name):
             continue
         metric = schema.metric_of(name)
-        selector = schema.build_selector(name, run_id=run.run_id)
+        series_list, _ = query_metric_series(client, name, start, end, run_id=run.run_id)
         by_task: Dict[str, SeriesSummary] = {}
-        for series in client.query_range(selector, start, end):
+        for series in series_list:
             task_id = series.labels.get(schema.TASK_ID_LABEL)
             if not task_id:
                 continue

@@ -28,6 +28,7 @@ from awslabs.aws_healthomics_mcp_server.metrics import schema
 from awslabs.aws_healthomics_mcp_server.metrics.client import (
     SeriesSummary,
     VendedMetricsClient,
+    query_metric_series,
     summarize_series,
     utc_now,
 )
@@ -290,9 +291,9 @@ def detect_stuck_tasks(client: VendedMetricsClient, run: RunContext) -> List[Dic
 
     def _by_task(metric_name: str) -> Dict[str, SeriesSummary]:
         metric = schema.metric_of(metric_name)
-        selector = schema.build_selector(metric_name, run_id=run.run_id)
+        series_list, _ = query_metric_series(client, metric_name, start, end, run_id=run.run_id)
         result: Dict[str, SeriesSummary] = {}
-        for series in client.query_range(selector, start, end):
+        for series in series_list:
             task_id = series.labels.get(schema.TASK_ID_LABEL)
             if task_id:
                 summary = summarize_series(series, metric.is_counter)
@@ -365,9 +366,9 @@ def _collect_summaries(
     collected: Dict[str, Dict[str, SeriesSummary]] = {}
     for name in metric_names:
         metric = schema.metric_of(name)
-        selector = schema.build_selector(name, run_id=run.run_id)
+        series_list, _ = query_metric_series(client, name, start, end, run_id=run.run_id)
         by_task: Dict[str, SeriesSummary] = {}
-        for series in client.query_range(selector, start, end):
+        for series in series_list:
             task_id = series.labels.get(schema.TASK_ID_LABEL)
             if not task_id:
                 continue

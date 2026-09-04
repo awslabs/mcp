@@ -47,6 +47,11 @@ DEFAULT_STEP_SECONDS = 60
 # steps are widened as needed to keep long windows under the cap.
 MAX_DATAPOINTS_PER_SERIES = 11_000
 
+# CloudWatch PromQL API returns at most this many series per query and
+# truncates silently beyond it. A response with exactly this many series is
+# treated as possibly truncated.
+MAX_SERIES_PER_QUERY = 500
+
 
 @dataclass
 class TimeSeries:
@@ -282,6 +287,73 @@ class VendedMetricsClient:
                 series.values.append(float(value[1]))
             result.append(series)
         return result
+
+
+def is_possibly_truncated(series_list: List[TimeSeries]) -> bool:
+    """Whether a query response may have hit the per-query series cap."""
+    return len(series_list) >= MAX_SERIES_PER_QUERY
+
+
+def query_metric_series(
+    client: 'VendedMetricsClient',
+    metric_name: str,
+    start: datetime,
+    end: datetime,
+    step_seconds: Optional[int] = None,
+    run_id: Optional[str] = None,
+    task_id: Optional[str] = None,
+    workflow_id: Optional[str] = None,
+    extra_labels: Optional[Dict[str, str]] = None,
+) -> tuple[List[TimeSeries], bool]:
+    """Query one vended metric, splitting by direction to dodge the series cap.
+
+    The PromQL API silently truncates responses at MAX_SERIES_PER_QUERY series.
+    Direction-attribute metrics (filesystem/network I/O) return two series per
+    task, so a run with >250 tasks would truncate; querying each direction
+    separately keeps results complete for runs up to the cap's task count.
+
+    Returns:
+        (series, possibly_truncated) — truncated is True when any single
+        underlying query returned exactly the cap, meaning results may be
+        incomplete and aggregations may undercount.
+    """
+    metric = schema.metric_of(metric_name)
+    extra_labels = dict(extra_labels or {})
+
+    direction_attrs = [
+        (key, values)
+        for key, values in metric.datapoint_attributes.items()
+        if key.endswith('.direction') and key not in extra_labels
+    ]
+
+    label_sets: List[Dict[str, str]] = []
+    if direction_attrs:
+        key, values = direction_attrs[0]
+        for value in values:
+            label_sets.append({**extra_labels, key: value})
+    else:
+        label_sets.append(extra_labels)
+
+    all_series: List[TimeSeries] = []
+    truncated = False
+    for labels in label_sets:
+        selector = schema.build_selector(
+            metric_name,
+            run_id=run_id,
+            task_id=task_id,
+            workflow_id=workflow_id,
+            extra_labels=labels or None,
+        )
+        batch = client.query_range(selector, start, end, step_seconds)
+        if is_possibly_truncated(batch):
+            truncated = True
+            logger.warning(
+                f'PromQL response for {metric_name} hit the {MAX_SERIES_PER_QUERY}-series '
+                'cap; results may be incomplete'
+            )
+        all_series.extend(batch)
+
+    return all_series, truncated
 
 
 def utc_now() -> datetime:
