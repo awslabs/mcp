@@ -31,6 +31,13 @@ from awslabs.dynamodb_mcp_server.repo_generation_tool.core.gsi_validator import 
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.key_template_parser import (
     KeyTemplateParser,
 )
+from awslabs.dynamodb_mcp_server.repo_generation_tool.core.name_validator import (
+    validate_identifier_fragment,
+    validate_key_template,
+    validate_literal_safe,
+    validate_prose_safe,
+    validate_python_identifier,
+)
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.range_query_validator import (
     RangeQueryValidator,
 )
@@ -50,6 +57,7 @@ from awslabs.dynamodb_mcp_server.repo_generation_tool.core.schema_definitions im
     validate_parameter_core,
     validate_required_fields,
 )
+from awslabs.dynamodb_mcp_server.repo_generation_tool.core.utils import to_snake_case
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.validation_utils import (
     ValidationResult,
 )
@@ -209,6 +217,40 @@ class SchemaValidator:
         if 'entities' in table:
             self._validate_entities(table['entities'], f'{path}.entities', table_index)
 
+        # Table-level GSI definitions are not character-checked by GSIValidator, which
+        # validates their structure. Their key attribute names reach Key('...') string
+        # literals in generated query code, and the index name reaches string literals and
+        # comments, so both are checked here.
+        gsi_list = table.get('gsi_list')
+        if isinstance(gsi_list, list):
+            for i, gsi in enumerate(gsi_list):
+                if not isinstance(gsi, dict):
+                    continue
+                gsi_path = f'{path}.gsi_list[{i}]'
+                if isinstance(gsi.get('name'), str):
+                    self.result.add_errors(validate_literal_safe(gsi['name'], f'{gsi_path}.name'))
+                # A GSI key may be a single attribute name or a list of them for a
+                # multi-attribute composite key.
+                for key_field in ('partition_key', 'sort_key'):
+                    key_value = gsi.get(key_field)
+                    if isinstance(key_value, str):
+                        self.result.add_errors(
+                            validate_literal_safe(key_value, f'{gsi_path}.{key_field}')
+                        )
+                    elif isinstance(key_value, list):
+                        for j, attr in enumerate(key_value):
+                            if isinstance(attr, str):
+                                self.result.add_errors(
+                                    validate_literal_safe(attr, f'{gsi_path}.{key_field}[{j}]')
+                                )
+                included = gsi.get('included_attributes')
+                if isinstance(included, list):
+                    for j, attr in enumerate(included):
+                        if isinstance(attr, str):
+                            self.result.add_errors(
+                                validate_literal_safe(attr, f'{gsi_path}.included_attributes[{j}]')
+                            )
+
     def _validate_table_config(self, table_config: Any, path: str = 'table_config') -> None:
         """Validate table_config section."""
         if not isinstance(table_config, dict):
@@ -228,6 +270,15 @@ class SchemaValidator:
                 for error in field_errors:
                     self.result.errors.append(error)
                     self.result.is_valid = False
+
+        # The table name and key attribute names are written into string literals in the
+        # generated code. DynamoDB allows almost any character in an attribute name, so these
+        # are checked only for characters that would break out of the enclosing literal.
+        for field in ('table_name', 'partition_key', 'sort_key'):
+            if isinstance(table_config.get(field), str):
+                self.result.add_errors(
+                    validate_literal_safe(table_config[field], f'{path}.{field}')
+                )
 
     def _validate_entities(
         self, entities: Any, path: str = 'entities', table_index: int = 0
@@ -250,6 +301,12 @@ class SchemaValidator:
 
         # Check for global entity name uniqueness
         for entity_name in entities.keys():
+            # The entity name becomes a generated class name and an import name, so it must
+            # be a usable Python identifier.
+            self.result.add_errors(
+                validate_python_identifier(entity_name, f'{path}.{entity_name}')
+            )
+
             if entity_name in self.global_entity_names:
                 self.result.add_error(
                     f'{path}.{entity_name}',
@@ -296,6 +353,42 @@ class SchemaValidator:
                     f"Missing required field '{field}'",
                     f"Add '{field}' field using template syntax like 'USER#{{user_id}}' or 'PROFILE#{{id}}#{{timestamp}}'. Parameters are automatically extracted from {{field_name}} placeholders",
                 )
+
+        # The entity type reaches string literals in the generated code, and the key templates
+        # are rendered into f-strings where braces are executable syntax.
+        if isinstance(entity_config.get('entity_type'), str):
+            self.result.add_errors(
+                validate_literal_safe(entity_config['entity_type'], f'{path}.entity_type')
+            )
+        for template_field in ('pk_template', 'sk_template'):
+            if isinstance(entity_config.get(template_field), str):
+                self.result.add_errors(
+                    validate_key_template(
+                        entity_config[template_field], f'{path}.{template_field}'
+                    )
+                )
+
+        # A GSI mapping name becomes a suffix of generated method names via to_snake_case,
+        # which does not sanitise, and its key templates are rendered into f-strings.
+        gsi_mappings = entity_config.get('gsi_mappings')
+        if isinstance(gsi_mappings, list):
+            for i, mapping in enumerate(gsi_mappings):
+                if not isinstance(mapping, dict):
+                    continue
+                mapping_path = f'{path}.gsi_mappings[{i}]'
+                if isinstance(mapping.get('name'), str):
+                    self.result.add_errors(
+                        validate_identifier_fragment(
+                            to_snake_case(mapping['name']), f'{mapping_path}.name'
+                        )
+                    )
+                for template_field in ('pk_template', 'sk_template'):
+                    if isinstance(mapping.get(template_field), str):
+                        self.result.add_errors(
+                            validate_key_template(
+                                mapping[template_field], f'{mapping_path}.{template_field}'
+                            )
+                        )
 
         # Validate sk_template if present (it's optional)
         if 'sk_template' in entity_config:
@@ -367,14 +460,22 @@ class SchemaValidator:
         # Validate field name uniqueness
         if 'name' in field:
             field_name = field['name']
-            if field_name in field_names:
-                self.result.add_error(
-                    f'{path}.name',
-                    f"Duplicate field name '{field_name}'",
-                    'Field names must be unique within an entity',
-                )
-            else:
-                field_names.add(field_name)
+            # The field name becomes a class attribute annotation and a keyword argument in
+            # the generated code, so it must be a usable Python identifier.
+            name_errors = validate_python_identifier(field_name, f'{path}.name')
+            self.result.add_errors(name_errors)
+
+            # Only track uniqueness for a name that validated, so that an unusable value
+            # (for example a non-string) is reported once rather than also being compared.
+            if not name_errors:
+                if field_name in field_names:
+                    self.result.add_error(
+                        f'{path}.name',
+                        f"Duplicate field name '{field_name}'",
+                        'Field names must be unique within an entity',
+                    )
+                else:
+                    field_names.add(field_name)
 
         # Validate field type
         if 'type' in field:
@@ -450,14 +551,32 @@ class SchemaValidator:
         # Validate pattern name uniqueness within entity
         if 'name' in pattern:
             pattern_name = pattern['name']
-            if pattern_name in pattern_names:
-                self.result.add_error(
-                    f'{path}.name',
-                    f"Duplicate pattern name '{pattern_name}' in entity '{entity_name}'",
-                    'Pattern names must be unique within an entity',
-                )
-            else:
-                pattern_names.add(pattern_name)
+            # The pattern name becomes a generated method name.
+            name_errors = validate_python_identifier(pattern_name, f'{path}.name')
+            self.result.add_errors(name_errors)
+
+            if not name_errors:
+                if pattern_name in pattern_names:
+                    self.result.add_error(
+                        f'{path}.name',
+                        f"Duplicate pattern name '{pattern_name}' in entity '{entity_name}'",
+                        'Pattern names must be unique within an entity',
+                    )
+                else:
+                    pattern_names.add(pattern_name)
+
+        # The description is written into generated docstrings, comments and double-quoted
+        # strings, so it is held to the prose rule rather than the stricter literal rule.
+        if isinstance(pattern.get('description'), str):
+            self.result.add_errors(
+                validate_prose_safe(pattern['description'], f'{path}.description')
+            )
+
+        # The index name is written into a string literal and a comment in the generated code.
+        if isinstance(pattern.get('index_name'), str):
+            self.result.add_errors(
+                validate_literal_safe(pattern['index_name'], f'{path}.index_name')
+            )
 
         # Validate operation
         if 'operation' in pattern:

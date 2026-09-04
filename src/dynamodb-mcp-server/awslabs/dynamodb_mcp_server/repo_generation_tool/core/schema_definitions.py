@@ -18,6 +18,11 @@ This module defines all the valid values and structures expected in schema.json 
 used for code generation. It serves as the single source of truth for schema validation.
 """
 
+from awslabs.dynamodb_mcp_server.repo_generation_tool.core.name_validator import (
+    validate_default_value,
+    validate_prose_safe,
+    validate_python_identifier,
+)
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.validation_utils import (
     ValidationError,
 )
@@ -422,16 +427,30 @@ def validate_parameter_core(
     # Validate parameter name uniqueness
     if 'name' in param:
         param_name = param['name']
-        if param_name in param_names:
-            errors.append(
-                ValidationError(
-                    path=f'{path}.name',
-                    message=f"Duplicate parameter name '{param_name}'",
-                    suggestion='Parameter names must be unique within an access pattern',
+        # The parameter name becomes a generated function parameter and local variable.
+        name_errors = validate_python_identifier(param_name, f'{path}.name')
+        errors.extend(name_errors)
+
+        if not name_errors:
+            if param_name in param_names:
+                errors.append(
+                    ValidationError(
+                        path=f'{path}.name',
+                        message=f"Duplicate parameter name '{param_name}'",
+                        suggestion='Parameter names must be unique within an access pattern',
+                    )
                 )
-            )
-        else:
-            param_names.add(param_name)
+            else:
+                param_names.add(param_name)
+
+    # The default is rendered as an expression in a generated def signature, which Python
+    # evaluates at import time, so an unescaped string default executes on import.
+    if 'default' in param:
+        errors.extend(validate_default_value(param['default'], f'{path}.default'))
+
+    # The parameter description is written into the generated method docstring.
+    if isinstance(param.get('description'), str):
+        errors.extend(validate_prose_safe(param['description'], f'{path}.description'))
 
     # Validate parameter type using shared enum
     if 'type' in param:
