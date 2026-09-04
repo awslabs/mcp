@@ -2466,12 +2466,14 @@ def _make_throwaway_ca() -> Optional[str]:
         try:
             os.remove(cert_path)
         except OSError:
+            # Best-effort cleanup of the temp cert; ignore deletion failures.
             pass
         return None
     finally:
         try:
             os.remove(key_path)  # the private key is never needed
         except OSError:
+            # Best-effort cleanup of the temp key; ignore deletion failures.
             pass
 
 
