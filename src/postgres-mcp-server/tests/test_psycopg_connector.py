@@ -1125,7 +1125,7 @@ class TestPsycopgTLS:
             port=5432,
             database='test_db',
             readonly=True,
-            secret_arn='arn:aws:secretsmanager:us-west-2:1:secret:x',
+            secret_arn='arn:aws:secretsmanager:us-west-2:1:secret:x',  # pragma: allowlist secret
             db_user='u',
             region='us-west-2',
             is_iam_auth=False,
@@ -1146,7 +1146,7 @@ class TestPsycopgTLS:
         assert info['sslmode'] == 'verify-full'
         # Never libpq's insecure default, which allows a silent plaintext downgrade.
         assert info['sslmode'] != 'prefer'
-        assert info['password'] == 'secret-pw'
+        assert info['password'] == 'secret-pw'  # pragma: allowlist secret
         assert info['host'] == 'db.example.com'
 
     def test_ca_bundle_override_used(self):
@@ -1198,7 +1198,7 @@ class TestPsycopgTLS:
             port=5432,
             database='test_db',
             readonly=True,
-            secret_arn='arn:aws:secretsmanager:us-west-2:1:secret:x',
+            secret_arn='arn:aws:secretsmanager:us-west-2:1:secret:x',  # pragma: allowlist secret
             db_user='u',
             region='us-west-2',
             is_iam_auth=False,
