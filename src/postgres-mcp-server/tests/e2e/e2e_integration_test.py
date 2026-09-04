@@ -383,6 +383,7 @@ def create_serverless_cluster_and_wait(
     max_attempts: int = 40,
     publicly_accessible: bool = False,
     vpc_security_group_ids: Optional[list] = None,
+    enable_iam_auth: bool = False,
 ) -> str:
     """Create serverless cluster, poll until done. Returns db_endpoint.
 
@@ -411,6 +412,7 @@ def create_serverless_cluster_and_wait(
             database_name=database,
             publicly_accessible=publicly_accessible,
             vpc_security_group_ids=vpc_security_group_ids,
+            enable_iam_auth=enable_iam_auth,
         )
 
         # Mirror what server.create_cluster_worker does for IAM-auth setup
@@ -434,6 +436,7 @@ def create_serverless_cluster_and_wait(
         database=database,
         engine_version=engine_version,
         with_express_configuration=False,
+        enable_iam_auth=enable_iam_auth,
     )
     result = json.loads(result_json)
     job_id = result.get('job_id')
@@ -3044,6 +3047,10 @@ async def main_async(args):
                         region=args.region,
                         database=args.database,
                         engine_version=args.engine_version,
+                        # Enable IAM DB auth only when a serverless PG-Wire IAM
+                        # cell is planned; otherwise the cluster (RDS_API-only)
+                        # doesn't need it. Keeps the capability off unless used.
+                        enable_iam_auth=args.serverless_pgwire,
                         **public_access_kwargs,
                     ),
                 )

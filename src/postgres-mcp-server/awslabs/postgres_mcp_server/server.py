@@ -680,6 +680,18 @@ def create_cluster(
     with_express_configuration: Annotated[
         bool, Field(description='with express configuration')
     ] = False,
+    enable_iam_auth: Annotated[
+        bool,
+        Field(
+            description=(
+                'Enable IAM database authentication on the created cluster. Only '
+                'permits IAM token auth in addition to password auth (does not '
+                'disable passwords). Capability toggle only: a DB role still needs '
+                'GRANT rds_iam and an rds-db:connect IAM policy to connect via IAM. '
+                'Ignored for express clusters (they enable IAM auth automatically).'
+            )
+        ),
+    ] = False,
 ) -> str:
     """Create an RDS/Aurora cluster.
 
@@ -689,6 +701,10 @@ def create_cluster(
         database: database name, ignored when with_express_configuration is set to true
         engine_version: engine version, ignored when with_express_configuration is set to true
         with_express_configuration: create the cluster with express configuration
+        enable_iam_auth: enable IAM database authentication on the cluster (serverless
+            path only; express enables IAM auth via its express configuration). Only
+            permits IAM auth in addition to passwords; still requires GRANT rds_iam and
+            an rds-db:connect IAM policy to be usable.
 
     Returns:
         result
@@ -759,6 +775,7 @@ def create_cluster(
             cluster_identifier,
             engine_version,
             database,
+            enable_iam_auth,
         ),
         daemon=False,
     )
@@ -809,6 +826,7 @@ def create_cluster_worker(
     cluster_identifier: str,
     engine_version: str,
     database: str,
+    enable_iam_auth: bool = False,
 ):
     """Background worker for cluster creation.
 
@@ -820,6 +838,7 @@ def create_cluster_worker(
         cluster_identifier: Cluster identifier
         engine_version: Engine version
         database: Database name
+        enable_iam_auth: Enable IAM database authentication on the created cluster.
     """
     global db_connection_map
     global async_job_status
@@ -832,6 +851,7 @@ def create_cluster_worker(
             cluster_identifier=cluster_identifier,
             engine_version=engine_version,
             database_name=database,
+            enable_iam_auth=enable_iam_auth,
         )
 
         setup_aurora_iam_policy_for_current_user(

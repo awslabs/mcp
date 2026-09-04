@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- `create_cluster` gains an optional `enable_iam_auth` flag (default `False`)
+  that enables IAM database authentication (`EnableIAMDatabaseAuthentication`)
+  on serverless Aurora clusters it creates. It only permits IAM token auth in
+  addition to password auth (nothing is disabled) and is a capability toggle —
+  a DB role still needs `GRANT rds_iam` and an `rds-db:connect` IAM policy to
+  connect via IAM. Ignored for express clusters, which enable IAM auth via
+  their express configuration.
+
 ### Security
 
 - Enforce strict TLS on direct (psycopg / PG Wire) connections: the server now
