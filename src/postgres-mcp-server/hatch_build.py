@@ -83,13 +83,19 @@ def fetch(output_path: str = _OUTPUT_PATH) -> str:
     abs_path = os.path.abspath(output_path)
     if os.path.exists(abs_path):
         return abs_path
-    # Defensive scheme check before urlopen (Bandit B310): the URL is a
-    # module-level https:// constant, but guard against future edits.
+    # The URL passed to urlopen is the module-level constant _RDS_CA_BUNDLE_URL;
+    # it is never derived from user input or function arguments (fetch() only
+    # takes an output *path*). The explicit https:// check below rules out the
+    # file:// / ftp:// schemes the scanners warn about, so a malicious actor
+    # cannot redirect this to read arbitrary local files. Both findings
+    # (Bandit B310, Semgrep dynamic-urllib-use) are audited and suppressed on
+    # that basis; the scheme guard also protects against future edits to the
+    # constant.
     if not _RDS_CA_BUNDLE_URL.startswith('https://'):
         raise RuntimeError(f'RDS CA bundle URL must use https://, got: {_RDS_CA_BUNDLE_URL!r}')
     try:
         ctx = _ssl_context_for_aws_endpoint()
-        with urllib.request.urlopen(  # nosec B310 - https scheme enforced above
+        with urllib.request.urlopen(  # nosec B310  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
             _RDS_CA_BUNDLE_URL, timeout=30, context=ctx
         ) as resp:
             content = resp.read()
