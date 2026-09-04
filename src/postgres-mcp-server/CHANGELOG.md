@@ -9,21 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-- Enforce strict TLS on direct (psycopg / PG Wire) connections: the server now
-  connects with `sslmode=verify-full`, closing an opportunistic-TLS downgrade
-  and missing-certificate-verification gap (libpq previously defaulted to
+- Enforce TLS on direct (psycopg / PG Wire) connections: the server now
+  connects with `sslmode=verify-ca`, closing an opportunistic-TLS downgrade and
+  missing-certificate-verification gap (libpq previously defaulted to
   `sslmode=prefer`, which allows silent plaintext fallback and does not verify
-  the server certificate). The Amazon RDS global CA bundle is shipped in the
-  wheel (fetched at build time) for out-of-the-box Aurora/RDS verification; a
-  new `--ca_bundle <path>` flag overrides it for self-hosted PostgreSQL or a
-  private trust store.
+  the server certificate). Credentials — an IAM auth token or a Secrets Manager
+  password — are therefore always encrypted on the wire, and the server
+  certificate must chain to a trusted CA. The Amazon RDS global CA bundle is
+  shipped in the wheel (fetched at build time) for out-of-the-box Aurora/RDS
+  verification; a new `--ca_bundle <path>` flag overrides it for self-hosted
+  PostgreSQL or a private trust store. `verify-ca` (not `verify-full`) is the
+  default because Aurora's cluster endpoint serves a certificate whose SAN does
+  not always match the cluster hostname, so `verify-full` would fail to connect
+  out of the box; `verify-ca` still encrypts and validates the CA chain.
 - Add a `--sslmode` option for direct (psycopg / PG Wire) connections, limited
   to encrypted modes `require` / `verify-ca` / `verify-full` (default
-  `verify-full`); plaintext modes are intentionally not offered, so credentials
-  are always encrypted. This lets self-hosted / tunneled deployments tune
-  certificate verification (skip hostname check with `verify-ca`, or skip
-  verification entirely with `require`) without disabling encryption. A reduced
-  posture is logged at startup. `--ca_bundle` also accepts the sentinel
+  `verify-ca`); plaintext modes are intentionally not offered, so credentials
+  are always encrypted. This lets deployments opt into a stricter posture
+  (`verify-full` adds a hostname check) or a looser one (`require` skips
+  certificate verification) without disabling encryption. A reduced posture
+  (`require`) is logged at startup. `--ca_bundle` also accepts the sentinel
   `system` to select the OS trust store.
 
 - Replaced the regex-based read-only / dangerous-SQL detector with a

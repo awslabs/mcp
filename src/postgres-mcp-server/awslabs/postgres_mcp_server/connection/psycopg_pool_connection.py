@@ -36,10 +36,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 
 # Path to the Amazon RDS global CA bundle shipped inside the wheel by
-# hatch_build.py. It lets the psycopg (PG Wire) path perform strict TLS
-# verification (sslmode=verify-full) against Aurora/RDS out of the box. The PEM
-# is gitignored and fetched at build time; operators can override it at runtime
-# with --ca_bundle (e.g. self-hosted PostgreSQL with a private CA).
+# hatch_build.py. It lets the psycopg (PG Wire) path verify the server
+# certificate against Aurora/RDS out of the box. The PEM is gitignored and
+# fetched at build time; operators can override it at runtime with --ca_bundle
+# (e.g. self-hosted PostgreSQL with a private CA).
 _RDS_CA_BUNDLE_PATH = os.path.join(os.path.dirname(__file__), 'rds_global_bundle.pem')
 
 # Permitted libpq sslmode values. Deliberately restricted to modes that
@@ -48,8 +48,15 @@ _RDS_CA_BUNDLE_PATH = os.path.join(os.path.dirname(__file__), 'rds_global_bundle
 # in cleartext. Within this set the operator tunes certificate validation:
 #   require      -> encrypt only; do NOT validate the server certificate
 #   verify-ca    -> encrypt + validate the cert chains to a trusted CA (no host)
-#   verify-full  -> encrypt + validate CA chain AND hostname (most secure)
-DEFAULT_SSLMODE = 'verify-full'
+#   verify-full  -> encrypt + validate CA chain AND hostname (most strict)
+#
+# The default is ``verify-ca``: it fully closes the reported vulnerability
+# (credentials are always encrypted -- no plaintext downgrade -- and the server
+# cert must chain to the pinned Amazon RDS CA), while connecting reliably through
+# the Aurora *cluster* endpoint, whose certificate SAN does not always match the
+# cluster hostname (``verify-full`` rejects that mismatch). Operators who connect
+# via an endpoint whose cert covers the hostname can opt into ``verify-full``.
+DEFAULT_SSLMODE = 'verify-ca'
 ALLOWED_SSLMODES = ('require', 'verify-ca', 'verify-full')
 # The modes that verify the server certificate and therefore need a CA
 # (sslrootcert). ``require`` performs no verification, so no CA is attached.
@@ -191,7 +198,7 @@ class PsycopgPoolConnection(AbstractDBConnection):
             ca_bundle_path: Optional path to an alternate CA bundle (PEM) used for
                 certificate verification, overriding the bundled Amazon RDS bundle.
                 The sentinel ``'system'`` selects libpq's system trust store.
-            sslmode: libpq SSL mode; one of ALLOWED_SSLMODES (default verify-full).
+            sslmode: libpq SSL mode; one of ALLOWED_SSLMODES (default verify-ca).
                 The connection is always encrypted; this tunes certificate
                 verification.
         """
@@ -233,8 +240,8 @@ class PsycopgPoolConnection(AbstractDBConnection):
           * ``require``     -- encrypt only; the server certificate is not
             verified, so no CA is attached.
           * ``verify-ca``   -- verify the certificate chains to a trusted CA
-            (hostname not checked).
-          * ``verify-full`` -- verify the CA chain and the hostname (default).
+            (hostname not checked). This is the default.
+          * ``verify-full`` -- verify the CA chain and the hostname (most strict).
 
         For the verifying modes the trust anchor (sslrootcert) is chosen as:
 

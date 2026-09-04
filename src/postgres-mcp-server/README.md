@@ -205,10 +205,19 @@ has side effects, or resolve which function a name refers to under a custom
 
 For direct PostgreSQL connections (the psycopg / PG Wire path, used for IAM auth
 and Secrets Manager password auth), the server connects with
-`sslmode=verify-full`. This requires TLS — there is no silent plaintext
-downgrade — and verifies the server certificate and hostname, so a
-man-in-the-middle presenting a spoofed certificate is rejected. (The RDS Data
-API path already runs over verified HTTPS.)
+`sslmode=verify-ca`. This requires TLS — there is no silent plaintext
+downgrade — and verifies the server certificate chains to a trusted CA (the
+pinned Amazon RDS bundle), so a credential is never sent in the clear and a
+man-in-the-middle would need a certificate signed by an Amazon RDS CA. (The RDS
+Data API path already runs over verified HTTPS.)
+
+`verify-ca` is the default rather than `verify-full` because Aurora's **cluster**
+endpoint presents a certificate whose SAN does not always match the cluster
+hostname; `verify-full` (which adds a hostname check) would reject that and fail
+to connect out of the box. `verify-ca` still closes the reported issue — the
+connection is encrypted and the certificate is validated against a trusted CA.
+Opt into `verify-full` when your endpoint's certificate matches the hostname you
+connect to.
 
 The connection is **always encrypted** — plaintext modes are not offered, so a
 credential is never sent in the clear. What you can tune is how much of the
@@ -216,12 +225,12 @@ server's identity is verified, via `--sslmode`:
 
 | `--sslmode` | Encrypted | Verifies CA chain | Verifies hostname | Typical use |
 |---|---|---|---|---|
-| `verify-full` (default) | yes | yes | yes | RDS/Aurora via its endpoint; self-hosted with proper cert + matching hostname |
-| `verify-ca` | yes | yes | no | tunnel / bastion / IP / `localhost` where the hostname won't match the cert |
+| `verify-ca` (default) | yes | yes | no | RDS/Aurora via the cluster endpoint; tunnel / bastion / IP / `localhost` where the hostname won't match the cert |
+| `verify-full` | yes | yes | yes | endpoint whose certificate matches the connect hostname (e.g. RDS instance endpoint, self-hosted with a proper cert) |
 | `require` | yes | no | no | self-signed cert you don't want to validate; encrypt-only on a trusted network |
 
 Certificate verification (the `verify-*` modes) needs a trusted CA. The package
-ships the Amazon RDS global CA bundle (fetched at build time) so `verify-full`
+ships the Amazon RDS global CA bundle (fetched at build time) so `verify-ca`
 works against Aurora/RDS out of the box. Select a different trust anchor with
 `--ca_bundle`:
 

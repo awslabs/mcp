@@ -69,8 +69,10 @@ readonly_query = True
 # None means use the bundled bundle (or system trust store as a last resort).
 configured_ca_bundle: Optional[str] = None
 # libpq SSL mode for psycopg (PG Wire) connections. Set from --sslmode; always
-# one of ALLOWED_SSLMODES (the connection is always encrypted). Default is the
-# most secure mode (verify-full).
+# one of ALLOWED_SSLMODES (the connection is always encrypted). Default is
+# verify-ca: encrypted + CA-verified against the pinned Amazon RDS bundle, which
+# closes the cleartext-credential gap and connects through the Aurora cluster
+# endpoint out of the box. verify-full (adds a hostname check) is opt-in.
 configured_sslmode: str = DEFAULT_SSLMODE
 
 # Least-privilege guardrail policy for post-connect validation.
@@ -1377,10 +1379,12 @@ def main():
         help=(
             'TLS mode for direct (psycopg / PG Wire) connections. The connection '
             'is always encrypted; this tunes certificate verification: '
-            "'verify-full' (default) verifies the CA chain and the hostname; "
-            "'verify-ca' verifies the CA chain but not the hostname (use for "
-            'tunnels/IP/localhost where the hostname will not match); '
-            "'require' encrypts but does not verify the certificate (e.g. a "
+            "'verify-ca' (default) verifies the server certificate chains to a "
+            'trusted CA (the pinned Amazon RDS bundle) but does not check the '
+            'hostname, so it connects through the Aurora cluster endpoint whose '
+            "cert may not match the hostname; 'verify-full' additionally verifies "
+            'the hostname (use when the endpoint cert matches what you connect '
+            "to); 'require' encrypts but does not verify the certificate (e.g. a "
             'self-signed cert you do not want to validate). Plaintext modes are '
             'not offered.'
         ),
@@ -1478,17 +1482,14 @@ def main():
     configured_sslmode = args.sslmode
     # Surface a reduced TLS posture so operators/auditors can see it in logs.
     # The connection is still encrypted (plaintext modes are not offered), but
-    # certificate verification is weaker than the secure default.
-    if configured_sslmode != DEFAULT_SSLMODE:
+    # 'require' skips certificate verification entirely, which is weaker than the
+    # default (verify-ca). 'verify-full' is stricter than the default, so it is
+    # not flagged here.
+    if configured_sslmode == 'require':
         logger.warning(
             f'TLS certificate verification reduced: --sslmode={configured_sslmode} '
             f'(default is {DEFAULT_SSLMODE}). Connections remain encrypted, but '
-            'the server certificate is '
-            + (
-                'not verified.'
-                if configured_sslmode == 'require'
-                else 'verified without a hostname check.'
-            )
+            'the server certificate is not verified.'
         )
     configured_secret_arns.clear()
     configured_secret_arns.update(secret_arn_map)

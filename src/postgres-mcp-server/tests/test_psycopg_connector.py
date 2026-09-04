@@ -1116,9 +1116,9 @@ class TestPsycopgConnector:
 
 
 class TestPsycopgTLS:
-    """TLS enforcement in the psycopg conninfo (sslmode=verify-full + CA)."""
+    """TLS enforcement in the psycopg conninfo (sslmode=verify-ca default + CA)."""
 
-    def _make_conn(self, ca_bundle_path=None, sslmode='verify-full'):
+    def _make_conn(self, ca_bundle_path=None, sslmode='verify-ca'):
         """Build a connection object without opening a pool."""
         return PsycopgPoolConnection(
             host='db.example.com',
@@ -1139,11 +1139,12 @@ class TestPsycopgTLS:
 
         return conninfo_to_dict(conninfo)
 
-    def test_conninfo_enforces_verify_full(self):
-        """Every connection uses sslmode=verify-full and never the insecure default."""
+    def test_conninfo_enforces_verify_ca(self):
+        """Every connection uses sslmode=verify-ca and never the insecure default."""
         conn = self._make_conn(ca_bundle_path='/tmp/my-ca.pem')
         info = self._to_dict(conn._build_conninfo('secret-pw'))
-        assert info['sslmode'] == 'verify-full'
+        assert info['sslmode'] == 'verify-ca'
+        # Never libpq's insecure default, which allows a silent plaintext downgrade.
         assert info['sslmode'] != 'prefer'
         assert info['password'] == 'secret-pw'
         assert info['host'] == 'db.example.com'
@@ -1172,7 +1173,7 @@ class TestPsycopgTLS:
         )
         conn = self._make_conn(ca_bundle_path=None)
         info = self._to_dict(conn._build_conninfo('pw'))
-        assert info['sslmode'] == 'verify-full'
+        assert info['sslmode'] == 'verify-ca'
         assert info['sslrootcert'] == 'system'
 
     def test_password_with_special_chars_is_escaped(self):
@@ -1181,15 +1182,33 @@ class TestPsycopgTLS:
         # Round-trips cleanly (would break a naive f-string conninfo).
         info = self._to_dict(conn._build_conninfo("p ass'w\\ord"))
         assert info['password'] == "p ass'w\\ord"
-        assert info['sslmode'] == 'verify-full'
+        assert info['sslmode'] == 'verify-ca'
 
-    def test_default_sslmode_is_verify_full(self):
-        """The default (no sslmode passed) is the most secure mode."""
-        conn = self._make_conn(ca_bundle_path='/tmp/ca.pem')
-        # _make_conn defaults sslmode='verify-full'; mirror the class default.
-        assert conn.sslmode == 'verify-full'
+    def test_default_sslmode_is_verify_ca(self):
+        """The class default (no sslmode passed) is verify-ca.
+
+        verify-ca closes the reported cleartext-credential gap (encrypted + the
+        cert must chain to the pinned Amazon RDS CA) while still connecting via
+        the Aurora cluster endpoint, whose cert SAN verify-full would reject.
+        """
+        # Construct directly, omitting sslmode, to exercise the real class default.
+        conn = PsycopgPoolConnection(
+            host='db.example.com',
+            port=5432,
+            database='test_db',
+            readonly=True,
+            secret_arn='arn:aws:secretsmanager:us-west-2:1:secret:x',
+            db_user='u',
+            region='us-west-2',
+            is_iam_auth=False,
+            is_test=True,
+            ca_bundle_path='/tmp/ca.pem',
+        )
+        assert conn.sslmode == 'verify-ca'
         info = self._to_dict(conn._build_conninfo('pw'))
-        assert info['sslmode'] == 'verify-full'
+        assert info['sslmode'] == 'verify-ca'
+        # verify-ca is a verifying mode, so the CA is attached.
+        assert info['sslrootcert'] == '/tmp/ca.pem'
 
     def test_require_encrypts_without_certificate_verification(self):
         """sslmode=require encrypts but attaches no CA (no verification)."""
@@ -1223,8 +1242,12 @@ class TestPsycopgTLS:
         """The allowed set never permits an unencrypted connection."""
         from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import (
             ALLOWED_SSLMODES,
+            DEFAULT_SSLMODE,
         )
 
         assert set(ALLOWED_SSLMODES) == {'require', 'verify-ca', 'verify-full'}
         for insecure in ('disable', 'allow', 'prefer'):
             assert insecure not in ALLOWED_SSLMODES
+        # The default is an encrypted, CA-verifying mode (never plaintext).
+        assert DEFAULT_SSLMODE == 'verify-ca'
+        assert DEFAULT_SSLMODE in ALLOWED_SSLMODES
