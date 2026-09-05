@@ -424,6 +424,7 @@ async def list_tables_tool(
     - table_acl: The permissions for the specified user or user group for the table.
     - table_type: The type of the table (views, base tables, external tables, shared tables).
     - remarks: Remarks about the table.
+    - dist_style: The distribution style of the table (for example EVEN, KEY, ALL, AUTO (ALL), AUTO (EVEN), or AUTO (KEY)).
 
     ## Usage Tips
 
@@ -528,6 +529,13 @@ async def list_columns_tool(
     - numeric_precision: The numeric precision.
     - numeric_scale: The numeric scale.
     - remarks: Remarks about the column.
+    - sort_key_type: The sort key type on a sort key column (for example COMPOUND or
+      INTERLEAVED), or null when the column is not part of the sort key. Tables with an
+      AUTO sort key report AUTO on every column.
+    - sort_key: The 1-based position of the column within the sort key, or 0 when it is
+      not part of the sort key.
+    - dist_key: Set to 1 on the distribution key column, or null on other columns.
+    - encoding: The compression encoding of the column (for example az64, lzo, raw).
 
     ## Usage Tips
 
