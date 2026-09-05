@@ -1211,6 +1211,66 @@ class TestPsycopgTLS:
         # verify-full is a verifying mode, so the CA is attached.
         assert info['sslrootcert'] == '/tmp/ca.pem'
 
+    def test_bundled_ca_file_missing_returns_none(self, monkeypatch):
+        """_bundled_ca_file returns None (and logs) when the bundle is absent on disk."""
+        from awslabs.postgres_mcp_server.connection import psycopg_pool_connection as ppc
+
+        monkeypatch.setattr(ppc.os.path, 'isfile', lambda _p: False)
+        assert ppc._bundled_ca_file() is None
+
+    def _posture_log(self, conn) -> str:
+        """Invoke _log_tls_posture and return the captured INFO message."""
+        from loguru import logger
+
+        captured: list = []
+        sink_id = logger.add(captured.append, level='INFO', format='{message}')
+        try:
+            conn._log_tls_posture()
+        finally:
+            logger.remove(sink_id)
+        return ' '.join(str(m) for m in captured)
+
+    def test_log_tls_posture_require(self):
+        """Require mode logs an unverified trust anchor and the auth mode."""
+        conn = self._make_conn(ca_bundle_path='/tmp/ca.pem', sslmode='require')
+        conn.conninfo = conn._build_conninfo('pw')
+        msg = self._posture_log(conn)
+        assert 'sslmode=require' in msg
+        assert 'trust_anchor=none' in msg
+        assert 'auth=secrets_manager' in msg
+        assert 'endpoint=db.example.com:5432' in msg
+
+    def test_log_tls_posture_system_trust(self):
+        """--ca_bundle system logs the system trust store as the anchor."""
+        conn = self._make_conn(ca_bundle_path='system', sslmode='verify-ca')
+        conn.conninfo = conn._build_conninfo('pw')
+        assert 'trust_anchor=system trust store' in self._posture_log(conn)
+
+    def test_log_tls_posture_bundled_ca(self, monkeypatch):
+        """The bundled AWS CA is identified as the trust anchor."""
+        from awslabs.postgres_mcp_server.connection import psycopg_pool_connection as ppc
+
+        monkeypatch.setattr(ppc, '_bundled_ca_file', lambda: ppc._AWS_CA_BUNDLE_PATH)
+        conn = self._make_conn(ca_bundle_path=None, sslmode='verify-full')
+        conn.conninfo = conn._build_conninfo('pw')
+        assert 'bundled AWS CA' in self._posture_log(conn)
+
+    def test_log_tls_posture_operator_ca(self):
+        """An operator-supplied CA path is surfaced verbatim."""
+        conn = self._make_conn(ca_bundle_path='/tmp/private-ca.pem', sslmode='verify-full')
+        conn.conninfo = conn._build_conninfo('pw')
+        assert 'operator-supplied CA: /tmp/private-ca.pem' in self._posture_log(conn)
+
+    def test_log_tls_posture_iam_and_unparseable_conninfo(self):
+        """Unparseable conninfo falls back to '(none)', and IAM auth is reported."""
+        conn = self._make_conn(ca_bundle_path='/tmp/ca.pem', sslmode='verify-full')
+        conn.is_iam_auth = True
+        # Not a valid libpq conninfo -> conninfo_to_dict raises -> info={} path.
+        conn.conninfo = 'this is not a valid conninfo string ==='
+        msg = self._posture_log(conn)
+        assert 'auth=iam' in msg
+        assert 'trust_anchor=(none)' in msg
+
     def test_require_encrypts_without_certificate_verification(self):
         """sslmode=require encrypts but attaches no CA (no verification)."""
         conn = self._make_conn(ca_bundle_path='/tmp/ca.pem', sslmode='require')

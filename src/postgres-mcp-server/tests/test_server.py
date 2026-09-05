@@ -788,6 +788,96 @@ def test_main_with_invalid_parameters(monkeypatch, capsys):
     main()  # Should not raise an error
 
 
+@pytest.mark.parametrize(
+    'sslmode,expected_phrase',
+    [
+        ('require', 'not verified'),
+        ('verify-ca', 'without a hostname check'),
+    ],
+)
+def test_main_warns_on_reduced_tls_posture(monkeypatch, sslmode, expected_phrase):
+    """main() logs a reduced-posture warning for sslmodes below the verify-full default.
+
+    Covers both message branches: 'require' (certificate not verified) and
+    'verify-ca' (verified without a hostname check).
+    """
+    from loguru import logger
+
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--connection_method',
+            'RDS_API',
+            '--db_cluster_arn',
+            'arn:aws:rds:us-west-2:123456789012:cluster:example-cluster-name',
+            '--database',
+            'postgres',
+            '--region',
+            'us-west-2',
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:test-secret',
+            '--sslmode',
+            sslmode,
+        ],
+    )
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
+        lambda secret_arn, region, is_test=False: ('test_user', 'test_password'),
+    )
+
+    captured: list = []
+    sink_id = logger.add(captured.append, level='WARNING', format='{message}')
+    try:
+        main()
+    finally:
+        logger.remove(sink_id)
+
+    msg = ' '.join(str(m) for m in captured)
+    assert 'TLS certificate verification reduced' in msg
+    assert f'--sslmode={sslmode}' in msg
+    assert expected_phrase in msg
+
+
+def test_main_no_reduced_tls_warning_on_default(monkeypatch):
+    """The verify-full default must NOT emit the reduced-posture warning."""
+    from loguru import logger
+
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--connection_method',
+            'RDS_API',
+            '--db_cluster_arn',
+            'arn:aws:rds:us-west-2:123456789012:cluster:example-cluster-name',
+            '--database',
+            'postgres',
+            '--region',
+            'us-west-2',
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:test-secret',
+        ],
+    )
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
+        lambda secret_arn, region, is_test=False: ('test_user', 'test_password'),
+    )
+
+    captured: list = []
+    sink_id = logger.add(captured.append, level='WARNING', format='{message}')
+    try:
+        main()
+    finally:
+        logger.remove(sink_id)
+
+    assert not any('TLS certificate verification reduced' in str(m) for m in captured)
+
+
 @pytest.mark.asyncio
 async def test_run_query_with_psycopg_connection():
     """Test that run_query works correctly with a psycopg connection."""
