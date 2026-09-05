@@ -18,9 +18,25 @@ serverless cluster + instance adds roughly 7-8 minutes).
 
 Whichever clusters are created are cleaned up at the end.
 
+Endpoint / auth selection:
+    Prefer --endpoint-types and --auth-types over the legacy flags. Endpoint
+    types: express, serverless (rds-instance is planned, not yet supported).
+    Auth types: pg_wire_iam, pg_wire_secret, rds_api -- filtered by each
+    endpoint's supported set (express -> pg_wire_iam; serverless -> rds_api,
+    pg_wire_iam, pg_wire_secret). An impossible combination (e.g. express +
+    rds_api) is rejected. When neither flag is given, the legacy
+    --test-serverless-cluster / --test-non-express-cluster behavior applies.
+    See tests/e2e/run_e2e.sh for a wrapper that refreshes credentials (ada)
+    and enumerates the Aurora endpoints by default.
+
 Usage:
     # Default: express-only, fast
     python tests/e2e_integration_test.py --region us-east-1 --engine-version 16.4
+
+    # New interface: all Aurora endpoints, all supported auth methods
+    python tests/e2e_integration_test.py --region us-east-1 --engine-version 16.4 \\
+        --endpoint-types express,serverless \\
+        --auth-types pg_wire_iam,pg_wire_secret,rds_api
 
     # Also create + test the serverless cluster via RDS_API
     python tests/e2e_integration_test.py \\
@@ -48,10 +64,15 @@ import argparse
 import asyncio
 import awslabs.postgres_mcp_server.server as server
 import json
+import os
+import shutil
+import subprocess
 import sys
+import tempfile
 import time
 from awslabs.postgres_mcp_server.connection.cp_api_connection import internal_delete_cluster
 from awslabs.postgres_mcp_server.connection.db_connection_map import ConnectionMethod, DatabaseType
+from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import _bundled_ca_file
 from awslabs.postgres_mcp_server.server import (
     DummyCtx,
     connect_to_database,
@@ -62,6 +83,11 @@ from awslabs.postgres_mcp_server.server import (
     internal_create_connection,
     is_database_connected,
     run_query,
+)
+from awslabs.postgres_mcp_server.sql_guard import (
+    DANGEROUS_FUNCTIONS,
+    DANGEROUS_QUALIFIED_FUNCTIONS,
+    SECURITY_SENSITIVE_GUCS,
 )
 from dataclasses import dataclass
 from datetime import datetime
@@ -132,6 +158,202 @@ def log_step(step: str, status: str, detail: str = ''):
         logger.info(msg)
 
 
+_PGWIRE_METHODS = (
+    ConnectionMethod.PG_WIRE_IAM_PROTOCOL,
+    ConnectionMethod.PG_WIRE_PROTOCOL,
+)
+
+
+def _is_pgwire_method(method: ConnectionMethod) -> bool:
+    """True for the direct Postgres (psycopg) methods that do a TLS handshake."""
+    return method in _PGWIRE_METHODS
+
+
+def log_tls_diagnostics(
+    host: str,
+    port: int,
+    ca_bundle: Optional[str],
+    sslmode: str,
+    label: str = '',
+) -> None:
+    """Log the server certificate chain and CA-verification result for an endpoint.
+
+    A best-effort troubleshooting aid for SSL/auth failures on the psycopg
+    (PG-Wire) path: it records *what certificate the server presented*
+    (subject / issuer chain + SubjectAltName) and *what validation was applied*
+    (sslmode + which CA bundle), plus OpenSSL's verify result against that CA.
+    Uses ``openssl s_client`` (already required by the TLS suite's throwaway-CA
+    helper). Never raises -- diagnostics must not perturb the run.
+    """
+    tag = f'TLS-DIAG{f" [{label}]" if label else ""}'
+    ca_desc = ca_bundle if ca_bundle else '(bundled AWS CA / system default)'
+    logger.info(f'{tag}: endpoint={host}:{port} sslmode={sslmode} ca_bundle={ca_desc}')
+
+    openssl = shutil.which('openssl')
+    if not openssl:
+        logger.info(f'{tag}: openssl not on PATH; cannot capture server certificate')
+        return
+
+    cmd = [
+        openssl,
+        's_client',
+        '-starttls',
+        'postgres',
+        '-connect',
+        f'{host}:{port}',
+        '-showcerts',
+    ]
+    if ca_bundle and ca_bundle != 'system':
+        cmd += ['-CAfile', ca_bundle]
+    cmd += ['-verify_hostname', host]
+
+    try:
+        proc = subprocess.run(cmd, input=b'', capture_output=True, timeout=20)
+        out = (
+            proc.stdout.decode('utf-8', 'replace') + '\n' + proc.stderr.decode('utf-8', 'replace')
+        )
+    except Exception as e:
+        logger.info(f'{tag}: certificate probe failed: {type(e).__name__}: {e}')
+        return
+
+    # Chain: OpenSSL prints "s:<subject>" / "i:<issuer>" per cert, plus a final
+    # "Verify return code: N (...)". Surface both.
+    chain = [ln.strip() for ln in out.splitlines() if ln.strip()[:2] in ('s:', 'i:')]
+    verify = [
+        ln.strip()
+        for ln in out.splitlines()
+        if 'Verify return code' in ln or ln.strip().startswith('verify error')
+    ]
+    if chain:
+        logger.info(f'{tag}: server certificate chain (s=subject, i=issuer):')
+        for ln in chain:
+            logger.info(f'{tag}:   {ln}')
+    else:
+        logger.info(f'{tag}: no certificate captured (handshake may have failed): {out[:200]}')
+
+    san = _extract_leaf_san(out, openssl)
+    if san:
+        logger.info(f'{tag}: leaf SubjectAltName: {san}')
+    for ln in verify:
+        logger.info(f'{tag}: {ln}')
+
+
+def _extract_leaf_san(s_client_output: str, openssl: str) -> str:
+    """Pull the leaf cert's SubjectAltName out of ``openssl s_client`` output.
+
+    Feeds the first PEM certificate block back through ``openssl x509`` to read
+    its SAN. Returns '' if it can't be determined. Never raises.
+    """
+    begin = s_client_output.find('-----BEGIN CERTIFICATE-----')
+    end = s_client_output.find('-----END CERTIFICATE-----')
+    if begin == -1 or end == -1:
+        return ''
+    leaf_pem = s_client_output[begin : end + len('-----END CERTIFICATE-----')] + '\n'
+    try:
+        proc = subprocess.run(
+            [openssl, 'x509', '-noout', '-ext', 'subjectAltName'],
+            input=leaf_pem.encode(),
+            capture_output=True,
+            timeout=10,
+        )
+        text = (
+            proc.stdout.decode('utf-8', 'replace') + proc.stderr.decode('utf-8', 'replace')
+        ).strip()
+    except Exception:
+        return ''
+    # Output is typically two lines: the extension name then the DNS: entries.
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith('DNS:') or line.startswith('IP Address:'):
+            return line
+    return ''
+
+
+# ---------------------------------------------------------------------------
+# Endpoint-type x auth-type run planning
+# ---------------------------------------------------------------------------
+# Which auth methods each endpoint type actually supports. Enforced so an
+# operator can't request a combination the platform can't do:
+#   * express (Aurora) has no MasterUserSecret and no Data API -> IAM only.
+#   * serverless (Aurora v2) supports the Data API (public HTTPS) and, with VPC
+#     reachability, both PG-Wire auth modes.
+#   * rds-instance (standalone RDS PostgreSQL) is planned but NOT yet provisioned
+#     by this harness -- Aurora endpoints only for now. (The RDS Data API is
+#     Aurora-only, so when added it will support PG-Wire auth only.)
+ENDPOINT_AUTH_CAPABILITY = {
+    'express': ('pg_wire_iam',),
+    'serverless': ('rds_api', 'pg_wire_iam', 'pg_wire_secret'),
+}
+SUPPORTED_ENDPOINT_TYPES = tuple(ENDPOINT_AUTH_CAPABILITY.keys())
+# Endpoint types we recognise but haven't wired provisioning for yet. Requested
+# explicitly, they produce a clear "not yet supported" error rather than an
+# "unknown endpoint" one.
+FUTURE_ENDPOINT_TYPES = ('rds-instance',)
+ALL_AUTH_TYPES = ('pg_wire_iam', 'pg_wire_secret', 'rds_api')
+AUTH_TYPE_TO_METHOD = {
+    'pg_wire_iam': (ConnectionMethod.PG_WIRE_IAM_PROTOCOL, 'PG_WIRE_IAM_PROTOCOL'),
+    'pg_wire_secret': (ConnectionMethod.PG_WIRE_PROTOCOL, 'PG_WIRE_PROTOCOL'),
+    'rds_api': (ConnectionMethod.RDS_API, 'RDS_API'),
+}
+
+
+def _split_csv(value: str) -> List[str]:
+    """Split a comma-separated CLI value into a list of trimmed, lowercased tokens."""
+    return [tok.strip().lower() for tok in value.split(',') if tok.strip()]
+
+
+def resolve_run_plan(endpoint_types: List[str], auth_types: List[str]):
+    """Validate requested endpoint/auth types against the capability matrix.
+
+    Returns ``(endpoint_kinds, plan_by_kind, serverless_pgwire)`` where
+    ``plan_by_kind`` maps each endpoint kind to an ordered list of
+    ``(ConnectionMethod, method_name)`` cells to run.
+
+    Raises ``ValueError`` (with an actionable message) on any invalid
+    combination: an unknown or not-yet-supported endpoint, an unknown auth
+    type, or a requested endpoint that supports none of the requested auth
+    types. Callers surface this to the operator and abort.
+    """
+    if not endpoint_types:
+        raise ValueError('no endpoint types requested (use --endpoint-types)')
+    if not auth_types:
+        raise ValueError('no auth types requested (use --auth-types)')
+
+    future = [e for e in endpoint_types if e in FUTURE_ENDPOINT_TYPES]
+    if future:
+        raise ValueError(
+            f'endpoint type(s) {future} are not yet supported by this harness '
+            f'(Aurora endpoints only for now: {list(SUPPORTED_ENDPOINT_TYPES)}).'
+        )
+    unknown_eps = [e for e in endpoint_types if e not in ENDPOINT_AUTH_CAPABILITY]
+    if unknown_eps:
+        raise ValueError(
+            f'unknown endpoint type(s) {unknown_eps}; valid: {list(SUPPORTED_ENDPOINT_TYPES)}'
+        )
+    unknown_auths = [a for a in auth_types if a not in AUTH_TYPE_TO_METHOD]
+    if unknown_auths:
+        raise ValueError(f'unknown auth type(s) {unknown_auths}; valid: {list(ALL_AUTH_TYPES)}')
+
+    plan_by_kind: dict = {}
+    for ep in endpoint_types:
+        supported = ENDPOINT_AUTH_CAPABILITY[ep]
+        selected = [a for a in auth_types if a in supported]
+        if not selected:
+            raise ValueError(
+                f"invalid combination: endpoint '{ep}' supports auth type(s) "
+                f'{list(supported)}, but none of the requested {auth_types} apply. '
+                'Adjust --endpoint-types / --auth-types.'
+            )
+        plan_by_kind[ep] = [AUTH_TYPE_TO_METHOD[a] for a in selected]
+
+    # De-dup endpoint kinds while preserving order.
+    endpoint_kinds = list(dict.fromkeys(endpoint_types))
+    serverless_pgwire = 'serverless' in plan_by_kind and any(
+        method in _PGWIRE_METHODS for method, _ in plan_by_kind['serverless']
+    )
+    return endpoint_kinds, plan_by_kind, serverless_pgwire
+
+
 def create_express_cluster(
     cluster_identifier: str, region: str, database: str, engine_version: str
 ) -> str:
@@ -162,6 +384,7 @@ def create_serverless_cluster_and_wait(
     max_attempts: int = 40,
     publicly_accessible: bool = False,
     vpc_security_group_ids: Optional[list] = None,
+    enable_iam_auth: bool = False,
 ) -> str:
     """Create serverless cluster, poll until done. Returns db_endpoint.
 
@@ -190,6 +413,7 @@ def create_serverless_cluster_and_wait(
             database_name=database,
             publicly_accessible=publicly_accessible,
             vpc_security_group_ids=vpc_security_group_ids,
+            enable_iam_auth=enable_iam_auth,
         )
 
         # Mirror what server.create_cluster_worker does for IAM-auth setup
@@ -213,6 +437,7 @@ def create_serverless_cluster_and_wait(
         database=database,
         engine_version=engine_version,
         with_express_configuration=False,
+        enable_iam_auth=enable_iam_auth,
     )
     result = json.loads(result_json)
     job_id = result.get('job_id')
@@ -382,14 +607,25 @@ async def provision_least_privilege_access(
         await conn.execute_query(f'GRANT USAGE, CREATE ON SCHEMA public TO {lp_role}')
         # rds_iam enables the IAM connection path; harmless if unused.
         if do_iam:
-            try:
-                await conn.execute_query(f'GRANT rds_iam TO {lp_role}')
-            except Exception as e:
-                logger.warning(f'GRANT rds_iam TO {lp_role} failed (non-fatal): {e}')
-
-        # 3. IAM path: authorize rds-db:connect for the new role.
-        if do_iam:
             props = internal_get_cluster_properties(cluster_identifier, region)
+            master_user = props.get('MasterUsername', '') or ''
+            # Grant rds_iam to the lp role AND to the master user. The master
+            # needs it so the secret-ARN and privilege-enforcement suites can
+            # authenticate as the superuser over PG_WIRE_IAM: express enables
+            # IAM auth for its master automatically, but a serverless cluster
+            # does not, so we match express here. (The master already has an
+            # rds-db:connect policy entry from cluster creation; the lp role's
+            # policy is created below.) GRANT rds_iam is idempotent, so
+            # re-granting on express is a harmless no-op.
+            for role in (lp_role, master_user):
+                if not role:
+                    continue
+                try:
+                    await conn.execute_query(f'GRANT rds_iam TO {role}')
+                except Exception as e:
+                    logger.warning(f'GRANT rds_iam TO {role} failed (non-fatal): {e}')
+
+            # 3. IAM path: authorize rds-db:connect for the new lp role.
             setup_aurora_iam_policy_for_current_user(
                 db_user=lp_role,
                 cluster_resource_id=props['DbClusterResourceId'],
@@ -922,10 +1158,29 @@ async def run_test_suite(config: ClusterConfig, table_suffix: str) -> TestResult
         ok = 'Failed' not in resp
         record(step, ok, resp)
         if not ok:
+            # Connect failed. On the PG-Wire path this is often an SSL or auth
+            # error; capture the server certificate + validation posture to
+            # make the log self-sufficient for troubleshooting.
+            if _is_pgwire_method(config.connection_method):
+                log_tls_diagnostics(
+                    config.db_endpoint,
+                    config.port,
+                    server.configured_ca_bundle or _bundled_ca_file(),
+                    server.configured_sslmode,
+                    label=f'{cluster_display} connect failed',
+                )
             logger.error(f'Cannot continue suite without connection. Aborting {cluster_display}.')
             return result
     except Exception as e:
         record(step, False, str(e))
+        if _is_pgwire_method(config.connection_method):
+            log_tls_diagnostics(
+                config.db_endpoint,
+                config.port,
+                server.configured_ca_bundle or _bundled_ca_file(),
+                server.configured_sslmode,
+                label=f'{cluster_display} connect exception',
+            )
         logger.error(f'Cannot continue suite without connection. Aborting {cluster_display}.')
         return result
 
@@ -1029,21 +1284,29 @@ async def run_test_suite(config: ClusterConfig, table_suffix: str) -> TestResult
     except Exception as e:
         record(step, False, str(e))
 
-    # 9. run_query DROP TABLE (should be rejected as risky command)
-    step = f'run_query(DROP TABLE {table_name}) - expect rejection'
+    # 9. run_query with a dangerous-set command: rejected regardless of mode.
+    # This cell runs write-enabled (the CREATE/INSERT above succeeded), so DROP
+    # is intentionally allowed here -- the parser-based guard blocks writes only
+    # in read-only mode. Dangerous constructs (RCE/SSRF/filesystem), however, are
+    # blocked in BOTH modes, so we assert one is rejected on the functional path.
+    step = 'run_query(COPY ... TO PROGRAM) - expect rejection (dangerous, both modes)'
     try:
         rows = await run_query(
-            sql=f'DROP TABLE {table_name}',
+            sql="COPY (SELECT 1) TO PROGRAM 'id'",
             ctx=ctx,
             connection_method=config.connection_method,
             cluster_identifier=config.cluster_identifier,
             db_endpoint=config.db_endpoint,
             database=test_database,
         )
-        # Expect error because DROP is a risky command
+        # Expect error: COPY ... TO PROGRAM is command execution, always blocked.
         ok = rows and 'error' in rows[0]
         record(
-            step, ok, 'Correctly rejected DROP command' if ok else 'DROP should have been rejected'
+            step,
+            ok,
+            'Correctly rejected COPY ... TO PROGRAM'
+            if ok
+            else 'COPY ... TO PROGRAM should have been rejected',
         )
     except Exception as e:
         record(step, False, str(e))
@@ -1800,49 +2063,174 @@ def run_startup_secret_arn_validation_suite(
 
 
 # Read queries that MUST be allowed in both read-only and write mode.
-# These mirror the positive-path unit tests in
-# tests/test_mutable_sql_detector.py but exercise the full run_query
-# path against a real cluster.
+# These mirror the positive-path unit tests in tests/test_sql_guard.py but
+# exercise the full run_query path against a real cluster.
+# Every allowed read node type from the design's read-only allowlist (FR2).
+# All must succeed in both read-only and write mode against a real cluster.
 ALLOWED_READ_QUERIES = [
+    # SelectStmt: plain SELECT, subquery, aggregate.
     'SELECT 1',
     'SELECT version()',
     "SELECT 'hello' AS greeting",
     'SELECT count(*) FROM pg_class',
     'SELECT id FROM (SELECT 1 AS id) sub WHERE id = 1',
+    # SelectStmt: VALUES and TABLE spellings.
+    'VALUES (1), (2)',
+    # TABLE spelling. Uses a single-column information_schema view (one varchar
+    # column) rather than a catalog like pg_am: pg_am.amhandler is a `regproc`,
+    # a type the RDS Data API cannot serialize (UnsupportedResultException), so
+    # the earlier vector failed on the RDS_API path even though the guard
+    # correctly allowed the read. This view's result is serializable on both the
+    # PG-Wire and RDS Data API paths.
+    'TABLE information_schema.information_schema_catalog_name',
+    # SelectStmt: WITH ... SELECT (read-only CTE).
+    'WITH cte AS (SELECT 1 AS n) SELECT n FROM cte',
+    # VariableShowStmt: SHOW.
+    'SHOW work_mem',
+    'SHOW ALL',
+    # ExplainStmt: plain and ANALYZE of a read (EXPLAIN ANALYZE SELECT executes
+    # a pure read and is allowed; the ANALYZE flag is not inspected -- FR2).
+    'EXPLAIN SELECT 1',
+    'EXPLAIN ANALYZE SELECT 1',
+    # UNION / OR 1=1 are valid reads -- the injection-pattern heuristic was
+    # dropped, so they must no longer be false-positived.
+    'SELECT 1 UNION SELECT 2',
+    'SELECT 1 WHERE 1 = 1 OR 1 = 1',
 ]
 
 # Queries that MUST be blocked in read-only mode (mutating keywords).
 # Each is a real statement an LLM might emit; run_query should reject it
 # before it reaches the database when readonly is on.
+# Every write-set category from design section 3.1. Each MUST be rejected in
+# read-only mode (with a "not allowed in read-only mode" message) and MUST NOT
+# be rejected by the read-only guard in write mode (it may still error at the DB
+# for unrelated reasons, e.g. a missing table). None of these are in the
+# dangerous set, so write mode lets them past the guard.
 READONLY_BLOCKED_QUERIES = [
+    # DML
     'INSERT INTO t (a) VALUES (1)',
     'UPDATE t SET a = 1 WHERE id = 2',
     'DELETE FROM t WHERE id = 1',
+    'MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN DELETE',
+    'TRUNCATE TABLE t',
+    # DDL
     'CREATE TABLE t (id int)',
     'ALTER TABLE t ADD COLUMN c int',
-    'TRUNCATE TABLE t',
-    'SET search_path TO public, attacker_schema',
+    'DROP TABLE t',
+    'ALTER TABLE t RENAME TO t2',
+    'CREATE VIEW v AS SELECT 1',
+    'CREATE INDEX idx ON t (a)',
+    'CREATE SEQUENCE seq',
+    'CREATE SCHEMA s',
+    'CREATE FUNCTION f() RETURNS int AS $$ SELECT 1 $$ LANGUAGE sql',
+    'CREATE EXTENSION IF NOT EXISTS citext',
+    # Metadata
+    "COMMENT ON TABLE t IS 'x'",
+    "SECURITY LABEL ON TABLE t IS 'x'",
+    'IMPORT FOREIGN SCHEMA remote FROM SERVER srv INTO local',
+    # Permissions
+    'GRANT SELECT ON t TO bob',
+    'REVOKE SELECT ON t FROM bob',
+    # Maintenance
+    'VACUUM t',
+    'ANALYZE t',
+    'CLUSTER t USING idx',
+    'REINDEX TABLE t',
+    'REFRESH MATERIALIZED VIEW mv',
+    # Procedural / dynamic
+    'DO $$ BEGIN PERFORM 1; END $$',
+    'CALL some_proc()',
+    # Prepared statements
+    'PREPARE p AS SELECT 1',
+    'EXECUTE p',
+    'DEALLOCATE p',
+    # Async / locking
+    'LISTEN e2e_chan',
+    'NOTIFY e2e_chan',
+    'UNLISTEN e2e_chan',
+    'LOCK TABLE t',
+    # Session / backend state
+    "SET work_mem = '64MB'",
     'RESET ALL',
     'DISCARD ALL',
     "LOAD 'auto_explain'",
-    'DO $$ BEGIN PERFORM 1; END $$',
-    'GRANT SELECT ON t TO bob',
+    "SELECT set_config('work_mem', '64MB', false)",  # function form of SET
+    # Transaction control
+    'BEGIN',
+    'COMMIT',
+    'ROLLBACK',
+    'SAVEPOINT sp',
+    'ALTER SYSTEM SET wal_level = replica',
+    # Client-side COPY (not PROGRAM, not a server file -> write set, not dangerous)
+    'COPY t FROM STDIN',
+    'COPY t TO STDOUT',
+    # SelectStmt-that-writes and EXPLAIN-of-a-write (field/tree checks)
+    'SELECT * INTO e2e_tmp FROM pg_class',
+    'EXPLAIN INSERT INTO t (a) VALUES (1)',
+    'WITH x AS (INSERT INTO t VALUES (1) RETURNING *) SELECT * FROM x',  # FR3 DML-in-CTE
+    # Cursor family (Decision A tightening)
+    'DECLARE e2e_cur CURSOR FOR SELECT 1',
+    'FETCH 1 FROM e2e_cur',
+    'MOVE 1 IN e2e_cur',
+    'CLOSE e2e_cur',
+    # Latent-gap commands the old regex missed
+    'CHECKPOINT',
+    'REASSIGN OWNED BY bob TO alice',
+    "COMMIT PREPARED 'gid'",
 ]
 
-# Queries that MUST be blocked in BOTH read-only and write mode because
-# they go through check_sql_injection_risk (dangerous functions and
-# security-sensitive GUCs), which runs regardless of the readonly flag.
-ALWAYS_BLOCKED_QUERIES = [
-    'SELECT pg_terminate_backend(99999)',
-    'SELECT pg_cancel_backend(99999)',
-    'SELECT pg_sleep(30)',
-    "SELECT pg_read_file('/etc/passwd')",
-    'SELECT pg_advisory_lock(42)',
-    'SELECT pg_advisory_xact_lock(42)',
-    "SELECT pg_notify('ch', 'x')",
-    'SET row_security = off',
-    'SET session_replication_role = replica',
+# Queries that MUST be blocked in BOTH read-only and write mode because they
+# are in the dangerous set (dangerous functions and security-sensitive GUCs),
+# which the parser-based guard rejects regardless of the readonly flag.
+# The dangerous set (design section 3.1): rejected regardless of read/write
+# mode (FR4-FR6). The bare-function, schema-qualified, and security-GUC entries
+# are generated from the guard's own constants so this suite covers EVERY entry
+# and cannot drift out of sync with the implementation. The guard rejects by
+# resolved name before execution, so these hold even where the extension or
+# function is not installed on the test cluster.
+_DANGEROUS_FUNCTION_CALLS = [f'SELECT {fn}()' for fn in sorted(DANGEROUS_FUNCTIONS)]
+_DANGEROUS_QUALIFIED_CALLS = [
+    f'SELECT {schema}.{name}()' for (schema, name) in sorted(DANGEROUS_QUALIFIED_FUNCTIONS)
 ]
+_SECURITY_GUC_STATEMENTS = [f'SET {g} = off' for g in sorted(SECURITY_SENSITIVE_GUCS)] + [
+    f"SELECT set_config('{g}', 'off', false)" for g in sorted(SECURITY_SENSITIVE_GUCS)
+]
+
+# Realistic shapes (real arguments), the COPY forms (FR4), and the reported
+# Unicode-escape evasion (FR6a) -- exercising the guard's structural/decoding
+# behavior beyond the generated name-only calls.
+_DANGEROUS_REALISTIC = [
+    "SELECT pg_read_file('/etc/passwd')",
+    'SELECT pg_sleep(30)',
+    "SELECT dblink('host=169.254.169.254 port=80', 'SELECT 1')",  # SSRF -> IMDS
+    "SELECT pg_file_write('/tmp/e2e', 'x', false)",  # adminpack host-file write
+    "SELECT aws_lambda.invoke('arn', '{}')",
+    "SELECT aws_s3.query_export_to_s3('SELECT 1', 'bucket', 'key')",
+    "COPY (SELECT 1) TO PROGRAM 'id'",  # command execution
+    "COPY t FROM PROGRAM 'curl http://169.254.169.254'",
+    "COPY t TO '/tmp/e2e.csv'",  # server-side file write
+    "COPY t FROM '/etc/passwd'",  # server-side file read
+    # Unicode-escape identifier PostgreSQL resolves to pg_read_file; the guard
+    # must still reject it because pglast decodes the escape (the reported bug).
+    r"""SELECT U&"pg_read_fil\0065"('/etc/passwd')""",
+]
+
+# Fail-closed cases (FR1 single statement, FR7 parse error / oversized), also
+# rejected regardless of mode.
+_FAIL_CLOSED = [
+    'SELECT 1; SELECT 2',  # multi-statement
+    'INSERT INTO t VALUES (1); DROP TABLE t',  # stacked
+    'SELCT bogus (((',  # parse error
+    'SELECT ' + ('1,' * 40000) + '1',  # exceeds MAX_SQL_LEN
+]
+
+ALWAYS_BLOCKED_QUERIES = (
+    _DANGEROUS_REALISTIC
+    + _DANGEROUS_FUNCTION_CALLS
+    + _DANGEROUS_QUALIFIED_CALLS
+    + _SECURITY_GUC_STATEMENTS
+    + _FAIL_CLOSED
+)
 
 
 async def run_query_enforcement_suite(
@@ -1910,15 +2298,15 @@ async def run_query_enforcement_suite(
         return bool(rows) and isinstance(rows[0], dict) and 'error' in rows[0]
 
     def _is_readonly_rejection(rows) -> bool:
-        """Distinguish the readonly-guard rejection from other errors.
+        """Distinguish the read-only write-set rejection from other errors.
 
-        run_query returns the write_query_prohibited_key message when the
-        mutating-keyword guard fires. Other errors (injection risk,
-        database errors) use different keys.
+        The parser-based guard's read-only messages all say "not allowed in
+        read-only mode". Dangerous-set rejections, parse errors, and database
+        errors use different messages.
         """
         if not _is_rejected(rows):
             return False
-        return rows[0]['error'] == server.write_query_prohibited_key
+        return 'read-only mode' in str(rows[0]['error'])
 
     async def _connect():
         """(Re)establish the connection so it picks up readonly state.
@@ -2031,8 +2419,8 @@ async def run_query_enforcement_suite(
             step = f'write:always-block {sql[:48]}'
             try:
                 rows = await _run(sql)
-                # These go through check_sql_injection_risk which is
-                # mode-independent, so they must STILL be rejected.
+                # Dangerous-set constructs are mode-independent, so they must
+                # STILL be rejected by the guard even with writes enabled.
                 record(step, _is_rejected(rows), str(rows)[:120])
             except Exception as e:
                 record(step, False, f'{type(e).__name__}: {e}')
@@ -2041,6 +2429,245 @@ async def run_query_enforcement_suite(
         # Restore global and drop the test connection so later suites
         # start from a clean state.
         server.readonly_query = saved_readonly
+        try:
+            server.db_connection_map.remove(
+                connection_method, cluster_identifier, valid_endpoint, test_database, port
+            )
+        except Exception as e:
+            logger.warning(f'Non-fatal cleanup failure removing test DB connection: {e}')
+
+    return result
+
+
+def _make_throwaway_ca() -> Optional[str]:
+    """Generate an unrelated self-signed CA PEM for the wrong-CA TLS test.
+
+    Returns the path to a temp PEM, or None if ``openssl`` is unavailable. The
+    cert is unrelated to the Amazon RDS CA, so ``verify-full``/``verify-ca``
+    against it must fail -- proving the guard actually verifies the server cert
+    rather than merely encrypting.
+    """
+    openssl = shutil.which('openssl')
+    if not openssl:
+        return None
+    cert_fd, cert_path = tempfile.mkstemp(prefix='e2e-bogus-ca-', suffix='.pem')
+    os.close(cert_fd)
+    key_fd, key_path = tempfile.mkstemp(prefix='e2e-bogus-key-', suffix='.pem')
+    os.close(key_fd)
+    try:
+        subprocess.run(
+            [
+                openssl,
+                'req',
+                '-x509',
+                '-newkey',
+                'rsa:2048',
+                '-nodes',
+                '-keyout',
+                key_path,
+                '-out',
+                cert_path,
+                '-days',
+                '1',
+                '-subj',
+                '/CN=e2e-bogus-ca',
+            ],
+            check=True,
+            capture_output=True,
+            timeout=30,
+        )
+        return cert_path
+    except (subprocess.SubprocessError, OSError):
+        try:
+            os.remove(cert_path)
+        except OSError:
+            # Best-effort cleanup of the temp cert; ignore deletion failures.
+            pass
+        return None
+    finally:
+        try:
+            os.remove(key_path)  # the private key is never needed
+        except OSError:
+            # Best-effort cleanup of the temp key; ignore deletion failures.
+            pass
+
+
+async def run_tls_enforcement_suite(
+    cluster_identifier: str,
+    region: str,
+    database: str,
+    valid_endpoint: str,
+    port: int,
+    cluster_kind: str,
+    connection_method: ConnectionMethod,
+    connection_method_name: str,
+) -> TestResult:
+    """Validate TLS enforcement on the psycopg (PG Wire) path against a real cluster.
+
+    Mirrors ``run_query_enforcement_suite``: toggles ``server.configured_sslmode``
+    / ``server.configured_ca_bundle`` in place and reconnects, so no cluster
+    changes or extra MCP processes are needed. Skipped on RDS_API (that path is
+    verified HTTPS and has no sslmode).
+
+    Cases, all driven through the real connect_to_database / run_query tools:
+      1. verify-full (default, bundled combined AWS CA): connect succeeds AND the
+         session is encrypted (``pg_stat_ssl.ssl`` is true) -- regression + a
+         positive proof that the out-of-the-box default connects to the real
+         cluster (verifying both CA chain and hostname) and TLS is in effect.
+      2. require: connect succeeds and the session is encrypted (no cert verify).
+      3. verify-full + an unrelated (throwaway) CA: a query cannot succeed --
+         proves the default mode genuinely verifies the certificate against the
+         trusted CA, not just "SSL on".
+    """
+    result = TestResult(
+        cluster_identifier=cluster_identifier,
+        connection_method_name=f'tls_enforcement_{connection_method_name}',
+        passed=[],
+        failed=[],
+    )
+
+    def record(step, ok, detail=''):
+        """Record a test step result as passed or failed."""
+        log_step(step, 'PASS' if ok else 'FAIL', detail)
+        if ok:
+            result.passed.append(step)
+        else:
+            result.failed.append((step, detail))
+
+    # sslmode applies only to the psycopg (PG Wire) path. The RDS Data API
+    # connects over verified HTTPS and has no sslmode, so there is nothing to
+    # test there.
+    if connection_method == ConnectionMethod.RDS_API:
+        record('tls:skipped', True, 'RDS Data API path is verified HTTPS (no sslmode)')
+        return result
+
+    logger.info(f'\n{"=" * 60}')
+    logger.info(
+        f'Running TLS-enforcement suite on {cluster_kind} '
+        f'({connection_method_name}) cluster: {cluster_identifier}'
+    )
+    logger.info(f'{"=" * 60}')
+
+    # Capture the server certificate + default validation posture up front, so
+    # every run's log shows exactly what cert the endpoint presents and how the
+    # bundled AWS CA verifies it -- invaluable when a TLS case fails.
+    log_tls_diagnostics(
+        valid_endpoint,
+        port,
+        server.configured_ca_bundle or _bundled_ca_file(),
+        server.configured_sslmode,
+        label=f'{cluster_kind} default posture',
+    )
+
+    ctx = DummyCtx()
+    test_database = 'postgres'
+
+    def _is_rejected(rows) -> bool:
+        return bool(rows) and isinstance(rows[0], dict) and 'error' in rows[0]
+
+    async def _reconnect() -> str:
+        """Drop the cached connection and reconnect under the current TLS globals."""
+        server.db_connection_map.remove(
+            connection_method, cluster_identifier, valid_endpoint, test_database, port
+        )
+        return str(
+            await connect_to_database(
+                region=region,
+                database_type=DatabaseType.APG,
+                connection_method=connection_method,
+                cluster_identifier=cluster_identifier,
+                db_endpoint=valid_endpoint,
+                port=port,
+                database=test_database,
+            )
+        )
+
+    async def _run(sql):
+        return await run_query(
+            sql=sql,
+            ctx=ctx,
+            connection_method=connection_method,
+            cluster_identifier=cluster_identifier,
+            db_endpoint=valid_endpoint,
+            database=test_database,
+        )
+
+    async def _session_is_encrypted() -> bool:
+        """True if the current backend's connection is SSL (pg_stat_ssl)."""
+        rows = await _run('SELECT ssl FROM pg_stat_ssl WHERE pid = pg_backend_pid()')
+        if _is_rejected(rows) or not rows or not isinstance(rows[0], dict):
+            return False
+        val = rows[0].get('ssl')
+        return str(val).strip().lower() in ('true', 't', 'on', '1')
+
+    saved_sslmode = server.configured_sslmode
+    saved_ca_bundle = server.configured_ca_bundle
+    throwaway_ca: Optional[str] = None
+    try:
+        # Case 1: verify-full (default) -- connect out of the box and prove TLS is on.
+        step = 'tls:verify-full (default) connect + pg_stat_ssl'
+        if _bundled_ca_file() is None:
+            record(step, True, 'skipped: bundled AWS CA not present; run `python hatch_build.py`')
+        else:
+            try:
+                server.configured_sslmode = 'verify-full'
+                server.configured_ca_bundle = None
+                resp = await _reconnect()
+                if 'Failed' in resp:
+                    record(step, False, f'connect failed: {resp[:160]}')
+                else:
+                    record(step, await _session_is_encrypted(), 'encrypted session confirmed')
+            except Exception as e:
+                record(step, False, f'{type(e).__name__}: {e}')
+
+        # Case 2: require -- encrypted, no certificate verification.
+        step = 'tls:require connect + pg_stat_ssl'
+        try:
+            server.configured_sslmode = 'require'
+            server.configured_ca_bundle = None
+            resp = await _reconnect()
+            if 'Failed' in resp:
+                record(step, False, f'connect failed: {resp[:160]}')
+            else:
+                record(step, await _session_is_encrypted(), 'encrypted session confirmed')
+        except Exception as e:
+            record(step, False, f'{type(e).__name__}: {e}')
+
+        # Case 3: verify-full (the default) + an unrelated CA -- must NOT yield a
+        # working session (proves the default mode verifies the cert, not just
+        # encrypts).
+        step = 'tls:verify-full wrong-CA rejected'
+        throwaway_ca = _make_throwaway_ca()
+        if throwaway_ca is None:
+            record(step, True, 'skipped: openssl unavailable to generate a throwaway CA')
+        else:
+            try:
+                server.configured_sslmode = 'verify-full'
+                server.configured_ca_bundle = throwaway_ca
+                resp = await _reconnect()
+                # Either the connect fails, or a trivial query fails -- either
+                # way verify-full must refuse to run against an untrusted cert.
+                rejected = 'Failed' in resp or _is_rejected(await _run('SELECT 1'))
+                record(
+                    step,
+                    rejected,
+                    'untrusted cert correctly rejected'
+                    if rejected
+                    else 'ERROR: connected/queried with an untrusted CA',
+                )
+            except Exception as e:
+                # A raised TLS error is also a correct rejection.
+                record(step, True, f'rejected with {type(e).__name__}')
+    finally:
+        server.configured_sslmode = saved_sslmode
+        server.configured_ca_bundle = saved_ca_bundle
+        if throwaway_ca:
+            try:
+                os.remove(throwaway_ca)
+            except OSError as e:
+                logger.warning(
+                    f'Non-fatal cleanup failure removing throwaway CA bundle {throwaway_ca}: {e}'
+                )
         try:
             server.db_connection_map.remove(
                 connection_method, cluster_identifier, valid_endpoint, test_database, port
@@ -2317,37 +2944,17 @@ async def main_async(args):
     # --------------------------------------------------------------
 
     def _phase2_plan():
-        """Compatibility matrix as a list of (kind, method, method_name, enabled).
+        """Functional-suite cells derived from the resolved run plan.
 
-        Express clusters are reachable from anywhere by default (no VPC
-        security group restriction), so the express + PG_WIRE_IAM_PROTOCOL
-        cell runs unconditionally. The regular (serverless) cluster is
-        only created when --test-serverless-cluster is set, so all its
-        cells are gated on that flag. Its PG Wire cells additionally
-        require --test-non-express-cluster to indicate the host running
-        this test can reach the cluster on TCP 5432. RDS_API is a public
-        HTTPS endpoint and works whenever the serverless cluster exists.
+        ``args.plan_by_kind`` (built in ``main()`` from --endpoint-types /
+        --auth-types, validated against the capability matrix) maps each
+        requested endpoint kind to its ``(method, method_name)`` cells. Every
+        cell here is already known-valid, so all are enabled.
         """
         return [
-            ('express', ConnectionMethod.PG_WIRE_IAM_PROTOCOL, 'PG_WIRE_IAM_PROTOCOL', True),
-            (
-                'serverless',
-                ConnectionMethod.RDS_API,
-                'RDS_API',
-                args.test_serverless_cluster,
-            ),
-            (
-                'serverless',
-                ConnectionMethod.PG_WIRE_IAM_PROTOCOL,
-                'PG_WIRE_IAM_PROTOCOL',
-                args.test_non_express_cluster,
-            ),
-            (
-                'serverless',
-                ConnectionMethod.PG_WIRE_PROTOCOL,
-                'PG_WIRE_PROTOCOL',
-                args.test_non_express_cluster,
-            ),
+            (kind, method, method_name, True)
+            for kind in args.endpoint_kinds
+            for method, method_name in args.plan_by_kind[kind]
         ]
 
     def _record(result: TestResult):
@@ -2363,32 +2970,35 @@ async def main_async(args):
         # endpoint retrieval) raises, ep returns None but the cluster is
         # still alive in AWS. internal_delete_cluster handles
         # not-found gracefully, so it's safe to register cleanup eagerly.
-        clusters_to_delete.append(express_id)
-        try:
-            ep, res = create_cluster_as_test(
-                cluster_kind='express',
-                creator_fn=partial(
-                    create_express_cluster,
-                    cluster_identifier=express_id,
-                    region=args.region,
-                    database=args.database,
-                    engine_version=args.engine_version,
-                ),
-            )
-            res.cluster_identifier = express_id
-            _record(res)
-            if ep is not None:
-                express_endpoint = ep
-        except Exception as e:
-            logger.exception('Express cluster phase aborted')
-            _record(
-                TestResult(
-                    cluster_identifier=express_id,
-                    connection_method_name='create_cluster_express',
-                    passed=[],
-                    failed=[('create_cluster_express', f'{type(e).__name__}: {e}')],
+        if 'express' not in args.endpoint_kinds:
+            logger.info('Skipping express cluster creation (not in --endpoint-types).')
+        else:
+            clusters_to_delete.append(express_id)
+            try:
+                ep, res = create_cluster_as_test(
+                    cluster_kind='express',
+                    creator_fn=partial(
+                        create_express_cluster,
+                        cluster_identifier=express_id,
+                        region=args.region,
+                        database=args.database,
+                        engine_version=args.engine_version,
+                    ),
                 )
-            )
+                res.cluster_identifier = express_id
+                _record(res)
+                if ep is not None:
+                    express_endpoint = ep
+            except Exception as e:
+                logger.exception('Express cluster phase aborted')
+                _record(
+                    TestResult(
+                        cluster_identifier=express_id,
+                        connection_method_name='create_cluster_express',
+                        passed=[],
+                        failed=[('create_cluster_express', f'{type(e).__name__}: {e}')],
+                    )
+                )
 
         # Provision a public-access path for the serverless cluster
         # when --test-non-express-cluster is set. The SG locks ingress
@@ -2449,6 +3059,10 @@ async def main_async(args):
                         region=args.region,
                         database=args.database,
                         engine_version=args.engine_version,
+                        # Enable IAM DB auth only when a serverless PG-Wire IAM
+                        # cell is planned; otherwise the cluster (RDS_API-only)
+                        # doesn't need it. Keeps the capability off unless used.
+                        enable_iam_auth=args.serverless_pgwire,
                         **public_access_kwargs,
                     ),
                 )
@@ -2586,9 +3200,7 @@ async def main_async(args):
         # --test-serverless-cluster is set; otherwise this is an
         # express-only run and serverless suites are not planned.
         # ==============================================================
-        phase3_kinds = ['express']
-        if args.test_serverless_cluster:
-            phase3_kinds.append('serverless')
+        phase3_kinds = list(args.endpoint_kinds)
 
         # Suite names planned per cluster, used to emit skip placeholders
         # when a cluster's endpoint is unavailable (creation failed).
@@ -2596,6 +3208,7 @@ async def main_async(args):
             'endpoint_validation',
             'secret_arn_validation',
             'query_enforcement',
+            'tls_enforcement',
             'privilege_enforcement',
             'startup_secret_arn_validation',
         )
@@ -2618,18 +3231,16 @@ async def main_async(args):
 
             valid_endpoint: str = endpoint
 
-            # The query-enforcement suite needs a connection method that
-            # actually works against this cluster kind from the test
-            # host. Express is publicly reachable via PG_WIRE_IAM.
-            # Serverless uses RDS_API (public HTTPS) by default; only
-            # use a PG Wire method against serverless when
-            # --test-non-express-cluster confirms VPC reachability.
-            if kind == 'express':
-                enforce_method = ConnectionMethod.PG_WIRE_IAM_PROTOCOL
-                enforce_method_name = 'PG_WIRE_IAM_PROTOCOL'
-            else:
-                enforce_method = ConnectionMethod.RDS_API
-                enforce_method_name = 'RDS_API'
+            # The phase-3 suites run under one connection method per kind.
+            # Pick it from the resolved plan, preferring a PG-Wire method so
+            # the TLS-enforcement suite actually exercises TLS (RDS_API has no
+            # sslmode and self-skips). Falls back to the first planned cell
+            # (e.g. RDS_API when only the Data API was requested for serverless).
+            kind_cells = args.plan_by_kind[kind]
+            enforce_method, enforce_method_name = next(
+                ((m, n) for m, n in kind_cells if m in _PGWIRE_METHODS),
+                kind_cells[0],
+            )
 
             # Each entry: (suite_name, runner_coro_factory). Every runner
             # is an async callable returning Awaitable[TestResult] so the
@@ -2674,6 +3285,24 @@ async def main_async(args):
                     connection_method_name=mn,
                 )
 
+            async def _run_tls_enforcement(
+                c=cid,
+                e=valid_endpoint,
+                k=kind,
+                m=enforce_method,
+                mn=enforce_method_name,
+            ):
+                return await run_tls_enforcement_suite(
+                    cluster_identifier=c,
+                    region=args.region,
+                    database=args.database,
+                    valid_endpoint=e,
+                    port=args.port,
+                    cluster_kind=k,
+                    connection_method=m,
+                    connection_method_name=mn,
+                )
+
             async def _run_privilege_enforcement(
                 c=cid,
                 e=valid_endpoint,
@@ -2702,6 +3331,7 @@ async def main_async(args):
                 ('endpoint_validation', _run_endpoint_validation),
                 ('secret_arn_validation', _run_secret_arn_validation),
                 ('query_enforcement', _run_query_enforcement),
+                ('tls_enforcement', _run_tls_enforcement),
                 ('privilege_enforcement', _run_privilege_enforcement),
                 ('startup_secret_arn_validation', _run_startup_secret_arn_validation),
             ):
@@ -2833,7 +3463,31 @@ def main():
             'cluster is publicly reachable by default and its PG_WIRE_IAM_PROTOCOL '
             'cell always runs regardless of this flag. RDS_API is a public HTTPS '
             'endpoint and is unaffected. Implies --test-serverless-cluster '
-            '(the serverless cluster must exist to be PG-Wire-tested).'
+            '(the serverless cluster must exist to be PG-Wire-tested). '
+            'Legacy flag; prefer --endpoint-types / --auth-types.'
+        ),
+    )
+    parser.add_argument(
+        '--endpoint-types',
+        default=None,
+        help=(
+            'Comma-separated endpoint types to provision and test: '
+            f'{",".join(SUPPORTED_ENDPOINT_TYPES)} '
+            '(rds-instance not yet supported). When omitted, falls back to the '
+            'legacy --test-serverless-cluster / --test-non-express-cluster flags '
+            '(default: express only). The wrapper script passes '
+            "'express,serverless' to enumerate all Aurora endpoints."
+        ),
+    )
+    parser.add_argument(
+        '--auth-types',
+        default=None,
+        help=(
+            'Comma-separated auth methods to include, filtered by each endpoint '
+            f"type's supported set: {','.join(ALL_AUTH_TYPES)}. Default (when "
+            '--endpoint-types is given) is all supported. An endpoint/auth '
+            'combination the platform cannot do (e.g. express + rds_api) is '
+            'rejected with an error.'
         ),
     )
     args = parser.parse_args()
@@ -2842,6 +3496,46 @@ def main():
     # cluster is actually created, so it implies --test-serverless-cluster.
     if args.test_non_express_cluster:
         args.test_serverless_cluster = True
+
+    # Resolve the endpoint x auth run plan. Two paths:
+    #  * New interface (--endpoint-types and/or --auth-types given): build the
+    #    plan from the capability matrix, blocking invalid combinations.
+    #  * Legacy interface (neither given): reproduce the historical behavior
+    #    exactly from --test-serverless-cluster / --test-non-express-cluster.
+    if args.endpoint_types is None and args.auth_types is None:
+        endpoint_kinds = ['express']
+        plan_by_kind = {'express': [AUTH_TYPE_TO_METHOD['pg_wire_iam']]}
+        if args.test_serverless_cluster:
+            endpoint_kinds.append('serverless')
+            serverless_cells = [AUTH_TYPE_TO_METHOD['rds_api']]
+            if args.test_non_express_cluster:
+                serverless_cells.append(AUTH_TYPE_TO_METHOD['pg_wire_iam'])
+                serverless_cells.append(AUTH_TYPE_TO_METHOD['pg_wire_secret'])
+            plan_by_kind['serverless'] = serverless_cells
+        serverless_pgwire = args.test_non_express_cluster
+    else:
+        endpoint_types: List[str] = (
+            _split_csv(args.endpoint_types)
+            if args.endpoint_types
+            else list(SUPPORTED_ENDPOINT_TYPES)
+        )
+        auth_types: List[str] = (
+            _split_csv(args.auth_types) if args.auth_types else list(ALL_AUTH_TYPES)
+        )
+        try:
+            endpoint_kinds, plan_by_kind, serverless_pgwire = resolve_run_plan(
+                endpoint_types, auth_types
+            )
+        except ValueError as e:
+            parser.error(str(e))
+
+    # Stash the resolved plan; also derive the legacy booleans main_async still
+    # reads so the rest of the orchestration needs no change.
+    args.endpoint_kinds = endpoint_kinds
+    args.plan_by_kind = plan_by_kind
+    args.serverless_pgwire = serverless_pgwire
+    args.test_serverless_cluster = 'serverless' in endpoint_kinds
+    args.test_non_express_cluster = serverless_pgwire
 
     # Replace loguru's default sink with one at the requested level. This
     # filters everything (including the postgres-mcp-server modules' own

@@ -35,14 +35,13 @@ from awslabs.postgres_mcp_server.connection.db_connection_map import (
     DBConnectionMap,
 )
 from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import (
+    ALLOWED_SSLMODES,
+    DEFAULT_SSLMODE,
     PsycopgPoolConnection,
     get_credentials_from_secret,
 )
 from awslabs.postgres_mcp_server.connection.rds_api_connection import RDSDataAPIConnection
-from awslabs.postgres_mcp_server.mutable_sql_detector import (
-    check_sql_injection_risk,
-    detect_mutating_keywords,
-)
+from awslabs.postgres_mcp_server.sql_guard import SqlPolicyError, assert_executable
 from botocore.exceptions import ClientError
 from datetime import datetime
 from loguru import logger
@@ -63,10 +62,19 @@ db_connection_map = DBConnectionMap()
 async_job_status: Dict[str, dict] = {}
 async_job_status_lock = threading.Lock()
 client_error_code_key = 'run_query ClientError code'
-write_query_prohibited_key = 'Your MCP tool only allows readonly query. If you want to write, change the MCP configuration per README.md'
-query_comment_prohibited_key = 'The comment in query is prohibited because of injection risk'
-query_injection_risk_key = 'Your query contains risky injection patterns'
 readonly_query = True
+# Optional operator-supplied CA bundle for certificate verification on psycopg
+# (PG Wire) connections, overriding the bundled Amazon RDS bundle. Set from
+# --ca_bundle (a PEM path, or the sentinel 'system' for the OS trust store).
+# None means use the bundled bundle (or system trust store as a last resort).
+configured_ca_bundle: Optional[str] = None
+# libpq SSL mode for psycopg (PG Wire) connections. Set from --sslmode; always
+# one of ALLOWED_SSLMODES (the connection is always encrypted). Default is
+# verify-full (AWS's production guidance): encrypted + CA chain + hostname
+# verified against the bundled combined AWS CA (RDS private CAs + public Amazon
+# roots), which connects to direct instances, cluster endpoints, and RDS Proxy
+# out of the box. verify-ca / require are opt-downs for IP/tunnel/self-signed.
+configured_sslmode: str = DEFAULT_SSLMODE
 
 # Least-privilege guardrail policy for post-connect validation.
 #   'warn' (default): log a warning but allow a connection whose Postgres role
@@ -377,7 +385,6 @@ async def run_query(
         List of dictionary that contains query response rows
     """
     global client_error_code_key
-    global write_query_prohibited_key
     global db_connection_map
 
     logger.info(
@@ -402,27 +409,15 @@ async def run_query(
         await ctx.error(err)
         return [{'error': err}]
 
-    if db_connection.readonly_query:
-        matches = detect_mutating_keywords(sql)
-        if (bool)(matches):
-            logger.info(
-                (
-                    f'query is rejected because current setting only allows readonly query.'
-                    f'detected keywords: {matches}, SQL query: {sql}'
-                )
-            )
-            await ctx.error(write_query_prohibited_key)
-            return [{'error': write_query_prohibited_key}]
-
-    issues = check_sql_injection_risk(sql)
-    if issues:
-        logger.info(
-            f'query is rejected because it contains risky SQL pattern, SQL query: {sql}, reasons: {issues}'
-        )
-        await ctx.error(
-            str({'message': 'Query parameter contains suspicious pattern', 'details': issues})
-        )
-        return [{'error': query_injection_risk_key}]
+    # Parser-based policy guard (pglast). Rejects dangerous constructs in both
+    # modes and, in read-only mode, any non-read (write-set) statement. Fails
+    # closed on parse errors, oversized input, and multi-statement submissions.
+    try:
+        assert_executable(sql, allow_write_query=not db_connection.readonly_query)
+    except SqlPolicyError as e:
+        logger.info(f'query rejected by SQL policy guard: {e}. SQL query: {sql}')
+        await ctx.error(str(e))
+        return [{'error': str(e)}]
 
     try:
         logger.debug(
@@ -685,6 +680,18 @@ def create_cluster(
     with_express_configuration: Annotated[
         bool, Field(description='with express configuration')
     ] = False,
+    enable_iam_auth: Annotated[
+        bool,
+        Field(
+            description=(
+                'Enable IAM database authentication on the created cluster. Only '
+                'permits IAM token auth in addition to password auth (does not '
+                'disable passwords). Capability toggle only: a DB role still needs '
+                'GRANT rds_iam and an rds-db:connect IAM policy to connect via IAM. '
+                'Ignored for express clusters (they enable IAM auth automatically).'
+            )
+        ),
+    ] = False,
 ) -> str:
     """Create an RDS/Aurora cluster.
 
@@ -694,6 +701,10 @@ def create_cluster(
         database: database name, ignored when with_express_configuration is set to true
         engine_version: engine version, ignored when with_express_configuration is set to true
         with_express_configuration: create the cluster with express configuration
+        enable_iam_auth: enable IAM database authentication on the cluster (serverless
+            path only; express enables IAM auth via its express configuration). Only
+            permits IAM auth in addition to passwords; still requires GRANT rds_iam and
+            an rds-db:connect IAM policy to be usable.
 
     Returns:
         result
@@ -764,6 +775,7 @@ def create_cluster(
             cluster_identifier,
             engine_version,
             database,
+            enable_iam_auth,
         ),
         daemon=False,
     )
@@ -814,6 +826,7 @@ def create_cluster_worker(
     cluster_identifier: str,
     engine_version: str,
     database: str,
+    enable_iam_auth: bool = False,
 ):
     """Background worker for cluster creation.
 
@@ -825,6 +838,7 @@ def create_cluster_worker(
         cluster_identifier: Cluster identifier
         engine_version: Engine version
         database: Database name
+        enable_iam_auth: Enable IAM database authentication on the created cluster.
     """
     global db_connection_map
     global async_job_status
@@ -837,6 +851,7 @@ def create_cluster_worker(
             cluster_identifier=cluster_identifier,
             engine_version=engine_version,
             database_name=database,
+            enable_iam_auth=enable_iam_auth,
         )
 
         setup_aurora_iam_policy_for_current_user(
@@ -1122,6 +1137,8 @@ def internal_create_connection(
             db_user=iam_username,
             region=region,
             is_iam_auth=True,
+            ca_bundle_path=configured_ca_bundle,
+            sslmode=configured_sslmode,
         )
 
     elif connection_method == ConnectionMethod.RDS_API:
@@ -1143,6 +1160,8 @@ def internal_create_connection(
             db_user='',
             region=region,
             is_iam_auth=False,
+            ca_bundle_path=configured_ca_bundle,
+            sslmode=configured_sslmode,
         )
 
     if db_connection:
@@ -1342,6 +1361,8 @@ def main():
     global configured_secret_arns
     global configured_default_secret_arn
     global privilege_check_policy
+    global configured_ca_bundle
+    global configured_sslmode
 
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for postgres'
@@ -1372,6 +1393,33 @@ def main():
     )
     parser.add_argument('--database', help='Database name')
     parser.add_argument('--port', type=int, default=5432, help='Database port (default: 5432)')
+    parser.add_argument(
+        '--sslmode',
+        choices=ALLOWED_SSLMODES,
+        default=DEFAULT_SSLMODE,
+        help=(
+            'TLS mode for direct (psycopg / PG Wire) connections. The connection '
+            'is always encrypted; this tunes certificate verification: '
+            "'verify-full' (default) verifies the CA chain and the hostname; "
+            "'verify-ca' verifies the CA chain but not the hostname (use for "
+            'IP/tunnel/CNAME endpoints that will not match the certificate); '
+            "'require' encrypts but does not verify the certificate (e.g. a "
+            'self-signed cert you do not want to validate). Plaintext modes are '
+            'not offered.'
+        ),
+    )
+    parser.add_argument(
+        '--ca_bundle',
+        default=None,
+        help=(
+            'CA bundle for certificate verification on psycopg (PG Wire) '
+            "connections when --sslmode is 'verify-ca' or 'verify-full'. Either a "
+            'path to a PEM file (e.g. a private CA for self-hosted PostgreSQL) or '
+            "the literal 'system' to use the OS trust store. Overrides the bundled "
+            'combined AWS CA bundle (RDS private CAs + public Amazon roots) shipped '
+            "with the package. Ignored when --sslmode is 'require'."
+        ),
+    )
     parser.add_argument(
         '--secret_arn',
         required=False,
@@ -1449,6 +1497,24 @@ def main():
 
     readonly_query = not args.allow_write_query
     privilege_check_policy = args.privilege_check
+    configured_ca_bundle = args.ca_bundle
+    configured_sslmode = args.sslmode
+    # Surface a reduced TLS posture so operators/auditors can see it in logs.
+    # The connection is still encrypted (plaintext modes are not offered), but
+    # any mode below the default (verify-full) verifies less of the server's
+    # identity: 'verify-ca' skips the hostname check, 'require' skips
+    # certificate verification entirely.
+    if configured_sslmode != DEFAULT_SSLMODE:
+        logger.warning(
+            f'TLS certificate verification reduced: --sslmode={configured_sslmode} '
+            f'(default is {DEFAULT_SSLMODE}). Connections remain encrypted, but '
+            'the server certificate is '
+            + (
+                'not verified.'
+                if configured_sslmode == 'require'
+                else 'verified without a hostname check.'
+            )
+        )
     configured_secret_arns.clear()
     configured_secret_arns.update(secret_arn_map)
     configured_default_secret_arn = default_secret_arn

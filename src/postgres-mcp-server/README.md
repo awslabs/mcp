@@ -176,17 +176,86 @@ The MCP server supports IAM and username/password methods for Postgres authentic
 
 #### `--allow_write_query` read-only enforcement is best effort
 
-When the MCP server runs without `--allow_write_query`, it rejects queries that
-appear to mutate data or session state. This is implemented with a keyword and
-function blocklist (DML/DDL verbs such as `INSERT`/`UPDATE`/`DROP`, session-state
-statements such as `SET`/`RESET`/`DISCARD`/`LOAD`, anonymous code blocks `DO`,
-and high-impact functions such as `pg_terminate_backend`, `pg_sleep`, and the
-advisory-lock family).
+When the MCP server runs without `--allow_write_query`, it rejects any statement
+that is not a read. Enforcement is **parser-based**: each query is parsed with
+[`pglast`](https://github.com/lelit/pglast) (libpg_query — PostgreSQL's own
+parser), and the statement is classified from the parse tree. In read-only mode
+only read statements (`SELECT`/`WITH … SELECT`/`VALUES`/`TABLE`/`SHOW`/`EXPLAIN`
+of a read) are allowed; anything else is rejected. Regardless of mode, a
+dangerous set is always rejected — command execution (`COPY … TO/FROM PROGRAM`),
+host filesystem access (`COPY … TO/FROM '<file>'`, `pg_read_file`, `lo_import`,
+the `pg_ls_dir` and `adminpack` families), SSRF/exfiltration (the `dblink`
+family, `aws_lambda.invoke`, `aws_s3.query_export_to_s3`), DoS
+(`pg_sleep`, `pg_terminate_backend`, advisory locks), and settings that disable
+data-access controls (`row_security`, `session_replication_role`). Multi-statement
+input is rejected, and the guard fails closed on any parse error.
+
+Because the guard uses PostgreSQL's own parser, syntactic evasions that defeat
+text matching — quoted identifiers, comments, and Unicode-escaped identifiers
+(`U&"pg_read_fil\0065"`) — are decoded and classified exactly as the database
+would, so they no longer bypass it.
 
 **Treat this as a best-effort, defense-in-depth mechanism, not a security
-boundary.** A blocklist cannot enumerate every dangerous construct, and a
-sufficiently creative query (obfuscation, quoted identifiers, new server/extension
-functions, etc.) may bypass it. Do not rely on it as your only control.
+boundary.** A parser sees structure, not runtime semantics: it cannot tell that
+a `SELECT some_function()` writes internally, that a `SECURITY DEFINER` function
+has side effects, or resolve which function a name refers to under a custom
+`search_path`. Do not rely on it as your only control.
+
+#### TLS is enforced on direct (PG Wire) connections
+
+For direct PostgreSQL connections (the psycopg / PG Wire path, used for IAM auth
+and Secrets Manager password auth), the server connects with
+`sslmode=verify-full`. This requires TLS — there is no silent plaintext
+downgrade — and verifies both that the server certificate chains to a trusted CA
+and that its hostname matches, so a credential is never sent in the clear and a
+man-in-the-middle presenting a spoofed certificate is rejected. (The RDS Data
+API path already runs over verified HTTPS.)
+
+Aurora / RDS PostgreSQL endpoints present certificates from two different Amazon
+PKIs, and this server trusts both out of the box:
+
+- **Amazon RDS private CAs** (`rds-ca-rsa2048-g1` / `rds-ca-rsa4096-g1` /
+  `rds-ca-ecc384-g1`) — used by direct DB instance / cluster endpoints. See
+  [Using SSL/TLS to encrypt a connection to a DB cluster](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.SSL.html).
+- **Public Amazon Trust Services roots** (`Amazon Root CA 1`–`4`) — used by
+  endpoints whose certificate is issued by AWS Certificate Manager (ACM), such
+  as RDS Proxy and Aurora Serverless v1.
+
+The package ships the union of both as a single combined bundle (assembled at
+build time), so `verify-full` works against any of these endpoints without extra
+configuration.
+
+The connection is **always encrypted** — plaintext modes are not offered, so a
+credential is never sent in the clear. What you can tune is how much of the
+server's identity is verified, via `--sslmode`:
+
+| `--sslmode` | Encrypted | Verifies CA chain | Verifies hostname | Typical use |
+|---|---|---|---|---|
+| `verify-full` (default) | yes | yes | yes | Aurora/RDS via its endpoint (direct instance, cluster, or RDS Proxy); self-hosted with a proper cert + matching hostname |
+| `verify-ca` | yes | yes | no | tunnel / bastion / IP / `localhost` / CNAME where the hostname won't match the cert |
+| `require` | yes | no | no | self-signed cert you don't want to validate; encrypt-only on a trusted network |
+
+Certificate verification (the `verify-*` modes) needs a trusted CA. The combined
+Amazon bundle described above is used by default. Select a different trust anchor
+with `--ca_bundle`:
+
+```
+--ca_bundle /path/to/private-ca.pem   # e.g. self-hosted PostgreSQL with a private CA
+--ca_bundle system                    # use the OS trust store (e.g. a publicly-trusted cert)
+```
+
+Self-signed / private-CA notes:
+
+- **Self-signed or private CA:** use `--sslmode verify-ca --ca_bundle <cert.pem>`
+  (validates the cert against your CA; skips the hostname check that a
+  self-signed cert usually can't satisfy). `verify-full` also works only if the
+  cert's hostname matches what you connect to.
+- **Don't want to manage a cert file:** use `--sslmode require` (encrypted, no
+  verification; `--ca_bundle` is ignored).
+
+Because credentials are never sent in cleartext, a server that offers no TLS
+will fail to connect under any mode. Enable TLS on the server (there is
+intentionally no plaintext option).
 
 #### Best practice: run the MCP server as a minimal-privilege Postgres role
 
@@ -197,6 +266,11 @@ enforces the boundary regardless of what SQL reaches it. In particular:
 - **Do not** connect as a superuser, `rds_superuser`, or the cluster master user.
   Those roles bypass row-level security, can read credential catalogs
   (`pg_authid`, `pg_user_mappings`), and can terminate other sessions.
+- **Do not** grant the connected role the predefined roles
+  `pg_read_server_files`, `pg_write_server_files`, or `pg_execute_server_program`.
+  These are what make host filesystem access and `COPY … TO/FROM PROGRAM`
+  command execution possible; without them, the database refuses those operations
+  even if a query reaches it.
 - For read-only use, grant only `CONNECT` + `USAGE` + `SELECT` on the schemas the
   agent needs, and force read-only transactions at the role level.
 - For read/write use, grant only the specific `INSERT`/`UPDATE`/`DELETE`

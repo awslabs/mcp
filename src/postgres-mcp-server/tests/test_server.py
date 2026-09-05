@@ -39,7 +39,6 @@ from awslabs.postgres_mcp_server.server import (
     is_database_connected,
     main,
     run_query,
-    write_query_prohibited_key,
 )
 from conftest import DummyCtx, Mock_DBConnection, Mock_PsycopgPoolConnection, MockException
 from unittest.mock import AsyncMock, patch
@@ -634,11 +633,13 @@ async def test_run_query_write_queries_on_readonly_setting():
             sql_text, ctx, ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
         )
 
-        # All query should fail with below signature in response
+        # All query should fail with an error in response. The parser-based
+        # guard returns a message naming the rejected construct (FR8), so we
+        # assert a non-empty error rather than a fixed string.
         assert len(response) == 1
         assert len(response[0]) == 1
         assert 'error' in response[0]
-        assert response[0].get('error') == write_query_prohibited_key
+        assert response[0].get('error')
 
 
 @pytest.mark.asyncio
@@ -785,6 +786,96 @@ def test_main_with_invalid_parameters(monkeypatch, capsys):
     # With mcp.run mocked, the server starts and stops without error.
     # The connection validation happens lazily when queries are executed, not at startup.
     main()  # Should not raise an error
+
+
+@pytest.mark.parametrize(
+    'sslmode,expected_phrase',
+    [
+        ('require', 'not verified'),
+        ('verify-ca', 'without a hostname check'),
+    ],
+)
+def test_main_warns_on_reduced_tls_posture(monkeypatch, sslmode, expected_phrase):
+    """main() logs a reduced-posture warning for sslmodes below the verify-full default.
+
+    Covers both message branches: 'require' (certificate not verified) and
+    'verify-ca' (verified without a hostname check).
+    """
+    from loguru import logger
+
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--connection_method',
+            'RDS_API',
+            '--db_cluster_arn',
+            'arn:aws:rds:us-west-2:123456789012:cluster:example-cluster-name',
+            '--database',
+            'postgres',
+            '--region',
+            'us-west-2',
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:test-secret',
+            '--sslmode',
+            sslmode,
+        ],
+    )
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
+        lambda secret_arn, region, is_test=False: ('test_user', 'test_password'),
+    )
+
+    captured: list = []
+    sink_id = logger.add(captured.append, level='WARNING', format='{message}')
+    try:
+        main()
+    finally:
+        logger.remove(sink_id)
+
+    msg = ' '.join(str(m) for m in captured)
+    assert 'TLS certificate verification reduced' in msg
+    assert f'--sslmode={sslmode}' in msg
+    assert expected_phrase in msg
+
+
+def test_main_no_reduced_tls_warning_on_default(monkeypatch):
+    """The verify-full default must NOT emit the reduced-posture warning."""
+    from loguru import logger
+
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--connection_method',
+            'RDS_API',
+            '--db_cluster_arn',
+            'arn:aws:rds:us-west-2:123456789012:cluster:example-cluster-name',
+            '--database',
+            'postgres',
+            '--region',
+            'us-west-2',
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:test-secret',
+        ],
+    )
+    monkeypatch.setattr('awslabs.postgres_mcp_server.server.mcp.run', lambda: None)
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_credentials_from_secret',
+        lambda secret_arn, region, is_test=False: ('test_user', 'test_password'),
+    )
+
+    captured: list = []
+    sink_id = logger.add(captured.append, level='WARNING', format='{message}')
+    try:
+        main()
+    finally:
+        logger.remove(sink_id)
+
+    assert not any('TLS certificate verification reduced' in str(m) for m in captured)
 
 
 @pytest.mark.asyncio

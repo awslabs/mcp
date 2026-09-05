@@ -22,6 +22,7 @@ parameters (host, port, database, user, password) or via AWS Secrets Manager.
 import asyncio
 import boto3
 import json
+import os
 import re
 from aiorwlock import RWLock
 from awslabs.postgres_mcp_server import __user_agent__
@@ -29,8 +30,63 @@ from awslabs.postgres_mcp_server.connection.abstract_db_connection import Abstra
 from botocore.config import Config
 from datetime import datetime, timedelta
 from loguru import logger
+from psycopg.conninfo import make_conninfo
 from psycopg_pool import AsyncConnectionPool
 from typing import Any, Dict, List, Optional, Tuple
+
+
+# Path to the combined AWS CA bundle shipped inside the wheel by hatch_build.py.
+# It contains BOTH families of CA that Aurora/RDS PostgreSQL endpoints present:
+# the Amazon RDS private CAs (rds-ca-*-g1, used by direct instance/cluster
+# endpoints) and the public Amazon Trust Services roots (Amazon Root CA 1..4,
+# used by ACM-issued certs on RDS Proxy / Aurora Serverless v1). This lets the
+# psycopg (PG Wire) path verify the server certificate against any of them out
+# of the box. The PEM is gitignored and assembled at build time; operators can
+# override it at runtime with --ca_bundle (e.g. self-hosted PostgreSQL with a
+# private CA).
+_AWS_CA_BUNDLE_PATH = os.path.join(os.path.dirname(__file__), 'aws_ca_bundle.pem')
+
+# Permitted libpq sslmode values. Deliberately restricted to modes that
+# guarantee the connection is encrypted -- ``disable``/``allow``/``prefer`` are
+# excluded so credentials (IAM token / Secrets Manager password) are never sent
+# in cleartext. Within this set the operator tunes certificate validation:
+#   require      -> encrypt only; do NOT validate the server certificate
+#   verify-ca    -> encrypt + validate the cert chains to a trusted CA (no host)
+#   verify-full  -> encrypt + validate CA chain AND hostname (most strict)
+#
+# The default is ``verify-full``, matching AWS's production guidance: the
+# connection is encrypted (closing the reported cleartext-credential gap) and
+# both the CA chain and the hostname are verified. The bundled combined CA
+# covers both the RDS private CAs and the public Amazon roots, and Aurora/RDS
+# server certificates carry the endpoint in their CN/SAN, so verify-full
+# connects to direct instances, cluster endpoints, and RDS Proxy alike.
+# Operators connecting via an IP/tunnel/CNAME that won't match the certificate
+# can opt down to ``verify-ca`` (skip hostname) or ``require`` (skip verification).
+DEFAULT_SSLMODE = 'verify-full'
+ALLOWED_SSLMODES = ('require', 'verify-ca', 'verify-full')
+# The modes that verify the server certificate and therefore need a CA
+# (sslrootcert). ``require`` performs no verification, so no CA is attached.
+_CA_VERIFYING_SSLMODES = frozenset({'verify-ca', 'verify-full'})
+# Sentinel accepted for --ca_bundle to select libpq's system trust store.
+_SYSTEM_TRUST_STORE = 'system'
+
+
+def _bundled_ca_file() -> Optional[str]:
+    """Return the bundled AWS CA path if present on disk, else None.
+
+    Returns None (with a logged error) if the bundle is missing -- the package
+    was built without the hook, or is running from a source tree where
+    ``python hatch_build.py`` has not been run. Callers then fall back to the
+    system trust store.
+    """
+    if not os.path.isfile(_AWS_CA_BUNDLE_PATH):
+        logger.error(
+            f'Bundled AWS CA bundle is missing at {_AWS_CA_BUNDLE_PATH}. The build '
+            'hook should assemble it during package build; rebuild the package, run '
+            '`python hatch_build.py`, or pass --ca_bundle <path> to override.'
+        )
+        return None
+    return _AWS_CA_BUNDLE_PATH
 
 
 def get_credentials_from_secret(
@@ -127,6 +183,8 @@ class PsycopgPoolConnection(AbstractDBConnection):
         min_size: int = 1,
         max_size: int = 10,
         is_test: bool = False,
+        ca_bundle_path: Optional[str] = None,
+        sslmode: str = DEFAULT_SSLMODE,
     ):
         """Initialize a new DB connection pool.
 
@@ -143,6 +201,12 @@ class PsycopgPoolConnection(AbstractDBConnection):
             min_size: Minimum number of connections in the pool
             max_size: Maximum number of connections in the pool
             is_test: Whether this is a test connection
+            ca_bundle_path: Optional path to an alternate CA bundle (PEM) used for
+                certificate verification, overriding the bundled AWS CA bundle.
+                The sentinel ``'system'`` selects libpq's system trust store.
+            sslmode: libpq SSL mode; one of ALLOWED_SSLMODES (default verify-full).
+                The connection is always encrypted; this tunes certificate
+                verification.
         """
         super().__init__(readonly)
         self.host = host
@@ -156,6 +220,8 @@ class PsycopgPoolConnection(AbstractDBConnection):
         self.pool_expiry_min = pool_expiry_min
         self.secret_arn = secret_arn
         self.is_test = is_test
+        self.ca_bundle_path = ca_bundle_path
+        self.sslmode = sslmode
         self.pool: Optional['AsyncConnectionPool[Any]'] = None
         self.rw_lock = RWLock()
         self.created_time = datetime.now()
@@ -168,6 +234,104 @@ class PsycopgPoolConnection(AbstractDBConnection):
             # set pool expiry before IAM auth token expiry of 15 minutes
             self.pool_expiry_min = 14
             logger.debug(f'Use IAM auth for user: {db_user}')
+
+    def _build_conninfo(self, password: str) -> str:
+        """Build the libpq conninfo string, always encrypting the connection.
+
+        Credentials always go on the wire for this connector (an IAM auth token
+        or a Secrets Manager password), so the connection is always encrypted:
+        ``sslmode`` is restricted to ALLOWED_SSLMODES (no plaintext fallback).
+        The operator tunes *certificate verification* via ``sslmode``:
+
+          * ``require``     -- encrypt only; the server certificate is not
+            verified, so no CA is attached.
+          * ``verify-ca``   -- verify the certificate chains to a trusted CA
+            (hostname not checked).
+          * ``verify-full`` -- verify the CA chain and the hostname (default).
+
+        For the verifying modes the trust anchor (sslrootcert) is chosen as:
+
+          1. ``--ca_bundle`` override, if supplied (a PEM path, or the sentinel
+             ``'system'`` for the OS trust store), else
+          2. the bundled combined AWS CA bundle shipped in the wheel (RDS private
+             CAs + public Amazon roots), else
+          3. the system trust store (``sslrootcert=system``) with a warning --
+             may not include the server's CA.
+
+        ``make_conninfo`` escapes values, so passwords containing spaces or
+        special characters are handled correctly.
+        """
+        if self.sslmode not in ALLOWED_SSLMODES:
+            # Fail closed: never silently fall through to an insecure mode.
+            raise ValueError(
+                f'Unsupported sslmode {self.sslmode!r}; allowed: {", ".join(ALLOWED_SSLMODES)}'
+            )
+
+        params: Dict[str, Any] = {
+            'host': self.host,
+            'port': self.port,
+            'dbname': self.database,
+            'user': self.user,
+            'password': password,
+            'sslmode': self.sslmode,
+        }
+
+        # Attach a CA only for the modes that actually verify the certificate.
+        # ``require`` performs no verification, so sslrootcert is irrelevant.
+        if self.sslmode in _CA_VERIFYING_SSLMODES:
+            if self.ca_bundle_path == _SYSTEM_TRUST_STORE:
+                params['sslrootcert'] = _SYSTEM_TRUST_STORE
+            elif self.ca_bundle_path:
+                params['sslrootcert'] = self.ca_bundle_path
+            else:
+                cafile = _bundled_ca_file()
+                if cafile:
+                    params['sslrootcert'] = cafile
+                else:
+                    params['sslrootcert'] = _SYSTEM_TRUST_STORE
+                    logger.warning(
+                        'No CA bundle available for TLS verification; falling back '
+                        'to the system trust store (sslrootcert=system). The '
+                        'connection may fail with certificate verification errors '
+                        'if the system store does not include the server CA. Supply '
+                        '--ca_bundle <path> or rebuild the package to restore the '
+                        'bundled Amazon RDS bundle.'
+                    )
+        return make_conninfo(**params)
+
+    def _log_tls_posture(self) -> None:
+        """Log the TLS validation posture and auth mode for this connection.
+
+        Emitted at pool initialization *before* the pool is opened, so the
+        record is present in the logs even when the connection subsequently
+        fails with an SSL or authentication error -- it answers "what SSL
+        validation and auth were we attempting?" for troubleshooting. The
+        password/IAM token is never logged; only the sslmode and the resolved
+        trust anchor (sslrootcert) are surfaced.
+        """
+        from psycopg.conninfo import conninfo_to_dict
+
+        try:
+            info = conninfo_to_dict(self.conninfo)
+        except Exception:
+            info = {}
+        sslmode = info.get('sslmode', self.sslmode)
+        sslrootcert = info.get('sslrootcert')
+        if self.sslmode == 'require':
+            trust = 'none (require: certificate not verified)'
+        elif sslrootcert == _SYSTEM_TRUST_STORE:
+            trust = 'system trust store'
+        elif sslrootcert == _AWS_CA_BUNDLE_PATH:
+            trust = f'bundled AWS CA (RDS private + public Amazon roots): {sslrootcert}'
+        elif sslrootcert:
+            trust = f'operator-supplied CA: {sslrootcert}'
+        else:
+            trust = '(none)'
+        logger.info(
+            f'TLS posture: sslmode={sslmode}, trust_anchor={trust}, '
+            f'auth={"iam" if self.is_iam_auth else "secrets_manager"}, '
+            f'user={self.user}, endpoint={self.host}:{self.port}, db={self.database}'
+        )
 
     async def initialize_pool(self):
         """Initialize the connection pool."""
@@ -206,7 +370,8 @@ class PsycopgPoolConnection(AbstractDBConnection):
                 )
 
             self.created_time = datetime.now()
-            self.conninfo = f'host={self.host} port={self.port} dbname={self.database} user={self.user} password={password}'
+            self.conninfo = self._build_conninfo(password)
+            self._log_tls_posture()
             self.pool = AsyncConnectionPool(
                 self.conninfo, min_size=self.min_size, max_size=self.max_size, open=False
             )
