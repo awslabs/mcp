@@ -41,7 +41,7 @@ from awslabs.aws_transform_mcp_server.transform_api_models import (
 )
 from enum import Enum
 from loguru import logger
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from pydantic import Field
 from typing import Annotated, Any, Dict, List, Optional
 
@@ -179,7 +179,16 @@ class GetResourceHandler:
         ] = None,
         savePath: Annotated[
             Optional[str],
-            Field(description='Local path to save artifact file (artifact only)'),
+            Field(
+                description=(
+                    'Local path to save artifact file (artifact only). Must resolve '
+                    'within the allowed base directory (the server working directory, '
+                    'or AWS_TRANSFORM_MCP_WRITE_DIR if set); paths outside it are '
+                    'rejected. If the server was started with the filesystem root as '
+                    'its working directory, downloads are refused until '
+                    'AWS_TRANSFORM_MCP_WRITE_DIR is set to a non-root directory.'
+                )
+            ),
         ] = None,
         fileName: Annotated[
             Optional[str],

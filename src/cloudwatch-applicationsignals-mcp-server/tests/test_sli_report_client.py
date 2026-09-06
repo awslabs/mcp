@@ -18,8 +18,14 @@ class TestAWSConfig:
 
     def test_init_defaults(self):
         """Test AWSConfig initialization with default values."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server import sli_report_client
+
         config = AWSConfig()
-        assert config.region == 'us-east-1'
+        # The default region follows the package-resolved AWS_REGION (env >
+        # profile > us-east-1) captured by sli_report_client at import, so assert
+        # against that exact binding rather than a hardcoded value that breaks
+        # under a non-us-east-1 profile.
+        assert config.region == sli_report_client.AWS_REGION
         assert config.period_in_hours == 24
         assert config.service_name == 'UnknownService'
 

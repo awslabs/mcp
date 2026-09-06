@@ -15,7 +15,7 @@
 """Time utility functions for the AWS Billing and Cost Management MCP server."""
 
 from datetime import datetime, timezone
-from typing import Union
+from typing import Any, Union
 
 
 # Supported UTC datetime formats, ordered from most specific to least specific.
@@ -68,3 +68,28 @@ def timestamp_to_utc_iso_string(timestamp: Union[int, float, datetime]) -> str:
             timestamp = timestamp.astimezone(timezone.utc)
         return timestamp.replace(tzinfo=None).isoformat()
     return datetime.fromtimestamp(timestamp, tz=timezone.utc).replace(tzinfo=None).isoformat()
+
+
+def normalize_datetimes_to_iso(obj: Any) -> Any:
+    """Recursively convert ``datetime`` values in a structure to ISO 8601 UTC strings.
+
+    boto3 returns Python ``datetime`` objects for AWS timestamp fields, which are
+    not JSON-serializable. This walks an arbitrary response value (dict, list, or
+    scalar) and converts every ``datetime`` to an ISO 8601 UTC string via
+    :func:`timestamp_to_utc_iso_string`, leaving all other values untouched.
+    Walking the structure (rather than normalizing named fields) stays correct as
+    APIs add nested timestamp fields.
+
+    Args:
+        obj: An arbitrary value from an AWS response (dict, list, or scalar).
+
+    Returns:
+        The value with any ``datetime`` instances converted to ISO 8601 strings.
+    """
+    if isinstance(obj, dict):
+        return {key: normalize_datetimes_to_iso(value) for key, value in obj.items()}
+    if isinstance(obj, list):
+        return [normalize_datetimes_to_iso(item) for item in obj]
+    if isinstance(obj, datetime):
+        return timestamp_to_utc_iso_string(obj)
+    return obj

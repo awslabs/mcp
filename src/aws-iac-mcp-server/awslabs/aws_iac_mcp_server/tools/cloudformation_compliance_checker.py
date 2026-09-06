@@ -19,7 +19,8 @@ import json
 import os
 import re
 import yaml
-from typing import Any, Optional
+from pathlib import Path
+from typing import Any
 
 
 # Global cache for remediation mappings
@@ -28,29 +29,27 @@ _RULES_CONTENT_CACHE = None
 _TEMPLATE_RESOURCES = {}
 
 
-def initialize_guard_rules(rules_file_path: Optional[str] = None) -> bool:
+def _bundled_rules_path() -> Path:
+    """Return the path to the package's bundled default guard rules file."""
+    import awslabs.aws_iac_mcp_server
+
+    package_dir = os.path.dirname(awslabs.aws_iac_mcp_server.__file__)
+    return Path(package_dir) / 'data' / 'default_guard_rules.guard'
+
+
+def initialize_guard_rules() -> bool:
     """Initialize guard rules and cache remediation mappings on server startup.
 
-    Args:
-        rules_file_path: Path to guard rules file
+    Loads the package's bundled security rules. Custom rules are not supported;
+    the compliance tool always validates against the bundled rule set.
 
     Returns:
         True if initialization successful, False otherwise
     """
     global _REMEDIATION_CACHE, _RULES_CONTENT_CACHE
 
-    # Use absolute path to default guard rules if none provided
-    if rules_file_path is None or rules_file_path == 'default_guard_rules.guard':
-        try:
-            import awslabs.aws_iac_mcp_server
-
-            package_dir = os.path.dirname(awslabs.aws_iac_mcp_server.__file__)
-            rules_file_path = os.path.join(package_dir, 'data', 'default_guard_rules.guard')
-        except Exception:
-            return False
-
     try:
-        with open(rules_file_path, 'r') as f:
+        with open(_bundled_rules_path(), 'r') as f:
             rules_content = f.read()
 
         # Cache the rules content
@@ -147,7 +146,6 @@ def _extract_resource_info(node: dict, template_resources: dict) -> tuple[str, s
 
 def check_compliance(
     template_content: str,
-    rules_file_path: Optional[str] = None,
 ) -> dict[str, Any]:
     """Validate CloudFormation template against cfn-guard rules using guardpycfn."""
     global _REMEDIATION_CACHE, _RULES_CONTENT_CACHE
@@ -168,7 +166,7 @@ def check_compliance(
     if not template_content or not template_content.strip():
         return error_result('Template content cannot be empty')
 
-    if _RULES_CONTENT_CACHE is None and not initialize_guard_rules(rules_file_path):
+    if _RULES_CONTENT_CACHE is None and not initialize_guard_rules():
         return error_result('Failed to initialize guard rules')
 
     # Parse template resources for fallback resource identification

@@ -21,7 +21,7 @@ from .utils import cache
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 
 APP_NAME = 'amazon-bedrock-agentcore-mcp-server'
@@ -33,8 +33,8 @@ AGENTCORE_MCP_INSTRUCTIONS = (
     '## Code Interpreter Tools\n'
     'Use start_code_interpreter_session to create a sandbox, then execute_code, '
     'execute_command, or install_packages to run code. Use upload_file and '
-    'download_file to transfer data. Stop sessions when done to release '
-    'resources.\n\n'
+    'download_file to transfer data. Use list_files to see files in the sandbox. '
+    'Stop sessions when done to release resources.\n\n'
     '## Browser Tools\n'
     'Start a browser session with start_browser_session, then use browser '
     'interaction tools (browser_navigate, browser_snapshot, browser_click, '
@@ -99,7 +99,7 @@ _code_interpreter_cleanup = None
 
 
 @asynccontextmanager
-async def server_lifespan(server: FastMCP) -> AsyncIterator[None]:
+async def server_lifespan(server: MCPServer) -> AsyncIterator[None]:
     """Manage server lifecycle.
 
     Handles browser cleanup task, code interpreter cleanup, and
@@ -128,7 +128,7 @@ async def server_lifespan(server: FastMCP) -> AsyncIterator[None]:
                 await _code_interpreter_cleanup()
 
 
-mcp = FastMCP(
+mcp = MCPServer(
     APP_NAME,
     instructions=AGENTCORE_MCP_INSTRUCTIONS,
     lifespan=server_lifespan,
@@ -237,7 +237,7 @@ if _is_service_enabled('code_interpreter'):
 
         register_code_interpreter_tools(mcp)
         _code_interpreter_cleanup = cleanup_code_interpreter
-        logger.info('Code interpreter tools registered (9 tools)')
+        logger.info('Code interpreter tools registered (10 tools)')
     except ImportError as e:
         logger.error(
             f'Code interpreter tools disabled — failed to import '
@@ -254,7 +254,7 @@ if _is_service_enabled('code_interpreter'):
 def main() -> None:
     """Main entry point for the MCP server.
 
-    Initializes the document cache and starts the FastMCP server.
+    Initializes the document cache and starts the MCPServer server.
     The cache is loaded with document titles only for fast startup,
     with full content fetched on-demand.
     """

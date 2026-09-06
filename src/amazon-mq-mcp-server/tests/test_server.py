@@ -338,6 +338,26 @@ class TestMain:
         # Check that mcp.run was called with no transport
         mock_mcp.run.assert_called_once_with()
 
+    @patch('boto3.Session')
+    @patch('awslabs.amazon_mq_mcp_server.server.RabbitMQModule')
+    @patch('awslabs.amazon_mq_mcp_server.server.mcp')
+    @patch('argparse.ArgumentParser.parse_args')
+    def test_main_mq_client_getter(self, mock_parse_args, mock_mcp, mock_rmq_module, mock_session):
+        """Test that main wires a working MQ client getter into RabbitMQModule."""
+        # Each new boto3 Session produces a distinct client mock
+        mock_session.side_effect = lambda **kwargs: MagicMock()
+
+        main()
+
+        # RabbitMQModule should be constructed with the MCP server and a client getter
+        mock_rmq_module.assert_called_once()
+        _, mq_client_getter = mock_rmq_module.call_args[0]
+
+        # The getter returns the generator's cached client for a region
+        client1 = mq_client_getter('us-west-2')
+        client2 = mq_client_getter('us-west-2')
+        assert client1 is client2
+
 
 class TestAWSToolGenerator:
     """Tests for the AWSToolGenerator integration."""

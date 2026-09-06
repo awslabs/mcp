@@ -500,3 +500,216 @@ class TestReadmeTemplate:
         # Verify exception chaining
         assert exc_info.value.__cause__ is not None
         assert isinstance(exc_info.value.__cause__, PermissionError)
+
+
+def _decoded_literals(rendered, prefix):
+    """Return the JSON-decoded value of every `prefix<literal>` line in a rendered stack.
+
+    A literal that decodes cleanly proves the value was emitted as a properly escaped
+    JSON string rather than pasted raw into the surrounding TypeScript.
+    """
+    values = []
+    for line in rendered.splitlines():
+        stripped = line.strip()
+        if stripped.startswith(prefix):
+            values.append(json.loads(stripped[len(prefix) :].rstrip(',')))
+    return values
+
+
+class TestTemplateEscaping:
+    """Test that user-supplied names cannot inject TypeScript into the generated stack.
+
+    Table and index names are rejected by DataModel validation if they contain anything
+    outside DynamoDB's name character set. Attribute names carry no such restriction in
+    DynamoDB, so the template must escape them.
+    """
+
+    BREAKOUT = "pk', type: 0}, x: {a: '"
+
+    def _render(self, generator, data_model_json):
+        """Render the real template for a data model."""
+        data_model = DataModel.from_json(data_model_json)
+        template = generator.jinja_env.get_template('stack.ts.j2')
+        return template.render(data_model=data_model, stack_class_name='CdkStack')
+
+    def test_partition_key_breakout_is_escaped(self, generator):
+        """A quote-bearing partition key name cannot close its string literal."""
+        rendered = self._render(
+            generator,
+            {
+                'tables': [
+                    {
+                        'TableName': 'EscapeTable',
+                        'AttributeDefinitions': [
+                            {'AttributeName': self.BREAKOUT, 'AttributeType': 'S'}
+                        ],
+                        'KeySchema': [{'AttributeName': self.BREAKOUT, 'KeyType': 'HASH'}],
+                    }
+                ]
+            },
+        )
+
+        # The raw payload must not survive into the output
+        assert self.BREAKOUT not in rendered
+        # The name is emitted as an escaped JSON literal that decodes back to the original
+        assert self.BREAKOUT in _decoded_literals(rendered, 'name: ')
+
+    def test_sort_key_and_ttl_breakout_is_escaped(self, generator):
+        """Quote-bearing sort key and TTL attribute names are escaped."""
+        rendered = self._render(
+            generator,
+            {
+                'tables': [
+                    {
+                        'TableName': 'EscapeTable',
+                        'AttributeDefinitions': [
+                            {'AttributeName': 'pk', 'AttributeType': 'S'},
+                            {'AttributeName': self.BREAKOUT, 'AttributeType': 'S'},
+                        ],
+                        'KeySchema': [
+                            {'AttributeName': 'pk', 'KeyType': 'HASH'},
+                            {'AttributeName': self.BREAKOUT, 'KeyType': 'RANGE'},
+                        ],
+                        'TimeToLiveSpecification': {
+                            'Enabled': True,
+                            'AttributeName': "ttl'; require('x'); //",
+                        },
+                    }
+                ]
+            },
+        )
+
+        assert self.BREAKOUT not in rendered
+        assert "require('x')" not in rendered
+        assert self.BREAKOUT in _decoded_literals(rendered, 'name: ')
+        assert _decoded_literals(rendered, 'timeToLiveAttribute: ') == ["ttl'; require('x'); //"]
+
+    def test_gsi_key_breakout_is_escaped(self, generator):
+        """Quote-bearing GSI key names are escaped."""
+        rendered = self._render(
+            generator,
+            {
+                'tables': [
+                    {
+                        'TableName': 'EscapeTable',
+                        'AttributeDefinitions': [
+                            {'AttributeName': 'pk', 'AttributeType': 'S'},
+                            {'AttributeName': self.BREAKOUT, 'AttributeType': 'S'},
+                        ],
+                        'KeySchema': [{'AttributeName': 'pk', 'KeyType': 'HASH'}],
+                        'GlobalSecondaryIndexes': [
+                            {
+                                'IndexName': 'by-breakout',
+                                'KeySchema': [
+                                    {'AttributeName': self.BREAKOUT, 'KeyType': 'HASH'},
+                                    {'AttributeName': 'pk', 'KeyType': 'RANGE'},
+                                ],
+                                'Projection': {
+                                    'ProjectionType': 'INCLUDE',
+                                    'NonKeyAttributes': [self.BREAKOUT],
+                                },
+                            }
+                        ],
+                    }
+                ]
+            },
+        )
+
+        assert self.BREAKOUT not in rendered
+        assert self.BREAKOUT in _decoded_literals(rendered, 'name: ')
+        assert _decoded_literals(rendered, 'nonKeyAttributes: ') == [[self.BREAKOUT]]
+
+    def test_no_single_quoted_literals_remain(self, generator, sample_data_model):
+        """Every interpolated value is emitted as a double-quoted JSON literal."""
+        rendered = self._render(generator, sample_data_model)
+
+        assert 'new dynamodb.TableV2(this, "UserTable"' in rendered
+        assert 'name: "pk"' in rendered
+        assert 'name: "sk"' in rendered
+        assert 'new cdk.CfnOutput(this, "UserTableName"' in rendered
+        assert 'description: "Physical table name for UserTable"' in rendered
+
+    def test_table_name_breakout_rejected_before_rendering(self, generator):
+        """A quote-bearing table name never reaches the template."""
+        with pytest.raises(ValueError, match=r'tables\[0\]\.TableName must contain only'):
+            DataModel.from_json(
+                {
+                    'tables': [
+                        {
+                            'TableName': "Users', {}); require('child_process').exec('x'); ({",
+                            'AttributeDefinitions': [
+                                {'AttributeName': 'pk', 'AttributeType': 'S'}
+                            ],
+                            'KeySchema': [{'AttributeName': 'pk', 'KeyType': 'HASH'}],
+                        }
+                    ]
+                }
+            )
+
+
+class TestIdentifierSafety:
+    """Test that table names DynamoDB allows produce legal TypeScript identifiers."""
+
+    def test_dot_treated_as_separator(self, generator):
+        """Dots are word separators, not identifier characters."""
+        assert generator._to_camel_case('my.table.name') == 'myTableName'
+        assert generator._to_pascal_case('my.table.name') == 'MyTableName'
+
+    def test_leading_digit_is_prefixed(self, generator):
+        """A name starting with a digit is prefixed so it can start an identifier."""
+        assert generator._to_camel_case('123') == 'table123'
+        assert generator._to_pascal_case('2024-events') == 'Table2024Events'
+
+    def test_separator_only_name_falls_back(self, generator):
+        """A name made only of separators falls back to a fixed identifier."""
+        assert generator._to_camel_case('...') == 'table'
+        assert generator._to_pascal_case('___') == 'Table'
+
+    def test_prefixed_name_collision_is_reported(self, generator):
+        """A name prefixed to become a legal identifier can collide, and must be reported.
+
+        `'123'` needs the `table` prefix to start an identifier, which makes it collide with a
+        literal `'table123'`. Both are valid DynamoDB names, so the generator must fail with a
+        clear collision error rather than emit two methods with the same name.
+        """
+        data_model = DataModel.from_json(
+            {
+                'tables': [
+                    {
+                        'TableName': '123',
+                        'AttributeDefinitions': [{'AttributeName': 'pk', 'AttributeType': 'S'}],
+                        'KeySchema': [{'AttributeName': 'pk', 'KeyType': 'HASH'}],
+                    },
+                    {
+                        'TableName': 'table123',
+                        'AttributeDefinitions': [{'AttributeName': 'pk', 'AttributeType': 'S'}],
+                        'KeySchema': [{'AttributeName': 'pk', 'KeyType': 'HASH'}],
+                    },
+                ]
+            }
+        )
+        with pytest.raises(CdkGeneratorError, match=r'Table name collision detected'):
+            generator._check_table_name_collisions(data_model)
+
+    def test_rendered_identifiers_are_legal(self, generator):
+        """Identifier positions in the rendered stack are legal TypeScript identifiers."""
+        data_model = DataModel.from_json(
+            {
+                'tables': [
+                    {
+                        'TableName': '2024.order-events_v2',
+                        'AttributeDefinitions': [{'AttributeName': 'pk', 'AttributeType': 'S'}],
+                        'KeySchema': [{'AttributeName': 'pk', 'KeyType': 'HASH'}],
+                    }
+                ]
+            }
+        )
+        template = generator.jinja_env.get_template('stack.ts.j2')
+        rendered = template.render(data_model=data_model, stack_class_name='CdkStack')
+
+        identifier = 'table2024OrderEventsV2'
+        assert f'this.create{identifier[0].upper()}{identifier[1:]}Table();' in rendered
+        assert f'const {identifier}Table = new dynamodb.TableV2(' in rendered
+        assert f'value: {identifier}Table.tableName,' in rendered
+        # The raw name still appears, but only inside escaped string literals
+        assert 'new dynamodb.TableV2(this, "2024.order-events_v2"' in rendered

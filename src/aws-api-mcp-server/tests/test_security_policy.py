@@ -252,6 +252,36 @@ def test_security_policy_operation_name_conversion():
         assert decision == PolicyDecision.DENY
 
 
+def test_security_policy_acronym_operation_names():
+    """Test that operations with acronyms (SAML, MFA, SSH, OpenID) are correctly matched."""
+    with patch.object(Path, 'exists', return_value=False):
+        policy = SecurityPolicy(create_mock_ctx())
+        policy.denylist = {
+            'aws iam create-saml-provider',
+            'aws iam create-virtual-mfa-device',
+            'aws iam upload-ssh-public-key',
+            'aws iam add-client-id-to-open-id-connect-provider',
+        }
+
+        decision = policy.determine_policy_effect('iam', 'CreateSAMLProvider', False)
+        assert decision == PolicyDecision.DENY
+
+        decision = policy.determine_policy_effect('iam', 'CreateVirtualMFADevice', False)
+        assert decision == PolicyDecision.DENY
+
+        decision = policy.determine_policy_effect('iam', 'UploadSSHPublicKey', False)
+        assert decision == PolicyDecision.DENY
+
+        decision = policy.determine_policy_effect(
+            'iam', 'AddClientIDToOpenIDConnectProvider', False
+        )
+        assert decision == PolicyDecision.DENY
+
+        # Verify a non-denied acronym operation is allowed
+        decision = policy.determine_policy_effect('iam', 'DeleteSAMLProvider', False)
+        assert decision == PolicyDecision.ALLOW
+
+
 # Customization Tests
 def test_security_policy_customization_parent_deny():
     """Test customization when parent command is in denylist."""
@@ -586,6 +616,47 @@ async def test_call_aws_security_policy_elicit(
     assert isinstance(result, list)
     assert len(result) == 1
     assert isinstance(result[0].response, ProgramInterpretationResponse)
+
+
+@patch('awslabs.aws_api_mcp_server.server.interpret_command')
+@patch('awslabs.aws_api_mcp_server.server.validate')
+@patch('awslabs.aws_api_mcp_server.server.translate_cli_to_ir')
+@patch('awslabs.aws_api_mcp_server.server.check_security_policy')
+@patch('awslabs.aws_api_mcp_server.server.READ_OPERATIONS_INDEX', None)
+async def test_call_aws_denied_when_index_unavailable(
+    mock_check_security_policy,
+    mock_translate_cli_to_ir,
+    mock_validate,
+    mock_interpret,
+):
+    """Fail closed: deny execution when the security policy index failed to initialize.
+
+    Regression test for the policy fail-open advisory. When the read operations
+    index (required to make a policy decision) is unavailable, the request must be
+    denied rather than falling through to execution with policy checks skipped.
+    """
+    mock_ir = MagicMock()
+    mock_ir.command_metadata = MagicMock()
+    mock_ir.command.is_awscli_customization = False
+    mock_ir.command.is_help_operation = False
+    mock_translate_cli_to_ir.return_value = mock_ir
+
+    mock_validation = MagicMock()
+    mock_validation.validation_failed = False
+    mock_validate.return_value = mock_validation
+
+    ctx = DummyCtx()
+    response_list = await call_aws('aws iam create-access-key', ctx)
+
+    assert len(response_list) == 1
+    assert (
+        response_list[0].error
+        == 'Execution of this operation is denied because the security policy '
+        'enforcement data failed to initialize.'
+    )
+    # The policy decision must never be reached / the operation never interpreted
+    mock_check_security_policy.assert_not_called()
+    mock_interpret.assert_not_called()
 
 
 @pytest.mark.asyncio

@@ -15,13 +15,14 @@
 """Describe engine default parameters tool for ElastiCache MCP server."""
 
 from ...common.connection import ElastiCacheConnectionManager
-from ...common.decorators import handle_exceptions
+from ...common.decorators import handle_exceptions, readonly_safe
 from ...common.server import mcp
 from typing import Dict, Optional
 
 
 @mcp.tool(name='describe-engine-default-parameters')
 @handle_exceptions
+@readonly_safe
 async def describe_engine_default_parameters(
     cache_parameter_group_family: str,
     max_records: Optional[int] = None,

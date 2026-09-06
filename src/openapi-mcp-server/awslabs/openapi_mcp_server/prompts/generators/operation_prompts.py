@@ -18,9 +18,12 @@ from awslabs.openapi_mcp_server import logger
 from awslabs.openapi_mcp_server.prompts.models import (
     PromptArgument,
 )
+from fastmcp.prompts import Message
 from fastmcp.prompts.prompt import Prompt
 from fastmcp.prompts.prompt import PromptArgument as FastMCPPromptArgument
 from fastmcp.server.providers.openapi import MCPType
+from mcp.types import EmbeddedResource, TextResourceContents
+from pydantic import AnyUrl
 from typing import Any, Dict, List, Optional
 
 
@@ -504,10 +507,10 @@ def create_operation_prompt(
                 if i < len(args_values):
                     param_values[arg.name] = args_values[i]
 
-            # Create messages
-            messages = [{'role': 'user', 'content': {'type': 'text', 'text': doc}}]
+            # Create messages using fastmcp.Message objects (required by FastMCP 3.x)
+            messages: List[Message] = [Message(doc)]
 
-            # For resources, add resource reference
+            # For resources, add resource reference with EmbeddedResource
             if op_type in ['resource', 'resource_template']:
                 # Determine MIME type
                 mime_type = determine_mime_type(resp)
@@ -515,16 +518,16 @@ def create_operation_prompt(
                 # Create resource URI
                 resource_uri = f'api://{api_name_val}{path_val}'
 
-                # Add resource reference message
-                messages.append(
-                    {
-                        'role': 'user',
-                        'content': {
-                            'type': 'resource',
-                            'resource': {'uri': resource_uri, 'mimeType': mime_type},
-                        },
-                    }
+                # Add resource reference message using EmbeddedResource
+                embedded = EmbeddedResource(
+                    type='resource',
+                    resource=TextResourceContents(
+                        uri=AnyUrl(resource_uri),
+                        mimeType=mime_type,
+                        text='',
+                    ),
                 )
+                messages.append(Message(embedded))
 
             logger.debug(f'Operation {operation_id} returning {len(messages)} messages')
             return messages
@@ -591,7 +594,7 @@ def create_operation_prompt(
                 parameters.append(param)
 
             # Create a new signature
-            sig = inspect.Signature(parameters, return_annotation=List[Dict[str, Any]])
+            sig = inspect.Signature(parameters, return_annotation=List[Message])
 
             # Apply the signature to the function
             base_fn.__signature__ = sig

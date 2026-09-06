@@ -37,13 +37,33 @@ def sanitize_tool_response(content: str) -> str:
     return encapsulate_content(filtered)
 
 
-def filter_unicode_tags(text: str) -> str:
-    """Remove unicode tag characters used for obfuscation.
+_INVISIBLE_CHAR_RANGES = (
+    (0x00AD, 0x00AD),
+    (0x180B, 0x180F),
+    (0x200B, 0x200F),
+    (0x202A, 0x202E),
+    (0x2060, 0x206F),
+    (0xFE00, 0xFE0F),
+    (0xFEFF, 0xFEFF),
+    (0xE0000, 0xE0FFF),
+)
 
-    Filters character range 0xE0000 to 0xE007F which can be used
-    to hide malicious instructions from human review.
+
+def _is_invisible_smuggling_char(code_point: int) -> bool:
+    """Return True if the code point is an invisible character used for smuggling."""
+    return any(start <= code_point <= end for start, end in _INVISIBLE_CHAR_RANGES)
+
+
+def filter_unicode_tags(text: str) -> str:
+    """Remove invisible unicode characters used for obfuscation.
+
+    Filters characters across several invisible / non-rendering ranges
+    (zero-width, bidirectional control, and Unicode Tags characters) that can
+    be used to hide malicious instructions from human review. See
+    ``_INVISIBLE_CHAR_RANGES`` for the exact set. Ordinary whitespace such as
+    tab, newline, and space is preserved.
     """
-    return ''.join(char for char in text if not (0xE0000 <= ord(char) <= 0xE007F))
+    return ''.join(char for char in text if not _is_invisible_smuggling_char(ord(char)))
 
 
 def encapsulate_content(text: str) -> str:

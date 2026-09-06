@@ -8,66 +8,11 @@ from unittest.mock import MagicMock, patch
 class TestServerRouteLogging:
     """Tests for route logging in server.py."""
 
-    @patch('awslabs.openapi_mcp_server.server.logger')
-    @patch('awslabs.openapi_mcp_server.auth.get_auth_provider')
-    @patch('awslabs.openapi_mcp_server.server.load_openapi_spec')
-    @patch('awslabs.openapi_mcp_server.server.validate_openapi_spec')
-    @patch('awslabs.openapi_mcp_server.server.OpenAPIProvider')
-    @patch('awslabs.openapi_mcp_server.server.FastMCP')
-    @patch('awslabs.openapi_mcp_server.server.HttpClientFactory')
-    def test_create_server_with_openapi_provider(
-        self,
-        mock_http_factory,
-        mock_openapi_provider,
-        mock_fastmcp,
-        mock_validate,
-        mock_load,
-        mock_get_auth,
-        mock_logger,
-    ):
-        """Test that create_mcp_server creates server with OpenAPIProvider."""
-        # Set up mocks
-        mock_auth = MagicMock()
-        mock_auth.is_configured.return_value = True  # This is crucial to prevent sys.exit(1)
-        mock_auth.get_auth_headers.return_value = {}
-        mock_auth.get_auth_params.return_value = {}
-        mock_auth.get_auth_cookies.return_value = {}
-        mock_auth.get_httpx_auth.return_value = None
-        mock_auth.provider_name = 'test_auth'  # Add provider_name attribute
-        mock_get_auth.return_value = mock_auth
-
-        mock_spec = {
-            'openapi': '3.0.0',
-            'paths': {},
-            'info': {'title': 'Test API', 'version': '1.0.0'},
-        }
-        mock_load.return_value = mock_spec
-        mock_validate.return_value = True
-
-        # Mock HTTP client factory
-        mock_client = MagicMock()
-        mock_http_factory.create_client.return_value = mock_client
-
-        # Create a mock server
-        mock_server = MagicMock()
-        mock_fastmcp.return_value = mock_server
-
-        # Set logger.level to DEBUG
-        mock_logger.level = 'DEBUG'
-
-        # Create config
-        config = Config(
-            api_name='test',
-            api_base_url='https://api.example.com',
-            api_spec_url='https://api.example.com/spec.json',
-        )
-
-        # Call create_mcp_server
-        create_mcp_server(config)
-
-        # Verify that the server was created successfully
-        mock_fastmcp.assert_called_once()
-        mock_openapi_provider.assert_called_once()
+    # NOTE: A prior test here (``test_create_server_with_openapi_provider``)
+    # asserted ``FastMCP``/``OpenAPIProvider`` were each constructed once. That
+    # verified low-level construction mechanics now owned by the upstream
+    # ``FastMCP.from_openapi(...)`` call, so it was removed in the FastMCP-native
+    # migration. Behavioral coverage lives in ``tests/test_new_features.py``.
 
     @patch('awslabs.openapi_mcp_server.server.logger')
     @patch('awslabs.openapi_mcp_server.auth.get_auth_provider')

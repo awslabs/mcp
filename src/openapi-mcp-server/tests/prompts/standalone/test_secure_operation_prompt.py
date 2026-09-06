@@ -107,9 +107,9 @@ class TestSecureOperationPrompt(unittest.TestCase):
         messages = prompt.fn('available')
         self.assertIsInstance(messages, list)
         self.assertGreaterEqual(len(messages), 1)
-        self.assertEqual(messages[0]['role'], 'user')
-        self.assertEqual(messages[0]['content']['type'], 'text')
-        self.assertIn('findPetsByStatus', messages[0]['content']['text'])
+        self.assertEqual(messages[0].role, 'user')
+        self.assertEqual(messages[0].content.type, 'text')
+        self.assertIn('findPetsByStatus', messages[0].content.text)
 
     def test_required_parameters(self):
         """Test operation with required parameters."""
@@ -248,14 +248,13 @@ class TestSecureOperationPrompt(unittest.TestCase):
 
             # Verify resource message
             resource_message = messages[1]
-            self.assertEqual(resource_message['role'], 'user')
-            self.assertEqual(resource_message['content']['type'], 'resource')
-            self.assertEqual(
-                resource_message['content']['resource']['uri'], 'api://petstore/pet/{petId}'
-            )
-            self.assertEqual(
-                resource_message['content']['resource']['mimeType'], 'application/json'
-            )
+            self.assertEqual(resource_message.role, 'user')
+            self.assertEqual(resource_message.content.type, 'resource')
+            # AnyUrl percent-encodes curly braces in path templates
+            uri_str = str(resource_message.content.resource.uri)
+            self.assertIn('petstore/pet/', uri_str)
+            self.assertIn('petId', uri_str)
+            self.assertEqual(resource_message.content.resource.mimeType, 'application/json')
 
         finally:
             # Restore original function

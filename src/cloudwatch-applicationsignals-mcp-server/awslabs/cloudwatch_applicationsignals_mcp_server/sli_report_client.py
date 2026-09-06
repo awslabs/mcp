@@ -15,7 +15,7 @@
 """Retrieve service SLI status based on configured Application Signals SLOs."""
 
 import logging
-from .aws_clients import applicationsignals_client, cloudwatch_client
+from .aws_clients import AWS_REGION, applicationsignals_client, cloudwatch_client
 from botocore.exceptions import ClientError
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -44,7 +44,7 @@ class AWSConfig:
 
     def __init__(
         self,
-        region: str = 'us-east-1',
+        region: str = AWS_REGION,
         period_in_hours: int = 24,
         service_name: str = 'UnknownService',
         key_attributes: Optional[Dict[str, str]] = None,

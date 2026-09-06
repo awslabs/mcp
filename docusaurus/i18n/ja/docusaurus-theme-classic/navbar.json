@@ -1,0 +1,14 @@
+{
+  "item.label.GitHub": {
+    "description": "Navbar item with label GitHub",
+    "message": "GitHub"
+  },
+  "logo.alt": {
+    "description": "The alt text of navbar logo",
+    "message": "AWS\u5411\u3051\u30aa\u30fc\u30d7\u30f3\u30bd\u30fc\u30b9MCP\u30b5\u30fc\u30d0\u30fc\u306e\u30ed\u30b4"
+  },
+  "title": {
+    "description": "The title in the navbar",
+    "message": "AWS\u5411\u3051\u30aa\u30fc\u30d7\u30f3\u30bd\u30fc\u30b9MCP\u30b5\u30fc\u30d0\u30fc"
+  }
+}

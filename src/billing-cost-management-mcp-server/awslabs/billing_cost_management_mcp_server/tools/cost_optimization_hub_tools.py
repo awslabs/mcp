@@ -72,7 +72,7 @@ Valid 'group_by' values: AccountId, Region, ActionType, ResourceType, RestartNee
 CRITICAL PARAMETER REQUIREMENTS:
 - 'filters' parameter must be passed as JSON string format
 - 'max_results' must be integer (not string)
-- 'get_recommendation' requires both 'resource_id' AND 'resource_type' parameters
+- 'get_recommendation' requires only 'recommendation_id' (mapped to the API's recommendationId)
 - Service only available in us-east-1 region
 
 Available Filter Parameters (pass as JSON string):
@@ -102,8 +102,7 @@ Each recommendation includes:
 async def cost_optimization_hub(
     ctx: Context,
     operation: str,
-    resource_id: Optional[str] = None,
-    resource_type: Optional[str] = None,
+    recommendation_id: Optional[str] = None,
     max_results: Optional[int] = None,
     filters: Optional[str] = None,
     group_by: Optional[str] = None,
@@ -114,8 +113,7 @@ async def cost_optimization_hub(
     Args:
         ctx: The MCP context
         operation: The operation to perform ('list_recommendations', 'get_recommendation', or 'list_recommendation_summaries')
-        resource_id: Resource ID for get_recommendation operation
-        resource_type: Resource type for get_recommendation operation
+        recommendation_id: Recommendation ID for get_recommendation operation (mapped to the API's recommendationId)
         max_results: Maximum total results to return across all pages; None means all available results
         filters: Optional filter expression as JSON string
         group_by: Optional grouping parameter for list_recommendation_summaries
@@ -157,11 +155,11 @@ async def cost_optimization_hub(
                 )
 
         elif operation == OPERATION_GET_RECOMMENDATION:
-            if not resource_id or not resource_type:
+            if not recommendation_id:
                 return format_response(
                     'error',
                     {},
-                    'Both resource_id and resource_type are required for get_recommendation operation',
+                    'recommendation_id is required for get_recommendation operation',
                 )
 
         # Execute the appropriate operation
@@ -244,14 +242,8 @@ async def cost_optimization_hub(
                 )
 
         elif operation == OPERATION_GET_RECOMMENDATION:
-            if not resource_id or not resource_type:
-                return format_response(
-                    'error',
-                    {
-                        'message': 'Both resource_id and resource_type are required for get_recommendation operation'
-                    },
-                )
-            return await get_recommendation(ctx, coh_client, str(resource_id), str(resource_type))
+            # recommendation_id is already validated above
+            return await get_recommendation(ctx, coh_client, str(recommendation_id))
 
         else:
             # Return error for unsupported operations

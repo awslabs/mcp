@@ -43,6 +43,27 @@ PETSTORE_SPEC = {
                 'operationId': 'createPet',
                 'summary': 'Create a pet',
                 'tags': ['pet'],
+                # The ``requestBody`` is what exercises the ``request_body`` argument
+                # ``enrich_component`` passes to ``format_description_with_responses``.
+                # A ``description`` here is required, not decorative: the upstream
+                # formatter gates its whole Request Body section on that field being
+                # truthy, so a body without one enriches identically to no body at all.
+                'requestBody': {
+                    'description': 'The pet to add to the store',
+                    'required': True,
+                    'content': {
+                        'application/json': {
+                            'schema': {
+                                'type': 'object',
+                                'required': ['name'],
+                                'properties': {
+                                    'name': {'type': 'string', 'description': 'The pet name'},
+                                    'tag': {'type': 'string', 'description': 'A free-form tag'},
+                                },
+                            }
+                        }
+                    },
+                },
                 'responses': {'201': {'description': 'Created'}},
             },
         },
@@ -101,13 +122,27 @@ def _base_config(**overrides):
 
 async def _create_server(config, spec=None, extra_spec=None):
     spec = spec or PETSTORE_SPEC
+
     with (
         patch('awslabs.openapi_mcp_server.server.load_openapi_spec') as mock_load,
         patch('awslabs.openapi_mcp_server.server.validate_openapi_spec', return_value=True),
         patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client,
+        patch(
+            'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
+            return_value=['93.184.216.34'],
+        ),
+        patch(
+            'awslabs.openapi_mcp_server.utils.url_validator.Path.resolve',
+            return_value=MagicMock(
+                suffix='.json',
+                exists=MagicMock(return_value=True),
+                __str__=lambda self: '/fake/spec.json',
+            ),
+        ),
     ):
 
-        def load_side_effect(url='', path=''):
+        def load_side_effect(url='', path='', validated_url=None, **kwargs):
+            url = url or (validated_url.original_url if validated_url else '')
             if extra_spec and url != config.api_spec_url:
                 return extra_spec
             return spec
@@ -160,30 +195,66 @@ async def test_no_tag_filters_exposes_all():
 
 @pytest.mark.asyncio
 async def test_enriched_descriptions_include_response_codes():
-    """Tool descriptions include response codes from the spec."""
+    """Tool descriptions include a Responses section with status codes.
+
+    POC migration: enrichment now delegates to FastMCP's shipped
+    ``format_description_with_responses``, which emits a structured
+    ``**Responses:**`` section rather than the old ``Returns: ...`` string.
+    """
     server = await _create_server(_base_config())
     tools = await server.list_tools()
     list_pets = next(t for t in tools if t.name == 'listPets')
-    assert 'Returns:' in list_pets.description
+    assert '**Responses:**' in list_pets.description
     assert '200' in list_pets.description
 
 
 @pytest.mark.asyncio
-async def test_enriched_descriptions_include_enum_examples():
-    """Tool descriptions include enum examples from parameters."""
+async def test_enriched_descriptions_include_parameters():
+    """Tool descriptions include a Parameters section listing query params.
+
+    POC migration: the native formatter lists parameter names under a
+    ``**Query Parameters:**`` heading (it does not inline ``name=value``
+    enum/example samples the way the previous bespoke builder did).
+    """
     server = await _create_server(_base_config())
     tools = await server.list_tools()
     list_pets = next(t for t in tools if t.name == 'listPets')
-    assert 'status=available' in list_pets.description
+    assert '**Query Parameters:**' in list_pets.description
+    assert 'status' in list_pets.description
 
 
 @pytest.mark.asyncio
-async def test_enriched_descriptions_include_explicit_examples():
-    """Tool descriptions include explicit example values from parameters."""
+async def test_enriched_descriptions_include_request_body():
+    """Tool descriptions include the Request Body section for operations that have one.
+
+    ``enrich_component`` forwards ``route.request_body`` as the fourth argument to
+    ``format_description_with_responses``. Nothing else in this suite covers that
+    argument: every other operation in ``PETSTORE_SPEC`` is a GET or a body-less POST,
+    so without ``createPet``'s ``requestBody`` the branch never executes and dropping
+    the argument entirely would go unnoticed.
+    """
+    server = await _create_server(_base_config())
+    tools = await server.list_tools()
+    create_pet = next(t for t in tools if t.name == 'createPet')
+
+    assert '**Request Body:**' in create_pet.description
+    assert 'The pet to add to the store' in create_pet.description
+    # ``required: True`` on the body renders as a marker alongside its description.
+    assert '(Required)' in create_pet.description
+    # The per-property sub-section is a separate nested branch of the formatter.
+    assert '**Request Properties:**' in create_pet.description
+    assert 'The pet name' in create_pet.description
+    assert 'A free-form tag' in create_pet.description
+
+
+@pytest.mark.asyncio
+async def test_enriched_descriptions_preserve_base_description():
+    """The operation's own description is preserved ahead of the enrichment."""
     server = await _create_server(_base_config())
     tools = await server.list_tools()
     list_users = next(t for t in tools if t.name == 'listUsers')
-    assert 'limit=10' in list_users.description
+    assert list_users.description.startswith('List users')
+    assert 'limit' in list_users.description
 
 
 # --- Validate output toggle ---
@@ -277,8 +348,8 @@ async def test_enriched_descriptions_no_params():
     server = await _create_server(_base_config())
     tools = await server.list_tools()
     inventory = next(t for t in tools if t.name == 'getInventory')
-    # Should have Returns even without params
-    assert 'Returns:' in inventory.description
+    # Should have a Responses section even without params
+    assert '**Responses:**' in inventory.description
 
 
 @pytest.mark.asyncio
@@ -459,7 +530,8 @@ async def test_additional_specs_load_failure_skipped():
         patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client,
     ):
 
-        def load_side_effect(url='', path=''):
+        def load_side_effect(url='', path='', validated_url=None, **kwargs):
+            url = url or (validated_url.original_url if validated_url else '')
             if url == 'http://x':
                 raise ValueError('bad spec')
             return PETSTORE_SPEC
@@ -495,7 +567,7 @@ async def test_enriched_descriptions_empty_original():
     assert item_tool is not None
     # Should still have enrichment even without original description
     assert item_tool.description
-    assert 'Returns:' in item_tool.description
+    assert '**Responses:**' in item_tool.description
 
 
 @pytest.mark.asyncio
@@ -505,7 +577,7 @@ async def test_additional_specs_validation_failure_continues():
         [
             {
                 'name': 'payments',
-                'spec_url': 'http://payments/spec',
+                'spec_url': 'https://payments.example.com/spec',
                 'base_url': 'https://payments.example.com',
             }
         ]
@@ -514,10 +586,15 @@ async def test_additional_specs_validation_failure_continues():
         patch('awslabs.openapi_mcp_server.server.load_openapi_spec') as mock_load,
         patch('awslabs.openapi_mcp_server.server.validate_openapi_spec') as mock_validate,
         patch('awslabs.openapi_mcp_server.server.HttpClientFactory.create_client') as mock_client,
+        patch(
+            'awslabs.openapi_mcp_server.utils.url_validator.resolve_hostname',
+            return_value=['93.184.216.34'],
+        ),
     ):
 
-        def load_side_effect(url='', path=''):
-            return PETSTORE_SPEC if url != 'http://payments/spec' else EXTRA_SPEC
+        def load_side_effect(url='', path='', validated_url=None, **kwargs):
+            url = url or (validated_url.original_url if validated_url else '')
+            return PETSTORE_SPEC if url != 'https://payments.example.com/spec' else EXTRA_SPEC
 
         def validate_side_effect(spec):
             # Primary passes, extra fails

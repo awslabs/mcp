@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import json
-import re
 from ...core.common.config import READ_OPERATIONS_ONLY_MODE, REQUIRE_MUTATION_CONSENT
+from botocore import xform_name
 from enum import Enum
 from loguru import logger
 from pathlib import Path
@@ -113,8 +113,7 @@ class SecurityPolicy:
 
         Priority: deny > elicit > default behavior
         """
-        operation_kebab = operation.replace('_', '-')
-        operation_kebab = re.sub('([A-Z])', r'-\1', operation_kebab).lower().lstrip('-')
+        operation_kebab = xform_name(operation).replace('_', '-')
 
         api_call = f'aws {service} {operation_kebab}'
 
@@ -156,8 +155,7 @@ class SecurityPolicy:
         operation = ir.command_metadata.operation_sdk_name
 
         # Convert operation to kebab-case if needed
-        operation_kebab = operation.replace('_', '-')
-        operation_kebab = re.sub('([A-Z])', r'-\1', operation_kebab).lower().lstrip('-')
+        operation_kebab = xform_name(operation).replace('_', '-')
 
         base_cmd = f'{service} {operation_kebab}'
 

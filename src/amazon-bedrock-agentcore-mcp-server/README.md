@@ -16,7 +16,7 @@ This MCP server gives AI agents (Claude Code, Kiro, Cursor, VS Code, Codex CLI) 
 |**Gateway**         |15   |Create and manage API gateways, gateway targets, resource policies                             |
 |**Policy**          |15   |Create policy engines, manage policies, generate and review policy assets                      |
 |**Browser**         |25   |Cloud-based browser automation — navigate, click, type, screenshot, extract data               |
-|**Code Interpreter**|9    |Sandboxed code execution, file upload/download, package installation                           |
+|**Code Interpreter**|10   |Sandboxed code execution, file upload/download/listing, package installation                   |
 |**Documentation**   |2    |Search and fetch AgentCore docs                                                                |
 
 ## Prerequisites
@@ -129,11 +129,11 @@ Tips:
 - Use `browser_evaluate` with `querySelectorAll` for data extraction
 - `timeout_seconds` is an idle timeout, not absolute duration
 
-### Code Interpreter (9 tools)
+### Code Interpreter (10 tools)
 
 Sandboxed code execution in isolated environments. Start a session, execute code or shell commands, install packages, and transfer files.
 
-Key tools: `start_code_interpreter_session`, `execute_code`, `execute_command`, `install_packages`, `upload_file`, `download_file`
+Key tools: `start_code_interpreter_session`, `execute_code`, `execute_command`, `install_packages`, `upload_file`, `download_file`, `list_files`
 
 > **Cost note:** Sessions incur AWS charges. Stop sessions when done.
 
@@ -173,7 +173,7 @@ tools/
 ├── gateway/       # 15 tools — API gateway management
 ├── policy/        # 15 tools — policy engine management
 ├── browser/       # 25 tools — cloud browser automation
-├── code_interpreter/  # 9 tools — sandboxed code execution
+├── code_interpreter/  # 10 tools — sandboxed code execution
 └── docs.py        # 2 tools — documentation search
 ```
 

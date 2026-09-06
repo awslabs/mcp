@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from .decorator import finops_prompt
-from fastmcp.prompts.prompt import Message
+from fastmcp.prompts import Message
 from typing import List
 
 

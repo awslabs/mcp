@@ -226,14 +226,16 @@ class TestGetRecommendation:
         result = await get_recommendation(
             mock_context,
             mock_coh_client,
-            resource_id='i-1234567890abcdef0',
-            resource_type='EC2_INSTANCE',
+            recommendation_id='i-1234567890abcdef0',
         )
 
         # Verify the client was called correctly
         mock_coh_client.get_recommendation.assert_called_once()
         call_kwargs = mock_coh_client.get_recommendation.call_args[1]
         assert call_kwargs['recommendationId'] == 'i-1234567890abcdef0'
+        # resource_type is not part of the API contract and must not be sent
+        assert 'resource_type' not in call_kwargs
+        assert 'resourceType' not in call_kwargs
 
         # Verify the context was informed
         mock_context.info.assert_called_once()
@@ -251,6 +253,32 @@ class TestGetRecommendation:
 
         # Verify formatted currency
         assert rec['estimated_monthly_savings'] == 50.0
+
+    async def test_includes_current_and_recommended_resource_details(
+        self, mock_context, mock_coh_client
+    ):
+        """Test get_recommendation surfaces current and recommended resource details."""
+        current_details = {'ec2Instance': {'configuration': {'instance': {'type': 'm5.2xlarge'}}}}
+        recommended_details = {
+            'ec2Instance': {'configuration': {'instance': {'type': 'm5.large'}}}
+        }
+        mock_coh_client.get_recommendation.return_value = {
+            'recommendationId': 'rec-123',
+            'resourceId': 'i-1234567890abcdef0',
+            'currentResourceDetails': current_details,
+            'recommendedResourceDetails': recommended_details,
+        }
+
+        result = await get_recommendation(
+            mock_context,
+            mock_coh_client,
+            recommendation_id='i-1234567890abcdef0',
+        )
+
+        assert result['status'] == 'success'
+        rec = result['data']
+        assert rec['current_resource_details'] == current_details
+        assert rec['recommended_resource_details'] == recommended_details
 
 
 @pytest.mark.asyncio
@@ -509,9 +537,7 @@ class TestGetRecommendationErrorHandling:
         """Test get_recommendation with empty recommendation in response."""
         mock_coh_client.get_recommendation.return_value = {}
 
-        result = await get_recommendation(
-            mock_context, mock_coh_client, 'i-1234567890abcdef0', 'EC2_INSTANCE'
-        )
+        result = await get_recommendation(mock_context, mock_coh_client, 'i-1234567890abcdef0')
 
         assert result['status'] == 'warning'
 
@@ -519,9 +545,7 @@ class TestGetRecommendationErrorHandling:
         """Test get_recommendation with no recommendation key in response."""
         mock_coh_client.get_recommendation.return_value = {}
 
-        result = await get_recommendation(
-            mock_context, mock_coh_client, 'i-1234567890abcdef0', 'EC2_INSTANCE'
-        )
+        result = await get_recommendation(mock_context, mock_coh_client, 'i-1234567890abcdef0')
 
         assert result['status'] == 'warning'
         assert 'No recommendation found' in result['message']
@@ -537,9 +561,7 @@ class TestGetRecommendationErrorHandling:
             operation_name='GetRecommendation',
         )
 
-        result = await get_recommendation(
-            mock_context, mock_coh_client, 'invalid-id', 'EC2_INSTANCE'
-        )
+        result = await get_recommendation(mock_context, mock_coh_client, 'invalid-id')
 
         assert result['status'] == 'error'
         assert result['data']['error_code'] == 'ValidationException'
@@ -556,9 +578,7 @@ class TestGetRecommendationErrorHandling:
             operation_name='GetRecommendation',
         )
 
-        result = await get_recommendation(
-            mock_context, mock_coh_client, 'i-1234567890abcdef0', 'EC2_INSTANCE'
-        )
+        result = await get_recommendation(mock_context, mock_coh_client, 'i-1234567890abcdef0')
 
         assert result['status'] == 'error'
         assert result['data']['error_code'] == 'AccessDeniedException'
@@ -575,9 +595,7 @@ class TestGetRecommendationErrorHandling:
             operation_name='GetRecommendation',
         )
 
-        result = await get_recommendation(
-            mock_context, mock_coh_client, 'i-nonexistent', 'EC2_INSTANCE'
-        )
+        result = await get_recommendation(mock_context, mock_coh_client, 'i-nonexistent')
 
         assert result['status'] == 'warning'
         assert result['data']['error_code'] == 'ResourceNotFoundException'
@@ -594,9 +612,7 @@ class TestGetRecommendationErrorHandling:
         mock_coh_client.get_recommendation.side_effect = error
 
         with pytest.raises(ClientError):
-            await get_recommendation(
-                mock_context, mock_coh_client, 'i-1234567890abcdef0', 'EC2_INSTANCE'
-            )
+            await get_recommendation(mock_context, mock_coh_client, 'i-1234567890abcdef0')
 
     async def test_non_client_error_reraise(self, mock_context, mock_coh_client):
         """Test get_recommendation non-ClientError gets re-raised."""
@@ -604,9 +620,7 @@ class TestGetRecommendationErrorHandling:
         mock_coh_client.get_recommendation.side_effect = error
 
         with pytest.raises(ValueError):
-            await get_recommendation(
-                mock_context, mock_coh_client, 'i-1234567890abcdef0', 'EC2_INSTANCE'
-            )
+            await get_recommendation(mock_context, mock_coh_client, 'i-1234567890abcdef0')
 
 
 @pytest.mark.asyncio
@@ -779,16 +793,13 @@ class TestRecommendationFormatting:
         """Test get_recommendation with minimal recommendation data."""
         mock_coh_client.get_recommendation.return_value = {
             'resourceId': 'i-minimal',
-            'resourceType': 'EC2_INSTANCE',
+            'currentResourceType': 'Ec2Instance',
             'accountId': '123456789012',
-            'status': 'ADOPTED',
             'recommendationId': 'rec-minimal',
             # Missing optional fields: source, lookbackPeriodInDays, estimatedMonthlySavings
         }
 
-        result = await get_recommendation(
-            mock_context, mock_coh_client, 'i-minimal', 'EC2_INSTANCE'
-        )
+        result = await get_recommendation(mock_context, mock_coh_client, 'i-minimal')
 
         assert result['status'] == 'success'
         rec = result['data']
@@ -803,15 +814,14 @@ class TestRecommendationFormatting:
         """Test get_recommendation with cost breakdown but no implementation effort."""
         mock_coh_client.get_recommendation.return_value = {
             'resourceId': 'i-test',
-            'resourceType': 'EC2_INSTANCE',
+            'currentResourceType': 'Ec2Instance',
             'accountId': '123456789012',
-            'status': 'ADOPTED',
             'recommendationId': 'rec-test',
             'estimatedMonthlySavings': 50.0,
             # Missing implementationEffort
         }
 
-        result = await get_recommendation(mock_context, mock_coh_client, 'i-test', 'EC2_INSTANCE')
+        result = await get_recommendation(mock_context, mock_coh_client, 'i-test')
 
         assert result['status'] == 'success'
         rec = result['data']

@@ -1,0 +1,200 @@
+---
+title: "Amazon Translate MCPサーバー"
+---
+
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![MCP](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io/)
+
+ニューラル機械翻訳サービスである Amazon Translate へのアクセスを AI アプリケーションに提供する Model Context Protocol (MCP) サーバーです。テキスト翻訳、マネージドバッチ処理、および 75 以上の言語にわたるスマートな翻訳ワークフロー管理を提供します。
+
+## 機能 {#features}
+
+- **テキスト翻訳**: カスタム用語集をサポートしたリアルタイム翻訳
+- **マネージドバッチ処理**: S3 統合、モニタリング、エラー分析を備えた、大規模ドキュメント翻訳のエンドツーエンド処理
+- **言語検出**: ソース言語の自動識別
+- **カスタム用語集**: ドメイン固有の翻訳の一貫性
+- **インテリジェントなワークフロー**: ワークフローオーケストレーションによる自動化された複数ステップの翻訳プロセス
+- **エラー分析**: 失敗したジョブに対する包括的なエラー分析
+
+## インストール {#installation}
+
+### uvx を使用する場合（推奨） {#using-uvx-recommended}
+
+```bash
+uvx awslabs.amazon-translate-mcp-server@latest
+```
+
+### pip を使用する場合 {#using-pip}
+
+```bash
+pip install awslabs.amazon-translate-mcp-server
+python -m awslabs.amazon_translate_mcp_server.server
+```
+
+## 設定 {#configuration}
+
+### 環境変数 {#environment-variables}
+
+```bash
+# AWS Configuration (required)
+export AWS_REGION=us-east-1
+export AWS_PROFILE=your-profile
+
+# Optional Settings
+export FASTMCP_LOG_LEVEL=INFO
+export TRANSLATE_MAX_TEXT_LENGTH=10000
+```
+
+### MCP クライアントのセットアップ {#mcp-client-setup}
+
+Claude Desktop の設定に以下を追加します。
+
+```json
+{
+  "mcpServers": {
+    "amazon-translate": {
+      "command": "uvx",
+      "args": ["awslabs.amazon-translate-mcp-server@latest"],
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_PROFILE": "default"
+      }
+    }
+  }
+}
+```
+
+## 利用可能なツール {#available-tools}
+
+### 翻訳操作 {#translation-operations}
+- `translate_text` - 言語間でテキストを翻訳します
+- `detect_language` - ソース言語を自動的に識別します
+- `validate_translation` - 翻訳の品質評価を行います
+
+### バッチ操作 {#batch-operations}
+- `start_batch_translation` - 複数のドキュメントを処理します
+- `get_translation_job` - ジョブのステータスを監視します
+- `list_translation_jobs` - すべての翻訳ジョブを表示します
+- `trigger_batch_translation` - モニタリングなしでジョブを開始します
+- `monitor_batch_translation` - 完了までモニタリングします
+- `analyze_batch_translation_errors` - 失敗したジョブを分析します
+
+### 用語集管理 {#terminology-management}
+- `list_terminologies` - カスタム用語集セットを参照します
+- `create_terminology` - ドメイン固有の用語を作成します
+- `import_terminology` - CSV/TMX ファイルからインポートします
+- `get_terminology` - 用語集の詳細を取得します
+
+### 言語操作 {#language-operations}
+- `list_language_pairs` - サポートされている言語の組み合わせを表示します
+- `get_language_metrics` - 使用統計を表示します
+
+### ワークフロー操作 {#workflow-operations}
+- `smart_translate_workflow` - 品質検証付きの自動翻訳
+- `managed_batch_translation_workflow` - 完全なバッチライフサイクル管理
+- `list_active_workflows` - 実行中のワークフローを監視します
+- `get_workflow_status` - ワークフローの進行状況を取得します
+
+## 使用例 {#usage-examples}
+
+### 基本的な翻訳 {#basic-translation}
+
+```python
+# Translate text
+translate_text(
+    text="Hello, world!",
+    source_language="en",
+    target_language="es"
+)
+# Returns: "¡Hola, mundo!"
+
+# Auto-detect language
+detect_language(text="Bonjour le monde")
+# Returns: {"detected_language": "fr", "confidence_score": 0.99}
+```
+
+### バッチ翻訳 {#batch-translation}
+
+```python
+# Start batch job
+start_batch_translation(
+    input_s3_uri="s3://my-bucket/documents/",
+    output_s3_uri="s3://my-bucket/translated/",
+    data_access_role_arn="arn:aws:iam::123456789012:role/TranslateRole",
+    job_name="my-translation-job",
+    source_language="en",
+    target_languages=["es", "fr", "de"]
+)
+```
+
+### スマートワークフロー {#smart-workflow}
+
+```python
+# Automated translation with quality validation
+smart_translate_workflow(
+    text="Hello, how are you?",
+    target_language="es",
+    quality_threshold=0.8
+)
+```
+
+## AWS の権限 {#aws-permissions}
+
+必要な IAM 権限:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "translate:*",
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:ListBucket",
+                "sts:GetCallerIdentity"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+## トラブルシューティング {#troubleshooting}
+
+1. **認証エラー**: AWS 認証情報が設定されていることを確認してください
+2. **翻訳の失敗**: 言語ペアのサポート状況とテキスト長の制限を確認してください
+3. **バッチジョブの問題**: S3 の権限と IAM ロールの設定を確認してください
+4. **ワークフローの問題**: ヘルスチェックでワークフローオーケストレーターを確認してください
+
+## 開発 {#development}
+
+```bash
+# Clone and install
+git clone https://github.com/awslabs/mcp.git
+cd mcp/src/amazon-translate-mcp-server
+uv venv && uv sync --all-groups
+
+#mcp inspector
+npx @modelcontextprotocol/inspector uv --directory <directory path to amazon-translate-mcp-server> run --module awslabs.amazon_translate_mcp_server.server
+
+# Run tests
+uv run --frozen pytest --cov --cov-branch --cov-report=term-missing
+
+```
+
+## ライセンス {#license}
+
+Apache License 2.0
+
+## サポート {#support}
+
+- [ドキュメント](https://awslabs.github.io/mcp/)
+- [Issue](https://github.com/awslabs/mcp/issues)
+- [ディスカッション](https://github.com/awslabs/mcp/discussions)
+
+---
+
+**注記**: Amazon Translate へのアクセス権を持つ AWS アカウントが必要です。AWS の料金が発生します。

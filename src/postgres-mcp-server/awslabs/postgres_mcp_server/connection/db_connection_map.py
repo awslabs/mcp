@@ -14,6 +14,7 @@
 
 """Database connection map for postgres MCP Server."""
 
+import asyncio
 import json
 import threading
 from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
@@ -102,27 +103,102 @@ class DBConnectionMap:
                     f'Try to remove a non-existing connection. {method} {cluster_identifier} {db_endpoint} {database} {port}'
                 )
 
+    def remove_connection(self, conn: AbstractDBConnection) -> bool:
+        """Remove a connection by object identity, regardless of its map key.
+
+        Prefer this over ``remove()`` when evicting a connection you already
+        hold a reference to (e.g. cleaning up a failed/rejected connection in
+        ``connect_to_database``).
+
+        Why: the map key is built from the AWS-*resolved* endpoint/port, and
+        ``set()`` does not receive ``port`` (so it is always stored as the
+        5432 default), whereas callers pass the *caller-supplied* endpoint/port
+        to ``get()``/``remove()``. Those keys can diverge (empty db_endpoint,
+        non-5432 port, differing host casing), which makes key-based
+        ``remove()`` silently no-op and leave the connection cached. Evicting
+        by identity sidesteps that entirely. See the tracked follow-up on
+        connection-map key normalization for the broader fix.
+
+        Returns:
+            True if a matching connection was found and removed, else False.
+        """
+        with self._lock:
+            for key, existing in list(self.map.items()):
+                if existing is conn:
+                    del self.map[key]
+                    return True
+        return False
+
+    def list_connections(self) -> List[AbstractDBConnection]:
+        """Return a snapshot list of the currently cached connection objects.
+
+        Holds object references (not keys) so callers can test membership by
+        identity, independent of the map key. connect_to_database uses this to
+        tell whether internal_create_connection returned an already-cached (and
+        thus already-validated) connection or a freshly created one, without
+        rebuilding the key — which is unreliable given the endpoint/port
+        key-divergence documented on remove_connection.
+        """
+        with self._lock:
+            return list(self.map.values())
+
     def get_keys_json(self) -> str:
-        """Get all connection keys as JSON string."""
+        """Get all connection keys as JSON string.
+
+        Includes ``effective_is_over_privileged`` per connection for
+        diagnostics: True/False once the privilege probe has run, or None when
+        it was not determined (e.g. privilege_check=off). Observability only.
+        """
         entries: List[dict] = []
         with self._lock:
-            for key in self.map.keys():
+            for key, conn in self.map.items():
+                # Coerce to a JSON-safe bool-or-None: a real connection exposes
+                # Optional[bool], but be defensive against test doubles whose
+                # attribute access auto-creates non-serializable objects.
+                raw = getattr(conn, 'effective_is_over_privileged', None)
                 entry = {
                     'connection_method': key[0],
                     'cluster_identifier': key[1],
                     'db_endpoint': key[2],
                     'database': key[3],
                     'port': key[4],
+                    'effective_is_over_privileged': raw if isinstance(raw, bool) else None,
                 }
                 entries.append(entry)
         return json.dumps(entries, indent=2)
 
     def close_all(self) -> None:
-        """Close all connections and clear the map."""
+        """Close all connections and clear the map.
+
+        Connection ``close()`` methods are coroutines (see
+        ``AbstractDBConnection.close``). When ``close_all`` is called from
+        sync code (e.g. server.main's finally block), we drive each
+        coroutine to completion via ``asyncio.run`` so the underlying
+        pool workers actually get a chance to shut down. When called
+        from inside a running event loop, we fall back to scheduling
+        the coroutine and waiting on it via ``run_until_complete`` is
+        not possible, so we just drop the coroutine on the floor with a
+        warning — the loop's own teardown will reap the workers.
+        """
         with self._lock:
-            for key, conn in self.map.items():
-                try:
-                    conn.close()
-                except Exception as e:
-                    logger.warning(f'Failed to close connection {key}: {e}')
+            connections = list(self.map.items())
             self.map.clear()
+
+        for key, conn in connections:
+            try:
+                result = conn.close()
+            except Exception as e:
+                logger.warning(f'Failed to close connection {key}: {e}')
+                continue
+
+            if asyncio.iscoroutine(result):
+                try:
+                    asyncio.run(result)
+                except RuntimeError:
+                    # Already inside a running loop; closing the
+                    # coroutine cancels it cleanly without spawning a
+                    # new event loop. The pool workers will be cleaned
+                    # up when the outer loop tears down.
+                    result.close()
+                except Exception as e:
+                    logger.warning(f'Failed to await close() for {key}: {e}')

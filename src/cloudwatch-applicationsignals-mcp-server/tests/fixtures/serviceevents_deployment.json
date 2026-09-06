@@ -1,0 +1,65 @@
+{
+  "attributes": {
+    "aws.service_events.deployment.id": "26605861522",
+    "aws.service_events.deployment.timestamp": "2026-05-28T22:25:55Z",
+    "aws.service_events.deployment.trigger": "startup",
+    "aws.service_events.deployment.url": "https://github.com/aws-observability/private-aws-otel-java-instrumentation-staging/actions/runs/26605861522",
+    "event.name": "aws.service_events.deployment_event",
+    "vcs.ref.head.revision": "abababababababababababababababababababab",
+    "vcs.repository.url.full": "https://github.com/aws-observability/private-aws-otel-java-instrumentation-staging"
+  },
+  "eventName": "aws.service_events.deployment_event",
+  "observedTimeUnixNano": 1780007388912876892,
+  "resource": {
+    "attributes": {
+      "aws.local.service": "indico-service-java",
+      "cloud.account.id": "341705376693",
+      "cloud.availability_zone": "us-west-2b",
+      "cloud.platform": "aws_ec2",
+      "cloud.provider": "aws",
+      "cloud.region": "us-west-2",
+      "com.amazonaws.cloudwatch.entity.internal.service.name.source": "Instrumentation",
+      "deployment.environment.name": "beta",
+      "host.arch": "amd64",
+      "host.id": "i-080a0f8228d72748d",
+      "host.image.id": "ami-0af9e13b4642cbf1e",
+      "host.name": "ip-10-0-2-210.us-west-2.compute.internal",
+      "host.type": "t3.medium",
+      "k8s.container.name": "indico",
+      "k8s.deployment.name": "indico",
+      "k8s.namespace.name": "default",
+      "k8s.node.name": "ip-10-0-2-210.us-west-2.compute.internal",
+      "k8s.pod.name": "indico-65c875875-fv72p",
+      "k8s.replicaset.name": "indico-65c875875",
+      "os.description": "Linux 6.1.168-203.330.amzn2023.x86_64",
+      "os.type": "linux",
+      "process.command_args": [
+        "/opt/java/openjdk/bin/java",
+        "-jar",
+        "/opt/indico/app.jar"
+      ],
+      "process.executable.path": "/opt/java/openjdk/bin/java",
+      "process.pid": 1,
+      "process.runtime.description": "Eclipse Adoptium OpenJDK 64-Bit Server VM 17.0.19+10",
+      "process.runtime.name": "OpenJDK Runtime Environment",
+      "process.runtime.version": "17.0.19+10",
+      "service.instance.id": "c1750ae4-86da-49e8-8232-c0084730e592",
+      "service.name": "indico-service-java",
+      "service.version": "latest",
+      "telemetry.distro.name": "opentelemetry-java-instrumentation",
+      "telemetry.distro.version": "2.20.0-aws-SNAPSHOT",
+      "telemetry.sdk.language": "java",
+      "telemetry.sdk.name": "opentelemetry",
+      "telemetry.sdk.version": "1.57.0"
+    }
+  },
+  "scope": {
+    "name": "serviceevents",
+    "version": "1.0"
+  },
+  "severityNumber": 0,
+  "severityText": "",
+  "spanId": "",
+  "timeUnixNano": 1780007388903635645,
+  "traceId": ""
+}

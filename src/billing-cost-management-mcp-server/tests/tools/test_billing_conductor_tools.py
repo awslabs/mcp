@@ -19,32 +19,12 @@ billing groups, account associations, cost reports, pricing rules/plans,
 and custom line items.
 """
 
+import asyncio
 import fastmcp
 import importlib
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_tools import (
     billing_conductor_server,
-)
-from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_tools import (
-    get_billing_group_cost_report as get_billing_group_cost_report_tool,
-)
-from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_tools import (
-    list_account_associations as list_account_associations_tool,
-)
-from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_tools import (
-    list_billing_group_cost_reports as list_billing_group_cost_reports_tool,
-)
-from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_tools import (
-    list_billing_groups as list_billing_groups_tool,
-)
-from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_tools import (
-    list_custom_line_items as list_custom_line_items_tool,
-)
-from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_tools import (
-    list_pricing_plans as list_pricing_plans_tool,
-)
-from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_tools import (
-    list_pricing_rules as list_pricing_rules_tool,
 )
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -121,44 +101,51 @@ def test_billing_conductor_server_initialization():
 
 def test_list_billing_groups_tool_registered():
     """Test that the list_billing_groups tool is registered with proper name."""
-    assert hasattr(list_billing_groups_tool, 'name')
-    assert list_billing_groups_tool.name == 'list-billing-groups'
+    tool = asyncio.run(billing_conductor_server.get_tool('list-billing-groups'))
+    assert tool is not None
+    assert tool.name == 'list-billing-groups'
 
 
 def test_list_account_associations_tool_registered():
     """Test that the list_account_associations tool is registered with proper name."""
-    assert hasattr(list_account_associations_tool, 'name')
-    assert list_account_associations_tool.name == 'list-account-associations'
+    tool = asyncio.run(billing_conductor_server.get_tool('list-account-associations'))
+    assert tool is not None
+    assert tool.name == 'list-account-associations'
 
 
 def test_list_billing_group_cost_reports_tool_registered():
     """Test that the list_billing_group_cost_reports tool is registered."""
-    assert hasattr(list_billing_group_cost_reports_tool, 'name')
-    assert list_billing_group_cost_reports_tool.name == 'list-billing-group-cost-reports'
+    tool = asyncio.run(billing_conductor_server.get_tool('list-billing-group-cost-reports'))
+    assert tool is not None
+    assert tool.name == 'list-billing-group-cost-reports'
 
 
 def test_get_billing_group_cost_report_tool_registered():
     """Test that the get_billing_group_cost_report tool is registered."""
-    assert hasattr(get_billing_group_cost_report_tool, 'name')
-    assert get_billing_group_cost_report_tool.name == 'get-billing-group-cost-report'
+    tool = asyncio.run(billing_conductor_server.get_tool('get-billing-group-cost-report'))
+    assert tool is not None
+    assert tool.name == 'get-billing-group-cost-report'
 
 
 def test_list_pricing_rules_tool_registered():
     """Test that the list_pricing_rules tool is registered."""
-    assert hasattr(list_pricing_rules_tool, 'name')
-    assert list_pricing_rules_tool.name == 'list-pricing-rules'
+    tool = asyncio.run(billing_conductor_server.get_tool('list-pricing-rules'))
+    assert tool is not None
+    assert tool.name == 'list-pricing-rules'
 
 
 def test_list_pricing_plans_tool_registered():
     """Test that the list_pricing_plans tool is registered."""
-    assert hasattr(list_pricing_plans_tool, 'name')
-    assert list_pricing_plans_tool.name == 'list-pricing-plans'
+    tool = asyncio.run(billing_conductor_server.get_tool('list-pricing-plans'))
+    assert tool is not None
+    assert tool.name == 'list-pricing-plans'
 
 
 def test_list_custom_line_items_tool_registered():
     """Test that the list_custom_line_items tool is registered."""
-    assert hasattr(list_custom_line_items_tool, 'name')
-    assert list_custom_line_items_tool.name == 'list-custom-line-items'
+    tool = asyncio.run(billing_conductor_server.get_tool('list-custom-line-items'))
+    assert tool is not None
+    assert tool.name == 'list-custom-line-items'
 
 
 # --- List Billing Groups Tool Tests ---

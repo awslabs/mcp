@@ -41,6 +41,8 @@ class SqlAnalyzer:
         # Import/Export operations - enhanced with specific LOAD operations
         r'\b(?:COPY|IMPORT|EXPORT|BULK\s+INSERT)\b',
         r'\b(?:LOAD\s+DATA|LOAD\s+XML)\b',
+        # Athena UNLOAD operation (writes query results to S3)
+        r'\b(?:UNLOAD)\b',
         # Plugin operations
         r'\b(?:INSTALL\s+PLUGIN|UNINSTALL\s+PLUGIN)\b',
     ]

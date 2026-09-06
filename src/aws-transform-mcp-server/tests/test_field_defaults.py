@@ -251,7 +251,7 @@ class TestHitlFieldDefaults:
 
 
 # ── job.py: create_job ──────────────────────────────────────────────────
-# MEDIUM-RISK defaults: jobType=None, orchestratorAgent=None
+# MEDIUM-RISK defaults: orchestratorAgent=None
 
 
 class TestJobFieldDefaults:
@@ -259,7 +259,7 @@ class TestJobFieldDefaults:
     @patch('awslabs.aws_transform_mcp_server.tools.job.call_transform_api', new_callable=AsyncMock)
     @patch('awslabs.aws_transform_mcp_server.tools.job.is_fes_available', return_value=True)
     async def test_create_job_with_only_required_params(self, _, mock_fes):
-        """Omit jobType and orchestratorAgent — should be None, not FieldInfo."""
+        """Omit orchestratorAgent — should be None, not FieldInfo."""
         from awslabs.aws_transform_mcp_server.tools.job import JobHandler
 
         handler = JobHandler(_mcp())
@@ -281,9 +281,8 @@ class TestJobFieldDefaults:
         parsed = _parse(result)
         assert parsed['success'] is True, f'Expected success, got: {parsed}'
 
-        # Verify jobType and orchestratorAgent are None (not FieldInfo)
+        # Verify orchestratorAgent is None (not FieldInfo)
         create_req = mock_fes.call_args_list[0][0][1]
-        assert create_req.jobType is None
         assert create_req.orchestratorAgent is None
 
 

@@ -29,6 +29,10 @@ CDK_INIT_TIMEOUT_SECONDS = 120
 CDK_DIRECTORY_NAME = 'cdk'
 STACK_TEMPLATE_NAME = 'stack.ts.j2'
 
+# Prefix applied when a table name cannot start a TypeScript identifier on its own, for
+# example a name that begins with a digit or consists only of separator characters.
+IDENTIFIER_FALLBACK_PREFIX = 'table'
+
 
 class CdkGeneratorError(Exception):
     """Exception raised for CDK generation errors."""
@@ -163,13 +167,17 @@ class CdkGenerator:
     def _to_camel_case(self, table_name: str) -> str:
         """Convert table name to camelCase for variable names.
 
+        DynamoDB permits '.', '-' and '_' in table names, and permits a name to start with a
+        digit. All three are treated as word separators or prefixed so the result is a legal
+        TypeScript identifier.
+
         Args:
             table_name: Original table name (e.g., 'UserProfiles', 'Product-Catalog', 'Analytics_Events')
 
         Returns:
             camelCase variable name (e.g., 'userProfiles', 'productCatalog', 'analyticsEvents')
         """
-        name = table_name.replace('-', ' ').replace('_', ' ')
+        name = table_name.replace('-', ' ').replace('_', ' ').replace('.', ' ')
 
         # Split camelCase/PascalCase words (e.g., 'UserProfiles' -> 'User Profiles')
         # Insert space before uppercase letters that follow lowercase letters
@@ -177,10 +185,20 @@ class CdkGenerator:
 
         words = name.split()
 
+        # A name made up entirely of separators (e.g. '...') yields no words
+        if not words:
+            return IDENTIFIER_FALLBACK_PREFIX
+
         # First word lowercase, rest title case
         parts = [words[0].lower()]
         parts.extend(word.capitalize() for word in words[1:])
-        return ''.join(parts)
+        camel = ''.join(parts)
+
+        # TypeScript identifiers cannot start with a digit
+        if camel[0].isdigit():
+            return IDENTIFIER_FALLBACK_PREFIX + camel
+
+        return camel
 
     def _to_pascal_case(self, table_name: str) -> str:
         """Convert table name to PascalCase for method names.

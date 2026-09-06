@@ -22,6 +22,7 @@ import asyncio
 import json
 import os
 import re
+import sqlglot
 from ..utilities.aws_service_base import create_aws_client, format_response, handle_aws_error
 from ..utilities.constants import (
     ATHENA_MAX_RETRIES,
@@ -34,6 +35,7 @@ from ..utilities.constants import (
 from datetime import datetime
 from enum import Enum
 from fastmcp import Context, FastMCP
+from sqlglot.errors import ParseError as SqlglotParseError
 from typing import Any, Dict, List, Optional, TypedDict
 from urllib.parse import urlparse
 
@@ -42,6 +44,45 @@ from urllib.parse import urlparse
 storage_lens_server = FastMCP(
     name='storage-lens-tools', instructions='Tools for working with AWS S3 Storage Lens data'
 )
+
+
+def validate_query_is_readonly_select(query: str) -> str | None:
+    """Validate that a user-supplied query is a read-only SELECT or WITH...SELECT.
+
+    Returns None if valid, or an error message string if invalid.
+    """
+    # Substitute {table} placeholder with a valid identifier for parsing
+    parseable = query.replace('{table}', '__placeholder_table__')
+    try:
+        statements = sqlglot.parse(parseable, read='trino')
+    except SqlglotParseError as e:
+        return f'Query validation failed: unable to parse SQL: {e}'
+    if not statements:
+        return 'Query validation failed: empty query.'
+    if len(statements) > 1:
+        return 'Query validation failed: multiple statements are not allowed.'
+    stmt = statements[0]
+    if stmt is None:
+        return 'Query validation failed: unable to parse SQL statement.'
+    # Only allow top-level SELECT (which includes WITH...SELECT CTEs)
+    if stmt.key != 'select':
+        return f'Query validation failed: only SELECT queries are allowed, got {stmt.key.upper()}.'
+    # Scan for any DDL/DML nested in CTE definitions
+    _FORBIDDEN = {
+        'create',
+        'drop',
+        'alter',
+        'insert',
+        'update',
+        'delete',
+        'merge',
+        'grant',
+        'revoke',
+    }
+    for node in stmt.walk():
+        if node.key in _FORBIDDEN:
+            return f'Query validation failed: {node.key.upper()} statements are not allowed.'
+    return None
 
 
 # Using constants from centralized constants.py file
@@ -788,6 +829,11 @@ async def storage_lens_run_query(
     try:
         # Log the request
         await ctx.info(f'Running Storage Lens query: {query}')
+
+        # Validate user-supplied query is a read-only SELECT
+        validation_error = validate_query_is_readonly_select(query)
+        if validation_error:
+            return format_response('error', {}, validation_error)
 
         # Get manifest location from args or environment variable
         manifest_loc = manifest_location or os.environ.get(ENV_STORAGE_LENS_MANIFEST_LOCATION, '')

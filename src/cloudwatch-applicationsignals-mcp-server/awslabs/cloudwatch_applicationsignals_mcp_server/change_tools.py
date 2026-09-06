@@ -115,7 +115,7 @@ async def _list_change_events(
     Args:
         start_time: Start time for change event query (ISO 8601 or Unix timestamp)
         end_time: End time for change event query (ISO 8601 or Unix timestamp)
-        service_key_attributes: Service attributes to filter events. REQUIRED for comprehensive_history=True (ListEntityEvents). Optional for comprehensive_history=False (ListServiceStates). Use get_service_detail() to retrieve these attributes.
+        service_key_attributes: Service attributes to filter events. REQUIRED for comprehensive_history=True (ListEntityEvents). Optional for comprehensive_history=False (ListServiceStates). Use list_monitored_services() to retrieve these attributes.
         max_results: Maximum number of events to return (1-250, default: 100)
         region: AWS region (optional, defaults to configured region)
         comprehensive_history: If True, retrieves complete change history using ListEntityEvents (requires service_key_attributes).
@@ -142,7 +142,7 @@ async def _list_change_events(
         if comprehensive_history and not service_key_attributes:
             return json.dumps(
                 {
-                    'error': 'service_key_attributes is required when comprehensive_history=True (ListEntityEvents API). Use get_service_detail() to retrieve service key attributes first.',
+                    'error': 'service_key_attributes is required when comprehensive_history=True (ListEntityEvents API). Use list_monitored_services() to retrieve service key attributes first.',
                     'suggestion': 'Either provide service_key_attributes or set comprehensive_history=False to use ListServiceStates API',
                     'start_time': start_time,
                     'end_time': end_time,
@@ -256,7 +256,7 @@ async def _list_entity_events(
     if missing_attrs:
         raise ValueError(
             f'Missing required service_key_attributes: {", ".join(missing_attrs)}. '
-            f'Use get_service_detail() to retrieve the correct service key attributes.'
+            f'Use list_monitored_services() to retrieve the correct service key attributes.'
         )
 
     # Call API with pagination
@@ -358,7 +358,7 @@ async def list_change_events(
     ),
     service_key_attributes: Optional[Dict[str, str]] = Field(
         default=None,
-        description='Service key attributes to filter events. REQUIRED when comprehensive_history=True (ListEntityEvents API). Optional when comprehensive_history=False (ListServiceStates API). Use get_service_detail() to retrieve these attributes first. Dictionary with supported keys: "Type", "Name", "Environment", "AwsAccountId". Example: {"Environment": "ecs:ecs-pet-clinic-demo", "Name": "pet-clinic-vets-service", "Type": "Service"}',
+        description='Service key attributes to filter events. REQUIRED when comprehensive_history=True (ListEntityEvents API). Optional when comprehensive_history=False (ListServiceStates API). Use list_monitored_services() to retrieve these attributes first. Dictionary with supported keys: "Type", "Name", "Environment", "AwsAccountId". Example: {"Environment": "ecs:ecs-pet-clinic-demo", "Name": "pet-clinic-vets-service", "Type": "Service"}',
     ),
     max_results: int = Field(
         default=100, description='Maximum number of events to return (1-250, default: 100)'
@@ -406,7 +406,7 @@ async def list_change_events(
     6. **Deployment Impact Analysis**: "Did the 2 PM deployment cause the performance degradation?"
 
     **Service Key Attributes (Required for ListEntityEvents):**
-    When using comprehensive_history=True (ListEntityEvents API), service_key_attributes is REQUIRED. Get these attributes from get_service_detail() first:
+    When using comprehensive_history=True (ListEntityEvents API), service_key_attributes is REQUIRED. Get these attributes from list_monitored_services() first:
     - **Type**: Usually "Service" for Application Signals monitored services
     - **Name**: Service name (e.g., "checkout-service", "payment-api", "hello-world-python")
     - **Environment**: Service environment (e.g., "ecs:production-cluster", "lambda:default", "eks:my-cluster")
@@ -439,7 +439,7 @@ async def list_change_events(
     Args:
         start_time: Start time for change event query (ISO 8601 datetime string or Unix timestamp)
         end_time: End time for change event query (ISO 8601 datetime string or Unix timestamp)
-        service_key_attributes: Service attributes dictionary to filter events to specific services. REQUIRED when comprehensive_history=True (ListEntityEvents). Optional when comprehensive_history=False (ListServiceStates). Use get_service_detail() to retrieve these attributes.
+        service_key_attributes: Service attributes dictionary to filter events to specific services. REQUIRED when comprehensive_history=True (ListEntityEvents). Optional when comprehensive_history=False (ListServiceStates). Use list_monitored_services() to retrieve these attributes.
         max_results: Maximum number of events to return (1-250, default: 100)
         region: AWS region to query (defaults to configured region)
         comprehensive_history: If True, uses ListEntityEvents for complete change history. If False, uses ListServiceStates for current service states.

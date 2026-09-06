@@ -64,7 +64,7 @@ async def test_get_eks_metrics_guidance_cluster(metrics_handler):
     mock_ctx = MagicMock()
     result = await metrics_handler.get_eks_metrics_guidance(mock_ctx, 'cluster')
     assert isinstance(result, CallToolResult)
-    assert result.isError is False
+    assert result.is_error is False
     # Parse the JSON data from content
     data = json.loads(result.content[1].text)
     assert len(data['metrics']) == 1
@@ -79,7 +79,7 @@ async def test_get_eks_metrics_guidance_node(metrics_handler):
     mock_ctx = MagicMock()
     result = await metrics_handler.get_eks_metrics_guidance(mock_ctx, 'node')
     assert isinstance(result, CallToolResult)
-    assert result.isError is False
+    assert result.is_error is False
     # Parse the JSON data from content
     data = json.loads(result.content[1].text)
     assert len(data['metrics']) == 1
@@ -95,7 +95,7 @@ async def test_get_eks_metrics_guidance_nonexistent(metrics_handler):
     # Pod metrics aren't in our mock data, so this should return an empty list
     result = await metrics_handler.get_eks_metrics_guidance(mock_ctx, 'pod')
     assert isinstance(result, CallToolResult)
-    assert result.isError is False
+    assert result.is_error is False
     # Parse the JSON data from content
     data = json.loads(result.content[1].text)
     assert data['resource_type'] == 'pod'
@@ -109,7 +109,7 @@ async def test_get_eks_metrics_guidance_invalid_type(metrics_handler):
     # Invalid resource type should return an error response
     result = await metrics_handler.get_eks_metrics_guidance(mock_ctx, 'invalid_type')
     assert isinstance(result, CallToolResult)
-    assert result.isError is True
+    assert result.is_error is True
     assert len(result.content) == 1
     assert isinstance(result.content[0], TextContent)
     assert 'Invalid resource type' in result.content[0].text

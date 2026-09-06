@@ -13,8 +13,63 @@
 # limitations under the License.
 """Data models for AWS Documentation MCP Server."""
 
-from pydantic import BaseModel
-from typing import Dict, List, Optional
+from pydantic import BaseModel, ConfigDict, Field
+from typing import Any, Dict, List, Optional
+
+
+class DiscoveredService(BaseModel):
+    """AWS service inferred from the query that may be relevant beyond the top results."""
+
+    name: str
+    description: Optional[str] = None
+
+
+class RelatedTaskUrl(BaseModel):
+    """Doc URL associated with a related task."""
+
+    url_name: str
+    url_description: Optional[str] = None
+
+
+class RelatedTask(BaseModel):
+    """Related operation or workflow with its own doc URLs."""
+
+    name: str
+    description: Optional[str] = None
+    urls: Optional[List[RelatedTaskUrl]] = None
+
+
+class Relationship(BaseModel):
+    """Named connection between concepts surfaced alongside search results."""
+
+    relation: Optional[str] = None
+    to: Optional[str] = None
+    to_description: Optional[str] = None
+    from_: Optional[str] = Field(default=None, alias='from')
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class ResponseMetadata(BaseModel):
+    """Optional response-level metadata surfaced alongside search results."""
+
+    discovered_services: Optional[List[DiscoveredService]] = None
+    related_tasks: Optional[List[RelatedTask]] = None
+    relationships: Optional[List[Relationship]] = None
+
+
+class AdditionalUrl(BaseModel):
+    """Doc URL related to a search result, with section anchors for citation."""
+
+    url: str
+    section_title: Optional[str] = None
+    section_anchor: Optional[str] = None
+
+
+class SearchResultMetadata(BaseModel):
+    """Optional per-result metadata surfaced alongside an individual search result."""
+
+    additional_urls: Optional[List[AdditionalUrl]] = None
 
 
 class SearchResult(BaseModel):
@@ -24,7 +79,9 @@ class SearchResult(BaseModel):
     url: str
     title: str
     context: Optional[str] = None
+    recommended_sections: Optional[List[str]] = None
     sections: Optional[List[str]] = None
+    metadata: Optional[SearchResultMetadata] = None
 
 
 class SearchResponse(BaseModel):
@@ -33,6 +90,7 @@ class SearchResponse(BaseModel):
     search_results: List[SearchResult]
     facets: Optional[Dict[str, List[str]]] = None
     query_id: str
+    metadata: Optional[ResponseMetadata] = None
 
 
 class RecommendationResult(BaseModel):
@@ -41,3 +99,35 @@ class RecommendationResult(BaseModel):
     url: str
     title: str
     context: Optional[str] = None
+
+
+class TableResult(BaseModel):
+    """A single table's filtered results.
+
+    For flat tables, each row is a dict of {column_name: value}.
+    For nested/rowspan tables, rows are grouped: each group has parent column
+    values at the top level plus a 'rows' sub-array of child-column dicts.
+    When parent_columns is set, total_rows/matched_rows/showing count groups.
+    """
+
+    table_heading: Optional[str] = None
+    columns: List[str]
+    parent_columns: Optional[List[str]] = None
+    child_columns: Optional[List[str]] = None
+    total_rows: int
+    matched_rows: int
+    showing: int
+    rows: List[Dict[str, Any]]
+
+
+class SearchTableResponse(BaseModel):
+    """Response from the search_table tool."""
+
+    url: str
+    section_title: str
+    query: str
+    tables_searched: int
+    tables_with_matches: int
+    results: List[TableResult]
+    error: Optional[str] = None
+    hint: Optional[str] = None

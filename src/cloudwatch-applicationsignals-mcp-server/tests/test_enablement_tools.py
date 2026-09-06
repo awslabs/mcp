@@ -201,6 +201,63 @@ class TestGetEnablementGuide:
         assert 'app/src' in result
 
     @pytest.mark.asyncio
+    async def test_platform_with_path_separators_rejected(self):
+        """A platform value containing path separators is treated as unsupported."""
+        result = await get_enablement_guide(
+            service_platform='../../../../../../../../../root',
+            service_language='python',
+            iac_directory=ABSOLUTE_PATHS['iac'],
+            app_directory=ABSOLUTE_PATHS['app'],
+        )
+
+        assert 'Enablement guide not available' in result
+        assert 'not currently supported' in result
+        # The response must not echo internal filesystem details.
+        assert 'site-packages' not in result
+        assert 'enablement_guides' not in result
+        assert 'Errno' not in result
+
+    @pytest.mark.asyncio
+    async def test_overlong_platform_rejected(self):
+        """An over-long platform value is rejected without surfacing a filesystem error."""
+        result = await get_enablement_guide(
+            service_platform='../../../../../../../../../' + 'A' * 400,
+            service_language='python',
+            iac_directory=ABSOLUTE_PATHS['iac'],
+            app_directory=ABSOLUTE_PATHS['app'],
+        )
+
+        assert 'Enablement guide not available' in result
+        assert 'File name too long' not in result
+        assert 'site-packages' not in result
+
+    @pytest.mark.asyncio
+    async def test_language_with_path_separators_rejected(self):
+        """A language value containing path separators is treated as unsupported."""
+        result = await get_enablement_guide(
+            service_platform='ec2',
+            service_language='../../../../etc/passwd',
+            iac_directory=ABSOLUTE_PATHS['iac'],
+            app_directory=ABSOLUTE_PATHS['app'],
+        )
+
+        assert 'Enablement guide not available' in result
+        assert 'site-packages' not in result
+        assert 'Errno' not in result
+
+    @pytest.mark.asyncio
+    async def test_platform_with_embedded_separator_rejected(self):
+        """A platform value with an embedded separator is treated as unsupported."""
+        result = await get_enablement_guide(
+            service_platform='lambda/../ec2',
+            service_language='python',
+            iac_directory=ABSOLUTE_PATHS['iac'],
+            app_directory=ABSOLUTE_PATHS['app'],
+        )
+
+        assert 'Enablement guide not available' in result
+
+    @pytest.mark.asyncio
     async def test_file_read_error(self):
         """Test that file read errors are handled gracefully with helpful message."""
         with patch('builtins.open', side_effect=PermissionError('Permission denied')):

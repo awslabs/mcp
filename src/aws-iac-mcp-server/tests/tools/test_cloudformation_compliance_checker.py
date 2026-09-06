@@ -28,23 +28,15 @@ class TestInitializeGuardRules:
     """Test guard rules initialization."""
 
     def test_initialize_default_rules_file(self):
-        """Test that default rules file can be loaded without mocking."""
+        """Test that the bundled default rules file can be loaded without mocking."""
         result = initialize_guard_rules()
 
         assert result is True, 'Default rules file should load successfully'
 
-    @patch('builtins.open', new_callable=mock_open, read_data='rule test_rule { }')
-    def test_initialize_with_custom_rules(self, mock_file):
-        """Test initialization with custom rules file."""
-        result = initialize_guard_rules('/custom/path/rules.guard')
-
-        assert result is True
-        mock_file.assert_called_once_with('/custom/path/rules.guard', 'r')
-
     @patch('builtins.open', side_effect=FileNotFoundError)
     def test_initialize_file_not_found(self, mock_file):
-        """Test initialization with non-existent file."""
-        result = initialize_guard_rules('/nonexistent/rules.guard')
+        """Test initialization when the bundled rules file cannot be found."""
+        result = initialize_guard_rules()
 
         assert result is False
 
@@ -161,7 +153,7 @@ class TestCheckCompliance:
         """Test compliance check when rules file not found."""
         template = json.dumps({'AWSTemplateFormatVersion': '2010-09-09', 'Resources': {}})
 
-        result = check_compliance(template, rules_file_path='/nonexistent/rules.guard')
+        result = check_compliance(template)
 
         assert 'compliance_results' in result
         assert result['compliance_results']['overall_status'] == 'ERROR'
@@ -182,24 +174,17 @@ class TestInitializeGuardRulesDetailed:
 
         assert result is True
 
-    @patch('builtins.open', new_callable=mock_open, read_data='rule test_rule { true }')
-    def test_initialize_with_custom_rules(self, mock_file):
-        """Test initialization with custom rules file."""
-        result = initialize_guard_rules('/custom/rules.guard')
-
-        assert result is True
-
     @patch('builtins.open', side_effect=FileNotFoundError())
     def test_initialize_file_not_found(self, mock_file):
-        """Test initialization when file not found."""
-        result = initialize_guard_rules('/nonexistent/rules.guard')
+        """Test initialization when the bundled rules file does not exist."""
+        result = initialize_guard_rules()
 
         assert result is False
 
     @patch('builtins.open', side_effect=Exception('Read error'))
     def test_initialize_general_exception(self, mock_file):
-        """Test initialization with general exception."""
-        result = initialize_guard_rules('/bad/rules.guard')
+        """Test initialization with a general exception reading the bundled file."""
+        result = initialize_guard_rules()
 
         assert result is False
 
@@ -583,15 +568,6 @@ class TestComplianceCheckerWithRealTemplate:
 
         assert resource_name == 'Unknown'
         assert resource_type == 'Unknown'
-
-    def test_check_compliance_with_custom_rules_file(self):
-        """Test compliance check with custom rules file path."""
-        template = '{"Resources": {}}'
-
-        with patch('builtins.open', mock_open(read_data='rule custom { true }')):
-            result = check_compliance(template, rules_file_path='/custom/rules.guard')
-
-            assert 'compliance_results' in result
 
     def test_parse_template_resources_with_multiple_types(self):
         """Test parsing template with multiple resource types."""

@@ -15,7 +15,7 @@
 """Describe events tool for ElastiCache MCP server."""
 
 from ...common.connection import ElastiCacheConnectionManager
-from ...common.decorators import handle_exceptions
+from ...common.decorators import handle_exceptions, readonly_safe
 from ...common.server import mcp
 from datetime import datetime
 from typing import Dict, Optional
@@ -23,6 +23,7 @@ from typing import Dict, Optional
 
 @mcp.tool(name='describe-events')
 @handle_exceptions
+@readonly_safe
 async def describe_events(
     source_type: Optional[str] = None,
     source_identifier: Optional[str] = None,

@@ -59,7 +59,7 @@ def test_create_mcp_server_httpx_version_error(
     """Test handling of missing httpx.__version__ attribute."""
     # Setup mocks
     mock_server = MagicMock()
-    mock_fastmcp.return_value = mock_server
+    mock_fastmcp.from_openapi.return_value = mock_server
     mock_load_spec.return_value = {
         'openapi': '3.0.0',
         'info': {'title': 'Test API', 'version': '1.0.0'},

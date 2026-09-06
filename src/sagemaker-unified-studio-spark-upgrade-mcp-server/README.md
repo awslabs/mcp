@@ -16,7 +16,7 @@ A fully managed remote MCP server that provides specialized tools and guidance f
 
 
 ## Architecture
-The upgrade agent has three main components: any MCP-compatible AI Assistant in your development environment for interaction, the [MCP Proxy for AWS](https://github.com/aws/mcp-proxy-for-aws) that handles secure communication between your client and the MCP server, and the Amazon SageMaker Unified Studio Managed MCP Server (in preview) that provides specialized Spark upgrade tools for Amazon EMR. This diagram illustrates how you interact with the Amazon SageMaker Unified Studio Managed MCP Server through your AI Assistant.
+The upgrade agent has three main components: any MCP-compatible AI Assistant in your development environment for interaction, the [MCP Proxy for AWS](https://github.com/aws/mcp-proxy-for-aws) that handles secure communication between your client and the MCP server, and the Amazon SageMaker Unified Studio Managed MCP Server that provides specialized Spark upgrade tools for Amazon EMR. This diagram illustrates how you interact with the Amazon SageMaker Unified Studio Managed MCP Server through your AI Assistant.
 
 ![img](https://docs.aws.amazon.com/images/emr/latest/ReleaseGuide/images/SparkUpgradeIntroduction.png)
 

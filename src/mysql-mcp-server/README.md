@@ -126,6 +126,18 @@ directly via `mysqlwire` with the endpoint, port, and credentials.
 #### mysqlwire / mysqlwire_iam
 - VPC security group must allow inbound connections from your MCP server to the database
 - For `mysqlwire_iam`: IAM authentication must be enabled on the Aurora MySQL cluster
+- The AWS identity needs `rds:DescribeDBClusters` and `rds:DescribeDBInstances`. A caller-supplied `db_endpoint` is validated against the cluster's AWS-resolved endpoints before connecting; resolving those endpoints requires both permissions. Without them, endpoint validation cannot enumerate the cluster's real endpoints and the connection is refused.
+- **TLS is required whenever real credentials are on the wire** — both IAM auth
+  (`mysqlwire_iam`) and Secrets Manager passwords (`mysqlwire` with a managed
+  secret). The server verifies the server certificate against the bundled Amazon
+  RDS global CA bundle. If your server certificate does not chain to that bundle,
+  supply your own trust store with `--ca_bundle <path>`; otherwise the connection
+  fails with `CERTIFICATE_VERIFY_FAILED`.
+
+  > **Breaking change:** earlier versions left `mysqlwire` (non-IAM) connections
+  > plaintext-capable. They are now upgraded to verified TLS. Installations that
+  > relied on plaintext or a server-certificate-managed TLS setup must pass
+  > `--ca_bundle <path>` (or reinstall to restore the bundled CA bundle).
 
 #### rdsapi
 - RDS Data API must be enabled on the Aurora MySQL cluster
@@ -141,7 +153,44 @@ The MCP server uses the AWS profile specified in the AWS_PROFILE environment var
 }
 ```
 
-Make sure the AWS profile has permissions to access the RDS Data API, and the secret from AWS Secrets Manager. The MCP server creates a boto3 session using the specified profile to authenticate with AWS services. Your AWS IAM credentials remain on your local machine and are strictly used for accessing AWS services.
+Make sure the AWS profile has permissions to access the RDS Data API and the secret from AWS Secrets Manager. Wire-protocol methods (`mysqlwire` / `mysqlwire_iam`) additionally require `rds:DescribeDBClusters` / `rds:DescribeDBInstances` — see the prerequisites above. The MCP server creates a boto3 session using the specified profile to authenticate with AWS services. Your AWS IAM credentials remain on your local machine and are strictly used for accessing AWS services.
+
+## Security model
+
+> **The server's read-only mode is a best-effort SQL-text safeguard, not a security boundary.**
+
+When the MCP server runs without `--allow_write_query`, it inspects the SQL string for mutating keywords (`INSERT`, `UPDATE`, `DELETE`, `DROP`, `SET`, `CALL`, `PREPARE`, `EXECUTE`, `HANDLER`, `LOCK`, `FLUSH`, `RESET`, `KILL`, `INSTALL`, `UNINSTALL`, etc.) and rejects matches before they reach the database. This guard is defence in depth — it is not a guarantee. SQL grammars evolve, regular expressions have edge cases, and an LLM under prompt injection is a creative adversary.
+
+**The actual security boundary is the database role you connect with.** The Postgres, MSSQL, and Oracle sibling servers all carry the same caveat; this section aligns the MySQL package with that wording.
+
+### Recommended configuration
+
+Connect with a least-privilege MySQL user that has only the permissions your workload actually needs. For read-only workflows, grant `SELECT` (and `EXECUTE` on specific procedures, if any) at the database level:
+
+```sql
+-- Aurora MySQL / RDS MySQL / RDS MariaDB
+CREATE USER 'mcp_readonly'@'%' IDENTIFIED BY '...';
+GRANT SELECT ON your_database.* TO 'mcp_readonly'@'%';
+-- If the workflow legitimately needs specific stored procedures:
+GRANT EXECUTE ON PROCEDURE your_database.some_safe_proc TO 'mcp_readonly'@'%';
+FLUSH PRIVILEGES;
+```
+
+Or, for IAM authentication, attach a policy granting `rds-db:connect` for the dedicated read-only user only.
+
+With a least-privilege role in place, every mutating statement the regex might miss still fails at the database with `ERROR 1142 (42000): … command denied to user`. The server's regex serves as a fast, informative rejection at the MCP layer; the database role is the durable guarantee.
+
+### What the server-side regex does and does not catch
+
+| Catches | Does not catch |
+|---------|----------------|
+| Single mutating statements (`INSERT`, `UPDATE`, `DELETE`, DDL, GRANT/REVOKE, etc.) | Mutating logic inside an `EXECUTE` of a `PREPARE`'d statement whose body lives in a `@user_variable` (defence: `PREPARE`, `EXECUTE`, `DEALLOCATE` are themselves blocked) |
+| Stacked queries (`SELECT 1; INSERT …`, `SELECT 1; COMMIT; INSERT …`) | Mutating logic inside a stored procedure that this server isn't aware of (defence: `CALL` is blocked) |
+| Toggling integrity-control session variables (`SET sql_log_bin = 0`, `SET foreign_key_checks = 0`, `SET unique_checks = 0`) in **both** read-only and write modes | Quoted-identifier obfuscation of variable names |
+| MySQL conditional comment payloads (`/*!50000 INSERT … */`) | A trojaned UDF that has already been installed by a higher-privileged operator |
+| Multi-variable `SET` with the dangerous variable in any position (`SET @x = 1, sql_log_bin = 0`) | New mutating verbs introduced by future MySQL releases until added to the denylist |
+
+When in doubt, rely on the database role.
 
 ## Development setup
 

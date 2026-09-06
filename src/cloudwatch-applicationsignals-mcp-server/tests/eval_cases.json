@@ -1,0 +1,179 @@
+[
+  {
+    "assertions": {
+      "output_contains_keys": [
+        "total_functions",
+        "returned",
+        "filter",
+        "sort_by",
+        "time_range_hours",
+        "functions",
+        "data_source"
+      ],
+      "output_type": "dict",
+      "output_value": {
+        "data_source": "cloudwatch_metrics_v2",
+        "filter": null,
+        "sort_by": "calls",
+        "time_range_hours": 24
+      }
+    },
+    "description": "list_functions returns expected structure with default params",
+    "id": "list_functions_default",
+    "params": {},
+    "tool": "list_functions"
+  },
+  {
+    "assertions": {
+      "output_contains_keys": [
+        "total_functions",
+        "functions",
+        "filter"
+      ],
+      "output_type": "dict",
+      "output_value": {
+        "filter": "errors",
+        "time_range_hours": 12
+      }
+    },
+    "description": "list_functions with filter=errors returns only error functions",
+    "id": "list_functions_with_error_filter",
+    "params": {
+      "filter": "errors",
+      "hours": 12
+    },
+    "tool": "list_functions"
+  },
+  {
+    "assertions": {
+      "output_contains_keys": [
+        "function_name",
+        "error"
+      ],
+      "output_type": "dict"
+    },
+    "description": "get_function_details returns error when function not found in the metrics source",
+    "id": "get_function_details_not_found",
+    "params": {
+      "function_name": "b827df4e-a6f4-58e5-898e-353965809da6"
+    },
+    "tool": "get_function_details"
+  },
+  {
+    "assertions": {
+      "output_contains_keys": [
+        "query",
+        "total_matches",
+        "returned",
+        "functions"
+      ],
+      "output_type": "dict",
+      "output_value": {
+        "query": "process"
+      }
+    },
+    "description": "search_functions returns matching functions and metadata",
+    "id": "search_functions_by_name",
+    "params": {
+      "query": "process"
+    },
+    "tool": "search_functions"
+  },
+  {
+    "assertions": {
+      "output_contains_keys": [
+        "total_endpoints",
+        "returned",
+        "filter_operation",
+        "percentile",
+        "time_range_hours",
+        "endpoints"
+      ],
+      "output_type": "dict",
+      "output_value": {
+        "data_source": "service_events",
+        "time_range_hours": 24
+      }
+    },
+    "description": "get_endpoints returns endpoint summaries with expected keys",
+    "id": "get_endpoints_default",
+    "params": {},
+    "tool": "get_endpoints"
+  },
+  {
+    "assertions": {
+      "output_contains_keys": [
+        "total_unique_incidents",
+        "time_range_hours",
+        "incidents",
+        "data_source"
+      ],
+      "output_type": "dict",
+      "output_value": {
+        "data_source": "service_events",
+        "time_range_hours": 24
+      }
+    },
+    "description": "get_incidents returns incident summaries",
+    "id": "get_incidents_default",
+    "params": {},
+    "tool": "get_incidents"
+  },
+  {
+    "assertions": {
+      "output_contains_keys": [
+        "snapshot_id",
+        "error"
+      ],
+      "output_type": "dict",
+      "output_value": {
+        "error": "No data found"
+      }
+    },
+    "description": "get_incident_details returns error when snapshot not found",
+    "id": "get_incident_details_not_found",
+    "params": {
+      "snapshot_id": "snap_c361cdc6-9f6b-4a80-ac7a-edeaee1ed29c"
+    },
+    "tool": "get_incident_details"
+  },
+  {
+    "assertions": {
+      "output_contains_keys": [
+        "data_source"
+      ],
+      "output_type": "dict",
+      "output_value": {
+        "data_source": "service_events"
+      }
+    },
+    "description": "get_health_overview returns health summary",
+    "id": "get_health_overview_default",
+    "params": {},
+    "tool": "get_health_overview"
+  },
+  {
+    "assertions": {
+      "output_contains_keys": [
+        "query_git_commit_sha",
+        "time_range_hours",
+        "found",
+        "total_deployments",
+        "deployments"
+      ],
+      "output_type": "dict",
+      "output_value": {
+        "found": false,
+        "query_git_commit_sha": "nonexistent-commit",
+        "time_range_hours": 168,
+        "total_deployments": 0
+      }
+    },
+    "description": "find_deployment with no matching commit returns empty results gracefully",
+    "id": "find_deployment_no_results",
+    "params": {
+      "git_commit_sha": "nonexistent-commit"
+    },
+    "tool": "find_deployment"
+  }
+]

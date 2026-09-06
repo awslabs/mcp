@@ -166,6 +166,26 @@ class TestAWSToolGenerator(unittest.TestCase):
         mock_session.assert_any_call(profile_name='default', region_name='us-west-2')
         mock_session.assert_any_call(profile_name='default', region_name='us-east-1')
 
+    @patch('awslabs.amazon_mq_mcp_server.aws_service_mcp_generator.boto3.Session')
+    def test_get_client_public(self, mock_session):
+        """Test the public get_client method creates and caches clients."""
+        mock_client = MagicMock(name='mq_client')
+        session_mock = MagicMock()
+        session_mock.client.return_value = mock_client
+        mock_session.return_value = session_mock
+
+        generator = AWSToolGenerator(
+            service_name='sqs', service_display_name='SQS', mcp=self.mcp_mock
+        )
+
+        client1 = generator.get_client('us-west-2')
+        client2 = generator.get_client('us-west-2')
+
+        # Verify the public method returns the client and caches it
+        self.assertEqual(client1, mock_client)
+        self.assertEqual(client1, client2)
+        mock_session.assert_called_once_with(profile_name='default', region_name='us-west-2')
+
     @patch('awslabs.amazon_mq_mcp_server.aws_service_mcp_generator.os.environ.get')
     @patch('awslabs.amazon_mq_mcp_server.aws_service_mcp_generator.boto3.Session')
     def test_get_client_with_custom_aws_profile(self, mock_session, mock_env_get):

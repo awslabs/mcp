@@ -127,41 +127,49 @@ def test_initialize_aws_clients_with_profile():
             mock_session,
         ):
             with patch('awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.Config'):
-                # Call the initialization function
-                (
-                    logs,
-                    applicationsignals,
-                    cloudwatch,
-                    xray,
-                    synthetics,
-                    s3,
-                    iam,
-                    lambda_client,
-                    sts,
-                    rum,
-                ) = _initialize_aws_clients()
+                # _initialize_aws_clients reads the module-level AWS_REGION (resolved
+                # once at import), so pin it here rather than relying on the env var.
+                with patch(
+                    'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.AWS_REGION',
+                    'us-east-1',
+                ):
+                    # Call the initialization function
+                    (
+                        logs,
+                        applicationsignals,
+                        cloudwatch,
+                        xray,
+                        synthetics,
+                        s3,
+                        iam,
+                        lambda_client,
+                        sts,
+                        rum,
+                    ) = _initialize_aws_clients()
 
-                # Verify Session was called with the profile
-                mock_session.assert_called_once()
-                call_kwargs = mock_session.call_args[1]
-                assert call_kwargs['profile_name'] == 'test-profile'
-                assert call_kwargs['region_name'] == 'us-east-1'
+                    # Verify Session was called with the profile
+                    mock_session.assert_called_once()
+                    call_kwargs = mock_session.call_args[1]
+                    assert call_kwargs['profile_name'] == 'test-profile'
+                    assert call_kwargs['region_name'] == 'us-east-1'
 
-                # Verify all clients were created
-                assert mock_session_instance.client.call_count == 10
-                client_calls = [call[0][0] for call in mock_session_instance.client.call_args_list]
-                assert 'logs' in client_calls
-                assert 'application-signals' in client_calls
-                assert 'cloudwatch' in client_calls
-                assert 'xray' in client_calls
-                assert 'rum' in client_calls
+                    # Verify all clients were created
+                    assert mock_session_instance.client.call_count == 10
+                    client_calls = [
+                        call[0][0] for call in mock_session_instance.client.call_args_list
+                    ]
+                    assert 'logs' in client_calls
+                    assert 'application-signals' in client_calls
+                    assert 'cloudwatch' in client_calls
+                    assert 'xray' in client_calls
+                    assert 'rum' in client_calls
 
-                # Verify the returned clients
-                assert logs == mock_client
-                assert applicationsignals == mock_client
-                assert cloudwatch == mock_client
-                assert xray == mock_client
-                assert rum == mock_client
+                    # Verify the returned clients
+                    assert logs == mock_client
+                    assert applicationsignals == mock_client
+                    assert cloudwatch == mock_client
+                    assert xray == mock_client
+                    assert rum == mock_client
 
 
 def test_initialize_aws_clients_with_mcp_source():

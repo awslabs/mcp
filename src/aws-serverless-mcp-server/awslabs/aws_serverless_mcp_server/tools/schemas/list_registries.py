@@ -16,7 +16,7 @@
 
 from botocore.client import BaseClient
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Dict, Optional
 
@@ -24,8 +24,8 @@ from typing import Dict, Optional
 class ListRegistriesTool:
     """Implementation of the list_registries tool."""
 
-    def __init__(self, mcp: FastMCP, schemas_client: BaseClient):
-        """Initialize the ListRegistriesTool with a FastMCP instance."""
+    def __init__(self, mcp: MCPServer, schemas_client: BaseClient):
+        """Initialize the ListRegistriesTool with a MCPServer instance."""
         mcp.tool(name='list_registries')(self.list_registries_impl)
         self.schemas_client = schemas_client
 

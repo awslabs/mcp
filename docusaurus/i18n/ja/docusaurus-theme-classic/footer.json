@@ -1,0 +1,38 @@
+{
+  "copyright": {
+    "description": "The footer copyright",
+    "message": "\u00a9 Amazon Web Services, Inc. or its affiliates. All rights reserved."
+  },
+  "link.item.label.AWS Blog": {
+    "description": "The label of footer link with label=AWS Blog linking to https://aws.amazon.com/blogs/machine-learning/introducing-aws-mcp-servers-for-code-assistants-part-1/",
+    "message": "AWS\u30d6\u30ed\u30b0"
+  },
+  "link.item.label.Get Started": {
+    "description": "The label of footer link with label=Get Started linking to /",
+    "message": "\u306f\u3058\u3081\u306b"
+  },
+  "link.item.label.GitHub": {
+    "description": "The label of footer link with label=GitHub linking to https://github.com/awslabs/mcp",
+    "message": "GitHub"
+  },
+  "link.item.label.Installation": {
+    "description": "The label of footer link with label=Installation linking to /installation",
+    "message": "\u30a4\u30f3\u30b9\u30c8\u30fc\u30eb"
+  },
+  "link.item.label.Model Context Protocol": {
+    "description": "The label of footer link with label=Model Context Protocol linking to https://modelcontextprotocol.io/introduction",
+    "message": "Model Context Protocol"
+  },
+  "link.title.Documentation": {
+    "description": "The title of the footer links column with title=Documentation in the footer",
+    "message": "\u30c9\u30ad\u30e5\u30e1\u30f3\u30c8"
+  },
+  "link.title.More": {
+    "description": "The title of the footer links column with title=More in the footer",
+    "message": "\u305d\u306e\u4ed6"
+  },
+  "link.title.Resources": {
+    "description": "The title of the footer links column with title=Resources in the footer",
+    "message": "\u30ea\u30bd\u30fc\u30b9"
+  }
+}

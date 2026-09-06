@@ -142,6 +142,19 @@ PREFER using JDBC with the [DSQL JDBC Connector](https://docs.aws.amazon.com/aur
 - Wrap JDBC connection, configure max lifetime < 1 hour
 - See [aurora-dsql-samples/java/pgjdbc_hikaricp](https://github.com/aws-samples/aurora-dsql-samples/tree/main/java/pgjdbc_hikaricp)
 
+### C# / .NET
+
+PREFER using the [Amazon.AuroraDsql.Npgsql](https://github.com/awslabs/aurora-dsql-orms/tree/main/dotnet) connector for automatic IAM auth:
+
+- Wraps Npgsql with IAM token generation and refresh
+- Register via `AddDsqlDataSource(host)`
+
+#### EF Core
+
+- Adapter: [Amazon.AuroraDsql.EntityFrameworkCore](https://github.com/awslabs/aurora-dsql-orms/tree/main/dotnet/ef-core) (requires .NET 8.0+, EF Core 9.0.7+, `Amazon.AuroraDsql.Npgsql` 1.1.0+)
+- Configure with `options.UseDsql(sp)` in `AddDbContext`
+- Use `Guid` keys (store-generated `gen_random_uuid()`) and `DsqlExecutionStrategy` for OCC retry — see the [EF Core adapter README](https://github.com/awslabs/aurora-dsql-orms/tree/main/dotnet/ef-core) for framework gotchas
+
 ### Rust
 
 **SQLx** (async)

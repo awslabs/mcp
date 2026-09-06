@@ -15,7 +15,7 @@
 """Deployment help tool for AWS Serverless MCP Server."""
 
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Any, Dict, Literal, Optional
 
@@ -23,7 +23,7 @@ from typing import Any, Dict, Literal, Optional
 class WebappDeploymentHelpTool:
     """Tool to provide help information for web application deployments using the deploy_webapp_tool."""
 
-    def __init__(self, mcp: FastMCP):
+    def __init__(self, mcp: MCPServer):
         """Initialize the webapp deployment help tool."""
         mcp.tool(name='webapp_deployment_help')(self.webapp_deployment_help_tool)
 

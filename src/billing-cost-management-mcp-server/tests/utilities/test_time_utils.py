@@ -16,6 +16,7 @@
 
 import pytest
 from awslabs.billing_cost_management_mcp_server.utilities.time_utils import (
+    normalize_datetimes_to_iso,
     timestamp_to_utc_iso_string,
 )
 from datetime import datetime, timezone
@@ -110,3 +111,45 @@ class TestEpochSecondsToUtcIsoString:
         # 2025-01-01T00:00:00 UTC = 1735689600
         result = timestamp_to_utc_iso_string(1735689600)
         assert result == '2025-01-01T00:00:00'
+
+
+class TestNormalizeDatetimesToIso:
+    """Tests for normalize_datetimes_to_iso (recursive datetime walker)."""
+
+    def test_scalar_datetime(self):
+        """A bare datetime is converted to an ISO 8601 string."""
+        dt = datetime(2026, 5, 1, tzinfo=timezone.utc)
+        assert normalize_datetimes_to_iso(dt) == '2026-05-01T00:00:00'
+
+    def test_nested_structure(self):
+        """Datetimes are converted at any nesting depth; other values untouched."""
+        obj = {
+            'Name': 'Engineering',
+            'LastModified': datetime(2026, 5, 1, tzinfo=timezone.utc),
+            'Rule': {'LinkedAccounts': ['123456789012']},
+            'Nested': {
+                'EinvoiceDeliveryActivationDate': datetime(2026, 3, 1, tzinfo=timezone.utc),
+            },
+            'Items': [
+                {'CreateDate': datetime(2026, 1, 1, tzinfo=timezone.utc)},
+                {'CreateDate': datetime(2026, 2, 1, tzinfo=timezone.utc)},
+            ],
+        }
+        result = normalize_datetimes_to_iso(obj)
+        assert result['LastModified'] == '2026-05-01T00:00:00'
+        assert result['Nested']['EinvoiceDeliveryActivationDate'] == '2026-03-01T00:00:00'
+        assert result['Items'][0]['CreateDate'] == '2026-01-01T00:00:00'
+        assert result['Items'][1]['CreateDate'] == '2026-02-01T00:00:00'
+        assert result['Name'] == 'Engineering'
+        assert result['Rule']['LinkedAccounts'] == ['123456789012']
+
+    def test_no_datetimes_unchanged(self):
+        """A structure with no datetimes is returned unchanged."""
+        obj = {'a': 1, 'b': ['x', 'y'], 'c': {'d': True}}
+        assert normalize_datetimes_to_iso(obj) == obj
+
+    def test_scalar_passthrough(self):
+        """Non-datetime scalars pass through untouched."""
+        assert normalize_datetimes_to_iso('hello') == 'hello'
+        assert normalize_datetimes_to_iso(42) == 42
+        assert normalize_datetimes_to_iso(None) is None

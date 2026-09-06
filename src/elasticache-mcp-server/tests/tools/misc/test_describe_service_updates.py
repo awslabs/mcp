@@ -233,3 +233,21 @@ async def test_describe_service_updates_pagination_edge_cases():
         # Test with negative max items
         await describe_service_updates(max_items=-1)
         mock_client.describe_service_updates.assert_called_with(MaxItems=-1)
+
+
+@pytest.mark.asyncio
+async def test_describe_service_updates_works_in_readonly_mode():
+    """Test that describe_service_updates works in readonly mode."""
+    from awslabs.elasticache_mcp_server.context import Context
+
+    mock_client = MagicMock()
+    mock_client.describe_service_updates.return_value = {'ServiceUpdates': []}
+    with (
+        patch.object(Context, 'readonly_mode', return_value=True),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=mock_client,
+        ),
+    ):
+        result = await describe_service_updates()
+        assert 'error' not in result

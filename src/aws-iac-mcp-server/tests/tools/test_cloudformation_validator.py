@@ -24,7 +24,7 @@ from awslabs.aws_iac_mcp_server.tools.cloudformation_validator import (
 )
 from cfnlint.match import Match
 from cfnlint.rules import CloudFormationLintRule
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 
 class TestMapLevel:
@@ -207,15 +207,16 @@ class TestInvalidParameters:
         result = validate_template(template, ignore_checks='not-a-list')
         assert isinstance(result, dict)
 
-    def test_invalid_rules_file_path(self):
-        """Test non-existent rules file path."""
+    def test_check_compliance_rules_initialization_failure(self):
+        """Test compliance check when the bundled rules file cannot be loaded."""
         # Reset the global cache to force re-initialization
         import awslabs.aws_iac_mcp_server.tools.cloudformation_compliance_checker as cc
 
         cc._RULES_CONTENT_CACHE = None
 
         template = '{"AWSTemplateFormatVersion": "2010-09-09", "Resources": {}}'
-        result = check_compliance(template, rules_file_path='/nonexistent/path/rules.guard')
+        with patch('builtins.open', side_effect=FileNotFoundError):
+            result = check_compliance(template)
         assert isinstance(result, dict)
         assert (
             'error' in result

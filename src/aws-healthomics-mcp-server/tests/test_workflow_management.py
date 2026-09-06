@@ -196,6 +196,106 @@ async def test_list_workflows_unexpected_error():
 
 
 @pytest.mark.asyncio
+async def test_list_workflows_with_ready2run_type():
+    """Test listing Ready2Run workflows with type filter."""
+    mock_response = {
+        'items': [
+            {
+                'id': '9500764',
+                'arn': 'arn:aws:omics:us-east-1::workflow/9500764',
+                'name': 'GATK-BP Germline fq2vcf for 30x genome',
+                'status': 'ACTIVE',
+                'type': 'WDL',
+            },
+        ],
+    }
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.list_workflows.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await list_workflows(
+            ctx=mock_ctx, max_results=10, next_token=None, workflow_type='READY2RUN'
+        )
+
+    # Verify type parameter was forwarded to boto3
+    mock_client.list_workflows.assert_called_once_with(maxResults=10, type='READY2RUN')
+
+    # Verify result
+    assert len(result['workflows']) == 1
+    assert result['workflows'][0]['id'] == '9500764'
+    assert result['workflows'][0]['name'] == 'GATK-BP Germline fq2vcf for 30x genome'
+
+
+@pytest.mark.asyncio
+async def test_list_workflows_with_private_type():
+    """Test listing private workflows with explicit type filter."""
+    mock_response = {
+        'items': [
+            {
+                'id': 'wfl-12345',
+                'name': 'my-custom-workflow',
+                'status': 'ACTIVE',
+            },
+        ],
+    }
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.list_workflows.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await list_workflows(
+            ctx=mock_ctx, max_results=10, next_token=None, workflow_type='PRIVATE'
+        )
+
+    # Verify type parameter was forwarded to boto3
+    mock_client.list_workflows.assert_called_once_with(maxResults=10, type='PRIVATE')
+    assert len(result['workflows']) == 1
+
+
+@pytest.mark.asyncio
+async def test_list_workflows_invalid_type():
+    """Test listing workflows with invalid type returns error dict."""
+    mock_ctx = AsyncMock()
+
+    result = await list_workflows(
+        ctx=mock_ctx, max_results=10, next_token=None, workflow_type='INVALID'
+    )
+
+    # Verify error dict is returned (not raised — follows handle_tool_error pattern)
+    assert 'error' in result
+    assert 'Invalid workflow type' in result['error']
+
+
+@pytest.mark.asyncio
+async def test_list_workflows_without_type():
+    """Test listing workflows without type filter preserves existing behavior."""
+    mock_response = {'items': []}
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.list_workflows.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_management.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await list_workflows(ctx=mock_ctx, max_results=10, next_token=None)
+
+    # Verify no type parameter was passed (backward compatibility)
+    mock_client.list_workflows.assert_called_once_with(maxResults=10)
+    assert result['workflows'] == []
+
+
+@pytest.mark.asyncio
 async def test_get_workflow_success():
     """Test successful retrieval of workflow details."""
     # Mock response data
@@ -4309,7 +4409,7 @@ async def test_get_workflow_invalid_type_error():
     )
 
     assert 'error' in result
-    assert 'Error getting workflow' in result['error']
+    assert 'Invalid workflow type' in result['error']
 
 
 @pytest.mark.asyncio

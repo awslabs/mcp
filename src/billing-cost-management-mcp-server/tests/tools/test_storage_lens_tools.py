@@ -35,6 +35,7 @@ from awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools import 
     SchemaInfo,
     StorageLensQueryTool,
     storage_lens_server,
+    validate_query_is_readonly_select,
 )
 from fastmcp import Context
 from tests.tools.fixtures import CSV_MANIFEST, PARQUET_MANIFEST
@@ -1231,3 +1232,231 @@ async def test_athena_handler_get_query_results_exception_flow(mock_context):
             await athena_handler.get_query_results('qid-err')
 
         mock_context.error.assert_awaited()
+
+
+# --- Query validation (security hardening: reject DDL/DML in user queries) ---
+
+
+class TestQueryValidation:
+    """Tests for read-only SELECT validation in storage_lens_run_query."""
+
+    def _get_real_fn(self):
+        """Get the real storage_lens_run_query via identity decorator reload."""
+        stl_mod = _reload_storage_lens_with_identity_decorator()
+        return stl_mod.storage_lens_run_query, stl_mod  # type: ignore
+
+    @pytest.mark.asyncio
+    async def test_plain_select_allowed(self, mock_context):
+        """A plain SELECT query should pass validation."""
+        os.environ['STORAGE_LENS_MANIFEST_LOCATION'] = 's3://bucket/prefix/'
+        real_fn, stl_mod = self._get_real_fn()
+        with patch.object(stl_mod, 'StorageLensQueryTool') as MockTool:
+            mock_instance = MagicMock()
+            mock_instance.query_storage_lens = AsyncMock(
+                return_value={'status': 'success', 'data': {}}
+            )
+            MockTool.return_value = mock_instance
+            res = await real_fn(  # type: ignore[reportCallIssue]
+                mock_context, query='SELECT * FROM {table} LIMIT 10'
+            )
+            assert res['status'] == 'success'
+            mock_instance.query_storage_lens.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_cte_select_allowed(self, mock_context):
+        """A WITH...SELECT CTE should pass validation."""
+        os.environ['STORAGE_LENS_MANIFEST_LOCATION'] = 's3://bucket/prefix/'
+        real_fn, stl_mod = self._get_real_fn()
+        with patch.object(stl_mod, 'StorageLensQueryTool') as MockTool:
+            mock_instance = MagicMock()
+            mock_instance.query_storage_lens = AsyncMock(
+                return_value={'status': 'success', 'data': {}}
+            )
+            MockTool.return_value = mock_instance
+            q = 'WITH cte AS (SELECT bucket_name, SUM(storage_bytes) AS total FROM {table} GROUP BY bucket_name) SELECT * FROM cte ORDER BY total DESC'
+            res = await real_fn(  # type: ignore[reportCallIssue]
+                mock_context, query=q
+            )
+            assert res['status'] == 'success'
+            mock_instance.query_storage_lens.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_complex_select_with_placeholder_allowed(self, mock_context):
+        """A complex SELECT with {table}, subqueries, CASE, GROUP BY/HAVING should pass."""
+        os.environ['STORAGE_LENS_MANIFEST_LOCATION'] = 's3://bucket/prefix/'
+        real_fn, stl_mod = self._get_real_fn()
+        with patch.object(stl_mod, 'StorageLensQueryTool') as MockTool:
+            mock_instance = MagicMock()
+            mock_instance.query_storage_lens = AsyncMock(
+                return_value={'status': 'success', 'data': {}}
+            )
+            MockTool.return_value = mock_instance
+            q = """SELECT bucket_name,
+                          CASE WHEN CAST(metric_value AS BIGINT) > 1000000 THEN 'large' ELSE 'small' END AS size_cat,
+                          SUM(CAST(metric_value AS BIGINT)) AS total
+                   FROM {table}
+                   WHERE metric_name IN (SELECT DISTINCT metric_name FROM {table} WHERE metric_name = 'StorageBytes')
+                   GROUP BY bucket_name, size_cat
+                   HAVING SUM(CAST(metric_value AS BIGINT)) > 100
+                   ORDER BY total DESC"""
+            res = await real_fn(  # type: ignore[reportCallIssue]
+                mock_context, query=q
+            )
+            assert res['status'] == 'success'
+            mock_instance.query_storage_lens.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_create_external_table_rejected(self, mock_context):
+        """CREATE EXTERNAL TABLE via query should be rejected."""
+        os.environ['STORAGE_LENS_MANIFEST_LOCATION'] = 's3://bucket/prefix/'
+        real_fn, stl_mod = self._get_real_fn()
+        with patch.object(stl_mod, 'StorageLensQueryTool') as MockTool:
+            mock_instance = MagicMock()
+            mock_instance.query_storage_lens = AsyncMock()
+            MockTool.return_value = mock_instance
+            q = "CREATE EXTERNAL TABLE evil_db.evil_table (id INT) LOCATION 's3://attacker/'"
+            res = await real_fn(  # type: ignore[reportCallIssue]
+                mock_context, query=q
+            )
+            assert res['status'] == 'error'
+            assert 'CREATE' in res.get('message', '')
+            mock_instance.query_storage_lens.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_drop_table_rejected(self, mock_context):
+        """DROP TABLE via query should be rejected."""
+        os.environ['STORAGE_LENS_MANIFEST_LOCATION'] = 's3://bucket/prefix/'
+        real_fn, stl_mod = self._get_real_fn()
+        with patch.object(stl_mod, 'StorageLensQueryTool') as MockTool:
+            mock_instance = MagicMock()
+            mock_instance.query_storage_lens = AsyncMock()
+            MockTool.return_value = mock_instance
+            res = await real_fn(  # type: ignore[reportCallIssue]
+                mock_context, query='DROP TABLE storage_lens_db.storage_lens_metrics'
+            )
+            assert res['status'] == 'error'
+            assert 'DROP' in res.get('message', '')
+            mock_instance.query_storage_lens.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_insert_rejected(self, mock_context):
+        """INSERT via query should be rejected."""
+        os.environ['STORAGE_LENS_MANIFEST_LOCATION'] = 's3://bucket/prefix/'
+        real_fn, stl_mod = self._get_real_fn()
+        with patch.object(stl_mod, 'StorageLensQueryTool') as MockTool:
+            mock_instance = MagicMock()
+            mock_instance.query_storage_lens = AsyncMock()
+            MockTool.return_value = mock_instance
+            res = await real_fn(  # type: ignore[reportCallIssue]
+                mock_context, query="INSERT INTO some_table VALUES (1, 'x')"
+            )
+            assert res['status'] == 'error'
+            assert 'INSERT' in res.get('message', '')
+            mock_instance.query_storage_lens.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_update_rejected(self, mock_context):
+        """UPDATE via query should be rejected."""
+        os.environ['STORAGE_LENS_MANIFEST_LOCATION'] = 's3://bucket/prefix/'
+        real_fn, stl_mod = self._get_real_fn()
+        with patch.object(stl_mod, 'StorageLensQueryTool') as MockTool:
+            mock_instance = MagicMock()
+            mock_instance.query_storage_lens = AsyncMock()
+            MockTool.return_value = mock_instance
+            res = await real_fn(  # type: ignore[reportCallIssue]
+                mock_context, query="UPDATE t SET col='x' WHERE id=1"
+            )
+            assert res['status'] == 'error'
+            assert 'UPDATE' in res.get('message', '')
+            mock_instance.query_storage_lens.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_delete_rejected(self, mock_context):
+        """DELETE via query should be rejected."""
+        os.environ['STORAGE_LENS_MANIFEST_LOCATION'] = 's3://bucket/prefix/'
+        real_fn, stl_mod = self._get_real_fn()
+        with patch.object(stl_mod, 'StorageLensQueryTool') as MockTool:
+            mock_instance = MagicMock()
+            mock_instance.query_storage_lens = AsyncMock()
+            MockTool.return_value = mock_instance
+            res = await real_fn(  # type: ignore[reportCallIssue]
+                mock_context, query='DELETE FROM some_table WHERE id=1'
+            )
+            assert res['status'] == 'error'
+            assert 'DELETE' in res.get('message', '')
+            mock_instance.query_storage_lens.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_multi_statement_rejected(self, mock_context):
+        """Multiple statements (SELECT; DROP) should be rejected."""
+        os.environ['STORAGE_LENS_MANIFEST_LOCATION'] = 's3://bucket/prefix/'
+        real_fn, stl_mod = self._get_real_fn()
+        with patch.object(stl_mod, 'StorageLensQueryTool') as MockTool:
+            mock_instance = MagicMock()
+            mock_instance.query_storage_lens = AsyncMock()
+            MockTool.return_value = mock_instance
+            res = await real_fn(  # type: ignore[reportCallIssue]
+                mock_context, query='SELECT 1; DROP TABLE t'
+            )
+            assert res['status'] == 'error'
+            assert 'multiple statements' in res.get('message', '').lower()
+            mock_instance.query_storage_lens.assert_not_awaited()
+
+
+# --- Direct unit tests for validate_query_is_readonly_select ---
+
+
+def test_validate_empty_string():
+    """Empty string should be rejected."""
+    result = validate_query_is_readonly_select('')
+    assert result is not None
+
+
+def test_validate_parse_error():
+    """Unparseable SQL should be rejected."""
+    result = validate_query_is_readonly_select('NOT VALID SQL {{{{')
+    assert result is not None
+    assert 'parse' in result.lower() or 'SELECT' in result
+
+
+def test_validate_valid_select_returns_none():
+    """Valid SELECT should return None (no error)."""
+    assert validate_query_is_readonly_select('SELECT 1') is None
+
+
+def test_validate_ddl_in_cte_subquery():
+    """DDL nested in a CTE subquery expression should be caught by the walk."""
+    # This tests the _FORBIDDEN walk path — a SELECT wrapping something suspicious
+    # In practice sqlglot may not parse this as valid, but we test the walk logic
+    # by using a query that IS a top-level select but references forbidden keywords
+    # Actually, we can't truly nest DDL inside a CTE in valid SQL.
+    # The walk path is defense-in-depth. Let's just verify the function handles it.
+    # Instead, test that the top-level gate works for MERGE (exercises stmt.key check)
+    result = validate_query_is_readonly_select(
+        'MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN UPDATE SET t.x = s.x'
+    )
+    assert result is not None
+    assert 'MERGE' in result
+
+
+def test_validate_empty_statements_list():
+    """Cover the 'if not statements' branch via mock."""
+    with patch('sqlglot.parse', return_value=[]):
+        result = validate_query_is_readonly_select('anything')
+        assert result is not None
+        assert 'empty' in result.lower()
+
+
+def test_validate_forbidden_node_in_walk():
+    """Cover the _FORBIDDEN walk branch via a mock that injects a forbidden node."""
+    mock_create_node = MagicMock()
+    mock_create_node.key = 'create'
+
+    mock_stmt = MagicMock()
+    mock_stmt.key = 'select'
+    mock_stmt.walk.return_value = [mock_stmt, mock_create_node]
+
+    with patch('sqlglot.parse', return_value=[mock_stmt]):
+        result = validate_query_is_readonly_select('SELECT 1')
+        assert result is not None
+        assert 'CREATE' in result

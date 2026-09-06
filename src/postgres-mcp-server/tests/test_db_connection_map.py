@@ -2,6 +2,7 @@
 
 """Unit tests for DBConnectionMap class."""
 
+import asyncio
 import json
 import pytest
 import threading
@@ -197,6 +198,114 @@ class TestDBConnectionMap:
         with pytest.raises(ValueError, match='database cannot be None or empty'):
             connection_map.remove(ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', None)
 
+    # ==================== remove_connection (by object) Tests ====================
+
+    def test_remove_connection_by_object(self, connection_map, mock_connection):
+        """remove_connection() evicts the entry whose value is the given conn."""
+        connection_map.set(
+            ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db', mock_connection
+        )
+
+        assert connection_map.remove_connection(mock_connection) is True
+        assert (
+            connection_map.get(
+                ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
+            )
+            is None
+        )
+
+    def test_remove_connection_regardless_of_key(self, connection_map, mock_connection):
+        """remove_connection() works even when the caller cannot reconstruct the key.
+
+        The connection is stored under a non-5432 port and a specific endpoint;
+        a caller who only holds the object (and not the resolved key) can still
+        evict it. This is the core guarantee that fixes the guardrail eviction
+        bug where the resolved storage key diverges from caller-supplied args.
+        """
+        connection_map.set(
+            ConnectionMethod.RDS_API,
+            'test-cluster',
+            'writer.resolved.example.com',
+            'test-db',
+            mock_connection,
+            port=5433,
+        )
+
+        # A key-based remove() with the wrong (default) port would miss.
+        connection_map.remove(
+            ConnectionMethod.RDS_API, 'test-cluster', 'writer.resolved.example.com', 'test-db'
+        )
+        assert (
+            connection_map.get(
+                ConnectionMethod.RDS_API,
+                'test-cluster',
+                'writer.resolved.example.com',
+                'test-db',
+                port=5433,
+            )
+            is mock_connection
+        )  # still present — key-based remove missed on port
+
+        # remove_connection() finds it by identity regardless of the key.
+        assert connection_map.remove_connection(mock_connection) is True
+        assert (
+            connection_map.get(
+                ConnectionMethod.RDS_API,
+                'test-cluster',
+                'writer.resolved.example.com',
+                'test-db',
+                port=5433,
+            )
+            is None
+        )
+
+    def test_remove_connection_not_present_returns_false(self, connection_map, mock_connection):
+        """remove_connection() returns False when the connection isn't in the map."""
+        assert connection_map.remove_connection(mock_connection) is False
+
+    # ================== effective_is_over_privileged diagnostic ==================
+
+    def test_get_keys_includes_effective_is_over_privileged_true(self, connection_map):
+        """get_keys_json surfaces a connection's effective_is_over_privileged flag."""
+        conn = MagicMock()
+        conn.effective_is_over_privileged = True
+        connection_map.set(ConnectionMethod.RDS_API, 'c', 'e', 'test-db', conn)
+
+        entries = json.loads(connection_map.get_keys_json())
+        assert entries[0]['effective_is_over_privileged'] is True
+
+    def test_get_keys_effective_is_over_privileged_defaults_none(
+        self, connection_map, mock_connection
+    ):
+        """A connection without a real bool flag is reported as None (JSON-safe)."""
+        # mock_connection.effective_is_over_privileged auto-creates a MagicMock;
+        # the map coerces any non-bool to None so the output stays serializable.
+        connection_map.set(ConnectionMethod.RDS_API, 'c', 'e', 'test-db', mock_connection)
+
+        entries = json.loads(connection_map.get_keys_json())
+        assert entries[0]['effective_is_over_privileged'] is None
+
+    def test_get_keys_includes_effective_is_over_privileged_false(self, connection_map):
+        """A real False flag is surfaced as False (not coerced to None)."""
+        conn = MagicMock()
+        conn.effective_is_over_privileged = False
+        connection_map.set(ConnectionMethod.RDS_API, 'c', 'e', 'test-db', conn)
+
+        entries = json.loads(connection_map.get_keys_json())
+        assert entries[0]['effective_is_over_privileged'] is False
+
+    def test_remove_connection_only_removes_matching_object(self, connection_map):
+        """remove_connection() leaves other connections intact."""
+        conn_a = MagicMock()
+        conn_b = MagicMock()
+        connection_map.set(ConnectionMethod.RDS_API, 'c-a', 'e-a', 'db', conn_a)
+        connection_map.set(ConnectionMethod.RDS_API, 'c-b', 'e-b', 'db', conn_b)
+
+        assert connection_map.remove_connection(conn_a) is True
+        assert connection_map.get(ConnectionMethod.RDS_API, 'c-a', 'e-a', 'db') is None
+        # conn_b is untouched.
+        assert connection_map.get(ConnectionMethod.RDS_API, 'c-b', 'e-b', 'db') is conn_b
+
     # ==================== Get Keys Method Tests ====================
 
     def test_get_keys_empty_map(self, connection_map):
@@ -346,6 +455,107 @@ class TestDBConnectionMap:
         conn3.close.assert_called_once()
 
         # Map should be cleared (this is the important behavior)
+        assert connection_map.map == {}
+
+    # ---- Coroutine close() paths (AbstractDBConnection.close is async) ----
+
+    def test_close_all_awaits_coroutine_close_when_no_running_loop(self, connection_map):
+        """close_all() drives an async close() to completion via asyncio.run.
+
+        Called from sync context (no running event loop), a coroutine
+        returned by close() must actually be awaited, not dropped.
+        """
+        awaited = {'count': 0}
+
+        async def async_close():
+            awaited['count'] += 1
+
+        conn = MagicMock()
+        conn.close = MagicMock(side_effect=async_close)
+
+        connection_map.set(ConnectionMethod.RDS_API, 'c', 'e', 'db', conn)
+
+        connection_map.close_all()
+
+        # The coroutine ran to completion exactly once.
+        assert awaited['count'] == 1
+        conn.close.assert_called_once()
+        assert connection_map.map == {}
+
+    def test_close_all_cancels_coroutine_when_inside_running_loop(self, connection_map):
+        """Inside a running loop, asyncio.run raises RuntimeError.
+
+        close_all() must catch it and close() the coroutine (cancelling
+        it) rather than crashing, since you can't nest asyncio.run.
+        """
+        started = {'count': 0}
+
+        async def async_close():
+            # If this body ran to completion it would increment; we
+            # expect it to be cancelled (closed) before that.
+            started['count'] += 1
+
+        conn = MagicMock()
+        conn.close = MagicMock(side_effect=async_close)
+        connection_map.set(ConnectionMethod.RDS_API, 'c', 'e', 'db', conn)
+
+        async def driver():
+            # Calling close_all from within a running loop forces the
+            # asyncio.run(...) inside it to raise RuntimeError, which the
+            # RuntimeError branch handles by closing the coroutine.
+            connection_map.close_all()
+
+        # Must not raise.
+        asyncio.run(driver())
+
+        conn.close.assert_called_once()
+        assert connection_map.map == {}
+        # The coroutine was closed (cancelled) without being awaited to
+        # completion, so its body never ran.
+        assert started['count'] == 0
+
+    def test_close_all_warns_when_coroutine_await_fails(self, connection_map):
+        """A coroutine close() that raises is caught and logged, not propagated."""
+
+        async def failing_close():
+            raise ValueError('boom during async close')
+
+        conn1 = MagicMock()
+        conn1.close = MagicMock(side_effect=failing_close)
+        conn2 = MagicMock()
+        conn2.close = MagicMock()  # sync close on the second connection
+
+        connection_map.set(ConnectionMethod.RDS_API, 'c1', 'e1', 'db1', conn1)
+        connection_map.set(ConnectionMethod.RDS_API, 'c2', 'e2', 'db2', conn2)
+
+        # Should not raise despite the async close() failing.
+        connection_map.close_all()
+
+        conn1.close.assert_called_once()
+        # Cleanup continues to the second connection.
+        conn2.close.assert_called_once()
+        assert connection_map.map == {}
+
+    def test_close_all_mixed_sync_and_async_close(self, connection_map):
+        """A map with both sync and async close() connections is fully drained."""
+        awaited = {'count': 0}
+
+        async def async_close():
+            awaited['count'] += 1
+
+        async_conn = MagicMock()
+        async_conn.close = MagicMock(side_effect=async_close)
+        sync_conn = MagicMock()
+        sync_conn.close = MagicMock()  # returns a non-coroutine
+
+        connection_map.set(ConnectionMethod.RDS_API, 'a', 'e', 'db', async_conn)
+        connection_map.set(ConnectionMethod.PG_WIRE_PROTOCOL, 's', 'e', 'db', sync_conn)
+
+        connection_map.close_all()
+
+        async_conn.close.assert_called_once()
+        sync_conn.close.assert_called_once()
+        assert awaited['count'] == 1
         assert connection_map.map == {}
 
     # ==================== Connection Method Differentiation Tests ====================

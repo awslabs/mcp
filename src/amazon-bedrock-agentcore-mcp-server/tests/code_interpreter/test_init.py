@@ -71,12 +71,12 @@ class TestCleanupCodeInterpreter:
 class TestRegisterCodeInterpreterTools:
     """Test cases for register_code_interpreter_tools."""
 
-    def test_registers_all_nine_tools(self):
-        """Verify all 9 code interpreter tools are registered."""
+    def test_registers_all_ten_tools(self):
+        """Verify all 10 code interpreter tools are registered."""
         mock_mcp = MagicMock()
         mock_tool_decorator = MagicMock(side_effect=lambda fn: fn)
         mock_mcp.tool.return_value = mock_tool_decorator
 
         register_code_interpreter_tools(mock_mcp)
 
-        assert mock_mcp.tool.call_count == 9
+        assert mock_mcp.tool.call_count == 10

@@ -20,6 +20,8 @@ from awslabs.aws_transform_mcp_server.guidance_nudge import (
     _checked_jobs,
     job_needs_check,
     mark_job_checked,
+    matches_instruction_label,
+    unmark_job,
 )
 
 
@@ -58,3 +60,36 @@ class TestJobNeedsCheck:
 
     def test_returns_none_for_empty_string(self):
         assert job_needs_check('') is None
+
+
+class TestUnmarkJob:
+    def test_forgets_checked_job(self):
+        mark_job_checked('job-1')
+        unmark_job('job-1')
+        assert job_needs_check('job-1') is not None
+
+    def test_noop_for_unknown_job(self):
+        unmark_job('job-never-seen')
+        assert 'job-never-seen' not in _checked_jobs
+
+
+class TestMatchesInstructionLabel:
+    def test_bare_name(self):
+        assert matches_instruction_label('JOB_INSTRUCTIONS')
+
+    def test_inside_store_folder(self):
+        assert matches_instruction_label('User Uploads/JOB_INSTRUCTIONS')
+
+    def test_deep_store_path(self):
+        assert matches_instruction_label(
+            'AWSTransform/Workspaces/ws/Jobs/j/User Uploads/JOB_INSTRUCTIONS'
+        )
+
+    def test_other_name_no_match(self):
+        assert not matches_instruction_label('User Uploads/coding-conventions.md')
+
+    def test_prefix_only_no_match(self):
+        assert not matches_instruction_label('JOB_INSTRUCTIONS/other.md')
+
+    def test_empty(self):
+        assert not matches_instruction_label('')

@@ -34,7 +34,8 @@ from awslabs.eks_mcp_server.logging_helper import LogLevel, log_with_request_id
 from awslabs.eks_mcp_server.models import (
     ManageEksStacksData,
 )
-from mcp.server.fastmcp import Context
+from awslabs.eks_mcp_server.path_validation import validate_file_path
+from mcp.server.mcpserver import Context
 from mcp.types import CallToolResult, TextContent
 from pydantic import Field
 from typing import Any, Dict, Optional, Tuple
@@ -185,7 +186,7 @@ class EksStackHandler:
 
                 # Return error response
                 return CallToolResult(
-                    isError=True,
+                    is_error=True,
                     content=[TextContent(type='text', text=error_message)],
                 )
 
@@ -237,7 +238,7 @@ class EksStackHandler:
                 error_message = f'Invalid operation: {operation}. Must be one of: generate, deploy, describe, delete'
                 log_with_request_id(ctx, LogLevel.ERROR, error_message)
                 return CallToolResult(
-                    isError=True,
+                    is_error=True,
                     content=[TextContent(type='text', text=error_message)],
                 )
         except ValueError as e:
@@ -248,7 +249,7 @@ class EksStackHandler:
             error_message = f'Error in manage_eks_stacks: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -269,6 +270,16 @@ class EksStackHandler:
           - API authentication mode
         """
         try:
+            try:
+                template_path = validate_file_path(template_path)
+            except ValueError as e:
+                error_message = f'Invalid template_file path: {e}'
+                log_with_request_id(ctx, LogLevel.ERROR, error_message)
+                return CallToolResult(
+                    is_error=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
+
             # Get the source template path
             source_template_path = os.path.join(
                 os.path.dirname(__file__), 'templates', 'eks-templates', 'eks-with-vpc.yaml'
@@ -318,7 +329,7 @@ class EksStackHandler:
             )
 
             return CallToolResult(
-                isError=False,
+                is_error=False,
                 content=[
                     TextContent(
                         type='text',
@@ -335,7 +346,7 @@ class EksStackHandler:
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[TextContent(type='text', text=error_message or 'Unknown error')],
             )
 
@@ -344,6 +355,16 @@ class EksStackHandler:
     ) -> CallToolResult:
         """Deploy a CloudFormation stack from the specified template file."""
         try:
+            try:
+                template_file = validate_file_path(template_file)
+            except ValueError as e:
+                error_message = f'Invalid template_file path: {e}'
+                log_with_request_id(ctx, LogLevel.ERROR, error_message)
+                return CallToolResult(
+                    is_error=True,
+                    content=[TextContent(type='text', text=error_message)],
+                )
+
             # Create CloudFormation client
             cfn_client = AwsHelper.create_boto3_client('cloudformation')
 
@@ -361,7 +382,7 @@ class EksStackHandler:
                     stack_exists = True
                     if not success:
                         return CallToolResult(
-                            isError=True,
+                            is_error=True,
                             content=[
                                 TextContent(type='text', text=error_message or 'Unknown error')
                             ],
@@ -421,7 +442,7 @@ class EksStackHandler:
             )
 
             return CallToolResult(
-                isError=False,
+                is_error=False,
                 content=[
                     TextContent(
                         type='text',
@@ -438,7 +459,7 @@ class EksStackHandler:
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[TextContent(type='text', text=error_message or 'Unknown error')],
             )
 
@@ -463,7 +484,7 @@ class EksStackHandler:
                     stack_status = stack['StackStatus']
 
                 return CallToolResult(
-                    isError=True,
+                    is_error=True,
                     content=[TextContent(type='text', text=error_message or 'Unknown error')],
                 )
 
@@ -511,7 +532,7 @@ class EksStackHandler:
             )
 
             return CallToolResult(
-                isError=False,
+                is_error=False,
                 content=[
                     TextContent(
                         type='text',
@@ -528,7 +549,7 @@ class EksStackHandler:
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[TextContent(type='text', text=error_message or 'Unknown error')],
             )
 
@@ -565,7 +586,7 @@ class EksStackHandler:
                     stack_id = stack['StackId']
 
                 return CallToolResult(
-                    isError=True,
+                    is_error=True,
                     content=[TextContent(type='text', text=error_message or 'Unknown error')],
                 )
 
@@ -595,7 +616,7 @@ class EksStackHandler:
             )
 
             return CallToolResult(
-                isError=False,
+                is_error=False,
                 content=[
                     TextContent(
                         type='text',
@@ -612,6 +633,6 @@ class EksStackHandler:
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[TextContent(type='text', text=error_message or 'Unknown error')],
             )

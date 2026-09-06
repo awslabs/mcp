@@ -40,6 +40,7 @@ You can modify the settings of your MCP client to run your local server (e.g. fo
         "INFLUXDB_URL": "https://your-influxdb-endpoint:8086",
         "INFLUXDB_TOKEN": "your-influxdb-token",
         "INFLUXDB_ORG": "your-influxdb-org",
+        "INFLUXDB_WRITE_MODE": "false",
         "FASTMCP_LOG_LEVEL": "ERROR"
       },
       "disabled": false,
@@ -73,12 +74,34 @@ For Windows users, the MCP server configuration format is slightly different:
         "INFLUXDB_URL": "https://your-influxdb-endpoint:8086",
         "INFLUXDB_TOKEN": "your-influxdb-token",
         "INFLUXDB_ORG": "your-influxdb-org",
+        "INFLUXDB_WRITE_MODE": "false",
         "FASTMCP_LOG_LEVEL": "ERROR"
       }
     }
   }
 }
 ```
+
+### InfluxDB Connection Security
+
+InfluxDB tools use the `INFLUXDB_URL`, `INFLUXDB_TOKEN`, and `INFLUXDB_ORG`
+environment variables when no connection parameters are supplied in a tool call.
+
+Connection parameters are treated as a single trust boundary:
+
+- If a tool call supplies any connection parameter, it must supply all parameters
+  required by that tool. Server environment credentials are never used to complete
+  a partial caller-supplied configuration.
+- A caller-supplied URL must match `INFLUXDB_URL` or an entry in the optional,
+  comma-separated `INFLUXDB_ALLOWED_URLS` environment variable.
+- Configure additional endpoints before allowing tool calls to target them. For
+  example, set `INFLUXDB_ALLOWED_URLS` to
+  `https://influxdb-a.example.com:8086,https://influxdb-b.example.com:8086`.
+
+This is a breaking change for clients that previously supplied only some connection
+parameters and relied on environment-variable fallback for the others. Update those
+clients to either omit all connection parameters or provide a complete configuration
+for an operator-approved URL.
 
 
 ### Available Tools
@@ -131,3 +154,32 @@ The Timestream for InfluxDB MCP server provides the following tools:
 ##### Organization Management
 - `InfluxDBListOrgs`: List all organizations in InfluxDB
 - `InfluxDBCreateOrg`: Create a new organization in InfluxDB
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `AWS_PROFILE` | No | — | AWS profile for control-plane operations |
+| `AWS_REGION` | No | `us-east-1` | AWS region |
+| `INFLUXDB_URL` | No | — | InfluxDB v2 endpoint URL (e.g. `https://host:8086`) |
+| `INFLUXDB_TOKEN` | No | — | InfluxDB v2 authentication token |
+| `INFLUXDB_ORG` | No | — | InfluxDB v2 organization name |
+| `INFLUXDB_ALLOWED_URLS` | No | — | Comma-separated list of additional approved InfluxDB URLs |
+| `INFLUXDB_WRITE_MODE` | No | `false` | Enable write-producing Flux operations in queries (see below) |
+| `FASTMCP_LOG_LEVEL` | No | — | Logging level (`ERROR`, `WARNING`, `INFO`, `DEBUG`) |
+
+### Write Mode
+
+By default, the `InfluxDBQuery` tool rejects Flux queries that contain write-producing operations such as `to()`, `experimental.to()`, and `wideTo()`. This ensures that the query tool behaves as read-only, even when the configured InfluxDB token has write permissions.
+
+To enable write-producing Flux operations through the query tool, set:
+
+```
+INFLUXDB_WRITE_MODE=true
+```
+
+This setting is operator-controlled and cannot be overridden by tool callers.
+
+> **Best practice:** For deployments that need both read and write capabilities, configure a **read-only InfluxDB token** for general use and enable the explicit write tools (`InfluxDBWritePoints`, `InfluxDBWriteLP`) with `tool_write_mode=True` only when needed. This provides the strongest data integrity guarantee regardless of the MCP server's write-mode setting.

@@ -15,13 +15,14 @@
 """Describe cache engine versions tool for ElastiCache MCP server."""
 
 from ...common.connection import ElastiCacheConnectionManager
-from ...common.decorators import handle_exceptions
+from ...common.decorators import handle_exceptions, readonly_safe
 from ...common.server import mcp
 from typing import Dict, Optional
 
 
 @mcp.tool(name='describe-cache-engine-versions')
 @handle_exceptions
+@readonly_safe
 async def describe_cache_engine_versions(
     engine: Optional[str] = None,
     engine_version: Optional[str] = None,

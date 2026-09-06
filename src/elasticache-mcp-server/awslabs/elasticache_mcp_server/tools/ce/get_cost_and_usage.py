@@ -15,7 +15,7 @@
 """Get cost and usage data for ElastiCache resources."""
 
 from ...common.connection import CostExplorerConnectionManager
-from ...common.decorators import handle_exceptions
+from ...common.decorators import handle_exceptions, readonly_safe
 from ...common.server import mcp
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, Dict
@@ -36,6 +36,7 @@ class GetCostAndUsageRequest(BaseModel):
 
 @mcp.tool(name='get-cost-and-usage')
 @handle_exceptions
+@readonly_safe
 async def get_cost_and_usage(request: GetCostAndUsageRequest) -> Dict[str, Any]:
     """Get cost and usage data for ElastiCache resources.
 

@@ -44,7 +44,7 @@ READ_DOCUMENTATION_TOOL_NAME = 'read_documentation'
 SEARCH_DOCUMENTATION_TOOL_NAME = 'search_documentation'
 RECOMMEND_TOOL_NAME = 'recommend'
 READ_SECTIONS_TOOL_NAME = 'read_sections'
-NUMBER_OF_TOOLS = 4
+NUMBER_OF_TOOLS = 5
 
 # Setup logging
 setup_logging('INFO')
@@ -79,7 +79,7 @@ class TestAWSDocumentationMCPServer:
         # Define expected configuration
         expected_config = create_test_config(
             expected_tools={
-                'count': NUMBER_OF_TOOLS,  # read_documentation, search_documentation, recommend, and read_sections
+                'count': NUMBER_OF_TOOLS,  # read_documentation, search_documentation, recommend, read_sections, and search_table
                 'names': [
                     READ_DOCUMENTATION_TOOL_NAME,
                     SEARCH_DOCUMENTATION_TOOL_NAME,

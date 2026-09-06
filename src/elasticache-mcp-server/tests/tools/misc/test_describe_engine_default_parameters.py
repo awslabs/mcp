@@ -129,3 +129,23 @@ async def test_describe_engine_default_parameters_invalid_parameter_combination(
 
         assert 'error' in result
         assert error_message in result['error']
+
+
+@pytest.mark.asyncio
+async def test_describe_engine_default_parameters_works_in_readonly_mode():
+    """Test that describe_engine_default_parameters works in readonly mode."""
+    from awslabs.elasticache_mcp_server.context import Context
+
+    mock_client = MagicMock()
+    mock_client.describe_engine_default_parameters.return_value = {
+        'EngineDefaults': {'Parameters': []}
+    }
+    with (
+        patch.object(Context, 'readonly_mode', return_value=True),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+            return_value=mock_client,
+        ),
+    ):
+        result = await describe_engine_default_parameters(cache_parameter_group_family='redis7')
+        assert 'error' not in result

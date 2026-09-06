@@ -17,7 +17,7 @@
 import asyncio
 import json
 import re
-from .aws_clients import applicationsignals_client, logs_client, xray_client
+from .aws_clients import AWS_REGION, applicationsignals_client, logs_client, xray_client
 from .sli_report_client import AWSConfig, SLIReportClient
 from .utils import remove_null_values
 from datetime import datetime, timedelta, timezone
@@ -76,72 +76,7 @@ def _compose_spans_query(user_query: str, log_group_name: str) -> str:
     return ' | '.join(parts)
 
 
-def get_trace_summaries_paginated(
-    xray_client, start_time, end_time, filter_expression, max_traces: int = 100
-) -> list:
-    """Get trace summaries with pagination to avoid exceeding response size limits.
-
-    Args:
-        xray_client: Boto3 X-Ray client
-        start_time: Start time for trace query
-        end_time: End time for trace query
-        filter_expression: X-Ray filter expression
-        max_traces: Maximum number of traces to retrieve (default 100)
-
-    Returns:
-        List of trace summaries
-    """
-    all_traces = []
-    next_token = None
-    logger.debug(
-        f'Starting paginated trace retrieval - filter: {filter_expression}, max_traces: {max_traces}'
-    )
-
-    try:
-        while len(all_traces) < max_traces:
-            # Build request parameters
-            kwargs = {
-                'StartTime': start_time,
-                'EndTime': end_time,
-                'FilterExpression': filter_expression,
-                'Sampling': True,
-                'TimeRangeType': 'Service',
-            }
-
-            if next_token:
-                kwargs['NextToken'] = next_token
-
-            # Make request
-            response = xray_client.get_trace_summaries(**kwargs)
-
-            # Add traces from this page
-            traces = response.get('TraceSummaries', [])
-            all_traces.extend(traces)
-            logger.debug(
-                f'Retrieved {len(traces)} traces in this page, total so far: {len(all_traces)}'
-            )
-
-            # Check if we have more pages
-            next_token = response.get('NextToken')
-            if not next_token:
-                break
-
-            # If we've collected enough traces, stop
-            if len(all_traces) >= max_traces:
-                all_traces = all_traces[:max_traces]
-                break
-
-        logger.info(f'Successfully retrieved {len(all_traces)} traces')
-        return all_traces
-
-    except Exception as e:
-        # Return what we have so far if there's an error
-        logger.error(f'Error during paginated trace retrieval: {str(e)}', exc_info=True)
-        logger.info(f'Returning {len(all_traces)} traces retrieved before error')
-        return all_traces
-
-
-def check_transaction_search_enabled(region: str = 'us-east-1') -> tuple[bool, str, str]:
+def check_transaction_search_enabled(region: str = AWS_REGION) -> tuple[bool, str, str]:
     """Internal function to check if AWS X-Ray Transaction Search is enabled.
 
     Returns:
@@ -270,9 +205,9 @@ async def search_transaction_spans(
                 "Transaction Search requires sending traces to CloudWatch Logs (destination='CloudWatchLogs' and status='ACTIVE'). "
                 'Without Transaction Search, you only have access to 5% sampled trace data through X-Ray. '
                 'To get 100% trace visibility, please enable Transaction Search in your X-Ray settings. '
-                'As a fallback, you can use query_sampled_traces() but results may be incomplete due to sampling.'
+                'As a fallback, you can use get_xray_trace() to look up specific traces by ID, but results may be incomplete due to sampling.'
             ),
-            'fallback_recommendation': 'Use query_sampled_traces() with X-Ray filter expressions for 5% sampled data.',
+            'fallback_recommendation': 'Use get_xray_trace() to look up specific X-Ray trace IDs (5% sampled data).',
         }
 
     try:
@@ -423,284 +358,6 @@ async def search_transaction_spans(
         raise
 
 
-async def query_sampled_traces(
-    start_time: Optional[str] = Field(
-        default=None,
-        description='Start time in ISO format (e.g., "2024-01-01T00:00:00Z"). Defaults to 3 hours ago',
-    ),
-    end_time: Optional[str] = Field(
-        default=None,
-        description='End time in ISO format (e.g., "2024-01-01T01:00:00Z"). Defaults to current time',
-    ),
-    filter_expression: Optional[str] = Field(
-        default=None,
-        description='X-Ray filter expression to narrow results (e.g., service("service-name"){fault = true})',
-    ),
-    region: Optional[str] = Field(
-        default=None, description='AWS region (defaults to AWS_REGION environment variable)'
-    ),
-) -> str:
-    """SECONDARY TRACE TOOL - Query AWS X-Ray traces (5% sampled data) for trace investigation.
-
-    ⚠️ **IMPORTANT: Consider using audit_slos() with auditors="all" instead for comprehensive root cause analysis**
-
-    **RECOMMENDED WORKFLOW FOR OPERATION DISCOVERY:**
-    1. **Use `get_service_detail(service_name)` FIRST** to discover operations from metric dimensions
-    2. **Use audit_slos() with auditors="all"** for comprehensive root cause analysis (PREFERRED)
-    3. Only use this tool if you need specific trace filtering that other tools don't provide
-
-    **RECOMMENDED WORKFLOW FOR SLO BREACH INVESTIGATION:**
-    1. Use get_slo() to understand SLO configuration
-    2. **Use audit_slos() with auditors="all"** for comprehensive root cause analysis (PREFERRED)
-    3. Only use this tool if you need specific trace filtering that audit_slos() doesn't provide
-
-    **WHY audit_slos() IS PREFERRED:**
-    - **Comprehensive analysis**: Combines traces, logs, metrics, and dependencies
-    - **Actionable recommendations**: Provides specific steps to resolve issues
-    - **Integrated findings**: Correlates multiple data sources for better insights
-    - **Much more effective** than individual trace analysis
-
-    **WHY get_service_detail() IS PREFERRED FOR OPERATION DISCOVERY:**
-    - **Direct operation discovery**: Operations are available in metric dimensions
-    - **More reliable**: Uses Application Signals service metadata instead of sampling
-    - **Comprehensive**: Shows all operations, not just those in sampled traces
-
-    ⚠️ **LIMITATIONS OF THIS TOOL:**
-    - Uses X-Ray's **5% sampled trace data** - may miss critical errors
-    - **Limited context** compared to comprehensive audit tools
-    - **No integrated analysis** with logs, metrics, or dependencies
-    - **May miss operations** due to sampling - use get_service_detail() for complete operation discovery
-    - For 100% trace visibility, enable Transaction Search and use search_transaction_spans()
-
-    **Use this tool only when:**
-    - You need specific X-Ray filter expressions not available in audit tools
-    - You're doing exploratory trace analysis outside of SLO breach investigation
-    - You need raw trace data for custom analysis
-    - **After using get_service_detail() for operation discovery**
-
-    **For operation discovery, use get_service_detail() instead:**
-    ```
-    get_service_detail(service_name='your-service-name')
-    ```
-
-    **For SLO breach root cause analysis, use audit_slos() instead:**
-    ```
-    audit_slos(
-        slo_targets='[{"Type":"slo","Data":{"Slo":{"SloName":"your-slo-name"}}}]', auditors='all'
-    )
-    ```
-
-    Common filter expressions (if you must use this tool):
-    - 'service("service-name"){fault = true}': Find all traces with faults (5xx errors) for a service
-    - 'service("service-name")': Filter by specific service
-    - 'duration > 5': Find slow requests (over 5 seconds)
-    - 'http.status = 500': Find specific HTTP status codes
-    - 'annotation[aws.local.operation]="GET /owners/*/lastname"': Filter by specific operation (from metric dimensions)
-    - 'annotation[aws.remote.operation]="ListOwners"': Filter by remote operation name
-    - Combine filters: 'service("api"){fault = true} AND annotation[aws.local.operation]="POST /visits"'
-
-    Returns JSON with trace summaries including:
-    - Trace ID for detailed investigation
-    - Duration and response time
-    - Error/fault/throttle status
-    - HTTP information (method, status, URL)
-    - Service interactions
-    - User information if available
-    - Exception root causes (ErrorRootCauses, FaultRootCauses, ResponseTimeRootCauses)
-
-    **RECOMMENDATION: Use get_service_detail() for operation discovery and audit_slos() with auditors="all" for comprehensive root cause analysis instead of this tool.**
-
-    Returns:
-        JSON string containing trace summaries with error status, duration, and service details
-    """
-    start_time_perf = timer()
-
-    # Use AWS_REGION environment variable if region not provided
-    if not region:
-        from .aws_clients import AWS_REGION
-
-        region = AWS_REGION
-
-    logger.info(f'Starting query_sampled_traces - region: {region}, filter: {filter_expression}')
-
-    try:
-        logger.debug('Using X-Ray client')
-
-        # Default to past 3 hours if times not provided
-        if not end_time:
-            end_datetime = datetime.now(timezone.utc)
-        else:
-            end_datetime = datetime.fromisoformat(end_time.replace('Z', '+00:00'))
-
-        if not start_time:
-            start_datetime = end_datetime - timedelta(hours=3)
-        else:
-            start_datetime = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
-
-        # Validate time window to ensure it's not too large (max 6 hours)
-        time_diff = end_datetime - start_datetime
-        logger.debug(
-            f'Query time window: {start_datetime} to {end_datetime} ({time_diff.total_seconds() / 3600:.1f} hours)'
-        )
-        if time_diff > timedelta(hours=6):
-            logger.warning(f'Time window too large: {time_diff.total_seconds() / 3600:.1f} hours')
-            return json.dumps(
-                {
-                    'error': 'Time window too large. Maximum allowed is 6 hours.',
-                    'requested_hours': time_diff.total_seconds() / 3600,
-                },
-                indent=2,
-            )
-
-        # Use pagination helper with a reasonable limit
-        traces = get_trace_summaries_paginated(
-            xray_client,
-            start_datetime,
-            end_datetime,
-            filter_expression or '',
-            max_traces=100,  # Limit to prevent response size issues
-        )
-
-        # Convert response to JSON-serializable format
-        def convert_datetime(obj):
-            if isinstance(obj, datetime):
-                return obj.isoformat()
-            return obj
-
-        # Helper function to extract fault message from root causes for deduplication
-        def get_fault_message(trace_data):
-            """Extract fault message from a trace for deduplication.
-
-            Only checks FaultRootCauses (5xx server errors) since this is the primary
-            use case for root cause investigation. Traces without fault messages are
-            not deduplicated.
-            """
-            # Only check FaultRootCauses for deduplication
-            root_causes = trace_data.get('FaultRootCauses', [])
-            if root_causes:
-                for cause in root_causes:
-                    services = cause.get('Services', [])
-                    for service in services:
-                        exceptions = service.get('Exceptions', [])
-                        if exceptions and exceptions[0].get('Message'):
-                            return exceptions[0].get('Message')
-            return None
-
-        # Build trace summaries (original format)
-        trace_summaries = []
-        for trace in traces:
-            # Create a simplified trace data structure to reduce size
-            trace_data = {
-                'Id': trace.get('Id'),
-                'Duration': trace.get('Duration'),
-                'ResponseTime': trace.get('ResponseTime'),
-                'HasError': trace.get('HasError'),
-                'HasFault': trace.get('HasFault'),
-                'HasThrottle': trace.get('HasThrottle'),
-                'Http': trace.get('Http', {}),
-            }
-
-            # Only include root causes if they exist (to save space)
-            if trace.get('ErrorRootCauses'):
-                trace_data['ErrorRootCauses'] = trace.get('ErrorRootCauses', [])[:3]
-            if trace.get('FaultRootCauses'):
-                trace_data['FaultRootCauses'] = trace.get('FaultRootCauses', [])[:3]
-            if trace.get('ResponseTimeRootCauses'):
-                trace_data['ResponseTimeRootCauses'] = trace.get('ResponseTimeRootCauses', [])[:3]
-
-            # Include limited annotations for key operations
-            annotations = trace.get('Annotations', {})
-            if annotations:
-                # Only include operation-related annotations
-                filtered_annotations = {}
-                for key in ['aws.local.operation', 'aws.remote.operation']:
-                    if key in annotations:
-                        filtered_annotations[key] = annotations[key]
-                if filtered_annotations:
-                    trace_data['Annotations'] = filtered_annotations
-
-            # Include user info if available
-            if trace.get('Users'):
-                trace_data['Users'] = trace.get('Users', [])[:2]  # Limit to first 2 users
-
-            # Convert any datetime objects to ISO format strings
-            for key, value in trace_data.items():
-                trace_data[key] = convert_datetime(value)
-
-            trace_summaries.append(trace_data)
-
-        # Deduplicate trace summaries by fault message
-        seen_faults = {}
-        deduped_trace_summaries = []
-
-        for trace_summary in trace_summaries:
-            # Check if this trace has an error
-            has_issues = (
-                trace_summary.get('HasError')
-                or trace_summary.get('HasFault')
-                or trace_summary.get('HasThrottle')
-            )
-
-            if not has_issues:
-                # Always include healthy traces
-                deduped_trace_summaries.append(trace_summary)
-                continue
-
-            # Extract fault message for deduplication (only checks FaultRootCauses)
-            fault_msg = get_fault_message(trace_summary)
-
-            if fault_msg and fault_msg in seen_faults:
-                # Skip this trace - we already have one with the same fault message
-                seen_faults[fault_msg]['count'] += 1
-                logger.debug(
-                    f'Skipping duplicate trace {trace_summary.get("Id")} - fault message already seen: {fault_msg[:100]}...'
-                )
-                continue
-            else:
-                # First time seeing this fault (or no fault message) - include it
-                deduped_trace_summaries.append(trace_summary)
-                if fault_msg:
-                    seen_faults[fault_msg] = {'count': 1}
-
-        # Check transaction search status
-        is_tx_search_enabled, tx_destination, tx_status = check_transaction_search_enabled(region)
-
-        # Build response with original format but deduplicated traces
-        result_data = {
-            'TraceSummaries': deduped_trace_summaries,
-            'TraceCount': len(deduped_trace_summaries),
-            'Message': f'Retrieved {len(deduped_trace_summaries)} unique traces from {len(trace_summaries)} total (deduplicated by fault message)',
-            'SamplingNote': "⚠️ This data is from X-Ray's 5% sampling. Results may not show all errors or issues.",
-            'TransactionSearchStatus': {
-                'enabled': is_tx_search_enabled,
-                'recommendation': (
-                    'Transaction Search is available! Use search_transaction_spans() for 100% trace visibility.'
-                    if is_tx_search_enabled
-                    else 'Enable Transaction Search for 100% trace visibility instead of 5% sampling.'
-                ),
-            },
-        }
-
-        # Add dedup stats if we actually deduped anything
-        if len(deduped_trace_summaries) < len(trace_summaries):
-            duplicates_removed = len(trace_summaries) - len(deduped_trace_summaries)
-            result_data['DeduplicationStats'] = {
-                'OriginalTraceCount': len(trace_summaries),
-                'DuplicatesRemoved': duplicates_removed,
-                'UniqueFaultMessages': len(seen_faults),
-            }
-
-        elapsed_time = timer() - start_time_perf
-        logger.info(
-            f'query_sampled_traces completed in {elapsed_time:.3f}s - retrieved {len(deduped_trace_summaries)} unique traces from {len(trace_summaries)} total'
-        )
-        return json.dumps(result_data, indent=2)
-
-    except Exception as e:
-        logger.error(f'Error in query_sampled_traces: {str(e)}', exc_info=True)
-        return json.dumps({'error': str(e)}, indent=2)
-
-
 async def list_slis(
     hours: int = Field(
         default=24,
@@ -762,7 +419,7 @@ async def list_slis(
             try:
                 # Create custom config with the service's key attributes
                 config = AWSConfig(
-                    region='us-east-1',
+                    region=AWS_REGION,
                     period_in_hours=hours,
                     service_name=service_name,
                     key_attributes=service['KeyAttributes'],
@@ -879,3 +536,316 @@ async def list_slis(
     except Exception as e:
         logger.error(f'Error in get_sli_status: {str(e)}', exc_info=True)
         return f'Error getting SLI status: {str(e)}'
+
+
+# =============================================================================
+# X-Ray Trace Lookup
+# =============================================================================
+
+
+def _convert_otel_to_xray_trace_id(trace_id: str) -> str:
+    """Convert OTel trace ID to X-Ray format.
+
+    OTel format: "0xdeadbeefdeadbeefdeadbeefdeadbeef" (0x + 32 hex)
+    X-Ray format: "1-deadbeef-deadbeefdeadbeefdeadbeef" (1-epoch8hex-random24hex)
+
+    Also accepts X-Ray format (passthrough) and raw 32-hex-char strings.
+    """
+    trace_id = trace_id.strip()
+
+    # Already X-Ray format: "1-xxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxx"
+    if re.match(r'^1-[0-9a-fA-F]{8}-[0-9a-fA-F]{24}$', trace_id):
+        return trace_id
+
+    # Strip "0x" prefix if present
+    if trace_id.startswith('0x') or trace_id.startswith('0X'):
+        trace_id = trace_id[2:]
+
+    # Validate: must be exactly 32 hex chars
+    if not re.match(r'^[0-9a-fA-F]{32}$', trace_id):
+        raise ValueError(
+            f'Invalid trace ID format: expected 32 hex chars (with optional 0x prefix) '
+            f"or X-Ray format '1-xxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxx', got: '{trace_id}'"
+        )
+
+    trace_id = trace_id.lower()
+    epoch = trace_id[:8]
+    random_part = trace_id[8:]
+    return f'1-{epoch}-{random_part}'
+
+
+def _extract_segment_summary(doc: dict, depth: int = 0) -> dict:
+    """Extract a focused summary from an X-Ray segment/subsegment document.
+
+    Recursively processes subsegments up to depth 5 to avoid excessive nesting.
+    """
+    start_time = doc.get('start_time', 0)
+    end_time = doc.get('end_time', 0)
+    duration_ms = round((end_time - start_time) * 1000, 2) if (start_time and end_time) else 0
+
+    segment: dict = {
+        'name': doc.get('name', 'unknown'),
+        'duration_ms': duration_ms,
+    }
+
+    # Include type/namespace if available (identifies AWS services, HTTP calls, etc.)
+    if namespace := doc.get('namespace'):
+        segment['namespace'] = namespace  # "aws", "remote", etc.
+    if origin := doc.get('origin'):
+        segment['origin'] = origin  # "AWS::ECS::Container", etc.
+
+    # Error/fault/throttle flags — only include when true
+    if doc.get('error'):
+        segment['error'] = True
+    if doc.get('fault'):
+        segment['fault'] = True
+    if doc.get('throttle'):
+        segment['throttle'] = True
+
+    # HTTP details (method, URL, status code)
+    if http := doc.get('http'):
+        http_summary: dict = {}
+        if req := http.get('request'):
+            if method := req.get('method'):
+                http_summary['method'] = method
+            if url := req.get('url'):
+                http_summary['url'] = url
+        if resp := http.get('response'):
+            if status := resp.get('status'):
+                http_summary['status'] = status
+        if http_summary:
+            segment['http'] = http_summary
+
+    # AWS service details (operation, table name, queue URL, etc.)
+    if aws := doc.get('aws'):
+        aws_summary: dict = {}
+        for key in (
+            'operation',
+            'table_name',
+            'queue_url',
+            'bucket_name',
+            'function_name',
+            'topic_arn',
+            'stream_name',
+        ):
+            if val := aws.get(key):
+                aws_summary[key] = val
+        if aws_summary:
+            segment['aws'] = aws_summary
+
+    # Cause/error details
+    if cause := doc.get('cause'):
+        if isinstance(cause, dict):
+            exceptions = cause.get('exceptions', [])
+            if exceptions:
+                segment['cause'] = [
+                    {
+                        'type': exc.get('type', 'Unknown'),
+                        'message': exc.get('message', ''),
+                    }
+                    for exc in exceptions[:3]  # Limit to 3 exceptions
+                ]
+
+    # SQL details
+    if sql := doc.get('sql'):
+        sql_summary: dict = {}
+        if sanitized := sql.get('sanitized_query'):
+            sql_summary['query'] = sanitized
+        if db_type := sql.get('database_type'):
+            sql_summary['database_type'] = db_type
+        if sql_summary:
+            segment['sql'] = sql_summary
+
+    # Recurse into subsegments (cap depth at 5)
+    if depth < 5:
+        subsegments = doc.get('subsegments', [])
+        if subsegments:
+            segment['subsegments'] = [
+                _extract_segment_summary(sub, depth + 1) for sub in subsegments
+            ]
+
+    return segment
+
+
+def _scan_for_issues(segments: list) -> tuple:
+    """Recursively scan segments for errors and faults."""
+    has_errors = False
+    has_faults = False
+    for seg in segments:
+        if seg.get('error'):
+            has_errors = True
+        if seg.get('fault'):
+            has_faults = True
+        sub_errors, sub_faults = _scan_for_issues(seg.get('subsegments', []))
+        has_errors = has_errors or sub_errors
+        has_faults = has_faults or sub_faults
+    return has_errors, has_faults
+
+
+def _parse_xray_trace(trace: dict) -> dict:
+    """Parse raw X-Ray trace into agent-friendly summary.
+
+    Focuses on extracting downstream dependency information:
+    service names, durations, errors, faults, and nested subsegments.
+    """
+    trace_id = trace.get('Id', '')
+    duration_s = trace.get('Duration', 0)
+
+    segments = []
+    for raw_segment in trace.get('Segments', []):
+        doc_str = raw_segment.get('Document', '{}')
+        try:
+            doc = json.loads(doc_str)
+        except json.JSONDecodeError:
+            logger.warning(f'Failed to parse segment document for trace {trace_id}')
+            continue
+
+        segment = _extract_segment_summary(doc)
+        segments.append(segment)
+
+    has_errors, has_faults = _scan_for_issues(segments)
+
+    return {
+        'trace_id': trace_id,
+        'duration_s': duration_s,
+        'segments': segments,
+        'has_errors': has_errors,
+        'has_faults': has_faults,
+    }
+
+
+async def get_xray_trace(
+    trace_ids: str = Field(
+        ...,
+        description=(
+            'One or more trace IDs, comma-separated. Accepts OTel format '
+            '(from telemetry_correlation.trace_id), X-Ray format, or raw hex. '
+            'Maximum 5 trace IDs per call.'
+        ),
+    ),
+) -> Dict:
+    """Look up X-Ray traces to analyze downstream dependency calls and their health.
+
+    Use this tool when investigating incidents where the root cause may be in a
+    downstream dependency (external API, database, AWS service). The tool retrieves
+    full X-Ray trace data showing all downstream calls with their latencies, errors,
+    and fault status.
+
+    **When to use this tool:**
+    - After `get_incident_root_cause()` when the call_tree shows time spent in an external
+      call (HTTP client, AWS SDK, database driver)
+    - When investigating SLO breaches that may correlate with downstream service degradation
+    - When `telemetry_correlation.trace_id` is available in incident data
+
+    **Trace ID format:**
+    Accepts trace IDs in any of these formats:
+    - OTel format from incident data: "0xdeadbeefdeadbeefdeadbeefdeadbeef"
+    - X-Ray format: "1-deadbeef-deadbeefdeadbeefdeadbeef"
+    - Raw 32-char hex: "deadbeefdeadbeefdeadbeefdeadbeef"
+
+    **Workflow:**
+    1. Get incident details: `get_incident_root_cause(snapshot_id)` -> note `telemetry_correlation.trace_id`
+    2. Look up the trace: `get_xray_trace(trace_ids="<trace_id from step 1>")`
+    3. Analyze the dependency tree for errors, faults, and latency bottlenecks
+    4. If a downstream service segment shows errors/faults/high latency and is an instrumented
+       service (not a managed AWS service like DynamoDB/S3), drill down into that service:
+       - Use `get_recent_incidents(service_name="<downstream_service_name>", endpoint="<operation>")` to
+         find incidents on the downstream service
+       - Use `get_incident_root_cause(snapshot_id)` on the downstream incident for code-level root cause
+       - Repeat steps 1-4 to follow the dependency chain until you reach the true root cause
+
+    **Interpreting segments:**
+    - Segments with `namespace: "aws"` are AWS managed services (DynamoDB, S3, SQS, etc.) —
+      check `aws.operation`, `cause`, and `http.status` for errors. No further drill-down available.
+    - Segments with `namespace: "remote"` are calls to other services — if the service is
+      instrumented, you can drill down using `get_recent_incidents(service_name=<segment name>)`.
+    - Look for segments with `fault: true` (5xx), `error: true` (4xx), or `throttle: true`
+      to identify the problematic dependency.
+
+    **Important:** X-Ray uses sampling (typically 5%), so the trace may not be available
+    if it was not sampled. If `unprocessed_trace_ids` is non-empty, those traces were
+    not found in X-Ray. Use `search_transaction_spans()` for 100% sampled data if
+    Transaction Search is enabled.
+
+    Args:
+        trace_ids: One or more trace IDs, comma-separated. Accepts OTel format
+            (from telemetry_correlation.trace_id), X-Ray format, or raw hex.
+            Maximum 5 trace IDs per call.
+
+    Returns:
+        Dictionary with:
+        - traces: List of trace summaries, each containing:
+            - trace_id: X-Ray trace ID
+            - duration_s: Total trace duration in seconds
+            - segments: List of service segments with name, duration_ms,
+              error/fault/throttle flags, http details, aws service details,
+              cause (exceptions), sql details, and nested subsegments
+            - has_errors: True if any segment has errors
+            - has_faults: True if any segment has faults (5xx)
+        - unprocessed_trace_ids: Trace IDs not found (not sampled by X-Ray)
+        - trace_id_conversions: Mapping of original input -> X-Ray format (when conversion occurred)
+    """
+    start_time_perf = timer()
+
+    # Parse comma-separated trace IDs
+    raw_ids = [tid.strip() for tid in trace_ids.split(',') if tid.strip()]
+
+    if not raw_ids:
+        return {'error': 'No trace IDs provided. Pass one or more trace IDs (comma-separated).'}
+
+    if len(raw_ids) > 5:
+        return {
+            'error': f'Too many trace IDs ({len(raw_ids)}). Maximum 5 per call. '
+            'Split into multiple calls if needed.',
+        }
+
+    # Convert all trace IDs to X-Ray format
+    xray_ids = []
+    conversions = {}
+    for raw_id in raw_ids:
+        try:
+            xray_id = _convert_otel_to_xray_trace_id(raw_id)
+            xray_ids.append(xray_id)
+            conversions[raw_id] = xray_id
+        except ValueError as e:
+            return {'error': str(e)}
+
+    logger.info(f'Looking up {len(xray_ids)} X-Ray trace(s): {xray_ids}')
+
+    try:
+        response = xray_client.batch_get_traces(TraceIds=xray_ids)
+
+        traces = []
+        for trace in response.get('Traces', []):
+            trace_summary = _parse_xray_trace(trace)  # type: ignore[arg-type]
+            traces.append(trace_summary)
+
+        unprocessed = response.get('UnprocessedTraceIds', [])
+
+        elapsed = timer() - start_time_perf
+        logger.info(
+            f'X-Ray trace lookup completed in {elapsed:.3f}s: '
+            f'{len(traces)} found, {len(unprocessed)} unprocessed'
+        )
+
+        result: dict = {
+            'traces': traces,
+            'unprocessed_trace_ids': unprocessed,
+        }
+
+        # Only include conversions if any input was not already X-Ray format
+        if any(k != v for k, v in conversions.items()):
+            result['trace_id_conversions'] = conversions
+
+        if unprocessed:
+            result['note'] = (
+                f'{len(unprocessed)} trace(s) not found in X-Ray. '
+                'This is normal — X-Ray samples approximately 5% of traces. '
+                'Use search_transaction_spans() for 100% sampled data if Transaction Search is enabled.'
+            )
+
+        return result
+
+    except Exception as e:
+        logger.error(f'Error looking up X-Ray traces: {str(e)}', exc_info=True)
+        raise

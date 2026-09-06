@@ -313,3 +313,22 @@ async def test_describe_log_streams_error():
 
         # Verify error response
         assert result == {'error': 'Test error'}
+
+
+@pytest.mark.asyncio
+async def test_describe_log_streams_works_in_readonly_mode():
+    """Test that describe_log_streams works in readonly mode."""
+    from awslabs.elasticache_mcp_server.context import Context
+    from unittest.mock import MagicMock, patch
+
+    mock_client = MagicMock()
+    mock_client.describe_log_streams.return_value = {'logStreams': []}
+    with (
+        patch.object(Context, 'readonly_mode', return_value=True),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.CloudWatchLogsConnectionManager.get_connection',
+            return_value=mock_client,
+        ),
+    ):
+        result = await describe_log_streams(log_group_name='test-group')
+        assert 'error' not in result

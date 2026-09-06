@@ -172,3 +172,22 @@ async def test_filter_log_events_pagination(mock_logs_client):
 
     # Verify response includes pagination token
     assert result['nextToken'] == 'next-page-token'
+
+
+@pytest.mark.asyncio
+async def test_filter_log_events_works_in_readonly_mode():
+    """Test that filter_log_events works in readonly mode."""
+    from awslabs.elasticache_mcp_server.context import Context
+    from unittest.mock import MagicMock, patch
+
+    mock_client = MagicMock()
+    mock_client.filter_log_events.return_value = {'events': []}
+    with (
+        patch.object(Context, 'readonly_mode', return_value=True),
+        patch(
+            'awslabs.elasticache_mcp_server.common.connection.CloudWatchLogsConnectionManager.get_connection',
+            return_value=mock_client,
+        ),
+    ):
+        result = await filter_log_events(log_group_name='test-group')
+        assert 'error' not in result

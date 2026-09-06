@@ -25,7 +25,7 @@ from awslabs.aws_for_sap_management_mcp_server.ssm_sap_config_checks.models impo
 )
 from botocore.exceptions import ClientError
 from loguru import logger
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from pydantic import Field
 from typing import Annotated, Any, Dict, List
 

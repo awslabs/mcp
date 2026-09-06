@@ -11,7 +11,8 @@ from awslabs.aws_location_server.server import (
     search_places,
     search_places_open_now,
 )
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
+from typing import Any, Optional
 
 
 # Set up a logger instead of using print for sensitive data
@@ -27,9 +28,13 @@ logger.addHandler(handler)
 class DummyContext(Context):
     """Dummy context for testing."""
 
-    async def error(self, message=None, **extra):
+    def __init__(self) -> None:
+        """Initialize with no request context; nothing here needs one."""
+        super().__init__()
+
+    async def error(self, data: Any, *, logger_name: Optional[str] = None):
         """Handle error messages for DummyContext."""
-        logger.error(message)
+        logger.error(data)
 
     async def run_in_threadpool(self, func, *args, **kwargs):
         """Run a function in a threadpool."""
@@ -66,7 +71,7 @@ def log_place(place):
 @pytest.fixture
 def ctx():
     """Create a dummy context for testing."""
-    return DummyContext(_request_context=None, _fastmcp=None)
+    return DummyContext()
 
 
 @pytest.mark.skipif(
@@ -170,7 +175,9 @@ async def test_calculate_route_and_optimize_waypoints(ctx):
 
 async def main():
     """Run integration tests for AWS Location MCP server."""
-    # Skip the main function since we're using fixtures now
+    # Own context instance: `ctx` at module scope is the pytest fixture *function*, so the
+    # calls below were handing every tool a callable instead of a context.
+    ctx = DummyContext()
     if not (os.environ.get('AWS_ACCESS_KEY_ID') or os.environ.get('AWS_PROFILE')):
         logger.error('AWS credentials not set.')
         return

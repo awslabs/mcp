@@ -19,23 +19,12 @@ including retrieving billing view metadata, listing billing views, listing sourc
 and retrieving resource-based policies.
 """
 
+import asyncio
 import fastmcp
 import importlib
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.bvs_tools import (
     bvs_server,
-)
-from awslabs.billing_cost_management_mcp_server.tools.bvs_tools import (
-    get_billing_view as get_billing_view_tool,
-)
-from awslabs.billing_cost_management_mcp_server.tools.bvs_tools import (
-    get_resource_policy as get_resource_policy_tool,
-)
-from awslabs.billing_cost_management_mcp_server.tools.bvs_tools import (
-    list_billing_views as list_billing_views_tool,
-)
-from awslabs.billing_cost_management_mcp_server.tools.bvs_tools import (
-    list_source_views_for_billing_view as list_source_views_for_billing_view_tool,
 )
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -92,26 +81,30 @@ def test_bvs_server_initialization():
 
 def test_get_billing_view_tool_registered():
     """Test that the get_billing_view tool is registered with proper name."""
-    assert hasattr(get_billing_view_tool, 'name')
-    assert get_billing_view_tool.name == 'get-billing-view'
+    tool = asyncio.run(bvs_server.get_tool('get-billing-view'))
+    assert tool is not None
+    assert tool.name == 'get-billing-view'
 
 
 def test_list_billing_views_tool_registered():
     """Test that the list_billing_views tool is registered with proper name."""
-    assert hasattr(list_billing_views_tool, 'name')
-    assert list_billing_views_tool.name == 'list-billing-views'
+    tool = asyncio.run(bvs_server.get_tool('list-billing-views'))
+    assert tool is not None
+    assert tool.name == 'list-billing-views'
 
 
 def test_list_source_views_for_billing_view_tool_registered():
     """Test that the list_source_views_for_billing_view tool is registered with proper name."""
-    assert hasattr(list_source_views_for_billing_view_tool, 'name')
-    assert list_source_views_for_billing_view_tool.name == 'list-source-views-for-billing-view'
+    tool = asyncio.run(bvs_server.get_tool('list-source-views-for-billing-view'))
+    assert tool is not None
+    assert tool.name == 'list-source-views-for-billing-view'
 
 
 def test_get_resource_policy_tool_registered():
     """Test that the get_resource_policy tool is registered with proper name."""
-    assert hasattr(get_resource_policy_tool, 'name')
-    assert get_resource_policy_tool.name == 'get-resource-policy'
+    tool = asyncio.run(bvs_server.get_tool('get-resource-policy'))
+    assert tool is not None
+    assert tool.name == 'get-resource-policy'
 
 
 @pytest.mark.asyncio

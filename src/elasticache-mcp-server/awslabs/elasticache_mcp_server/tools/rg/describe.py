@@ -15,13 +15,14 @@
 """Describe replication groups tool for ElastiCache MCP server."""
 
 from ...common.connection import ElastiCacheConnectionManager
-from ...common.decorators import handle_exceptions
+from ...common.decorators import handle_exceptions, readonly_safe
 from ...common.server import mcp
 from typing import Dict, Optional
 
 
 @mcp.tool(name='describe-replication-groups')
 @handle_exceptions
+@readonly_safe
 async def describe_replication_groups(
     replication_group_id: Optional[str] = None,
     max_records: Optional[int] = None,

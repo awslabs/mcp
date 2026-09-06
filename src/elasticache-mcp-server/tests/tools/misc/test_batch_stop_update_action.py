@@ -101,3 +101,17 @@ async def test_batch_stop_update_action_missing_targets():
 
         assert 'error' in result
         assert error_message in result['error']
+
+
+@pytest.mark.asyncio
+async def test_batch_stop_update_action_readonly_mode():
+    """Test batch_stop_update_action in readonly mode."""
+    from awslabs.elasticache_mcp_server.context import Context
+
+    with patch.object(Context, 'readonly_mode', return_value=True):
+        result = await batch_stop_update_action(
+            service_update_name='test-update',
+            replication_group_ids=['test-rg'],
+        )
+        assert 'error' in result
+        assert 'readonly mode' in result['error']

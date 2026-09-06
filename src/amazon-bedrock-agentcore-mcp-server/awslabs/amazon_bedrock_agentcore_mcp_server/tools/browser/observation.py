@@ -27,7 +27,7 @@ from .snapshot_manager import (
     SnapshotManager,
 )
 from loguru import logger
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from os import getenv
 from pydantic import Field
 from typing import Annotated
@@ -328,7 +328,7 @@ class ObservationTools:
             if isinstance(result, (str, int, float, bool)):
                 return f'Result: {result}'
 
-            return f'Result:\n{json.dumps(result, indent=2, default=str)}'
+            return f'Result:\n{json.dumps(result, indent=2, default=str, ensure_ascii=False)}'
 
         except Exception as e:
             error_msg = f'Error evaluating JavaScript: {e}'

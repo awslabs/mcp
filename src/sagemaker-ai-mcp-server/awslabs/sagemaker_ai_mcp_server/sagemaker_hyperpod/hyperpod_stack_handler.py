@@ -35,12 +35,13 @@ from awslabs.sagemaker_ai_mcp_server.consts import (
     SUPPORTED_REGIONS,
 )
 from awslabs.sagemaker_ai_mcp_server.logging_helper import LogLevel, log_with_request_id
+from awslabs.sagemaker_ai_mcp_server.path_validation import validate_file_read_path
 from awslabs.sagemaker_ai_mcp_server.sagemaker_hyperpod.models import (
     DeleteStackResponse,
     DeployStackResponse,
     DescribeStackResponse,
 )
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from mcp.types import TextContent
 from pydantic import Field, validate_call
 from typing import Dict, List, Optional, Tuple, Union
@@ -355,7 +356,8 @@ class HyperPodStackHandler:
                 if params_file is None:
                     raise ValueError('params_file is required for deploy operation')
 
-                with open(params_file, 'r') as f:
+                validated_path = validate_file_read_path(params_file)
+                with open(validated_path, 'r') as f:
                     template_params = json.load(f)
 
                 return await self._deploy_stack(

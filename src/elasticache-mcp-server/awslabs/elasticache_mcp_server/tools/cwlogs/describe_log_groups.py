@@ -15,13 +15,14 @@
 """Tool for describing CloudWatch Logs log groups."""
 
 from ...common.connection import CloudWatchLogsConnectionManager
-from ...common.decorators import handle_exceptions
+from ...common.decorators import handle_exceptions, readonly_safe
 from ...common.server import mcp
 from typing import Any, Dict, List, Optional
 
 
 @mcp.tool(name='describe-log-groups')
 @handle_exceptions
+@readonly_safe
 async def describe_log_groups(
     account_identifiers: Optional[List[str]] = None,
     log_group_name_prefix: Optional[str] = None,

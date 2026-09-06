@@ -672,7 +672,11 @@ async def test_query_database_default_uri(mock_database):
         region=region,
         namespace=namespace,
         query=query,
-        uri=None,
+        # The annotation says `str`, but all four tools with a `uri` parameter branch on
+        # `if uri is None` and substitute a region default -- so None is supported behaviour
+        # and this test asserts it. Widening the annotations would change the tool schemas
+        # published to clients, which is out of scope here.
+        uri=None,  # pyright: ignore[reportArgumentType]
         catalog_name='s3tablescatalog',
         rest_signing_name='s3tables',
         rest_sigv4_enabled='true',

@@ -1,0 +1,106 @@
+{
+  "attributes": {
+    "aws.service_events.deployment.id": "26605861522",
+    "aws.service_events.duration_ms": 78.571529,
+    "aws.service_events.is_partial": true,
+    "aws.service_events.operation": "GET /event/{eventId}/share/",
+    "aws.service_events.request.type": "http",
+    "aws.service_events.snapshot_id": "snap_0e3a6a8a-ffed-4465-a5db-2745c39d51ac",
+    "aws.service_events.trigger_type": "latency",
+    "event.name": "aws.service_events.incident_snapshot",
+    "http.request.method": "GET",
+    "http.response.status_code": 200,
+    "url.route": "/event/{eventId}/share/",
+    "vcs.ref.head.revision": "abababababababababababababababababababab",
+    "vcs.repository.url.full": "https://github.com/aws-observability/private-aws-otel-java-instrumentation-staging"
+  },
+  "body": {
+    "exception_info": [
+      {
+        "call_path": [
+          {
+            "caller_function_name": "org.hibernate.internal.SessionFactoryImpl.withOptions",
+            "duration_ns": 168,
+            "error": false,
+            "function_name": "org.hibernate.internal.SessionFactoryImpl.getSessionFactoryOptions",
+            "is_async": false
+          },
+          {
+            "caller_function_name": "org.hibernate.internal.SessionFactoryImpl.withOptions",
+            "duration_ns": 205,
+            "error": false,
+            "function_name": "org.hibernate.boot.internal.SessionFactoryOptionsBuilder.getStatementInspector",
+            "is_async": false
+          },
+          {
+            "caller_function_name": "org.hibernate.internal.SessionFactoryImpl.withOptions",
+            "duration_ns": 239,
+            "error": false,
+            "function_name": "org.hibernate.boot.internal.SessionFactoryOptionsBuilder.getPhysicalConnectionHandlingMode",
+            "is_async": false
+          }
+        ]
+      }
+    ],
+    "request_context": {
+      "status_code": 200,
+      "timestamp": 1780015082784,
+      "type": "http"
+    }
+  },
+  "eventName": "aws.service_events.incident_snapshot",
+  "flags": 1,
+  "observedTimeUnixNano": 1780015082788392910,
+  "resource": {
+    "attributes": {
+      "aws.local.service": "indico-service-java",
+      "cloud.account.id": "341705376693",
+      "cloud.availability_zone": "us-west-2b",
+      "cloud.platform": "aws_ec2",
+      "cloud.provider": "aws",
+      "cloud.region": "us-west-2",
+      "com.amazonaws.cloudwatch.entity.internal.service.name.source": "Instrumentation",
+      "deployment.environment.name": "beta",
+      "host.arch": "amd64",
+      "host.id": "i-080a0f8228d72748d",
+      "host.image.id": "ami-0af9e13b4642cbf1e",
+      "host.name": "ip-10-0-2-210.us-west-2.compute.internal",
+      "host.type": "t3.medium",
+      "k8s.container.name": "indico",
+      "k8s.deployment.name": "indico",
+      "k8s.namespace.name": "default",
+      "k8s.node.name": "ip-10-0-2-210.us-west-2.compute.internal",
+      "k8s.pod.name": "indico-65c875875-fv72p",
+      "k8s.replicaset.name": "indico-65c875875",
+      "os.description": "Linux 6.1.168-203.330.amzn2023.x86_64",
+      "os.type": "linux",
+      "process.command_args": [
+        "/opt/java/openjdk/bin/java",
+        "-jar",
+        "/opt/indico/app.jar"
+      ],
+      "process.executable.path": "/opt/java/openjdk/bin/java",
+      "process.pid": 1,
+      "process.runtime.description": "Eclipse Adoptium OpenJDK 64-Bit Server VM 17.0.19+10",
+      "process.runtime.name": "OpenJDK Runtime Environment",
+      "process.runtime.version": "17.0.19+10",
+      "service.instance.id": "c1750ae4-86da-49e8-8232-c0084730e592",
+      "service.name": "indico-service-java",
+      "service.version": "latest",
+      "telemetry.distro.name": "opentelemetry-java-instrumentation",
+      "telemetry.distro.version": "2.20.0-aws-SNAPSHOT",
+      "telemetry.sdk.language": "java",
+      "telemetry.sdk.name": "opentelemetry",
+      "telemetry.sdk.version": "1.57.0"
+    }
+  },
+  "scope": {
+    "name": "serviceevents",
+    "version": "1.0"
+  },
+  "severityNumber": 0,
+  "severityText": "",
+  "spanId": "8cda7858d3a2cf78",
+  "timeUnixNano": 1780015082788365369,
+  "traceId": "deadbeefdeadbeefdeadbeefdead0003"
+}

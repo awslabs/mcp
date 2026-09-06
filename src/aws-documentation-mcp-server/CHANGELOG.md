@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add environment variable `AWS_DOCUMENTATION_PARTITION` to select AWS documentation partition.
 - Add `get_available_services` and `read_documentation` when `AWS_DOCUMENTATION_PARTITION` is set to `aws-cn`.
 
+### Removed
+
+- The `recommend` tool no longer returns Highly Rated recommendations. The upstream recommendation type has been retired, so the tool now returns New, Similar, and Journey results only.
+
 ## [1.0.0] - 2025-05-26
 
 ### Removed
