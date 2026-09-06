@@ -4,9 +4,11 @@
 
 The AWS API MCP Server provides AI agents with direct access to AWS services through the AWS CLI. This document explains the tools available, their risk profiles, and how to configure guardrails to ensure safe agent deployments.
 
+> **Note:** For vulnerability disclosure policies, see [`.github/SECURITY`](../../.github/SECURITY). This document focuses specifically on operational safety when deploying AI agents with the AWS API MCP Server.
+
 ## Tools Provided
 
-The AWS API MCP Server exposes **2-3 tools** to AI agents:
+The AWS API MCP Server exposes **2 tools** to AI agents:
 
 ### 1. `call_aws` (High Risk)
 
@@ -39,19 +41,6 @@ aws rds delete-db-instance --db-instance-identifier prod-db  # DESTRUCTIVE
 - Returns up to 10 most likely AWS CLI commands with confidence scores
 - Calls external AWS endpoint for suggestions
 - Does not execute any commands or access AWS resources
-
-### 3. `get_execution_plan` (Low Risk, Experimental)
-
-**Purpose:** Provides structured, step-by-step guidance for complex AWS tasks.
-
-**Risk Level:** LOW - Read-only tool that returns procedural guidance.
-
-**Availability:** Only available when `EXPERIMENTAL_AGENT_SCRIPTS=true`
-
-**Capabilities:**
-- Returns agent scripts with detailed procedures
-- Supports custom scripts via `AWS_API_MCP_AGENT_SCRIPTS_DIR`
-- Does not execute any commands
 
 ---
 
