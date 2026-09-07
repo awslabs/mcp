@@ -28,7 +28,7 @@ from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.retrieval import (
     query_knowledge_base,
 )
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 from typing import List, Literal, Optional
 
@@ -67,7 +67,7 @@ logger.info(
     f'Default reranking enabled: {kb_reranking_enabled} (from BEDROCK_KB_RERANKING_ENABLED)'
 )
 
-mcp = FastMCP(
+mcp = MCPServer(
     'awslabs.bedrock-kb-retrieval-mcp-server',
     instructions="""
     The AWS Labs Bedrock Knowledge Bases Retrieval MCP Server provides access to Amazon Bedrock Knowledge Bases for retrieving relevant information through natural language queries.

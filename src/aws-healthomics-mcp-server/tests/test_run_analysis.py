@@ -36,6 +36,11 @@ from hypothesis import strategies as st
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
+# Manifest parsing computes per-task and storage cost, which would otherwise reach
+# the real AWS Pricing API once per task. See the fixture docstring in conftest.py.
+pytestmark = pytest.mark.usefixtures('stub_pricing_lookup')
+
+
 class TestNormalizeRunIds:
     """Test the _normalize_run_ids function."""
 

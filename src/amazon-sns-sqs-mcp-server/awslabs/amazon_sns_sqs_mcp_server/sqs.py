@@ -20,12 +20,12 @@ from awslabs.amazon_sns_sqs_mcp_server.common import (
 )
 from awslabs.amazon_sns_sqs_mcp_server.consts import MCP_SERVER_VERSION
 from awslabs.amazon_sns_sqs_mcp_server.generator import BOTO3_CLIENT_GETTER, AWSToolGenerator
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from typing import Any, Dict, Tuple
 
 
 # override create_queue tool to tag resources
-def create_queue_override(mcp: FastMCP, sqs_client_getter: BOTO3_CLIENT_GETTER, _: str):
+def create_queue_override(mcp: MCPServer, sqs_client_getter: BOTO3_CLIENT_GETTER, _: str):
     """Create an SQS queue with MCP server version tag."""
 
     @mcp.tool()
@@ -59,7 +59,7 @@ def create_queue_override(mcp: FastMCP, sqs_client_getter: BOTO3_CLIENT_GETTER, 
 
 # Define validator for SQS resources
 def is_mutative_action_allowed(
-    mcp: FastMCP, sqs_client: Any, kwargs: Dict[str, Any]
+    mcp: MCPServer, sqs_client: Any, kwargs: Dict[str, Any]
 ) -> Tuple[bool, str]:
     """Check if the SQS resource being mutated is tagged with mcp_server_version."""
     queue_url = kwargs.get('QueueUrl')
@@ -73,7 +73,7 @@ def is_mutative_action_allowed(
         return False, str(e)
 
 
-def register_sqs_tools(mcp: FastMCP, disallow_resource_creation: bool = False):
+def register_sqs_tools(mcp: MCPServer, disallow_resource_creation: bool = False):
     """Register SQS tools with the MCP server."""
     # Generate SQS tools
 
@@ -91,8 +91,14 @@ def register_sqs_tools(mcp: FastMCP, disallow_resource_creation: bool = False):
 
     # Create the tool configuration dictionary
     tool_configuration = {
-        'add_permission': {'name_override': 'add_sqs_permission'},
-        'remove_permission': {'name_override': 'remove_sqs_permission'},
+        'add_permission': {
+            'name_override': 'add_sqs_permission',
+            'validator': is_mutative_action_allowed,
+        },
+        'remove_permission': {
+            'name_override': 'remove_sqs_permission',
+            'validator': is_mutative_action_allowed,
+        },
         'create_queue': {'func_override': create_queue_override},
         'delete_queue': {'validator': is_mutative_action_allowed},
         'set_queue_attributes': {'validator': is_mutative_action_allowed},
@@ -100,6 +106,12 @@ def register_sqs_tools(mcp: FastMCP, disallow_resource_creation: bool = False):
         'receive_message': {'validator': is_mutative_action_allowed},
         'send_message_batch': {'validator': is_mutative_action_allowed},
         'delete_message': {'validator': is_mutative_action_allowed},
+        'purge_queue': {'validator': is_mutative_action_allowed},
+        'delete_message_batch': {'validator': is_mutative_action_allowed},
+        'change_message_visibility': {'validator': is_mutative_action_allowed},
+        'change_message_visibility_batch': {'validator': is_mutative_action_allowed},
+        'start_message_move_task': {'validator': is_mutative_action_allowed},
+        'cancel_message_move_task': {'validator': is_mutative_action_allowed},
     }
 
     # Add all operations to ignore to the tool configuration

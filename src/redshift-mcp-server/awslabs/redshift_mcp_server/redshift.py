@@ -26,6 +26,7 @@ from awslabs.redshift_mcp_server.consts import (
     CLIENT_USER_AGENT_NAME,
     COLUMNS_SQL,
     DATABASES_SQL,
+    QUERY_LONG_POLL,
     QUERY_POLL_INTERVAL,
     QUERY_TIMEOUT,
     SCHEMAS_SQL,
@@ -206,7 +207,7 @@ class RedshiftSessionManager:
         app_name_sql = f"SET application_name TO '{self._app_name}';"
 
         # Execute statement to create session
-        statement_id = await _execute_statement(
+        response = await _execute_statement(
             cluster_info=cluster_info,
             cluster_identifier=cluster_identifier,
             database_name=database_name,
@@ -214,10 +215,7 @@ class RedshiftSessionManager:
             session_keepalive=self._session_keepalive,
         )
 
-        # Get session ID from the response
-        data_client = client_manager.redshift_data_client()
-        status_response = data_client.describe_statement(Id=statement_id)
-        session_id = status_response['SessionId']
+        session_id = response['SessionId']
 
         logger.debug(f'Created session with application name: {session_id}')
         return session_id
@@ -296,7 +294,7 @@ async def _execute_protected_statement(
         if allow_read_write:
             # Read-write: run the single guarded statement directly (autocommit). No
             # transaction wrapper. Any error propagates.
-            user_query_id = await _execute_statement(
+            user_statement = await _execute_statement(
                 cluster_info=cluster_info,
                 cluster_identifier=cluster_identifier,
                 database_name=database_name,
@@ -316,11 +314,11 @@ async def _execute_protected_statement(
             )
 
             # Execute user SQL with parameters, ensuring the transaction is always closed.
-            user_query_id = None
+            user_statement = None
             user_sql_error: Exception | None = None
 
             try:
-                user_query_id = await _execute_statement(
+                user_statement = await _execute_statement(
                     cluster_info=cluster_info,
                     cluster_identifier=cluster_identifier,
                     database_name=database_name,
@@ -357,14 +355,14 @@ async def _execute_protected_statement(
                 raise user_sql_error
 
     # Get results from user query (shared by both modes); runs outside the lock.
-    # describe_statement / get_statement_result are keyed by query_id, not session-bound,
-    # so the lock is not held during the (potentially unbounded) results wait.
-    data_client = client_manager.redshift_data_client()
-    assert user_query_id is not None, 'user_query_id should not be None at this point'
+    # get_statement_result is keyed by query_id, not session-bound, so the lock is not
+    # held during the (potentially unbounded) results wait.
+    assert user_statement is not None, 'user_statement should not be None at this point'
+    user_query_id = user_statement['Id']
 
     # Only fetch results when the statement produced a result set (e.g. SET does not).
-    describe_response = data_client.describe_statement(Id=user_query_id)
-    if describe_response.get('HasResultSet'):
+    if user_statement.get('HasResultSet'):
+        data_client = client_manager.redshift_data_client()
         results_response = data_client.get_statement_result(Id=user_query_id)
     else:
         results_response = {'Records': [], 'ColumnMetadata': []}
@@ -381,7 +379,8 @@ async def _execute_statement(
     session_keepalive: int | None = None,
     query_poll_interval: float = QUERY_POLL_INTERVAL,
     query_timeout: float = QUERY_TIMEOUT,
-) -> str:
+    query_long_poll: int = QUERY_LONG_POLL,
+) -> dict:
     """Execute a single statement with optional session support and parameters.
 
     Args:
@@ -394,9 +393,13 @@ async def _execute_statement(
         session_keepalive: Optional session keepalive seconds (only used when session_id is None).
         query_poll_interval: Polling interval in seconds for checking query status.
         query_timeout: Maximum time in seconds to wait for query completion.
+        query_long_poll: Data API WaitTimeSeconds, 1-30, or 0 to disable long polling.
 
     Returns:
-        Statement ID from the ExecuteStatement response.
+        The terminal statement response, carrying Id, Status, SessionId and HasResultSet.
+
+    Raises:
+        Exception: If the statement fails, is aborted, or times out.
     """
     data_client = client_manager.redshift_data_client()
 
@@ -423,35 +426,54 @@ async def _execute_statement(
     elif session_keepalive is not None:
         request_params['SessionKeepAliveSeconds'] = session_keepalive
 
-    response = data_client.execute_statement(**request_params)
+    long_poll_params = {'WaitTimeSeconds': query_long_poll} if query_long_poll else {}
+
+    # boto3 is synchronous and a long poll holds the caller for up to query_long_poll
+    # seconds, so every Data API call here runs off the event loop.
+    response = await asyncio.to_thread(
+        data_client.execute_statement, **request_params, **long_poll_params
+    )
     statement_id = response['Id']
 
     logger.debug(
         f'Executed statement: {statement_id}' + (f' in session {session_id}' if session_id else '')
     )
 
-    # Wait for statement completion
-    wait_time = 0
-    while wait_time < query_timeout:
-        status_response = data_client.describe_statement(Id=statement_id)
-        status = status_response['Status']
+    # ExecuteStatement and DescribeStatement report status alike, so one loop settles the
+    # long-polled submit and every later poll. Wall clock, since a long poll blocks server-side.
+    deadline = time.monotonic() + query_timeout
+    while True:
+        status = response.get('Status')
 
         if status == 'FINISHED':
             logger.debug(f'Statement completed: {statement_id}')
-            break
+            return response
         elif status in ['FAILED', 'ABORTED']:
-            error_msg = status_response.get('Error', 'Unknown error')
+            error_msg = response.get('Error')
+            if error_msg is None:
+                # ExecuteStatement carries no Error field, so the reason takes a describe.
+                described = await asyncio.to_thread(
+                    data_client.describe_statement, Id=statement_id
+                )
+                error_msg = described.get('Error', 'Unknown error')
             logger.error(f'Statement failed: {error_msg}')
             raise Exception(f'Statement failed: {error_msg}')
 
+        if time.monotonic() >= deadline:
+            logger.error(f'Statement timed out: {statement_id}')
+            raise Exception(f'Statement timed out after {query_timeout} seconds')
+
         await asyncio.sleep(query_poll_interval)
-        wait_time += query_poll_interval
 
-    if wait_time >= query_timeout:
-        logger.error(f'Statement timed out: {statement_id}')
-        raise Exception(f'Statement timed out after {wait_time} seconds')
-
-    return statement_id
+        try:
+            response = await asyncio.to_thread(
+                data_client.describe_statement, Id=statement_id, **long_poll_params
+            )
+        except ClientError as e:
+            if e.response.get('Error', {}).get('Code') != 'ActiveWaitingRequestsExceededException':
+                raise
+            logger.warning(f'Long polling limit reached, polling instead: {statement_id}')
+            long_poll_params = {}
 
 
 async def discover_clusters() -> list[RedshiftCluster]:

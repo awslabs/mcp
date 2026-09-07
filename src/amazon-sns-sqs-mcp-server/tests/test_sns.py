@@ -314,3 +314,37 @@ class TestSNSTools:
         )
         assert result is False
         assert message == 'mutating a resource without the mcp_server_version tag is not allowed'
+
+    @patch('boto3.client')
+    @patch('awslabs.amazon_sns_sqs_mcp_server.sns.AWSToolGenerator')
+    def test_add_permission_has_validator(self, mock_aws_tool_generator, mock_boto3_client):
+        """Test that add_permission tool has tag validation to prevent mutations on untagged resources.
+
+        This is a security-critical test: without the validator, add_sns_permission can
+        grant cross-account access to any SNS topic regardless of whether it was created
+        by the MCP server (i.e., tagged with mcp_server_version).
+        """
+        mock_mcp = MagicMock()
+        tool_config_capture = {}
+
+        def mock_generator(
+            service_name,
+            service_display_name,
+            mcp,
+            tool_configuration,
+            skip_param_documentation,
+            mcp_server_version=MCP_SERVER_VERSION,
+        ):
+            nonlocal tool_config_capture
+            tool_config_capture = tool_configuration
+            return MagicMock()
+
+        mock_aws_tool_generator.side_effect = mock_generator
+        register_sns_tools(mock_mcp)
+
+        # Verify add_permission has a validator
+        assert 'add_permission' in tool_config_capture
+        assert 'validator' in tool_config_capture['add_permission'], (
+            'add_permission must have a validator to prevent mutations on untagged resources'
+        )
+        assert tool_config_capture['add_permission']['validator'] == is_mutative_action_allowed

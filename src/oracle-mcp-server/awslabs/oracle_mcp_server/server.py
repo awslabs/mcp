@@ -34,9 +34,9 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 from dataclasses import dataclass
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
-from mcp.shared.exceptions import McpError
-from mcp.types import INVALID_PARAMS, ErrorData
+from mcp.server.mcpserver import Context, MCPServer
+from mcp.shared.exceptions import MCPError
+from mcp.types import INVALID_PARAMS
 from pydantic import Field
 from typing import Annotated, Any, Dict, List, Optional, Tuple
 
@@ -92,7 +92,7 @@ def _wrap_untrusted_data(data: Any) -> str:
     )
 
 
-mcp = FastMCP(
+mcp = MCPServer(
     'oracle-mcp MCP server for Oracle Database on AWS RDS',
     dependencies=['loguru'],
 )
@@ -143,25 +143,23 @@ async def run_query(
         matches = detect_mutating_keywords(sql)
         if matches:
             logger.info(f'query rejected: readonly mode, detected keywords: {matches}')
-            raise McpError(ErrorData(code=INVALID_PARAMS, message=write_query_prohibited_key))
+            raise MCPError(code=INVALID_PARAMS, message=write_query_prohibited_key)
 
         txn_matches = detect_transaction_bypass_attempt(sql)
         if txn_matches:
             logger.info(
                 f'query rejected: transaction control in readonly mode, detected: {txn_matches}'
             )
-            raise McpError(ErrorData(code=INVALID_PARAMS, message=write_query_prohibited_key))
+            raise MCPError(code=INVALID_PARAMS, message=write_query_prohibited_key)
 
     issues = check_sql_injection_risk(sql, readonly=server_config.readonly_query)
     if issues:
         logger.info(f'query rejected: injection risk, reasons:{issues}')
-        raise McpError(
-            ErrorData(
-                code=INVALID_PARAMS,
-                message=str(
-                    {'message': 'Query parameter contains suspicious pattern', 'details': issues}
-                ),
-            )
+        raise MCPError(
+            code=INVALID_PARAMS,
+            message=str(
+                {'message': 'Query parameter contains suspicious pattern', 'details': issues}
+            ),
         )
 
     try:
@@ -226,16 +224,12 @@ async def get_table_schema(
     )
 
     if not validate_table_name(table_name):
-        raise McpError(
-            ErrorData(code=INVALID_PARAMS, message=f"Invalid table name: '{table_name}'.")
-        )
+        raise MCPError(code=INVALID_PARAMS, message=f"Invalid table name: '{table_name}'.")
 
     # Parse table_name into catalog-ready parts (respecting quoting)
     parts = _parse_identifier_parts(table_name)
     if not parts:
-        raise McpError(
-            ErrorData(code=INVALID_PARAMS, message=f"Cannot parse table name: '{table_name}'.")
-        )
+        raise MCPError(code=INVALID_PARAMS, message=f"Cannot parse table name: '{table_name}'.")
     catalog_table = _catalog_form(*parts[-1])
     catalog_schema = _catalog_form(*parts[0]) if len(parts) >= 2 else None
 

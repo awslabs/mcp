@@ -58,7 +58,7 @@ class TestCustomTagsEmr:
         """Test that create cluster operation respects CUSTOM_TAGS when enabled."""
         # Mock the create_cluster method to return a response
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.cluster_id = 'j-12345ABCDEF'
         mock_response.operation = 'create-cluster'
@@ -135,7 +135,7 @@ class TestCustomTagsEmr:
         """Test that terminate cluster operation respects CUSTOM_TAGS when enabled."""
         # Mock the terminate_cluster method to return a response
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.cluster_id = 'j-12345ABCDEF'
         mock_response.operation = 'terminate-cluster'
@@ -162,7 +162,7 @@ class TestCustomTagsEmr:
         """Test that add steps operation respects CUSTOM_TAGS when enabled."""
         # Mock the add_steps method to return a response
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.cluster_id = 'j-12345ABCDEF'
         mock_response.step_ids = ['s-12345ABCDEF']
@@ -208,7 +208,7 @@ class TestCustomTagsEmr:
         """Test that get cluster operation respects CUSTOM_TAGS when enabled."""
         # Mock the get_cluster method to return a response
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.cluster_id = 'j-12345ABCDEF'
         mock_response.cluster_name = 'Test Cluster'
@@ -241,7 +241,7 @@ class TestCustomTagsEmr:
         """Test that list clusters operation respects CUSTOM_TAGS when enabled."""
         # Mock the list_clusters method to return a response
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.clusters = [
             {'Id': 'j-12345ABCDEF', 'Name': 'Test Cluster 1', 'Status': {'State': 'RUNNING'}},

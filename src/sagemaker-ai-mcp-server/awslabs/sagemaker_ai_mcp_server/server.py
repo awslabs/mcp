@@ -33,7 +33,7 @@ from awslabs.sagemaker_ai_mcp_server.sagemaker_hyperpod.hyperpod_stack_handler i
     HyperPodStackHandler,
 )
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 
 # Define server instructions and dependencies
@@ -141,7 +141,7 @@ mcp = None
 
 def create_server():
     """Create and configure the MCP server instance."""
-    return FastMCP(
+    return MCPServer(
         'awslabs.sagemaker-ai-mcp-server',
         instructions=SERVER_INSTRUCTIONS,
         dependencies=SERVER_DEPENDENCIES,

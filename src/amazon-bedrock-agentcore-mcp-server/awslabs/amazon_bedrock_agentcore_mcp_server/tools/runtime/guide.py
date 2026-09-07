@@ -15,7 +15,7 @@
 """Static reference guide for AgentCore Runtime."""
 
 from .models import GuideResponse
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 
 
 RUNTIME_GUIDE = r"""

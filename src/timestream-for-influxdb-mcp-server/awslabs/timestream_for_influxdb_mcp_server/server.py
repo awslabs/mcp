@@ -26,7 +26,7 @@ from influxdb_client.client.write_api import ASYNCHRONOUS, SYNCHRONOUS
 from influxdb_client.domain.bucket_retention_rules import BucketRetentionRules
 from influxdb_client.domain.write_precision import WritePrecision
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
@@ -242,7 +242,7 @@ REQUIRED_FIELD_CLUSTER_NAME = Field(
     'This name will also be a prefix included in the endpoint.',
 )
 
-mcp = FastMCP(
+mcp = MCPServer(
     'awslabs.timestream-for-influxdb-mcp-server',
     instructions="""
     This MCP server provides tools to interact with AWS Timestream for InfluxDB APIs.

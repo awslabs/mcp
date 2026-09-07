@@ -58,8 +58,9 @@ async def _invoicing(
         account_id: 12-digit AWS account ID. Auto-detected via STS when omitted.
         invoice_id: Retrieve a single invoice's summary.
         billing_period: Single calendar month in ``YYYY-MM`` format.
-        start_date: Inclusive range start (``YYYY-MM-DD`` UTC).
-        end_date: Inclusive range end (``YYYY-MM-DD`` UTC).
+        start_date: Range start (``YYYY-MM-DD`` UTC, i.e. 00:00:00 that day).
+        end_date: Range end (``YYYY-MM-DD`` UTC, i.e. 00:00:00 that day, so use
+            the day after the last one you want).
         invoicing_entity: Filter by AWS legal selling entity name.
         max_results: Maximum results per page (1-100).
         next_token: Pagination token from a previous response.
@@ -107,9 +108,12 @@ async def _invoicing(
    Selector (choose one; the account is auto-detected if neither is given):
      - account_id: 12-digit AWS account ID; lists all invoices for that account. Auto-detected via STS GetCallerIdentity when omitted.
      - invoice_id: retrieve one specific invoice's summary. Mutually exclusive with account_id.
-   Time filter (optional; provide at most one):
+   Time filter — REQUIRED when selecting by account_id, optional for invoice_id. Provide exactly one:
      - billing_period: a single calendar month "YYYY-MM" (e.g. "2026-05")
-     - start_date + end_date: an inclusive UTC range "YYYY-MM-DD" (or "YYYY-MM-DDTHH:MM:SS"); required together and mutually exclusive with billing_period
+     - start_date + end_date: a UTC range "YYYY-MM-DD" (or "YYYY-MM-DDTHH:MM:SS"); required together and mutually exclusive with billing_period. A date-only bound means 00:00:00 UTC, so end_date must be the day AFTER the last day you want: all of June 2026 is start_date "2026-06-01" with end_date "2026-07-01". Using "2026-06-30" silently drops invoices issued during June 30.
+   IMPORTANT — ONE MONTH MAXIMUM per call. A start_date/end_date range may span at most the number of days in the START date's month (31 from a January start, 28 from a February start); longer is rejected with "TimePeriod cannot last more than a month". Calendar alignment is NOT required: "2026-05-14" to "2026-06-13" is valid. For a longer period issue ONE CALL PER MONTH and combine the results yourself — never widen the range. A rejection returns `data.suggested_date_ranges`: the exact per-month calls to make.
+   NOTE — the two time filters are not interchangeable: billing_period selects by BILLING MONTH, start_date/end_date select by ISSUED DATE. Pick whichever the question asks for, and keep using that same one when splitting a multi-month request.
+   Other filters (optional):
      - invoicing_entity: filter by the AWS legal selling entity (seller of record) name. Examples: "Amazon Web Services, Inc." (US), "Amazon Web Services EMEA SARL" (Europe/Middle East/Africa), "Amazon Web Services Australia Pty Ltd" (Australia), "Amazon Web Services Japan G.K." (Japan).
    Pagination: max_results caps items per page (1-100); max_pages caps pages fetched (default: all). The response `pagination` block reports total_results, pages_fetched, has_more, and next_token.
    Returns: `data.invoice_summaries`, a list where each item contains:
@@ -121,9 +125,11 @@ async def _invoicing(
 
 EXAMPLES
 - {"operation": "list_invoice_summaries", "billing_period": "2026-05"}
-- {"operation": "list_invoice_summaries", "account_id": "123456789012", "start_date": "2026-01-01", "end_date": "2026-06-30"}
+- {"operation": "list_invoice_summaries", "account_id": "123456789012", "start_date": "2026-06-01", "end_date": "2026-07-01"}
 - {"operation": "list_invoice_summaries", "invoice_id": "1234567890"}
-- {"operation": "list_invoice_summaries", "billing_period": "2026-05", "invoicing_entity": "Amazon Web Services EMEA SARL"}""",
+- {"operation": "list_invoice_summaries", "billing_period": "2026-05", "invoicing_entity": "Amazon Web Services EMEA SARL"}
+- "the last 3 billing months" -> three calls, one billing_period each: "2026-06", then "2026-07", then "2026-08"
+- "invoices issued Jan 15 through Mar 10" -> three calls by issued date, split on month boundaries, end_date one day past Mar 10: 2026-01-15/2026-02-01, then 2026-02-01/2026-03-01, then 2026-03-01/2026-03-11""",
 )
 async def invoicing(
     ctx: Context,
@@ -150,8 +156,9 @@ async def invoicing(
         account_id: 12-digit AWS account ID (auto-detected via STS when omitted).
         invoice_id: Retrieve a single invoice's summary.
         billing_period: Single calendar month in ``YYYY-MM`` format.
-        start_date: Inclusive range start (``YYYY-MM-DD`` UTC).
-        end_date: Inclusive range end (``YYYY-MM-DD`` UTC).
+        start_date: Range start (``YYYY-MM-DD`` UTC, i.e. 00:00:00 that day).
+        end_date: Range end (``YYYY-MM-DD`` UTC, i.e. 00:00:00 that day, so use
+            the day after the last one you want).
         invoicing_entity: Filter by AWS legal selling entity name.
         max_results: Maximum results per page (1-100).
         next_token: Pagination token from a previous response.
