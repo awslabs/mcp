@@ -27,7 +27,8 @@ from awslabs.aws_dataprocessing_mcp_server.models.glue_models import (
     StartWorkflowRunData,
     StopTriggerData,
 )
-from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
+from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper, ClientFactory
+from awslabs.aws_dataprocessing_mcp_server.utils.error_helper import create_error_result
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     LogLevel,
     log_with_request_id,
@@ -42,18 +43,27 @@ from typing import Annotated, Any, Dict, Optional
 class GlueWorkflowAndTriggerHandler:
     """Handler for Amazon Glue ETL Jobs operations."""
 
-    def __init__(self, mcp, allow_write: bool = False, allow_sensitive_data_access: bool = False):
+    def __init__(
+        self,
+        mcp,
+        allow_write: bool = False,
+        allow_sensitive_data_access: bool = False,
+        client_factory: Optional[ClientFactory] = None,
+    ):
         """Initialize the Glue ETL Jobs handler.
 
         Args:
             mcp: The MCP server instance
             allow_write: Whether to enable write access (default: False)
             allow_sensitive_data_access: Whether to allow access to sensitive data (default: False)
+            client_factory: Optional service-aware boto3 client factory
         """
         self.mcp = mcp
         self.allow_write = allow_write
         self.allow_sensitive_data_access = allow_sensitive_data_access
-        self.glue_client = AwsHelper.create_boto3_client('glue')
+        self._provided_client_factory = client_factory
+        self.client_factory = client_factory or AwsHelper.create_boto3_client
+        self.glue_client = self.client_factory('glue')
 
         # Register tools
         self.mcp.tool(name='manage_aws_glue_workflows')(self.manage_aws_glue_workflows)
@@ -213,8 +223,15 @@ class GlueWorkflowAndTriggerHandler:
 
                     # Construct the ARN for the workflow
                     region = AwsHelper.get_or_default_aws_region() or 'us-east-1'
-                    account_id = AwsHelper.get_aws_account_id()
-                    workflow_arn = f'arn:aws:glue:{region}:{account_id}:workflow/{workflow_name}'
+                    account_id = AwsHelper.get_aws_account_id(self._provided_client_factory)
+                    partition = (
+                        AwsHelper.get_aws_partition(self._provided_client_factory)
+                        if self._provided_client_factory
+                        else 'aws'
+                    )
+                    workflow_arn = (
+                        f'arn:{partition}:glue:{region}:{account_id}:workflow/{workflow_name}'
+                    )
 
                     # Check if the workflow is managed by MCP
                     if not AwsHelper.is_resource_mcp_managed(self.glue_client, workflow_arn, {}):
@@ -228,10 +245,7 @@ class GlueWorkflowAndTriggerHandler:
                     if e.response['Error']['Code'] == 'EntityNotFoundException':
                         error_message = f'Workflow {workflow_name} not found'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return CallToolResult(
-                            isError=True,
-                            content=[TextContent(type='text', text=error_message)],
-                        )
+                        return create_error_result(e, error_message)
                     else:
                         raise e
 
@@ -326,8 +340,15 @@ class GlueWorkflowAndTriggerHandler:
 
                     # Construct the ARN for the workflow
                     region = AwsHelper.get_or_default_aws_region() or 'us-east-1'
-                    account_id = AwsHelper.get_aws_account_id()
-                    workflow_arn = f'arn:aws:glue:{region}:{account_id}:workflow/{workflow_name}'
+                    account_id = AwsHelper.get_aws_account_id(self._provided_client_factory)
+                    partition = (
+                        AwsHelper.get_aws_partition(self._provided_client_factory)
+                        if self._provided_client_factory
+                        else 'aws'
+                    )
+                    workflow_arn = (
+                        f'arn:{partition}:glue:{region}:{account_id}:workflow/{workflow_name}'
+                    )
 
                     # Check if the workflow is managed by MCP
                     if not AwsHelper.is_resource_mcp_managed(self.glue_client, workflow_arn, {}):
@@ -341,10 +362,7 @@ class GlueWorkflowAndTriggerHandler:
                     if e.response['Error']['Code'] == 'EntityNotFoundException':
                         error_message = f'Workflow {workflow_name} not found'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return CallToolResult(
-                            isError=True,
-                            content=[TextContent(type='text', text=error_message)],
-                        )
+                        return create_error_result(e, error_message)
                     else:
                         raise e
 
@@ -391,10 +409,7 @@ class GlueWorkflowAndTriggerHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_workflows: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def manage_aws_glue_triggers(
         self,
@@ -584,8 +599,15 @@ class GlueWorkflowAndTriggerHandler:
 
                     # Construct the ARN for the trigger
                     region = AwsHelper.get_or_default_aws_region() or 'us-east-1'
-                    account_id = AwsHelper.get_aws_account_id()
-                    trigger_arn = f'arn:aws:glue:{region}:{account_id}:trigger/{trigger_name}'
+                    account_id = AwsHelper.get_aws_account_id(self._provided_client_factory)
+                    partition = (
+                        AwsHelper.get_aws_partition(self._provided_client_factory)
+                        if self._provided_client_factory
+                        else 'aws'
+                    )
+                    trigger_arn = (
+                        f'arn:{partition}:glue:{region}:{account_id}:trigger/{trigger_name}'
+                    )
 
                     # Check if the trigger is managed by MCP
                     if not AwsHelper.is_resource_mcp_managed(self.glue_client, trigger_arn, {}):
@@ -599,10 +621,7 @@ class GlueWorkflowAndTriggerHandler:
                     if e.response['Error']['Code'] == 'EntityNotFoundException':
                         error_message = f'Trigger {trigger_name} not found'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return CallToolResult(
-                            isError=True,
-                            content=[TextContent(type='text', text=error_message)],
-                        )
+                        return create_error_result(e, error_message)
                     else:
                         raise e
 
@@ -684,8 +703,15 @@ class GlueWorkflowAndTriggerHandler:
 
                     # Construct the ARN for the trigger
                     region = AwsHelper.get_or_default_aws_region() or 'us-east-1'
-                    account_id = AwsHelper.get_aws_account_id()
-                    trigger_arn = f'arn:aws:glue:{region}:{account_id}:trigger/{trigger_name}'
+                    account_id = AwsHelper.get_aws_account_id(self._provided_client_factory)
+                    partition = (
+                        AwsHelper.get_aws_partition(self._provided_client_factory)
+                        if self._provided_client_factory
+                        else 'aws'
+                    )
+                    trigger_arn = (
+                        f'arn:{partition}:glue:{region}:{account_id}:trigger/{trigger_name}'
+                    )
 
                     # Check if the trigger is managed by MCP
                     if not AwsHelper.is_resource_mcp_managed(self.glue_client, trigger_arn, {}):
@@ -699,10 +725,7 @@ class GlueWorkflowAndTriggerHandler:
                     if e.response['Error']['Code'] == 'EntityNotFoundException':
                         error_message = f'Trigger {trigger_name} not found'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return CallToolResult(
-                            isError=True,
-                            content=[TextContent(type='text', text=error_message)],
-                        )
+                        return create_error_result(e, error_message)
                     else:
                         raise e
 
@@ -734,8 +757,15 @@ class GlueWorkflowAndTriggerHandler:
 
                     # Construct the ARN for the trigger
                     region = AwsHelper.get_or_default_aws_region() or 'us-east-1'
-                    account_id = AwsHelper.get_aws_account_id()
-                    trigger_arn = f'arn:aws:glue:{region}:{account_id}:trigger/{trigger_name}'
+                    account_id = AwsHelper.get_aws_account_id(self._provided_client_factory)
+                    partition = (
+                        AwsHelper.get_aws_partition(self._provided_client_factory)
+                        if self._provided_client_factory
+                        else 'aws'
+                    )
+                    trigger_arn = (
+                        f'arn:{partition}:glue:{region}:{account_id}:trigger/{trigger_name}'
+                    )
 
                     # Check if the trigger is managed by MCP
                     if not AwsHelper.is_resource_mcp_managed(self.glue_client, trigger_arn, {}):
@@ -749,10 +779,7 @@ class GlueWorkflowAndTriggerHandler:
                     if e.response['Error']['Code'] == 'EntityNotFoundException':
                         error_message = f'Trigger {trigger_name} not found'
                         log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                        return CallToolResult(
-                            isError=True,
-                            content=[TextContent(type='text', text=error_message)],
-                        )
+                        return create_error_result(e, error_message)
                     else:
                         raise e
 
@@ -787,7 +814,4 @@ class GlueWorkflowAndTriggerHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_triggers: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)

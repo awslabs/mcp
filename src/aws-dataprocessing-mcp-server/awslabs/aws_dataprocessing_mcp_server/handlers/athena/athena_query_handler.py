@@ -29,7 +29,8 @@ from awslabs.aws_dataprocessing_mcp_server.models.athena_models import (
     StopQueryExecutionData,
     UpdateNamedQueryData,
 )
-from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
+from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper, ClientFactory
+from awslabs.aws_dataprocessing_mcp_server.utils.error_helper import create_error_result
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     LogLevel,
     log_with_request_id,
@@ -44,18 +45,27 @@ from typing import Annotated, Any, Dict, List, Optional
 class AthenaQueryHandler:
     """Handler for Amazon Athena Query operations."""
 
-    def __init__(self, mcp, allow_write: bool = False, allow_sensitive_data_access: bool = False):
+    def __init__(
+        self,
+        mcp,
+        allow_write: bool = False,
+        allow_sensitive_data_access: bool = False,
+        client_factory: Optional[ClientFactory] = None,
+    ):
         """Initialize the Athena Query handler.
 
         Args:
             mcp: The MCP server instance
             allow_write: Whether to enable write access (default: False)
             allow_sensitive_data_access: Whether to allow access to sensitive data (default: False)
+            client_factory: Optional service-aware boto3 client factory
         """
         self.mcp = mcp
         self.allow_write = allow_write
         self.allow_sensitive_data_access = allow_sensitive_data_access
-        self.athena_client = AwsHelper.create_boto3_client('athena')
+        self._provided_client_factory = client_factory
+        self.client_factory = client_factory or AwsHelper.create_boto3_client
+        self.athena_client = self.client_factory('athena')
 
         # Register tools
         self.mcp.tool(name='manage_aws_athena_query_executions')(self.manage_aws_athena_queries)
@@ -473,10 +483,7 @@ class AthenaQueryHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_athena_queries: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def manage_aws_athena_named_queries(
         self,
@@ -810,7 +817,4 @@ class AthenaQueryHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_athena_named_queries: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
