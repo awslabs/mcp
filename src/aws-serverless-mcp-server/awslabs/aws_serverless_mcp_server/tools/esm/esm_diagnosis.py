@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from awslabs.aws_serverless_mcp_server.tools.common.base_tool import BaseTool
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Any, Dict, Literal, Optional
 
@@ -26,11 +26,11 @@ class EsmDiagnosisTool(BaseTool):
     and network connectivity problems to pinpoint root causes and provide targeted resolution strategies.
     """
 
-    def __init__(self, mcp: FastMCP, allow_write: bool = False):
+    def __init__(self, mcp: MCPServer, allow_write: bool = False):
         """Initialize the ESM diagnosis tool and register diagnostic capabilities.
 
         Args:
-            mcp: FastMCP instance for tool registration
+            mcp: MCPServer instance for tool registration
             allow_write: Whether write operations are allowed
         """
         super().__init__(allow_write=allow_write)

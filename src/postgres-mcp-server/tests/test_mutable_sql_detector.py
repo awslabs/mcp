@@ -490,6 +490,49 @@ class TestDblinkSsrf:
         for issue in issues:
             assert 'Dangerous function call' not in issue['message']
 
+    @pytest.mark.parametrize(
+        'fn', sorted(f for f in DANGEROUS_FUNCTIONS if f.startswith('dblink'))
+    )
+    def test_every_blocklisted_dblink_function_rejected(self, fn):
+        """Data-driven guard: every dblink* entry in the live blocklist is rejected.
+
+        Unlike the explicit cases above, this iterates DANGEROUS_FUNCTIONS
+        itself rather than a hardcoded list. A dblink function added to the
+        blocklist later is covered automatically, and one removed from it makes
+        this test fail loudly — the SSRF guard cannot silently drift. The bare
+        ``fn()`` call carries no arguments because the dangerous-function check
+        keys only on the ``name(`` shape, not the arguments.
+        """
+        issues = check_sql_injection_risk(f'SELECT {fn}()')
+        assert len(issues) == 1
+        assert issues[0]['type'] == 'sql'
+        assert issues[0]['severity'] == 'high'
+        # Length-sorted alternation must report the exact function, so a
+        # prefix-overlapping name (dblink vs dblink_connect vs
+        # dblink_connect_u) is named accurately rather than as its prefix.
+        assert fn in issues[0]['message']
+
+    def test_dblink_family_fully_enumerated(self):
+        """The blocklist contains exactly the known dblink family.
+
+        Pins the set the parametrized guard above iterates: if an entry is
+        dropped the guard would silently cover fewer functions, and if the
+        upstream extension adds a new SSRF-capable call site this test flags
+        that it must be triaged into the blocklist.
+        """
+        dblink_family = {f for f in DANGEROUS_FUNCTIONS if f.startswith('dblink')}
+        assert dblink_family == {
+            'dblink',
+            'dblink_connect',
+            'dblink_connect_u',
+            'dblink_exec',
+            'dblink_send_query',
+            'dblink_open',
+            'dblink_fetch',
+            'dblink_close',
+            'dblink_get_connections',
+        }
+
 
 class TestSecuritySensitiveGucs:
     """SET row_security / session_replication_role disable access controls.

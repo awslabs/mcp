@@ -20,7 +20,7 @@ from awslabs.eks_mcp_server.logging_helper import LogLevel, log_with_request_id
 from awslabs.eks_mcp_server.models import MetricsGuidanceData
 from enum import Enum
 from loguru import logger
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from mcp.types import CallToolResult, TextContent
 from pydantic import Field
 from typing import Any, Dict
@@ -113,7 +113,7 @@ class CloudWatchMetricsHandler:
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
 
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -132,7 +132,7 @@ class CloudWatchMetricsHandler:
         )
 
         return CallToolResult(
-            isError=False,
+            is_error=False,
             content=[
                 TextContent(
                     type='text',

@@ -47,7 +47,7 @@ class TestResourceManagementTool(unittest.TestCase):
     """Test the ecs_resource_management tool in main.py."""
 
     @pytest.mark.anyio
-    @patch("mcp.server.fastmcp.FastMCP", MockFastMCP)
+    @patch("mcp.server.mcpserver.MCPServer", MockFastMCP)
     @patch("awslabs.ecs_mcp_server.api.resource_management.ecs_api_operation")
     async def test_ecs_resource_management_tool_registration(self, mock_ecs_api_operation):
         """Test that the ecs_resource_management tool is properly registered."""
@@ -59,7 +59,7 @@ class TestResourceManagementTool(unittest.TestCase):
         self.assertIn("ecs_resource_management", tool_names)
 
     @pytest.mark.anyio
-    @patch("mcp.server.fastmcp.FastMCP", MockFastMCP)
+    @patch("mcp.server.mcpserver.MCPServer", MockFastMCP)
     @patch("awslabs.ecs_mcp_server.api.resource_management.ecs_api_operation")
     async def test_ecs_resource_management_tool_function(self, mock_ecs_api_operation):
         """Test that the ecs_resource_management tool function works correctly."""
