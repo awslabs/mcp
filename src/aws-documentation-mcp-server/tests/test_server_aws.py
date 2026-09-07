@@ -24,16 +24,22 @@ from awslabs.aws_documentation_mcp_server.server_aws import (
     search_documentation,
     search_table,
 )
+from mcp.server.mcpserver import Context
+from typing import Any, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.parse import parse_qs, unquote, urlparse
 
 
-class MockContext:
+class MockContext(Context):
     """Mock context for testing."""
 
-    async def error(self, message):
+    def __init__(self) -> None:
+        """Initialize with no request context; nothing here needs one."""
+        super().__init__()
+
+    async def error(self, data: Any, *, logger_name: Optional[str] = None):
         """Mock error method."""
-        print(f'Error: {message}')
+        print(f'Error: {data}')
 
 
 class TestReadDocumentation:
@@ -1090,12 +1096,12 @@ class TestRecommend:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            'highlyRated': {
+            'new': {
                 'items': [
                     {
                         'url': 'https://docs.aws.amazon.com/rec1',
                         'assetTitle': 'Recommendation 1',
-                        'abstract': 'This is recommendation 1.',
+                        'dateCreated': '2026-01-01',
                     }
                 ]
             },
@@ -1118,7 +1124,7 @@ class TestRecommend:
             assert len(results) == 2
             assert results[0].url == 'https://docs.aws.amazon.com/rec1'
             assert results[0].title == 'Recommendation 1'
-            assert results[0].context == 'This is recommendation 1.'
+            assert results[0].context == 'New content added on 2026-01-01'
             assert results[1].url == 'https://docs.aws.amazon.com/rec2'
             assert results[1].title == 'Recommendation 2'
             assert results[1].context == 'This is recommendation 2.'

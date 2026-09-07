@@ -24,9 +24,11 @@ class TestMain:
         # Call the main function
         main()
 
-        # Check that mcp.run was called with the correct arguments
+        # Check that mcp.run was called with the correct arguments.
+        # With no CLI flags or env vars set, the server selects the default
+        # stdio transport and passes it explicitly to mcp.run().
         mock_run.assert_called_once()
-        assert mock_run.call_args[1].get('transport') is None
+        assert mock_run.call_args[1].get('transport') == 'stdio'
 
     def test_module_execution(self):
         """Test the module execution when run as __main__."""

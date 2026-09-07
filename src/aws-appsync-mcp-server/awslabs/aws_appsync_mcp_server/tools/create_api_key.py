@@ -32,7 +32,10 @@ def register_create_api_key_tool(mcp):
         to authenticate requests when the API uses API_KEY authentication type.
         """,
         annotations=ToolAnnotations(
-            title='Create API Key', readOnlyHint=False, destructiveHint=False, openWorldHint=False
+            title='Create API Key',
+            read_only_hint=False,
+            destructive_hint=False,
+            open_world_hint=False,
         ),
     )
     @write_operation

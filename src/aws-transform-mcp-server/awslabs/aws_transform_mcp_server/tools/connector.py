@@ -36,7 +36,7 @@ from awslabs.aws_transform_mcp_server.transform_api_models import (
     CreateConnectorRequest,
     GetConnectorRequest,
 )
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from pydantic import Field
 from typing import Annotated, Any, Optional
 

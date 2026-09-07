@@ -54,20 +54,20 @@ from awslabs.s3_tables_mcp_server.file_processor import (
     import_parquet_to_table as import_parquet_to_table_func,
 )
 from datetime import datetime, timezone
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 from typing import Annotated, Any, Callable, Dict, Optional
 
 
-class S3TablesMCPServer(FastMCP):
-    """Extended FastMCP server with write operation control."""
+class S3TablesMCPServer(MCPServer):
+    """Extended MCPServer server with write operation control."""
 
     def __init__(self, *args, **kwargs):
         """Initialize the S3 Tables MCP server with write operation control.
 
         Args:
-            *args: Positional arguments passed to FastMCP
-            **kwargs: Keyword arguments passed to FastMCP
+            *args: Positional arguments passed to MCPServer
+            **kwargs: Keyword arguments passed to MCPServer
         """
         super().__init__(*args, **kwargs)
         self.allow_write: bool = False
@@ -81,7 +81,7 @@ class S3TablesMCPServer(FastMCP):
             self.log_dir = os.path.expanduser('~/.local/share/s3-tables-mcp-server/logs/')
 
 
-# Initialize FastMCP app
+# Initialize MCPServer app
 app = S3TablesMCPServer(
     name='s3-tables-server',
     instructions='A Model Context Protocol (MCP) server that enables programmatic access to AWS S3 Tables. This server provides a comprehensive interface for creating, managing, and interacting with S3-based table storage, supporting operations for table buckets, namespaces, and individual S3 tables. It integrates with Amazon Athena for SQL query execution, allowing both read and write operations on your S3 Tables data.',
@@ -945,7 +945,7 @@ def main():
     app.run()
 
 
-# FastMCP application runner
+# MCPServer application runner
 if __name__ == '__main__':
     print('Starting S3 Tables MCP server...')
     main()

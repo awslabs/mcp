@@ -170,6 +170,7 @@ async def cost_explorer(
     tag_key: Optional[str] = None,
     cost_category_name: Optional[str] = None,
     billing_view_arn: Optional[str] = None,
+    context: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Main entry point for Cost Explorer operations.
 
@@ -195,6 +196,8 @@ async def cost_explorer(
         tag_key: Tag key to get values for
         cost_category_name: Cost category to get values for
         billing_view_arn: Optional ARN of a billing view to scope the query
+        context: The context for (getDimensionValues), which can be COST_AND_USAGE (the default),
+            RESERVATIONS, or SAVINGS_PLANS. SAVINGS_PLANS scopes values to the plans an account owns.
 
     Returns:
         Response from the operation handler
@@ -267,6 +270,7 @@ async def cost_explorer(
                 next_token,
                 max_pages,
                 billing_view_arn,
+                context,
             )
 
         elif operation == 'getCostForecast':

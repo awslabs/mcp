@@ -75,6 +75,7 @@ def create_aws_client(service_name: str, region_name: Optional[str] = None) -> A
         'billingconductor',  # AWS Billing Conductor
         'billing',  # AWS Billing
         'invoicing',  # AWS Invoicing
+        'savingsplans',  # AWS Savings Plans
     ]
 
     # Validate requested service

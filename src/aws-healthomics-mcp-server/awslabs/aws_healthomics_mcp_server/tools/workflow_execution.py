@@ -40,7 +40,7 @@ from awslabs.aws_healthomics_mcp_server.utils.s3_utils import ensure_s3_uri_ends
 from awslabs.aws_healthomics_mcp_server.utils.validation_utils import validate_workflow_type
 from datetime import datetime
 from loguru import logger
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from pydantic import Field
 from typing import Any, Dict, List, Optional
 
