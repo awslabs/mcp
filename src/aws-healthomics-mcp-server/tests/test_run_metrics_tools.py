@@ -504,3 +504,259 @@ class TestLimitationSurfacing:
         )
 
         assert result['metrics'][0]['sampling_interval_seconds'] == 1200
+
+
+class TestPureHelperBranches:
+    """Remaining branches of the module's pure helpers."""
+
+    def test_parse_time_naive_timestamp_assumed_utc(self):
+        parsed = run_metrics._parse_time('2026-08-01T12:00:00', 'start_time')
+        assert parsed == START
+
+    def test_presence_notes_lists_expected_absent_metrics(self):
+        run = _run('123', [_task('t1', 'align')])  # no GPU tasks
+        notes = run_metrics._presence_notes(run)
+        assert {'metric', 'reason'} <= set(notes[0])
+        assert any('gpu' in n['metric'] for n in notes)
+
+    def test_resolve_metric_names_defaults_to_run_presence(self):
+        from awslabs.aws_healthomics_mcp_server.metrics import schema
+
+        run = _run('123', [_task('t1', 'align')])
+        metrics = run_metrics._resolve_metric_names(None, run)
+        assert {m.name for m in metrics} == set(run.presence.present)
+        assert run_metrics._resolve_metric_names(None, None) == list(schema.ALL_METRICS)
+
+    def test_relative_delta_none_and_zero_baseline(self):
+        assert run_metrics._relative_delta(None, 1.0) is None
+        assert run_metrics._relative_delta(0.0, 0.0) == 0.0
+
+    def test_series_output_includes_datapoint_attributes(self):
+        from awslabs.aws_healthomics_mcp_server.metrics import schema
+
+        run = _run('123', [_task('t1', 'align')])
+        metric = schema.metric_of('aws.omics.task.network.io')
+        series = TimeSeries(
+            labels={
+                '@resource.aws.omics.task.id': 't1',
+                'network.io.direction': 'receive',
+            },
+            timestamps=[0.0, 60.0],
+            values=[1.0, 2.0],
+        )
+        output = run_metrics._series_output(series, metric, run, include_timeseries=True)
+        assert output['network.io.direction'] == 'receive'
+        assert output['task_name'] == 'align'
+        assert output['values'] == [[0.0, 1.0], [60.0, 2.0]]
+
+    def test_absence_reason_generic_for_post_launch_run(self):
+        run = _run('123', [_task('t1', 'align')])
+        post_launch = datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc)
+        object.__setattr__(run, 'start_time', post_launch)
+        reason = run_metrics._absence_reason(run, task_id=None)
+        assert 'No datapoints in the query window' in reason
+
+
+class TestCollectTaskSummaries:
+    """Per-run summary collection quirks."""
+
+    def test_skips_series_without_task_id_and_keeps_peak(self):
+        run = _run('123', [_task('t1', 'align')])
+        client = MagicMock()
+        client.query_range.return_value = [
+            TimeSeries(labels={}, timestamps=[0.0, 60.0], values=[1.0, 1.0]),
+            TimeSeries(
+                labels={'@resource.aws.omics.task.id': 't1'},
+                timestamps=[0.0, 60.0],
+                values=[1.0, 2.0],
+            ),
+            TimeSeries(
+                labels={'@resource.aws.omics.task.id': 't1'},
+                timestamps=[0.0, 60.0],
+                values=[5.0, 9.0],
+            ),
+        ]
+        result = run_metrics._collect_task_summaries(
+            client, run, ['aws.omics.task.cpu.usage', 'aws.omics.run.filesystem.usage']
+        )
+        # per-run metric skipped entirely; unlabeled series ignored; peak kept
+        assert set(result) == {'aws.omics.task.cpu.usage'}
+        assert result['aws.omics.task.cpu.usage']['t1'].maximum == 9.0
+
+
+@pytest.mark.asyncio
+class TestListRunMetricsCaveats:
+    """Configuration-dependent caveats on ListAHORunMetrics."""
+
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.VendedMetricsClient')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.resolve_run')
+    async def test_dynamic_and_active_run_caveats(self, mock_resolve, mock_client_cls):
+        run = _run('123', [_task('t1', 'align')], storage_type='DYNAMIC')
+        object.__setattr__(run, 'status', 'RUNNING')
+        object.__setattr__(run, 'stop_time', None)
+        mock_resolve.return_value = run
+        client = mock_client_cls.return_value
+        type(client).region = 'us-west-2'
+        client.series.return_value = [
+            {'__name__': 'aws.omics.task.cpu.usage', '@resource.aws.omics.task.id': 't1'},
+        ]
+
+        result = await run_metrics.list_run_metrics(_mock_ctx(), run_id='123')
+
+        assert any('EFS' in c for c in result['caveats'])
+        assert any('still active' in c for c in result['caveats'])
+
+
+@pytest.mark.asyncio
+class TestGetRunMetricsTruncation:
+    """Series-cap truncation surfaced in tool output."""
+
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.query_metric_series')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.VendedMetricsClient')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.resolve_run')
+    async def test_truncated_query_adds_note(self, mock_resolve, mock_client_cls, mock_query):
+        mock_resolve.return_value = _run('123', [_task('t1', 'align')])
+        type(mock_client_cls.return_value).region = 'us-west-2'
+        mock_query.return_value = (
+            [
+                TimeSeries(
+                    labels={'@resource.aws.omics.task.id': 't1'},
+                    timestamps=[0.0, 60.0],
+                    values=[1.0, 2.0],
+                )
+            ],
+            True,
+        )
+
+        result = await run_metrics.get_run_metrics(
+            _mock_ctx(), run_id='123', metric_names=['aws.omics.task.cpu.usage']
+        )
+
+        entry = result['metrics'][0]
+        assert entry['possibly_truncated'] is True
+        assert 'series cap' in entry['truncation_note']
+
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.resolve_run')
+    async def test_error_is_returned_not_raised(self, mock_resolve):
+        mock_resolve.side_effect = RuntimeError('kaput')
+        ctx = _mock_ctx()
+        result = await run_metrics.get_run_metrics(ctx, run_id='123')
+        assert 'kaput' in result['error']
+        ctx.error.assert_awaited()
+
+
+@pytest.mark.asyncio
+class TestCompareRunMetricsTool:
+    """CompareAHORunMetrics wall-clock, notes, and error paths."""
+
+    def _client(self, mock_client_cls):
+        client = mock_client_cls.return_value
+        type(client).region = 'us-west-2'
+        client.query_range.return_value = []
+        return client
+
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.VendedMetricsClient')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.resolve_run')
+    async def test_wall_clock_and_no_metrics_note(self, mock_resolve, mock_client_cls):
+        mock_resolve.side_effect = lambda run_id, region=None, profile=None: _run(
+            run_id, [_task(f't{run_id}', 'align')], duration_hours=float(run_id)
+        )
+        self._client(mock_client_cls)
+
+        result = await run_metrics.compare_run_metrics(_mock_ctx(), run_id_a='1', run_id_b='2')
+
+        assert result['wall_clock']['delta_seconds'] == 3600.0
+        assert result['note'] == run_metrics.FEATURE_ABSENT_REASON
+
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.query_metric_series')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.VendedMetricsClient')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.resolve_run')
+    async def test_one_sided_metrics_note_names_the_empty_run(
+        self, mock_resolve, mock_client_cls, mock_query
+    ):
+        mock_resolve.side_effect = lambda run_id, region=None, profile=None: _run(
+            run_id, [_task(f't{run_id}', 'align')]
+        )
+        self._client(mock_client_cls)
+
+        def fake_query(client, name, start, end, step_seconds=None, run_id=None, **kwargs):
+            if run_id == '1':
+                return (
+                    [
+                        TimeSeries(
+                            labels={'@resource.aws.omics.task.id': 't1'},
+                            timestamps=[0.0, 60.0],
+                            values=[1.0, 2.0],
+                        )
+                    ],
+                    False,
+                )
+            return ([], False)
+
+        mock_query.side_effect = fake_query
+
+        result = await run_metrics.compare_run_metrics(_mock_ctx(), run_id_a='1', run_id_b='2')
+
+        assert 'No vended metrics found for run 2' in result['note']
+
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.resolve_run')
+    async def test_error_is_returned_not_raised(self, mock_resolve):
+        mock_resolve.side_effect = RuntimeError('nope')
+        ctx = _mock_ctx()
+        result = await run_metrics.compare_run_metrics(ctx, run_id_a='1', run_id_b='2')
+        assert 'nope' in result['error']
+        ctx.error.assert_awaited()
+
+
+@pytest.mark.asyncio
+class TestGetWorkflowMetricsPagination:
+    """Run-listing pagination and error paths."""
+
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.VendedMetricsClient')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.resolve_run')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.get_omics_client')
+    async def test_paginates_list_runs(self, mock_omics, mock_resolve, mock_client_cls):
+        pages = [
+            {'items': [{'id': '1', 'workflowId': 'wf1'}], 'nextToken': 'tok'},
+            {'items': [{'id': '2', 'workflowId': 'wf1'}]},
+        ]
+        mock_omics.return_value.list_runs.side_effect = pages
+        mock_resolve.side_effect = lambda run_id, region=None, profile=None: _run(
+            run_id, [_task(f't{run_id}', 'align')]
+        )
+        client = mock_client_cls.return_value
+        type(client).region = 'us-west-2'
+        client.query_range.return_value = []
+
+        result = await run_metrics.get_workflow_metrics(_mock_ctx(), workflow_id='wf1', max_runs=5)
+
+        assert result['run_ids'] == ['1', '2']
+        assert mock_omics.return_value.list_runs.call_count == 2
+        assert mock_omics.return_value.list_runs.call_args.kwargs['startingToken'] == 'tok'
+
+    @patch('awslabs.aws_healthomics_mcp_server.tools.run_metrics.get_omics_client')
+    async def test_error_is_returned_not_raised(self, mock_omics):
+        mock_omics.side_effect = RuntimeError('denied')
+        ctx = _mock_ctx()
+        result = await run_metrics.get_workflow_metrics(ctx, workflow_id='wf1')
+        assert 'denied' in result['error']
+        ctx.error.assert_awaited()
+
+
+class TestCompareTaskMetricsEdgeCases:
+    """Sync alignment edge cases for compare_task_metrics."""
+
+    def test_task_only_in_run_a_is_flagged(self):
+        run_a = _run('1', [_task('a1', 'align'), _task('a2', 'extra')])
+        run_b = _run('2', [_task('b1', 'align')])
+        result = run_metrics.compare_task_metrics(run_a, run_b, {}, {})
+        extra = next(r for r in result if r['task_name'] == 'extra')
+        assert extra['note'] == 'Task only present in run A'
+
+    def test_metric_with_no_values_on_either_side_is_omitted(self):
+        run_a = _run('1', [_task('a1', 'align')])
+        run_b = _run('2', [_task('b1', 'align')])
+        empty = SeriesSummary(labels={}, datapoint_count=0)
+        metrics = {'aws.omics.task.cpu.usage': {'a1': empty}}
+        result = run_metrics.compare_task_metrics(run_a, run_b, metrics, {})
+        assert result[0]['metric_deltas'] == []

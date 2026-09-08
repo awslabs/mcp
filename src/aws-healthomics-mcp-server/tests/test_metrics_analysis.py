@@ -363,3 +363,105 @@ class TestReportFormatting:
         mock_resolve.side_effect = RuntimeError('boom')
         lines = metrics_section_for_report('123')
         assert any('could not be analyzed' in line for line in lines)
+
+
+class TestFormatBytes:
+    """Unit-scaled byte rendering."""
+
+    def test_scales(self):
+        assert analysis._format_bytes(None) == 'n/a'
+        assert analysis._format_bytes(2 * GIB) == '2.00 GiB'
+        assert analysis._format_bytes(5 * 1024**2) == '5.0 MiB'
+        assert analysis._format_bytes(512) == '512 B'
+
+
+class TestReportFormattingBranches:
+    """Optional sections and truncation markers in the report."""
+
+    def _full_signature(self, i):
+        sig = TaskSignature(
+            task_id=f't{i}',
+            task_name=f'align ({i})',
+            cpu_peak=7.0,
+            cpu_average=6.5,
+            cpu_limit=16.0,
+            memory_peak_bytes=60 * GIB,
+            memory_limit_bytes=64 * GIB,
+            gpu_peak_percent=4.0,
+            filesystem_rate_bytes_per_second=200e6,
+            scratch_peak_bytes=180 * GIB,
+        )
+        sig.categories = ['MEMORY_PRESSURE', 'IO_BOUND']
+        return sig
+
+    def test_stuck_section_and_overflow_markers(self):
+        result = {
+            'run_id': '123',
+            'available': True,
+            'storage_type': 'STATIC',
+            'scratch_mode': 'LOCAL',
+            'tasks_observed': 12,
+            'task_count': 12,
+            'category_counts': {'MEMORY_PRESSURE': 12},
+            'signatures': [self._full_signature(i) for i in range(12)],
+            'stuck_tasks': [
+                {
+                    'task_id': 't1',
+                    'task_name': 'align (1)',
+                    'verdict': 'POSSIBLY_HUNG',
+                    'evidence': 'no CPU or I/O movement',
+                },
+                {
+                    'task_id': 't2',
+                    'task_name': 'align (2)',
+                    'verdict': 'PROGRESSING',
+                    'evidence': 'CPU active',
+                },
+            ],
+            'right_sizing': [
+                analysis.RightSizing(
+                    task_name=f'align ({i})',
+                    task_count=1,
+                    recommended_cpus=8,
+                    current_cpus=16,
+                    recommended_memory_gib=72.0,
+                    current_memory_gib=64,
+                    recommended_scratch_gib=220.0,
+                )
+                for i in range(12)
+            ],
+            'missing_metrics': [],
+        }
+
+        text = '\n'.join(format_metrics_report_section(result))
+
+        assert 'Stuck-Run Check' in text
+        assert 'POSSIBLY_HUNG' in text
+        assert 'PROGRESSING' not in text  # only concerning verdicts are listed
+        assert 'gpu peak 4%' in text
+        assert 'fs io 190.7 MiB/s' in text
+        assert 'scratch peak 180.00 GiB' in text
+        assert 'memory 64 -> 72.0 GiB' in text
+        assert 'scratch needs ~220.0 GiB' in text
+        assert text.count('...and 2 more') == 2  # signatures and right-sizing overflow
+
+
+class TestAnalyzeRunMetricsLaunchGate:
+    """No-summaries reason depends on the run's start date."""
+
+    @patch('awslabs.aws_healthomics_mcp_server.metrics.analysis.VendedMetricsClient')
+    @patch('awslabs.aws_healthomics_mcp_server.metrics.analysis.resolve_run')
+    def test_post_launch_run_gets_feature_reason(self, mock_resolve, mock_client_cls):
+        run = _run([_task()])
+        post_launch = datetime(2026, 9, 10, 12, 0, tzinfo=timezone.utc)
+        object.__setattr__(run, 'start_time', post_launch)
+        object.__setattr__(run, 'stop_time', post_launch + timedelta(hours=2))
+        mock_resolve.return_value = run
+        client = mock_client_cls.return_value
+        type(client).region = 'us-west-2'
+        client.query_range.return_value = []
+
+        result = analyze_run_metrics('123')
+
+        assert result['available'] is False
+        assert 'No vended metric series found' in result['reason']

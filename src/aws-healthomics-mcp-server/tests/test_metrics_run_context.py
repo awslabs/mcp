@@ -22,6 +22,7 @@ from awslabs.aws_healthomics_mcp_server.metrics.run_context import (
     resolve_run,
 )
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 from unittest.mock import MagicMock, patch
 
 
@@ -30,7 +31,13 @@ STOP = START + timedelta(hours=2)
 NOW = STOP + timedelta(hours=1)
 
 
-def _task(task_id='t1', name='align', gpus=None, start=START, stop=STOP):
+def _task(
+    task_id='t1',
+    name='align',
+    gpus=None,
+    start: Optional[datetime] = START,
+    stop: Optional[datetime] = STOP,
+):
     return TaskContext(
         task_id=task_id,
         name=name,
@@ -43,7 +50,13 @@ def _task(task_id='t1', name='align', gpus=None, start=START, stop=STOP):
     )
 
 
-def _run(status='COMPLETED', tasks=None, start=START, stop=STOP, **kwargs):
+def _run(
+    status='COMPLETED',
+    tasks=None,
+    start: Optional[datetime] = START,
+    stop: Optional[datetime] = STOP,
+    **kwargs,
+):
     return RunContext(
         run_id='123',
         workflow_id='wf1',

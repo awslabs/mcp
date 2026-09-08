@@ -141,7 +141,9 @@ class VendedMetricsClient:
                 chain.
         """
         session = get_aws_session(region_name=region, profile_name=profile)
-        self._region = session.region_name
+        if not session.region_name:
+            raise ValueError('AWS region could not be determined')
+        self._region: str = session.region_name
         self._credentials = session.get_credentials()
         if self._credentials is None:
             raise ValueError('AWS credentials not found')
