@@ -254,6 +254,32 @@ class TestGetRecommendation:
         # Verify formatted currency
         assert rec['estimated_monthly_savings'] == 50.0
 
+    async def test_includes_current_and_recommended_resource_details(
+        self, mock_context, mock_coh_client
+    ):
+        """Test get_recommendation surfaces current and recommended resource details."""
+        current_details = {'ec2Instance': {'configuration': {'instance': {'type': 'm5.2xlarge'}}}}
+        recommended_details = {
+            'ec2Instance': {'configuration': {'instance': {'type': 'm5.large'}}}
+        }
+        mock_coh_client.get_recommendation.return_value = {
+            'recommendationId': 'rec-123',
+            'resourceId': 'i-1234567890abcdef0',
+            'currentResourceDetails': current_details,
+            'recommendedResourceDetails': recommended_details,
+        }
+
+        result = await get_recommendation(
+            mock_context,
+            mock_coh_client,
+            recommendation_id='i-1234567890abcdef0',
+        )
+
+        assert result['status'] == 'success'
+        rec = result['data']
+        assert rec['current_resource_details'] == current_details
+        assert rec['recommended_resource_details'] == recommended_details
+
 
 @pytest.mark.asyncio
 class TestListRecommendationSummaries:
@@ -767,9 +793,8 @@ class TestRecommendationFormatting:
         """Test get_recommendation with minimal recommendation data."""
         mock_coh_client.get_recommendation.return_value = {
             'resourceId': 'i-minimal',
-            'resourceType': 'EC2_INSTANCE',
+            'currentResourceType': 'Ec2Instance',
             'accountId': '123456789012',
-            'status': 'ADOPTED',
             'recommendationId': 'rec-minimal',
             # Missing optional fields: source, lookbackPeriodInDays, estimatedMonthlySavings
         }
@@ -789,9 +814,8 @@ class TestRecommendationFormatting:
         """Test get_recommendation with cost breakdown but no implementation effort."""
         mock_coh_client.get_recommendation.return_value = {
             'resourceId': 'i-test',
-            'resourceType': 'EC2_INSTANCE',
+            'currentResourceType': 'Ec2Instance',
             'accountId': '123456789012',
-            'status': 'ADOPTED',
             'recommendationId': 'rec-test',
             'estimatedMonthlySavings': 50.0,
             # Missing implementationEffort

@@ -13,4 +13,4 @@
 # limitations under the License.
 """awslabs Bedrock Knowledge Base Retrieval MCP Server"""
 
-__version__ = '1.0.25'
+__version__ = '1.1.0'

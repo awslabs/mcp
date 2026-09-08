@@ -1116,6 +1116,42 @@ class TestEnsureS3BucketHelper:
         with pytest.raises(ClientError):
             _ensure_s3_bucket(config, 'scans')
 
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    @patch('awslabs.security_agent_mcp_server.server._state')
+    def test_squatted_bucket_aborts_before_caching(self, mock_state, mock_client):
+        """A 403 from the ownership assertion aborts without registering or caching the bucket."""
+        from awslabs.security_agent_mcp_server.server import _ensure_s3_bucket
+        from botocore.exceptions import ClientError
+
+        config = {'agent_space_id': 'as-1'}
+        mock_client.get_caller_identity.return_value = {'Account': '123'}
+        mock_client.create_s3_bucket.side_effect = ClientError(
+            {'Error': {'Code': 'BucketAlreadyExists', 'Message': 'taken'}}, 'CreateBucket'
+        )
+        with pytest.raises(ClientError):
+            _ensure_s3_bucket(config, 'scans')
+        mock_client.verify_bucket_owner.assert_not_called()
+        mock_client.update_agent_space.assert_not_called()
+        mock_state.update_config.assert_not_called()
+
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    @patch('awslabs.security_agent_mcp_server.server._state')
+    def test_ownership_assertion_403_aborts(self, mock_state, mock_client):
+        """If create succeeds but ownership can't be confirmed, abort without caching."""
+        from awslabs.security_agent_mcp_server.server import _ensure_s3_bucket
+        from botocore.exceptions import ClientError
+
+        config = {'agent_space_id': 'as-1'}
+        mock_client.get_caller_identity.return_value = {'Account': '123'}
+        mock_client.create_s3_bucket.return_value = 'security-agent-scans-123-us-east-1'
+        mock_client.verify_bucket_owner.side_effect = ClientError(
+            {'Error': {'Code': '403', 'Message': 'Forbidden'}}, 'HeadBucket'
+        )
+        with pytest.raises(ClientError):
+            _ensure_s3_bucket(config, 'scans')
+        mock_client.update_agent_space.assert_not_called()
+        mock_state.update_config.assert_not_called()
+
 
 class TestValidatePath:
     """Tests for _validate_path workspace boundary enforcement."""
@@ -1204,7 +1240,7 @@ class TestClientPrefix:
         from awslabs.security_agent_mcp_server.server import _client_prefix
 
         ctx = MagicMock()
-        ctx.session.client_params.clientInfo.name = 'Kiro IDE'
+        ctx.session.client_params.client_info.name = 'Kiro IDE'
         assert _client_prefix(ctx) == 'kiro-ide'
 
     def test_none_session_returns_fallback(self):
@@ -1220,7 +1256,7 @@ class TestClientPrefix:
         from awslabs.security_agent_mcp_server.server import _client_prefix
 
         ctx = MagicMock()
-        ctx.session.client_params.clientInfo.name = 123
+        ctx.session.client_params.client_info.name = 123
         assert _client_prefix(ctx) == 'ide'
 
     def test_attribute_error_returns_fallback(self):
@@ -1228,10 +1264,111 @@ class TestClientPrefix:
         from awslabs.security_agent_mcp_server.server import _client_prefix
 
         ctx = MagicMock()
-        type(ctx.session.client_params).clientInfo = property(
+        type(ctx.session.client_params).client_info = property(
             lambda self: (_ for _ in ()).throw(AttributeError)
         )
         assert _client_prefix(ctx) == 'ide'
+
+
+class TestEnsureClientUa:
+    """Tests for _ensure_client_ua."""
+
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    def test_extracts_and_sets_client_info(self, mock_client):
+        """_ensure_client_ua sets client info from MCP context."""
+        from awslabs.security_agent_mcp_server.server import _ensure_client_ua
+
+        ctx = MagicMock()
+        ctx.session.client_params.client_info.name = 'kiro'
+        ctx.session.client_params.client_info.version = '1.5.0'
+
+        _ensure_client_ua(ctx)
+        mock_client.set_mcp_client_info.assert_called_once_with('kiro', '1.5.0')
+
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    def test_none_session_does_not_call_set(self, mock_client):
+        """_ensure_client_ua does nothing when session is None."""
+        from awslabs.security_agent_mcp_server.server import _ensure_client_ua
+
+        ctx = MagicMock()
+        ctx.session = None
+
+        _ensure_client_ua(ctx)
+        mock_client.set_mcp_client_info.assert_not_called()
+
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    def test_none_client_params_does_not_call_set(self, mock_client):
+        """_ensure_client_ua does nothing when client_params is None."""
+        from awslabs.security_agent_mcp_server.server import _ensure_client_ua
+
+        ctx = MagicMock()
+        ctx.session.client_params = None
+
+        _ensure_client_ua(ctx)
+        mock_client.set_mcp_client_info.assert_not_called()
+
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    def test_none_client_info_does_not_call_set(self, mock_client):
+        """_ensure_client_ua does nothing when clientInfo is None."""
+        from awslabs.security_agent_mcp_server.server import _ensure_client_ua
+
+        ctx = MagicMock()
+        ctx.session.client_params.client_info = None
+
+        _ensure_client_ua(ctx)
+        mock_client.set_mcp_client_info.assert_not_called()
+
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    def test_non_string_name_uses_default(self, mock_client):
+        """_ensure_client_ua uses DEFAULT_MCP_CLIENT_NAME when name is not a string."""
+        from awslabs.security_agent_mcp_server.server import _ensure_client_ua
+
+        ctx = MagicMock()
+        ctx.session.client_params.client_info.name = 123
+        ctx.session.client_params.client_info.version = '1.0'
+
+        _ensure_client_ua(ctx)
+        mock_client.set_mcp_client_info.assert_called_once_with('unknown', '1.0')
+
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    def test_non_string_version_uses_empty(self, mock_client):
+        """_ensure_client_ua uses empty string when version is not a string."""
+        from awslabs.security_agent_mcp_server.server import _ensure_client_ua
+
+        ctx = MagicMock()
+        ctx.session.client_params.client_info.name = 'kiro'
+        ctx.session.client_params.client_info.version = 123
+
+        _ensure_client_ua(ctx)
+        mock_client.set_mcp_client_info.assert_called_once_with('kiro', '')
+
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    def test_missing_version_attr_uses_empty(self, mock_client):
+        """_ensure_client_ua uses empty string when version attr is missing."""
+        from awslabs.security_agent_mcp_server.server import _ensure_client_ua
+
+        ctx = MagicMock()
+        ctx.session.client_params.client_info.name = 'kiro'
+        del ctx.session.client_params.client_info.version
+
+        _ensure_client_ua(ctx)
+        mock_client.set_mcp_client_info.assert_called_once_with('kiro', '')
+
+    @patch('awslabs.security_agent_mcp_server.server._client')
+    def test_attribute_error_is_caught(self, mock_client):
+        """_ensure_client_ua handles AttributeError gracefully."""
+        from awslabs.security_agent_mcp_server.server import _ensure_client_ua
+
+        class _BrokenSession:
+            @property
+            def client_params(self):
+                raise AttributeError('broken')
+
+        ctx = MagicMock()
+        ctx.session = _BrokenSession()
+
+        _ensure_client_ua(ctx)  # Should not raise
+        mock_client.set_mcp_client_info.assert_not_called()
 
 
 class TestStartDiffScanErrors:

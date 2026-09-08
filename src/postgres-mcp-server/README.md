@@ -233,3 +233,47 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
 -- Force read-only transactions
 ALTER ROLE postgres_mcp_server_readonly SET default_transaction_read_only = on;
 ```
+
+#### Least-privilege guardrail (`--privilege_check`)
+
+To make the guidance above hard to get wrong, the server validates the
+connected role when a connection is established (at startup and via the
+`connect_to_database` tool) and can refuse to operate as an over-privileged
+role — a superuser, a member of `rds_superuser`, or a role with the
+`BYPASSRLS` attribute (which defeats row-level security without being a
+superuser). This is a guardrail, not the security boundary itself — the
+database-enforced role privileges remain the real control — but it helps
+prevent the MCP server from silently running with privileges that would
+render the blocklist and RLS moot.
+
+The behavior is controlled by the `--privilege_check` argument:
+
+| Value | Behavior |
+|-------|----------|
+| `warn` (default) | Log a warning but allow a connection whose role is over-privileged (superuser, `rds_superuser` member, or `BYPASSRLS`). A connectivity/authentication failure still aborts (the guardrail only relaxes the *privilege* check, not the need for a working connection). |
+| `enforce` | Reject the connection if the role is over-privileged (superuser, `rds_superuser` member, or `BYPASSRLS`). If the check cannot be performed, the connection is rejected (fail-closed). |
+| `off` | Skip the privilege check entirely (connectivity is still verified). |
+
+The default is `warn` so that upgrades, and the `create_cluster` bootstrap
+(which necessarily connects as the `rds_superuser` master before any
+least-privilege role exists), do not fail — the over-privileged connection is
+allowed but a warning is logged. **For production, set `--privilege_check
+enforce`** and connect with a dedicated least-privilege role such as the
+read-only role above. Under `enforce`, a violation aborts the server at
+startup and returns a connection failure through `connect_to_database`.
+
+The check reads only the connected role's own entry in the `pg_roles` catalog
+and tolerates clusters where `rds_superuser` does not exist (e.g. self-hosted
+PostgreSQL). Note that on Amazon Aurora the master user is a *member of*
+`rds_superuser` (rather than a raw `rolsuper` superuser), and the guardrail
+detects that membership.
+
+Example (add to the `args` array in your MCP config — recommended for
+production):
+
+```json
+"args": [
+  "awslabs.postgres-mcp-server@latest",
+  "--privilege_check", "enforce"
+]
+```
