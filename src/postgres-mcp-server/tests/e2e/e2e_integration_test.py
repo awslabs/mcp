@@ -1015,10 +1015,62 @@ def create_e2e_test_security_group(
             )
         raise
 
+    # Also authorize THIS host's public egress IP as a /32. The managed prefix
+    # lists cover corp/VPN egress, but a Cloud Dev / dev-desktop host often
+    # egresses from an IP outside them, so its packets to the publicly-
+    # accessible cluster get silently dropped by the SG (TCP timeout). Adding
+    # the detected egress /32 makes the cluster reachable from wherever the e2e
+    # runs. Best-effort: if detection fails we keep the prefix-list rule.
+    egress_ip = _detect_public_egress_ip()
+    if egress_ip:
+        try:
+            ec2.authorize_security_group_ingress(
+                GroupId=sg_id,
+                IpPermissions=[
+                    {
+                        'IpProtocol': 'tcp',
+                        'FromPort': 5432,
+                        'ToPort': 5432,
+                        'IpRanges': [
+                            {
+                                'CidrIp': f'{egress_ip}/32',
+                                'Description': 'e2e test host public egress',
+                            }
+                        ],
+                    }
+                ],
+            )
+        except Exception as e:
+            logger.warning(f'could not authorize host egress {egress_ip}/32 on test SG: {e}')
+
     logger.info(
-        f'created test SG {sg_name} ({sg_id}) authorizing {", ".join(prefix_list_ids)} on tcp:5432'
+        f'created test SG {sg_name} ({sg_id}) authorizing {", ".join(prefix_list_ids)}'
+        f'{f" + {egress_ip}/32" if egress_ip else ""} on tcp:5432'
     )
     return sg_id
+
+
+def _detect_public_egress_ip() -> Optional[str]:
+    """Return this host's public egress IP (for SG ingress), or None.
+
+    Best-effort HTTPS GET to a constant AWS IP-echo endpoint. Never raises —
+    on any failure the caller falls back to the managed prefix lists alone.
+    """
+    import ipaddress
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(  # nosec B310  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+            'https://checkip.amazonaws.com', timeout=10
+        ) as resp:
+            ip = resp.read().decode().strip()
+        ipaddress.ip_address(ip)  # validate; raises if not a plain IP
+        return ip
+    except Exception as e:
+        logger.warning(
+            f'could not detect public egress IP (test SG will rely on prefix lists only): {e}'
+        )
+        return None
 
 
 def delete_e2e_test_security_group(region: str, sg_id: str) -> None:
