@@ -66,29 +66,32 @@ def _get_max_file_size() -> int:
     return DEFAULT_MAX_FILE_SIZE
 
 
-# Base directory for file access security - configurable via environment
-# Secure by default: restricts to current working directory
-# For production: set DOCUMENT_BASE_DIR="/var/app/documents"
-# For testing: set DOCUMENT_BASE_DIR="/" to allow temp files
+# Base directory for file access security - configurable via environment.
+# Secure by default: restricts file access to the current working directory.
+# Set DOCUMENT_BASE_DIR to define the sandbox explicitly, e.g.
+#   production: DOCUMENT_BASE_DIR="/var/app/documents"
+#
+# The sandbox is ALWAYS enforced. There is intentionally no implicit bypass
+# based on ambient environment signals (e.g. CI, GITHUB_ACTIONS,
+# PYTEST_CURRENT_TEST): those are set unconditionally by CI platforms and
+# would silently disable path containment in exactly the automated,
+# unattended environments where it matters most. Tests that require broader
+# access set DOCUMENT_BASE_DIR explicitly (see tests/conftest.py).
 def _get_base_directory() -> Path:
-    """Get base directory with secure defaults."""
+    """Get base directory with secure defaults.
+
+    Honors the DOCUMENT_BASE_DIR environment variable when set; otherwise
+    restricts access to the current working directory. The returned path is
+    resolved so that containment checks compare canonical (symlink-free)
+    paths.
+    """
     env_base = os.getenv('DOCUMENT_BASE_DIR')
     if env_base:
-        return Path(env_base)
+        return Path(env_base).resolve()
 
-    # Check if we're in a testing environment
-    if any(
-        test_indicator in os.environ
-        for test_indicator in ['PYTEST_CURRENT_TEST', 'CI', 'GITHUB_ACTIONS']
-    ):
-        # In testing: allow broader access for temp files
-        return Path('/')
+    # Production default: restrict to current working directory.
+    return Path.cwd().resolve()
 
-    # Production default: restrict to current working directory
-    return Path.cwd()
-
-
-BASE_DIRECTORY = _get_base_directory()
 
 # Timeout Constants
 DEFAULT_TIMEOUT_SECONDS = 30  # 30 second default timeout

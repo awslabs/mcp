@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Trimmed the vendored `elasticgumbyfrontendservice` service model to the
+  operations available through this server (and pruned their now-unused shapes):
+  the plan operations `CreatePlan`, `UpdatePlan`, `GetPlan`, and `ListPlans`; the
+  dashboard operations `CreateDashboard` and `GetDashboard`;
+  `ListIamRoleAssignments`; the `SendMessageStreaming` streaming operation; and
+  the internal test operations `TestReleaseTraitPreProd` and
+  `TestReleaseTraitProd`.
 - Removed the legacy `jobType` parameter from the `create_job` tool and the
   `CreateJobRequest` model. AWS Transform no longer honors `jobType` on
   `CreateJob`; callers must use `orchestratorAgent` instead. The
