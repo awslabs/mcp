@@ -314,7 +314,7 @@ DELETE FROM logs WHERE created_at < NOW() - INTERVAL '6 months';
 END;
 $$;""",
     r"""DROP PROCEDURE IF EXISTS cleanup_old_data();""",
-    r"""CREATE LANGUAGE IF NOT EXISTS plpython3u;""",
+    r"""CREATE LANGUAGE plpython3u;""",
     r"""DROP LANGUAGE IF EXISTS plpython3u;""",
     # Extensions
     r"""CREATE EXTENSION IF NOT EXISTS pg_trgm;""",
@@ -585,6 +585,46 @@ async def test_run_query_risky_queries_without_parameters():
 
 
 @pytest.mark.asyncio
+async def test_run_query_rejection_does_not_echo_sql_at_info():
+    """A rejected query's literals are not logged at INFO; full SQL is DEBUG-only.
+
+    The guard keeps literals out of its message (see
+    test_rejection_message_does_not_echo_sensitive_literal); this guards the
+    run_query call site so a rejected query carrying a secret/PII literal is not
+    echoed verbatim at INFO. The full statement is available only at DEBUG.
+    """
+    from loguru import logger
+
+    mock_db_connection = Mock_DBConnection(readonly=True)
+    setup_mock_connection(mock_db_connection)
+
+    secret_literal = '/etc/shadow_secret_path'  # pragma: allowlist secret
+    sql_text = f"SELECT pg_read_file('{secret_literal}')"
+
+    info_msgs: list = []
+    debug_msgs: list = []
+    info_sink = logger.add(info_msgs.append, level='INFO', format='{message}')
+    debug_sink = logger.add(debug_msgs.append, level='DEBUG', format='{message}')
+    try:
+        ctx = DummyCtx()
+        response = await run_query(
+            sql_text, ctx, ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
+        )
+    finally:
+        logger.remove(info_sink)
+        logger.remove(debug_sink)
+
+    assert 'error' in response[0]
+    info_blob = ' '.join(str(m) for m in info_msgs)
+    debug_blob = ' '.join(str(m) for m in debug_msgs)
+    # The sanitized reason is logged at INFO; the sensitive literal is not.
+    assert 'rejected by SQL policy guard' in info_blob
+    assert secret_literal not in info_blob
+    # The full statement (with the literal) is available only at DEBUG.
+    assert secret_literal in debug_blob
+
+
+@pytest.mark.asyncio
 async def test_run_query_throw_client_error():
     """Test that run_query properly handles client errors from RDS Data API by mokcing the RDA API exception."""
     mock_db_connection = Mock_DBConnection(readonly=True, error=MockException.Client)
@@ -633,13 +673,17 @@ async def test_run_query_write_queries_on_readonly_setting():
             sql_text, ctx, ConnectionMethod.RDS_API, 'test-cluster', 'test-endpoint', 'test-db'
         )
 
-        # All query should fail with an error in response. The parser-based
-        # guard returns a message naming the rejected construct (FR8), so we
-        # assert a non-empty error rather than a fixed string.
+        # Each query must be rejected *specifically* because it is a write in
+        # read-only mode -- not because the guard couldn't parse it or the DB
+        # connection failed. Assert the read-only-mode reason (matching the e2e
+        # helper _is_readonly_rejection) so a regression in _check_read_only
+        # cannot pass by returning some other generic error.
         assert len(response) == 1
         assert len(response[0]) == 1
         assert 'error' in response[0]
-        assert response[0].get('error')
+        assert 'read-only mode' in response[0].get('error', ''), (
+            f'expected a read-only rejection, got: {response[0].get("error")!r} for {sql_text!r}'
+        )
 
 
 @pytest.mark.asyncio
@@ -1558,6 +1602,52 @@ async def test_create_cluster_express():
                     mock_get_props.assert_called_once()
                     mock_setup_iam.assert_called_once()
                     mock_connect.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_create_cluster_express_warns_when_iam_disabled():
+    """Express + enable_iam_auth=False is contradictory: warn (don't silently flip).
+
+    Express clusters are always IAM-based, so enable_iam_auth=False is ignored;
+    surface it at runtime instead of only in the docstring. enable_iam_auth=True
+    (or default omitted) must NOT warn.
+    """
+    from loguru import logger
+
+    def _run(enable_iam_auth):
+        with (
+            patch('awslabs.postgres_mcp_server.server.internal_create_express_cluster'),
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_cluster_properties'
+            ) as mock_get_props,
+            patch('awslabs.postgres_mcp_server.server.setup_aurora_iam_policy_for_current_user'),
+            patch('awslabs.postgres_mcp_server.server.internal_create_connection') as mock_connect,
+        ):
+            mock_get_props.return_value = {
+                'Endpoint': 'test-endpoint.amazonaws.com',
+                'Port': 5432,
+                'MasterUsername': 'postgres',
+                'DbClusterResourceId': 'cluster-ABCD1234',
+                'DBClusterArn': 'arn:aws:rds:us-east-2:123456789012:cluster:x',
+            }
+            mock_connect.return_value = (Mock_DBConnection(readonly=False), 'ok')
+            msgs: list = []
+            sink = logger.add(msgs.append, level='WARNING', format='{message}')
+            try:
+                create_cluster(
+                    region='us-east-2',
+                    cluster_identifier='test-express-cluster',
+                    with_express_configuration=True,
+                    enable_iam_auth=enable_iam_auth,
+                )
+            finally:
+                logger.remove(sink)
+            return ' '.join(str(m) for m in msgs)
+
+    # enable_iam_auth=False -> warns about the ignored/contradictory flag.
+    assert 'enable_iam_auth=False is ignored' in _run(enable_iam_auth=False)
+    # enable_iam_auth=True -> no such warning.
+    assert 'enable_iam_auth=False is ignored' not in _run(enable_iam_auth=True)
 
 
 @pytest.mark.asyncio

@@ -65,6 +65,7 @@ import asyncio
 import awslabs.postgres_mcp_server.server as server
 import json
 import os
+import psycopg
 import shutil
 import subprocess
 import sys
@@ -126,25 +127,36 @@ class TestResult:
     connection_method_name: str
     passed: list
     failed: list  # list of (step_name, error_message) tuples
-    skipped: Optional[list] = None  # list of (step_name, reason) tuples; None == empty
+    # (step, reason) tuples for checks that could NOT run (missing tooling, or a
+    # cluster that failed to create). Counts as not-pass -> fails the run.
+    skipped: Optional[list] = None
+    # (step, reason) tuples for by-design-impossible or operator-opted-out
+    # combinations (e.g. RDS Data API on an express cluster). Surfaced honestly
+    # as N/A but does NOT count against success -- there is nothing to verify.
+    not_applicable: Optional[list] = None
 
     def __post_init__(self):
-        """Default skipped to an empty list."""
+        """Default the optional lists to empty."""
         if self.skipped is None:
             self.skipped = []
+        if self.not_applicable is None:
+            self.not_applicable = []
 
     @property
     def success(self) -> bool:
-        """Return True if all test steps passed.
+        """Return True if all *applicable* test steps passed.
 
-        Skipped steps count as not-pass so that 'cluster creation failed'
-        cascades into a non-zero exit code.
+        Skipped steps (a check that could not run -- missing CA bundle/openssl,
+        or a cluster that failed to create) count as not-pass, so they cascade
+        into a non-zero exit code. Not-applicable steps (a by-design-impossible
+        or operator-opted-out combination) do NOT count against success: there
+        is nothing to verify, so they are neither a pass nor a failure.
         """
         return len(self.failed) == 0 and len(self.skipped or []) == 0
 
 
 def log_step(step: str, status: str, detail: str = ''):
-    """Log a test step with a status marker (PASS, FAIL, SKIP, INFO)."""
+    """Log a test step with a status marker (PASS, FAIL, SKIP, N/A, INFO)."""
     msg = f'  [{status}] {step}'
     if detail:
         msg += f': {detail}'
@@ -154,8 +166,23 @@ def log_step(step: str, status: str, detail: str = ''):
         logger.error(msg)
     elif status == 'SKIP':
         logger.warning(msg)
-    else:
+    else:  # N/A, INFO, and any other marker are informational
         logger.info(msg)
+
+
+def record_not_applicable(result: 'TestResult', step: str, reason: str) -> None:
+    """Record a step as not-applicable: a by-design-impossible / opted-out combo.
+
+    Surfaced honestly as ``[N/A]`` but does NOT count against
+    ``TestResult.success`` -- unlike a pass it does not claim the check ran, and
+    unlike a skip/failure it does not fail the run. Use ONLY when the
+    combination genuinely does not exist (e.g. RDS Data API on an express
+    cluster, or an operator opting out via a flag), never when a check that
+    should run could not.
+    """
+    log_step(step, 'N/A', reason)
+    assert result.not_applicable is not None
+    result.not_applicable.append((step, reason))
 
 
 _PGWIRE_METHODS = (
@@ -1754,10 +1781,7 @@ async def run_secret_arn_validation_suite(
         # ------------------------------------------------------------------
         step = 'secret_arn_rds_api_succeeds'
         if cluster_kind == 'express':
-            record(step, True, 'skipped: RDS_API not supported on express cluster')
-            # Record as passed skip rather than failed skip — this is a
-            # by-design incompatibility, not a bug.
-            # (Recording via record() with ok=True adds to passed.)
+            record_not_applicable(result, step, 'RDS_API not supported on express cluster')
         else:
             try:
                 reset_to_real_secret()
@@ -1793,12 +1817,14 @@ async def run_secret_arn_validation_suite(
         # ------------------------------------------------------------------
         step = 'secret_arn_pg_wire_succeeds'
         if cluster_kind == 'express':
-            record(step, True, 'skipped: PG_WIRE_PROTOCOL not supported on express cluster')
+            record_not_applicable(
+                result, step, 'PG_WIRE_PROTOCOL not supported on express cluster'
+            )
         elif not test_non_express_cluster:
-            record(
+            record_not_applicable(
+                result,
                 step,
-                True,
-                'skipped: --test-non-express-cluster not set (PG_WIRE_PROTOCOL '
+                '--test-non-express-cluster not set (PG_WIRE_PROTOCOL '
                 'on serverless requires VPC reachability)',
             )
         else:
@@ -1834,17 +1860,17 @@ async def run_secret_arn_validation_suite(
         # ------------------------------------------------------------------
         step = 'secret_arn_pg_wire_iam_succeeds'
         if cluster_kind == 'serverless' and not test_non_express_cluster:
-            record(
+            record_not_applicable(
+                result,
                 step,
-                True,
-                'skipped: --test-non-express-cluster not set (PG_WIRE_IAM_PROTOCOL '
+                '--test-non-express-cluster not set (PG_WIRE_IAM_PROTOCOL '
                 'on serverless requires VPC reachability)',
             )
         elif cluster_kind == 'serverless' and not lp_iam_secret_arn:
-            record(
+            record_not_applicable(
+                result,
                 step,
-                True,
-                'skipped: no IAM least-privilege role provisioned (the serverless '
+                'no IAM least-privilege role provisioned (the serverless '
                 'master is not granted rds_iam under the two-role model, so the IAM '
                 'username must come from the lp IAM role secret)',
             )
@@ -1893,10 +1919,10 @@ async def run_secret_arn_validation_suite(
         # ------------------------------------------------------------------
         step = 'bogus_secret_arn_rejected'
         if cluster_kind == 'serverless' and not test_non_express_cluster:
-            record(
+            record_not_applicable(
+                result,
                 step,
-                True,
-                'skipped: --test-non-express-cluster not set (serverless variant '
+                '--test-non-express-cluster not set (serverless variant '
                 'opens PG_WIRE_PROTOCOL pool and requires VPC reachability)',
             )
         else:
@@ -1974,7 +2000,7 @@ async def run_secret_arn_validation_suite(
         # ------------------------------------------------------------------
         step = 'configured_arn_overrides_cluster_metadata'
         if cluster_kind == 'express':
-            record(step, True, 'skipped: RDS_API not supported on express cluster')
+            record_not_applicable(result, step, 'RDS_API not supported on express cluster')
         else:
             try:
                 reset_to_real_secret()
@@ -2119,10 +2145,10 @@ def run_startup_secret_arn_validation_suite(
         # --------------------------------------------------------------
         step = 'main_succeeds_on_readable_secret_arn'
         if not has_managed_secret:
-            record(
+            record_not_applicable(
+                result,
                 step,
-                True,
-                'skipped: cluster has no managed secret (IAM-only express cluster)',
+                'cluster has no managed secret (IAM-only express cluster)',
             )
         else:
             sys.argv = [
@@ -2628,11 +2654,24 @@ async def run_tls_enforcement_suite(
         else:
             result.failed.append((step, detail))
 
+    def record_skip(step, reason):
+        """Record a step as skipped -- NOT passed.
+
+        A skip means the check did not run (missing CA bundle / openssl), so it
+        must not report green: TestResult.success counts skipped as not-pass, so
+        a suite that could verify nothing fails rather than falsely passing.
+        """
+        log_step(step, 'SKIP', reason)
+        assert result.skipped is not None
+        result.skipped.append((step, reason))
+
     # sslmode applies only to the psycopg (PG Wire) path. The RDS Data API
     # connects over verified HTTPS and has no sslmode, so there is nothing to
     # test there.
     if connection_method == ConnectionMethod.RDS_API:
-        record('tls:skipped', True, 'RDS Data API path is verified HTTPS (no sslmode)')
+        record_not_applicable(
+            result, 'tls:skipped', 'RDS Data API path is verified HTTPS (no sslmode)'
+        )
         return result
 
     logger.info(f'\n{"=" * 60}')
@@ -2701,7 +2740,7 @@ async def run_tls_enforcement_suite(
         # Case 1: verify-full (default) -- connect out of the box and prove TLS is on.
         step = 'tls:verify-full (default) connect + pg_stat_ssl'
         if _bundled_ca_file() is None:
-            record(step, True, 'skipped: bundled AWS CA not present; run `python hatch_build.py`')
+            record_skip(step, 'bundled AWS CA not present; run `python hatch_build.py`')
         else:
             try:
                 server.configured_sslmode = 'verify-full'
@@ -2733,7 +2772,7 @@ async def run_tls_enforcement_suite(
         step = 'tls:verify-full wrong-CA rejected'
         throwaway_ca = _make_throwaway_ca()
         if throwaway_ca is None:
-            record(step, True, 'skipped: openssl unavailable to generate a throwaway CA')
+            record_skip(step, 'openssl unavailable to generate a throwaway CA')
         else:
             try:
                 server.configured_sslmode = 'verify-full'
@@ -2749,9 +2788,27 @@ async def run_tls_enforcement_suite(
                     if rejected
                     else 'ERROR: connected/queried with an untrusted CA',
                 )
-            except Exception as e:
-                # A raised TLS error is also a correct rejection.
-                record(step, True, f'rejected with {type(e).__name__}')
+            except psycopg.OperationalError as e:
+                # A raised TLS error is a correct rejection ONLY when it is a
+                # certificate-verification failure. Any other OperationalError
+                # (DNS, auth, connection refused) is NOT what this test proves,
+                # so it must fail rather than count as a green rejection.
+                msg = str(e).lower()
+                cert_failure = any(
+                    marker in msg
+                    for marker in (
+                        'certificate verify failed',
+                        'certificate verify',
+                        'self-signed certificate',
+                        'self signed certificate',
+                        'unable to get local issuer',
+                        'ssl error',
+                    )
+                )
+                if cert_failure:
+                    record(step, True, f'untrusted cert correctly rejected ({type(e).__name__})')
+                else:
+                    record(step, False, f'non-cert OperationalError (does not prove TLS): {e}')
     finally:
         server.configured_sslmode = saved_sslmode
         server.configured_ca_bundle = saved_ca_bundle
@@ -2919,17 +2976,23 @@ def print_summary(results: list[TestResult]):
     total_pass = 0
     total_fail = 0
     total_skip = 0
+    total_na = 0
     for r in results:
         if r.failed:
             status = 'FAILED'
         elif r.skipped:
             status = 'SKIPPED'
         else:
+            # A suite with only passes and/or N/A entries is a clean pass:
+            # N/A does not count against success.
             status = 'PASSED'
         logger.info(f'\n  {r.connection_method_name} ({r.cluster_identifier}): {status}')
         for s in r.passed:
             logger.info(f'    [PASS] {s}')
             total_pass += 1
+        for step, reason in r.not_applicable or []:
+            logger.info(f'    [N/A] {step}: {reason}')
+            total_na += 1
         for step, reason in r.skipped or []:
             logger.warning(f'    [SKIP] {step}: {reason}')
             total_skip += 1
@@ -2941,7 +3004,9 @@ def print_summary(results: list[TestResult]):
         if not r.success:
             all_passed = False
     logger.info(f'\n{"=" * 60}')
-    logger.info(f'Totals: {total_pass} passed, {total_fail} failed, {total_skip} skipped')
+    logger.info(
+        f'Totals: {total_pass} passed, {total_fail} failed, {total_skip} skipped, {total_na} n/a'
+    )
     logger.info(f'Overall: {"ALL PASSED" if all_passed else "FAILURES OR SKIPS PRESENT"}')
     logger.info(f'{"=" * 60}\n')
     return all_passed

@@ -199,7 +199,12 @@ would, so they no longer bypass it.
 boundary.** A parser sees structure, not runtime semantics: it cannot tell that
 a `SELECT some_function()` writes internally, that a `SECURITY DEFINER` function
 has side effects, or resolve which function a name refers to under a custom
-`search_path`. Do not rely on it as your only control.
+`search_path`. The dangerous-set check also only sees calls the parser exposes
+as nodes: in write mode, where `DO` blocks and `CREATE FUNCTION` are permitted,
+a dangerous call hidden inside a function or `DO` body (or assembled at run time
+with `EXECUTE`) is opaque to the parser and is not rejected — the connected
+role's privileges are what stop it from executing. Do not rely on it as your
+only control.
 
 #### TLS is enforced on direct (PG Wire) connections
 

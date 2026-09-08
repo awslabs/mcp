@@ -1165,15 +1165,38 @@ class TestPsycopgTLS:
         info = self._to_dict(conn._build_conninfo('pw'))
         assert info['sslrootcert'] == '/pkg/aws_ca_bundle.pem'
 
-    def test_system_trust_store_fallback(self, monkeypatch):
-        """With neither override nor bundle, fall back to the system trust store."""
+    def test_missing_bundle_no_override_fails_fast(self, monkeypatch):
+        """With neither override nor bundle, fail fast (no silent system fallback).
+
+        The system trust store cannot verify the RDS private CAs that direct
+        Aurora/RDS endpoints present, so falling back would be a guaranteed
+        connection failure disguised as a soft degrade. Raise with remediation.
+        """
         monkeypatch.setattr(
             'awslabs.postgres_mcp_server.connection.psycopg_pool_connection._bundled_ca_file',
             lambda: None,
         )
         conn = self._make_conn(ca_bundle_path=None)
+        with pytest.raises(ValueError, match='No CA bundle available'):
+            conn._build_conninfo('pw')
+
+    def test_system_sentinel_requires_libpq_16(self, monkeypatch):
+        """--ca_bundle system on libpq < 16 fails fast (no phantom 'system' file)."""
+        import psycopg
+
+        # The guard calls psycopg.pq.version(); simulate an older libpq.
+        monkeypatch.setattr(psycopg.pq, 'version', lambda: 150000)
+        conn = self._make_conn(ca_bundle_path='system', sslmode='verify-full')
+        with pytest.raises(ValueError, match='requires libpq 16'):
+            conn._build_conninfo('pw')
+
+    def test_system_sentinel_allowed_on_libpq_16(self, monkeypatch):
+        """--ca_bundle system is accepted on libpq >= 16."""
+        import psycopg
+
+        monkeypatch.setattr(psycopg.pq, 'version', lambda: 160000)
+        conn = self._make_conn(ca_bundle_path='system', sslmode='verify-full')
         info = self._to_dict(conn._build_conninfo('pw'))
-        assert info['sslmode'] == 'verify-full'
         assert info['sslrootcert'] == 'system'
 
     def test_password_with_special_chars_is_escaped(self):
@@ -1211,11 +1234,19 @@ class TestPsycopgTLS:
         # verify-full is a verifying mode, so the CA is attached.
         assert info['sslrootcert'] == '/tmp/ca.pem'
 
-    def test_bundled_ca_file_missing_returns_none(self, monkeypatch):
-        """_bundled_ca_file returns None (and logs) when the bundle is absent on disk."""
+    def test_bundled_ca_file_missing_returns_none(self, monkeypatch, tmp_path):
+        """_bundled_ca_file returns None (and logs) when the bundle is absent on disk.
+
+        Point the bundle path at a nonexistent file and let the real
+        os.path.isfile run, rather than monkeypatching os.path.isfile itself:
+        os.path is the shared stdlib module (there is no module-local copy), so
+        patching it would make isfile return False process-wide and could flake
+        unrelated machinery (assertion rewriting, coverage, loguru sinks).
+        """
         from awslabs.postgres_mcp_server.connection import psycopg_pool_connection as ppc
 
-        monkeypatch.setattr(ppc.os.path, 'isfile', lambda _p: False)
+        missing = tmp_path / 'no_such_aws_ca_bundle.pem'
+        monkeypatch.setattr(ppc, '_AWS_CA_BUNDLE_PATH', str(missing))
         assert ppc._bundled_ca_file() is None
 
     def _posture_log(self, conn) -> str:

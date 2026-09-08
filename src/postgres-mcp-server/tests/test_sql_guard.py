@@ -30,6 +30,7 @@ from awslabs.postgres_mcp_server.sql_guard import (
     MAX_SQL_LEN,
     SECURITY_SENSITIVE_GUCS,
     SqlPolicyError,
+    _normalize_placeholders,
     assert_executable,
 )
 
@@ -355,6 +356,10 @@ NAMED_PARAM_ALLOWED = [
     'SELECT * FROM t WHERE a = :a AND b = :b',
     'SELECT * FROM t WHERE name = :name AND flag = :flag::bool',  # :: cast preserved
     'SELECT * FROM information_schema.columns WHERE table_name = :table_name',
+    'SELECT * FROM t WHERE id=:id',  # no space before placeholder
+    'SELECT * FROM t WHERE a>:x AND b<:y',  # operator-adjacent placeholders
+    'SELECT ARRAY[:a] FROM t',  # placeholder as an array element
+    'SELECT * FROM t WHERE id IN (:a, :b)',  # ( and , adjacency
 ]
 
 
@@ -375,23 +380,133 @@ def test_named_placeholder_does_not_hide_dangerous():
     assert not _allowed('SELECT pg_read_file(:path)', allow_write_query=True)
 
 
-# --- set_config first-argument edge cases (non-security GUC) ----------------
+# --- Array slices must not be mangled by :name normalization ----------------
+# Regression: the old pattern rewrote a[1:n] -> a[1$1] (unparseable), so valid
+# slice queries were wrongly rejected. The slice colon must be left alone.
+
+ARRAY_SLICE_READS = [
+    'SELECT a[1:n] FROM t',  # numeric lower bound (the reported break)
+    'SELECT a[i:j] FROM t',  # identifier bounds
+    'SELECT tags[1:limit_idx] FROM items',  # reviewer's real-world example
+    'SELECT a[f():n] FROM t',  # lower bound ends in )
+    'SELECT a[b[0]:n] FROM t',  # lower bound ends in ]
+    'SELECT a[:n] FROM t',  # omitted lower bound
+    'SELECT a[1:2] FROM t',  # both numeric
+]
+
+
+@pytest.mark.parametrize('sql', ARRAY_SLICE_READS)
+def test_array_slice_not_mangled(sql):
+    """Array-slice reads parse and are allowed; the slice colon is not rewritten."""
+    assert_executable(sql, allow_write_query=False)
+
+
+def test_normalize_placeholders_leaves_array_slices_intact():
+    """The slice colon (preceded by a word char / ] / )) is not turned into $1."""
+    assert _normalize_placeholders('SELECT a[1:n] FROM t') == 'SELECT a[1:n] FROM t'
+    assert _normalize_placeholders('SELECT a[i:j] FROM t') == 'SELECT a[i:j] FROM t'
+    assert _normalize_placeholders('SELECT a[f():n] FROM t') == 'SELECT a[f():n] FROM t'
+
+
+def test_normalize_placeholders_still_rewrites_real_params():
+    """Genuine :name placeholders in value positions are still replaced with $1."""
+    assert _normalize_placeholders('WHERE id = :id') == 'WHERE id = $1'
+    assert _normalize_placeholders('WHERE id=:id') == 'WHERE id=$1'
+    assert _normalize_placeholders('(:a, :b)') == '($1, $1)'
+    assert _normalize_placeholders(':v::int') == '$1::int'  # placeholder, cast preserved
+    assert _normalize_placeholders('SELECT x::int') == 'SELECT x::int'  # bare cast untouched
+
+
+# --- set_config first-argument edge cases -----------------------------------
 
 
 @pytest.mark.parametrize(
     'sql',
     [
         'SELECT set_config()',  # no arguments
-        "SELECT set_config(col, 'x', false)",  # first arg is not a string literal
+        "SELECT set_config(col, 'x', false)",  # first arg is a column, not a literal
+        # A computed GUC name that resolves to a security-sensitive GUC at run
+        # time -- the reported bypass. row_security is disabled for the pooled
+        # connection, leaking RLS-protected rows to later queries.
+        "SELECT set_config('row_' || 'security', 'off', false)",
+        # A bound parameter as the GUC name (Aurora :name -> $1 after parse-only
+        # normalization); the name is unknown at check time.
+        "SELECT set_config(:guc, 'off', false)",
+        "SELECT set_config($1, 'off', false)",
+        # A function call producing the GUC name.
+        "SELECT set_config(lower('ROW_SECURITY'), 'off', false)",
     ],
 )
-def test_set_config_non_security_guc_allowed_in_write_mode(sql):
-    """set_config with no/non-literal GUC arg is not a security-GUC change.
+def test_set_config_non_literal_guc_rejected_in_both_modes(sql):
+    """set_config with a non-literal GUC name fails closed in both modes.
 
-    It is allowed in write mode (the dangerous-set check finds no
-    security-sensitive GUC name to match).
+    A dynamic GUC name cannot be proven safe from syntax, so it is rejected
+    rather than allowed -- otherwise a computed name (``'row_' || 'security'``)
+    or a bound parameter could disable a security-sensitive GUC in write mode.
+    """
+    assert not _allowed(sql, allow_write_query=False)
+    assert not _allowed(sql, allow_write_query=True)
+
+
+@pytest.mark.parametrize(
+    'sql',
+    [
+        "SELECT set_config('work_mem', '64MB', false)",
+        "SELECT set_config('statement_timeout', '0', true)",
+    ],
+)
+def test_set_config_literal_non_security_guc_allowed_in_write_mode(sql):
+    """set_config with a literal, non-security GUC name is a plain write.
+
+    Allowed in write mode; rejected in read-only mode (set_config for any GUC
+    mutates session state -- READ_ONLY_PROHIBITED_FUNCTIONS).
     """
     assert_executable(sql, allow_write_query=True)
+    assert not _allowed(sql, allow_write_query=False)
+
+
+# --- Read-only: clearly-mutating functions the SET TRANSACTION READ ONLY -----
+# --- backstop does not stop (nextval, pg_stat_reset*, pg_logical_emit_message)
+
+
+@pytest.mark.parametrize(
+    'sql',
+    [
+        "SELECT nextval('s')",
+        "SELECT setval('s', 1)",
+        'SELECT pg_stat_reset()',
+        'SELECT pg_stat_reset_shared()',
+        'SELECT pg_stat_reset_single_table_counters(1)',
+        'SELECT pg_stat_reset_single_function_counters(1)',
+        'SELECT pg_stat_reset_slru()',
+        "SELECT pg_stat_reset_replication_slot('s')",
+        'SELECT pg_stat_reset_subscription_stats(NULL)',
+        "SELECT pg_logical_emit_message(true, 'a', 'b')",
+        "SELECT pg_catalog.nextval('s')",  # schema-qualified still matched by bare name
+    ],
+)
+def test_read_only_prohibits_mutating_functions(sql):
+    """State-mutating built-ins are writes and are rejected in read-only mode.
+
+    The parse tree is a benign SelectStmt calling a function, so the
+    statement-node allowlist alone would pass them; the read-only function
+    denylist closes the gap. All are allowed in write mode (they are writes,
+    not dangerous-set constructs).
+    """
+    assert not _allowed(sql, allow_write_query=False)
+    assert_executable(sql, allow_write_query=True)
+
+
+@pytest.mark.parametrize(
+    'sql',
+    [
+        "SELECT currval('s')",  # read: current value, no mutation
+        'SELECT lastval()',  # read: last value in session
+    ],
+)
+def test_read_only_allows_sequence_read_functions(sql):
+    """currval/lastval read the sequence without mutating it -- allowed read-only."""
+    assert_executable(sql, allow_write_query=False)
 
 
 # --- Fail-closed wrapper: any analysis error becomes a rejection (FR7) -------

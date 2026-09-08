@@ -42,10 +42,24 @@ Only root CAs are included (never intermediates), so automatic RDS server
 certificate rotation is unaffected.
 
 The PEM is not committed to source control to keep binary blobs out of code
-review. The hook fetches its inputs over HTTPS on every build and writes the
-combined file into the wheel; AWS CA rotations are picked up automatically on
-the next build. Operators who target self-hosted PostgreSQL or maintain their
-own trust store can override the bundle at runtime with ``--ca_bundle <path>``.
+review. It is a build artifact, so the build hook always fetches fresh inputs
+over HTTPS and rewrites the combined file (``force_refresh=True``); this is what
+picks up AWS CA rotations for every release. Integrity is checked before the
+file is accepted: each Amazon Trust Services root is pinned to a SHA-256 checked
+into this file, every source must parse as PEM, and the assembled bundle must
+contain at least ``_MIN_CERTS_IN_BUNDLE`` certificates. The file is written
+atomically (temp file + ``os.replace``), so an interrupted build never leaves a
+truncated bundle behind. If the network is unavailable the build falls back to
+an existing on-disk bundle ONLY when that file itself passes validation -- a
+missing, truncated, or corrupt file is never silently shipped. Operators who
+target self-hosted PostgreSQL or maintain their own trust store can override the
+bundle at runtime with ``--ca_bundle <path>``.
+
+The RDS ``global-bundle.pem`` is deliberately NOT checksum-pinned: AWS rotates
+its regional CAs, so a fixed hash would break every build on the next rotation.
+Its integrity rests on the HTTPS fetch plus the PEM-validity / cert-count
+checks. The Amazon roots essentially never change, so pinning them is free
+supply-chain protection.
 
 Running standalone
 ------------------
@@ -55,8 +69,10 @@ expect the PEM to be present on disk.
 """
 
 import argparse
+import hashlib
 import os
 import sys
+import tempfile
 import urllib.request
 
 
@@ -77,6 +93,36 @@ _AMAZON_ROOT_CA_URLS = (
 # Every URL fetched by this hook, in the order they are concatenated into the
 # combined bundle. RDS private CAs first, then the public Amazon roots.
 _BUNDLE_SOURCE_URLS = (_RDS_CA_BUNDLE_URL, *_AMAZON_ROOT_CA_URLS)
+
+# SHA-256 of each Amazon Trust Services root PEM *file* (raw downloaded bytes).
+# These roots are valid into 2037-2040 and do not rotate, so pinning them costs
+# nothing and detects tampering or an unexpected substitution at build time. The
+# RDS global bundle is intentionally absent (it rotates -- see module docstring).
+# To regenerate if AWS ever re-publishes a root: download each URL and take
+# ``hashlib.sha256(bytes).hexdigest()``.
+_AMAZON_ROOT_CA_SHA256 = {
+    'https://www.amazontrust.com/repository/AmazonRootCA1.pem': (
+        '2c43952ee9e000ff2acc4e2ed0897c0a72ad5fa72c3d934e81741cbd54f05bd1'
+    ),
+    'https://www.amazontrust.com/repository/AmazonRootCA2.pem': (
+        'a3a7fe25439d9a9b50f60af43684444d798a4c869305bf615881e5c84a44c1a2'
+    ),
+    'https://www.amazontrust.com/repository/AmazonRootCA3.pem': (
+        '3eb7c3258f4af9222033dc1bb3dd2c7cfa0982b98e39fb8e9dc095cfeb38126c'
+    ),
+    'https://www.amazontrust.com/repository/AmazonRootCA4.pem': (
+        'b0b7961120481e33670315b2f843e643c42f693c7a1010eb9555e06ddc730214'
+    ),
+}
+
+# PEM certificate delimiter used for counting certs in validation.
+_CERT_MARKER = b'-----BEGIN CERTIFICATE-----'
+
+# Minimum certificate count for an assembled bundle to be considered valid. The
+# real bundle has ~112 (RDS global bundle ~108 + 4 Amazon roots), so this floor
+# decisively rejects an empty / truncated / non-PEM file while leaving wide
+# headroom for the RDS bundle to shrink as AWS retires regional CAs.
+_MIN_CERTS_IN_BUNDLE = 10
 
 # Where the combined bundle is written. Relative to the package root so the same
 # path works in both the source tree (for local dev) and the built wheel.
@@ -118,7 +164,107 @@ def _fetch_url(url: str, ctx) -> bytes:
         return resp.read()
 
 
-def fetch(output_path: str = _OUTPUT_PATH) -> str:
+class BundleIntegrityError(RuntimeError):
+    """Raised when fetched bundle data fails an integrity check.
+
+    Distinct from a network failure: an integrity failure (checksum mismatch,
+    non-PEM data, too few certificates) means the bytes we got are wrong, so it
+    is never masked by falling back to a pre-existing file -- the build fails
+    loudly instead.
+    """
+
+
+def _count_certs(pem_bytes: bytes) -> int:
+    """Return the number of PEM certificate blocks in ``pem_bytes``."""
+    return pem_bytes.count(_CERT_MARKER)
+
+
+def _is_valid_bundle(path: str) -> bool:
+    """Return True if ``path`` holds a plausible CA bundle (enough PEM certs).
+
+    A cheap structural check -- not full X.509 validation -- whose job is to
+    reject an empty, truncated, or non-PEM file left at the output path, so such
+    a file is never reused or shipped.
+    """
+    try:
+        with open(path, 'rb') as fh:
+            return _count_certs(fh.read()) >= _MIN_CERTS_IN_BUNDLE
+    except OSError:
+        return False
+
+
+def _verify_source(url: str, chunk: bytes) -> None:
+    """Validate a freshly-fetched source: PEM shape and, for roots, pinned hash.
+
+    Raises:
+        BundleIntegrityError: If the source returned no PEM certificate, or a
+            pinned Amazon root's SHA-256 does not match.
+    """
+    if _count_certs(chunk) < 1:
+        raise BundleIntegrityError(
+            f'source did not return PEM certificate data: {url} '
+            f'({len(chunk)} bytes) -- possibly a captive portal or error page'
+        )
+    pinned = _AMAZON_ROOT_CA_SHA256.get(url)
+    if pinned is not None:
+        actual = hashlib.sha256(chunk).hexdigest()
+        if actual != pinned:
+            raise BundleIntegrityError(
+                f'SHA-256 mismatch for pinned root {url}: expected {pinned}, got {actual}. '
+                'If AWS legitimately re-published this root, update _AMAZON_ROOT_CA_SHA256.'
+            )
+
+
+def _assemble_bundle(ctx) -> bytes:
+    """Fetch every source, validate each, and return the combined PEM bytes.
+
+    Raises:
+        BundleIntegrityError: If a source or the assembled bundle fails validation.
+        Exception: Network / URL errors from :func:`_fetch_url` propagate as-is
+            (the caller distinguishes these from integrity errors).
+    """
+    chunks = []
+    for url in _BUNDLE_SOURCE_URLS:
+        chunk = _fetch_url(url, ctx)
+        _verify_source(url, chunk)
+        chunks.append(chunk)
+
+    # Join with a newline so a source that does not end in one cannot glue two
+    # PEM blocks together (``-----END-----\n-----BEGIN-----``).
+    content = b'\n'.join(chunk.rstrip() + b'\n' for chunk in chunks)
+
+    n = _count_certs(content)
+    if n < _MIN_CERTS_IN_BUNDLE:
+        raise BundleIntegrityError(
+            f'assembled CA bundle has too few certificates ({n} < {_MIN_CERTS_IN_BUNDLE})'
+        )
+    return content
+
+
+def _atomic_write(abs_path: str, content: bytes) -> None:
+    """Write ``content`` to ``abs_path`` atomically (temp file + os.replace).
+
+    A crash between the write and the replace leaves the original file (or no
+    file) intact -- never a partially-written bundle at the real path.
+    """
+    directory = os.path.dirname(abs_path)
+    os.makedirs(directory, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(dir=directory, prefix='.aws_ca_bundle.', suffix='.tmp')
+    try:
+        with os.fdopen(fd, 'wb') as fh:
+            fh.write(content)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp_path, abs_path)
+    except BaseException:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
+def fetch(output_path: str = _OUTPUT_PATH, force_refresh: bool = False) -> str:
     """Assemble the combined AWS CA bundle and write it to disk.
 
     Concatenates the Amazon RDS global bundle (private CAs) with the public
@@ -126,38 +272,61 @@ def fetch(output_path: str = _OUTPUT_PATH) -> str:
     private-CA (direct instance/cluster) and public-CA (ACM: RDS Proxy /
     Serverless) certificate families.
 
-    Returns the absolute path to the written file. Idempotent: if the file is
-    already on disk, returns immediately without making a network call.
+    The output is fetched fresh, integrity-checked, and written atomically. A
+    pre-existing file is trusted only when ``force_refresh`` is False AND it
+    passes validation (:func:`_is_valid_bundle`) -- so a stale/truncated file is
+    never silently reused. When ``force_refresh`` is True (the release build
+    hook) the bundle is always re-fetched; a valid pre-existing file is reused
+    only as an offline fallback when the network fetch fails.
+
+    Args:
+        output_path: Destination path for the combined PEM.
+        force_refresh: Always re-fetch rather than reuse a valid on-disk file.
+
+    Returns:
+        The absolute path to the written (or validated existing) file.
+
+    Raises:
+        BundleIntegrityError: A fetched source failed an integrity check.
+        RuntimeError: The fetch failed and no valid existing file is available.
     """
     abs_path = os.path.abspath(output_path)
-    if os.path.exists(abs_path):
+    have_valid_existing = _is_valid_bundle(abs_path)
+
+    # Local dev / tests: reuse a valid on-disk bundle without a network call.
+    # A missing or invalid file falls through to a fresh fetch.
+    if not force_refresh and have_valid_existing:
         return abs_path
 
     ctx = _ssl_context_for_aws_endpoint()
-    chunks = []
-    for url in _BUNDLE_SOURCE_URLS:
-        try:
-            chunks.append(_fetch_url(url, ctx))
-        except Exception as exc:
-            raise RuntimeError(
-                f'Failed to fetch CA bundle source {url}: {exc}\n\n'
-                'Build machine needs HTTPS access to truststore.pki.rds.amazonaws.com '
-                'and www.amazontrust.com.\n'
-                'If the machine is offline, fetch each source manually on a connected '
-                'host and concatenate them into:\n\n'
-                f'    {abs_path}\n\n'
-                'Sources (in order):\n'
-                + '\n'.join(f'    {u}' for u in _BUNDLE_SOURCE_URLS)
-                + '\n\nand rerun the build.'
-            ) from exc
+    try:
+        content = _assemble_bundle(ctx)
+    except BundleIntegrityError:
+        # Integrity failures are never masked by an old file -- fail loudly.
+        raise
+    except Exception as exc:
+        # Network / fetch failure. Fall back to a valid existing file (keeps
+        # offline builds working) but never accept a missing/corrupt one.
+        if have_valid_existing:
+            print(
+                f'WARNING: could not fetch fresh AWS CA bundle ({exc}); '
+                f'reusing the existing valid bundle at {abs_path}.',
+                file=sys.stderr,
+            )
+            return abs_path
+        raise RuntimeError(
+            f'Failed to fetch the AWS CA bundle: {exc}\n\n'
+            'Build machine needs HTTPS access to truststore.pki.rds.amazonaws.com '
+            'and www.amazontrust.com.\n'
+            'If the machine is offline, fetch each source manually on a connected '
+            'host and concatenate them (in order) into:\n\n'
+            f'    {abs_path}\n\n'
+            'Sources (in order):\n'
+            + '\n'.join(f'    {u}' for u in _BUNDLE_SOURCE_URLS)
+            + '\n\nand rerun the build.'
+        ) from exc
 
-    # Join with a newline so a source that does not end in one cannot glue two
-    # PEM blocks together (``-----END-----\n-----BEGIN-----``).
-    content = b'\n'.join(chunk.rstrip() + b'\n' for chunk in chunks)
-
-    os.makedirs(os.path.dirname(abs_path), exist_ok=True)
-    with open(abs_path, 'wb') as fh:
-        fh.write(content)
+    _atomic_write(abs_path, content)
     return abs_path
 
 
@@ -178,8 +347,12 @@ if BuildHookInterface is not None:
         PLUGIN_NAME = 'rds_ca_bundle'
 
         def initialize(self, version: str, build_data: dict) -> None:
-            """Assemble the bundle and force-include it in the wheel."""
-            abs_path = fetch()
+            """Assemble the bundle and force-include it in the wheel.
+
+            Always re-fetches (``force_refresh=True``) so a release ships a
+            fresh, integrity-checked trust store and never a stale/leftover file.
+            """
+            abs_path = fetch(force_refresh=True)
             wheel_path = _OUTPUT_PATH.replace(os.sep, '/')
             build_data.setdefault('force_include', {})[abs_path] = wheel_path
             self.app.display_info(f'Wrote AWS CA bundle to {abs_path}')
@@ -192,8 +365,13 @@ def _main(argv: list) -> int:
     parser = argparse.ArgumentParser(
         description='Assemble the AWS CA bundle for the Postgres MCP server package.'
     )
-    parser.parse_args(argv)
-    path = fetch()
+    parser.add_argument(
+        '--force-refresh',
+        action='store_true',
+        help='Always re-fetch even if a valid bundle is already on disk.',
+    )
+    args = parser.parse_args(argv)
+    path = fetch(force_refresh=args.force_refresh)
     print(f'Wrote AWS CA bundle to {path}')
     return 0
 

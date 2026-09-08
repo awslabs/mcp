@@ -70,14 +70,20 @@ _CA_VERIFYING_SSLMODES = frozenset({'verify-ca', 'verify-full'})
 # Sentinel accepted for --ca_bundle to select libpq's system trust store.
 _SYSTEM_TRUST_STORE = 'system'
 
+# libpq only recognizes the special ``sslrootcert=system`` value from v16. On
+# older libpq it is treated as a *filename*, so it fails with a misleading
+# 'could not open certificate file "system"'. Guard the sentinel on this.
+_MIN_LIBPQ_VERSION_FOR_SYSTEM = 160000
+
 
 def _bundled_ca_file() -> Optional[str]:
     """Return the bundled AWS CA path if present on disk, else None.
 
     Returns None (with a logged error) if the bundle is missing -- the package
     was built without the hook, or is running from a source tree where
-    ``python hatch_build.py`` has not been run. Callers then fall back to the
-    system trust store.
+    ``python hatch_build.py`` has not been run. The caller fails closed rather
+    than silently falling back to the system trust store, which cannot verify
+    the RDS private CAs that direct Aurora/RDS endpoints present.
     """
     if not os.path.isfile(_AWS_CA_BUNDLE_PATH):
         logger.error(
@@ -87,6 +93,24 @@ def _bundled_ca_file() -> Optional[str]:
         )
         return None
     return _AWS_CA_BUNDLE_PATH
+
+
+def _assert_system_trust_store_supported() -> None:
+    """Raise if the loaded libpq is too old to understand ``sslrootcert=system``.
+
+    Fails fast with an actionable message instead of letting libpq < 16 treat
+    ``system`` as a filename and emit a phantom
+    'could not open certificate file "system"'.
+    """
+    from psycopg import pq
+
+    version = pq.version()
+    if version < _MIN_LIBPQ_VERSION_FOR_SYSTEM:
+        raise ValueError(
+            f'sslrootcert=system requires libpq 16+, but the loaded libpq is {version}. '
+            'Pass --ca_bundle <path> to an explicit CA PEM file, or use a build with '
+            'libpq >= 16 (e.g. psycopg[binary]).'
+        )
 
 
 def get_credentials_from_secret(
@@ -252,14 +276,22 @@ class PsycopgPoolConnection(AbstractDBConnection):
         For the verifying modes the trust anchor (sslrootcert) is chosen as:
 
           1. ``--ca_bundle`` override, if supplied (a PEM path, or the sentinel
-             ``'system'`` for the OS trust store), else
+             ``'system'`` for the OS trust store; ``'system'`` requires libpq
+             >= 16), else
           2. the bundled combined AWS CA bundle shipped in the wheel (RDS private
              CAs + public Amazon roots), else
-          3. the system trust store (``sslrootcert=system``) with a warning --
-             may not include the server's CA.
+          3. fail fast with a remediation message. There is deliberately no
+             silent fallback to the system trust store: it does not contain the
+             RDS private CAs that direct Aurora/RDS endpoints present, so it
+             would guarantee a connection failure disguised as a soft degrade.
 
         ``make_conninfo`` escapes values, so passwords containing spaces or
         special characters are handled correctly.
+
+        Raises:
+            ValueError: if ``sslmode`` is unsupported, if a verifying mode has no
+                usable CA (missing bundle and no override), or if ``--ca_bundle
+                system`` is selected on libpq < 16.
         """
         if self.sslmode not in ALLOWED_SSLMODES:
             # Fail closed: never silently fall through to an insecure mode.
@@ -280,6 +312,10 @@ class PsycopgPoolConnection(AbstractDBConnection):
         # ``require`` performs no verification, so sslrootcert is irrelevant.
         if self.sslmode in _CA_VERIFYING_SSLMODES:
             if self.ca_bundle_path == _SYSTEM_TRUST_STORE:
+                # Operator explicitly chose the OS trust store. Gate on libpq
+                # version so a pre-16 build fails with a real message instead of
+                # a phantom 'could not open certificate file "system"'.
+                _assert_system_trust_store_supported()
                 params['sslrootcert'] = _SYSTEM_TRUST_STORE
             elif self.ca_bundle_path:
                 params['sslrootcert'] = self.ca_bundle_path
@@ -288,14 +324,24 @@ class PsycopgPoolConnection(AbstractDBConnection):
                 if cafile:
                     params['sslrootcert'] = cafile
                 else:
-                    params['sslrootcert'] = _SYSTEM_TRUST_STORE
-                    logger.warning(
-                        'No CA bundle available for TLS verification; falling back '
-                        'to the system trust store (sslrootcert=system). The '
-                        'connection may fail with certificate verification errors '
-                        'if the system store does not include the server CA. Supply '
-                        '--ca_bundle <path> or rebuild the package to restore the '
-                        'bundled Amazon RDS bundle.'
+                    # Fail fast. The primary topology (direct Aurora/RDS instance
+                    # and cluster endpoints) presents the Amazon RDS private CAs
+                    # (rds-ca-*-g1), which are NOT in any OS trust store -- that
+                    # is exactly why the build hook assembles a combined bundle.
+                    # Silently using the system store here is a guaranteed
+                    # connection failure dressed up as a soft degrade: libpq >= 16
+                    # fails every query with CERTIFICATE_VERIFY_FAILED, and
+                    # libpq < 16 reports a phantom missing file "system". Raise now
+                    # with the remediation instead of deferring to that per-query
+                    # error.
+                    raise ValueError(
+                        f'No CA bundle available for TLS verification (sslmode={self.sslmode}) '
+                        f'and no --ca_bundle override supplied. The bundled Amazon RDS CA is '
+                        f'missing at {_AWS_CA_BUNDLE_PATH}. Reinstall the built wheel (which '
+                        'ships the bundle), run `python hatch_build.py` in a source checkout, '
+                        'or pass --ca_bundle <path> to an explicit CA PEM. Use --ca_bundle '
+                        'system only for ACM/public-CA endpoints (e.g. RDS Proxy); it cannot '
+                        'verify direct instance/cluster endpoints.'
                     )
         return make_conninfo(**params)
 

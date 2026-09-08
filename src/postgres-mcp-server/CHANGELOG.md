@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a DB role still needs `GRANT rds_iam` and an `rds-db:connect` IAM policy to
   connect via IAM. Ignored for express clusters, which enable IAM auth via
   their express configuration.
+- Initial project setup
 
 ### Security
 
@@ -48,7 +49,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Statements are now classified from the parse tree, closing the
   Unicode-escaped-identifier bypass (e.g. `U&"pg_read_fil\0065"` resolving to
   `pg_read_file`) that let dangerous functions slip past text matching in both
-  read-only and write mode.
+  read-only and write mode. Scope: this hardening lands in **postgres-mcp-server
+  only**. The `mysql`, `mssql`, `oracle`, and `aurora-dsql` MCP servers still
+  ship the regex-based `mutable_sql_detector` and remain exposed to the same
+  Unicode-escape class; migrating them is tracked separately and is not part of
+  this change.
 - Read-only mode now rejects several statements the previous keyword list missed,
   including `SELECT … INTO`, `REASSIGN OWNED`, `CHECKPOINT`, `COMMIT PREPARED`,
   `UNLISTEN`, `DEALLOCATE`, and transaction-control statements.
@@ -67,7 +72,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `DROP`/`TRUNCATE`/`GRANT` are now permitted **in write mode**
   (`--allow_write_query`) where the old heuristic blocked them in all modes.
   Read-only behavior is unchanged for those write statements (still rejected).
-
-### Added
-
-- Initial project setup

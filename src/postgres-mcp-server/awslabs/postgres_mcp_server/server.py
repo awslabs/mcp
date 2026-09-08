@@ -387,12 +387,15 @@ async def run_query(
     global client_error_code_key
     global db_connection_map
 
+    # Metadata at INFO; the full SQL text may contain credential/token/PII
+    # literals, so it is emitted only at DEBUG (opt-in), never at INFO. This
+    # keeps the no-echo property the SQL guard maintains true end to end.
     logger.info(
         f'Entered run_query with '
         f'method:{connection_method}, cluster_identifier:{cluster_identifier}, '
-        f'db_endpoint:{db_endpoint}, database:{database}, '
-        f'sql:{sql}'
+        f'db_endpoint:{db_endpoint}, database:{database}'
     )
+    logger.debug(f'run_query SQL: {sql}')
 
     db_connection = db_connection_map.get(
         method=connection_method,
@@ -415,14 +418,19 @@ async def run_query(
     try:
         assert_executable(sql, allow_write_query=not db_connection.readonly_query)
     except SqlPolicyError as e:
-        logger.info(f'query rejected by SQL policy guard: {e}. SQL query: {sql}')
+        # Only the sanitized reason at INFO. The guard keeps string literals out
+        # of its message (see sql_guard and
+        # test_rejection_message_does_not_echo_sensitive_literal); the full
+        # statement was already logged at DEBUG on entry, so it is not repeated
+        # here and never reaches INFO.
+        logger.info(f'query rejected by SQL policy guard: {e}')
         await ctx.error(str(e))
         return [{'error': str(e)}]
 
     try:
         logger.debug(
             (
-                f'run_query: sql:{sql} method:{connection_method}, '
+                f'run_query: method:{connection_method}, '
                 f'cluster_identifier:{cluster_identifier} database:{database} '
                 f'db_endpoint:{db_endpoint} '
                 f'readonly:{db_connection.readonly_query} query_parameters:{query_parameters}'
@@ -431,7 +439,7 @@ async def run_query(
 
         response = await db_connection.execute_query(sql, query_parameters)
 
-        logger.success(f'run_query successfully executed query:{sql}')
+        logger.success('run_query executed query successfully')
         return parse_execute_response(response)
     except ClientError as e:
         logger.exception(f'run_query ClientError: {e.response["Error"]["Code"]}')
@@ -724,6 +732,17 @@ def create_cluster(
         connection_method = ConnectionMethod.RDS_API
 
     if with_express_configuration:
+        # Express is inherently IAM-based (it hardcodes PG_WIRE_IAM_PROTOCOL and
+        # enables IAM auth via its express configuration), so enable_iam_auth is
+        # not honored here. Surface the contradiction rather than silently doing
+        # the opposite of what enable_iam_auth=False requested.
+        if not enable_iam_auth:
+            logger.warning(
+                'create_cluster: enable_iam_auth=False is ignored with '
+                'with_express_configuration=True; express clusters are always '
+                'IAM-enabled (PG_WIRE_IAM_PROTOCOL). Proceeding with IAM auth enabled.'
+            )
+
         internal_create_express_cluster(cluster_identifier, region)
 
         properties = internal_get_cluster_properties(

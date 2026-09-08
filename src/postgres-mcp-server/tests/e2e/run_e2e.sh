@@ -130,7 +130,7 @@ if ! aws sts get-caller-identity --region "$REGION" >/dev/null 2>&1; then
 fi
 
 # --- build harness command ------------------------------------------------
-cmd=(uv run python tests/e2e/e2e_integration_test.py
+cmd=(uv run --frozen python tests/e2e/e2e_integration_test.py
      --region "$REGION"
      --engine-version "$ENGINE_VERSION"
      --endpoint-types "$ENDPOINT_TYPES"
