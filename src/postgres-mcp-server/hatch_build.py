@@ -260,6 +260,8 @@ def _atomic_write(abs_path: str, content: bytes) -> None:
         try:
             os.unlink(tmp_path)
         except OSError:
+            # Best-effort cleanup only: if unlink fails, preserve and re-raise
+            # the original exception from the write/replace path.
             pass
         raise
 
