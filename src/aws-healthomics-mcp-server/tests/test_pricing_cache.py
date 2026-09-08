@@ -77,12 +77,10 @@ class TestPricingCacheCacheBehavior:
     def setup_method(self):
         """Clear cache before each test."""
         PricingCache.clear_cache()
-        PricingCache._pricing_client = None
 
     def teardown_method(self):
         """Clear cache after each test."""
         PricingCache.clear_cache()
-        PricingCache._pricing_client = None
 
     def test_cache_miss_then_hit(self):
         """Test that cache miss fetches from API and subsequent call hits cache."""
@@ -191,12 +189,10 @@ class TestPricingCacheFetchFromApi:
     def setup_method(self):
         """Clear cache before each test."""
         PricingCache.clear_cache()
-        PricingCache._pricing_client = None
 
     def teardown_method(self):
         """Clear cache after each test."""
         PricingCache.clear_cache()
-        PricingCache._pricing_client = None
 
     def test_fetch_price_unknown_region(self):
         """Test fetching price for unknown region returns None."""
@@ -292,12 +288,10 @@ class TestPricingCacheGetPriceWithError:
     def setup_method(self):
         """Clear cache before each test."""
         PricingCache.clear_cache()
-        PricingCache._pricing_client = None
 
     def teardown_method(self):
         """Clear cache after each test."""
         PricingCache.clear_cache()
-        PricingCache._pricing_client = None
 
     def test_get_price_with_error_success(self):
         """Test get_price_with_error returns price and no error on success."""

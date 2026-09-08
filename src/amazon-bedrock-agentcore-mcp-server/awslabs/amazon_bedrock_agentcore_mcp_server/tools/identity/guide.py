@@ -15,7 +15,7 @@
 """Static guide tool for AgentCore Identity."""
 
 from .models import IdentityGuideResponse
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 
 
 IDENTITY_GUIDE = """

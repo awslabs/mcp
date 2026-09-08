@@ -46,7 +46,7 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_logs.scoring import (
 )
 from awslabs.cloudwatch_mcp_server.common import remove_null_values
 from loguru import logger
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from pydantic import Field
 from typing import Annotated, Dict, List, Optional, Set
 

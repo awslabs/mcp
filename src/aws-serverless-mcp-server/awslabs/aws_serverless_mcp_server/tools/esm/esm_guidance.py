@@ -16,7 +16,7 @@ import os
 import re
 from awslabs.aws_serverless_mcp_server.tools.common.base_tool import BaseTool
 from awslabs.aws_serverless_mcp_server.utils.data_scrubber import DataScrubber
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Any, Dict, Literal, Optional, cast
 
@@ -29,11 +29,11 @@ class EsmGuidanceTool(BaseTool):
     security groups, and deployment validation for proper ESM configuration.
     """
 
-    def __init__(self, mcp: FastMCP, allow_write: bool = False):
+    def __init__(self, mcp: MCPServer, allow_write: bool = False):
         """Initialize the ESM guidance tool and register all available tools.
 
         Args:
-            mcp: FastMCP instance for tool registration
+            mcp: MCPServer instance for tool registration
             allow_write: Whether write operations are allowed
         """
         super().__init__(allow_write=allow_write)

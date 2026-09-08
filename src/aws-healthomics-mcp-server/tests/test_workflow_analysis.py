@@ -29,7 +29,7 @@ from awslabs.aws_healthomics_mcp_server.tools.workflow_analysis import (
     get_task_logs,
 )
 from botocore.exceptions import ClientError
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from unittest.mock import AsyncMock, MagicMock, patch
 
 

@@ -14,10 +14,10 @@
 
 """Common MCP server configuration."""
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 
-mcp = FastMCP(
+mcp = MCPServer(
     'awslabs.elasticache-mcp-server',
     instructions="""AWS ElastiCache MCP Server provides tools for interacting with Amazon ElastiCache.
     These tools allow you to describe and manage serverless caches in your AWS account.

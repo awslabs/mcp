@@ -37,11 +37,11 @@ from awslabs.documentdb_mcp_server.db_management_tools import (
 from awslabs.documentdb_mcp_server.query_tools import aggregate, find
 from awslabs.documentdb_mcp_server.write_tools import delete, insert, update
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 
-# Create the FastMCP server
-mcp = FastMCP(
+# Create the MCPServer server
+mcp = MCPServer(
     'awslabs.documentdb-mcp-server',
     instructions="""DocumentDB MCP Server provides tools to connect to and query AWS DocumentDB databases.
 

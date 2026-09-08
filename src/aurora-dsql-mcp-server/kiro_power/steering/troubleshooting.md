@@ -3,7 +3,17 @@
 This file contains common additional errors encountered while working with DSQL and
 guidelines for how to solve them.
 
-Before referring to any listed errors, refer to the complete [DSQL troubleshooting guide](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/troubleshooting.html#troubleshooting-connections)
+Before referring to any listed error, use the routing below and consult
+[Additional Resources](#additional-resources).
+
+## Table of Contents
+
+1. [Connection and Authorization](#connection-and-authorization)
+2. [Cluster Lifecycle](#cluster-lifecycle)
+3. [Foreign Key Addition or Validation Fails](#foreign-key-addition-or-validation-fails)
+4. [Incompatibility](#incompatibility)
+5. [Protocol Compatibility](#protocol-compatibility)
+6. [Additional Resources](#additional-resources)
 
 ## Connection and Authorization
 
@@ -52,11 +62,42 @@ Before referring to any listed errors, refer to the complete [DSQL troubleshooti
 - Use native TLS libraries (not OpenSSL 1.0.x)
 - Set `server_name_indication` to cluster endpoint in SSL config
 
+## Cluster Lifecycle
+
+See [cluster lifecycle](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/cluster-lifecycle.html) for state definitions and behavior.
+
+### Error: "FATAL: unable to accept connection, waking up cluster, please retry later"
+
+The cluster is `INACTIVE` and waking up. Poll `aws dsql get-cluster --identifier <id> --region <region> --query status --output text` until `ACTIVE`, then retry.
+
+### Error: `FailedPrecondition` when backing up an `IDLE` / `INACTIVE` cluster
+
+Connect to the cluster to wake it, then retry the backup.
+
+## Foreign Key Addition or Validation Fails
+
+**Addition failure:** Aurora DSQL rejects `ALTER TABLE ... ADD CONSTRAINT ... FOREIGN KEY`
+without `NOT VALID`. Add the post-creation constraint with `NOT VALID`.
+
+**Validation-job failure:** Inspect `sys.jobs.status` and `sys.jobs.details` first. Repair
+referencing rows only when `details` identifies a foreign key violation. For other failures,
+address the reported cause before rerunning
+`ALTER TABLE ASYNC ... VALIDATE CONSTRAINT`.
+
+For SQLSTATE `40001` during concurrent referenced-row and referencing-row writes, retry the
+complete transaction. For transaction-limit errors during cascades, assess per-parent fan-out.
+When one parent can exceed transaction limits, use `NO ACTION` or `RESTRICT`, process child rows
+in bounded transactions, then change the parent.
+
+### Error: "... violates foreign key constraint"
+
+SQLSTATE `23503` is not retryable. Correct the relationship or apply the intended referential
+action; **MUST NOT** route it through the `40001` OCC retry loop.
+
 ## Incompatibility
 
 When migrating from PostgreSQL, remember DSQL doesn't support:
 
-- **Foreign key constraints** - Enforce referential integrity in application code
 - **SERIAL types** - Use `GENERATED { ALWAYS | BY DEFAULT } AS IDENTITY` with sequences instead
 - **Extensions** - No PL/pgSQL, PostGIS, pgvector, etc.
 - **Triggers** - Implement logic in application layer
@@ -68,23 +109,15 @@ When migrating from PostgreSQL, remember DSQL doesn't support:
 
 See [full list of unsupported features](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with-postgresql-compatibility-unsupported-features.html).
 
-### Error: "Foreign key constraint not supported"
-
-**Cause:** Attempting to create FOREIGN KEY constraint
-**Solution:**
-
-1. Remove FOREIGN KEY from DDL
-2. Implement validation in application code
-3. Check parent exists before INSERT
-4. Check dependents before DELETE
-
 ### Error: "Datatype array not supported"
 
-**Cause:** Using TEXT[] or other array column types
-**Solution:** Serialize the array into a single column. PREFER `JSONB`; MAY use `TEXT` for opaque columns. ASK the user.
+**Cause:** Using `TEXT[]` or other array column types
+**Solution:** Serialize the array into a single column — DSQL has no array column type. PREFER `JSONB`; MAY use `TEXT` for opaque columns. ASK the user which format fits the access pattern.
 
-- **PREFER `JSONB`** — application filters with `@>`/`?`/`?|`/`?&` or expands with `jsonb_array_elements_text`. Insert: `INSERT INTO t (tags) VALUES ($1::jsonb)` with `JSON.stringify(arr)`. Query: `jsonb_array_elements_text(tags)`.
-- **MAY use `TEXT`** — column is opaque to the database (app-side parse only). Insert raw: `INSERT INTO t (tags_csv) VALUES ($1)` with `arr.join(',')`.
+- **PREFER `JSONB`** — the application queries inside the value (`@>`/`?`/`?|`/`?&`, `jsonb_array_elements_text`, or indexed JSONB paths); values are normalized on write. Insert: `INSERT INTO t (tags) VALUES ($1::jsonb)` with `JSON.stringify(arr)`. Query: `jsonb_array_elements_text(tags)`.
+- **MAY use `TEXT`** — the column is opaque to the database (the app reads the whole value, parses it, and never queries inside). Insert raw: `INSERT INTO t (tags_csv) VALUES ($1)` with `arr.join(',')`.
+- **`JSON` is valid** when writes dominate (no parse/sort overhead on write), byte-exact input matters (audit, replay, duplicate keys), or only `->`/`->>` is needed.
+- **When migrating:** keep existing `JSON` columns as `JSON`; upgrade to `JSONB` only when JSONB-only operators or indexed paths are needed.
 
 ### Error: "Please use CREATE INDEX ASYNC"
 
@@ -125,3 +158,8 @@ CREATE INDEX ASYNC idx_name ON table(column);
 
 - Use officially tested drivers from [aws-samples/aurora-dsql-samples](https://github.com/aws-samples/aurora-dsql-samples)
 - Test client compatibility before production deployment
+
+## Additional Resources
+
+- [Aurora DSQL troubleshooting guide](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/troubleshooting.html#troubleshooting-connections)
+- [Aurora DSQL PostgreSQL compatibility](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with.html)
