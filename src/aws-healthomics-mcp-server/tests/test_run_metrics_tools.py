@@ -413,9 +413,9 @@ class TestLimitationSurfacing:
 
         result = await run_metrics.list_run_metrics(_mock_ctx(), run_id='123')
 
-        assert '2026-09-07' in result['note']
+        assert '2026-09-09' in result['note']
         assert all(
-            '2026-09-07' in m['reason']
+            '2026-09-09' in m['reason']
             for m in result['missing_metrics']
             if 'Expected' in m['reason']
         )

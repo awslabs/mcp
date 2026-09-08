@@ -127,7 +127,7 @@ SCRATCH_USAGE_SAMPLING_INTERVAL_SECONDS = 20 * 60
 """Scratch storage usage is sampled every ~20 minutes: measuring it walks the
 filesystem, so the emitter uses a slow cadence to avoid adding I/O load."""
 
-VENDED_METRICS_LAUNCH_DATE = '2026-09-07'
+VENDED_METRICS_LAUNCH_DATE = '2026-09-09'
 """Production launch date (UTC) of HealthOmics vended metrics. Runs started
 before this date have no vended OTel metrics."""
 

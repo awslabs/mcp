@@ -70,7 +70,7 @@ This MCP server provides tools for:
 
 HealthOmics can deliver fine-grained run/task metrics (CPU, memory, GPU, network, run-filesystem I/O, and scratch storage) into your account as CloudWatch OpenTelemetry metrics. These tools query them through the CloudWatch PromQL API with your credentials. Availability varies with the run's storage configuration — the tools report expected absences with reasons instead of failing. Known limitations the tools surface automatically:
 
-- Metrics exist only for runs started after the vended-metrics production launch (2026-09-07); older runs fall back to manifest-based analysis
+- Metrics exist only for runs started after the vended-metrics production launch (2026-09-09); older runs fall back to manifest-based analysis
 - Tasks shorter than ~60 seconds may produce no datapoints (~30s sampling cadence)
 - Scratch storage usage is sampled every ~20 minutes (measuring it walks the filesystem), so short-lived scratch peaks can be missed
 - DYNAMIC (EFS) run-filesystem usage lags ~35 minutes; ingestion adds ~2 minutes end to end

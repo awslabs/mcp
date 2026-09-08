@@ -205,19 +205,19 @@ class TestLaunchDateAndSampling:
     def test_run_before_launch_predates(self):
         from datetime import datetime, timezone
 
-        before = datetime(2026, 9, 6, 23, 59, tzinfo=timezone.utc)
+        before = datetime(2026, 9, 8, 23, 59, tzinfo=timezone.utc)
         assert schema.predates_launch(before)
 
     def test_run_on_or_after_launch_does_not_predate(self):
         from datetime import datetime, timezone
 
-        on_launch = datetime(2026, 9, 7, 0, 0, tzinfo=timezone.utc)
+        on_launch = datetime(2026, 9, 9, 0, 0, tzinfo=timezone.utc)
         assert not schema.predates_launch(on_launch)
         assert not schema.predates_launch(None)
 
     def test_launch_reason_names_date_and_fallback(self):
         reason = schema.launch_date_reason()
-        assert '2026-09-07' in reason
+        assert '2026-09-09' in reason
         assert 'AnalyzeAHORunPerformance' in reason
 
     def test_short_task_reason_includes_duration(self):
