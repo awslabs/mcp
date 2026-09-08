@@ -22,6 +22,7 @@ CLIENT_USER_AGENT_NAME = 'awslabs/mcp/redshift-mcp-server'
 DEFAULT_LOG_LEVEL = 'WARNING'
 QUERY_TIMEOUT = 3600
 QUERY_POLL_INTERVAL = 1
+QUERY_LONG_POLL = 30
 SESSION_KEEPALIVE = 600
 
 # SQL discovery commands. Results are read positionally; {placeholders} are

@@ -47,8 +47,9 @@ IMPORTANT USAGE GUIDELINES:
 USE THIS TOOL FOR:
 - **Performance optimization** (CPU, memory, network utilization analysis)
 - **Performance-based rightsizing** (not cost-based)
-
-DO NOT USE FOR: Cost optimization or idle detection (use cost-optimization-hub)
+- **Idle resource detection only when filtering by a specific Finding** — Idle, Unattached,
+  or Unused (use get_idle_recommendations). For general idle detection or cost-savings
+  recommendations, use cost-optimization instead.
 
 **Note:** Compute Optimizer is a regional service. Specify a `region` to get recommendations for resources in that region. If omitted, defaults to AWS_REGION env var or us-east-1.
 
@@ -59,6 +60,7 @@ This tool supports the following operations:
 4. get_lambda_function_recommendations: Get recommendations for Lambda functions
 5. get_rds_recommendations: Get recommendations for RDS instances
 6. get_ecs_service_recommendations: Get recommendations for ECS services
+7. get_idle_recommendations: Get idle resource recommendations across supported resource types
 
 Each operation can be filtered by AWS account IDs, regions, finding types, and more.
 
@@ -66,7 +68,14 @@ Common finding types include:
 - UNDERPROVISIONED: The resource doesn't have enough capacity
 - OVERPROVISIONED: The resource has excess capacity and could be downsized
 - OPTIMIZED: The resource is already optimized
-- NOT_OPTIMIZED: The resource can be optimized but specific finding type isn't available""",
+- NOT_OPTIMIZED: The resource can be optimized but specific finding type isn't available
+
+For get_idle_recommendations, the `finding` field uses a distinct enum:
+- Idle: Provisioned and running, but utilization is so low it is effectively doing nothing
+- Unattached: Resource exists but isn't connected to anything
+- Unused: Resource is provisioned but sees no meaningful activity
+Its `filters` accept the filter names `Finding` (values: Idle, Unattached, Unused) and
+`ResourceType`.""",
 )
 async def compute_optimizer(
     ctx: Context,
@@ -114,6 +123,9 @@ async def compute_optimizer(
                 'get_lambda_function_recommendations': 'lambdaFunction',
                 'get_rds_recommendations': 'rdsDBInstance',
                 'get_ecs_service_recommendations': 'ecsService',
+                # Idle recommendations span multiple resource types; a non-empty
+                # value simply triggers the shared enrollment ACTIVE check below.
+                'get_idle_recommendations': 'idle',
             }
 
             # Get required resource type for current operation
@@ -172,6 +184,10 @@ async def compute_optimizer(
             return await get_ecs_service_recommendations(
                 ctx, co_client, max_results, filters, account_ids, next_token
             )
+        elif operation == 'get_idle_recommendations':
+            return await get_idle_recommendations(
+                ctx, co_client, max_results, filters, account_ids, next_token
+            )
         else:
             return format_response(
                 'error',
@@ -185,9 +201,10 @@ async def compute_optimizer(
                         'get_lambda_function_recommendations',
                         'get_rds_recommendations',
                         'get_ecs_service_recommendations',
+                        'get_idle_recommendations',
                     ],
                 },
-                f"Unsupported operation: {operation}. Use 'get_ec2_instance_recommendations', 'get_auto_scaling_group_recommendations', 'get_ebs_volume_recommendations', 'get_lambda_function_recommendations', 'get_rds_recommendations' or 'get_ecs_service_recommendations'.",
+                f"Unsupported operation: {operation}. Use 'get_ec2_instance_recommendations', 'get_auto_scaling_group_recommendations', 'get_ebs_volume_recommendations', 'get_lambda_function_recommendations', 'get_rds_recommendations', 'get_ecs_service_recommendations' or 'get_idle_recommendations'.",
             )
 
     except ClientError as e:
@@ -783,6 +800,81 @@ async def get_ecs_service_recommendations(
             'lookback_period_in_days': recommendation.get('lookbackPeriodInDays'),
             'launch_type': recommendation.get('launchType'),
             'recommendation_options': recommended_options,
+            'last_refresh_timestamp': format_timestamp(recommendation.get('lastRefreshTimestamp')),
+            'tags': recommendation.get('tags', []),
+        }
+
+        formatted_response['recommendations'].append(formatted_recommendation)
+
+    return format_response('success', formatted_response)
+
+
+async def get_idle_recommendations(ctx, co_client, max_results, filters, account_ids, next_token):
+    """Get idle resource recommendations.
+
+    Idle recommendations cover multiple resource types, and the `finding` field uses
+    the IdleFinding enum. For the authoritative list of supported resource types and
+    finding values, see the IdleRecommendation API reference:
+    https://docs.aws.amazon.com/compute-optimizer/latest/APIReference/API_IdleRecommendation.html
+    """
+    # Get context logger for consistent logging
+    ctx_logger = get_context_logger(ctx, __name__)
+
+    # Prepare the request parameters
+    request_params = {}
+
+    if max_results:
+        request_params['maxResults'] = int(max_results)
+
+    # Parse the filters if provided
+    if filters:
+        request_params['filters'] = parse_json(filters, 'filters')
+
+    # Parse the account IDs if provided
+    if account_ids:
+        request_params['accountIds'] = parse_json(account_ids, 'account_ids')
+
+    # Add the next token if provided
+    if next_token:
+        request_params['nextToken'] = next_token
+
+    # Make the API call
+    await ctx_logger.info(f'Calling get_idle_recommendations with parameters: {request_params}')
+    response = co_client.get_idle_recommendations(**request_params)
+
+    formatted_response: Dict[str, Any] = {
+        'recommendations': [],
+        'errors': response.get('errors', []),
+        'next_token': response.get('nextToken'),
+    }
+
+    for recommendation in response.get('idleRecommendations', []):
+        utilization_metrics = []
+        for metric in recommendation.get('utilizationMetrics', []):
+            utilization_metrics.append(
+                {
+                    'name': metric.get('name'),
+                    'statistic': metric.get('statistic'),
+                    'value': metric.get('value'),
+                    'dimensions': metric.get('dimensions', []),
+                }
+            )
+
+        formatted_recommendation = {
+            'resource_arn': recommendation.get('resourceArn'),
+            'resource_id': recommendation.get('resourceId'),
+            'resource_type': recommendation.get('resourceType'),
+            'account_id': recommendation.get('accountId'),
+            'finding': recommendation.get('finding'),
+            'finding_description': recommendation.get('findingDescription'),
+            'savings_opportunity': format_savings_opportunity(
+                recommendation.get('savingsOpportunity', {})
+            ),
+            'savings_opportunity_after_discounts': format_savings_opportunity(
+                recommendation.get('savingsOpportunityAfterDiscounts', {})
+            ),
+            'utilization_metrics': utilization_metrics,
+            'lookback_period_in_days': recommendation.get('lookBackPeriodInDays'),
             'last_refresh_timestamp': format_timestamp(recommendation.get('lastRefreshTimestamp')),
             'tags': recommendation.get('tags', []),
         }
