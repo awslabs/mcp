@@ -36,6 +36,9 @@ from awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_too
 from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_tools import (
     billing_conductor_server,
 )
+from awslabs.billing_cost_management_mcp_server.tools.billing_preferences_tools import (
+    billing_preferences_server,
+)
 from awslabs.billing_cost_management_mcp_server.tools.budget_tools import budget_server
 from awslabs.billing_cost_management_mcp_server.tools.bvs_tools import bvs_server
 from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_automation_tools import (
@@ -61,6 +64,9 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_optimization_hub_tool
     cost_optimization_hub_server,
 )
 from awslabs.billing_cost_management_mcp_server.tools.credits_tools import credits_server
+from awslabs.billing_cost_management_mcp_server.tools.enterprise_support_tools import (
+    enterprise_support_server,
+)
 from awslabs.billing_cost_management_mcp_server.tools.free_tier_usage_tools import (
     free_tier_usage_server,
 )
@@ -77,8 +83,17 @@ from awslabs.billing_cost_management_mcp_server.tools.recommendation_details_too
 from awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools import (
     ri_performance_server,
 )
+from awslabs.billing_cost_management_mcp_server.tools.sp_explorer_tools import (
+    sp_explorer_server,
+)
 from awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools import (
     sp_performance_server,
+)
+from awslabs.billing_cost_management_mcp_server.tools.sp_purchase_analyzer_tools import (
+    sp_purchase_analyzer_server,
+)
+from awslabs.billing_cost_management_mcp_server.tools.sp_recommendation_tools import (
+    sp_recommendation_server,
 )
 from awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools import storage_lens_server
 from awslabs.billing_cost_management_mcp_server.tools.unified_sql_tools import unified_sql_server
@@ -158,12 +173,17 @@ TOOLS:
 - rec-details: Get enhanced cost optimization recommendations
 - ri-performance: Analyze Reserved Instance coverage and utilization
 - sp-performance: Analyze Savings Plans coverage and utilization
+- sp-explorer: Describe the Savings Plans an account owns, including queued, returned, and payment-failed plans that Cost Explorer does not report, plus rates on owned plans and the offerings available to purchase
+- sp-recommendation: Get Savings Plans purchase recommendations, the hourly data-points behind one, and the recommendation generation history
+- sp-purchase-analyzer: Run Savings Plans Purchase Analyzer what-if analyses (max savings, custom commitment, target average coverage) and retrieve their results
 - session-sql: Execute SQL queries on the session database
 - billing-conductor: AWS Billing Conductor tools for AWS Proforma billing (billing groups and associated accounts and cost reports, pricing rules/plans, custom line items)
 - billing-view: AWS Billing View tools for managing and querying billing views (get-billing-view, list-billing-views, list-source-views-for-billing-view, get-resource-policy)
 - cost-allocation-tags: List cost allocation tags and backfill history (list-cost-allocation-tags, list-cost-allocation-tag-backfill-history)
 - cost-category: Describe and list cost category definitions (describe-cost-category-definition, list-cost-category-definitions)
 - invoicing: AWS Invoicing data — invoice summaries with amounts, tax, discounts/fees, currency/FX, due dates, PO numbers, and credit memos (operation: list_invoice_summaries)
+- credits: AWS Billing credits — credit balance, expiration, product applicability, sharing configuration, and the per-service allocation ledger (operations: get_credits, get_credit_allocation_history)
+- enterprise_support: AWS Enterprise Support charge data for a closed billing period — the Support charge and the Support-eligible spend it was calculated from, the contract terms that govern how the charge is allocated, and the per-linked-account breakdown (operations: get_charge_summary, get_contract_details, list_linked_account_charges)
 
 PROMPTS:
 - savings_plans: Analyzes AWS usage and identifies opportunities for Savings Plans purchases
@@ -219,6 +239,9 @@ def setup():
     mcp.mount(recommendation_details_server)
     mcp.mount(ri_performance_server)
     mcp.mount(sp_performance_server)
+    mcp.mount(sp_explorer_server)
+    mcp.mount(sp_recommendation_server)
+    mcp.mount(sp_purchase_analyzer_server)
     mcp.mount(unified_sql_server)
     mcp.mount(billing_conductor_server)
     mcp.mount(bvs_server)
@@ -228,6 +251,8 @@ def setup():
     mcp.mount(invoice_units_server)
     mcp.mount(procurement_preferences_server)
     mcp.mount(credits_server)
+    mcp.mount(billing_preferences_server)
+    mcp.mount(enterprise_support_server)
 
     register_prompts()
 
@@ -249,6 +274,9 @@ def setup():
         'rec-details',
         'ri-performance',
         'sp-performance',
+        'sp-explorer',
+        'sp-recommendation',
+        'sp-purchase-analyzer',
         'session-sql',
         'list-billing-groups',
         'list-billing-group-cost-reports',
@@ -270,6 +298,7 @@ def setup():
         'describe-cost-category-definition',
         'list-cost-category-definitions',
         'invoicing',
+        'get-billing-preferences',
     ]
     for tool in tools:
         logger.info(f'- {tool}')

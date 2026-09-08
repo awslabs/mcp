@@ -572,8 +572,6 @@ def test_main_with_sse():
         # Verify that asyncio.run was not called since initialize was removed
         mock_run.assert_not_called()
 
-        # Verify that mcp.settings.port was set
-        assert mock_mcp.settings.port == 9999
-
-        # Verify that mcp.run was called with transport="sse"
-        mock_mcp.run.assert_called_once_with(transport="sse")
+        # Verify the port was passed to run(). SDK v2 dropped `port` from the `Settings` model
+        # in favour of a run() keyword, so the port is now asserted on the call itself.
+        mock_mcp.run.assert_called_once_with(transport="sse", port=9999)

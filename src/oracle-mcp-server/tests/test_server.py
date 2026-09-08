@@ -39,7 +39,9 @@ from awslabs.oracle_mcp_server.server import (
     mcp as server_mcp,
 )
 from botocore.exceptions import ClientError
-from mcp.shared.exceptions import McpError
+from mcp.server.mcpserver import Context
+from mcp.shared.exceptions import MCPError
+from typing import Any, Optional
 from unittest.mock import AsyncMock, MagicMock
 
 
@@ -57,10 +59,14 @@ def test_connect_to_database_tool_schema_does_not_expose_secret_arn():
     )
 
 
-class DummyCtx:
+class DummyCtx(Context):
     """Minimal context stub for testing server tools."""
 
-    async def error(self, message):
+    def __init__(self) -> None:
+        """Initialize with no request context; nothing here needs one."""
+        super().__init__()
+
+    async def error(self, data: Any, *, logger_name: Optional[str] = None):
         """Record an error message (no-op for tests)."""
         pass
 
@@ -209,7 +215,7 @@ async def test_run_query_blocks_drop(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='DROP TABLE HR.EMPLOYEES',
             ctx=ctx,
@@ -229,7 +235,7 @@ async def test_run_query_blocks_audit(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='AUDIT SELECT TABLE BY ACCESS',
             ctx=ctx,
@@ -898,7 +904,7 @@ async def test_run_query_blocks_commit_in_readonly(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='COMMIT',
             ctx=ctx,
@@ -918,7 +924,7 @@ async def test_run_query_blocks_plsql_begin_in_readonly(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='BEGIN my_pkg.delete_all; END;',
             ctx=ctx,
@@ -938,7 +944,7 @@ async def test_run_query_blocks_plsql_declare_in_readonly(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='DECLARE v_x NUMBER; BEGIN NULL; END;',
             ctx=ctx,
@@ -958,7 +964,7 @@ async def test_run_query_blocks_set_role_in_readonly(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='SET ROLE DBA',
             ctx=ctx,
@@ -978,7 +984,7 @@ async def test_run_query_blocks_explain_plan_in_readonly(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='EXPLAIN PLAN FOR SELECT * FROM HR.EMPLOYEES',
             ctx=ctx,
@@ -998,7 +1004,7 @@ async def test_run_query_blocks_set_transaction_in_readonly(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='SET TRANSACTION READ WRITE',
             ctx=ctx,
@@ -1134,6 +1140,7 @@ async def test_connect_to_database_both_service_and_sid():
         service_name='ORCL',
         sid='ORCL',
     )
+    assert isinstance(result, dict)
     assert result['status'] == 'Failed'
     assert 'not both' in result['error']
 
@@ -1148,6 +1155,7 @@ async def test_connect_to_database_neither_service_nor_sid():
         connection_method=ConnectionMethod.ORACLE_PASSWORD,
         db_endpoint='ep1',
     )
+    assert isinstance(result, dict)
     assert result['status'] == 'Failed'
     assert 'must be provided' in result['error']
 
@@ -1174,6 +1182,7 @@ async def test_connect_to_database_pool_init_failure(mocker):
         service_name='ORCL',
     )
 
+    assert isinstance(result, dict)
     assert result['status'] == 'Failed'
     assert 'pool init failed' in result['error']
     remove_mock.assert_called_once()
@@ -1521,7 +1530,7 @@ async def test_run_query_readonly_rejects_v_dollar_view(mocker):
     mock_conn.readonly_query = True
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql='SELECT sql_text FROM v$sql',
             ctx=ctx,

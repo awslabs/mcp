@@ -267,6 +267,7 @@ async def get_dimension_values(
     next_token: Optional[str] = None,
     max_pages: Optional[int] = None,
     billing_view_arn: Optional[str] = None,
+    context: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Get available dimension values.
 
@@ -283,6 +284,8 @@ async def get_dimension_values(
         max_pages: Maximum number of pages to fetch
         billing_view_arn: Optional ARN of a billing view to scope the query.
             If not provided, defaults to the account's primary billing view.
+        context: The context for the call, which can be COST_AND_USAGE, RESERVATIONS, or
+            SAVINGS_PLANS. The default is COST_AND_USAGE. The context scopes which values come back.
 
     Returns:
         Dimension values response
@@ -312,6 +315,9 @@ async def get_dimension_values(
 
         if billing_view_arn:
             request_params['BillingViewArn'] = billing_view_arn
+
+        if context:
+            request_params['Context'] = context
 
         # Handle pagination
         if next_token or max_pages:

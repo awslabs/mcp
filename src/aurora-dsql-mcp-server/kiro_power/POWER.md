@@ -27,7 +27,7 @@ This power includes the following steering files in [steering](./steering)
 
 - **development-guide**
   - ALWAYS load before implementing schema changes or database operations
-  - [Best Practices](steering/development-guide.md#best-practices), DDL rules, connection patterns, transaction limits, security best practices
+  - [Best Practices](steering/development-guide.md#best-practices), DDL rules, connection patterns, transaction limits, native foreign keys, security best practices
 - **input-validation**
   - ALWAYS load before building any SQL query with user-supplied values
   - Validator selection table, [`safe_query.build()`](steering/safe_query.py) required pattern, authorization rules
@@ -55,8 +55,8 @@ This power includes the following steering files in [steering](./steering)
   - MUST load when writing OCC retry code or mitigating commit-time conflicts
   - DSQL Connectors, manual retry pattern, conflict mitigation, idempotent transaction design
 - **ddl-migrations-overview**
-  - MUST load when performing DROP COLUMN, ALTER COLUMN TYPE, or DROP CONSTRAINT
-  - Table recreation pattern overview, transaction rules, verify & swap pattern
+  - MUST load for ALTER COLUMN TYPE, SET NOT NULL, ADD/MODIFY PRIMARY KEY, or other structural changes DSQL cannot perform in place
+  - Direct ALTER coverage, last-resort table recreation, transaction rules, verify & swap pattern, foreign-key and dependent-view gate
 - **ddl-migrations-column-operations**
   - Load for DROP COLUMN, ALTER COLUMN TYPE, SET/DROP NOT NULL, SET/DROP DEFAULT
 - **ddl-migrations-constraint-operations**
@@ -74,7 +74,8 @@ This power includes the following steering files in [steering](./steering)
   - MUST load for PostgreSQL → DSQL type questions
   - C collation rules, NUMERIC precision, JSON/JSONB, types mapped to TEXT by `dsql_lint`
 - **pg-migrations-fk-replacement**
-  - MUST load for foreign-key validation code generation — tenant-scoped `validate_fk_*()` template, cascade handling
+  - MUST load for foreign key creation or migration
+  - Native FK syntax, actions, validation, tenant keys
 - **pg-migrations-index-conversion**
   - MUST load for unfixable index diagnostics — GIN/GiST/BRIN → btree, partial and expression indexes, async index status
 - **pg-migrations-schema-objects**
@@ -188,6 +189,7 @@ Authorize the caller against the tenant **before** validating format or calling 
 4. Verify schema with `get_schema`
 
 - **MUST** include `tenant_id` in all tables
+- Use composite tenant foreign keys for tenant-owned parents and ordinary foreign keys for shared parents
 - **MUST** use `CREATE INDEX ASYNC` exclusively
 - **MUST** issue each DDL in its own `transact` call
 - **MUST** serialize arrays into a single-column representation; **PREFER `JSONB`** (operators `@>`/`?`/`jsonb_array_elements_text` work directly); **MAY use `TEXT`** when the column is opaque to the database; **ASK** the user about query patterns
@@ -205,11 +207,22 @@ Authorize the caller against the tenant **before** validating format or calling 
 - **MUST** issue ADD COLUMN with only name and type; apply DEFAULT via separate UPDATE
 - **MUST** batch updates under 3,000 rows in separate `transact` calls
 
-### Workflow 3: Application-Layer Referential Integrity
+### Workflow 3: Foreign Key Constraints
 
-**INSERT:** Validate parent exists with `readonly_query` → throw error if not found → insert child with `transact`.
+**MUST** load [pg-migrations-fk-replacement.md](steering/pg-migrations-fk-replacement.md).
 
-**DELETE:** Check dependents with `readonly_query` COUNT → return error if dependents exist → delete with `transact` if safe.
+1. Define foreign keys inline in `CREATE TABLE` when creating new parent and child tables.
+2. For an existing child table, add the constraint with `NOT VALID` in one transaction.
+3. Validate existing rows separately with `ALTER TABLE ASYNC ... VALIDATE CONSTRAINT`.
+4. For multi-tenant data, make `tenant_id` `NOT NULL` and include it in both the referenced key and foreign key.
+5. Drop a foreign key directly with `ALTER TABLE ... DROP CONSTRAINT`.
+
+- **SHOULD** default to `NO ACTION`; use `RESTRICT`, `CASCADE`, `SET NULL`, or `SET DEFAULT` only when the user explicitly intends and confirms the behavior.
+- Use `MATCH SIMPLE` or `MATCH FULL`. PostgreSQL does not implement `MATCH PARTIAL`; Aurora DSQL inherits this behavior. Under `MATCH SIMPLE`, optional relationship columns MAY remain nullable.
+- Use composite tenant foreign keys for tenant-owned parents; use ordinary foreign keys for shared or globally identified rows.
+- `DEFERRABLE` constraints and `SET CONSTRAINTS` are supported. Run `SET CONSTRAINTS` in the same explicit transaction as the related DML — a separate MCP `transact` call commits independently; deferred violations surface at `COMMIT`.
+- Cascading actions count toward transaction row limits — assess per-parent fan-out and process children in bounded transactions when one parent can exceed the limit.
+- **MUST** retry retryable serialization failures (`SQLSTATE 40001`) from concurrent referenced-key changes; **MUST NOT** send foreign-key violations (`SQLSTATE 23503`) through the retry loop — correct the relationship or referential action instead.
 
 ### Workflow 4: Query with Tenant Isolation
 
@@ -223,15 +236,15 @@ Authorize the caller against the tenant **before** validating format or calling 
 
 **MUST** load [access-control.md](steering/access-control.md) for role setup, IAM mapping, and schema permissions.
 
-### Workflow 6: Table Recreation DDL Migration
+### Workflow 6: Structural DDL Migration
 
-DSQL does NOT support direct `ALTER COLUMN TYPE`, `DROP COLUMN`, `DROP CONSTRAINT`, or `MODIFY PRIMARY KEY`. These require the **Table Recreation Pattern**. This is a destructive workflow that requires user confirmation at each step. Validate the new CREATE TABLE with `dsql_lint(sql=..., fix=true)` before execution.
+Prefer a direct `ALTER TABLE` whenever DSQL supports it in place — including `DROP COLUMN`, `ADD`/`DROP CONSTRAINT` (CHECK, UNIQUE, foreign key), `SET`/`DROP DEFAULT`, and `DROP NOT NULL`. Fall back to the destructive **Table Recreation Pattern** only for structural changes DSQL cannot perform directly: `ALTER COLUMN TYPE`, `SET NOT NULL`, and `ADD`/`MODIFY PRIMARY KEY`. Table recreation requires user confirmation at each step; validate the new CREATE TABLE with `dsql_lint(sql=..., fix=true)` before execution. If the table participates in a foreign key or has dependent views, **MUST** stop the generic pattern and present a dedicated, user-approved migration plan; **MUST NOT** use `DROP TABLE ... CASCADE` to bypass dependencies.
 
 **MUST** load [ddl-migrations-overview.md](steering/ddl-migrations-overview.md) before attempting any of these operations.
 
 ### Workflow 7: Validate and Migrate to DSQL
 
-Run `dsql_lint(sql=source_sql, fix=true)` to validate and auto-convert PostgreSQL-compatible SQL. For MySQL-specific syntax (SET, ENGINE, PARTITION BY), `dsql_lint` returns a parse error — fall back to [mysql-type-mapping.md](steering/mysql-type-mapping.md) for manual conversion. **MUST** load [dsql-lint.md](steering/dsql-lint.md) for the full workflow, ORM-specific guidance, and unfixable error resolution.
+Run `dsql_lint(sql=source_sql, fix=true)` to validate and auto-convert PostgreSQL-compatible SQL. For MySQL-specific syntax (SET, ENGINE, PARTITION BY), `dsql_lint` returns a parse error — fall back to [mysql-type-mapping.md](steering/mysql-type-mapping.md) for manual conversion. **MUST** load [dsql-lint.md](steering/dsql-lint.md) for the full workflow, ORM-specific guidance, and unfixable error resolution. **MUST** load [pg-migrations-fk-replacement.md](steering/pg-migrations-fk-replacement.md) when source SQL contains foreign keys so supported constraints are preserved.
 
 ### Workflow 8: Query Plan Explainability
 
@@ -243,7 +256,8 @@ Explains why the DSQL optimizer chose a particular plan. Triggered by slow queri
 
 ## Error Scenarios
 
-- **OCC serialization error:** Retry the transaction. If persistent, check for hot-key contention — see [troubleshooting.md](steering/troubleshooting.md).
+- **OCC serialization error (`SQLSTATE 40001`):** Retry the transaction. If persistent, check for hot-key contention — see [troubleshooting.md](steering/troubleshooting.md).
+- **Foreign key violation (`SQLSTATE 23503`):** Correct the relationship or referential action; **MUST NOT** retry via the `40001` loop — see [troubleshooting.md](steering/troubleshooting.md).
 - **Transaction exceeds limits:** Split into batches under 3,000 rows — see [ddl-migrations-batched.md](steering/ddl-migrations-batched.md).
 - **Token expiration mid-operation:** Generate a fresh IAM token — see [auth-guide.md](steering/auth-guide.md).
 

@@ -70,7 +70,7 @@ from awslabs.aws_dataprocessing_mcp_server.handlers.glue.worklows_handler import
     GlueWorkflowAndTriggerHandler,
 )
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 
 # Define server instructions and dependencies
@@ -284,7 +284,7 @@ mcp = None
 
 def create_server():
     """Create and configure the MCP server instance."""
-    return FastMCP(
+    return MCPServer(
         'awslabs.aws-dataprocessing-mcp-server',
         instructions=SERVER_INSTRUCTIONS,
         dependencies=SERVER_DEPENDENCIES,

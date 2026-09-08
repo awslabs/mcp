@@ -23,7 +23,7 @@ Backoff: exponential with jitter
 Formula: delay = min(base * 2^attempt + random(0, base), max_delay)
 Max delay: 5000ms (stays under DSQL's 5-minute transaction timeout)
 Retryable: SQLSTATE 40001 only
-Non-retryable: all other errors (raise immediately)
+Non-retryable: all other errors, including foreign key violation 23503 (raise immediately)
 ```
 
 ---
@@ -40,7 +40,7 @@ automatically. Applications SHOULD use these instead of manual retry logic:
 | Node.js  | `pg`                           | `@aws/aurora-dsql-node-postgres-connector` | [aurora-dsql-connectors/node/node-postgres](https://github.com/awslabs/aurora-dsql-connectors/tree/main/node/node-postgres) |
 | Node.js  | `Postgres.js`                  | `@aws/aurora-dsql-postgresjs-connector`    | [aurora-dsql-connectors/node/postgres-js](https://github.com/awslabs/aurora-dsql-connectors/tree/main/node/postgres-js)     |
 
-See [connectivity-tools.md](auth-connectivity.md) for setup details.
+See [connectivity-tools.md](auth/connectivity-tools.md) for setup details.
 
 When using a DSQL Connector, OCC retry is built in — no manual retry wrapper needed.
 
@@ -86,14 +86,15 @@ for Java, Go, Node.js, and Rust implementations.
 
 ## Conflict Mitigation
 
-| Scenario                         | Conflict Risk | Mitigation                                                                   |
-| -------------------------------- | ------------- | ---------------------------------------------------------------------------- |
-| Counter/balance updates          | High          | Shard counters, use CACHE 65536 sequences (DSQL minimum for high-throughput) |
-| Status field updates (same row)  | High          | Keep transactions short                                                      |
-| Batch updates overlapping rows   | Medium        | Smaller batches, randomize order                                             |
-| Long-running transactions        | Medium        | Break into smaller units — DSQL transaction timeout is 5 min                 |
-| Cross-region writes to same rows | High          | Geographic partitioning                                                      |
-| INSERT-only workloads            | Low           | UUID PKs distribute writes                                                   |
+| Scenario                                 | Conflict Risk | Mitigation                                                                   |
+| ---------------------------------------- | ------------- | ---------------------------------------------------------------------------- |
+| Counter/balance updates                  | High          | Shard counters, use CACHE 65536 sequences (DSQL minimum for high-throughput) |
+| Status field updates (same row)          | High          | Keep transactions short                                                      |
+| Batch updates overlapping rows           | Medium        | Smaller batches, randomize order                                             |
+| Long-running transactions                | Medium        | Break into smaller units — DSQL transaction timeout is 5 min                 |
+| Cross-region writes to same rows         | High          | Geographic partitioning                                                      |
+| Child writes with referenced-key changes | High          | Keep referenced keys stable; retry only `40001`                              |
+| INSERT-only workloads                    | Low           | UUID PKs distribute writes                                                   |
 
 **Key strategies:**
 

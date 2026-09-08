@@ -174,7 +174,7 @@ class TestGlueDataCatalogHandler:
         )
 
         # Verify the result
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -191,7 +191,7 @@ class TestGlueDataCatalogHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Verify the result
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.text
 
     @pytest.mark.asyncio
@@ -209,7 +209,7 @@ class TestGlueDataCatalogHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Verify the result
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.text
 
     @pytest.mark.asyncio
@@ -221,7 +221,7 @@ class TestGlueDataCatalogHandler:
 
         # Mock the response class
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.database_name = 'test-db'
         mock_response.description = 'Test database'
@@ -268,7 +268,7 @@ class TestGlueDataCatalogHandler:
 
         # Mock the response class
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         # Create mock content items to match expected structure
         mock_content_item1 = MagicMock()
         mock_content_item2 = MagicMock()
@@ -309,7 +309,7 @@ class TestGlueDataCatalogHandler:
         """Test that create database operation is allowed with write access."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.operation = 'create'
@@ -346,7 +346,7 @@ class TestGlueDataCatalogHandler:
         """Test that delete database operation is allowed with write access."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.operation = 'delete'
@@ -399,7 +399,7 @@ class TestGlueDataCatalogHandler:
             mock_ctx, operation='update-database', database_name=None
         )
         result = CallToolResultWrapper(raw_result)
-        assert result.isError is True
+        assert result.is_error is True
         assert 'is not allowed without write access' in result.text
 
     @pytest.mark.asyncio
@@ -409,7 +409,7 @@ class TestGlueDataCatalogHandler:
         """Test that update database operation is allowed with write access."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.operation = 'update'
@@ -453,7 +453,7 @@ class TestGlueDataCatalogHandler:
         )
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Invalid operation' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -484,7 +484,7 @@ class TestGlueDataCatalogHandler:
         )
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert (
             'Error in manage_aws_glue_data_catalog_databases: Test exception'
             in result.content[0].text
@@ -507,7 +507,7 @@ class TestGlueDataCatalogHandler:
         )
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -519,7 +519,7 @@ class TestGlueDataCatalogHandler:
 
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.table_name = 'test-table'
@@ -559,7 +559,7 @@ class TestGlueDataCatalogHandler:
         )
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -571,7 +571,7 @@ class TestGlueDataCatalogHandler:
 
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.connection_name = 'test-connection'
         expected_response.connection_type = 'JDBC'
@@ -619,7 +619,7 @@ class TestGlueDataCatalogHandler:
         )
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -631,7 +631,7 @@ class TestGlueDataCatalogHandler:
 
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.table_name = 'test-table'
@@ -675,7 +675,7 @@ class TestGlueDataCatalogHandler:
         )
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -685,7 +685,7 @@ class TestGlueDataCatalogHandler:
         """Test that get catalog operation is allowed with read access."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.catalog_id = 'test-catalog'
         expected_response.catalog_definition = {}
@@ -716,7 +716,7 @@ class TestGlueDataCatalogHandler:
         """Test that create catalog operation is allowed with write access."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.catalog_id = 'test-catalog'
         expected_response.operation = 'create-catalog'
@@ -747,7 +747,7 @@ class TestGlueDataCatalogHandler:
         """Test that delete catalog operation is allowed with write access."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.catalog_id = 'test-catalog'
         expected_response.operation = 'delete-catalog'
@@ -778,7 +778,7 @@ class TestGlueDataCatalogHandler:
         )
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Invalid operation' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -786,7 +786,7 @@ class TestGlueDataCatalogHandler:
         """Test that list_catalogs operation returns a not implemented error."""
         # Call the method with list-catalogs operation
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.catalogs = []
         mock_response.count = 0
@@ -795,7 +795,7 @@ class TestGlueDataCatalogHandler:
         handler.data_catalog_manager.list_catalogs.return_value = mock_response
         result = await handler.manage_aws_glue_data_catalog(mock_ctx, operation='list-catalogs')
 
-        assert result.isError is False
+        assert result.is_error is False
         assert result.operation == 'list-catalogs'
 
     @pytest.mark.asyncio
@@ -811,7 +811,7 @@ class TestGlueDataCatalogHandler:
                     mock_ctx, operation='list-catalogs'
                 )
 
-                assert result.isError is False
+                assert result.is_error is False
                 assert result.operation == 'list-catalogs'
                 assert 'Invalid next_token provided' in str(e)
 
@@ -827,7 +827,7 @@ class TestGlueDataCatalogHandler:
             catalog_id='test-catalog',
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -837,7 +837,7 @@ class TestGlueDataCatalogHandler:
         """Test that import_catalog_to_glue operation returns a not implemented error."""
         # Call the method with import-catalog-to-glue operation
         mock_response = MagicMock()
-        mock_response.isError = False
+        mock_response.is_error = False
         mock_response.content = []
         mock_response.catalog_id = '123456789012'
         mock_response.operation = 'import-catalog-to-glue'
@@ -850,7 +850,7 @@ class TestGlueDataCatalogHandler:
             catalog_id='test-catalog',
         )
 
-        assert result.isError is False
+        assert result.is_error is False
         assert result.operation == 'import-catalog-to-glue'
 
     @pytest.mark.asyncio
@@ -860,7 +860,7 @@ class TestGlueDataCatalogHandler:
         """Test that missing catalog_id parameter causes an error."""
         # Mock the error response
         error_response = MagicMock()
-        error_response.isError = True
+        error_response.is_error = True
         error_response.catalog_id = ''
         error_response.operation = 'create-catalog'
 
@@ -889,7 +889,7 @@ class TestGlueDataCatalogHandler:
         )
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Error in manage_aws_glue_data_catalog' in result.content[0].text
         assert 'Test exception' in result.content[0].text
 
@@ -907,7 +907,7 @@ class TestGlueDataCatalogHandler:
         )
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert (
             'Error in manage_aws_glue_data_catalog_tables: Test exception'
             in result.content[0].text
@@ -927,7 +927,7 @@ class TestGlueDataCatalogHandler:
         )
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert (
             'Error in manage_aws_glue_data_catalog_tables: Test exception'
             in result.content[0].text
@@ -961,7 +961,7 @@ class TestGlueDataCatalogHandler:
         )
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert (
             'Error in manage_aws_glue_data_catalog_connections: Test exception'
             in result.content[0].text
@@ -1001,7 +1001,7 @@ class TestGlueDataCatalogHandler:
         )
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert (
             'Error in manage_aws_glue_data_catalog_partitions: Test exception'
             in result.content[0].text
@@ -1044,7 +1044,7 @@ class TestGlueDataCatalogHandler:
         )
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1058,7 +1058,7 @@ class TestGlueDataCatalogHandler:
         )
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1075,7 +1075,7 @@ class TestGlueDataCatalogHandler:
         )
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1093,7 +1093,7 @@ class TestGlueDataCatalogHandler:
         )
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1112,7 +1112,7 @@ class TestGlueDataCatalogHandler:
         )
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -1127,7 +1127,7 @@ class TestGlueDataCatalogHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.text
 
     @pytest.mark.asyncio
@@ -1137,7 +1137,7 @@ class TestGlueDataCatalogHandler:
         """Test that all parameters are passed correctly to the database manager."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.operation = 'create'
@@ -1178,7 +1178,7 @@ class TestGlueDataCatalogHandler:
         """Test that short operation names (create, delete, etc.) work correctly for tables."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.table_name = 'test-table'
@@ -1212,7 +1212,7 @@ class TestGlueDataCatalogHandler:
         """Test that search operation with short name works correctly for tables."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.tables = []
         expected_response.search_text = 'test'
@@ -1242,7 +1242,7 @@ class TestGlueDataCatalogHandler:
         """Test that short operation names (create, delete, etc.) work correctly for connections."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.connection_name = 'test-connection'
         expected_response.operation = 'create-connection'
@@ -1276,7 +1276,7 @@ class TestGlueDataCatalogHandler:
         """Test that short operation names (create, delete, etc.) work correctly for partitions."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.table_name = 'test-table'
@@ -1313,7 +1313,7 @@ class TestGlueDataCatalogHandler:
         """Test that short operation names (create, delete, etc.) work correctly for catalog."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.catalog_id = 'test-catalog'
         expected_response.operation = 'create-catalog'
@@ -1498,7 +1498,7 @@ class TestGlueDataCatalogHandler:
         """Test creating a table with a complete table input."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.table_name = 'test-table'
@@ -1562,7 +1562,7 @@ class TestGlueDataCatalogHandler:
         """Test updating a table with a complete table input."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.table_name = 'test-table'
@@ -1626,7 +1626,7 @@ class TestGlueDataCatalogHandler:
         """Test creating a connection with a complete connection input."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.connection_name = 'test-jdbc-connection'
         expected_response.operation = 'create-connection'
@@ -1679,7 +1679,7 @@ class TestGlueDataCatalogHandler:
         """Test updating a connection with a complete connection input."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.connection_name = 'test-jdbc-connection'
         expected_response.operation = 'update-connection'
@@ -1732,7 +1732,7 @@ class TestGlueDataCatalogHandler:
         """Test creating a partition with a complete partition input."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.table_name = 'test-table'
@@ -1800,7 +1800,7 @@ class TestGlueDataCatalogHandler:
         """Test updating a partition with a complete partition input."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.table_name = 'test-table'
@@ -1870,7 +1870,7 @@ class TestGlueDataCatalogHandler:
         """Test that search tables operation works correctly with all parameters."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.tables = [
             {'DatabaseName': 'test-db', 'Name': 'test-table1', 'Description': 'First test table'},
@@ -1916,7 +1916,7 @@ class TestGlueDataCatalogHandler:
         """Test that list partitions operation works correctly with all parameters."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.partitions = [
             {
@@ -1970,7 +1970,7 @@ class TestGlueDataCatalogHandler:
         """Test creating a catalog with a complete catalog input."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.catalog_id = 'test-catalog'
         expected_response.operation = 'create-catalog'
@@ -2011,7 +2011,7 @@ class TestGlueDataCatalogHandler:
         """Test that get catalog operation works correctly with all parameters."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.catalog_id = 'test-catalog'
         expected_response.catalog_definition = {
@@ -2062,7 +2062,7 @@ class TestGlueDataCatalogHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Invalid operation' in result.text
 
     @pytest.mark.asyncio
@@ -2079,7 +2079,7 @@ class TestGlueDataCatalogHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Invalid operation' in result.text
 
     @pytest.mark.asyncio
@@ -2099,7 +2099,7 @@ class TestGlueDataCatalogHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Invalid operation' in result.text
 
     @pytest.mark.asyncio
@@ -2109,7 +2109,7 @@ class TestGlueDataCatalogHandler:
         """Test that search tables operation works correctly with minimal parameters."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.tables = []
         expected_response.search_text = None
@@ -2137,7 +2137,7 @@ class TestGlueDataCatalogHandler:
         """Test that list partitions operation works correctly with minimal parameters."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.partitions = []
         expected_response.count = 0
@@ -2203,7 +2203,7 @@ class TestGlueDataCatalogHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Invalid operation' in result.text
 
     @pytest.mark.asyncio
@@ -2222,7 +2222,7 @@ class TestGlueDataCatalogHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Invalid operation' in result.text
 
     @pytest.mark.asyncio
@@ -2242,7 +2242,7 @@ class TestGlueDataCatalogHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Invalid operation: other-write-operation' in result.text
 
     @pytest.mark.asyncio
@@ -2259,7 +2259,7 @@ class TestGlueDataCatalogHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Invalid operation: other-write-operation' in result.text
 
     @pytest.mark.asyncio
@@ -2269,7 +2269,7 @@ class TestGlueDataCatalogHandler:
         """Test creating a table with a catalog ID."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.table_name = 'test-table'
@@ -2305,7 +2305,7 @@ class TestGlueDataCatalogHandler:
         """Test listing tables with max_results parameter."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.tables = [{'Name': 'test-table1'}, {'Name': 'test-table2'}]
         expected_response.count = 2
@@ -2335,7 +2335,7 @@ class TestGlueDataCatalogHandler:
         """Test getting a connection with a catalog ID."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.connection_name = 'test-connection'
         expected_response.operation = 'get-connection'
@@ -2365,7 +2365,7 @@ class TestGlueDataCatalogHandler:
         """Test getting a partition with a catalog ID."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.table_name = 'test-table'
@@ -2499,7 +2499,7 @@ class TestGlueDataCatalogHandler:
 
             # Setup the mock to return a response
             expected_response = MagicMock()
-            expected_response.isError = False
+            expected_response.is_error = False
             expected_response.content = []
             expected_response.database_name = 'test-db'
             expected_response.operation = 'get'
@@ -2543,7 +2543,7 @@ class TestGlueDataCatalogHandler:
 
             # Setup the mock to return a response
             expected_response = MagicMock()
-            expected_response.isError = False
+            expected_response.is_error = False
             expected_response.content = []
             expected_response.database_name = 'test-db'
             expected_response.operation = 'create'
@@ -2579,7 +2579,7 @@ class TestGlueDataCatalogHandler:
         result = CallToolResultWrapper(raw_result)
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.text
 
     @pytest.mark.asyncio
@@ -2589,7 +2589,7 @@ class TestGlueDataCatalogHandler:
         """Test that search tables operation is allowed without write access."""
         # Mock the search_tables method to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.tables = []
         expected_response.search_text = 'test'
@@ -2607,7 +2607,7 @@ class TestGlueDataCatalogHandler:
 
         # Verify that the result is the expected response
         assert result == expected_response
-        assert result.isError is False
+        assert result.is_error is False
         assert handler.data_catalog_table_manager.search_tables.call_count == 1
 
     @pytest.mark.asyncio
@@ -2617,7 +2617,7 @@ class TestGlueDataCatalogHandler:
         """Test that list tables operation is allowed without write access."""
         # Mock the list_tables method to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.tables = []
         expected_response.count = 0
@@ -2633,7 +2633,7 @@ class TestGlueDataCatalogHandler:
 
         # Verify that the result is the expected response
         assert result == expected_response
-        assert result.isError is False
+        assert result.is_error is False
         assert handler.data_catalog_table_manager.list_tables.call_count == 1
 
     @pytest.mark.asyncio
@@ -2643,7 +2643,7 @@ class TestGlueDataCatalogHandler:
         """Test that list connections operation is allowed without write access."""
         # Mock the list_connections method to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.connections = []
         expected_response.count = 0
@@ -2658,7 +2658,7 @@ class TestGlueDataCatalogHandler:
 
         # Verify that the result is the expected response
         assert result == expected_response
-        assert result.isError is False
+        assert result.is_error is False
         assert handler.data_catalog_manager.list_connections.call_count == 1
 
     @pytest.mark.asyncio
@@ -2668,7 +2668,7 @@ class TestGlueDataCatalogHandler:
         """Test that get partition operation is allowed without write access."""
         # Mock the get_partition method to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.table_name = 'test-table'
@@ -2687,7 +2687,7 @@ class TestGlueDataCatalogHandler:
 
         # Verify that the result is the expected response
         assert result == expected_response
-        assert result.isError is False
+        assert result.is_error is False
         assert handler.data_catalog_manager.get_partition.call_count == 1
 
     @pytest.mark.asyncio
@@ -2697,7 +2697,7 @@ class TestGlueDataCatalogHandler:
         """Test that get catalog operation is allowed without write access."""
         # Mock the get_catalog method to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.catalog_id = 'test-catalog'
         expected_response.operation = 'get-catalog'
@@ -2712,7 +2712,7 @@ class TestGlueDataCatalogHandler:
 
         # Verify that the result is the expected response
         assert result == expected_response
-        assert result.isError is False
+        assert result.is_error is False
         assert handler.data_catalog_manager.get_catalog.call_count == 1
 
     @pytest.mark.asyncio
@@ -2734,7 +2734,7 @@ class TestGlueDataCatalogHandler:
         )
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert (
             'Error in manage_aws_glue_data_catalog_tables: General test exception'
             in result.content[0].text
@@ -2758,7 +2758,7 @@ class TestGlueDataCatalogHandler:
         )
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert (
             'Error in manage_aws_glue_data_catalog_connections: General test exception'
             in result.content[0].text
@@ -2784,7 +2784,7 @@ class TestGlueDataCatalogHandler:
         )
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert (
             'Error in manage_aws_glue_data_catalog_partitions: General test exception'
             in result.content[0].text
@@ -2806,7 +2806,7 @@ class TestGlueDataCatalogHandler:
         )
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert (
             'Error in manage_aws_glue_data_catalog: General test exception'
             in result.content[0].text
@@ -2828,7 +2828,7 @@ class TestGlueDataCatalogHandler:
         )
 
         # Verify that the result is an error response
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Invalid operation' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -2838,7 +2838,7 @@ class TestGlueDataCatalogHandler:
         """Test that the handler works correctly with None parameters."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.operation = 'create'
@@ -2875,7 +2875,7 @@ class TestGlueDataCatalogHandler:
         """Test that the handler works correctly with None parameters."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.table_name = 'test-table'
@@ -2911,7 +2911,7 @@ class TestGlueDataCatalogHandler:
         """Test that the handler works correctly with None parameters."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.connection_name = 'test-connection'
         expected_response.operation = 'create-connection'
@@ -2944,7 +2944,7 @@ class TestGlueDataCatalogHandler:
         """Test that the handler works correctly with None parameters."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.table_name = 'test-table'
@@ -2985,7 +2985,7 @@ class TestGlueDataCatalogHandler:
         """Test that the handler works correctly with None parameters."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.catalog_id = 'test-catalog'
         expected_response.operation = 'create-catalog'
@@ -3016,7 +3016,7 @@ class TestGlueDataCatalogHandler:
         """Test updating a table with a catalog ID."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.table_name = 'test-table'
@@ -3052,7 +3052,7 @@ class TestGlueDataCatalogHandler:
         """Test updating a connection with a catalog ID."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.connection_name = 'test-connection'
         expected_response.operation = 'update-connection'
@@ -3087,7 +3087,7 @@ class TestGlueDataCatalogHandler:
         """Test updating a partition with a catalog ID."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.table_name = 'test-table'
@@ -3126,7 +3126,7 @@ class TestGlueDataCatalogHandler:
         """Test deleting a table with a catalog ID."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.table_name = 'test-table'
@@ -3160,7 +3160,7 @@ class TestGlueDataCatalogHandler:
         """Test deleting a connection with a catalog ID."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.connection_name = 'test-connection'
         expected_response.operation = 'delete-connection'
@@ -3193,7 +3193,7 @@ class TestGlueDataCatalogHandler:
         """Test deleting a partition with a catalog ID."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.database_name = 'test-db'
         expected_response.table_name = 'test-table'
@@ -3232,7 +3232,7 @@ class TestGlueDataCatalogHandler:
         """Test listing tables with max_results parameter."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.tables = [{'Name': 'test-table1'}, {'Name': 'test-table2'}]
         expected_response.count = 2
@@ -3609,7 +3609,7 @@ class TestGlueDataCatalogHandler:
         """Test listing partitions with all parameters including next_token."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.partitions = [{'Values': ['2023', '01']}, {'Values': ['2023', '02']}]
         expected_response.count = 2
@@ -3647,7 +3647,7 @@ class TestGlueDataCatalogHandler:
         """Test listing connections with max_results parameter."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.connections = [
             {'Name': 'connection1', 'ConnectionType': 'JDBC'},
@@ -3677,7 +3677,7 @@ class TestGlueDataCatalogHandler:
         """Test listing connections with all parameters."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.connections = [
             {'Name': 'connection1', 'ConnectionType': 'JDBC'},
@@ -3710,7 +3710,7 @@ class TestGlueDataCatalogHandler:
         """Test getting a connection with all parameters."""
         # Setup the mock to return a response
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         expected_response.connection_name = 'test-connection'
         expected_response.connection_type = 'JDBC'
@@ -3778,7 +3778,7 @@ class TestGlueDataCatalogHandler:
             operation='test-connection',
             connection_name='test-conn',
         )
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -3787,7 +3787,7 @@ class TestGlueDataCatalogHandler:
     ):
         """Test that test-connection works with write access."""
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         mock_catalog_manager.test_connection.return_value = expected_response
 
@@ -3821,7 +3821,7 @@ class TestGlueDataCatalogHandler:
             operation='batch-delete-connection',
             connection_name_list=['conn-1', 'conn-2'],
         )
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not allowed without write access' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -3830,7 +3830,7 @@ class TestGlueDataCatalogHandler:
     ):
         """Test that batch-delete-connection works with write access."""
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         mock_catalog_manager.batch_delete_connection.return_value = expected_response
 
@@ -3873,7 +3873,7 @@ class TestGlueDataCatalogHandler:
             mock_ctx,
             operation='invalid-op',
         )
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Invalid operation' in result.content[0].text
 
     # ==================== Connection Types Handler Tests ====================
@@ -3884,7 +3884,7 @@ class TestGlueDataCatalogHandler:
     ):
         """Test describe-connection-type operation."""
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         mock_catalog_manager.describe_connection_type.return_value = expected_response
 
@@ -3915,7 +3915,7 @@ class TestGlueDataCatalogHandler:
     ):
         """Test list-connection-types operation."""
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         mock_catalog_manager.list_connection_types.return_value = expected_response
 
@@ -3939,7 +3939,7 @@ class TestGlueDataCatalogHandler:
             mock_ctx,
             operation='invalid-op',
         )
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Invalid operation' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -3954,7 +3954,7 @@ class TestGlueDataCatalogHandler:
             operation='list-connection-types',
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Error in manage_aws_glue_connection_types' in result.content[0].text
 
     # ==================== Connection Metadata Handler Tests ====================
@@ -3965,7 +3965,7 @@ class TestGlueDataCatalogHandler:
     ):
         """Test list-entities operation."""
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         mock_catalog_manager.list_entities.return_value = expected_response
 
@@ -3984,7 +3984,7 @@ class TestGlueDataCatalogHandler:
     ):
         """Test list-entities with parent_entity_name."""
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         mock_catalog_manager.list_entities.return_value = expected_response
 
@@ -4008,7 +4008,7 @@ class TestGlueDataCatalogHandler:
     ):
         """Test describe-entity operation."""
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         mock_catalog_manager.describe_entity.return_value = expected_response
 
@@ -4046,7 +4046,7 @@ class TestGlueDataCatalogHandler:
             entity_name='Account',
             limit=10,
         )
-        assert result.isError is True
+        assert result.is_error is True
         assert 'allow-sensitive-data-access' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -4055,7 +4055,7 @@ class TestGlueDataCatalogHandler:
     ):
         """Test get-entity-records works with sensitive data access."""
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         mock_catalog_manager.get_entity_records.return_value = expected_response
 
@@ -4102,7 +4102,7 @@ class TestGlueDataCatalogHandler:
     ):
         """Test get-entity-records with all optional parameters."""
         expected_response = MagicMock()
-        expected_response.isError = False
+        expected_response.is_error = False
         expected_response.content = []
         mock_catalog_manager.get_entity_records.return_value = expected_response
 
@@ -4137,7 +4137,7 @@ class TestGlueDataCatalogHandler:
             operation='invalid-op',
             connection_name='my-conn',
         )
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Invalid operation' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -4153,5 +4153,5 @@ class TestGlueDataCatalogHandler:
             connection_name='my-conn',
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Error in manage_aws_glue_connection_metadata' in result.content[0].text

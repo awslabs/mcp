@@ -114,7 +114,7 @@ def mock_boto3_session():
 @pytest.fixture
 def mock_fastmcp_app():
     """Mock FastMCP app for testing."""
-    with patch('mcp.server.fastmcp.FastMCP') as mock_fastmcp:
+    with patch('mcp.server.mcpserver.MCPServer') as mock_fastmcp:
         app = MagicMock()
         mock_fastmcp.return_value = app
         yield app

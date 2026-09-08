@@ -27,7 +27,7 @@ from awslabs.aws_documentation_mcp_server.server_utils import (
     read_sections_impl,
     search_table_impl,
 )
-from mcp.server.fastmcp.server import Context
+from mcp.server.mcpserver import Context
 from unittest.mock import AsyncMock, MagicMock, patch
 
 

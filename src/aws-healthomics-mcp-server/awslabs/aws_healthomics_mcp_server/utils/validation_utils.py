@@ -24,7 +24,7 @@ from awslabs.aws_healthomics_mcp_server.utils.content_resolver import (
 )
 from enum import Enum
 from loguru import logger
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from pydantic import ValidationError
 from typing import Any, Dict, List, Optional, Tuple
 
