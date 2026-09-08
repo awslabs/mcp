@@ -28,7 +28,12 @@
 #       [--database mcp_test_db] \
 #       [--port 5432] \
 #       [--log-file path.log] \
+#       [--keep-clusters] \
 #       [--skip-cred-refresh]
+#
+# --keep-clusters leaves the created clusters + test security group standing so
+# you can manually troubleshoot (e.g. PG-Wire reachability). Remember to delete
+# them yourself afterward.
 #
 # Anything after a literal `--` is passed straight through to the harness.
 set -euo pipefail
@@ -53,6 +58,7 @@ DATABASE=""
 PORT=""
 LOG_FILE=""
 SKIP_CRED_REFRESH="false"
+KEEP_CLUSTERS="false"
 PASSTHROUGH=()
 
 # --- parse args -----------------------------------------------------------
@@ -69,6 +75,7 @@ while [[ $# -gt 0 ]]; do
     --database)          DATABASE="$2"; shift 2 ;;
     --port)              PORT="$2"; shift 2 ;;
     --log-file)          LOG_FILE="$2"; shift 2 ;;
+    --keep-clusters)     KEEP_CLUSTERS="true"; shift ;;
     --skip-cred-refresh) SKIP_CRED_REFRESH="true"; shift ;;
     -h|--help)           usage 0 ;;
     --)                  shift; PASSTHROUGH+=("$@"); break ;;
@@ -131,6 +138,7 @@ cmd=(uv run python tests/e2e/e2e_integration_test.py
 [[ -n "$AUTH_TYPES" ]] && cmd+=(--auth-types "$AUTH_TYPES")
 [[ -n "$DATABASE" ]] && cmd+=(--database "$DATABASE")
 [[ -n "$PORT" ]] && cmd+=(--port "$PORT")
+[[ "$KEEP_CLUSTERS" == "true" ]] && cmd+=(--keep-clusters)
 if [[ ${#PASSTHROUGH[@]} -gt 0 ]]; then
   cmd+=("${PASSTHROUGH[@]}")
 fi

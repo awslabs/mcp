@@ -3377,6 +3377,57 @@ async def main_async(args):
     # Print summary before cleanup
     all_passed = print_summary(results)
 
+    # --keep-clusters: leave everything standing so an operator can manually
+    # troubleshoot (e.g. PG-Wire reachability to the serverless cluster).
+    # Skips cluster deletion, SG deletion, and least-privilege deprovision, and
+    # prints the connection + network details plus manual-cleanup commands.
+    if getattr(args, 'keep_clusters', False):
+        bar = '=' * 70
+        logger.warning(bar)
+        logger.warning(
+            '--keep-clusters set: NOT deleting clusters, the test security group, '
+            'or least-privilege secrets/IAM policies. Clean these up manually when '
+            'done (they otherwise leak and the next run only GCs the SG).'
+        )
+        for cid in clusters_to_delete:
+            logger.warning(f'  cluster (kept): {cid}')
+        if test_security_group_id:
+            logger.warning(f'  test security group (kept): {test_security_group_id}')
+        for kind, lp in lp_info_by_kind.items():
+            logger.warning(
+                f'  [{kind}] endpoint={lp.get("endpoint")} '
+                f'lp_role={lp.get("role")} lp_secret_arn={lp.get("secret_arn")}'
+            )
+        logger.warning('Troubleshoot reachability from this host, e.g.:')
+        logger.warning('  nc -vz <endpoint> 5432')
+        logger.warning('  openssl s_client -starttls postgres -connect <endpoint>:5432')
+        logger.warning('Inspect the serverless cluster network config (compare with a')
+        logger.warning('cluster you CAN reach):')
+        logger.warning(
+            f'  aws rds describe-db-instances --region {args.region} '
+            "--query \"DBInstances[?contains(DBInstanceIdentifier,'mcp-e2e')]."
+            '[DBInstanceIdentifier,PubliclyAccessible,DBSubnetGroup.DBSubnetGroupName,'
+            'VpcSecurityGroups,Endpoint.Address]"'
+        )
+        if test_security_group_id:
+            logger.warning(
+                f'  aws ec2 describe-security-groups --region {args.region} '
+                f'--group-ids {test_security_group_id}'
+            )
+        logger.warning('Manual cleanup when finished:')
+        for cid in clusters_to_delete:
+            logger.warning(
+                f'  # delete instances then cluster for {cid} (see internal_delete_cluster), '
+                'plus its lp secret + AuroraIAMAuth-<role> IAM policy'
+            )
+        if test_security_group_id:
+            logger.warning(
+                f'  aws ec2 delete-security-group --region {args.region} '
+                f'--group-id {test_security_group_id}   # after the cluster ENIs release'
+            )
+        logger.warning(bar)
+        sys.exit(0 if all_passed else 1)
+
     # Tear down provisioned least-privilege roles/secrets before dropping the
     # clusters they live on. Best-effort — failures are logged, not fatal.
     for kind, lp in list(lp_info_by_kind.items()):
@@ -3477,6 +3528,18 @@ def main():
             'legacy --test-serverless-cluster / --test-non-express-cluster flags '
             '(default: express only). The wrapper script passes '
             "'express,serverless' to enumerate all Aurora endpoints."
+        ),
+    )
+    parser.add_argument(
+        '--keep-clusters',
+        action='store_true',
+        default=False,
+        help=(
+            'Do not tear down created clusters, the test security group, or the '
+            'least-privilege secrets/IAM policies at the end of the run. Use this '
+            'to manually troubleshoot a failure (e.g. PG-Wire reachability to the '
+            'serverless cluster). The endpoints, SG id, and manual-cleanup steps '
+            'are printed at the end. Remember to delete these resources yourself.'
         ),
     )
     parser.add_argument(
