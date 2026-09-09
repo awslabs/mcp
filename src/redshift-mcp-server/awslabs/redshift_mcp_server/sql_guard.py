@@ -12,19 +12,87 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Read-only SQL guard for the Redshift MCP Server.
+"""SQL guard and write classification for the Redshift MCP Server.
 
-Validates that submitted SQL is a single statement and, in read-only mode, not a
-denied operation -- classified structurally from the sqlglot AST (Redshift dialect),
-so a deny-listed word used as an identifier, alias, or string literal is not flagged.
-Fails closed on any parse error.
+Two jobs, both classified structurally from the sqlglot AST (Redshift dialect), so a
+keyword used as an identifier, alias, or string literal is never matched by text:
+
+- `assert_executable` -- the gate. Rejects oversized input, multiple statements, and,
+  in read-only mode, the statement types a read-only transaction cannot neutralize.
+- `might_write` -- the classifier. Answers whether a statement could change anything,
+  to decide if it needs confirmation. Only recognized reads answer False.
+
+Both fail closed: any parse error is a rejection, and anything unrecognized might write.
 """
 
 import sqlglot
-from awslabs.redshift_mcp_server.consts import MAX_SQL_LEN, READ_ONLY_DENY_LIST
+from awslabs.redshift_mcp_server.consts import MAX_SQL_LEN
 from loguru import logger
 from sqlglot import exp
 from typing import NoReturn
+
+
+# Operations denied in read-only mode: the ones a read-only transaction cannot
+# neutralize. Each keyword maps to a sqlglot node type, or to a bare-command name.
+_READ_ONLY_DENY_KEYWORD_LIST = frozenset(
+    {
+        'UNLOAD',
+        'BEGIN',
+        'START',
+        'COMMIT',
+        'END',
+        'ROLLBACK',
+        'ABORT',
+        'TRUNCATE',
+        'CALL',
+        'GRANT',
+        'REVOKE',
+        'VACUUM',
+        'ANALYZE',
+        'COMMENT',
+        'CANCEL',
+    }
+)
+
+# Bare commands treated as reads, matched by name because sqlglot has no node class
+# for them. Anything not listed might write.
+_READ_COMMAND_ALLOW_KEYWORD_LIST = frozenset(
+    {
+        'SHOW',
+        'EXPLAIN',
+        'DESC',
+        'DESCRIBE',
+    }
+)
+
+# Nodes that change data, schema, permissions, or transaction state. Matched anywhere
+# in the tree, so a write cannot hide inside an otherwise read-shaped statement.
+_WRITE_NODES = (
+    exp.Insert,
+    exp.Update,
+    exp.Delete,
+    exp.Merge,
+    exp.Create,
+    exp.Drop,
+    exp.Alter,
+    exp.Copy,
+    exp.TruncateTable,
+    exp.Grant,
+    exp.Revoke,
+    exp.Comment,
+    exp.Analyze,
+    exp.Transaction,
+    exp.Commit,
+    exp.Rollback,
+    exp.EndStatement,
+)
+
+# Root node types a plain read can have. `Intersect` and `Except` are not `Union`
+# subclasses, so the shared `SetOperation` base is what covers all three.
+_READ_ROOT_NODES = (exp.Select, exp.SetOperation, exp.Subquery)
+
+
+# --- Parsing, shared by both jobs ---
 
 
 def _reject(reason: str, cause: BaseException | None = None) -> NoReturn:
@@ -37,7 +105,7 @@ def _reject(reason: str, cause: BaseException | None = None) -> NoReturn:
     Raises:
         Exception: Always raised with `reason`, chained from `cause` when provided.
     """
-    logger.warning(f'Read-only guard rejected query: {reason}')
+    logger.warning(f'SQL guard rejected query: {reason}')
     if cause is not None:
         raise Exception(reason) from cause
     raise Exception(reason)
@@ -65,8 +133,11 @@ def _parse(sql: str) -> list[exp.Expression]:
     return [statement for statement in statements if statement is not None]
 
 
-def _operation_keyword(node: exp.Expression) -> str | None:
-    """Map a single AST node to a deny-list keyword, or None.
+# --- Read-only deny-list ---
+
+
+def _read_only_denied_keyword(node: exp.Expression) -> str | None:
+    """Map a single AST node to a read-only deny-list keyword, or None.
 
     Detection is structural (node type, or for generic commands the command name),
     so a deny-listed word used as an identifier, alias, or string literal is not
@@ -107,13 +178,13 @@ def _operation_keyword(node: exp.Expression) -> str | None:
     # and any other deny-listed word surfaced as a command (matched by name).
     if isinstance(node, exp.Command):
         name = (node.name or '').upper()
-        if name in READ_ONLY_DENY_LIST:
+        if name in _READ_ONLY_DENY_KEYWORD_LIST:
             return name
     return None
 
 
-def _root_identifier_keyword(statement: exp.Expression) -> str | None:
-    """Map a whole-statement bare identifier to a deny-list keyword, or None.
+def _read_only_denied_root(statement: exp.Expression) -> str | None:
+    """Map a whole-statement bare identifier to a read-only deny-list keyword, or None.
 
     sqlglot parses `START`/`ABORT` (and their WORK/TRANSACTION variants) as bare
     identifiers rather than statement nodes, so they are classified by the root
@@ -129,12 +200,12 @@ def _root_identifier_keyword(statement: exp.Expression) -> str | None:
     node = statement.this if isinstance(statement, exp.Alias) else statement
     if isinstance(node, exp.Column):
         name = node.name.upper()
-        if name in READ_ONLY_DENY_LIST:
+        if name in _READ_ONLY_DENY_KEYWORD_LIST:
             return name
     return None
 
 
-def _denied_operation(statement: exp.Expression) -> str | None:
+def _read_only_denied_operation(statement: exp.Expression) -> str | None:
     """Return the deny-list keyword if the statement is, or contains, a denied operation.
 
     First classifies a whole-statement bare identifier (the `START`/`ABORT` family),
@@ -147,12 +218,12 @@ def _denied_operation(statement: exp.Expression) -> str | None:
     Returns:
         The matching deny-list keyword, or None if no node is a denied operation.
     """
-    keyword = _root_identifier_keyword(statement)
+    keyword = _read_only_denied_root(statement)
     if keyword is not None:
         return keyword
     for node in statement.walk():
-        keyword = _operation_keyword(node)
-        if keyword is not None and keyword in READ_ONLY_DENY_LIST:
+        keyword = _read_only_denied_keyword(node)
+        if keyword is not None:
             return keyword
     return None
 
@@ -181,6 +252,64 @@ def assert_executable(sql: str, allow_read_write: bool = False) -> None:
     if allow_read_write:
         return
 
-    keyword = _denied_operation(statements[0])
+    keyword = _read_only_denied_operation(statements[0])
     if keyword is not None:
         _reject(f'Statement type not allowed in read-only mode: {keyword}')
+
+
+# --- Write classification ---
+
+
+def _is_read_statement(statement: exp.Expression) -> bool:
+    """Return True only for a statement recognized as a read.
+
+    Args:
+        statement: A parsed sqlglot statement.
+
+    Returns:
+        True when the statement is a recognized read, False for anything else.
+    """
+    # A write anywhere in the tree disqualifies the statement, which is what catches a
+    # data-modifying CTE fronted by a SELECT.
+    if any(True for _ in statement.find_all(*_WRITE_NODES)):
+        return False
+
+    # `SELECT ... INTO` creates a table, so it is a write despite the Select root. The
+    # INTO forms (plain, TEMP, TEMPORARY, TABLE, and behind a CTE) all set this arg.
+    if isinstance(statement, exp.Select) and statement.args.get('into') is not None:
+        return False
+
+    if isinstance(statement, _READ_ROOT_NODES):
+        return True
+
+    # Bare commands sqlglot has no node class for: reads are allow-listed by name.
+    if isinstance(statement, exp.Command):
+        return (statement.name or '').upper() in _READ_COMMAND_ALLOW_KEYWORD_LIST
+
+    return False
+
+
+def might_write(sql: str) -> bool:
+    """Report whether the SQL could change anything, erring towards True.
+
+    Recognized reads answer False. Everything else answers True, including input this
+    module cannot classify, so an unfamiliar or future statement is treated as a write
+    rather than slipping through unconfirmed. False positives are expected; a False
+    answer for a statement that writes is not.
+
+    Args:
+        sql: The SQL statement to classify.
+
+    Returns:
+        True when the statement might change data, schema, permissions, or session state.
+    """
+    # Oversized input is rejected by `assert_executable`; skip parsing it here.
+    if len(sql) > MAX_SQL_LEN:
+        return True
+
+    statements = _parse(sql)  # fails closed on parse/tokenize error
+
+    if len(statements) != 1:
+        return True
+
+    return not _is_read_statement(statements[0])

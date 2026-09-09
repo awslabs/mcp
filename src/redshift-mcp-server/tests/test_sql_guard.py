@@ -19,7 +19,8 @@ pins one behavior; cases reflect how sqlglot (Redshift dialect) parses each inpu
 """
 
 import pytest
-from awslabs.redshift_mcp_server.sql_guard import assert_executable
+from awslabs.redshift_mcp_server.consts import MAX_SQL_LEN
+from awslabs.redshift_mcp_server.sql_guard import assert_executable, might_write
 
 
 # Placeholder IAM role ARN for UNLOAD payloads.
@@ -335,3 +336,138 @@ class TestReadOnlyPassesWithPrefixedWritesToEngineBackstop:
         # Read-only (default): write node and its CTE are not deny-listed, so allowed past
         # the guard to the engine, where BEGIN READ ONLY rejects the write.
         assert_executable(sql)
+
+
+class TestMightWriteRecognizesReads:
+    """Recognized reads answer False, so they are not confirmed in read-write mode."""
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            'SELECT 1',
+            'SELECT a FROM public.t WHERE a > 1',
+            'WITH a AS (SELECT 1) SELECT * FROM a',
+            'SELECT a FROM t QUALIFY row_number() OVER (ORDER BY a) = 1',
+            '(SELECT 1)',
+            # Set operations: Intersect and Except are not Union subclasses, so all
+            # three are covered through the shared SetOperation base.
+            'SELECT 1 UNION SELECT 2',
+            'SELECT 1 UNION ALL SELECT 2',
+            'SELECT 1 INTERSECT SELECT 2',
+            'SELECT 1 EXCEPT SELECT 2',
+        ],
+    )
+    def test_read_statements_do_not_need_confirmation(self, sql):
+        """A plain read is classified as a read."""
+        assert might_write(sql) is False
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            'SHOW search_path',
+            'SHOW DATABASES',
+            'SHOW SCHEMAS FROM DATABASE dev',
+            'SHOW TABLES FROM SCHEMA dev.public',
+            'SHOW COLUMNS FROM TABLE dev.public.t',
+            'SHOW GRANTS FOR public.t',
+            'SHOW DATASHARES',
+        ],
+    )
+    def test_allow_listed_commands_are_reads(self, sql):
+        """Every SHOW form parses as one command name, so the allow-list covers them all."""
+        assert might_write(sql) is False
+
+    def test_explain_of_a_read_is_a_read(self):
+        """`EXPLAIN` returns a plan without running its payload."""
+        assert might_write('EXPLAIN SELECT 1') is False
+
+
+class TestMightWriteRecognizesWrites:
+    """Anything that could change something answers True."""
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            'INSERT INTO t VALUES (1)',
+            'UPDATE t SET a = 1',
+            'DELETE FROM t',
+            'MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN UPDATE SET a = s.a',
+            f"COPY t FROM 's3://b/p' IAM_ROLE '{_ARN}'",
+            f"UNLOAD ('select 1') TO 's3://b/p' IAM_ROLE '{_ARN}'",
+            'CREATE TABLE t (id int)',
+            'CREATE TABLE t AS SELECT 1',
+            'CREATE MATERIALIZED VIEW mv AS SELECT 1',
+            'REFRESH MATERIALIZED VIEW mv',
+            'DROP TABLE t',
+            'ALTER TABLE t ADD COLUMN c int',
+            'ALTER TABLE t APPEND FROM s',
+            'TRUNCATE t',
+            'VACUUM',
+            'ANALYZE t',
+            'GRANT SELECT ON t TO u',
+            'REVOKE SELECT ON t FROM u',
+            "COMMENT ON TABLE t IS 'x'",
+            'CALL p()',
+            'EXECUTE p',
+            'LOCK t',
+            'BEGIN',
+            'COMMIT',
+            'ROLLBACK',
+        ],
+    )
+    def test_write_statements_need_confirmation(self, sql):
+        """A statement that changes data, schema, permissions, or transaction state writes."""
+        assert might_write(sql) is True
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            'SELECT 1 INTO t',
+            'SELECT * INTO TEMP tmp FROM t',
+            'SELECT * INTO TEMPORARY tmp FROM t',
+            'SELECT * INTO TABLE t FROM s',
+            'WITH a AS (SELECT 1 AS n) SELECT n INTO t FROM a',
+        ],
+    )
+    def test_select_into_is_a_write_despite_the_select_root(self, sql):
+        """`SELECT ... INTO` creates a table, so the Select root must not make it a read."""
+        assert might_write(sql) is True
+
+    def test_data_modifying_cte_under_a_select_is_a_write(self):
+        """A write hidden in a CTE is caught by the subtree walk, not the root check."""
+        assert might_write('WITH a AS (INSERT INTO t VALUES (1) RETURNING *) SELECT * FROM a')
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            'SET search_path TO public',
+            'RESET search_path',
+            'DECLARE c CURSOR FOR SELECT 1',
+            'FETCH 10 FROM c',
+            'PREPARE p AS SELECT 1',
+        ],
+    )
+    def test_unlisted_session_statements_are_treated_as_writes(self, sql):
+        """Session and cursor statements are not allow-listed, so they fail towards writing."""
+        assert might_write(sql) is True
+
+
+class TestMightWriteFailsTowardsWriting:
+    """Input the classifier cannot judge is treated as a write."""
+
+    def test_multi_statement_might_write(self):
+        """Stacked statements are not a recognized read."""
+        assert might_write('SELECT 1; DROP TABLE t') is True
+
+    def test_oversized_sql_might_write_without_parsing(self):
+        """Oversized input short-circuits to True; `assert_executable` rejects it later."""
+        assert might_write('SELECT ' + '1' * (MAX_SQL_LEN + 1)) is True
+
+    def test_unparseable_sql_is_rejected(self):
+        """A parse failure fails closed, as it does in the guard."""
+        with pytest.raises(Exception, match='could not be parsed'):
+            might_write('SELECT FROM WHERE ;;')
+
+    def test_comment_only_input_might_write(self):
+        """Input with no statement is not a recognized read."""
+        assert might_write('/* just a comment */') is True

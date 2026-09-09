@@ -15,6 +15,11 @@
 """Tests for the Redshift MCP Server tools."""
 
 import pytest
+from awslabs.redshift_mcp_server.consts import (
+    ACCESS_MODE_READ_ONLY,
+    ACCESS_MODE_READ_WRITE,
+    ACCESS_MODES,
+)
 from awslabs.redshift_mcp_server.models import (
     QueryResult,
     RedshiftCluster,
@@ -29,6 +34,11 @@ from awslabs.redshift_mcp_server.review.models import (
     ReviewResult,
 )
 from awslabs.redshift_mcp_server.server import (
+    ConfirmWrite,
+    _execute_query_annotations,
+    _resolve_access_mode,
+    _resolve_skip_write_confirmation,
+    _write_confirmation,
     execute_query_tool,
     list_clusters_tool,
     list_columns_tool,
@@ -39,12 +49,197 @@ from awslabs.redshift_mcp_server.server import (
     review_cluster_tool,
 )
 from datetime import datetime
-from mcp.server.mcpserver import Context
+from mcp.server.mcpserver import Context, Elicit
+
+
+class TestResolveAccessMode:
+    """Read-write is opt-in and any unsupported mode falls back to read-only."""
+
+    def test_unset_is_read_only(self, monkeypatch):
+        """An unset variable leaves the server in the default read-only mode."""
+        monkeypatch.delenv('ACCESS_MODE', raising=False)
+        assert _resolve_access_mode() == ACCESS_MODE_READ_ONLY
+
+    @pytest.mark.parametrize('value', ['read-write', 'READ-WRITE', 'Read-Write', ' read-write '])
+    def test_read_write_is_recognized(self, monkeypatch, value):
+        """`read-write` selects read-write mode, case- and whitespace-insensitively."""
+        monkeypatch.setenv('ACCESS_MODE', value)
+        assert _resolve_access_mode() == ACCESS_MODE_READ_WRITE
+
+    @pytest.mark.parametrize('value', ['read-only', 'READ-ONLY', ' read-only '])
+    def test_read_only_is_recognized(self, monkeypatch, value):
+        """`read-only` selects read-only mode explicitly."""
+        monkeypatch.setenv('ACCESS_MODE', value)
+        assert _resolve_access_mode() == ACCESS_MODE_READ_ONLY
+
+    @pytest.mark.parametrize(
+        'value',
+        [
+            '',
+            '   ',
+            'read_write',  # underscore instead of hyphen
+            'readwrite',
+            'read-wirte',  # typo: must not grant writes
+            'write',
+            'true',
+            'rw',
+            'admin',
+        ],
+    )
+    def test_unsupported_mode_falls_back_to_read_only(self, monkeypatch, value):
+        """Empty and unsupported values all fail closed to read-only."""
+        monkeypatch.setenv('ACCESS_MODE', value)
+        assert _resolve_access_mode() == ACCESS_MODE_READ_ONLY
+
+    def test_resolved_mode_is_always_supported(self, monkeypatch):
+        """Whatever is configured, the resolved mode is one the server knows."""
+        monkeypatch.setenv('ACCESS_MODE', 'nonsense')
+        assert _resolve_access_mode() in ACCESS_MODES
+
+
+class TestResolveSkipWriteConfirmation:
+    """The confirmation opt-out is off by default and inert outside read-write mode."""
+
+    def test_unset_keeps_confirmation(self, monkeypatch):
+        """An unset variable keeps the prompt."""
+        monkeypatch.delenv('UNSAFE_SKIP_WRITE_CONFIRMATION', raising=False)
+        assert _resolve_skip_write_confirmation(ACCESS_MODE_READ_WRITE) is False
+
+    def test_true_skips_confirmation_in_read_write(self, monkeypatch):
+        """`true` skips the prompt in read-write mode."""
+        monkeypatch.setenv('UNSAFE_SKIP_WRITE_CONFIRMATION', 'true')
+        assert _resolve_skip_write_confirmation(ACCESS_MODE_READ_WRITE) is True
+
+    def test_true_is_inert_in_read_only(self, monkeypatch):
+        """`true` has no effect when writes are not allowed at all."""
+        monkeypatch.setenv('UNSAFE_SKIP_WRITE_CONFIRMATION', 'true')
+        assert _resolve_skip_write_confirmation(ACCESS_MODE_READ_ONLY) is False
+
+    @pytest.mark.parametrize('value', ['false', '', '   ', 'ture', '1', 'yes'])
+    def test_everything_else_keeps_confirmation(self, monkeypatch, value):
+        """`false`, empty, and unrecognized values all keep the prompt."""
+        monkeypatch.setenv('UNSAFE_SKIP_WRITE_CONFIRMATION', value)
+        assert _resolve_skip_write_confirmation(ACCESS_MODE_READ_WRITE) is False
+
+
+class TestWriteConfirmation:
+    """The resolver asks the client only when a write needs confirming."""
+
+    def _configure(self, mocker, access_mode, skip):
+        """Pin the resolved access mode and confirmation opt-out."""
+        mocker.patch('awslabs.redshift_mcp_server.server.ACCESS_MODE', access_mode)
+        mocker.patch('awslabs.redshift_mcp_server.server.SKIP_WRITE_CONFIRMATION', skip)
+
+    def _ctx(self, mocker, *, can_elicit=True):
+        """Build a context whose session reports the client's elicitation support."""
+        ctx = mocker.Mock()
+        ctx.session.check_client_capability = mocker.Mock(return_value=can_elicit)
+        return ctx
+
+    def test_read_write_asks_the_client(self, mocker):
+        """Read-write mode returns a request to elicit, against the ConfirmWrite schema."""
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+
+        result = _write_confirmation(self._ctx(mocker), 'test-cluster', 'dev', 'DELETE FROM t')
+
+        assert isinstance(result, Elicit)
+        assert result.schema is ConfirmWrite
+
+    def test_prompt_names_target_and_statement(self, mocker):
+        """The prompt tells the user which cluster and statement they are approving."""
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+
+        result = _write_confirmation(self._ctx(mocker), 'test-cluster', 'dev', 'DELETE FROM t')
+
+        assert isinstance(result, Elicit)
+        assert 'test-cluster:dev' in result.message
+        assert 'DELETE FROM t' in result.message
+        assert 'cannot be rolled back' in result.message
+
+    def test_read_in_read_write_mode_asks_nothing(self, mocker):
+        """A recognized read is not confirmed, even when writes are permitted."""
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+
+        result = _write_confirmation(self._ctx(mocker), 'test-cluster', 'dev', 'SELECT 1')
+
+        assert result == ConfirmWrite(confirmed=True)
+
+    def test_read_only_asks_nothing(self, mocker):
+        """Read-only mode approves without asking, since nothing can be persisted."""
+        self._configure(mocker, ACCESS_MODE_READ_ONLY, False)
+
+        result = _write_confirmation(self._ctx(mocker), 'test-cluster', 'dev', 'SELECT 1')
+
+        assert result == ConfirmWrite(confirmed=True)
+
+    def test_opt_out_asks_nothing(self, mocker):
+        """The opt-out approves without asking."""
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, True)
+
+        result = _write_confirmation(self._ctx(mocker), 'test-cluster', 'dev', 'DELETE FROM t')
+
+        assert result == ConfirmWrite(confirmed=True)
+
+    def test_rejected_sql_is_not_prompted_for(self, mocker):
+        """Stacked statements are rejected by the guard before anyone is asked."""
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+        ctx = self._ctx(mocker)
+
+        with pytest.raises(Exception, match='single SQL statement is allowed'):
+            _write_confirmation(ctx, 'test-cluster', 'dev', 'SELECT 1; DROP TABLE t')
+
+        ctx.session.check_client_capability.assert_not_called()
+
+    def test_client_that_cannot_prompt_is_refused(self, mocker):
+        """A client without elicitation support is refused rather than run unconfirmed."""
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+
+        with pytest.raises(Exception, match='cannot prompt for confirmation'):
+            _write_confirmation(
+                self._ctx(mocker, can_elicit=False), 'test-cluster', 'dev', 'DELETE FROM t'
+            )
+
+    def test_refusal_names_the_opt_out(self, mocker):
+        """The refusal tells the operator which setting lets them proceed."""
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+
+        with pytest.raises(Exception, match='UNSAFE_SKIP_WRITE_CONFIRMATION'):
+            _write_confirmation(
+                self._ctx(mocker, can_elicit=False), 'test-cluster', 'dev', 'DELETE FROM t'
+            )
+
+
+class TestExecuteQueryAnnotations:
+    """The execute_query annotations describe the mode the server actually runs in."""
+
+    def test_read_only_mode_advertises_read_only(self):
+        """Read-only mode keeps the read-only hints and title."""
+        annotations = _execute_query_annotations(ACCESS_MODE_READ_ONLY)
+
+        assert annotations.title == 'Execute read-only Redshift query'
+        assert annotations.read_only_hint is True
+        assert annotations.destructive_hint is False
+        assert annotations.idempotent_hint is True
+        assert annotations.open_world_hint is True
+
+    def test_read_write_mode_advertises_destructive(self):
+        """Read-write mode drops the read-only claim and flags the tool as destructive."""
+        annotations = _execute_query_annotations(ACCESS_MODE_READ_WRITE)
+
+        assert annotations.title == 'Execute read-write Redshift query'
+        assert annotations.read_only_hint is False
+        assert annotations.destructive_hint is True
+        assert annotations.idempotent_hint is False
+        assert annotations.open_world_hint is True
 
 
 @pytest.mark.asyncio
 async def test_tool_annotations():
-    """Test that every tool advertises its read-only behavior to MCP clients."""
+    """Test that every tool advertises its read-only behavior to MCP clients.
+
+    The server under test is registered with the default (read-only) mode, since the
+    tests do not set ACCESS_MODE.
+    """
     expected_titles = {
         'list_clusters': 'List Redshift clusters and workgroups',
         'list_databases': 'List Redshift databases',
@@ -66,6 +261,16 @@ async def test_tool_annotations():
         assert annotations.destructive_hint is False
         assert annotations.idempotent_hint is True
         assert annotations.open_world_hint is True
+
+
+@pytest.mark.asyncio
+async def test_resolved_confirmation_is_not_a_tool_argument():
+    """The confirmation is resolved server-side, so the model cannot supply it."""
+    tools = {tool.name: tool for tool in await mcp.list_tools()}
+
+    properties = tools['execute_query'].input_schema['properties']
+
+    assert set(properties) == {'cluster_identifier', 'database_name', 'sql'}
 
 
 class TestListClustersTool:
@@ -496,6 +701,7 @@ class TestExecuteQueryTool:
 
         result = await execute_query_tool(
             Context(),
+            ConfirmWrite(confirmed=True),
             cluster_identifier='test-cluster',
             database_name='dev',
             sql='SELECT id, name, age, active, score FROM users LIMIT 2',
@@ -512,6 +718,63 @@ class TestExecuteQueryTool:
         assert result.row_count == 2
         assert result.query_id == 'query-123'
 
+    @pytest.mark.parametrize(
+        ('access_mode', 'allow_writes'),
+        [(ACCESS_MODE_READ_ONLY, False), (ACCESS_MODE_READ_WRITE, True)],
+    )
+    @pytest.mark.asyncio
+    async def test_execute_query_tool_forwards_configured_mode(
+        self, mocker, access_mode, allow_writes
+    ):
+        """The tool translates the server's configured mode into the execute_query flag."""
+        mocker.patch('awslabs.redshift_mcp_server.server.ACCESS_MODE', access_mode)
+        mock_execute_query = mocker.patch('awslabs.redshift_mcp_server.server.execute_query')
+        mock_execute_query.return_value = {
+            'columns': ['id'],
+            'rows': [[1]],
+            'row_count': 1,
+            'query_id': 'query-123',
+        }
+
+        await execute_query_tool(
+            Context(),
+            ConfirmWrite(confirmed=True),
+            cluster_identifier='test-cluster',
+            database_name='dev',
+            sql='SELECT 1 AS id',
+        )
+
+        mock_execute_query.assert_called_once_with(
+            cluster_identifier='test-cluster',
+            database_name='dev',
+            sql='SELECT 1 AS id',
+            allow_read_write=allow_writes,
+        )
+
+    @pytest.mark.asyncio
+    async def test_accepted_but_unconfirmed_statement_is_not_executed(self, mocker):
+        """An accepted prompt answered `confirmed: false` stops the statement.
+
+        Decline and cancel never reach here: the framework aborts the call at the
+        resolver, so this covers only the accepted-but-refused path.
+        """
+        from unittest.mock import AsyncMock, Mock
+
+        mock_execute_query = mocker.patch('awslabs.redshift_mcp_server.server.execute_query')
+        mock_ctx = Mock()
+        mock_ctx.error = AsyncMock()
+
+        with pytest.raises(Exception, match='not confirmed'):
+            await execute_query_tool(
+                mock_ctx,
+                ConfirmWrite(confirmed=False),
+                cluster_identifier='test-cluster',
+                database_name='dev',
+                sql='DELETE FROM t',
+            )
+
+        mock_execute_query.assert_not_called()
+
     @pytest.mark.asyncio
     async def test_execute_query_tool_empty_results(self, mocker):
         """Test query execution with no results."""
@@ -525,6 +788,7 @@ class TestExecuteQueryTool:
 
         result = await execute_query_tool(
             Context(),
+            ConfirmWrite(confirmed=True),
             cluster_identifier='test-workgroup',
             database_name='test_db',
             sql='SELECT COUNT(*) FROM empty_table',
@@ -553,7 +817,9 @@ class TestExecuteQueryTool:
         )
 
         with pytest.raises(Exception, match='Query error'):
-            await execute_query_tool(mock_ctx, 'test-cluster', 'test-db', 'SELECT 1')
+            await execute_query_tool(
+                mock_ctx, ConfirmWrite(confirmed=True), 'test-cluster', 'test-db', 'SELECT 1'
+            )
 
         mock_ctx.error.assert_called_once_with(
             'Failed to execute query on cluster test-cluster in database test-db: Query error'

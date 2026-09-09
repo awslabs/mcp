@@ -17,7 +17,11 @@
 import os
 import sys
 from awslabs.redshift_mcp_server.consts import (
-    DEFAULT_LOG_LEVEL,
+    ACCESS_MODE_DEFAULT,
+    ACCESS_MODE_READ_WRITE,
+    ACCESS_MODES,
+    LOG_LEVEL_DEFAULT,
+    UNSAFE_SKIP_WRITE_CONFIRMATION_DEFAULT,
 )
 from awslabs.redshift_mcp_server.models import (
     QueryResult,
@@ -37,18 +41,90 @@ from awslabs.redshift_mcp_server.redshift import (
 )
 from awslabs.redshift_mcp_server.review.executor import review_cluster
 from awslabs.redshift_mcp_server.review.models import ReviewResult
+from awslabs.redshift_mcp_server.sql_guard import assert_executable, might_write
 from loguru import logger
-from mcp.server.mcpserver import Context, MCPServer
-from mcp.types import ToolAnnotations
-from pydantic import Field
+from mcp.server.mcpserver import Context, Elicit, MCPServer, Resolve
+from mcp.types import ClientCapabilities, ElicitationCapability, ToolAnnotations
+from pydantic import BaseModel, Field
+from typing import Annotated
 
 
 # Remove default handler and add custom configuration
 logger.remove()
 logger.add(
     os.environ.get('LOG_FILE', sys.stderr),
-    level=os.environ.get('FASTMCP_LOG_LEVEL', DEFAULT_LOG_LEVEL),
+    # LOG_LEVEL is the documented variable; FASTMCP_LOG_LEVEL is an undocumented
+    # fallback kept so existing configurations keep working.
+    level=os.environ.get('LOG_LEVEL', os.environ.get('FASTMCP_LOG_LEVEL', LOG_LEVEL_DEFAULT)),
 )
+
+
+def _resolve_access_mode() -> str:
+    """Resolve the access mode from the environment, failing closed to read-only.
+
+    Anything other than a supported mode falls back to `ACCESS_MODE_DEFAULT`, so a
+    typo cannot silently grant write access.
+
+    Returns:
+        The resolved mode, always one of `ACCESS_MODES`.
+    """
+    mode = os.environ.get('ACCESS_MODE', ACCESS_MODE_DEFAULT).strip().lower()
+
+    if mode not in ACCESS_MODES:
+        logger.warning(
+            f'ACCESS_MODE={mode!r} is not a supported mode '
+            f'({", ".join(sorted(ACCESS_MODES))}); falling back to {ACCESS_MODE_DEFAULT}.'
+        )
+        return ACCESS_MODE_DEFAULT
+
+    if mode == ACCESS_MODE_READ_WRITE:
+        logger.warning(
+            f'ACCESS_MODE={ACCESS_MODE_READ_WRITE}: the execute_query tool can modify and '
+            'delete data. Restrict the database user to the least privilege the workload needs.'
+        )
+
+    return mode
+
+
+def _resolve_skip_write_confirmation(access_mode: str) -> bool:
+    """Resolve whether to skip the per-write confirmation prompt.
+
+    Args:
+        access_mode: The resolved access mode, used to report a no-op setting.
+
+    Returns:
+        True when `UNSAFE_SKIP_WRITE_CONFIRMATION` is `true`, else False.
+    """
+    value = (
+        os.environ.get('UNSAFE_SKIP_WRITE_CONFIRMATION', UNSAFE_SKIP_WRITE_CONFIRMATION_DEFAULT)
+        .strip()
+        .lower()
+    )
+
+    if value not in {'true', 'false'}:
+        logger.warning(
+            f'UNSAFE_SKIP_WRITE_CONFIRMATION={value!r} is not "true" or "false"; '
+            'keeping the confirmation prompt.'
+        )
+        return False
+
+    if value == 'false':
+        return False
+
+    if access_mode != ACCESS_MODE_READ_WRITE:
+        logger.warning(f'UNSAFE_SKIP_WRITE_CONFIRMATION=true has no effect in {access_mode} mode.')
+        return False
+
+    logger.warning(
+        'UNSAFE_SKIP_WRITE_CONFIRMATION=true: writes execute without asking for '
+        'confirmation. The database user privileges are the only remaining control.'
+    )
+    return True
+
+
+# Resolved once at import: neither setting can change while the server runs.
+ACCESS_MODE = _resolve_access_mode()
+SKIP_WRITE_CONFIRMATION = _resolve_skip_write_confirmation(ACCESS_MODE)
 
 
 mcp = MCPServer(
@@ -83,6 +159,8 @@ This tool runs the SHOW COLUMNS command to discover available columns.
 ### execute_query
 Executes SQL queries against a Redshift cluster or serverless workgroup.
 This tool uses the Redshift Data API to run queries and return results.
+Read-only by default; read-write is opt-in via the ACCESS_MODE environment variable.
+Check the tool's annotations to see which mode this server is running in.
 
 ### review_cluster
 Runs a diagnostic review of a Redshift cluster or serverless workgroup.
@@ -100,7 +178,8 @@ Requires the connected database user to hold the sys:monitor role (or be a super
 The server reuses one Redshift Data API session per `cluster:database`:
 - Queries to the same `cluster:database` are serialized (parallel calls queue; a long-running query blocks later ones to that target).
 - Queries to different targets run concurrently on independent sessions.
-- Each read-only query runs isolated in its own transaction.
+- In read-only mode each query runs isolated in its own transaction.
+- In read-write mode each statement runs directly with autocommit, with no transaction wrapper.
 
 ## AWS Client Best Practices
 
@@ -145,6 +224,98 @@ def _read_only_annotations(title: str) -> ToolAnnotations:
         read_only_hint=True,
         destructive_hint=False,
         idempotent_hint=True,
+        open_world_hint=True,
+    )
+
+
+class ConfirmWrite(BaseModel):
+    """Response schema for the read-write confirmation prompt."""
+
+    confirmed: bool = Field(
+        description='True to execute the statement, false to abandon it.',
+    )
+
+
+def _write_confirmation(
+    ctx: Context, cluster_identifier: str, database_name: str, sql: str
+) -> ConfirmWrite | Elicit[ConfirmWrite]:
+    """Resolve the caller's approval for one statement.
+
+    Returning `Elicit` asks the client. The framework runs the round trip on whichever
+    shape the negotiated protocol requires and aborts the call on decline or cancel.
+    Returning a value asks nothing, which is the case for read-only mode, the
+    confirmation opt-out, and recognized reads.
+
+    Args:
+        ctx: The tool call context, used to check what the client can do.
+        cluster_identifier: The target cluster, named in the prompt.
+        database_name: The target database, named in the prompt.
+        sql: The statement awaiting approval.
+
+    A decline or cancel is not observable here: the framework aborts the call after this
+    returns, so only the request to ask is logged, not its answer.
+
+    Returns:
+        A standing approval when no confirmation is required, else a request to ask.
+
+    Raises:
+        Exception: If the SQL is rejected by the guard, or the client cannot be asked.
+    """
+    if ACCESS_MODE != ACCESS_MODE_READ_WRITE or SKIP_WRITE_CONFIRMATION:
+        return ConfirmWrite(confirmed=True)
+
+    # Reject before asking, so a statement that cannot run never raises a prompt.
+    assert_executable(sql, allow_read_write=True)
+
+    if not might_write(sql):
+        return ConfirmWrite(confirmed=True)
+
+    # Checked here, rather than leaving it to the framework, so the error names the
+    # setting that lets the operator proceed.
+    if not ctx.session.check_client_capability(
+        ClientCapabilities(elicitation=ElicitationCapability())
+    ):
+        logger.warning(
+            f'Refused a write on {cluster_identifier}:{database_name}: the client cannot '
+            'be asked to confirm it.'
+        )
+        raise Exception(
+            'This MCP client cannot prompt for confirmation, so the statement was not '
+            'run. Use a client that supports elicitation, or set '
+            'UNSAFE_SKIP_WRITE_CONFIRMATION=true to execute writes unconfirmed.'
+        )
+
+    logger.info(f'Asking the caller to confirm a write on {cluster_identifier}:{database_name}')
+
+    return Elicit(
+        message=(
+            f'Execute this statement against {cluster_identifier}:{database_name}? '
+            f'It runs with autocommit and cannot be rolled back.\n\n{sql}'
+        ),
+        schema=ConfirmWrite,
+    )
+
+
+def _execute_query_annotations(access_mode: str) -> ToolAnnotations:
+    """Return execute_query annotations matching the configured access mode.
+
+    In read-write mode the tool can modify and delete data, so the hints must say so
+    rather than advertise the read-only guarantee the server no longer enforces.
+
+    Args:
+        access_mode: The resolved access mode, one of `ACCESS_MODES`.
+
+    Returns:
+        Annotations describing execute_query under the configured mode.
+    """
+    if access_mode != ACCESS_MODE_READ_WRITE:
+        return _read_only_annotations('Execute read-only Redshift query')
+
+    return ToolAnnotations(
+        title='Execute read-write Redshift query',
+        read_only_hint=False,
+        destructive_hint=True,
+        idempotent_hint=False,
         open_world_hint=True,
     )
 
@@ -573,10 +744,11 @@ async def list_columns_tool(
 
 @mcp.tool(
     name='execute_query',
-    annotations=_read_only_annotations('Execute read-only Redshift query'),
+    annotations=_execute_query_annotations(ACCESS_MODE),
 )
 async def execute_query_tool(
     ctx: Context,
+    confirmation: Annotated[ConfirmWrite, Resolve(_write_confirmation)],
     cluster_identifier: str = Field(
         ...,
         description='The cluster identifier to execute the query on. Must be a valid cluster identifier from the list_clusters tool.',
@@ -586,7 +758,11 @@ async def execute_query_tool(
         description='The database name to execute the query against. Must be a valid database name from the list_databases tool.',
     ),
     sql: str = Field(
-        ..., description='The SQL statement to execute. Should be a single SQL statement.'
+        ...,
+        description=(
+            'The SQL statement to execute. Must be a single SQL statement. Whether writes '
+            'are permitted is fixed by the server configuration, not by this call.'
+        ),
     ),
 ) -> QueryResult:
     """Execute a SQL query against a Redshift cluster or serverless workgroup.
@@ -608,7 +784,7 @@ async def execute_query_tool(
                          IMPORTANT: Use a valid cluster identifier from the list_clusters tool.
     - database_name: The database name to execute the query against.
                     IMPORTANT: Use a valid database name from the list_databases tool.
-    - sql: The SQL statement to execute. Should be a single SQL statement.
+    - sql: The SQL statement to execute. Must be a single SQL statement.
 
     ## Response Structure
 
@@ -636,17 +812,46 @@ async def execute_query_tool(
     - NULL values.
     - Date and timestamp values (returned as strings).
 
+    ## Execution Mode
+
+    The mode is fixed at server startup by the `ACCESS_MODE` environment
+    variable and cannot be changed per call.
+
+    - Read-only (default): the statement runs inside `BEGIN READ ONLY ... ROLLBACK`, so
+      nothing is persisted, and statement types the transaction cannot neutralize
+      (`UNLOAD`, `GRANT`, `TRUNCATE`, `VACUUM`, transaction control, and similar) are
+      rejected before execution.
+    - Read-write (`ACCESS_MODE=read-write`): the statement runs directly with
+      autocommit and can create, modify, and delete data and objects. Transactions are
+      not supported yet, so for now there is no rollback and nothing to undo.
+
+    In read-write mode each statement is confirmed by the caller before it runs, unless
+    the operator set `UNSAFE_SKIP_WRITE_CONFIRMATION=true`. Clients that cannot prompt
+    are refused rather than executed unconfirmed.
+
+    Both modes accept a single statement only; multi-statement submissions are rejected.
+
     ## Security Considerations
 
     - Avoid dynamic SQL construction with user input.
     - Consider database object permissions.
-    - Queries run in read-only mode and must be a single statement; writes and
-      multi-statement submissions are rejected.
+    - The database user's privileges are the real boundary. In read-write mode, grant
+      only the privileges the workload needs.
     """
     try:
-        logger.info(f'Executing query on cluster {cluster_identifier} in database {database_name}')
+        logger.info(
+            f'Executing query on cluster {cluster_identifier} in database {database_name} '
+            f'(access mode: {ACCESS_MODE})'
+        )
+
+        if not confirmation.confirmed:
+            raise Exception('Statement not confirmed; nothing was executed.')
+
         query_result_data = await execute_query(
-            cluster_identifier=cluster_identifier, database_name=database_name, sql=sql
+            cluster_identifier=cluster_identifier,
+            database_name=database_name,
+            sql=sql,
+            allow_read_write=ACCESS_MODE == ACCESS_MODE_READ_WRITE,
         )
 
         # Convert to QueryResult model
