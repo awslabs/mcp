@@ -102,16 +102,16 @@ _BUNDLE_SOURCE_URLS = (_RDS_CA_BUNDLE_URL, *_AMAZON_ROOT_CA_URLS)
 # ``hashlib.sha256(bytes).hexdigest()``.
 _AMAZON_ROOT_CA_SHA256 = {
     'https://www.amazontrust.com/repository/AmazonRootCA1.pem': (
-        '2c43952ee9e000ff2acc4e2ed0897c0a72ad5fa72c3d934e81741cbd54f05bd1'
+        '2c43952ee9e000ff2acc4e2ed0897c0a72ad5fa72c3d934e81741cbd54f05bd1'  # pragma: allowlist secret
     ),
     'https://www.amazontrust.com/repository/AmazonRootCA2.pem': (
-        'a3a7fe25439d9a9b50f60af43684444d798a4c869305bf615881e5c84a44c1a2'
+        'a3a7fe25439d9a9b50f60af43684444d798a4c869305bf615881e5c84a44c1a2'  # pragma: allowlist secret
     ),
     'https://www.amazontrust.com/repository/AmazonRootCA3.pem': (
-        '3eb7c3258f4af9222033dc1bb3dd2c7cfa0982b98e39fb8e9dc095cfeb38126c'
+        '3eb7c3258f4af9222033dc1bb3dd2c7cfa0982b98e39fb8e9dc095cfeb38126c'  # pragma: allowlist secret
     ),
     'https://www.amazontrust.com/repository/AmazonRootCA4.pem': (
-        'b0b7961120481e33670315b2f843e643c42f693c7a1010eb9555e06ddc730214'
+        'b0b7961120481e33670315b2f843e643c42f693c7a1010eb9555e06ddc730214'  # pragma: allowlist secret
     ),
 }
 
