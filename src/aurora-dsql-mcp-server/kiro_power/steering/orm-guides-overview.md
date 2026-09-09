@@ -26,18 +26,32 @@ Django and Rails; EF Core, Hibernate, and SQLAlchemy provide composite relations
 | Rails      | Standard `pg` gem + `aws-sdk-dsql`      | `gem 'pg'` + `gem 'aws-sdk-dsql'`                            |
 | SQLAlchemy | `aurora_dsql_sqlalchemy`                | `pip install aurora-dsql-sqlalchemy boto3`                   |
 
+## SELECT FOR UPDATE
+
+Aurora DSQL does not require equality predicates on every primary-key column for
+`SELECT ... FOR UPDATE`; non-key predicates and queries that join multiple tables are supported.
+It does not take blocking row locks. Instead, rows targeted by the locking clause participate in
+optimistic commit-time conflict checks. If a concurrent transaction changes a targeted row, the
+transaction that loses the commit race fails with SQLSTATE `40001`; retry the whole transaction
+with backoff. Keep external side effects outside the retried callback or make them idempotent.
+
+The primary key of each row targeted by the locking clause counts toward the 10 MiB
+transaction-size limit.
+
+`FOR UPDATE` and `FOR KEY SHARE` are supported. `FOR NO KEY UPDATE` and `FOR SHARE` are not supported.
+
 ## Key Gotchas Per Framework
 
 ### Django
 
-| Issue             | Fix                                                                             |
-| ----------------- | ------------------------------------------------------------------------------- |
-| ENGINE            | `'aurora_dsql_django'` (not `django.db.backends.postgresql`)                    |
-| CONN_MAX_AGE      | ≤ 1800 (DSQL timeout is 1 hour)                                                 |
-| Migrations        | Each DDL in its own migration; `RunSQL("CREATE INDEX ASYNC ...")`               |
-| SELECT FOR UPDATE | Use when a write depends on rows read; retain whole-transaction OCC retry       |
-| AutoField         | Replace with `UUIDField(primary_key=True, default=uuid.uuid4)`                  |
-| ForeignKey        | Keep `ForeignKey`; the DSQL backend creates database constraints for new tables |
+| Issue             | Fix                                                                                                                                       |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| ENGINE            | `'aurora_dsql_django'` (not `django.db.backends.postgresql`)                                                                              |
+| CONN_MAX_AGE      | ≤ 1800 (DSQL timeout is 1 hour)                                                                                                           |
+| Migrations        | Each DDL in its own migration; `RunSQL("CREATE INDEX ASYNC ...")`                                                                         |
+| SELECT FOR UPDATE | `select_for_update()` supports non-key filters and joined querysets that use inner joins; retry the whole transaction on SQLSTATE `40001` |
+| AutoField         | Replace with `UUIDField(primary_key=True, default=uuid.uuid4)`                                                                            |
+| ForeignKey        | Keep `ForeignKey`; the DSQL backend creates database constraints for new tables                                                           |
 
 ### EF Core (.NET)
 
@@ -60,19 +74,20 @@ Requires .NET 8.0+, EF Core 9.0.7+, and `Amazon.AuroraDsql.Npgsql` 1.1.0+.
 | Dialect        | Provided by `aurora-dsql-hibernate-dialect` (auto-registered)                                                                                                                                                                                                                               |
 | ID generation  | `@GeneratedValue(strategy = GenerationType.UUID)`                                                                                                                                                                                                                                           |
 | OCC retry      | Prefer the [aurora-dsql-jdbc-connector](https://github.com/awslabs/aurora-dsql-connectors/tree/main/java/jdbc) — built-in retry for SQLSTATE 40001. For manual `@Retryable`, match on `SQLException` and check `getSQLState() == "40001"` (Hibernate's class-40 mapping varies by version). |
+| Locking        | `PESSIMISTIC_WRITE` supports non-key predicates and inner-joined queries; it adds commit-time OCC checks rather than blocking row locks                                                                                                                                                           |
 | FK constraints | Keep normal relationship mappings; the DSQL dialect exports foreign key constraints                                                                                                                                                                                                         |
 | DDL generation | `hibernate.hbm2ddl.auto = none` — manage DDL manually                                                                                                                                                                                                                                       |
 
 ### Rails
 
-| Issue      | Fix                                                                                                                 |
-| ---------- | ------------------------------------------------------------------------------------------------------------------- |
-| adapter    | `postgresql` (standard pg gem)                                                                                      |
-| Auth       | Custom connection handler generating IAM tokens via `aws-sdk-dsql`                                                  |
-| Migrations | `disable_ddl_transaction!` in each migration                                                                        |
-| PKs        | `id: :uuid` in `create_table`                                                                                       |
-| FKs        | Use `add_foreign_key ..., validate: false`, then run `ALTER TABLE ASYNC ... VALIDATE CONSTRAINT` and verify the job |
-| Locking    | Use `lock!` / `with_lock` when a decision depends on rows read; retain OCC retry in `ApplicationRecord`             |
+| Issue      | Fix                                                                                                                                                     |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| adapter    | `postgresql` (standard pg gem)                                                                                                                          |
+| Auth       | Custom connection handler generating IAM tokens via `aws-sdk-dsql`                                                                                      |
+| Migrations | `disable_ddl_transaction!` in each migration                                                                                                            |
+| PKs        | `id: :uuid` in `create_table`                                                                                                                           |
+| FKs        | Use `add_foreign_key ..., validate: false`, then run `ALTER TABLE ASYNC ... VALIDATE CONSTRAINT` and verify the job                                     |
+| Locking    | Use `Relation#lock` for non-key filters and joins inside a transaction; use `lock!` or `with_lock` for individual persisted records; retry the whole transaction on SQLSTATE `40001` |
 
 ### SQLAlchemy
 

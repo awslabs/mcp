@@ -83,7 +83,7 @@ This power includes the following steering files in [steering](./steering)
 - **pg-migrations-multi-region**
   - Load for multi-region, active-active, or HA questions — architecture, geographic partitioning
 - **orm-guides-overview**
-  - Load when migrating any ORM to DSQL — adapter names and gotchas for Django, Hibernate, Rails, SQLAlchemy
+  - Load when migrating an ORM or using ORM locking with DSQL — adapter names, locking, and gotchas for Django, Hibernate, Rails, SQLAlchemy
 - **data-loading**
   - Load when planning or running bulk loads with `aurora-dsql-loader` — fresh-vs-warm partitions, resume/retry, `--on-conflict`, throughput diagnostics
 - **query-plan-interpretation**
