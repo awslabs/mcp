@@ -20,6 +20,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ast
 import click
 import logging
 import sys
@@ -55,7 +56,7 @@ logging.basicConfig(
 
 @click.command()
 @click.argument('directory', type=click.Path(exists=True, file_okay=False, dir_okay=True))
-def main(directory: str) -> int:
+def main(directory: str) -> None:
     """Check if directory has awslabs subdirectory with correct __init__.py."""
     dir_path = Path(directory)
     awslabs_dir = dir_path / 'awslabs'
@@ -63,27 +64,34 @@ def main(directory: str) -> int:
 
     if not awslabs_dir.exists():
         click.echo(f'✓ No awslabs directory in {directory}')
-        return 0
+        sys.exit(0)
 
     init_file = awslabs_dir / '__init__.py'
 
     if not init_file.exists():
         click.echo(f'✗ Missing: {init_file}', err=True)
-        return 1
+        sys.exit(1)
 
     try:
         with open(init_file, 'r') as f:
             current_content = f.read()
 
-        if current_content != FILE_CONTENTS:
+        # Compare the parsed module, not the bytes. Servers set their own
+        # [tool.ruff] in pyproject.toml, which replaces the root .ruff.toml rather
+        # than merging with it, so a server that does not declare quote-style gets
+        # ruff's double-quote default and can never match a single-quoted literal.
+        # Comparing the AST accepts either quote style and any comment wording,
+        # while still rejecting a file that does anything other than extend the
+        # namespace path. The license header has its own check.
+        if ast.dump(ast.parse(current_content)) != ast.dump(ast.parse(FILE_CONTENTS)):
             click.echo(f'✗ Mismatch: {init_file}', err=True)
-            return 1
+            sys.exit(1)
 
         click.echo(f'✓ OK: {init_file}')
-        return 0
+        sys.exit(0)
     except Exception as e:
         click.echo(f'✗ Error reading {init_file}: {e}', err=True)
-        return 1
+        sys.exit(1)
 
 
 if __name__ == '__main__':
