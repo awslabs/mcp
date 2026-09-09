@@ -18,9 +18,9 @@ Aurora DSQL is designed for massive horizontal scale without latency degradation
 
 ### Batch Size Optimization
 
-- **PREFER batches of 500-1,000 rows** - Balance throughput and transaction limits (3,000 rows, 10 MiB, 5 minutes max — verify via `awsknowledge`: `aurora dsql transaction limits`)
+- **PREFER batches of 500-1,000 rows** - Balance throughput and transaction limits (3,000 row modifications, 10 MiB, 5 minutes max — verify via `awsknowledge`: `aurora dsql transaction limits`)
 - **SHOULD process batches concurrently** - Use multiple connections; consider multiple threads for bulk loading
-- **Smaller batches reduce** lock contention, enable better concurrency, fail faster, distribute load evenly
+- **Smaller batches reduce** OCC conflict surface, enable better concurrency, fail faster, distribute load evenly
 
 ### AVOID Hot Keys
 
