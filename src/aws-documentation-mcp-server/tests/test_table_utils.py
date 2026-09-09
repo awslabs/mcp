@@ -1516,3 +1516,41 @@ class TestBreakMarkersDoNotLeak:
         result = parse_html_tables(self._HEADING_IN_A_CELL, None)
         assert result is not None
         assert result['detected_section'] == 'Alpha; Beta'
+
+
+class TestCellLinkTargets:
+    """A cell link to an empty target must not be emitted as markdown."""
+
+    def test_broken_cell_link_renders_as_plain_text(self):
+        """An href with no filename keeps its text and drops the markdown link."""
+        html = """<html><body>
+        <table><thead><tr><th>Model</th></tr></thead>
+        <tbody><tr><td><a href="./.html#nova">Nova Pro</a></td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, None)
+        assert result is not None
+        assert result['tables'][0]['rows'][0]['Model'] == 'Nova Pro'
+
+    def test_valid_cell_link_still_markdown(self):
+        """A resolvable cell link is still emitted as [text](href)."""
+        html = """<html><body>
+        <table><thead><tr><th>Model</th></tr></thead>
+        <tbody><tr><td><a href="./nova.html">Nova Pro</a></td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, None)
+        assert result is not None
+        assert result['tables'][0]['rows'][0]['Model'] == '[Nova Pro](./nova.html)'
+
+    def test_broken_and_valid_links_in_one_cell(self):
+        """Only the unresolvable link loses its markdown; the other survives."""
+        html = """<html><body>
+        <table><thead><tr><th>Model</th></tr></thead>
+        <tbody><tr><td><a href="./.html">Nova Pro</a> and
+        <a href="./nova-lite.html">Nova Lite</a></td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, None)
+        assert result is not None
+        cell = result['tables'][0]['rows'][0]['Model']
+        assert '[Nova Lite](./nova-lite.html)' in cell
+        assert 'Nova Pro' in cell
+        assert './.html' not in cell

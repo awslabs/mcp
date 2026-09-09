@@ -14,6 +14,7 @@
 """Table parsing and filtering utilities for AWS Documentation MCP Server."""
 
 import re
+from awslabs.aws_documentation_mcp_server.util import has_empty_link_target
 from bs4 import BeautifulSoup, Tag
 from bs4.element import NavigableString
 from typing import Optional
@@ -454,7 +455,7 @@ def _extract_with_links(element: Tag, parts: list[str]) -> None:
                 href = str(child.get('href', ''))
                 # Join inside the link so markers never straddle the markdown syntax
                 text = _join_values(child.get_text(strip=True))
-                if href and text:
+                if href and text and not has_empty_link_target(href):
                     parts.append(f'[{text}]({href})')
                 elif text:
                     parts.append(text)

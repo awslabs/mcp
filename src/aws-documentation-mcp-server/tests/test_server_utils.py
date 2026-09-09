@@ -20,6 +20,7 @@ from awslabs.aws_documentation_mcp_server.server_utils import (
     COMMERCIAL_ALLOWED_DOMAIN_REGEXES,
     DEFAULT_USER_AGENT,
     SEARCH_RESULT_CACHE,
+    _describe_redirect,
     _docs_client,
     add_search_result_cache_item,
     get_query_id_from_cache,
@@ -47,6 +48,7 @@ class TestReadDocumentationImpl:
         # Create a proper mock response
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = '<html><body><h1>Test</h1><p>Content</p></body></html>'
         mock_response.headers = {'content-type': 'text/html'}
 
@@ -103,6 +105,7 @@ class TestReadDocumentationImpl:
         # Create a proper mock response
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = 'Plain text content'
         mock_response.headers = {'content-type': 'text/plain'}
 
@@ -207,6 +210,7 @@ class TestReadDocumentationImpl:
         # Create a proper mock response
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = (
             '<html><body><h1>Test</h1><p>Long content that exceeds max length</p></body></html>'
         )
@@ -266,6 +270,7 @@ class TestReadDocumentationImpl:
         # Create a proper mock response
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = '<html><body><h1>Test</h1><p>Content</p></body></html>'
         mock_response.headers = {'content-type': 'text/html'}
 
@@ -338,6 +343,7 @@ class TestReadDocumentationImpl:
         # Create a proper mock response
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = '<html><body><h1>Test</h1><p>Content</p></body></html>'
         mock_response.headers = {'content-type': 'text/html'}
 
@@ -398,6 +404,7 @@ class TestReadDocumentationImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = html
         mock_response.headers = {'content-type': 'text/html'}
 
@@ -717,6 +724,7 @@ class TestSearchTableImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = '<html><body><h2>Test Section</h2><table><thead><tr><th>Name</th><th>Value</th></tr></thead><tbody><tr><td>foo</td><td>bar</td></tr></tbody></table></body></html>'
 
         with patch('httpx.AsyncClient') as mock_client_class:
@@ -745,6 +753,7 @@ class TestSearchTableImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = '<html><body><table><thead><tr><th>Name</th></tr></thead><tbody><tr><td>foo</td></tr></tbody></table></body></html>'
 
         with patch('httpx.AsyncClient') as mock_client_class:
@@ -822,6 +831,7 @@ class TestSearchTableImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = '<html><body><h2>Section</h2><p>No tables here</p></body></html>'
 
         with patch('httpx.AsyncClient') as mock_client_class:
@@ -848,6 +858,7 @@ class TestSearchTableImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = '<html><body><h2>Real Section</h2><table><thead><tr><th>A</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table></body></html>'
 
         with patch('httpx.AsyncClient') as mock_client_class:
@@ -877,6 +888,7 @@ class TestSearchTableImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = """<html><body><h2>Quotas</h2><table>
         <thead><tr><th>Name</th><th>Value</th></tr></thead>
         <tbody>
@@ -911,6 +923,7 @@ class TestSearchTableImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = """<html><body><h2>Quotas</h2><table>
         <thead><tr><th>Name</th><th>Value</th></tr></thead>
         <tbody><tr><td>foo</td><td>bar</td></tr></tbody></table></body></html>"""
@@ -940,6 +953,7 @@ class TestSearchTableImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = """<html><body>
         <h2>Service quotas</h2>
         <h3>EC2</h3>
@@ -985,6 +999,7 @@ class TestSearchTableImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = '<html><body><h2>Sec</h2><table><thead><tr><th>A</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table></body></html>'
 
         with patch('httpx.AsyncClient') as mock_client_class:
@@ -1010,6 +1025,7 @@ class TestSearchTableImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = """<html><body>
         <h2>Sec</h2>
         <table><thead><tr><th>Name</th></tr></thead>
@@ -1039,6 +1055,7 @@ class TestSearchTableImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = '{"key": "value"}'
         mock_response.headers = {'content-type': 'application/json'}
 
@@ -1068,6 +1085,7 @@ class TestSearchTableImpl:
         rows_html = ''.join(f'<tr><td>Quota {i}</td><td>active</td></tr>' for i in range(25))
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = f"""<html><body><h2>Quotas</h2><table>
         <thead><tr><th>Name</th><th>Status</th></tr></thead>
         <tbody>{rows_html}</tbody></table></body></html>"""
@@ -1098,6 +1116,7 @@ class TestSearchTableImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = """<html><body><h2>Actions</h2><table>
         <thead><tr><th>Action</th><th>Level</th><th>Resource</th></tr></thead>
         <tbody>
@@ -1135,6 +1154,7 @@ class TestSearchTableImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = """<html><body>
         <h2>Section A</h2>
         <table><thead><tr><th>Name</th></tr></thead>
@@ -1158,3 +1178,258 @@ class TestSearchTableImpl:
             assert result.tables_with_matches == 1
             assert result.results[0].matched_rows == 1
             assert result.section_title != ''
+
+
+class TestRedirectSignal:
+    """A renamed page returned a soft error that read as "not documented"."""
+
+    def _redirected_response(self, text, landed='https://docs.aws.amazon.com/general/latest/gr/'):
+        """Build a 200 response that arrived via a redirect to another page."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = text
+        mock_response.headers = {'content-type': 'text/html'}
+        mock_response.history = [MagicMock()]
+        mock_response.url = landed
+        return mock_response
+
+    def _client_for(self, mock_response):
+        """Patch httpx.AsyncClient so a fetch returns the given response."""
+        patcher = patch('httpx.AsyncClient')
+        mock_client_class = patcher.start()
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client_class.return_value = mock_client
+        return patcher
+
+    def test_no_history_is_not_a_redirect(self):
+        """A direct 200 produces no redirect note."""
+        response = MagicMock()
+        response.history = []
+        response.url = 'https://docs.aws.amazon.com/general/latest/gr/ddb.html'
+        assert (
+            _describe_redirect('https://docs.aws.amazon.com/general/latest/gr/ddb.html', response)
+            is None
+        )
+
+    def test_same_page_with_different_query_is_not_a_redirect(self):
+        """The session/query parameters the server appends are not a page change."""
+        response = MagicMock()
+        response.history = [MagicMock()]
+        response.url = 'https://docs.aws.amazon.com/general/latest/gr/ddb.html?session=abc'
+        assert (
+            _describe_redirect('https://docs.aws.amazon.com/general/latest/gr/ddb.html', response)
+            is None
+        )
+
+    def test_different_page_reported(self):
+        """Landing on another page names both the requested and the actual page."""
+        response = MagicMock()
+        response.history = [MagicMock()]
+        response.url = 'https://docs.aws.amazon.com/general/latest/gr/'
+        note = _describe_redirect(
+            'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html?session=abc', response
+        )
+        assert note is not None
+        assert 'dynamodb.html' in note
+        assert 'general/latest/gr/' in note
+
+    @pytest.mark.asyncio
+    async def test_read_documentation_reports_redirect_instead_of_soft_error(self):
+        """An unreadable redirected page returns an explicit failure, not '<e>...</e>'."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+        patcher = self._client_for(self._redirected_response('<html><body></body></html>'))
+        try:
+            result = await read_documentation_impl(ctx, url, 1000, 0, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert '<e>' not in result
+        assert 'redirected to' in result
+        assert 'general/latest/gr/' in result
+
+    @pytest.mark.asyncio
+    async def test_search_table_hint_names_the_redirect(self):
+        """A false "no tables" on a redirected page says the page moved."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+        patcher = self._client_for(
+            self._redirected_response('<html><body><p>hi</p></body></html>')
+        )
+        try:
+            result = await search_table_impl(ctx, url, None, 'ap-southeast-4', 50, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert result.hint is not None
+        assert 'redirected to' in result.hint
+
+    @pytest.mark.asyncio
+    async def test_read_sections_error_names_the_redirect(self):
+        """A section-less redirected page fails with the redirect named in the message."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+        patcher = self._client_for(
+            self._redirected_response('<html><body><p>hi</p></body></html>')
+        )
+        try:
+            with pytest.raises(ValueError, match='redirected to'):
+                await read_sections_impl(ctx, url, ['Service endpoints'], 'test-uuid')
+        finally:
+            patcher.stop()
+
+    @pytest.mark.parametrize(
+        'requested,landed',
+        [
+            (
+                'https://docs.aws.amazon.com/general/latest/gr/ddb.html',
+                'http://docs.aws.amazon.com/general/latest/gr/ddb.html',
+            ),
+            (
+                'https://docs.aws.amazon.com/general/latest/gr/ddb.html',
+                'https://docs.aws.amazon.com/general/latest/gr/ddb.html#anchor',
+            ),
+            (
+                'https://docs.aws.amazon.com/general/latest/gr/',
+                'https://docs.aws.amazon.com/general/latest/gr',
+            ),
+            (
+                'https://DOCS.aws.amazon.com/general/latest/gr/ddb.html',
+                'https://docs.aws.amazon.com/general/latest/gr/ddb.html',
+            ),
+        ],
+    )
+    def test_cosmetic_url_differences_are_not_a_redirect(self, requested, landed):
+        """Scheme, fragment, trailing slash and host case do not make it another page."""
+        response = MagicMock()
+        response.history = [MagicMock()]
+        response.url = landed
+        assert _describe_redirect(requested, response) is None
+
+    @pytest.mark.asyncio
+    async def test_read_documentation_flags_redirect_that_carried_content(self):
+        """Content from another page is labelled, not silently returned as the requested page."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+        patcher = self._client_for(
+            self._redirected_response(
+                '<html><body><main><h1>General Reference</h1>'
+                '<p>Plenty of readable prose about something else entirely.</p>'
+                '</main></body></html>'
+            )
+        )
+        try:
+            result = await read_documentation_impl(ctx, url, 5000, 0, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert 'redirected to' in result
+        assert 'General Reference' in result
+
+    @pytest.mark.asyncio
+    async def test_search_table_rows_from_redirected_page_are_flagged(self):
+        """Matching rows found on the wrong page still carry the redirect warning."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+        patcher = self._client_for(
+            self._redirected_response(
+                '<html><body><h2>Service endpoints</h2>'
+                '<table><thead><tr><th>Region</th></tr></thead>'
+                '<tbody><tr><td>ap-southeast-4</td></tr></tbody></table>'
+                '</body></html>'
+            )
+        )
+        try:
+            result = await search_table_impl(ctx, url, None, 'ap-southeast-4', 50, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert result.tables_with_matches == 1
+        assert result.hint is not None
+        assert 'redirected to' in result.hint
+
+    @pytest.mark.asyncio
+    async def test_read_sections_flags_redirect_when_heading_matches(self):
+        """A heading that happens to match on the wrong page does not hide the redirect."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+        patcher = self._client_for(
+            self._redirected_response(
+                '<html><body><h2>Service endpoints</h2>'
+                '<p>Endpoints for a different service.</p></body></html>'
+            )
+        )
+        try:
+            result = await read_sections_impl(ctx, url, ['Service endpoints'], 'test-uuid')
+        finally:
+            patcher.stop()
+        assert 'redirected to' in result
+        assert 'different service' in result
+
+    @pytest.mark.asyncio
+    async def test_search_table_section_not_found_names_the_redirect(self):
+        """A missing section on a redirected page says the page moved, not that it lacks the section."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+        patcher = self._client_for(
+            self._redirected_response(
+                '<html><body><h2>Something else</h2>'
+                '<table><thead><tr><th>Region</th></tr></thead>'
+                '<tbody><tr><td>us-east-1</td></tr></tbody></table>'
+                '</body></html>'
+            )
+        )
+        try:
+            result = await search_table_impl(
+                ctx, url, 'Service endpoints', 'us-east-1', 50, 'test-uuid'
+            )
+        finally:
+            patcher.stop()
+        assert result.hint is not None
+        assert 'redirected to' in result.hint
+
+    @pytest.mark.asyncio
+    async def test_direct_fetch_adds_no_redirect_noise(self):
+        """A page reached without a redirect is returned unannotated."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+        response = self._redirected_response(
+            '<html><body><main><p>Real content.</p></main></body></html>'
+        )
+        response.history = []
+        response.url = url
+        patcher = self._client_for(response)
+        try:
+            result = await read_documentation_impl(ctx, url, 5000, 0, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert 'redirected to' not in result
+        assert 'Real content.' in result
+
+    @pytest.mark.asyncio
+    async def test_read_sections_unreadable_section_names_the_redirect(self):
+        """A section that matches but converts to nothing still reports the redirect."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+        patcher = self._client_for(
+            self._redirected_response('<html><body><h2>Service endpoints</h2></body></html>')
+        )
+        try:
+            with (
+                patch(
+                    'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html',
+                    return_value='<e>Page failed to be simplified from HTML</e>',
+                ),
+                pytest.raises(ValueError, match='redirected to'),
+            ):
+                await read_sections_impl(ctx, url, ['Service endpoints'], 'test-uuid')
+        finally:
+            patcher.stop()

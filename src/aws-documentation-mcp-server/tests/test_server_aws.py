@@ -53,6 +53,7 @@ class TestReadDocumentation:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = '<html><body><h1>Test</h1><p>This is a test.</p></body></html>'
         mock_response.headers = {'content-type': 'text/html'}
 
@@ -81,6 +82,7 @@ class TestReadDocumentation:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = '<html><body><h1>Test</h1><p>This is a test.</p></body></html>'
         mock_response.headers = {'content-type': 'text/html'}
 
@@ -149,6 +151,7 @@ class TestReadSections:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = """<html><body>
             <h2>Introduction</h2>
             <p>This is the introduction.</p>
@@ -194,6 +197,7 @@ class TestReadSections:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = (
             '<html><body><h2>Getting Started</h2><p>Neuron content.</p></body></html>'
         )
@@ -233,6 +237,7 @@ class TestReadSections:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         # Only h1, no h2 sections
         mock_response.text = (
             '<html><body><h1>Other Section</h1><p>Different content.</p></body></html>'
@@ -254,6 +259,7 @@ class TestReadSections:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         # One h2 section exists, one doesn't
         mock_response.text = '<html><body><h2>Found Section</h2><p>Content here.</p></body></html>'
         mock_response.headers = {'content-type': 'text/html'}
@@ -310,6 +316,7 @@ class TestReadSections:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = """<html><body>
             <h2>C++ & C# Programming</h2>
             <p>Programming content.</p>
@@ -354,6 +361,7 @@ class TestReadSections:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = '<html><body><h1>This is a page<h1/><h2>Best practices</h2><p>Content here.</p></body></html>'
         mock_response.headers = {'content-type': 'text/html'}
 
@@ -374,6 +382,7 @@ class TestReadSections:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = 'Plain text content without HTML'
         mock_response.headers = {'content-type': 'text/plain'}
 
@@ -418,6 +427,7 @@ class TestReadSections:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = '<html><body><h2>Test Section</h2><p>Content.</p></body></html>'
         mock_response.headers = {'content-type': 'text/html'}
 
@@ -441,6 +451,7 @@ class TestReadSections:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = """<html><body>
             <div class="main-content">
                 <h1>S3 Bucket Guide</h1>
@@ -491,6 +502,7 @@ class TestSearchDocumentation:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.json.return_value = {
             'queryId': 'test-query-id',
             'facets': {
@@ -565,6 +577,7 @@ class TestSearchDocumentation:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.json.return_value = {
             'queryId': 'test-query-id',
             'suggestions': [
@@ -659,6 +672,7 @@ class TestSearchDocumentation:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.json.side_effect = json.JSONDecodeError('Invalid JSON', '', 0)
 
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
@@ -683,6 +697,7 @@ class TestSearchDocumentation:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.json.return_value = {}  # No suggestions key
 
         with patch('httpx.AsyncClient.post', new_callable=AsyncMock) as mock_post:
@@ -702,6 +717,7 @@ class TestSearchDocumentation:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.json.return_value = {
             'facets': {
                 'aws-docs-search-product': ['Amazon S3'],
@@ -756,6 +772,7 @@ class TestSearchDocumentation:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.json.return_value = {
             'queryId': 'test-query-sections',
             'suggestions': [
@@ -834,6 +851,7 @@ class TestSearchDocumentation:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.json.return_value = {
             'queryId': 'test-query-recommended',
             'suggestions': [
@@ -890,6 +908,7 @@ class TestSearchDocumentation:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.json.return_value = {
             'queryId': 'test-query-rec-edge',
             'suggestions': [
@@ -935,6 +954,7 @@ class TestSearchDocumentation:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.json.return_value = {
             'queryId': 'qid',
             'suggestions': [
@@ -988,6 +1008,7 @@ class TestSearchDocumentation:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.json.return_value = {
             'queryId': 'qid',
             'suggestions': [
@@ -1017,6 +1038,7 @@ class TestSearchDocumentation:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.json.return_value = {
             'queryId': 'qid',
             'suggestions': [
@@ -1052,6 +1074,7 @@ class TestSearchDocumentation:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.json.return_value = {
             'queryId': 'qid',
             'suggestions': [
@@ -1095,6 +1118,7 @@ class TestRecommend:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.json.return_value = {
             'new': {
                 'items': [
@@ -1180,6 +1204,7 @@ class TestRecommend:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.json.side_effect = json.JSONDecodeError('Invalid JSON', '', 0)
 
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
@@ -1204,6 +1229,7 @@ class TestSearchTable:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = """<html><body>
             <h2>Service quotas</h2>
             <table><thead><tr><th>Name</th><th>Value</th></tr></thead>
@@ -1272,6 +1298,7 @@ class TestSearchTable:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = """<html><body>
             <h2>Quotas</h2>
             <table><thead><tr><th>Name</th></tr></thead>
@@ -1297,6 +1324,7 @@ class TestSearchTable:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = """<html><body>
             <h2>Real Section</h2>
             <table><thead><tr><th>A</th></tr></thead>
@@ -1321,6 +1349,7 @@ class TestSearchTable:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = """<html><body>
             <h2>Section A</h2>
             <table><thead><tr><th>Name</th></tr></thead>

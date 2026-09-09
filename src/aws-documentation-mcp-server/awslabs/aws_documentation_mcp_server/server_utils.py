@@ -64,6 +64,25 @@ DEFAULT_USER_AGENT = (
 )
 
 
+def _page_identity(url: str) -> str:
+    """Reduce a URL to host and path, so scheme, query, fragment and trailing slash do not differ."""
+    parsed = httpx.URL(url)
+    return f'{parsed.host.lower()}{parsed.path.rstrip("/") or "/"}'
+
+
+def _describe_redirect(url_str: str, response: httpx.Response) -> Optional[str]:
+    """Describe where a fetch landed when it did not land on the requested page."""
+    if not response.history:
+        return None
+    landed = str(response.url).split('?', 1)[0]
+    if _page_identity(landed) == _page_identity(url_str):
+        return None
+    return (
+        f'{url_str.split("?", 1)[0]} redirected to {landed}, so this is not the requested page. '
+        'The page may have been renamed; try the redirect target or search for the topic.'
+    )
+
+
 async def read_documentation_impl(
     ctx: Context,
     url_str: str,
@@ -107,6 +126,7 @@ async def read_documentation_impl(
 
         page_raw = response.text
         content_type = response.headers.get('content-type', '')
+        redirect_note = _describe_redirect(url_str, response)
 
     if is_html_content(page_raw, content_type):
         content = extract_content_from_html(page_raw)
@@ -114,7 +134,17 @@ async def read_documentation_impl(
     else:
         content = page_raw
 
+    # Unreadable after a redirect means moved, not missing.
+    if redirect_note and content.startswith('<e>'):
+        error_msg = f'Failed to read {url_str}: {redirect_note}'
+        logger.error(error_msg)
+        await ctx.error(error_msg)
+        return error_msg
+
     result = format_documentation_result(url_str, content, start_index, max_length)
+    if redirect_note:
+        # Content from another page must not be cited as the requested one.
+        result = f'<e>{redirect_note}</e>\n\n{result}'
 
     # Log if content was truncated
     if len(content) > start_index + max_length:
@@ -211,6 +241,7 @@ async def read_sections_impl(
 
         page_raw = response.text
         content_type = response.headers.get('content-type', '')
+        redirect_note = _describe_redirect(url_str, response)
 
     if not is_html_content(page_raw, content_type):
         return 'Cannot extract sections from non-HTML content. Please use the read_documentation tool instead to get the full document content.'
@@ -218,10 +249,10 @@ async def read_sections_impl(
     try:
         filtered_content = extract_sections_from_html(page_raw, section_titles)
     except ValueError as e:
-        error_msg = str(e)
+        error_msg = f'{e} {redirect_note}' if redirect_note else str(e)
         logger.error(error_msg)
         await ctx.error(error_msg)
-        raise
+        raise ValueError(error_msg) from e
 
     try:
         markdown = extract_content_from_html(filtered_content)
@@ -231,6 +262,8 @@ async def read_sections_impl(
         if markdown.startswith('<e>') and markdown.endswith('</e>'):
             # strip only the outer wrapper tags
             error_msg = markdown[3:-4]
+            if redirect_note:
+                error_msg = f'{error_msg} {redirect_note}'
             raise ValueError(error_msg)
 
     except Exception as e:
@@ -238,6 +271,10 @@ async def read_sections_impl(
         logger.error(error_msg)
         await ctx.error(error_msg)
         raise
+
+    if redirect_note:
+        # Content from another page must not be cited as the requested one.
+        markdown = f'<e>{redirect_note}</e>\n\n{markdown}'
 
     return markdown
 
@@ -310,6 +347,7 @@ async def search_table_impl(
 
         page_raw = response.text
         content_type = response.headers.get('content-type', '')
+        redirect_note = _describe_redirect(url_str, response)
 
     if not is_html_content(page_raw, content_type):
         return SearchTableResponse(
@@ -332,7 +370,11 @@ async def search_table_impl(
             tables_searched=0,
             tables_with_matches=0,
             results=[],
-            hint='No tables found on this page.',
+            hint=(
+                f'No tables found. {redirect_note}'
+                if redirect_note
+                else 'No tables found on this page.'
+            ),
         )
 
     if 'error' in table_data:
@@ -344,7 +386,11 @@ async def search_table_impl(
             tables_searched=0,
             tables_with_matches=0,
             results=[],
-            hint=f'{table_data["error"]}. Available sections: {sections_list}',
+            hint=(
+                f'{table_data["error"]}. Available sections: {sections_list}. {redirect_note}'
+                if redirect_note
+                else f'{table_data["error"]}. Available sections: {sections_list}'
+            ),
         )
 
     # Handle multi-table response (multiple tables in section or page)
@@ -380,6 +426,9 @@ async def search_table_impl(
             'No rows matched all query words. Try fewer or broader terms, '
             'or check spelling. Each word must appear somewhere in the row.'
         )
+    if redirect_note:
+        # Rows from another page must not be cited as the requested one.
+        hint = f'{redirect_note} {hint}' if hint else redirect_note
 
     return SearchTableResponse(
         url=url_str,

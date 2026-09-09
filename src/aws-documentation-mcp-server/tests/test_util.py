@@ -22,6 +22,7 @@ from awslabs.aws_documentation_mcp_server.util import (
     extract_content_from_html,
     extract_sections_from_html,
     format_documentation_result,
+    has_empty_link_target,
     is_html_content,
     parse_recommendation_results,
     url_matches_allowlist,
@@ -867,3 +868,85 @@ class TestExtractSectionsFromHtml:
         assert '<h2>Main Section</h2>' in result
         assert 'First main content' in result
         assert 'Second main content' in result  # Should include both matching sections
+
+
+class TestEmptyLinkTargets:
+    """An unresolved cross-reference became a link to nowhere."""
+
+    @pytest.mark.parametrize(
+        'href',
+        [
+            './.html#cross-region-ip-apac.amazon.nova-pro-v1:0',
+            './.html',
+            '.html',
+            '/bedrock/latest/userguide/.html',
+            '.htm',
+            './.HTML',
+            './.html?highlight=x',
+            '//docs.aws.amazon.com/.html',
+            '  ./.html  ',
+        ],
+    )
+    def test_empty_targets_detected(self, href):
+        """An href whose filename portion is empty is reported as broken."""
+        assert has_empty_link_target(href) is True
+
+    @pytest.mark.parametrize(
+        'href',
+        [
+            './models-region-compatibility.html',
+            'https://docs.aws.amazon.com/bedrock/latest/userguide/quotas.html',
+            '#in-page-anchor',
+            '',
+            '/bedrock/latest/userguide/',
+            'endpoints.html#section',
+            'foo/.',  # a directory reference, not a missing filename
+            '..',
+            './',
+            'mailto:someone@example.com',
+            'javascript:void(0)',
+        ],
+    )
+    def test_valid_targets_untouched(self, href):
+        """Ordinary hrefs, directory links and fragment-only links are left alone."""
+        assert has_empty_link_target(href) is False
+
+    def test_broken_link_becomes_plain_text(self):
+        """The link is dropped and its text kept, rather than emitting './.html'."""
+        html = """<html><body><main>
+        <p>Use the <a href="./.html#cross-region-ip-apac">APAC Nova Pro inference profile</a>.</p>
+        </main></body></html>"""
+        result = extract_content_from_html(html)
+        assert 'APAC Nova Pro inference profile' in result
+        assert '.html' not in result
+        assert '](' not in result
+
+    def test_valid_link_still_rendered(self):
+        """A resolvable link in the same paragraph is still emitted as markdown."""
+        html = """<html><body><main>
+        <p>See <a href="./quotas.html">Quotas</a> and <a href="./.html">Nothing</a>.</p>
+        </main></body></html>"""
+        result = extract_content_from_html(html)
+        assert '](./quotas.html' in result
+        assert 'Nothing' in result
+        assert './.html' not in result
+
+
+class TestLinkTitlesNotDuplicated:
+    """A link title that merely repeats the href spends the read budget for nothing."""
+
+    def test_href_not_repeated_as_title(self):
+        """Links render as [text](url), not [text](url "url")."""
+        html = """<html><body><main>
+        <p>See <a href="./quotas.html">Quotas</a>.</p>
+        </main></body></html>"""
+        result = extract_content_from_html(html)
+        assert '[Quotas](./quotas.html)' in result
+
+    def test_authored_title_preserved(self):
+        """A title the page actually authored is still emitted."""
+        html = """<html><body><main>
+        <p>See <a href="./quotas.html" title="Service quotas">Quotas</a>.</p>
+        </main></body></html>"""
+        result = extract_content_from_html(html)
+        assert '[Quotas](./quotas.html "Service quotas")' in result
