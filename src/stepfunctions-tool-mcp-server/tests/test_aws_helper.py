@@ -1,8 +1,8 @@
 """Tests for the AWS Helper."""
 
 import os
+from awslabs.stepfunctions_tool_mcp_server import __version__
 from awslabs.stepfunctions_tool_mcp_server.aws_helper import AwsHelper
-from awslabs.stepfunctions_tool_mcp_server.server import __version__
 from unittest.mock import ANY, MagicMock, patch
 
 
