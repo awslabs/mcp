@@ -378,34 +378,61 @@ class PyPiPackage:
             updated_content = tomlkit.dumps(data)
             secure_file_write(pyproject_path, updated_content)
             if package_name.startswith('awslabs.'):
-                module_name = package_name[8:].replace('-', '_')
-                if not re.match(DIRECTORY_NAME_REGEX, module_name):
-                    raise ValueError(f'Invalid module name derived from package: {module_name}')
-                init_file = self.path / 'awslabs' / module_name / '__init__.py'
-                try:
-                    validate_path_security(init_file, self.path)
-                    if init_file.exists():
-                        init_content = secure_file_read(init_file)
-                        version_pattern = (
-                            r'__version__\s*=\s*(?P<start>[\'"])[^\'"]*(?P<end>[\'"])'
+                awslabs_dir = self.path / 'awslabs'
+                if awslabs_dir.is_dir():
+                    subpackage_dirs = sorted(
+                        p
+                        for p in awslabs_dir.iterdir()
+                        if p.is_dir() and not p.name.startswith('.')
+                    )
+                    if len(subpackage_dirs) > 1:
+                        raise ValueError(
+                            f'Multiple candidate subpackages under {awslabs_dir}: '
+                            f'{[p.name for p in subpackage_dirs]}'
                         )
-                        new_version_line = r'__version__ = \g<start>' + new_version + r'\g<end>'
-                        if re.search(version_pattern, init_content):
-                            updated_init_content = re.sub(
-                                version_pattern, new_version_line, init_content
+                    if subpackage_dirs:
+                        module_dir = subpackage_dirs[0]
+                        module_name = module_dir.name
+                        if not re.match(DIRECTORY_NAME_REGEX, module_name):
+                            raise ValueError(f'Invalid module directory name: {module_name}')
+                        init_file = module_dir / '__init__.py'
+                        if init_file.exists():
+                            validate_path_security(init_file, self.path)
+                            init_content = secure_file_read(init_file)
+                            version_pattern = (
+                                r'__version__\s*=\s*(?P<start>[\'"])[^\'"]*(?P<end>[\'"])'
                             )
-                            secure_file_write(init_file, updated_init_content)
-                            click.echo(f"Updated {init_file}: __version__ = '{new_version}'")
+                            new_version_line = (
+                                r'__version__ = \g<start>' + new_version + r'\g<end>'
+                            )
+                            if re.search(version_pattern, init_content):
+                                updated_init_content = re.sub(
+                                    version_pattern, new_version_line, init_content
+                                )
+                                secure_file_write(init_file, updated_init_content)
+                                click.echo(f"Updated {init_file}: __version__ = '{new_version}'")
+                            else:
+                                click.echo(
+                                    f'No __version__ literal in {init_file}; version is '
+                                    'read from distribution metadata'
+                                )
                         else:
-                            click.echo(f'Warning: No __version__ found in {init_file}')
+                            click.echo(
+                                f'No __init__.py in {module_dir}; version is read from '
+                                'distribution metadata'
+                            )
                     else:
-                        click.echo(f'Warning: {init_file} not found for package {package_name}')
-                except ValueError as e:
-                    click.echo(f'Warning: Cannot update __init__.py safely: {e}')
+                        click.echo(
+                            f'No subpackage found under {awslabs_dir}; version is read '
+                            'from distribution metadata'
+                        )
+                else:
+                    click.echo(
+                        f'No awslabs/ directory in {self.path}; version is read from '
+                        'distribution metadata'
+                    )
             else:
-                click.echo(
-                    f"Warning: Package {package_name} doesn't follow awslabs.* naming convention"
-                )
+                click.echo(f"Package {package_name} doesn't follow awslabs.* naming convention")
             logging.info(f'PyPI package version bumped: {current_version} -> {new_version}')
             return new_version
         except Exception as e:

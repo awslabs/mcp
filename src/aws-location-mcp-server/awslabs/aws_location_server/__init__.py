@@ -14,4 +14,10 @@
 
 """AWS Location Service MCP Server package."""
 
-__version__ = '1.0.0'
+from importlib.metadata import version
+
+
+try:
+    __version__ = version('awslabs.aws-location-mcp-server')
+except Exception:  # pragma: no cover
+    __version__ = '2.1.1'
