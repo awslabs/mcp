@@ -31,10 +31,17 @@ import os
 import re
 import sqlite3
 import uuid
+from .constants import (
+    COST_OPTIMIZATION_HUB_EFFICIENCY_METRICS_COLUMNS,
+    COST_OPTIMIZATION_HUB_EFFICIENCY_ORDER_DIMENSION_TO_COLUMN,
+    COST_OPTIMIZATION_HUB_ORDER_DIMENSION_TO_COLUMN,
+    COST_OPTIMIZATION_HUB_RECOMMENDATION_COLUMNS,
+    ColumnSpec,
+)
 from .logging_utils import get_context_logger, get_logger
 from datetime import datetime
 from fastmcp import Context
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 
 # Configure logger for this module
@@ -393,6 +400,8 @@ def _get_specialized_converter(operation_name: str) -> Optional[str]:
         'cost_explorer_get_tags': 'tags',
         'cost_explorer_get_cost_categories': 'cost_categories',
         'aws_pricing_get_products': 'pricing_products',
+        'cost_optimization_hub_list_recommendations': 'coh_recommendations',
+        'cost_optimization_hub_list_efficiency_metrics': 'coh_efficiency_metrics',
         'budget_actions': 'records',
         'budget_notifications': 'records',
     }
@@ -468,6 +477,89 @@ def _record_columns(items: List[Dict[str, Any]]) -> List[str]:
                         raise ValueError(f'Invalid column name for SQL table: {key!r}')
                     columns.append(key)
     return columns or ['value']
+
+
+# ---------------------------------------------------------------------------
+# Column-spec driven inserts
+#
+# A `ColumnSpec` declares one SQLite column as ``(name, sqlite_type)``. With a
+# list of specs, `_create_and_insert` builds the CREATE TABLE schema, the
+# INSERT column list, and the parameter binding order in one pass — so each
+# column is declared exactly once instead of being repeated across the schema,
+# the INSERT column list, the placeholder count, and the values tuple.
+#
+# Coercion is driven by ``sqlite_type``: REAL values go through ``float()`` so
+# Decimal-typed values from boto3 (which sqlite3 cannot bind natively) become
+# proper REAL columns. TEXT/INTEGER/BOOLEAN pass through — SQLite's type
+# affinity handles those.
+# ---------------------------------------------------------------------------
+
+
+def _coerce_for_column(value: Any, sqlite_type: str) -> Any:
+    """Coerce a value for binding into a SQLite column of ``sqlite_type``.
+
+    Only REAL needs active coercion: boto3 occasionally returns ``Decimal``
+    instances for float fields, and ``sqlite3`` raises ``InterfaceError`` when
+    asked to bind a ``Decimal``. Everything else is left to SQLite's dynamic
+    type system.
+
+    Args:
+        value: Raw value from a record dict (may be ``None``).
+        sqlite_type: Declared column type (``TEXT``, ``REAL``, ``INTEGER``, ...).
+
+    Returns:
+        A bind-safe value: ``None``, a float for REAL columns, or the value
+        unchanged.
+    """
+    if value is None:
+        return None
+    if sqlite_type == 'REAL':
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+    return value
+
+
+def _create_and_insert(
+    cursor: sqlite3.Cursor,
+    table_name: str,
+    columns: List[ColumnSpec],
+    records: Iterable[Dict[str, Any]],
+) -> int:
+    """Create a table from a column spec and insert records using ``rec.get(name)``.
+
+    Args:
+        cursor: SQLite cursor used to execute CREATE TABLE and INSERTs.
+        table_name: Validated table name; injection-checked by
+            ``create_safe_sql_statement``.
+        columns: Ordered list of ``(column_name, sqlite_type)`` specs. The
+            schema, INSERT column list, placeholder count, and value tuple are
+            all derived from this list, so each column appears once. Column
+            names must match the record dict's keys.
+        records: Iterable of record dicts. Each column's value is read via
+            ``rec.get(column_name)`` and coerced per its ``sqlite_type``.
+
+    Returns:
+        Number of rows inserted.
+    """
+    schema = [f'{name} {sqlite_type}' for name, sqlite_type in columns]
+    cursor.execute(create_safe_sql_statement('CREATE', table_name, *schema))
+
+    col_list = ', '.join(name for name, _ in columns)
+    placeholders = ', '.join('?' for _ in columns)
+    insert_sql = create_safe_sql_statement(
+        'INSERT', table_name, f'({col_list}) VALUES ({placeholders})'
+    )
+
+    count = 0
+    for rec in records:
+        values = tuple(
+            _coerce_for_column(rec.get(name), sqlite_type) for name, sqlite_type in columns
+        )
+        cursor.execute(insert_sql, values)
+        count += 1
+    return count
 
 
 def _derive_pagination_envelope(
@@ -599,6 +691,11 @@ async def convert_api_response_to_table(
 
     # Get converter for specific API type
     converter_type = _get_specialized_converter(operation_name)
+
+    # Pull the caller's requested ordering out of metadata (if any) so it can
+    # drive a matching sample query, without leaking the raw dict into the
+    # returned payload's metadata spread.
+    requested_order_by = metadata.pop('order_by', None)
 
     # Generate a unique table name
     table_id = str(uuid.uuid4())[:8]
@@ -854,6 +951,58 @@ async def convert_api_response_to_table(
                 cursor.execute(insert_sql, values)
                 rows_inserted += 1
 
+        elif converter_type == 'coh_recommendations' and 'recommendations' in response:
+            # Cost Optimization Hub ListRecommendations.
+            # Schema, INSERT, and value tuple are all driven by
+            # ``COST_OPTIMIZATION_HUB_RECOMMENDATION_COLUMNS`` so each column is declared once.
+            rows_inserted = _create_and_insert(
+                cursor,
+                table_name,
+                COST_OPTIMIZATION_HUB_RECOMMENDATION_COLUMNS,
+                response.get('recommendations', []),
+            )
+
+        elif converter_type == 'coh_efficiency_metrics' and 'groups' in response:
+            # Cost Optimization Hub ListEfficiencyMetrics. The response nests a
+            # per-timestamp series under each group, so denormalize to one row
+            # per (group, timestamp). A no-data group (empty metrics_by_time) is
+            # preserved as a single row with null metrics so the group and its
+            # explanatory ``message`` survive offload rather than vanishing.
+            efficiency_rows: List[Dict[str, Any]] = []
+            for grp in response.get('groups', []):
+                group_value = grp.get('group')
+                message = grp.get('message')
+                points = grp.get('metrics_by_time') or []
+                if points:
+                    for point in points:
+                        efficiency_rows.append(
+                            {
+                                'group_value': group_value,
+                                'message': message,
+                                'timestamp': point.get('timestamp'),
+                                'score': point.get('score'),
+                                'savings': point.get('savings'),
+                                'spend': point.get('spend'),
+                            }
+                        )
+                else:
+                    efficiency_rows.append(
+                        {
+                            'group_value': group_value,
+                            'message': message,
+                            'timestamp': None,
+                            'score': None,
+                            'savings': None,
+                            'spend': None,
+                        }
+                    )
+            rows_inserted = _create_and_insert(
+                cursor,
+                table_name,
+                COST_OPTIMIZATION_HUB_EFFICIENCY_METRICS_COLUMNS,
+                efficiency_rows,
+            )
+
         else:
             # Generic fallback for unknown response types
             schema = ['key TEXT', 'value TEXT']
@@ -1097,6 +1246,106 @@ async def convert_api_response_to_table(
                     'name': 'Item count',
                     'description': 'Counts the number of items stored',
                     'sql': count_query,
+                }
+            )
+
+        elif converter_type == 'coh_recommendations':
+            # Cost Optimization Hub recommendations. One sample query reflecting
+            # the effective ordering: the caller's requested order_by when given,
+            # otherwise a default "highest savings first" view. The requested
+            # column comes from the dimension->column allowlist and the direction
+            # from Asc/Desc (defaulting to ASC, which is how the API sorts when
+            # ``order`` is omitted), so
+            # the interpolated ORDER BY is injection-safe.
+            order_column = 'estimated_monthly_savings'
+            order_direction = 'DESC'
+            query_name = 'Top 20 savings opportunities'
+            query_description = 'Highest-impact recommendations by estimated monthly savings'
+
+            mapped_column = (
+                COST_OPTIMIZATION_HUB_ORDER_DIMENSION_TO_COLUMN.get(
+                    requested_order_by.get('dimension')
+                )
+                if isinstance(requested_order_by, dict)
+                else None
+            )
+            if mapped_column:
+                order_column = mapped_column
+                order_direction = 'DESC' if requested_order_by.get('order') == 'Desc' else 'ASC'
+                query_name = (
+                    f'First 20 by requested order '
+                    f'({requested_order_by.get("dimension")} {order_direction})'
+                )
+                query_description = 'Recommendations in the order requested on the API call'
+
+            sample_query = (
+                create_safe_sql_statement(
+                    'SELECT',
+                    table_name,
+                    'recommendation_id, account_id, resource_id, action_type, '
+                    'current_resource_type, estimated_monthly_savings, currency_code',
+                )
+                + f' ORDER BY {order_column} {order_direction} LIMIT 20'
+            )
+            sample_queries.append(
+                {
+                    'name': query_name,
+                    'description': query_description,
+                    'sql': sample_query,
+                }
+            )
+
+        elif converter_type == 'coh_efficiency_metrics':
+            # Cost Optimization Hub efficiency-metrics queries.
+
+            # Latest metrics per group, ranked. SQLite's min/max bare-column
+            # rule makes the score/savings/spend come from the row with the
+            # newest (MAX) timestamp within each group. The ranking column and
+            # direction mirror the caller's requested order_by when given, else
+            # the API default of Score descending. The API sorts descending when
+            # ``order`` is omitted, so
+            # DESC is the default direction. Column and direction come from
+            # controlled allowlists, so the interpolated ORDER BY is
+            # injection-safe.
+            rank_column = 'score'
+            rank_direction = 'DESC'
+            mapped_rank = (
+                COST_OPTIMIZATION_HUB_EFFICIENCY_ORDER_DIMENSION_TO_COLUMN.get(
+                    requested_order_by.get('dimension')
+                )
+                if isinstance(requested_order_by, dict)
+                else None
+            )
+            if mapped_rank:
+                rank_column = mapped_rank
+                rank_direction = 'ASC' if requested_order_by.get('order') == 'Asc' else 'DESC'
+
+            latest_ranked_query = (
+                create_safe_sql_statement(
+                    'SELECT',
+                    table_name,
+                    'group_value, MAX(timestamp) as latest_timestamp, score, savings, spend',
+                )
+                + f' GROUP BY group_value ORDER BY {rank_column} {rank_direction}'
+            )
+            sample_queries.append(
+                {
+                    'name': f'Latest efficiency metrics by group (ranked by {rank_column})',
+                    'description': 'Most recent score, savings, and spend per group, ranked by the requested (or default) dimension',
+                    'sql': latest_ranked_query,
+                }
+            )
+
+            # Score/savings/spend trend over time for a single group.
+            trend_query = (
+                create_safe_sql_statement('SELECT', table_name, 'timestamp, score, savings, spend')
+                + " WHERE group_value = '<group>' ORDER BY timestamp"
+            )
+            sample_queries.append(
+                {
+                    'name': 'Trend for one group',
+                    'description': 'Time series for a single group (replace <group> with an account id or region)',
+                    'sql': trend_query,
                 }
             )
 
