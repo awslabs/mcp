@@ -44,6 +44,7 @@ from botocore.exceptions import (
 )
 from datetime import datetime, timedelta
 from fastmcp import Context
+from importlib.metadata import version as importlib_version
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 
@@ -70,8 +71,12 @@ _HINT_AWS_CONFIGURATION = (
 )
 
 
-# Version for user agent tracking
-__version__ = '1.0.0'
+# Version for user agent tracking, read from the installed distribution so it
+# cannot drift from pyproject.toml.
+try:
+    __version__ = importlib_version('awslabs.billing-cost-management-mcp-server')
+except Exception:  # pragma: no cover
+    __version__ = '0.0.37'
 
 
 def create_aws_client(service_name: str, region_name: Optional[str] = None) -> Any:
