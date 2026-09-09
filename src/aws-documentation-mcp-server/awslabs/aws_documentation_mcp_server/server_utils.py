@@ -13,6 +13,7 @@
 # limitations under the License.
 import httpx
 import os
+import posixpath
 from awslabs.aws_documentation_mcp_server.models import (
     SearchResponse,
     SearchTableResponse,
@@ -64,10 +65,22 @@ DEFAULT_USER_AGENT = (
 )
 
 
+# A path ending in one of these names addresses the same page as its directory.
+_DIRECTORY_INDEX_FILENAMES = frozenset({'index.html', 'index.htm'})
+
+
+def _normalize_path(path: str) -> str:
+    """Reduce a URL path to the page it addresses, so cosmetic rewrites compare equal."""
+    resolved = posixpath.normpath(path or '/')
+    if posixpath.basename(resolved).lower() in _DIRECTORY_INDEX_FILENAMES:
+        resolved = posixpath.dirname(resolved)
+    return resolved.rstrip('/') or '/'
+
+
 def _page_identity(url: str) -> str:
-    """Reduce a URL to host and path, so scheme, query, fragment and trailing slash do not differ."""
+    """Reduce a URL to host and path, so scheme, query, fragment and path spelling do not differ."""
     parsed = httpx.URL(url)
-    return f'{parsed.host.lower()}{parsed.path.rstrip("/") or "/"}'
+    return f'{parsed.host}{_normalize_path(parsed.path)}'
 
 
 def _describe_redirect(url_str: str, response: httpx.Response) -> Optional[str]:
@@ -118,15 +131,19 @@ async def read_documentation_impl(
             await ctx.error(error_msg)
             return error_msg
 
+        # Computed before the status check: a moved page whose old URL now fails still redirected.
+        redirect_note = _describe_redirect(url_str, response)
+
         if response.status_code >= 400:
             error_msg = f'Failed to fetch {url_str} - status code {response.status_code}'
+            if redirect_note:
+                error_msg = f'{error_msg}. {redirect_note}'
             logger.error(error_msg)
             await ctx.error(error_msg)
             return error_msg
 
         page_raw = response.text
         content_type = response.headers.get('content-type', '')
-        redirect_note = _describe_redirect(url_str, response)
 
     if is_html_content(page_raw, content_type):
         content = extract_content_from_html(page_raw)
@@ -233,18 +250,23 @@ async def read_sections_impl(
             await ctx.error(error_msg)
             return error_msg
 
+        # Computed before the status check: a moved page whose old URL now fails still redirected.
+        redirect_note = _describe_redirect(url_str, response)
+
         if response.status_code >= 400:
             error_msg = f'Failed to fetch {url_str} - status code {response.status_code}'
+            if redirect_note:
+                error_msg = f'{error_msg}. {redirect_note}'
             logger.error(error_msg)
             await ctx.error(error_msg)
             return error_msg
 
         page_raw = response.text
         content_type = response.headers.get('content-type', '')
-        redirect_note = _describe_redirect(url_str, response)
 
     if not is_html_content(page_raw, content_type):
-        return 'Cannot extract sections from non-HTML content. Please use the read_documentation tool instead to get the full document content.'
+        non_html_msg = 'Cannot extract sections from non-HTML content. Please use the read_documentation tool instead to get the full document content.'
+        return f'{non_html_msg} {redirect_note}' if redirect_note else non_html_msg
 
     try:
         filtered_content = extract_sections_from_html(page_raw, section_titles)
@@ -331,8 +353,13 @@ async def search_table_impl(
                 error=error_msg,
             )
 
+        # Computed before the status check: a moved page whose old URL now fails still redirected.
+        redirect_note = _describe_redirect(url_str, response)
+
         if response.status_code >= 400:
             error_msg = f'Failed to fetch {url_str} - status code {response.status_code}'
+            if redirect_note:
+                error_msg = f'{error_msg}. {redirect_note}'
             logger.error(error_msg)
             await ctx.error(error_msg)
             return SearchTableResponse(
@@ -347,9 +374,9 @@ async def search_table_impl(
 
         page_raw = response.text
         content_type = response.headers.get('content-type', '')
-        redirect_note = _describe_redirect(url_str, response)
 
     if not is_html_content(page_raw, content_type):
+        non_html_hint = 'Page content is not HTML. Use read_documentation to view this page.'
         return SearchTableResponse(
             url=url_str,
             section_title=section_title or '',
@@ -357,7 +384,7 @@ async def search_table_impl(
             tables_searched=0,
             tables_with_matches=0,
             results=[],
-            hint='Page content is not HTML. Use read_documentation to view this page.',
+            hint=f'{non_html_hint} {redirect_note}' if redirect_note else non_html_hint,
         )
 
     table_data = parse_html_tables(page_raw, section_title if section_title else None)

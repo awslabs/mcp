@@ -1301,14 +1301,45 @@ class TestRedirectSignal:
                 'https://DOCS.aws.amazon.com/general/latest/gr/ddb.html',
                 'https://docs.aws.amazon.com/general/latest/gr/ddb.html',
             ),
+            (
+                'https://docs.aws.amazon.com/general/latest/gr//ddb.html',
+                'https://docs.aws.amazon.com/general/latest/gr/ddb.html',
+            ),
+            (
+                'https://docs.aws.amazon.com/general/latest/gr/./ddb.html',
+                'https://docs.aws.amazon.com/general/latest/gr/ddb.html',
+            ),
+            (
+                'https://docs.aws.amazon.com/general/latest/gr/index.html',
+                'https://docs.aws.amazon.com/general/latest/gr/',
+            ),
         ],
     )
     def test_cosmetic_url_differences_are_not_a_redirect(self, requested, landed):
-        """Scheme, fragment, trailing slash and host case do not make it another page."""
+        """Scheme, fragment, host case and path spelling do not make it another page."""
         response = MagicMock()
         response.history = [MagicMock()]
         response.url = landed
         assert _describe_redirect(requested, response) is None
+
+    @pytest.mark.asyncio
+    async def test_cosmetic_path_rewrite_returns_the_content(self):
+        """A slash-normalizing redirect must not turn a good page into a failure."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr//ddb.html'
+        patcher = self._client_for(
+            self._redirected_response(
+                '<html><body><main><p>DynamoDB endpoints and quotas.</p></main></body></html>',
+                landed='https://docs.aws.amazon.com/general/latest/gr/ddb.html',
+            )
+        )
+        try:
+            result = await read_documentation_impl(ctx, url, 5000, 0, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert 'redirected to' not in result
+        assert 'DynamoDB endpoints and quotas.' in result
 
     @pytest.mark.asyncio
     async def test_read_documentation_flags_redirect_that_carried_content(self):
@@ -1433,3 +1464,155 @@ class TestRedirectSignal:
                 await read_sections_impl(ctx, url, ['Service endpoints'], 'test-uuid')
         finally:
             patcher.stop()
+
+
+class TestRedirectToDeadPage:
+    """A page that moved and whose target now fails is the case the signal exists for."""
+
+    def _dead_redirect_response(self):
+        """Build a 404 that arrived via a redirect to another page."""
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+        mock_response.text = 'Not found'
+        mock_response.headers = {'content-type': 'text/html'}
+        mock_response.history = [MagicMock()]
+        mock_response.url = 'https://docs.aws.amazon.com/general/latest/gr/'
+        return mock_response
+
+    def _client_for(self, mock_response):
+        """Patch httpx.AsyncClient so a fetch returns the given response."""
+        patcher = patch('httpx.AsyncClient')
+        mock_client_class = patcher.start()
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client_class.return_value = mock_client
+        return patcher
+
+    URL = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+
+    @pytest.mark.asyncio
+    async def test_read_documentation_status_error_names_the_redirect(self):
+        """A 404 reached by redirect says where the request landed, not just the status."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        patcher = self._client_for(self._dead_redirect_response())
+        try:
+            result = await read_documentation_impl(ctx, self.URL, 5000, 0, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert 'status code 404' in result
+        assert 'redirected to' in result
+        assert 'general/latest/gr/' in result
+
+    @pytest.mark.asyncio
+    async def test_read_sections_status_error_names_the_redirect(self):
+        """read_sections reports the redirect on a failing status too."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        patcher = self._client_for(self._dead_redirect_response())
+        try:
+            result = await read_sections_impl(ctx, self.URL, ['Service endpoints'], 'test-uuid')
+        finally:
+            patcher.stop()
+        assert 'status code 404' in result
+        assert 'redirected to' in result
+
+    @pytest.mark.asyncio
+    async def test_search_table_status_error_names_the_redirect(self):
+        """search_table reports the redirect on a failing status too."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        patcher = self._client_for(self._dead_redirect_response())
+        try:
+            result = await search_table_impl(ctx, self.URL, None, 'us-east-1', 50, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert result.error is not None
+        assert 'status code 404' in result.error
+        assert 'redirected to' in result.error
+
+    @pytest.mark.asyncio
+    async def test_status_error_without_redirect_is_unchanged(self):
+        """A plain 404 keeps its original message."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        response = self._dead_redirect_response()
+        response.history = []
+        response.url = self.URL
+        patcher = self._client_for(response)
+        try:
+            result = await read_documentation_impl(ctx, self.URL, 5000, 0, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert result == f'Failed to fetch {self.URL} - status code 404'
+
+
+class TestRedirectOnNonHtmlContent:
+    """Non-HTML bodies take their own early return, which must carry the redirect too."""
+
+    def _redirected_non_html(self):
+        """Build a 200 plain-text response that arrived via a redirect to another page."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = 'plain text, not a document'
+        mock_response.headers = {'content-type': 'text/plain'}
+        mock_response.history = [MagicMock()]
+        mock_response.url = 'https://docs.aws.amazon.com/general/latest/gr/'
+        return mock_response
+
+    def _client_for(self, mock_response):
+        """Patch httpx.AsyncClient so a fetch returns the given response."""
+        patcher = patch('httpx.AsyncClient')
+        mock_client_class = patcher.start()
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client_class.return_value = mock_client
+        return patcher
+
+    URL = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+
+    @pytest.mark.asyncio
+    async def test_read_sections_non_html_names_the_redirect(self):
+        """The non-HTML message does not hide that the page moved."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        patcher = self._client_for(self._redirected_non_html())
+        try:
+            result = await read_sections_impl(ctx, self.URL, ['Service endpoints'], 'test-uuid')
+        finally:
+            patcher.stop()
+        assert 'non-HTML content' in result
+        assert 'redirected to' in result
+
+    @pytest.mark.asyncio
+    async def test_search_table_non_html_names_the_redirect(self):
+        """The non-HTML hint does not hide that the page moved."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        patcher = self._client_for(self._redirected_non_html())
+        try:
+            result = await search_table_impl(ctx, self.URL, None, 'us-east-1', 50, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert result.hint is not None
+        assert 'not HTML' in result.hint
+        assert 'redirected to' in result.hint
+
+    @pytest.mark.asyncio
+    async def test_non_html_without_redirect_is_unchanged(self):
+        """A directly fetched non-HTML page keeps its original hint."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        response = self._redirected_non_html()
+        response.history = []
+        response.url = self.URL
+        patcher = self._client_for(response)
+        try:
+            result = await search_table_impl(ctx, self.URL, None, 'us-east-1', 50, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert result.hint == 'Page content is not HTML. Use read_documentation to view this page.'

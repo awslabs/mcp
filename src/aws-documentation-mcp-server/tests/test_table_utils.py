@@ -1497,8 +1497,7 @@ class TestSingleRowTheadMultiValueHeaders:
 class TestBreakMarkersDoNotLeak:
     """Cell processing mutates the shared tree, so markers must not surface in headings."""
 
-    # A heading living inside an earlier table's cell is marked up when that cell is
-    # parsed, and is then read as the next table's heading.
+    # A heading inside an earlier table's cell is marked up when that cell is parsed.
     _HEADING_IN_A_CELL = """<html><body>
     <table><tbody><tr><td><h3><p>Alpha</p><p>Beta</p></h3></td></tr></tbody></table>
     <table><thead><tr><th>Region</th></tr></thead>
@@ -1554,3 +1553,76 @@ class TestCellLinkTargets:
         assert '[Nova Lite](./nova-lite.html)' in cell
         assert 'Nova Pro' in cell
         assert './.html' not in cell
+
+
+class TestCalloutsInsideCells:
+    """A note inside a cell qualifies the cell's value; it is not another value."""
+
+    _QUOTA_WITH_NOTE = """<html><body>
+    <table><thead><tr><th>Resource</th><th>Quota</th></tr></thead>
+    <tbody><tr><td>File descriptors</td><td>
+        <p>1,024</p>
+        <div class="awsdocs-note">
+            <div class="awsdocs-note-title"><h6>Note</h6></div>
+            <div class="awsdocs-note-text"><p>Managed instances allow 4,096.</p></div>
+        </div>
+    </td></tr></tbody></table>
+    </body></html>"""
+
+    def test_callout_label_is_not_a_value(self):
+        """The word 'Note' is callout chrome and never appears as cell content."""
+        result = parse_html_tables(self._QUOTA_WITH_NOTE, None)
+        assert result is not None
+        assert result['tables'][0]['rows'][0]['Quota'] == '1,024 Managed instances allow 4,096.'
+
+    def test_callout_does_not_create_a_delimited_value(self):
+        """The quota reads as one value, so splitting on '; ' yields a single entry."""
+        result = parse_html_tables(self._QUOTA_WITH_NOTE, None)
+        assert result is not None
+        assert result['tables'][0]['rows'][0]['Quota'].split('; ') == [
+            '1,024 Managed instances allow 4,096.'
+        ]
+
+    def test_genuine_values_still_delimited_when_a_callout_follows(self):
+        """A callout does not suppress the boundaries between real values."""
+        html = """<html><body>
+        <table><thead><tr><th>Endpoint</th></tr></thead>
+        <tbody><tr><td>
+            <p>a.example.com</p><p>b.example.com</p>
+            <div class="awsdocs-note">
+                <div class="awsdocs-note-title"><h6>Note</h6></div>
+                <div class="awsdocs-note-text"><p>FIPS only.</p></div>
+            </div>
+        </td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, None)
+        assert result is not None
+        values = result['tables'][0]['rows'][0]['Endpoint'].split('; ')
+        assert values == ['a.example.com', 'b.example.com FIPS only.']
+
+    def test_callout_handled_on_the_link_preserving_path(self):
+        """A cell containing links takes a different extraction path with the same rules."""
+        html = """<html><body>
+        <table><thead><tr><th>Quota</th></tr></thead>
+        <tbody><tr><td>
+            <p>1,024</p>
+            <div class="awsdocs-note">
+                <div class="awsdocs-note-title"><h6>Note</h6></div>
+                <div class="awsdocs-note-text"><p>See <a href="./limits.html">limits</a>.</p></div>
+            </div>
+        </td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, None)
+        assert result is not None
+        cell = result['tables'][0]['rows'][0]['Quota']
+        assert 'Note' not in cell
+        assert '[limits](./limits.html)' in cell
+        assert cell.split('; ') == [cell]
+
+    def test_soft_markers_never_reach_the_output(self):
+        """The internal soft boundary marker is replaced, never emitted."""
+        result = parse_html_tables(self._QUOTA_WITH_NOTE, None)
+        assert result is not None
+        for value in result['tables'][0]['rows'][0].values():
+            assert '\x01' not in value
+            assert '\x00' not in value

@@ -20,16 +20,46 @@ from bs4.element import NavigableString
 from typing import Optional
 
 
+# Note, tip, warning and important callouts all carry these classes, on the block and on its title.
+_CALLOUT_CLASSES = ('awsdocs-note-title', 'awsdocs-note')
+_CALLOUT_TITLE_CLASS = 'awsdocs-note-title'
+_HEADING_TAGS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']
+
+
+def _in_callout(element: Tag) -> bool:
+    """Report whether an element belongs to a callout rather than to content."""
+    for candidate in (element, *element.parents):
+        classes = candidate.get('class') or [] if isinstance(candidate, Tag) else []
+        if any(cls in _CALLOUT_CLASSES for cls in classes):
+            return True
+    return False
+
+
 # Delimiting multi-value cells keeps the Nth value in one column aligned with the Nth in the next.
 _VALUE_DELIMITER = '; '
 _BREAK_MARKER = '\x00'  # placeholder for value boundaries; survives get_text(strip=True)
+# A callout inside a cell qualifies the value rather than adding one, so it joins with a space.
+_SOFT_MARKER = '\x01'
 _BREAK_TAGS = ['br', 'p', 'div', 'li', 'dt', 'dd', 'tr']
+
+
+# A callout boundary wins over any block boundary beside it: the callout qualifies the value it
+# follows rather than starting a new one.
+_ADJACENT_MARKERS = re.compile(
+    f'[{_BREAK_MARKER}\\s]*{_SOFT_MARKER}[{_BREAK_MARKER}{_SOFT_MARKER}\\s]*'
+)
 
 
 def _join_values(text: str) -> str:
     """Join marker-separated values with '; ', dropping empty segments."""
-    segments = (segment.strip() for segment in text.split(_BREAK_MARKER))
+    absorbed = _ADJACENT_MARKERS.sub(_SOFT_MARKER, text)
+    segments = (_collapse_soft_breaks(segment) for segment in absorbed.split(_BREAK_MARKER))
     return _VALUE_DELIMITER.join(segment for segment in segments if segment)
+
+
+def _collapse_soft_breaks(segment: str) -> str:
+    """Reduce soft boundaries and surrounding whitespace to single spaces."""
+    return ' '.join(segment.replace(_SOFT_MARKER, ' ').split())
 
 
 def _mark_breaks(cell: Tag) -> None:
@@ -37,15 +67,24 @@ def _mark_breaks(cell: Tag) -> None:
     for tag in cell.find_all(_BREAK_TAGS):
         if not isinstance(tag, Tag):
             continue
+        marker = _SOFT_MARKER if _in_callout(tag) else _BREAK_MARKER
         if tag.name == 'br':
-            tag.replace_with(NavigableString(_BREAK_MARKER))
+            tag.replace_with(NavigableString(marker))
         else:
-            tag.insert_before(NavigableString(_BREAK_MARKER))
-            tag.insert_after(NavigableString(_BREAK_MARKER))
+            tag.insert_before(NavigableString(marker))
+            tag.insert_after(NavigableString(marker))
+
+
+def _strip_callout_titles(cell: Tag) -> None:
+    """Remove 'Note' and 'Important' labels, which are chrome rather than cell content."""
+    for title in cell.find_all(class_=_CALLOUT_TITLE_CLASS):
+        if isinstance(title, Tag):
+            title.decompose()
 
 
 def _cell_text(cell: Tag) -> str:
     """Extract cell text, joining multi-value cells with '; '."""
+    _strip_callout_titles(cell)
     _mark_breaks(cell)
     return _join_values(cell.get_text(strip=True))
 
@@ -53,20 +92,6 @@ def _cell_text(cell: Tag) -> str:
 def _heading_text(heading: Tag) -> str:
     """Extract heading text, dropping markers left behind by cell processing."""
     return _join_values(heading.get_text(strip=True))
-
-
-# Note, tip, warning and important callouts all class their own <h6> title with these.
-_CALLOUT_CLASSES = ('awsdocs-note-title', 'awsdocs-note')
-_HEADING_TAGS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']
-
-
-def _in_callout(heading: Tag) -> bool:
-    """Report whether a heading is a callout title rather than a content heading."""
-    for element in (heading, *heading.parents):
-        classes = element.get('class') or [] if isinstance(element, Tag) else []
-        if any(cls in _CALLOUT_CLASSES for cls in classes):
-            return True
-    return False
 
 
 def _nearest_heading(table: Tag) -> Optional[Tag]:
@@ -437,6 +462,7 @@ def _cell_to_text(cell: Tag) -> str:
         return _cell_text(cell)
 
     # Build text with markdown links
+    _strip_callout_titles(cell)
     _mark_breaks(cell)
     parts: list[str] = []
     _extract_with_links(cell, parts)
