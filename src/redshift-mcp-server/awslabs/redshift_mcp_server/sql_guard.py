@@ -229,14 +229,14 @@ def _read_only_denied_operation(statement: exp.Expression) -> str | None:
     return None
 
 
-def assert_executable(sql: str, allow_read_write: bool = False) -> None:
+def assert_executable(sql: str, enforce_read_only: bool = True) -> None:
     """Validate that the SQL is a single permitted statement.
 
     Fails closed: oversized input and any parser error are rejected.
 
     Args:
         sql: The SQL statement to validate.
-        allow_read_write: When True, enforce single-statement only and skip the
+        enforce_read_only: When False, enforce single-statement only and skip the
             read-only statement-type deny-list.
 
     Raises:
@@ -250,7 +250,7 @@ def assert_executable(sql: str, allow_read_write: bool = False) -> None:
     if len(statements) != 1:
         _reject('Only a single SQL statement is allowed')
 
-    if allow_read_write:
+    if not enforce_read_only:
         return
 
     keyword = _read_only_denied_operation(statements[0])

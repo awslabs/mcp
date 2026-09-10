@@ -70,7 +70,7 @@ def _make_sql_recorder():
     """
     recorded: dict[str, str] = {}
 
-    async def _execute(cluster_identifier, database_name, sql, allow_read_write=False):
+    async def _execute(cluster_identifier, database_name, sql, enforce_read_only=True):
         recorded[sql.splitlines()[0].removeprefix('--').strip()] = sql
         return _make_empty_response()
 

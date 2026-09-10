@@ -174,12 +174,12 @@ Requires the connected database user to hold the sys:monitor role (or be a super
 2. Use the list_clusters tool to discover available Redshift instances.
 3. Note the cluster identifiers for use with other tools (coming in future milestones).
 
-## Session Management and Concurrency
+## Concurrency
 
-The server reuses one Redshift Data API session per `cluster:database`:
-- Queries to the same `cluster:database` are serialized (parallel calls queue; a long-running query blocks later ones to that target).
-- Queries to different targets run concurrently on independent sessions.
-- In read-only mode each query runs isolated in its own transaction.
+Each statement runs on its own connection, so calls never queue behind each other:
+- Queries to the same `cluster:database` run concurrently, including a long-running one.
+- No state carries between calls. A temporary table, a `SET`, or an open transaction from one call is not visible to the next.
+- In read-only mode each query is isolated in its own read-only transaction.
 - In read-write mode each statement runs directly with autocommit, with no transaction wrapper.
 
 ## AWS Client Best Practices
@@ -265,8 +265,9 @@ def _write_confirmation(
     if ACCESS_MODE != ACCESS_MODE_READ_WRITE or SKIP_WRITE_CONFIRMATION:
         return ConfirmWrite(confirmed=True)
 
-    # Reject before asking, so a statement that cannot run never raises a prompt.
-    assert_executable(sql, allow_read_write=True)
+    # Reject before asking, so a statement that cannot run never raises a prompt. Only
+    # this server's read-only protection is off here; the mode is read-write by this point.
+    assert_executable(sql, enforce_read_only=False)
 
     if not might_write(sql):
         return ConfirmWrite(confirmed=True)
@@ -841,7 +842,7 @@ async def execute_query_tool(
             cluster_identifier=cluster_identifier,
             database_name=database_name,
             sql=sql,
-            allow_read_write=ACCESS_MODE == ACCESS_MODE_READ_WRITE,
+            enforce_read_only=ACCESS_MODE != ACCESS_MODE_READ_WRITE,
         )
 
         # Convert to QueryResult model

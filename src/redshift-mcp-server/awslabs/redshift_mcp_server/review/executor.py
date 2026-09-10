@@ -91,7 +91,7 @@ async def review_cluster(
                 cluster_identifier=cluster_identifier,
                 database_name=database_name,
                 sql=sql,
-                allow_read_write=True,
+                enforce_read_only=False,
             )
         except Exception as e:
             logger.error('Review query {} failed: {}', query_name, str(e))

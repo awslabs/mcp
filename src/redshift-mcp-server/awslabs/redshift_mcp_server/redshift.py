@@ -30,7 +30,6 @@ from awslabs.redshift_mcp_server.consts import (
     QUERY_POLL_INTERVAL,
     QUERY_TIMEOUT,
     SCHEMAS_SQL,
-    SESSION_KEEPALIVE,
     TABLES_SQL,
 )
 from awslabs.redshift_mcp_server.models import (
@@ -56,6 +55,12 @@ def _sql_identifier(value: str) -> str:
 
 # ClientError codes that indicate missing IAM permissions.
 _ACCESS_DENIED = {'AccessDeniedException', 'UnauthorizedAccess', 'AccessDenied'}
+
+# Statement statuses the Data API does not move on from.
+_TERMINAL_STATUSES = frozenset({'FINISHED', 'FAILED', 'ABORTED'})
+
+# Tags the connection with an application name.
+_APP_NAME_SQL = f"SET application_name TO '{CLIENT_USER_AGENT_NAME}/{__version__}'"
 
 
 class RedshiftClientManager:
@@ -123,114 +128,25 @@ class RedshiftClientManager:
         return self._redshift_data_client
 
 
-class RedshiftSessionManager:
-    """Manages Redshift Data API sessions for connection reuse."""
+async def _resolve_cluster(cluster_identifier: str) -> RedshiftCluster:
+    """Resolve a cluster identifier to its discovered cluster.
 
-    def __init__(self, session_keepalive: int, app_name: str):
-        """Initialize the session manager.
+    Args:
+        cluster_identifier: The cluster identifier to resolve.
 
-        Args:
-            session_keepalive: Session keepalive timeout in seconds.
-            app_name: Application name to set in sessions.
-        """
-        self._sessions = {}  # {cluster:database -> session_info}
-        self._locks: dict[str, asyncio.Lock] = {}  # {cluster:database -> asyncio.Lock}
-        self._session_keepalive = session_keepalive
-        self._app_name = app_name
+    Returns:
+        The matching RedshiftCluster model.
 
-    def lock(self, cluster_identifier: str, database_name: str) -> asyncio.Lock:
-        """Get or create the per cluster:database lock that serializes session use.
+    Raises:
+        ToolError: If no discovered cluster carries that identifier.
+    """
+    for cluster in await discover_clusters():
+        if cluster.identifier == cluster_identifier:
+            return cluster
 
-        Args:
-            cluster_identifier: The cluster identifier to lock on.
-            database_name: The database name to lock on.
-
-        Returns:
-            The asyncio.Lock for the cluster:database, created lazily on first use.
-        """
-        key = f'{cluster_identifier}:{database_name}'
-        # No await between the get and set, so lazy creation is race-free on the event loop.
-        existing = self._locks.get(key)
-        if existing is None:
-            existing = asyncio.Lock()
-            self._locks[key] = existing
-        return existing
-
-    async def session(
-        self, cluster_identifier: str, database_name: str, cluster_info: RedshiftCluster
-    ) -> str:
-        """Get or create a session for the given cluster and database.
-
-        Args:
-            cluster_identifier: The cluster identifier to get session for.
-            database_name: The database name to get session for.
-            cluster_info: Cluster information model from discover_clusters.
-
-        Returns:
-            Session ID for use in ExecuteStatement calls.
-        """
-        # Check existing session
-        session_key = f'{cluster_identifier}:{database_name}'
-        if session_key in self._sessions:
-            session_info = self._sessions[session_key]
-            if not self._is_session_expired(session_info):
-                logger.debug(f'Reusing existing session: {session_info["session_id"]}')
-                return session_info['session_id']
-            else:
-                logger.debug(f'Session expired, removing: {session_info["session_id"]}')
-                del self._sessions[session_key]
-
-        # Create new session with application name
-        session_id = await self._create_session_with_app_name(
-            cluster_identifier, database_name, cluster_info
-        )
-
-        # Store session
-        self._sessions[session_key] = {'session_id': session_id, 'created_at': time.time()}
-
-        logger.info(f'Created new session: {session_id} for {cluster_identifier}:{database_name}')
-        return session_id
-
-    async def _create_session_with_app_name(
-        self, cluster_identifier: str, database_name: str, cluster_info: RedshiftCluster
-    ) -> str:
-        """Create a new session by executing SET application_name.
-
-        Args:
-            cluster_identifier: The cluster identifier.
-            database_name: The database name.
-            cluster_info: Cluster information model.
-
-        Returns:
-            Session ID from the ExecuteStatement response.
-        """
-        # Set application name to create session
-        app_name_sql = f"SET application_name TO '{self._app_name}';"
-
-        # Execute statement to create session
-        response = await _execute_statement(
-            cluster_info=cluster_info,
-            cluster_identifier=cluster_identifier,
-            database_name=database_name,
-            sql=app_name_sql,
-            session_keepalive=self._session_keepalive,
-        )
-
-        session_id = response['SessionId']
-
-        logger.debug(f'Created session with application name: {session_id}')
-        return session_id
-
-    def _is_session_expired(self, session_info: dict) -> bool:
-        """Check if a session has expired based on keepalive timeout.
-
-        Args:
-            session_info: Session information dictionary.
-
-        Returns:
-            True if session is expired, False otherwise.
-        """
-        return (time.time() - session_info['created_at']) > self._session_keepalive
+    raise ToolError(
+        f'Cluster {cluster_identifier} not found. Please use list_clusters to get valid cluster identifiers.'
+    )
 
 
 async def _execute_protected_statement(
@@ -238,233 +154,181 @@ async def _execute_protected_statement(
     database_name: str,
     sql: str,
     parameters: list[dict] | None = None,
-    allow_read_write: bool = False,
+    enforce_read_only: bool = True,
 ) -> tuple[dict, str]:
-    """Execute a SQL statement against a Redshift cluster in a protected fashion.
+    """Execute one SQL statement against a Redshift cluster in a protected fashion.
 
-    The SQL is first validated by the read-only guard (single-statement enforcement,
-    plus the statement-type deny-list in read-only mode), then executed per the
-    allow_read_write flag:
+    The statement is validated by the SQL guard, then sent as a single batch whose
+    surrounding statements depend on `enforce_read_only`:
 
-    Read-only (allow_read_write=False):
-    1. Get or create session (with SET application_name).
-    2. BEGIN READ ONLY;
-    3. <user sql>
-    4. ROLLBACK;  (always, so nothing is persisted and non-deny-listed writes are blocked)
+    Enforced (`enforce_read_only=True`):
+        `SET application_name` -> `BEGIN READ ONLY` -> caller SQL -> `ROLLBACK`
 
-    Read-write (allow_read_write=True):
-    1. Get or create session (with SET application_name).
-    2. <user sql>  (run directly/autocommit, with no transaction wrapper so that
-       non-transactional statements such as VACUUM or CREATE DATABASE are not broken)
+    Not enforced (`enforce_read_only=False`):
+        `SET application_name` -> caller SQL
+
+    The batch runs with `ExecutionMode=AUTO_COMMIT`, so the Data API adds no transaction of
+    its own and the wrapper, where applied, is the only transaction in play. Statements in a
+    batch run serially on one connection, so `SET application_name` applies to the statements
+    after it and no session is needed to carry it.
+
+    The wrapper is what actually blocks a write: the engine rejects writes the guard's
+    deny-list does not enumerate, and the closing `ROLLBACK` discards anything uncommitted.
+    It also runs when the caller's statement fails, so a failure cannot leave a transaction
+    open.
 
     Args:
         cluster_identifier: The cluster identifier to query.
-        database_name: The database to execute the query against.
-        sql: The SQL statement to execute.
+        database_name: The database to execute the statement against.
+        sql: The single SQL statement to execute.
         parameters: Optional list of parameter dictionaries with 'name' and 'value' keys.
-        allow_read_write: Indicates if read-write mode should be activated.
+            Only the caller's statement carries placeholders, which the Data API accepts.
+        enforce_read_only: Whether to apply read-only protection: the guard's statement-type
+            deny-list and the transaction wrapper. Clear it for a caller permitted to write,
+            and for this server's own SQL, which it authors and so does not police.
+            Single-statement enforcement applies either way.
 
     Returns:
         Tuple containing:
         - Dictionary with the raw results_response from get_statement_result.
-        - String with the query_id.
+        - String with the query_id of the caller's statement.
 
     Raises:
-        ToolError: If cluster not found, query fails, or times out.
+        ToolError: If the cluster is unknown, a statement fails, or the batch times out.
     """
-    # Validate the statement with the read-only guard before doing any work.
-    assert_executable(sql, allow_read_write=allow_read_write)
+    # Validate the statement with the SQL guard before doing any work.
+    assert_executable(sql, enforce_read_only=enforce_read_only)
 
-    # Get cluster info
-    clusters = await discover_clusters()
-    cluster_info = None
-    for cluster in clusters:
-        if cluster.identifier == cluster_identifier:
-            cluster_info = cluster
-            break
+    cluster_info = await _resolve_cluster(cluster_identifier)
 
-    if not cluster_info:
-        raise ToolError(
-            f'Cluster {cluster_identifier} not found. Please use list_clusters to get valid cluster identifiers.'
-        )
+    sqls = [_APP_NAME_SQL]
+    if enforce_read_only:
+        sqls.append('BEGIN READ ONLY')
+    caller_index = len(sqls)
+    sqls.append(sql)
+    if enforce_read_only:
+        sqls.append('ROLLBACK')
 
-    # Serialize work on the shared per cluster:database session.
-    async with session_manager.lock(cluster_identifier, database_name):
-        session_id = await session_manager.session(cluster_identifier, database_name, cluster_info)
+    batch = await _execute_batch(
+        cluster_info=cluster_info,
+        cluster_identifier=cluster_identifier,
+        database_name=database_name,
+        sqls=sqls,
+        parameters=parameters,
+    )
 
-        if allow_read_write:
-            # Read-write: run the single guarded statement directly (autocommit). No
-            # transaction wrapper. Any error propagates.
-            user_statement = await _execute_statement(
-                cluster_info=cluster_info,
-                cluster_identifier=cluster_identifier,
-                database_name=database_name,
-                sql=sql,
-                parameters=parameters,
-                session_id=session_id,
-            )
-        else:
-            # Read-only: BEGIN READ ONLY ... ROLLBACK. The engine rejects data writes
-            # the deny-list does not enumerate; ROLLBACK discards anything uncommitted.
-            await _execute_statement(
-                cluster_info=cluster_info,
-                cluster_identifier=cluster_identifier,
-                database_name=database_name,
-                sql='BEGIN READ ONLY;',
-                session_id=session_id,
-            )
+    sub_statements = batch['SubStatements']
 
-            # Execute user SQL with parameters, ensuring the transaction is always closed.
-            user_statement = None
-            user_sql_error: Exception | None = None
+    # One failed statement fails the batch, so a healthy batch means the caller's statement
+    # and everything around it ran. A surrounding failure matters as much as the caller's
+    # own: a failed BEGIN means the statement was never read-only, and a failed ROLLBACK
+    # means what it did may not have been discarded.
+    if batch['Status'] != 'FINISHED':
+        # A statement that ran and failed carries the engine's message. When the connection
+        # itself was refused nothing ran, every statement is ABORTED with a placeholder, and
+        # only the batch carries the reason.
+        failed = next((sub for sub in sub_statements if sub['Status'] == 'FAILED'), None)
+        error = (failed or batch).get('Error', 'Unknown error')
+        logger.error(f'Statement failed: {error}')
+        raise ToolError(f'Statement failed: {error}')
 
-            try:
-                user_statement = await _execute_statement(
-                    cluster_info=cluster_info,
-                    cluster_identifier=cluster_identifier,
-                    database_name=database_name,
-                    sql=sql,
-                    parameters=parameters,
-                    session_id=session_id,
-                )
-            except Exception as e:
-                user_sql_error = e
-                logger.error(f'User SQL execution failed: {e}')
-            finally:
-                # Always close the read-only transaction with ROLLBACK, even on
-                # CancelledError / BaseException.
-                try:
-                    await _execute_statement(
-                        cluster_info=cluster_info,
-                        cluster_identifier=cluster_identifier,
-                        database_name=database_name,
-                        sql='ROLLBACK;',
-                        session_id=session_id,
-                    )
-                except Exception as close_error:
-                    logger.error(f'ROLLBACK statement execution failed: {close_error}')
-                    if user_sql_error is not None:
-                        # Both failed - raise combined error
-                        raise ToolError(
-                            f'User SQL failed: {user_sql_error}; '
-                            f'ROLLBACK statement failed: {close_error}'
-                        ) from close_error
-                    raise
+    caller_statement = sub_statements[caller_index]
+    query_id = caller_statement['Id']
 
-            # If user SQL failed but the ROLLBACK succeeded, raise the user SQL error.
-            if user_sql_error is not None:
-                raise user_sql_error
-
-    # Get results from user query (shared by both modes); runs outside the lock.
-    # get_statement_result is keyed by query_id, not session-bound, so the lock is not
-    # held during the (potentially unbounded) results wait.
-    assert user_statement is not None, 'user_statement should not be None at this point'
-    user_query_id = user_statement['Id']
-
-    # Only fetch results when the statement produced a result set (e.g. SET does not).
-    if user_statement.get('HasResultSet'):
+    # Only fetch results when the statement produced a result set. SET and DDL do not, and
+    # GetStatementResult answers ResourceNotFoundException for them.
+    if caller_statement.get('HasResultSet'):
         data_client = client_manager.redshift_data_client()
-        results_response = data_client.get_statement_result(Id=user_query_id)
+        results_response = await asyncio.to_thread(data_client.get_statement_result, Id=query_id)
     else:
         results_response = {'Records': [], 'ColumnMetadata': []}
-    return results_response, user_query_id
+
+    return results_response, query_id
 
 
-async def _execute_statement(
+async def _execute_batch(
     cluster_info: RedshiftCluster,
     cluster_identifier: str,
     database_name: str,
-    sql: str,
+    sqls: list[str],
     parameters: list[dict] | None = None,
-    session_id: str | None = None,
-    session_keepalive: int | None = None,
     query_poll_interval: float = QUERY_POLL_INTERVAL,
     query_timeout: float = QUERY_TIMEOUT,
     query_long_poll: int = QUERY_LONG_POLL,
 ) -> dict:
-    """Execute a single statement with optional session support and parameters.
+    """Run a batch of statements and wait for it to settle.
+
+    Returns the terminal response whatever the outcome, including a failure: only the caller
+    knows which statement was its own, so only the caller can turn a failed one into a
+    useful message.
 
     Args:
         cluster_info: Cluster information model.
         cluster_identifier: The cluster identifier.
         database_name: The database name.
-        sql: The SQL statement to execute.
+        sqls: The statements to run, in order, on one connection.
         parameters: Optional list of parameter dictionaries with 'name' and 'value' keys.
-        session_id: Optional session ID to use.
-        session_keepalive: Optional session keepalive seconds (only used when session_id is None).
-        query_poll_interval: Polling interval in seconds for checking query status.
-        query_timeout: Maximum time in seconds to wait for query completion.
+        query_poll_interval: Polling interval in seconds for checking batch status.
+        query_timeout: Maximum time in seconds to wait for the batch to settle.
         query_long_poll: Data API WaitTimeSeconds, 1-30, or 0 to disable long polling.
 
     Returns:
-        The terminal statement response, carrying Id, Status, SessionId and HasResultSet.
+        The terminal DescribeStatement response, carrying Status and SubStatements.
 
     Raises:
-        ToolError: If the statement fails, is aborted, or times out.
+        ToolError: If the batch does not settle within query_timeout.
     """
     data_client = client_manager.redshift_data_client()
 
-    # Build request parameters
-    request_params: dict[str, str | int | list[dict]] = {'Sql': sql}
+    request_params: dict[str, str | int | list] = {
+        'Sqls': sqls,
+        'Database': database_name,
+        # The Data API's default TRANSACTION mode wraps the whole batch and commits at its
+        # end, which would defeat BEGIN READ ONLY and let a write persist. This server runs
+        # its own transactions, so it opts out of that wrapper.
+        'ExecutionMode': 'AUTO_COMMIT',
+    }
 
-    # Add database and cluster/workgroup identifier only if not using session
-    if not session_id:
-        request_params['Database'] = database_name
-        if cluster_info.type == 'provisioned':
-            request_params['ClusterIdentifier'] = cluster_identifier
-        elif cluster_info.type == 'serverless':
-            request_params['WorkgroupName'] = cluster_identifier
-        else:
-            # Discovery only ever sets 'provisioned' or 'serverless', so reaching this is
-            # our bug, not something the caller can act on. Left as a bare exception so
-            # the SDK reports it as a crash and logs the traceback.
-            raise Exception(f'Unknown cluster type: {cluster_info.type}')
+    if cluster_info.type == 'provisioned':
+        request_params['ClusterIdentifier'] = cluster_identifier
+    elif cluster_info.type == 'serverless':
+        request_params['WorkgroupName'] = cluster_identifier
+    else:
+        # Discovery only ever sets 'provisioned' or 'serverless', so reaching this is our
+        # bug, not something the caller can act on. Left as a bare exception so the SDK
+        # reports it as a crash and logs the traceback.
+        raise Exception(f'Unknown cluster type: {cluster_info.type}')
 
-    # Add parameters if provided
     if parameters:
         request_params['Parameters'] = parameters
-
-    # Add session ID if provided, otherwise add session keepalive
-    if session_id:
-        request_params['SessionId'] = session_id
-    elif session_keepalive is not None:
-        request_params['SessionKeepAliveSeconds'] = session_keepalive
 
     long_poll_params = {'WaitTimeSeconds': query_long_poll} if query_long_poll else {}
 
     # boto3 is synchronous and a long poll holds the caller for up to query_long_poll
     # seconds, so every Data API call here runs off the event loop.
     response = await asyncio.to_thread(
-        data_client.execute_statement, **request_params, **long_poll_params
+        data_client.batch_execute_statement, **request_params, **long_poll_params
     )
     statement_id = response['Id']
 
-    logger.debug(
-        f'Executed statement: {statement_id}' + (f' in session {session_id}' if session_id else '')
-    )
+    logger.debug(f'Executed batch {statement_id} of {len(sqls)} statements')
 
-    # ExecuteStatement and DescribeStatement report status alike, so one loop settles the
-    # long-polled submit and every later poll. Wall clock, since a long poll blocks server-side.
+    # BatchExecuteStatement and DescribeStatement report status alike, so one loop settles
+    # the long-polled submit and every later poll. Wall clock, since a long poll blocks
+    # server-side.
     deadline = time.monotonic() + query_timeout
     while True:
-        status = response.get('Status')
-
-        if status == 'FINISHED':
-            logger.debug(f'Statement completed: {statement_id}')
+        if response.get('Status') in _TERMINAL_STATUSES:
+            if 'SubStatements' not in response:
+                # Only DescribeStatement carries the sub-statement ids, and those ids are
+                # the only way to reach one statement's result, so a submit that settled
+                # under its own long poll still needs a describe.
+                response = await asyncio.to_thread(data_client.describe_statement, Id=statement_id)
+            logger.debug(f'Batch settled: {statement_id} ({response["Status"]})')
             return response
-        elif status in ['FAILED', 'ABORTED']:
-            error_msg = response.get('Error')
-            if error_msg is None:
-                # ExecuteStatement carries no Error field, so the reason takes a describe.
-                described = await asyncio.to_thread(
-                    data_client.describe_statement, Id=statement_id
-                )
-                error_msg = described.get('Error', 'Unknown error')
-            logger.error(f'Statement failed: {error_msg}')
-            raise ToolError(f'Statement failed: {error_msg}')
 
         if time.monotonic() >= deadline:
-            logger.error(f'Statement timed out: {statement_id}')
+            logger.error(f'Batch timed out: {statement_id}')
             raise ToolError(f'Statement timed out after {query_timeout} seconds')
 
         await asyncio.sleep(query_poll_interval)
@@ -611,6 +475,8 @@ async def discover_databases(
             cluster_identifier=cluster_identifier,
             database_name=database_name,
             sql=DATABASES_SQL,
+            # This server's own SQL, so it does not police itself.
+            enforce_read_only=False,
         )
 
         databases = RedshiftDatabase.from_redshift_response(results_response)
@@ -643,6 +509,7 @@ async def discover_schemas(
             cluster_identifier=cluster_identifier,
             database_name=schema_database_name,
             sql=SCHEMAS_SQL.format(database=_sql_identifier(schema_database_name)),
+            enforce_read_only=False,
         )
 
         schemas = RedshiftSchema.from_redshift_response(results_response)
@@ -683,6 +550,7 @@ async def discover_tables(
                 database=_sql_identifier(table_database_name),
                 schema=_sql_identifier(table_schema_name),
             ),
+            enforce_read_only=False,
         )
 
         tables = RedshiftTable.from_redshift_response(results_response)
@@ -728,6 +596,7 @@ async def discover_columns(
                 schema=_sql_identifier(column_schema_name),
                 table=_sql_identifier(column_table_name),
             ),
+            enforce_read_only=False,
         )
 
         columns = RedshiftColumn.from_redshift_response(results_response)
@@ -744,7 +613,7 @@ async def discover_columns(
 
 
 async def execute_query(
-    cluster_identifier: str, database_name: str, sql: str, allow_read_write: bool = False
+    cluster_identifier: str, database_name: str, sql: str, enforce_read_only: bool = True
 ) -> dict:
     """Execute a SQL query against a Redshift cluster using the Data API.
 
@@ -752,7 +621,7 @@ async def execute_query(
         cluster_identifier: The cluster identifier to query.
         database_name: The database to execute the query against.
         sql: The SQL statement to execute.
-        allow_read_write: Whether to use a read-write transaction. Defaults to False (read-only).
+        enforce_read_only: Whether to apply read-only protection. Defaults to True.
 
     Returns:
         Dictionary with query results including columns, rows, and metadata.
@@ -766,7 +635,7 @@ async def execute_query(
             cluster_identifier=cluster_identifier,
             database_name=database_name,
             sql=sql,
-            allow_read_write=allow_read_write,
+            enforce_read_only=enforce_read_only,
         )
 
         # Extract column names
@@ -803,9 +672,4 @@ client_manager = RedshiftClientManager(
     ),
     aws_region=os.environ.get('AWS_REGION'),
     aws_profile=os.environ.get('AWS_PROFILE'),
-)
-
-# Global session manager instance
-session_manager = RedshiftSessionManager(
-    session_keepalive=SESSION_KEEPALIVE, app_name=f'{CLIENT_USER_AGENT_NAME}/{__version__}'
 )

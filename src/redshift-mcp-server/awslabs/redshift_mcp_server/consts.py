@@ -32,7 +32,6 @@ LOG_LEVEL_DEFAULT = 'WARNING'
 QUERY_TIMEOUT = 3600
 QUERY_POLL_INTERVAL = 1
 QUERY_LONG_POLL = 30
-SESSION_KEEPALIVE = 600
 
 # SQL discovery commands. Results are read positionally; {placeholders} are
 # filled with quoted identifiers by the caller.

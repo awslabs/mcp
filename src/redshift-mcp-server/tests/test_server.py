@@ -726,7 +726,7 @@ class TestExecuteQueryTool:
             cluster_identifier='test-cluster',
             database_name='dev',
             sql='SELECT 1 AS id',
-            allow_read_write=allow_writes,
+            enforce_read_only=not allow_writes,
         )
 
     @pytest.mark.asyncio

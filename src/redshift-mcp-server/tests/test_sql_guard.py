@@ -274,7 +274,7 @@ class TestFailClosed:
 
 
 class TestReadWriteMode:
-    """With allow_read_write=True the deny-list is skipped but single-statement still holds."""
+    """With enforce_read_only=False the deny-list is skipped but single-statement still holds."""
 
     @pytest.mark.parametrize(
         'sql',
@@ -286,12 +286,12 @@ class TestReadWriteMode:
     )
     def test_single_statement_is_allowed_in_read_write(self, sql):
         """A single statement passes even when its operation is deny-listed."""
-        assert_executable(sql, allow_read_write=True)
+        assert_executable(sql, enforce_read_only=False)
 
     def test_multi_statement_still_rejected_in_read_write(self):
         """Statement stacking is rejected regardless of mode."""
         with pytest.raises(ToolError, match='single SQL statement is allowed'):
-            assert_executable('SELECT 1; SELECT 2', allow_read_write=True)
+            assert_executable('SELECT 1; SELECT 2', enforce_read_only=False)
 
 
 class TestReadOnlyPassesWritesToEngineBackstop:
