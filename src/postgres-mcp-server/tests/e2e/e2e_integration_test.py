@@ -88,13 +88,15 @@ from awslabs.postgres_mcp_server.server import (
 from awslabs.postgres_mcp_server.sql_guard import (
     DANGEROUS_FUNCTIONS,
     DANGEROUS_QUALIFIED_FUNCTIONS,
+    READ_ONLY_PROHIBITED_MUTATING_FUNCTIONS,
+    READ_ONLY_PROHIBITED_QUALIFIED_FUNCTIONS,
     SECURITY_SENSITIVE_GUCS,
 )
 from dataclasses import dataclass
 from datetime import datetime
 from functools import partial
 from loguru import logger
-from typing import List, Optional
+from typing import Any, List, Optional, Tuple
 
 
 # Managed prefix lists authorized to reach the test serverless cluster on
@@ -301,7 +303,19 @@ def _extract_leaf_san(s_client_output: str, openssl: str) -> str:
 # ---------------------------------------------------------------------------
 # Which auth methods each endpoint type actually supports. Enforced so an
 # operator can't request a combination the platform can't do:
-#   * express (Aurora) has no MasterUserSecret and no Data API -> IAM only.
+#   * express (Aurora) -> IAM only, for two different reasons. Password auth is
+#     impossible: express fixes the master user authentication type to
+#     iam-db-auth ("cannot be modified"), master password and Secrets Manager
+#     master credentials are both documented as not applicable, and the internet
+#     access gateway accepts only ephemeral IAM tokens -- so no role reaches the
+#     database with a password, not just the master. The Data API is a weaker
+#     "no": its HTTP endpoint is merely disabled by default and CAN be enabled
+#     after creation, but the Data API authenticates through a Secrets Manager
+#     secret carrying a username and password, and express has no password auth,
+#     so RDS_API would still fail at authentication. Note also that
+#     WithExpressConfiguration=True sets every other CreateDBCluster input
+#     itself, so neither EnableHttpEndpoint nor ManageMasterUserPassword can be
+#     requested at creation time.
 #   * serverless (Aurora v2) supports the Data API (public HTTPS) and, with VPC
 #     reachability, both PG-Wire auth modes.
 #   * rds-instance (standalone RDS PostgreSQL) is planned but NOT yet provisioned
@@ -322,6 +336,179 @@ AUTH_TYPE_TO_METHOD = {
     'pg_wire_secret': (ConnectionMethod.PG_WIRE_PROTOCOL, 'PG_WIRE_PROTOCOL'),
     'rds_api': (ConnectionMethod.RDS_API, 'RDS_API'),
 }
+
+
+class CapturingCtx(DummyCtx):
+    """Capture the ctx.error detail that run_query intentionally keeps out of returns.
+
+    The RDS Data API path redacts its returned error, so assertions that need to
+    know *why* a query failed have to read what was reported to the context.
+
+    ``errors`` is declared as a field rather than assigned in ``__init__`` because
+    ``Context`` is a Pydantic model: ``self.errors = []`` on an undeclared
+    attribute raises ``ValueError: "CapturingCtx" object has no field "errors"``
+    and took down the whole query-enforcement suite at construction time. Declared
+    this way Pydantic deep-copies the default, so instances stay independent.
+
+    Defined at module level, not nested inside the suite, so the unit tests can
+    construct it -- the failure it caused was reproducible without any AWS
+    resources and should never have needed a live cluster to surface.
+    """
+
+    errors: List[str] = []
+
+    def __init__(self) -> None:
+        """Construct with no request context, mirroring DummyCtx.
+
+        Declared explicitly because adding a field to a Pydantic model makes type
+        checkers synthesize an ``__init__`` requiring every inherited field as a
+        keyword argument. This keeps the no-argument constructor the suite uses.
+        """
+        super().__init__()
+
+    async def error(self, data: Any, *, logger_name: Optional[str] = None):
+        """Record the error detail instead of discarding it."""
+        self.errors.append(str(data))
+
+
+# --- Detached cluster teardown ---------------------------------------------
+# Deleting an Aurora cluster is slow and strictly ordered: every member instance
+# must be gone before delete_db_cluster is accepted, so internal_delete_cluster
+# polls for instance deletion and then for cluster deletion (up to ~20 minutes
+# each). None of that tells us anything about the code under test, and by the time
+# it runs every assertion has already been recorded.
+#
+# It cannot simply be un-awaited, though. An asyncio task abandoned at
+# interpreter exit is cancelled, and firing only the instance deletions would
+# leave the cluster behind forever. So the teardown is handed to a *detached
+# child process* that outlives this one: the harness returns immediately and the
+# child keeps polling until the cluster is gone.
+#
+# The tradeoff is honest rather than free -- if the child is killed (machine
+# sleep, container teardown, SIGKILL to the process group) the cluster leaks, the
+# same failure mode the pre-existing --keep-clusters path already warns about.
+# --wait-for-cleanup restores the blocking behavior for contexts that need the
+# resources provably gone before the process exits.
+
+# Run in the child. Region and cluster id arrive as argv so nothing has to be
+# quoted or escaped into the snippet.
+_DETACHED_DELETE_SNIPPET = (
+    'import sys; '
+    'from awslabs.postgres_mcp_server.connection.cp_api_connection import '
+    'internal_delete_cluster; '
+    'internal_delete_cluster(sys.argv[1], sys.argv[2])'
+)
+
+
+def spawn_detached_cluster_deletion(
+    region: str, cluster_id: str, log_dir: Optional[str] = None
+) -> Optional[Tuple[int, str]]:
+    """Start cluster teardown in a process that survives this one.
+
+    Uses ``sys.executable`` so the child runs in the same interpreter and can
+    import the package, and ``start_new_session=True`` so it lands in a new
+    process group and is not taken down by a signal sent to ours. Output goes to a
+    per-cluster file, because a detached child that fails silently is worse than a
+    slow teardown.
+
+    Credentials come from the inherited environment and the shared credentials
+    file. A teardown outliving the credential lifetime fails in the child and is
+    recorded in its log rather than surfacing here.
+
+    Args:
+        region: AWS region holding the cluster.
+        cluster_id: Cluster to delete.
+        log_dir: Directory for the child's log. Defaults to the working directory,
+            where the wrapper script already writes the run log.
+
+    Returns:
+        Optional[Tuple[int, str]]: ``(pid, log_path)``, or None if the child could
+        not be started -- never raises, since teardown must not fail a run whose
+        assertions have already completed.
+    """
+    directory = log_dir or os.getcwd()
+    stamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+    log_path = os.path.join(directory, f'e2e-cleanup-{cluster_id}-{stamp}.log')
+    try:
+        handle = open(log_path, 'w')  # noqa: SIM115 - owned by the child, closed below
+    except OSError as e:
+        logger.warning(f'Could not open teardown log {log_path}: {e}')
+        return None
+
+    try:
+        process = subprocess.Popen(  # noqa: S603 - fixed argv, no shell
+            [sys.executable, '-c', _DETACHED_DELETE_SNIPPET, region, cluster_id],
+            stdout=handle,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+            cwd=directory,
+        )
+    except Exception as e:
+        logger.warning(f'Could not start detached teardown for {cluster_id}: {e}')
+        return None
+    finally:
+        # The child holds its own descriptor; ours would otherwise keep the file
+        # open for the lifetime of this process.
+        handle.close()
+
+    return process.pid, log_path
+
+
+# --- Response classification -----------------------------------------------
+# Defined at module level so the unit tests can exercise them against the real
+# error strings this suite has observed. They were previously closures inside
+# run_query_enforcement_suite, which meant a mistake in one could only be found
+# by provisioning a cluster -- and that is exactly how the write-mode backstop
+# assertion shipped too strict.
+
+
+def is_rejected(rows: Any) -> bool:
+    """True when run_query returned an error rather than rows.
+
+    ``run_query`` reports every refusal and every database failure the same way,
+    as ``[{'error': ...}]``, so this says nothing about *why* -- the two
+    classifiers below are what separate the causes.
+    """
+    return bool(rows) and isinstance(rows[0], dict) and 'error' in rows[0]
+
+
+def is_readonly_policy_rejection(rows: Any) -> bool:
+    """True when the *guard* refused the statement as a write in read-only mode.
+
+    The parser-based guard's read-only messages all contain "not allowed in
+    read-only mode". Dangerous-set rejections, parse failures, and database errors
+    all use different wording, so this stays specific to the write-set decision.
+    """
+    if not is_rejected(rows):
+        return False
+    return 'read-only mode' in str(rows[0]['error'])
+
+
+def is_database_readonly_rejection(rows: Any, ctx_errors: List[str]) -> bool:
+    """True when *PostgreSQL* refused the statement for read-only reasons.
+
+    Distinct from :func:`is_readonly_policy_rejection`: this matches the engine's
+    own "cannot execute ... in a read-only transaction", which proves the
+    statement passed the guard and was stopped by the ``SET TRANSACTION READ
+    ONLY`` wrapper instead. Observed on Aurora PG 17.5 as
+    ``ReadOnlySqlTransaction: cannot execute SELECT FOR UPDATE in a read-only
+    transaction``.
+
+    The RDS Data API redacts the returned error, so the detail reported to the
+    context is searched as well.
+
+    Args:
+        rows: The value ``run_query`` returned.
+        ctx_errors: Detail captured by :class:`CapturingCtx`.
+
+    Returns:
+        bool: True when the engine's read-only transaction is the cause.
+    """
+    if not is_rejected(rows):
+        return False
+    detail = f'{rows[0]["error"]} {ctx_errors!r}'.lower()
+    return 'read-only transaction' in detail
 
 
 def _split_csv(value: str) -> List[str]:
@@ -2269,10 +2456,13 @@ READONLY_BLOCKED_QUERIES = [
     'NOTIFY e2e_chan',
     'UNLISTEN e2e_chan',
     'LOCK TABLE t',
-    # Session / backend state
+    # Session / backend state. Narrow RESET/DISCARD forms are ordinary writes;
+    # the bulk forms are mode-independent policy below.
     "SET work_mem = '64MB'",
-    'RESET ALL',
-    'DISCARD ALL',
+    'RESET work_mem',
+    'DISCARD PLANS',
+    'DISCARD SEQUENCES',
+    'DISCARD TEMP',
     "LOAD 'auto_explain'",
     "SELECT set_config('work_mem', '64MB', false)",  # function form of SET
     # Transaction control
@@ -2299,6 +2489,25 @@ READONLY_BLOCKED_QUERIES = [
     "COMMIT PREPARED 'gid'",
 ]
 
+# Every audited semantic function mutator is exercised through the real
+# run_query path. The schema-qualified cast target is first proven absent by the
+# suite, so write-mode probes fail during DB type resolution before any function
+# can execute. This safely verifies “read-only guard rejects / write-mode guard
+# permits” even for WAL, backup, replication, statistics-reset, index, and
+# extension functions.
+_POLICY_PROBE_SCHEMA = 'mcp_e2e_policy_probe_schema_must_not_exist'
+_POLICY_PROBE_TYPE = f'{_POLICY_PROBE_SCHEMA}.missing_type'
+_READ_ONLY_MUTATOR_CALLS = [
+    f'SELECT {fn}(NULL::{_POLICY_PROBE_TYPE})'
+    for fn in sorted(READ_ONLY_PROHIBITED_MUTATING_FUNCTIONS)
+]
+_READ_ONLY_QUALIFIED_MUTATOR_CALLS = [
+    f'SELECT {schema}.{name}(NULL::{_POLICY_PROBE_TYPE})'
+    for (schema, name) in sorted(READ_ONLY_PROHIBITED_QUALIFIED_FUNCTIONS)
+]
+_SAFE_MUTATOR_PROBES = set(_READ_ONLY_MUTATOR_CALLS + _READ_ONLY_QUALIFIED_MUTATOR_CALLS)
+READONLY_BLOCKED_QUERIES += sorted(_SAFE_MUTATOR_PROBES)
+
 # Queries that MUST be blocked in BOTH read-only and write mode because they
 # are in the dangerous set (dangerous functions and security-sensitive GUCs),
 # which the parser-based guard rejects regardless of the readonly flag.
@@ -2320,6 +2529,8 @@ _SECURITY_GUC_STATEMENTS = [f'SET {g} = off' for g in sorted(SECURITY_SENSITIVE_
 # Unicode-escape evasion (FR6a) -- exercising the guard's structural/decoding
 # behavior beyond the generated name-only calls.
 _DANGEROUS_REALISTIC = [
+    'RESET ALL',  # bulk reset includes security-sensitive GUCs
+    'DISCARD ALL',  # same bulk reset plus broader session cleanup
     "SELECT pg_read_file('/etc/passwd')",
     'SELECT pg_sleep(30)',
     "SELECT dblink('host=169.254.169.254 port=80', 'SELECT 1')",  # SSRF -> IMDS
@@ -2352,6 +2563,138 @@ ALWAYS_BLOCKED_QUERIES = (
     + _FAIL_CLOSED
 )
 
+# --- Full policy corpus (--full-policy-corpus) ------------------------------
+# The corpora above are a curated subset chosen so a routine run stays quick.
+# With --full-policy-corpus the suite instead drives the entire unit-level policy
+# matrix (tests/test_policy_matrix.py) through the real run_query tool, making
+# this suite a strict superset of the unit policy tests plus the cases only a
+# live engine can decide (BACKSTOP_ENFORCED_QUERIES, PARAMETERIZED_READ_QUERIES).
+#
+# Six of the eight matrix cells need no database objects at all, because their
+# expected outcome is a *guard* rejection and run_query calls the guard before it
+# touches the connection: sets 2/3/4 in read-only mode, sets 3/4 in write mode,
+# and set 2 in write mode (whose assertion tolerates database errors by design --
+# see _SAFE_MUTATOR_PROBES). Only the two set-1 cells expect rows back, so only
+# they need the probe schema provisioned below.
+# What the full sweep asserts, and what it deliberately does not: every cell
+# checks the *policy decision made through the real run_query tool*, tolerating a
+# database error. It does not check that a statement executes successfully. The
+# unit matrix was written for a parser, so 51 of its 200 reads cannot execute
+# anywhere -- 23 carry `:name` placeholders needing bound parameters, 4 are the
+# locking clauses the read-only transaction refuses on purpose, and 24
+# deliberately reference objects that do not exist (`t`, `u`, `s`, `items`,
+# `myschema`, large object 1) or extensions that are not installed, including the
+# QUALIFIED_NEGATIVE entries whose entire point is a missing function proving the
+# guard does not over-block on a bare name.
+#
+# Executability is therefore not a policy question and asserting it here would
+# require a large, brittle exclusion list. ALLOWED_READ_QUERIES keeps the stronger
+# "must return rows" assertion on a curated set that really runs; the full sweep
+# answers the different question of whether the *decision* is right end-to-end.
+FULL_POLICY_CORPUS = False
+
+try:
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+    from test_policy_matrix import (  # noqa: E402
+        SET_1_READS,
+        SET_2_WRITES,
+        SET_3_DANGEROUS,
+        SET_4_FAIL_CLOSED,
+    )
+
+    POLICY_MATRIX_AVAILABLE = True
+except Exception as _matrix_import_error:  # pragma: no cover - optional import
+    SET_1_READS = SET_2_WRITES = SET_3_DANGEROUS = SET_4_FAIL_CLOSED = []
+    POLICY_MATRIX_AVAILABLE = False
+    _MATRIX_IMPORT_ERROR = _matrix_import_error
+
+# Statements the guard deliberately ALLOWS and the read-only *transaction*
+# refuses. Read-only enforcement is two layers -- the parser-based guard and the
+# ``SET TRANSACTION READ ONLY`` wrapper the connection opens -- and only an
+# end-to-end run can observe the second one, so this corpus exists here and
+# cannot exist in the unit suite.
+#
+# Row-locking SELECTs write tuple headers, so they are not reads, but the guard
+# does not carry a locking-clause check: PostgreSQL already refuses them with
+# "cannot execute SELECT FOR UPDATE in a read-only transaction" (verified on
+# PG 16.4 locally and on Aurora PG 17.5 through this suite). The assertions pin
+# both halves -- in read-only mode the request must fail and the failure must come
+# from the database rather than the guard; in write mode the same statement must
+# no longer hit a read-only refusal. If the wrapper were ever dropped, the
+# read-only assertion turns red instead of the reliance silently becoming an
+# exposure.
+#
+# pg_class is used as the target because it exists on every cluster and needs no
+# provisioning. A least-privilege role cannot actually lock it, so the write-mode
+# outcome is a privilege error rather than a successful lock -- see the assertion
+# comment in the suite for why that is the stronger evidence.
+BACKSTOP_ENFORCED_QUERIES = [
+    'SELECT * FROM pg_class FOR UPDATE',
+    'SELECT * FROM pg_class FOR NO KEY UPDATE',
+    'SELECT * FROM pg_class FOR SHARE',
+    'SELECT * FROM pg_class FOR KEY SHARE',
+]
+
+# Reads that carry Aurora-style ``:name`` placeholders. These cross two
+# independent rewrites -- the guard's parse-only ``$1`` substitution and the
+# psycopg executor's ``%(name)s`` substitution -- and a disagreement between them
+# corrupts a statement the guard already approved (the array-slice defect:
+# ``tags[1:limit_idx]`` became the unparseable ``tags[1%(limit_idx)s]``). Each
+# entry is (sql, query_parameters) and must succeed in BOTH modes.
+PARAMETERIZED_READ_QUERIES = [
+    ('SELECT :n::int AS n', [{'name': 'n', 'value': {'longValue': 7}}]),
+    (
+        'SELECT relname FROM pg_class WHERE relname = :name LIMIT 1',
+        [{'name': 'name', 'value': {'stringValue': 'pg_class'}}],
+    ),
+    (
+        "SELECT 'a:b' AS literal_colon, :n::int AS n",
+        [{'name': 'n', 'value': {'longValue': 2}}],
+    ),
+    (
+        'SELECT count(*) FROM pg_class WHERE relkind IN (:a, :b)',
+        [
+            {'name': 'a', 'value': {'stringValue': 'r'}},
+            {'name': 'b', 'value': {'stringValue': 'v'}},
+        ],
+    ),
+]
+
+# An array slice alongside a placeholder. Held separately because the RDS Data
+# API cannot run it at all, for reasons that have nothing to do with this server.
+#
+# Three layers independently decide which ``:name`` sequences are placeholders:
+# the SQL guard's parse-only rewrite, the psycopg executor's ``%(name)s`` rewrite,
+# and -- on the RDS_API path -- the Data API's own server-side scanner. The first
+# two share one pattern and correctly leave a slice colon alone, because the colon
+# in ``[1:2]`` is preceded by a word character. The Data API's scanner does not: it
+# reads the ``:2`` as a placeholder named "2" and rejects the call before
+# PostgreSQL ever sees it, with
+# ``ValidationException: Cannot find parameter: 2`` (observed on Aurora PG 17.5).
+#
+# It is literal-aware and cast-aware -- ``'a:b'``, ``:n::int`` and ``IN (:a, :b)``
+# all work, which is why those stay in the corpus above. The gap is specific to
+# the slice. So this runs on the PG-Wire paths, where it is the regression guard
+# for the defect that motivated it (the executor once turned
+# ``tags[1:limit_idx]`` into the unparseable ``tags[1%(limit_idx)s]``), and is
+# recorded N/A on RDS_API rather than asserted as a permanent AWS bug.
+PARAMETERIZED_SLICE_READS = [
+    (
+        "SELECT (ARRAY['a','b','c'])[1:2] AS slice, :n::int AS n",
+        [{'name': 'n', 'value': {'longValue': 1}}],
+    ),
+    (
+        'SELECT (ARRAY[10,20,30])[2:3] AS slice, :name AS label',
+        [{'name': 'name', 'value': {'stringValue': 'x'}}],
+    ),
+]
+
+# Why PARAMETERIZED_SLICE_READS cannot run on the Data API path.
+DATA_API_SLICE_LIMITATION = (
+    'RDS Data API reads the colon in an array slice as a named parameter '
+    '("Cannot find parameter: 2"); unrelated to the MCP server'
+)
+
 
 async def run_query_enforcement_suite(
     cluster_identifier: str,
@@ -2372,11 +2715,29 @@ async def run_query_enforcement_suite(
     re-establishes the connection so the pooled connection picks up the
     new readonly state. Both the cluster and the MCP import are reused.
 
+    This suite is the superset of the unit-level policy tests: read-only is
+    enforced by two layers, the parser-based guard and the ``SET TRANSACTION
+    READ ONLY`` wrapper the connection opens around every query, and only a run
+    against a real engine can observe the second one. BACKSTOP_ENFORCED_QUERIES
+    and PARAMETERIZED_READ_QUERIES exist for exactly that reason and have no
+    unit-test equivalent.
+
+    By default the policy corpora here are a curated subset, so a routine run
+    stays quick. With ``--full-policy-corpus`` the suite drives every statement
+    from the unit matrix through ``run_query`` as well, which makes the superset
+    relationship literal rather than conceptual. That costs about a thousand extra
+    round trips per connection method, which is why it is opt-in.
+
     Assertions, all driven through the real ``run_query`` tool:
       readonly = True  (server started WITHOUT --allow_write_query):
         - ALLOWED_READ_QUERIES succeed
-        - READONLY_BLOCKED_QUERIES are rejected (mutating keywords)
-        - ALWAYS_BLOCKED_QUERIES are rejected (injection-risk check)
+        - READONLY_BLOCKED_QUERIES are rejected by the semantic write set
+        - ALWAYS_BLOCKED_QUERIES are rejected by mode-independent policy
+        - BACKSTOP_ENFORCED_QUERIES pass the guard and are then refused by the
+          database's read-only transaction (the second layer, proven live)
+        - PARAMETERIZED_READ_QUERIES survive both placeholder rewrites
+        - PARAMETERIZED_SLICE_READS likewise, on the PG-Wire paths; N/A on
+          RDS_API, which cannot express them (see DATA_API_SLICE_LIMITATION)
       readonly = False (server started WITH --allow_write_query):
         - ALLOWED_READ_QUERIES succeed
         - READONLY_BLOCKED_QUERIES are now allowed past the readonly
@@ -2384,8 +2745,16 @@ async def run_query_enforcement_suite(
           reasons like a missing table — we only assert they are not
           rejected by the MCP's readonly guard)
         - ALWAYS_BLOCKED_QUERIES are STILL rejected (mode-independent)
+        - BACKSTOP_ENFORCED_QUERIES no longer hit a read-only refusal, since no
+          read-only transaction is opened — which is what proves the read-only
+          result above came from the wrapper. They may still fail on privileges
+          (row locking needs more than SELECT, and this suite connects as a
+          least-privilege role); PostgreSQL evaluates the read-only transaction
+          before privileges, so the error changing from ReadOnlySqlTransaction to
+          InsufficientPrivilege across modes is the evidence
+        - PARAMETERIZED_READ_QUERIES still succeed
     """
-    ctx = DummyCtx()
+    ctx = CapturingCtx()
     result = TestResult(
         cluster_identifier=cluster_identifier,
         connection_method_name=f'query_enforcement_{connection_method_name}',
@@ -2413,20 +2782,8 @@ async def run_query_enforcement_suite(
         else:
             result.failed.append((step, detail))
 
-    def _is_rejected(rows) -> bool:
-        """run_query returns [{'error': ...}] when it rejects/fails a query."""
-        return bool(rows) and isinstance(rows[0], dict) and 'error' in rows[0]
-
-    def _is_readonly_rejection(rows) -> bool:
-        """Distinguish the read-only write-set rejection from other errors.
-
-        The parser-based guard's read-only messages all say "not allowed in
-        read-only mode". Dangerous-set rejections, parse errors, and database
-        errors use different messages.
-        """
-        if not _is_rejected(rows):
-            return False
-        return 'read-only mode' in str(rows[0]['error'])
+    _is_rejected = is_rejected
+    _is_readonly_rejection = is_readonly_policy_rejection
 
     async def _connect():
         """(Re)establish the connection so it picks up readonly state.
@@ -2450,7 +2807,8 @@ async def run_query_enforcement_suite(
             database=test_database,
         )
 
-    async def _run(sql):
+    async def _run(sql, query_parameters=None):
+        ctx.errors.clear()
         return await run_query(
             sql=sql,
             ctx=ctx,
@@ -2458,7 +2816,16 @@ async def run_query_enforcement_suite(
             cluster_identifier=cluster_identifier,
             db_endpoint=valid_endpoint,
             database=test_database,
+            query_parameters=query_parameters,
         )
+
+    def _is_database_readonly_rejection(rows) -> bool:
+        """True when the *database* refused the statement for read-only reasons."""
+        return is_database_readonly_rejection(rows, ctx.errors)
+
+    def _response_and_ctx_errors(rows) -> str:
+        """Return visible + ctx-only errors (Data API redacts its return value)."""
+        return f'{rows!r} {ctx.errors!r}'
 
     saved_readonly = server.readonly_query
     try:
@@ -2476,6 +2843,22 @@ async def run_query_enforcement_suite(
             record('readonly:connect', False, f'{type(e).__name__}: {e}')
             return result
 
+        # Prove the schema used to make mutator probes non-executable does not
+        # exist. If it did, write-mode probes might resolve and execute a real
+        # state-changing function, so fail/stop before running either mode.
+        step = 'policy-probe:sentinel schema absent'
+        try:
+            rows = await _run(
+                f"SELECT to_regnamespace('{_POLICY_PROBE_SCHEMA}') IS NULL AS absent"
+            )
+            absent = bool(rows) and isinstance(rows[0], dict) and bool(rows[0].get('absent'))
+            record(step, absent, _response_and_ctx_errors(rows)[:160])
+            if not absent:
+                return result
+        except Exception as e:
+            record(step, False, f'{type(e).__name__}: {e}')
+            return result
+
         for sql in ALLOWED_READ_QUERIES:
             step = f'readonly:allow {sql[:48]}'
             try:
@@ -2484,11 +2867,49 @@ async def run_query_enforcement_suite(
             except Exception as e:
                 record(step, False, f'{type(e).__name__}: {e}')
 
+        # Cell (1, read-only): the read-only policy must not reject a read. A
+        # database error is tolerated -- see the note on FULL_POLICY_CORPUS for
+        # why executability is not the claim being tested here.
+        if FULL_POLICY_CORPUS:
+            for sql in SET_1_READS:
+                step = f'full:set1-readonly-permitted {sql[:40]}'
+                try:
+                    rows = await _run(sql)
+                    record(
+                        step,
+                        not _is_readonly_rejection(rows),
+                        _response_and_ctx_errors(rows)[:160],
+                    )
+                except Exception as e:
+                    record(step, False, f'{type(e).__name__}: {e}')
+
+        # Cells (2, read-only), (3, read-only) and (4, read-only) over the whole
+        # matrix. No database objects needed: the guard rejects before the
+        # connection is used, so a missing table cannot affect the outcome.
+        if FULL_POLICY_CORPUS:
+            for sql in SET_2_WRITES:
+                step = f'full:set2-readonly-blocked {sql[:40]}'
+                try:
+                    rows = await _run(sql)
+                    record(
+                        step, _is_readonly_rejection(rows), _response_and_ctx_errors(rows)[:160]
+                    )
+                except Exception as e:
+                    record(step, False, f'{type(e).__name__}: {e}')
+            for label, corpus in (('set3', SET_3_DANGEROUS), ('set4', SET_4_FAIL_CLOSED)):
+                for sql in corpus:
+                    step = f'full:{label}-readonly-blocked {sql[:40]}'
+                    try:
+                        rows = await _run(sql)
+                        record(step, _is_rejected(rows), _response_and_ctx_errors(rows)[:160])
+                    except Exception as e:
+                        record(step, False, f'{type(e).__name__}: {e}')
+
         for sql in READONLY_BLOCKED_QUERIES:
             step = f'readonly:block {sql[:48]}'
             try:
                 rows = await _run(sql)
-                # Must be rejected by the readonly mutating-keyword guard.
+                # Must be rejected specifically by the semantic read-only write set.
                 record(step, _is_readonly_rejection(rows), str(rows)[:120])
             except Exception as e:
                 record(step, False, f'{type(e).__name__}: {e}')
@@ -2498,6 +2919,46 @@ async def run_query_enforcement_suite(
             try:
                 rows = await _run(sql)
                 record(step, _is_rejected(rows), str(rows)[:120])
+            except Exception as e:
+                record(step, False, f'{type(e).__name__}: {e}')
+
+        # The second enforcement layer. These pass the guard on purpose, so the
+        # only thing that can stop them is the read-only transaction the
+        # connection opens -- which is why this assertion is only possible here.
+        for sql in BACKSTOP_ENFORCED_QUERIES:
+            step = f'readonly:backstop-blocks {sql[:48]}'
+            try:
+                rows = await _run(sql)
+                detail = _response_and_ctx_errors(rows)
+                # Must be refused, and refused by the database rather than the
+                # guard: a guard rejection here would mean the guard grew a
+                # locking-clause check and this corpus needs rehoming.
+                stopped_by_transaction = _is_database_readonly_rejection(
+                    rows
+                ) and not _is_readonly_rejection(rows)
+                record(step, stopped_by_transaction, detail[:200])
+            except Exception as e:
+                record(step, False, f'{type(e).__name__}: {e}')
+
+        # Parameterized reads must survive both placeholder rewrites and return
+        # rows. A disagreement between the two rewrites corrupts the statement
+        # after the guard has approved it, which no guard-level test can see.
+        for sql, params in PARAMETERIZED_READ_QUERIES:
+            step = f'readonly:param-read {sql[:48]}'
+            try:
+                rows = await _run(sql, params)
+                record(step, not _is_rejected(rows), _response_and_ctx_errors(rows)[:200])
+            except Exception as e:
+                record(step, False, f'{type(e).__name__}: {e}')
+
+        for sql, params in PARAMETERIZED_SLICE_READS:
+            step = f'readonly:param-slice-read {sql[:42]}'
+            if connection_method == ConnectionMethod.RDS_API:
+                record_not_applicable(result, step, DATA_API_SLICE_LIMITATION)
+                continue
+            try:
+                rows = await _run(sql, params)
+                record(step, not _is_rejected(rows), _response_and_ctx_errors(rows)[:200])
             except Exception as e:
                 record(step, False, f'{type(e).__name__}: {e}')
 
@@ -2527,11 +2988,20 @@ async def run_query_enforcement_suite(
             step = f'write:not-readonly-blocked {sql[:48]}'
             try:
                 rows = await _run(sql)
-                # In write mode the readonly guard must NOT fire. The
-                # query may still error at the DB (e.g. table 't' doesn't
-                # exist), but it must not be rejected with the
-                # write-prohibited key.
-                record(step, not _is_readonly_rejection(rows), str(rows)[:120])
+                detail = _response_and_ctx_errors(rows)
+                if sql in _SAFE_MUTATOR_PROBES:
+                    # Strong oracle: the absent schema/type error proves the
+                    # read-only policy permitted the SQL and the database began
+                    # analysis, while also proving the mutator never executed.
+                    lower_detail = detail.lower()
+                    reached_db_safely = _POLICY_PROBE_SCHEMA in detail and (
+                        'does not exist' in lower_detail or 'undefined' in lower_detail
+                    )
+                    record(step, reached_db_safely, detail[:160])
+                else:
+                    # Other write statements may fail for missing objects or
+                    # privileges, but must not be rejected by read-only policy.
+                    record(step, not _is_readonly_rejection(rows), detail[:160])
             except Exception as e:
                 record(step, False, f'{type(e).__name__}: {e}')
 
@@ -2544,6 +3014,91 @@ async def run_query_enforcement_suite(
                 record(step, _is_rejected(rows), str(rows)[:120])
             except Exception as e:
                 record(step, False, f'{type(e).__name__}: {e}')
+
+        # The same row-locking SELECTs must no longer hit a read-only refusal,
+        # which is what proves the read-only rejection above came from the
+        # transaction wrapper rather than something incidental.
+        #
+        # The assertion is the absence of a read-only refusal, not overall
+        # success. Row locking needs more than SELECT on the target and this
+        # suite deliberately connects as a least-privilege role, so the honest
+        # outcome here is InsufficientPrivilege. That is *better* evidence than a
+        # successful lock would be: PostgreSQL checks the read-only transaction
+        # before it checks privileges, so seeing the error change from
+        # ReadOnlySqlTransaction (read-only mode) to InsufficientPrivilege (write
+        # mode) for the identical statement and role pins the mechanism -- the
+        # read-only gate was there in one mode and absent in the other.
+        for sql in BACKSTOP_ENFORCED_QUERIES:
+            step = f'write:backstop-absent {sql[:48]}'
+            try:
+                rows = await _run(sql)
+                detail = _response_and_ctx_errors(rows)
+                no_readonly_refusal = not _is_database_readonly_rejection(
+                    rows
+                ) and not _is_readonly_rejection(rows)
+                record(step, no_readonly_refusal, detail[:200])
+            except Exception as e:
+                record(step, False, f'{type(e).__name__}: {e}')
+
+        for sql, params in PARAMETERIZED_READ_QUERIES:
+            step = f'write:param-read {sql[:48]}'
+            try:
+                rows = await _run(sql, params)
+                record(step, not _is_rejected(rows), _response_and_ctx_errors(rows)[:200])
+            except Exception as e:
+                record(step, False, f'{type(e).__name__}: {e}')
+
+        for sql, params in PARAMETERIZED_SLICE_READS:
+            step = f'write:param-slice-read {sql[:42]}'
+            if connection_method == ConnectionMethod.RDS_API:
+                record_not_applicable(result, step, DATA_API_SLICE_LIMITATION)
+                continue
+            try:
+                rows = await _run(sql, params)
+                record(step, not _is_rejected(rows), _response_and_ctx_errors(rows)[:200])
+            except Exception as e:
+                record(step, False, f'{type(e).__name__}: {e}')
+
+        # The remaining matrix cells in write mode.
+        if FULL_POLICY_CORPUS:
+            # Cell (1, write): enabling writes must never restrict a read.
+            for sql in SET_1_READS:
+                step = f'full:set1-write-permitted {sql[:42]}'
+                try:
+                    rows = await _run(sql)
+                    record(
+                        step,
+                        not _is_readonly_rejection(rows),
+                        _response_and_ctx_errors(rows)[:160],
+                    )
+                except Exception as e:
+                    record(step, False, f'{type(e).__name__}: {e}')
+
+            # Cell (2, write): allowed past the read-only guard. The statement may
+            # still fail at the database for a missing object or a privilege --
+            # only a read-only-policy rejection is a failure here.
+            for sql in SET_2_WRITES:
+                step = f'full:set2-write-allowed {sql[:42]}'
+                try:
+                    rows = await _run(sql)
+                    record(
+                        step,
+                        not _is_readonly_rejection(rows),
+                        _response_and_ctx_errors(rows)[:160],
+                    )
+                except Exception as e:
+                    record(step, False, f'{type(e).__name__}: {e}')
+
+            # Cells (3, write) and (4, write): mode-independent, so enabling
+            # writes must not unlock either.
+            for label, corpus in (('set3', SET_3_DANGEROUS), ('set4', SET_4_FAIL_CLOSED)):
+                for sql in corpus:
+                    step = f'full:{label}-write-blocked {sql[:42]}'
+                    try:
+                        rows = await _run(sql)
+                        record(step, _is_rejected(rows), _response_and_ctx_errors(rows)[:160])
+                    except Exception as e:
+                        record(step, False, f'{type(e).__name__}: {e}')
 
     finally:
         # Restore global and drop the test connection so later suites
@@ -3631,30 +4186,76 @@ async def main_async(args):
         except Exception as e:
             logger.warning(f'least-privilege deprovision failed for {kind}: {e}')
 
-    # Cleanup clusters
-    logger.info('Cleaning up clusters...')
+    # Cleanup clusters. Every assertion is already recorded by this point, so the
+    # default is to hand teardown to a detached child and return; --wait-for-cleanup
+    # keeps the old blocking behavior.
+    if args.wait_for_cleanup:
+        logger.info('Cleaning up clusters (waiting for deletion to complete)...')
 
-    async def delete_cluster_safe(cluster_id: str):
-        """Delete a cluster, logging errors instead of raising."""
-        try:
-            logger.info(f'Deleting cluster: {cluster_id}')
-            await asyncio.to_thread(internal_delete_cluster, args.region, cluster_id)
-            logger.success(f'Deleted cluster: {cluster_id}')
-        except Exception as e:
-            logger.warning(f'Failed to delete {cluster_id}: {e}')
+        async def delete_cluster_safe(cluster_id: str):
+            """Delete a cluster, logging errors instead of raising."""
+            try:
+                logger.info(f'Deleting cluster: {cluster_id}')
+                await asyncio.to_thread(internal_delete_cluster, args.region, cluster_id)
+                logger.success(f'Deleted cluster: {cluster_id}')
+            except Exception as e:
+                logger.warning(f'Failed to delete {cluster_id}: {e}')
 
-    await asyncio.gather(*[delete_cluster_safe(cid) for cid in clusters_to_delete])
+        await asyncio.gather(*[delete_cluster_safe(cid) for cid in clusters_to_delete])
+    else:
+        logger.info('Starting cluster teardown in the background (fire and forget)...')
+        detached: List[Tuple[str, int, str]] = []
+        for cid in clusters_to_delete:
+            spawned = spawn_detached_cluster_deletion(args.region, cid)
+            if spawned is None:
+                # Could not detach: fall back to deleting inline rather than
+                # leaking the cluster silently.
+                logger.warning(f'Falling back to blocking teardown for {cid}')
+                try:
+                    await asyncio.to_thread(internal_delete_cluster, args.region, cid)
+                    logger.success(f'Deleted cluster: {cid}')
+                except Exception as e:
+                    logger.warning(f'Failed to delete {cid}: {e}')
+                continue
+            pid, log_path = spawned
+            detached.append((cid, pid, log_path))
+            logger.info(f'Teardown of {cid} running detached as pid {pid}, log: {log_path}')
+
+        if detached:
+            logger.warning(
+                'Cluster teardown is still running after this process exits. '
+                'Instances and clusters are deleted in that order and can take '
+                'up to ~20 minutes each. Verify with:'
+            )
+            for cid, pid, log_path in detached:
+                logger.warning(f'  tail -f {log_path}    # pid {pid}')
+            logger.warning(
+                f'  aws rds describe-db-clusters --region {args.region} '
+                '--query "DBClusters[?Tags]|[].DBClusterIdentifier"'
+            )
+            logger.warning(
+                'If a teardown process is killed before it finishes, the cluster '
+                'leaks and must be deleted by hand. Use --wait-for-cleanup when '
+                'the resources must be gone before this process exits.'
+            )
 
     # Best-effort SG cleanup. If the cluster's ENI hasn't been released
     # yet, this fails with DependencyViolation; gc_e2e_test_security_groups
-    # at the next run reaps it.
+    # at the next run reaps it. Detached teardown makes that the normal case
+    # rather than the exception, since the cluster is still alive here.
     if test_security_group_id:
         try:
             await asyncio.to_thread(
                 delete_e2e_test_security_group, args.region, test_security_group_id
             )
         except Exception as e:
-            logger.warning(f'SG cleanup raised: {e}')
+            if args.wait_for_cleanup:
+                logger.warning(f'SG cleanup raised: {e}')
+            else:
+                logger.info(
+                    f'SG {test_security_group_id} still in use by the cluster being torn '
+                    f'down; the next run garbage-collects it ({type(e).__name__})'
+                )
 
     sys.exit(0 if all_passed else 1)
 
@@ -3748,7 +4349,52 @@ def main():
             'rejected with an error.'
         ),
     )
+    parser.add_argument(
+        '--wait-for-cleanup',
+        action='store_true',
+        default=False,
+        help=(
+            'Block until created clusters are fully deleted before exiting. By '
+            'default teardown is handed to a detached background process and this '
+            'one returns immediately, which removes up to ~20 minutes of instance '
+            'and cluster deletion polling from the run. Use this flag when the '
+            'resources must be provably gone before the process exits (for example '
+            'in CI that tears down the host straight after), since a detached '
+            'teardown killed mid-flight leaks the cluster.'
+        ),
+    )
+    parser.add_argument(
+        '--full-policy-corpus',
+        action='store_true',
+        default=False,
+        help=(
+            'Drive the entire unit-level policy matrix (tests/test_policy_matrix.py, '
+            '~515 statements x 2 modes) through run_query instead of the curated '
+            'subset, making this suite a strict superset of the unit policy tests. '
+            'Each cell asserts the policy decision reached through the real tool and '
+            'tolerates a database error, since much of the unit corpus references '
+            'objects that intentionally do not exist. Adds roughly a thousand round '
+            'trips per connection method, so it is off by default; use it when '
+            'changing the guard or its corpora.'
+        ),
+    )
     args = parser.parse_args()
+
+    # Full sweep needs the unit matrix importable; fail fast rather than
+    # silently running the curated subset when the operator asked for the sweep.
+    if args.full_policy_corpus:
+        if not POLICY_MATRIX_AVAILABLE:
+            parser.error(
+                '--full-policy-corpus requires tests/test_policy_matrix.py to be '
+                f'importable, but importing it failed: {_MATRIX_IMPORT_ERROR!r}'
+            )
+        global FULL_POLICY_CORPUS
+        FULL_POLICY_CORPUS = True
+        logger.info(
+            f'--full-policy-corpus: driving {len(SET_1_READS)} reads, '
+            f'{len(SET_2_WRITES)} writes, {len(SET_3_DANGEROUS)} dangerous and '
+            f'{len(SET_4_FAIL_CLOSED)} fail-closed statements through run_query in both modes'
+        )
 
     # --test-non-express-cluster only makes sense if the serverless
     # cluster is actually created, so it implies --test-serverless-cluster.

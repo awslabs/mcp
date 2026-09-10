@@ -68,10 +68,11 @@ maintainable; it does not replace least-privilege role configuration.
   ordinary `SELECT` / `WITH … SELECT` usage).
 
 ### Non-goals
-- Perfect read-only guarantees against function side effects. A `SELECT` that
-  calls a volatile/`SECURITY DEFINER` function which writes cannot be detected
-  from syntax alone (requires catalog/volatility knowledge). This remains the
-  job of the database role. Documented as a limitation.
+- Perfect read-only guarantees against arbitrary function/operator side effects.
+  The guard rejects a versioned inventory of known core and selected common
+  extension mutators, but a user-defined/third-party function, overloaded
+  operator, `SECURITY DEFINER` wrapper, or dynamic SQL body requires catalog and
+  runtime semantics. Those remain owned by the database role (§5.6).
 - Being a general SQL firewall or WAF.
 - Blocking application-logic misuse that is expressible as ordinary reads.
 
@@ -89,16 +90,21 @@ maintainable; it does not replace least-privilege role configuration.
   INSERT …` is rejected because the inner statement is a write). Plain
   `EXPLAIN <X>` does not execute `<X>`, but the same "inner must be read-only"
   rule is applied for consistency, so `EXPLAIN INSERT …` is rejected too.
-- FR3: In read-only mode, reject any statement in the **write set** (§3.1)
-  appearing *anywhere* in the tree, not just at the root. Enforced fail-closed
-  as an allowlist: every statement node in the tree must be a read type
-  (`SelectStmt`, plus a root `VariableShowStmt` / read `ExplainStmt`), so a
-  data-modifying CTE (`WITH x AS (INSERT … RETURNING *) SELECT …`) is rejected
-  because it embeds an `InsertStmt`. Read-only mode additionally rejects the two
-  write-set members that parse as a `SelectStmt` (§3.1) and so escape the
-  node-type allowlist: a `SelectStmt` with a non-null `intoClause`
-  (`SELECT … INTO`, a table-creating write) and a `set_config(<any GUC>, …)`
-  call.
+- FR3: In read-only mode, reject any operation in the **write set** (§3.1)
+  appearing *anywhere* in the tree. Statement writes are enforced fail-closed as
+  an allowlist: every statement node must be a read type (`SelectStmt`, plus a
+  root `VariableShowStmt` / read `ExplainStmt`), so a data-modifying CTE embeds
+  and exposes its `InsertStmt`/`UpdateStmt`/etc. Read-only mode additionally
+  rejects writes that parse inside an allowed `SelectStmt`: `SELECT … INTO`,
+  `set_config(<any GUC>, …)`, and calls in the versioned known-mutator inventories
+  `READ_ONLY_PROHIBITED_MUTATING_FUNCTIONS` (distinctive bare names) and
+  `READ_ONLY_PROHIBITED_QUALIFIED_FUNCTIONS` (generic extension names such as
+  `cron.schedule`). Semantic rule: an ordinary read remains a read despite
+  incidental engine bookkeeping (statistics increments, cache warming,
+  snapshots, transient locks); a function whose requested purpose changes
+  sequence/session/statistics/WAL/replication/catalog/large-object/index/job
+  state is a write. Unknown user-defined/third-party function and operator
+  semantics remain the §5.6 role-owned gap.
 - FR4: `COPY` is classified per §3.1. `COPY … TO/FROM PROGRAM`
   (`CopyStmt.is_program`) and server-side-file `COPY … TO/FROM '<path>'`
   (`CopyStmt.filename`) are in the **dangerous set** — rejected in **both**
@@ -107,26 +113,23 @@ maintainable; it does not replace least-privilege role configuration.
   Net effect: all `COPY` is rejected in read-only mode; only the PROGRAM/file
   forms are additionally rejected in write mode.
 - FR5: In both modes, reject calls to the **dangerous-function set** (§3.1),
-  matched two ways from the AST `FuncCall.funcname`:
-  - **Bare names** in `DANGEROUS_FUNCTIONS`, matched against the last element
-    (tolerating a `pg_catalog.` qualifier): dblink family;
-    `pg_read_file`/`pg_read_binary_file`/`pg_stat_file`/`lo_import`/`lo_export`;
-    the `pg_ls_dir` family (`pg_ls_dir`, `pg_ls_logdir`, `pg_ls_waldir`,
-    `pg_ls_tmpdir`, `pg_ls_archive_statusdir`, `pg_ls_logicalmapdir`,
-    `pg_ls_logicalsnapdir`, `pg_ls_replslotdir`); the `adminpack` file functions
-    (`pg_file_write`, `pg_file_sync`, `pg_file_rename`, `pg_file_unlink`,
-    `pg_logdir_ls`); `pg_sleep*`; `pg_terminate_backend`/`pg_cancel_backend`;
-    advisory-lock family; `pg_notify`; `pg_reload_conf`/`pg_rotate_logfile`.
-  - **Schema-qualified pairs** in `DANGEROUS_QUALIFIED_FUNCTIONS`, matched
-    against the full `funcname` (needed for generic last names):
-    `aws_lambda.invoke`, `aws_s3.query_export_to_s3`,
-    `aws_s3.table_import_from_s3`.
-
+  matched from AST `FuncCall.funcname`. `DANGEROUS_FUNCTIONS` is the
+  authoritative bare-name contract (final decoded name, tolerating explicit
+  `pg_catalog.`); category coverage is command/network/host-file primitives,
+  dblink and server-file families, backend/session DoS, severe
+  promotion/recovery/worker controls, low-level corruption and cache-eviction
+  testing functions, advisory-lock acquisition, notification, and config/log
+  control. `DANGEROUS_QUALIFIED_FUNCTIONS` is the authoritative schema/name
+  contract for generic extension names (`aws_lambda.invoke`,
+  `aws_s3.query_export_to_s3`, `aws_s3.table_import_from_s3`). Both constants
+  are data-driven by tests, so additions cannot silently escape the contract.
   Function-name comparison is case-insensitive and uses the decoded name pglast
   exposes (so `U&`/quoted spellings match — §5.5.1).
 - FR6: In both modes, reject changes to security-sensitive GUCs
-  (`row_security`, `session_replication_role`) via `SET` or `set_config()`
-  (dangerous set, §3.1).
+  (`row_security`, `session_replication_role`) via `SET`, named `RESET`, or
+  `set_config()`. Also reject the bulk forms `RESET ALL` and `DISCARD ALL`:
+  their ASTs do not name an individual GUC, but both reset these settings and
+  can restore weaker role/database defaults (dangerous set, §3.1).
 - FR6a: Name- and string-literal-based checks (FR5 dangerous functions, FR6 GUC
   names) MUST match against a value decoded to PostgreSQL's own
   identifier/string semantics — Unicode escapes (`U&"…"`/`U&'…'`, `UESCAPE`),
@@ -162,9 +165,15 @@ maintainable; it does not replace least-privilege role configuration.
 
 ### 3.1 Operation classification: the write set and the dangerous set
 
-Every rejection is explained by membership in one of two named sets. This is the
-authoritative enumeration for functional review; FR2–FR6 above are the
-behavioral rules that follow from it.
+Every rejection of a *classifiable* statement is explained by membership in one of
+two named sets. This is the authoritative enumeration for functional review;
+FR2–FR6 above are the behavioral rules that follow from it. Input the guard
+cannot classify at all — more than one statement, unparseable text, or input
+beyond the size cap — is rejected in both modes as a fail-closed precondition
+(FR1/FR7) rather than by set membership: `SELECT 1; SELECT 2` is two reads, not a
+dangerous operation, and mislabeling it as one would misrepresent the policy.
+`tests/test_policy_matrix.py` enforces the resulting four-way partition (reads,
+W, D, fail-closed) across every policy corpus.
 
 **Enforcement model (how the two sets differ):**
 
@@ -210,20 +219,30 @@ write-enabled operator legitimately uses these.
 | Client-side COPY | COPY … FROM STDIN / TO STDOUT (no PROGRAM, no file) | `CopyStmt` (not a read root type — see COPY note) |
 | `SELECT … INTO` (creates a table) | `SELECT * INTO t2 …` | `SelectStmt` with `intoClause is not None` |
 | Function-form session write | `set_config(<any GUC>, …)` | `FuncCall` name `set_config` |
+| Known semantic function writes | sequence; statistics reset/import; WAL/backup; replication slot/origin; BRIN/GIN maintenance; large-object writes; catalog/session helpers | bare name ∈ `READ_ONLY_PROHIBITED_MUTATING_FUNCTIONS` |
+| Known qualified extension writes | pg_cron job create/update/delete | `(schema,name)` ∈ `READ_ONLY_PROHIBITED_QUALIFIED_FUNCTIONS` |
 
-In read-only mode W is enforced structurally (allowlist), so the statement-node
-rows above are illustrative, not the matcher. **Two write-set members are *not*
-distinguishable by node type** and need an explicit field check, because they
-parse as an allowed `SelectStmt`:
+In read-only mode W is enforced structurally for statements, so the
+statement-node rows above are illustrative rather than a denylist. Function
+semantics are necessarily an explicit, versioned inventory. The semantic
+boundary is the operation's requested purpose: ordinary reads/calculations stay
+reads despite incidental PostgreSQL statistics/cache/snapshot/lock bookkeeping;
+explicit sequence/session/statistics/WAL/replication/catalog/index/data/job
+mutation is a write.
 
-1. `set_config(<any GUC>, …)` — a `FuncCall` inside an otherwise-read `SELECT`;
-   read-only mode rejects a call to `set_config` for **any** GUC (matches
-   today's behavior).
-2. `SELECT … INTO` — a `SelectStmt` with a non-null `intoClause`; it creates a
-   table (equivalent to `CREATE TABLE AS`) and so is a write. Read-only mode
-   rejects any `SelectStmt` in the tree whose `intoClause is not None`. (Note:
-   the current regex guard misses this entirely — `INTO` is not in
-   `MUTATING_KEYWORDS` — so closing it is a strict improvement.)
+The `SelectStmt` cases requiring explicit checks are:
+
+1. `set_config(<any GUC>, …)` — session-state mutation.
+2. `SELECT … INTO` — creates a table.
+3. Known core / selected extension mutators — distinctive bare names are matched
+   by `READ_ONLY_PROHIBITED_MUTATING_FUNCTIONS`; generic names are matched as
+   schema-qualified pairs by `READ_ONLY_PROHIBITED_QUALIFIED_FUNCTIONS`.
+
+The inventory covers PostgreSQL core through PG18 and selected PostgreSQL-supplied
+or common RDS extensions (`pg_stat_statements`, `pg_stat_monitor`, `pg_prewarm`,
+`pg_visibility`, `postgres_fdw`, `pg_cron`). It intentionally does not claim to
+resolve arbitrary third-party functions, user wrappers, or overloaded operators
+(§5.6).
 
 `INSTALL` deserves a note: it appears in today's `MUTATING_KEYWORDS` but is not
 valid PostgreSQL (it is MySQL syntax), so pglast raises `ParseError` on it and
@@ -239,12 +258,14 @@ role is the authoritative control (§5.6).
 | Host filesystem (read/write) | `COPY … TO/FROM '<path>'` (server-side file) | `CopyStmt.filename is not None` |
 | SSRF | dblink family (`dblink`, `dblink_connect`, `dblink_connect_u`, `dblink_exec`, `dblink_send_query`, `dblink_open`, `dblink_fetch`, `dblink_close`, `dblink_get_connections`) | bare name ∈ `DANGEROUS_FUNCTIONS` |
 | Filesystem read | `pg_read_file`, `pg_read_binary_file`, `pg_stat_file`, `lo_import`, `lo_export` | bare name ∈ `DANGEROUS_FUNCTIONS` |
-| Filesystem enumeration | `pg_ls_dir`, `pg_ls_logdir`, `pg_ls_waldir`, `pg_ls_tmpdir`, `pg_ls_archive_statusdir`, `pg_ls_logicalmapdir`, `pg_ls_logicalsnapdir`, `pg_ls_replslotdir` *(Tier 1 — `pg_ls_dir` siblings)* | bare name ∈ `DANGEROUS_FUNCTIONS` |
+| Filesystem enumeration | `pg_ls_dir`, `pg_ls_logdir`, `pg_ls_waldir`, `pg_ls_summariesdir`, `pg_ls_tmpdir`, `pg_ls_archive_statusdir`, `pg_ls_logicalmapdir`, `pg_ls_logicalsnapdir`, `pg_ls_replslotdir` *(Tier 1 — `pg_ls_dir` siblings)* | bare name ∈ `DANGEROUS_FUNCTIONS` |
 | Host file write / RCE | `pg_file_write`, `pg_file_sync`, `pg_file_rename`, `pg_file_unlink`, `pg_logdir_ls` *(Tier 2 — `adminpack`; arbitrary host-file write)* | bare name ∈ `DANGEROUS_FUNCTIONS` |
-| DoS | `pg_sleep`, `pg_sleep_for`, `pg_sleep_until`, `pg_terminate_backend`, `pg_cancel_backend`, advisory-lock family | bare name ∈ `DANGEROUS_FUNCTIONS` |
+| Severe server control / corruption / cache DoS | promotion/replay controls; `pg_surgery`; `pg_buffercache_evict*`; autoprewarm worker start; backend memory-context logging | bare name ∈ `DANGEROUS_FUNCTIONS` |
+| DoS | `pg_sleep`, `pg_sleep_for`, `pg_sleep_until`, `pg_terminate_backend`, `pg_cancel_backend`, advisory-lock acquisition/try-lock family | bare name ∈ `DANGEROUS_FUNCTIONS` |
 | Side channel / server control | `pg_notify`, `pg_reload_conf`, `pg_rotate_logfile` | bare name ∈ `DANGEROUS_FUNCTIONS` |
 | SSRF / exfil / invoke (Aurora) | `aws_lambda.invoke`, `aws_s3.query_export_to_s3`, `aws_s3.table_import_from_s3` *(Tier 3 — Aurora-native equivalents of the reported dblink→exfil/SSRF class)* | schema-qualified pair ∈ `DANGEROUS_QUALIFIED_FUNCTIONS` |
-| Disable RLS / triggers | `SET row_security`/`session_replication_role`; `set_config('row_security'/'session_replication_role', …)` | `VariableSetStmt.name` or `set_config` 1st arg ∈ `SECURITY_SENSITIVE_GUCS` |
+| Disable RLS / triggers | `SET`/named `RESET`/`set_config` of `row_security` or `session_replication_role`; bulk `RESET ALL` / `DISCARD ALL` | decoded GUC name ∈ `SECURITY_SENSITIVE_GUCS`, `VariableSetKind.VAR_RESET_ALL`, or `DiscardMode.DISCARD_ALL` |
+| Unprovable GUC target *(conservative extension of D, not a threat in itself)* | `set_config()` whose first argument is not a resolvable string literal — a concatenation, a bound parameter, a column, or a nested call (`set_config('row_' \|\| 'security', 'off', false)`, `set_config($1, 'off', false)`) | `FuncCall` `set_config` with a first argument that is not an `A_Const` string |
 
 **Matching model (two forms).** `pg_*` built-ins live in `pg_catalog` and have
 distinctive names, so they are matched by **bare last element**
@@ -256,39 +277,66 @@ an innocent user function of the same name. Those are matched as a
 `(schema, name)` tuples compared against the full `funcname`. FR5 covers both
 forms.
 
-**Deliberately NOT in the dangerous set (reviewed, kept out — see §5.4.2).** A
-comprehensive sweep (§5.4.2) surfaced further candidates that we consciously do
-**not** add, to keep the denylist focused rather than chasing completeness on a
-control the DB role is meant to own:
+**Known-function audit scope and exclusions.** PostgreSQL 16's live `pg_proc`
+volatile-function catalog was reviewed and uncertain cases were exercised under
+`SET TRANSACTION READ ONLY`; the result was cross-checked against PostgreSQL 18
+`pg_proc.dat` and the current administration/sequence/large-object/index/contrib
+documentation. RDS/Aurora availability was checked for the selected common
+extensions above. This establishes a reviewable baseline, not a universal SQL
+firewall.
 
-- *Replication / server-state control* (`pg_promote`,
-  `pg_create_physical_replication_slot`, `pg_create_logical_replication_slot`,
-  `pg_drop_replication_slot`, `pg_replication_slot_advance`,
-  `pg_wal_replay_pause`/`resume`, `pg_switch_wal`, `pg_backup_start`/`stop`,
-  `pg_create_restore_point`, `pg_stat_reset*`) — DoS/operational impact, but all
-  are superuser / `rds_superuser`-gated and have zero use in LLM read queries;
-  the role is the right control (Tier 4).
-- *Optional SSRF extension* pgsql-http (`http`, `http_get`, `http_post`, …) —
-  same SSRF class as dblink, but not present on RDS/Aurora by default and not a
-  managed extension; if a deployment installs it, the role must not grant it
-  (Tier 5).
-- *Data-level large-object writes* (`lowrite`, `lo_put`, `lo_creat`) — a data
-  write via function (the §5.6 semantic gap), not a host-level primitive.
-- *Untrusted PL languages* (`plpythonu`, `plperlu`) — reached via
-  `CREATE FUNCTION` (write-set) then an opaque call (§5.6).
-- *Password-hash access* (`pg_authid`) — table access governed by role grants.
+Deliberate allowed boundaries:
+- `currval`/`lastval`, statistics/WAL/replication readers,
+  `pg_stat_clear_snapshot`, random/clock/UUID generation, current-XID readers,
+  ordinary calculations, and built-in operators — observation/calculation
+  only. Assigning an XID when
+  `txid_current`/`pg_current_xact_id` needs one is incidental execution
+  bookkeeping, not the requested semantic effect.
+- `pg_prewarm` — cache-only performance hint; it does not change durable/logical
+  state (direct cache eviction testing is blocked as DoS).
+- logical-slot `peek` functions — unlike `get`, do not consume changes.
+- `pg_export_snapshot`, replication-origin progress readers, large-object reads,
+  and `postgres_fdw_get_connections` — observation/read coordination rather
+  than durable mutation.
+
+Deliberate role-owned boundaries:
+- Arbitrary user-defined/`SECURITY DEFINER` wrappers and overloaded operators —
+  catalog/name/argument resolution and function bodies are unavailable to the
+  raw parser (§5.6).
+- Third-party extension families outside the selected baseline (for example
+  PostGIS topology, pglogical, pg_partman, custom FDWs). Their evolving APIs are
+  unbounded; deployments must not grant their write/admin functions to the MCP
+  read role.
+- The foreign-data-wrapper chain, including first-party `postgres_fdw`: the
+  setup DDL (`CREATE`/`ALTER SERVER` with `OPTIONS (host …)`, `CREATE USER
+  MAPPING`, `CREATE FOREIGN TABLE`, `IMPORT FOREIGN SCHEMA`) is in the write set
+  like all other DDL, and the resulting *read* of a foreign table is
+  syntactically an ordinary `RangeVar` — indistinguishable from a local table
+  (§5.6). Unlike `dblink`, no single statement carries an attacker-chosen
+  endpoint into a read-only `SELECT`, and the chain is privilege-gated by
+  default (`postgres_fdw`'s `fdwacl` is owner-only, so a non-owner lacks `USAGE`
+  on the wrapper and on any server). Deployments must not grant the MCP role
+  `USAGE` on foreign-data wrappers or foreign servers.
+- Optional network extensions such as pgsql-http remain role-owned unless added
+  to the explicit supported inventory; core/RDS first-party SSRF primitives are
+  already dangerous in both modes.
+- Context-only internal functions (trigger handlers, pg_upgrade/initdb helpers,
+  extension-script-only helpers) cannot perform their mutation as an ordinary
+  direct `SELECT` and are not enumerated.
 
 The authoritative control for all of these is a least-privilege role: not
-`rds_superuser`, and specifically without the predefined roles
-`pg_read_server_files` / `pg_write_server_files` / `pg_execute_server_program`
-(README to state this).
+`rds_superuser`, specifically without the predefined roles
+`pg_read_server_files` / `pg_write_server_files` / `pg_execute_server_program`,
+and without `USAGE` on foreign-data wrappers or foreign servers (README to state
+this).
 
 **Operations that belong to both sets (D dominates → blocked in all modes):**
 - `COPY … FROM PROGRAM` / `COPY … FROM '<file>'` — a table write (W) *and* RCE /
   filesystem access (D).
-- `SET row_security = off` / `set_config('row_security', …)` — a session-state
-  mutation (W) *and* a security-control disable (D). Generic `SET`/`set_config`
-  (e.g. `work_mem`) is **W only**: rejected in read-only, allowed in write mode.
+- `SET`/named `RESET`/`set_config` of a sensitive GUC, plus `RESET ALL` /
+  `DISCARD ALL` — session-state writes (W) and potential security-control resets
+  (D). Generic named `SET`/`RESET`/`set_config` (e.g. `work_mem`) and narrower
+  `DISCARD` targets are **W only**: rejected read-only, allowed write-enabled.
 
 **COPY — full breakdown** (COPY is never a read root type, so *all* COPY is
 rejected in read-only mode; only the PROGRAM/file forms are additionally
@@ -386,11 +434,14 @@ the tool contract, only to what is allowed).
      tuple in `DANGEROUS_QUALIFIED_FUNCTIONS` (for generic-named extension
      functions like `aws_lambda.invoke`). pglast has already decoded any
      `U&`/quoted spelling, so the value compared is the real name.
-   - **`VariableSetStmt`** — reject if `name` is a security-sensitive GUC; and
-     reject a `FuncCall` to `set_config` whose first argument (a decoded string
-     `A_Const`) is a security-sensitive GUC.
-   The `set_config` first argument being a security GUC is matched on the
-   decoded `A_Const` string value.
+   - **`DiscardStmt`** — reject target `DISCARD_ALL`, whose bulk session
+     cleanup includes security-sensitive GUC resets. Narrower targets remain
+     ordinary writes (rejected read-only, allowed write-enabled).
+   - **`VariableSetStmt`** — reject a named security-sensitive GUC and kind
+     `VAR_RESET_ALL`; and reject a `FuncCall` to `set_config` whose first
+     argument (a decoded string `A_Const`) is a security-sensitive GUC.
+   The `set_config` first argument is matched on its decoded string value; the
+   bulk forms are matched structurally because their ASTs carry no GUC name.
 5. **Read-only pass** (only when `allow_write_query` is False) — the **write
    set** (§3.1), enforced fail-closed as an allowlist rather than a denylist:
    - the **root** statement (`RawStmt.stmt`) must be an allowed read node type
@@ -409,16 +460,19 @@ the tool contract, only to what is allowed).
      forgot) is still rejected — fail-closed. A data-modifying CTE
      (`WITH x AS (INSERT … RETURNING *) SELECT …`) embeds an `InsertStmt`, which
      is not `SelectStmt`, so it is rejected even though the root is a `SelectStmt`.
-   - additionally reject the two write-set members that parse as an allowed
-     `SelectStmt` and so are invisible to the node-type allowlist (§3.1):
-     (a) any `SelectStmt` in the tree with `intoClause is not None`
-     (`SELECT … INTO`, which creates a table — a write); and
-     (b) a `FuncCall` to `set_config` for **any** GUC (session-state mutation,
-     matching today's behavior).
+   - additionally reject writes that parse inside an allowed `SelectStmt`:
+     (a) `SelectStmt.intoClause` (`SELECT … INTO`); (b) `set_config` for any GUC;
+     (c) distinctive known names in `READ_ONLY_PROHIBITED_MUTATING_FUNCTIONS`;
+     and (d) schema/name pairs in
+     `READ_ONLY_PROHIBITED_QUALIFIED_FUNCTIONS`. The function inventories are
+     semantic: they include explicit sequence, statistics, WAL/backup,
+     replication, index, large-object, catalog, session, and selected extension
+     state changes whether or not a particular PostgreSQL version's read-only
+     transaction already rejects them.
 
-Classification is purely by **PostgreSQL parse-node type** (and, for `CopyStmt`,
-a boolean/field on the node; for the two function-based checks, the decoded
-name/argument). A denied word used as an identifier, alias, or string literal is
+Classification uses PostgreSQL parse-node type plus a small set of structural
+fields (`CopyStmt`, `SelectStmt.intoClause`) and decoded function/GUC names for
+the explicit semantic inventories. A denied word used as an identifier, alias, or string literal is
 a `String`/`A_Const` node, not a statement node, so it is never mistaken for the
 operation — and a denied operation cannot be hidden by comments, quoting, or
 Unicode escapes, because pglast strips/decodes all of those during parsing
@@ -462,10 +516,12 @@ Mapping to the two sets in §3.1:
     in read-only mode (fail-closed; no `MUTATING_NODE_TYPES` denylist to keep in
     sync).
   - `READ_ONLY_PROHIBITED_FUNCTIONS` — `{set_config}`, the function-form
-    session-state write rejected in read-only mode for any GUC.
-  - `SelectStmt.intoClause is not None` — a field check (not a constant) that
-    rejects `SELECT … INTO` (a table-creating write that otherwise parses as an
-    allowed `SelectStmt`). Applied to every `SelectStmt` in the tree.
+    session-state write rejected for any GUC.
+  - `READ_ONLY_PROHIBITED_MUTATING_FUNCTIONS` — distinctive bare names from the
+    semantic function audit (core through PG18 plus selected extensions).
+  - `READ_ONLY_PROHIBITED_QUALIFIED_FUNCTIONS` — `(schema,name)` pairs for
+    generic extension writes such as `cron.schedule`/`cron.unschedule`.
+  - `SelectStmt.intoClause is not None` — rejects `SELECT … INTO`.
 - **Dangerous set (both modes, FR4–FR6):**
   - `DANGEROUS_FUNCTIONS` — bare function names matched against `funcname[-1]`.
     Seeded from the existing set in `mutable_sql_detector.py`, extended with the
@@ -477,6 +533,9 @@ Mapping to the two sets in §3.1:
     `('aws_s3','table_import_from_s3')` (Tier 3).
   - `SECURITY_SENSITIVE_GUCS` — reuse existing set (`row_security`,
     `session_replication_role`).
+  - Structural bulk-reset checks — `VariableSetKind.VAR_RESET_ALL` (`RESET
+    ALL`) and `DiscardMode.DISCARD_ALL` (`DISCARD ALL`) are rejected because
+    neither AST node identifies the individual GUCs it resets.
   - `CopyStmt` PROGRAM/file is a field check on the node, not a constant.
 
 Node classes come from `pglast.ast`; the walk uses `pglast.visitors.Visitor`.
@@ -560,13 +619,30 @@ write mode.
   `aws_s3.query_export_to_s3`, `aws_s3.table_import_from_s3`): the managed
   equivalents of the reported dblink→exfil/SSRF class, matched schema-qualified.
 
-**Coverage — deliberately excluded (Tiers 4–5).** Enumerated in §3.1 with the
-rationale: replication/server-state control (Tier 4) and the optional pgsql-http
-extension (Tier 5), plus data-level large-object writes, untrusted PL languages,
-and `pg_authid` access. All are superuser/`rds_superuser`-gated, not present by
-default, or a semantic-layer concern — kept out to keep the denylist focused,
-with the least-privilege role as the authoritative control. Revisit if a
-concrete need arises.
+**Coverage — semantic-function audit.** The PG16 live catalog/read-only test and
+PG18 source/doc cross-check classified explicit state mutation independently of
+whether the transaction backstop catches it. Read-only-only coverage now includes
+sequence; statistics reset/import; WAL/backup/restore points; replication
+slot/origin mutation; BRIN/GIN maintenance; large-object writes; catalog/session
+helpers; and selected contrib/RDS functions. Severe promotion/replay,
+corruption, cache-eviction, filesystem, logging, and worker-control primitives
+are dangerous in both modes. §3.1 records the allowed and role-owned boundaries;
+§7 requires data-driven tests over every inventory.
+
+Audit evidence: PostgreSQL's official [administration functions](https://www.postgresql.org/docs/current/functions-admin.html),
+[sequence functions](https://www.postgresql.org/docs/current/functions-sequence.html),
+[large-object functions](https://www.postgresql.org/docs/current/lo-funcs.html),
+[BRIN](https://www.postgresql.org/docs/current/brin.html) and
+[GIN](https://www.postgresql.org/docs/current/gin.html) maintenance docs, and
+contrib docs for [pg_stat_statements](https://www.postgresql.org/docs/current/pgstatstatements.html),
+[pg_prewarm](https://www.postgresql.org/docs/current/pgprewarm.html),
+[pg_visibility](https://www.postgresql.org/docs/current/pgvisibility.html),
+[pg_surgery](https://www.postgresql.org/docs/current/pgsurgery.html),
+[pg_buffercache](https://www.postgresql.org/docs/current/pgbuffercache.html), and
+[postgres_fdw](https://www.postgresql.org/docs/current/postgres-fdw.html), plus
+the AWS [RDS extension matrix](https://docs.aws.amazon.com/AmazonRDS/latest/PostgreSQLReleaseNotes/postgresql-extensions.html)
+and [Aurora pg_cron guide](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/PostgreSQL_pg_cron.html).
+Content was rephrased for compliance with licensing restrictions.
 
 **SQL-standard vs PG-specific.** Dangerous *functions* are inherently
 PG/extension-specific; the SQL-standard danger surface is at the *statement*
@@ -688,11 +764,18 @@ sees structure, not runtime semantics or catalog state. These gaps remain and
 are **not** parser bugs — they are legitimate PostgreSQL behavior our filter
 cannot see, so they must be owned by the database role, not the filter:
 
-- **Function-mediated side effects.** `SELECT some_func()` where `some_func` is
-  volatile / `SECURITY DEFINER` and internally writes, calls dblink, or reads
-  files. The parse tree is a benign `SELECT` calling a function; volatility and
-  the function body require the catalog. Read-only cannot be guaranteed against
-  this from syntax.
+- **Relation semantics are invisible.** `SELECT * FROM some_foreign_table` needs
+  no unusual syntax at all: its parse tree is a plain `RangeVar`, byte-for-byte
+  the shape of a local-table read, yet executing it opens an outbound connection
+  to whatever host the foreign server was configured with. Only catalog lookup
+  distinguishes a local table from a foreign one (or from a view over one), so
+  no parser-level rule can separate them. The same applies to reads through
+  views and rules that hide arbitrary relations.
+- **Unknown function-mediated side effects.** The guard blocks the audited known
+  names, but `SELECT some_func()` where `some_func` is a user-defined/third-party
+  volatile or `SECURITY DEFINER` wrapper can still write, call dblink, or read
+  files. The parse tree exposes only the syntactic name; catalog resolution and
+  the function body require runtime semantics.
 - **Name resolution / overloading / `search_path`.** Our denylist matches
   function/GUC names syntactically, but which function actually executes depends
   on `search_path` and argument-type overload resolution at run time. A
@@ -822,9 +905,11 @@ Open / to manage:
   (simplest, safe). In write mode, allow only `COPY` that is neither `PROGRAM`
   nor a server-side file target (i.e. `STDIN`/`STDOUT` client-side transfer);
   `is_program` or a non-null `filename` is rejected in both modes.
-- **Function side effects in read-only** remain undetectable from syntax
-  (volatile / SECURITY DEFINER writers). Explicitly out of scope; rely on the
-  role. Document in README alongside the existing best-effort note (§5.6).
+- **Function side effects in read-only — bounded.** Known core-through-PG18 and
+  selected common-extension mutators are explicitly rejected and tested. Unknown
+  user-defined/third-party/overloaded semantics remain undetectable from syntax;
+  rely on the role (§5.6) and update the versioned audit as PostgreSQL adds
+  administration functions.
 - **Aurora/RDS-specific syntax.** Verify constructs like `aws_s3.*` calls parse
   under the PG18 grammar (they are ordinary function calls, so they should) or
   are intentionally rejected. Add representative cases to the corpus.

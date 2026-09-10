@@ -176,19 +176,46 @@ The MCP server supports IAM and username/password methods for Postgres authentic
 
 #### `--allow_write_query` read-only enforcement is best effort
 
-When the MCP server runs without `--allow_write_query`, it rejects any statement
-that is not a read. Enforcement is **parser-based**: each query is parsed with
+When the MCP server runs without `--allow_write_query`, it enforces a
+**semantic read-only** policy. Each query is parsed with
 [`pglast`](https://github.com/lelit/pglast) (libpg_query — PostgreSQL's own
-parser), and the statement is classified from the parse tree. In read-only mode
-only read statements (`SELECT`/`WITH … SELECT`/`VALUES`/`TABLE`/`SHOW`/`EXPLAIN`
-of a read) are allowed; anything else is rejected. Regardless of mode, a
-dangerous set is always rejected — command execution (`COPY … TO/FROM PROGRAM`),
-host filesystem access (`COPY … TO/FROM '<file>'`, `pg_read_file`, `lo_import`,
-the `pg_ls_dir` and `adminpack` families), SSRF/exfiltration (the `dblink`
-family, `aws_lambda.invoke`, `aws_s3.query_export_to_s3`), DoS
-(`pg_sleep`, `pg_terminate_backend`, advisory locks), and settings that disable
-data-access controls (`row_security`, `session_replication_role`). Multi-statement
-input is rejected, and the guard fails closed on any parse error.
+parser). Only read statement shapes (`SELECT`/`WITH … SELECT`/`VALUES`/`TABLE`/
+`SHOW`/`EXPLAIN` of a read) are allowed, and known functions whose requested
+purpose is to mutate sequence, session, statistics, WAL, replication, catalog,
+large-object, or index state are also rejected even when written as
+`SELECT function(...)`.
+
+“Read-only” describes the requested operation, not every internal effect of
+executing it. An ordinary `SELECT` remains a read even though PostgreSQL updates
+usage statistics, warms caches, takes snapshots, and acquires transient locks as
+bookkeeping. By contrast, `nextval()` intentionally advances a sequence,
+`pg_stat_statements_reset()` intentionally destroys statistics,
+`pg_switch_wal()` intentionally changes WAL state, and
+`brin_summarize_new_values()` persistently updates an index; those are writes.
+Representative boundaries:
+
+| Example | Read-only verdict | Why |
+|---|---|---|
+| ordinary `SELECT`, calculations, `random()`, `clock_timestamp()`, current-XID readers | allow | observes/calculates; engine bookkeeping (including XID assignment) is incidental |
+| `currval()` / `lastval()` / `pg_stat_clear_snapshot()` | allow | observes or refreshes the caller's read snapshot without durable mutation |
+| `pg_prewarm()` | allow | cache-only performance hint; no durable/logical state |
+| replication-slot `peek` / statistics readers | allow | observes without consuming/resetting state |
+| `nextval()` / `setval()` | reject | changes sequence state |
+| `pg_stat_reset*()` / `pg_stat_statements_reset()` | reject | resets collected statistics |
+| WAL, backup, replication-slot/origin management | reject | changes administrative/replication state |
+| BRIN/GIN maintenance and large-object writes | reject | persists index or database data |
+| `cron.schedule()` / `cron.unschedule()` | reject | changes scheduled-job metadata |
+
+Regardless of mode, a dangerous set is always rejected — command execution
+(`COPY … TO/FROM PROGRAM`), host filesystem access (`COPY … TO/FROM '<file>'`,
+`pg_read_file`, `lo_import`, the `pg_ls_dir` and `adminpack` families),
+SSRF/exfiltration (`dblink`, `aws_lambda.invoke`, `aws_s3.query_export_to_s3`),
+DoS/corruption/severe server control (`pg_sleep`, backend termination, advisory
+lock acquisition, recovery control, `pg_surgery`, buffer-cache eviction), and
+settings that disable data-access controls (`row_security`,
+`session_replication_role`) and bulk session resets (`RESET ALL`, `DISCARD ALL`)
+that can restore weaker role/database defaults.
+Multi-statement input is rejected, and the guard fails closed on parse errors.
 
 Because the guard uses PostgreSQL's own parser, syntactic evasions that defeat
 text matching — quoted identifiers, comments, and Unicode-escaped identifiers
@@ -196,15 +223,15 @@ text matching — quoted identifiers, comments, and Unicode-escaped identifiers
 would, so they no longer bypass it.
 
 **Treat this as a best-effort, defense-in-depth mechanism, not a security
-boundary.** A parser sees structure, not runtime semantics: it cannot tell that
-a `SELECT some_function()` writes internally, that a `SECURITY DEFINER` function
-has side effects, or resolve which function a name refers to under a custom
-`search_path`. The dangerous-set check also only sees calls the parser exposes
-as nodes: in write mode, where `DO` blocks and `CREATE FUNCTION` are permitted,
-a dangerous call hidden inside a function or `DO` body (or assembled at run time
-with `EXECUTE`) is opaque to the parser and is not rejected — the connected
-role's privileges are what stop it from executing. Do not rely on it as your
-only control.
+boundary.** The known-function inventory is versioned to PostgreSQL core through
+PG18 plus selected PostgreSQL-supplied/common RDS extensions; it is not a
+complete extension firewall. A parser cannot infer that an arbitrary
+user-defined or third-party function writes internally, resolve an overloaded
+operator/function under a custom `search_path`, or inspect dynamic SQL. Built-in
+operators are calculations/observations; a user-defined operator can invoke any
+function and remains role-controlled. In write mode, `DO`/`CREATE FUNCTION`
+bodies and run-time `EXECUTE` strings are opaque too. Always combine the guard
+with the least-privilege role below.
 
 #### TLS is enforced on direct (PG Wire) connections
 
@@ -276,6 +303,13 @@ enforces the boundary regardless of what SQL reaches it. In particular:
   These are what make host filesystem access and `COPY … TO/FROM PROGRAM`
   command execution possible; without them, the database refuses those operations
   even if a query reaches it.
+- **Do not** grant the connected role `USAGE` on foreign-data wrappers or
+  foreign servers (`GRANT USAGE ON FOREIGN DATA WRAPPER …` / `ON FOREIGN SERVER
+  …`), and do not let it own them. Those privileges are what let a session reach
+  an operator-chosen network endpoint: a read of a foreign table looks like an
+  ordinary `SELECT` to any SQL filter, so the database's privilege check is the
+  control. `postgres_fdw` grants no `USAGE` to non-owners by default — keep it
+  that way.
 - For read-only use, grant only `CONNECT` + `USAGE` + `SELECT` on the schemas the
   agent needs, and force read-only transactions at the role level.
 - For read/write use, grant only the specific `INSERT`/`UPDATE`/`DELETE`

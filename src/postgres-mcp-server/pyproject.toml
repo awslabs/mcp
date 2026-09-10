@@ -102,6 +102,10 @@ docstring-code-format = true
 [tool.pyright]
 include = ["awslabs", "tests"]
 exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
+# The e2e scripts are standalone (run by path, not installed), so importing one by
+# module name -- as tests/test_e2e_harness_contracts.py does after adding the
+# directory to sys.path -- is only resolvable with the path listed here.
+extraPaths = ["tests", "tests/e2e"]
 
 [tool.commitizen]
 name = "cz_conventional_commits"

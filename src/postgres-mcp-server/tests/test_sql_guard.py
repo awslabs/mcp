@@ -28,6 +28,8 @@ from awslabs.postgres_mcp_server.sql_guard import (
     DANGEROUS_FUNCTIONS,
     DANGEROUS_QUALIFIED_FUNCTIONS,
     MAX_SQL_LEN,
+    READ_ONLY_PROHIBITED_MUTATING_FUNCTIONS,
+    READ_ONLY_PROHIBITED_QUALIFIED_FUNCTIONS,
     SECURITY_SENSITIVE_GUCS,
     SqlPolicyError,
     _normalize_placeholders,
@@ -122,10 +124,14 @@ WRITE_SET_STATEMENTS = [
     'NOTIFY chan',
     'UNLISTEN chan',
     'LOCK TABLE t',
-    # Session / backend state
+    # Session / backend state. Narrow RESET/DISCARD forms are ordinary writes;
+    # bulk RESET ALL / DISCARD ALL are dangerous below because they include
+    # security-sensitive GUCs.
     "SET work_mem = '64MB'",
-    'RESET ALL',
-    'DISCARD ALL',
+    'RESET work_mem',
+    'DISCARD PLANS',
+    'DISCARD SEQUENCES',
+    'DISCARD TEMP',
     "LOAD 'lib'",
     "SELECT set_config('work_mem', '64MB', false)",  # function form of SET
     # Transaction control
@@ -174,6 +180,9 @@ def test_write_set_allowed_in_write_mode(sql):
 # --- Dangerous set: rejected in BOTH modes (FR4, FR5, FR6) -----------------
 
 DANGEROUS_BOTH_MODES = [
+    # Bulk session resets include row_security/session_replication_role.
+    'RESET ALL',
+    'DISCARD ALL',
     # COPY command execution / host filesystem
     "COPY (SELECT 1) TO PROGRAM 'id'",
     "COPY t FROM PROGRAM 'curl http://x'",
@@ -465,48 +474,83 @@ def test_set_config_literal_non_security_guc_allowed_in_write_mode(sql):
     assert not _allowed(sql, allow_write_query=False)
 
 
-# --- Read-only: clearly-mutating functions the SET TRANSACTION READ ONLY -----
-# --- backstop does not stop (nextval, pg_stat_reset*, pg_logical_emit_message)
+# --- Semantic function writes inside otherwise-read SelectStmt --------------
 
 
-@pytest.mark.parametrize(
-    'sql',
-    [
-        "SELECT nextval('s')",
-        "SELECT setval('s', 1)",
-        'SELECT pg_stat_reset()',
-        'SELECT pg_stat_reset_shared()',
-        'SELECT pg_stat_reset_single_table_counters(1)',
-        'SELECT pg_stat_reset_single_function_counters(1)',
-        'SELECT pg_stat_reset_slru()',
-        "SELECT pg_stat_reset_replication_slot('s')",
-        'SELECT pg_stat_reset_subscription_stats(NULL)',
-        "SELECT pg_logical_emit_message(true, 'a', 'b')",
-        "SELECT pg_catalog.nextval('s')",  # schema-qualified still matched by bare name
-    ],
-)
-def test_read_only_prohibits_mutating_functions(sql):
-    """State-mutating built-ins are writes and are rejected in read-only mode.
-
-    The parse tree is a benign SelectStmt calling a function, so the
-    statement-node allowlist alone would pass them; the read-only function
-    denylist closes the gap. All are allowed in write mode (they are writes,
-    not dangerous-set constructs).
-    """
+@pytest.mark.parametrize('func', sorted(READ_ONLY_PROHIBITED_MUTATING_FUNCTIONS))
+def test_every_known_mutating_function_is_read_only_blocked(func):
+    """Every audited bare mutator is rejected read-only but allowed in write mode."""
+    sql = f'SELECT {func}()'
     assert not _allowed(sql, allow_write_query=False)
     assert_executable(sql, allow_write_query=True)
 
 
+@pytest.mark.parametrize('schema,name', sorted(READ_ONLY_PROHIBITED_QUALIFIED_FUNCTIONS))
+def test_every_known_qualified_mutator_is_read_only_blocked(schema, name):
+    """Every audited generic extension mutator is matched by schema/name."""
+    sql = f'SELECT {schema}.{name}()'
+    assert not _allowed(sql, allow_write_query=False)
+    assert_executable(sql, allow_write_query=True)
+
+
+def test_schema_qualified_core_mutator_is_matched_by_bare_name():
+    """Explicit pg_catalog qualification cannot evade the bare mutator inventory."""
+    assert not _allowed("SELECT pg_catalog.nextval('s')", allow_write_query=False)
+    assert not _allowed('SELECT pg_catalog.pg_switch_wal()', allow_write_query=False)
+
+
+def test_pg13_pg14_legacy_backup_functions_are_read_only_writes():
+    """Pre-PG15 backup entry points stay covered by the PG13-PG18 audit claim."""
+    assert not _allowed("SELECT pg_start_backup('label', true)", allow_write_query=False)
+    assert not _allowed('SELECT pg_stop_backup(false)', allow_write_query=False)
+    assert_executable("SELECT pg_start_backup('label', true)", allow_write_query=True)
+    assert_executable('SELECT pg_stop_backup(false)', allow_write_query=True)
+
+
 @pytest.mark.parametrize(
     'sql',
     [
-        "SELECT currval('s')",  # read: current value, no mutation
-        'SELECT lastval()',  # read: last value in session
+        # Sequence observation, not advancement.
+        "SELECT currval('s')",
+        'SELECT lastval()',
+        # Ordinary volatile calculations/observations remain reads.
+        'SELECT random()',
+        'SELECT clock_timestamp()',
+        'SELECT gen_random_uuid()',
+        # Statistics, transaction-ID observation/allocation, WAL, replication,
+        # and size observation. XID assignment is incidental bookkeeping needed
+        # to return the current ID; it is not the requested semantic effect.
+        'SELECT pg_stat_get_snapshot_timestamp()',
+        'SELECT pg_stat_clear_snapshot()',
+        'SELECT txid_current()',
+        'SELECT pg_current_xact_id()',
+        "SELECT pg_relation_size('t')",
+        "SELECT pg_logical_slot_peek_changes('s', NULL, 1)",
+        "SELECT pg_replication_origin_progress('origin', false)",
+        # Read coordination / database-data reads.
+        'SELECT pg_export_snapshot()',
+        'SELECT lo_get(1)',
+        'SELECT loread(1, 10)',
+        # Selected extension boundaries: cache warming and FDW inspection do
+        # not modify durable/logical state.
+        "SELECT pg_prewarm('t')",
+        'SELECT * FROM postgres_fdw_get_connections()',
+        # Built-in operators calculate values; user-defined operator semantics
+        # are catalog/runtime-owned and documented as outside static coverage.
+        'SELECT 1 + 2',
+        'SELECT ARRAY[1,2] || ARRAY[3]',
     ],
 )
-def test_read_only_allows_sequence_read_functions(sql):
-    """currval/lastval read the sequence without mutating it -- allowed read-only."""
+def test_semantic_read_function_boundaries_allowed(sql):
+    """Confusing but observational/calculation cases remain allowed read-only."""
     assert_executable(sql, allow_write_query=False)
+
+
+def test_qualified_mutator_does_not_overblock_same_name_elsewhere():
+    """Generic pg_cron names are writes only in the audited cron schema."""
+    assert_executable("SELECT schedule('* * * * *', 'SELECT 1')", allow_write_query=False)
+    assert_executable("SELECT app.schedule('* * * * *', 'SELECT 1')", allow_write_query=False)
+    assert not _allowed("SELECT cron.schedule('* * * * *', 'SELECT 1')", allow_write_query=False)
 
 
 # --- Fail-closed wrapper: any analysis error becomes a rejection (FR7) -------

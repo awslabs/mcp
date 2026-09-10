@@ -21,21 +21,21 @@ the checker and the database read the same bytes the same way.
 
 Two classifications (see docs/design/parser-based-sql-policy.md, section 3.1):
 
-* Write set -- mutating / state-changing statements. Enforced fail-closed as an
-  allowlist: in read-only mode only read *statement* node types are permitted
-  anywhere in the parse tree; any other statement node is a write and is
-  rejected. Function calls are classified separately and only best-effort: a
-  small denylist of clearly-mutating built-ins (sequence ``nextval``/``setval``,
-  the ``pg_stat_reset*`` family, ``pg_logical_emit_message``) and ``set_config``
-  are rejected in read-only mode, but an arbitrary user-defined or volatile
-  function that writes internally cannot be recognized from syntax (§5.6). Those
-  remain owned by the least-privilege database role and the backend
-  ``SET TRANSACTION READ ONLY`` backstop -- which stops DML and ``setval`` but
-  not ``nextval``/``pg_stat_reset*``/``pg_logical_emit_message``, which is why
-  those are enumerated here.
+* Write set -- operations whose requested purpose is to modify application,
+  sequence, session, statistics, WAL, replication, catalog, large-object, or
+  index state. In read-only mode only read *statement* node types are permitted
+  anywhere in the parse tree; any other statement node is rejected. Known core
+  and selected common-extension functions with explicit mutating semantics are
+  also rejected even though they parse inside a ``SelectStmt``. Ordinary reads
+  stay reads despite incidental execution bookkeeping (statistics increments,
+  cache warming, snapshots, and transient locks). This function inventory is
+  best-effort: arbitrary user-defined/third-party functions and overloaded
+  operators cannot be resolved from syntax (§5.6) and remain owned by the
+  least-privilege database role plus ``SET TRANSACTION READ ONLY`` backstop.
 * Dangerous set -- command execution / SSRF / host filesystem / DoS /
-  security-control-disabling constructs. Rejected in BOTH modes (defense in
-  depth; the authoritative control is the least-privilege database role).
+  corruption / severe server-control / security-control-disabling constructs.
+  Rejected in BOTH modes (defense in depth; the authoritative control is the
+  least-privilege database role).
 
 The dangerous-set check inspects only constructs the parser surfaces as nodes.
 The body of a ``DO`` block, a ``CREATE FUNCTION``/``CREATE PROCEDURE``, and any
@@ -52,9 +52,10 @@ This guard is defense-in-depth, not a security boundary. It fails closed: any
 parse error, oversized input, or multi-statement submission is rejected.
 """
 
-import re
+from awslabs.postgres_mcp_server.named_params import to_parse_placeholders
 from loguru import logger
 from pglast import ast, parse_sql
+from pglast.enums import DiscardMode, VariableSetKind
 from typing import NoReturn
 
 
@@ -78,32 +79,105 @@ READ_ONLY_ALLOWED_STMT_NODES = frozenset(
 # session state for any GUC and so is rejected in read-only mode.
 READ_ONLY_PROHIBITED_FUNCTIONS = frozenset({'set_config'})
 
-# Clearly-mutating built-in functions that parse as a FuncCall inside an
-# otherwise-read SelectStmt, so the statement-node allowlist does not catch
-# them. Rejected in read-only mode. This is best-effort defense-in-depth, NOT a
-# complete guarantee: an arbitrary user-defined or volatile function that writes
-# internally cannot be recognized from syntax (§5.6) and remains owned by the
-# database role and the backend SET TRANSACTION READ ONLY backstop. The point of
-# enumerating these is that PostgreSQL's read-only transaction does NOT block
-# them -- nextval(), pg_stat_reset*(), and pg_logical_emit_message() all execute
-# in a read-only transaction (unlike setval()/DML, which PreventCommandIfReadOnly
-# stops) -- so listing them closes a real residual gap. None has any legitimate
-# use in a read query. currval()/lastval() are reads and are deliberately absent.
+# Known functions whose requested purpose is to mutate durable or session state,
+# despite parsing as a FuncCall inside an otherwise-read SelectStmt. Rejected in
+# read-only mode, allowed in write mode. This is a versioned, best-effort
+# inventory of PostgreSQL core through PG18 plus selected PostgreSQL-supplied /
+# common RDS extensions -- NOT a claim that syntax can reveal arbitrary function
+# semantics (§5.6). Some entries are also blocked by PostgreSQL's transaction
+# backstop (PG16 blocks nextval/setval and large-object writes); others execute
+# under SET TRANSACTION READ ONLY (stats/WAL/replication/index/catalog helpers).
+# Classification is semantic and deliberately independent of that implementation
+# detail. Pure observation/calculation stays allowed: currval/lastval, stats
+# readers, random/clock/UUID generation, pg_prewarm (cache-only), exported
+# snapshots, logical-slot peek, replication progress, and large-object reads.
 READ_ONLY_PROHIBITED_MUTATING_FUNCTIONS = frozenset(
     {
-        # Sequence writes. nextval advances the sequence; setval sets it.
+        # Sequence state.
         'nextval',
         'setval',
-        # Statistics-reset family -- destroys the cluster's cumulative stats.
+        # Core statistics flush/reset/import (PG13-PG18).
+        'pg_stat_force_next_flush',
         'pg_stat_reset',
+        'pg_stat_reset_backend_stats',
         'pg_stat_reset_shared',
         'pg_stat_reset_single_table_counters',
         'pg_stat_reset_single_function_counters',
         'pg_stat_reset_slru',
         'pg_stat_reset_replication_slot',
         'pg_stat_reset_subscription_stats',
-        # Emits a WAL record.
+        'pg_restore_relation_stats',
+        'pg_clear_relation_stats',
+        'pg_restore_attribute_stats',
+        'pg_clear_attribute_stats',
+        # Common statistics extension resets (grantable to non-superusers).
+        'pg_stat_statements_reset',
+        'pg_stat_monitor_reset',
+        # WAL, online-backup, and restore-point state. pg_start/stop_backup
+        # are the PG13/14 names; PG15+ renamed them to pg_backup_start/stop.
+        'pg_start_backup',
+        'pg_stop_backup',
+        'pg_backup_start',
+        'pg_backup_stop',
+        'pg_switch_wal',
+        'pg_create_restore_point',
+        'pg_log_standby_snapshot',
         'pg_logical_emit_message',
+        # Replication slots: create/copy/drop, consume changes, or advance.
+        'pg_create_physical_replication_slot',
+        'pg_create_logical_replication_slot',
+        'pg_copy_physical_replication_slot',
+        'pg_copy_logical_replication_slot',
+        'pg_drop_replication_slot',
+        'pg_replication_slot_advance',
+        'pg_sync_replication_slots',
+        'pg_logical_slot_get_changes',
+        'pg_logical_slot_get_binary_changes',
+        # Replication-origin durable, session, and transaction state.
+        'pg_replication_origin_create',
+        'pg_replication_origin_drop',
+        'pg_replication_origin_advance',
+        'pg_replication_origin_session_setup',
+        'pg_replication_origin_session_reset',
+        'pg_replication_origin_xact_setup',
+        'pg_replication_origin_xact_reset',
+        # Index maintenance writes persistent BRIN / GIN index pages.
+        'brin_summarize_new_values',
+        'brin_summarize_range',
+        'brin_desummarize_range',
+        'gin_clean_pending_list',
+        # Database large-object create/write/truncate/delete. Reads such as
+        # lo_get/loread remain allowed; lo_import/export are dangerous below.
+        'lo_creat',
+        'lo_create',
+        'lo_from_bytea',
+        'lo_put',
+        'lo_truncate',
+        'lo_truncate64',
+        'lo_unlink',
+        'lowrite',
+        # Catalog, session, and shared-lock cleanup state.
+        'pg_import_system_collations',
+        'setseed',
+        'pg_advisory_unlock',
+        'pg_advisory_unlock_shared',
+        'pg_advisory_unlock_all',
+        # PostgreSQL-supplied/common extensions.
+        'autoprewarm_dump_now',
+        'pg_truncate_visibility_map',
+        'postgres_fdw_disconnect',
+        'postgres_fdw_disconnect_all',
+    }
+)
+
+# Generic extension function names need schema-qualified matching to avoid
+# blocking unrelated user functions with names such as schedule/alter_job.
+READ_ONLY_PROHIBITED_QUALIFIED_FUNCTIONS = frozenset(
+    {
+        ('cron', 'schedule'),
+        ('cron', 'schedule_in_database'),
+        ('cron', 'alter_job'),
+        ('cron', 'unschedule'),
     }
 )
 
@@ -136,6 +210,7 @@ DANGEROUS_FUNCTIONS = frozenset(
         'pg_ls_logicalmapdir',
         'pg_ls_logicalsnapdir',
         'pg_ls_replslotdir',
+        'pg_ls_summariesdir',
         # Host file write / RCE -- adminpack (Tier 2). pg_file_write is an
         # arbitrary host-file write.
         'pg_file_write',
@@ -143,10 +218,21 @@ DANGEROUS_FUNCTIONS = frozenset(
         'pg_file_rename',
         'pg_file_unlink',
         'pg_logdir_ls',
-        # Server control.
+        # Severe server control / availability impact.
         'pg_reload_conf',
         'pg_rotate_logfile',
-        # Advisory-lock family -- application-level DoS.
+        'pg_promote',
+        'pg_wal_replay_pause',
+        'pg_wal_replay_resume',
+        'pg_log_backend_memory_contexts',
+        'autoprewarm_start_worker',
+        # Low-level corruption / cache-eviction testing extensions.
+        'heap_force_kill',
+        'heap_force_freeze',
+        'pg_buffercache_evict',
+        'pg_buffercache_evict_relation',
+        'pg_buffercache_evict_all',
+        # Advisory-lock acquisition -- application-level DoS / shared lock state.
         'pg_advisory_lock',
         'pg_advisory_lock_shared',
         'pg_advisory_xact_lock',
@@ -189,35 +275,13 @@ SECURITY_SENSITIVE_GUCS = frozenset({'row_security', 'session_replication_role'}
 
 # Aurora / RDS Data API style named placeholders (``:name``) are not valid
 # PostgreSQL syntax, so pglast cannot parse a statement that contains them. For
-# parsing only, substitute a positional placeholder ($1) -- a value position, so
-# it never changes the statement type, function names, or GUC targets the guard
-# classifies. Only the guard's copy is rewritten; the ORIGINAL SQL is what
-# executes (the RDS Data API binds ``:name`` parameters natively).
-#
-# The negative lookbehind refuses to rewrite a colon preceded by ``:`` (the
-# ``::`` cast operator), a word character, ``]``, or ``)``. None of those
-# prefixes can begin a real ``:name`` placeholder, but each occurs before an
-# array-slice colon whose lower bound is non-empty (``a[1:n]``, ``a[i:j]``,
-# ``a[f():n]``, ``a[b[0]:n]``). Leaving the slice colon alone lets pglast parse
-# the slice as ordinary SQL. Without this guard, ``a[1:n]`` was rewritten to the
-# unparseable ``a[1$1]`` and valid queries such as
-# ``SELECT tags[1:limit_idx] FROM items`` were wrongly rejected. A placeholder in
-# a value position is still matched: ``= :id``, ``id=:id``, ``(:a, :b)``,
-# ``ARRAY[:a]``, ``:v::int``. (A slice with an omitted lower bound, ``a[:n]``,
-# becomes ``a[$1]`` -- a subscript that still parses, and the guard inspects only
-# structure, so the classification is unaffected.)
-#
-# The substitution is not literal-aware, so a ``:name``-shaped sequence inside a
-# string literal (``SELECT 'ping :host'`` -> ``SELECT 'ping $1'``) is rewritten
-# too. This is deliberately safe: the guard only inspects statement node types,
-# function names, and GUC names -- never arbitrary string contents -- and ``$1``
-# inside quotes remains a string literal, so classification is unaffected.
-_NAMED_PARAM_PATTERN = re.compile(r'(?<![\w:\]\)]):([a-zA-Z_]\w*)')
-
-
-def _normalize_placeholders(sql: str) -> str:
-    """Replace ``:name`` placeholders with ``$1`` so pglast can parse (parse-only)."""
-    return _NAMED_PARAM_PATTERN.sub('$1', sql)
+# parsing only, substitute a positional placeholder ($1). Only the guard's copy
+# is rewritten; the ORIGINAL SQL is what executes (the RDS Data API binds
+# ``:name`` parameters natively, and the psycopg path applies the *same*
+# placeholder rule from ``named_params`` to produce its own ``%(name)s`` form).
+# The matching rule is defined once in ``named_params`` so the guard and the
+# executor can never disagree about which colons are placeholders.
+_normalize_placeholders = to_parse_placeholders
 
 
 class SqlPolicyError(Exception):
@@ -309,6 +373,14 @@ def _check_dangerous(node) -> None:
             _reject('COPY ... TO/FROM a server-side file accesses the host filesystem')
         return
 
+    # DISCARD ALL performs a bulk session reset equivalent in part to RESET
+    # ALL, including security-sensitive GUCs. Other DISCARD targets remain
+    # ordinary write-set operations (read-only rejects; write mode permits).
+    if isinstance(node, ast.DiscardStmt):
+        if node.target == DiscardMode.DISCARD_ALL:
+            _reject('DISCARD ALL can reset security-sensitive session settings')
+        return
+
     if isinstance(node, ast.FuncCall):
         parts = _func_name_parts(node)
         if not parts:  # pragma: no cover - defensive; a FuncCall always has a name
@@ -338,12 +410,13 @@ def _check_dangerous(node) -> None:
                 _reject(f'Security-sensitive session setting not allowed: {guc}')
         return
 
-    # SET / RESET ... targeting a security-sensitive GUC. This matches any
-    # VariableSetStmt naming a sensitive GUC, so RESET row_security is rejected
-    # alongside SET -- intentional: RESET reverts the GUC to a default that a
-    # superuser could have set to a weaker value, so both are blocked in both
-    # modes (conservative, safe direction).
+    # SET / RESET ... targeting a security-sensitive GUC. RESET ALL has no
+    # ``name`` in the AST but resets every GUC, including row_security and
+    # session_replication_role, so it is blocked explicitly as the bulk form of
+    # the individually-blocked RESET operations.
     if isinstance(node, ast.VariableSetStmt):
+        if node.kind == VariableSetKind.VAR_RESET_ALL:
+            _reject('RESET ALL can reset security-sensitive session settings')
         name = (node.name or '').lower()
         if name in SECURITY_SENSITIVE_GUCS:
             _reject(f'Security-sensitive session setting not allowed: {node.name}')
@@ -354,14 +427,14 @@ def _check_read_only(root, nodes: list) -> None:
 
     Enforced fail-closed as an allowlist: the root must be a read node type and
     every statement node in the tree must be a permitted read type. Write-set
-    members that parse as an allowed ``SelectStmt`` are caught by explicit field
-    checks: ``SELECT ... INTO`` (a table-creating write), ``set_config()``
-    (session-state mutation for any GUC), and the clearly-mutating built-in
-    functions in ``READ_ONLY_PROHIBITED_MUTATING_FUNCTIONS``
-    (``nextval``/``setval``, ``pg_stat_reset*``, ``pg_logical_emit_message``)
-    that the ``SET TRANSACTION READ ONLY`` backstop does not stop. Arbitrary
-    user-defined/volatile writer functions remain undetectable from syntax
-    (§5.6) and are owned by the database role.
+    members that parse as an allowed ``SelectStmt`` are caught explicitly:
+    ``SELECT ... INTO`` (table creation), ``set_config()`` (session state), and
+    the known bare / schema-qualified semantic mutators in
+    ``READ_ONLY_PROHIBITED_MUTATING_FUNCTIONS`` and
+    ``READ_ONLY_PROHIBITED_QUALIFIED_FUNCTIONS``. This inventory covers core
+    through PG18 plus selected PostgreSQL-supplied/common RDS extensions, but
+    arbitrary user-defined/third-party function and operator semantics remain
+    undetectable from syntax (§5.6) and are owned by the database role.
 
     Args:
         root: The single top-level statement node (``RawStmt.stmt``).
@@ -382,9 +455,8 @@ def _check_read_only(root, nodes: list) -> None:
         # SELECT ... INTO creates a table -- a write disguised as a SelectStmt.
         if isinstance(node, ast.SelectStmt) and node.intoClause is not None:
             _reject('SELECT ... INTO creates a table and is not allowed in read-only mode')
-        # set_config() for any GUC mutates session state; and the clearly
-        # -mutating built-ins the read-only transaction does not stop
-        # (nextval/setval, pg_stat_reset*, pg_logical_emit_message).
+        # Function-form writes inside SelectStmt. Bare names cover distinctive
+        # core/contrib functions; generic extension names are schema-qualified.
         if isinstance(node, ast.FuncCall):
             parts = _func_name_parts(node)
             if not parts:  # pragma: no cover - defensive; a FuncCall always has a name
@@ -394,6 +466,11 @@ def _check_read_only(root, nodes: list) -> None:
                 _reject('set_config() mutates session state and is not allowed in read-only mode')
             if fn in READ_ONLY_PROHIBITED_MUTATING_FUNCTIONS:
                 _reject(f'Function mutates state and is not allowed in read-only mode: {fn}')
+            if len(parts) >= 2 and (parts[-2], fn) in READ_ONLY_PROHIBITED_QUALIFIED_FUNCTIONS:
+                _reject(
+                    f'Function mutates state and is not allowed in read-only mode: '
+                    f'{parts[-2]}.{fn}'
+                )
 
 
 def assert_executable(sql: str, allow_write_query: bool = False) -> None:

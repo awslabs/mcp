@@ -23,10 +23,10 @@ import asyncio
 import boto3
 import json
 import os
-import re
 from aiorwlock import RWLock
 from awslabs.postgres_mcp_server import __user_agent__
 from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
+from awslabs.postgres_mcp_server.named_params import to_psycopg_placeholders
 from botocore.config import Config
 from datetime import datetime, timedelta
 from loguru import logger
@@ -111,6 +111,105 @@ def _assert_system_trust_store_supported() -> None:
             'Pass --ca_bundle <path> to an explicit CA PEM file, or use a build with '
             'libpq >= 16 (e.g. psycopg[binary]).'
         )
+
+
+# Substrings of the TLS failures an operator can resolve with a flag. libpq
+# surfaces these as ordinary connection errors, so without a hint the operator
+# sees only raw OpenSSL/libpq text and no signal that --sslmode / --ca_bundle
+# exist. Because the default is verify-full, the hostname case in particular is
+# the expected outcome for an IP, tunnel, or CNAME endpoint that previously
+# connected under libpq's unverified 'prefer' default.
+_TLS_HOSTNAME_MARKERS = (
+    'does not match host name',
+    'does not match certificate',
+)
+_TLS_UNTRUSTED_MARKERS = (
+    'certificate verify failed',
+    'unable to get local issuer certificate',
+    'self-signed certificate',
+    'self signed certificate',
+)
+_TLS_CA_FILE_MARKERS = (
+    'root certificate file',
+    'could not open certificate file',
+)
+# Bound the exception-chain walk; a conninfo failure nests only a few levels and
+# a cycle would otherwise be possible via __context__.
+_MAX_EXC_CHAIN_DEPTH = 8
+
+
+def _exception_chain_text(exc: BaseException) -> str:
+    """Return the lower-cased text of ``exc`` and its causes, for marker matching.
+
+    libpq's TLS detail is often on a wrapped cause rather than the outermost
+    exception, so matching only ``str(exc)`` misses it.
+
+    Args:
+        exc: The exception to flatten.
+
+    Returns:
+        str: Lower-cased concatenation of the chain's messages.
+    """
+    parts: List[str] = []
+    seen: set[int] = set()
+    current: Optional[BaseException] = exc
+    while current is not None and len(parts) < _MAX_EXC_CHAIN_DEPTH:
+        if id(current) in seen:
+            break
+        seen.add(id(current))
+        parts.append(str(current))
+        current = current.__cause__ or current.__context__
+    return ' '.join(parts).lower()
+
+
+def _tls_remediation_hint(exc: BaseException, sslmode: str) -> Optional[str]:
+    """Return operator remediation for a fixable TLS failure, else None.
+
+    Only certificate *verification* failures are actionable via a flag, so this
+    returns None for ``require`` (which verifies nothing) and for any error whose
+    text carries no TLS marker -- an unreachable host or a bad password must not
+    be answered with "relax your TLS settings".
+
+    Args:
+        exc: The exception raised while opening the pool.
+        sslmode: The libpq sslmode in effect for this connection.
+
+    Returns:
+        Optional[str]: A remediation message, or None when not TLS-related.
+    """
+    if sslmode not in _CA_VERIFYING_SSLMODES:
+        return None
+
+    text = _exception_chain_text(exc)
+
+    if any(marker in text for marker in _TLS_HOSTNAME_MARKERS):
+        return (
+            f'TLS hostname verification failed (sslmode={sslmode}): the server certificate '
+            'does not cover the name being connected to. This is expected when connecting '
+            'via an IP address, an SSH tunnel or port-forward, or a CNAME that differs from '
+            'the endpoint on the certificate. Pass --sslmode=verify-ca to keep '
+            'certificate-chain verification without the hostname check. The connection stays '
+            'encrypted in every supported mode.'
+        )
+
+    if any(marker in text for marker in _TLS_UNTRUSTED_MARKERS):
+        return (
+            f'TLS certificate verification failed (sslmode={sslmode}): the server '
+            'certificate could not be chained to a trusted CA. Pass --ca_bundle <path> to a '
+            'PEM containing the issuing CA (self-hosted PostgreSQL or a private trust '
+            'store), or --ca_bundle system to use the OS trust store (libpq 16+). '
+            '--sslmode=require keeps the connection encrypted but skips certificate '
+            'verification entirely; prefer supplying the correct CA.'
+        )
+
+    if any(marker in text for marker in _TLS_CA_FILE_MARKERS):
+        return (
+            f'TLS verification could not read the configured CA file (sslmode={sslmode}). '
+            'Check the --ca_bundle path, or pass --ca_bundle system to use the OS trust '
+            'store (libpq 16+).'
+        )
+
+    return None
 
 
 def get_credentials_from_secret(
@@ -425,10 +524,18 @@ class PsycopgPoolConnection(AbstractDBConnection):
             # wait up to 30 seconds to fill the pool with connections
             try:
                 await self.pool.open(True, 30)
-            except Exception:
+            except Exception as e:
                 # Pool failed to open — psycopg marks it as closed internally.
                 # Set self.pool to None so callers don't try to use a closed pool.
                 logger.exception('Failed to open connection pool')
+                # A TLS verification failure is fixable by a flag, unlike an
+                # unreachable host, so surface the remediation instead of leaving
+                # the operator with raw OpenSSL text. Logged, not raised: the
+                # original exception's type and traceback are preserved for
+                # callers (and psycopg_pool's own semantics) untouched.
+                tls_hint = _tls_remediation_hint(e, self.sslmode)
+                if tls_hint:
+                    logger.error(tls_hint)
                 self.pool = None
                 raise
             pool_name = getattr(self.pool, 'name', 'unknown')
@@ -554,14 +661,20 @@ class PsycopgPoolConnection(AbstractDBConnection):
     def _convert_sql_for_psycopg(self, sql: str) -> str:
         """Convert Aurora-style :name placeholders to psycopg %(name)s style.
 
-        Uses negative lookbehind to avoid mangling PostgreSQL's :: cast operator.
+        Delegates the *matching* rule to :mod:`named_params`, which the SQL policy
+        guard uses as well. Both layers must treat the same colons as
+        placeholders: when this method had its own looser rule it rewrote the
+        array slice in ``SELECT tags[1:limit_idx] FROM items`` -- which the guard
+        correctly leaves alone -- into the unparseable
+        ``SELECT tags[1%(limit_idx)s] FROM items``, failing a query the guard had
+        already approved.
 
         Examples:
-            :table_name     →  %(table_name)s
-            column::text    →  column::text  (unchanged)
-            :schema_name    →  %(schema_name)s
+            :table_name         →  %(table_name)s
+            column::text        →  column::text            (cast unchanged)
+            tags[1:limit_idx]   →  tags[1:limit_idx]       (array slice unchanged)
         """
-        return re.sub(r'(?<!:):([a-zA-Z_]\w*)', r'%(\1)s', sql)
+        return to_psycopg_placeholders(sql)
 
     def _get_credentials_from_secret(
         self, secret_arn: str, region: str, is_test: bool = False

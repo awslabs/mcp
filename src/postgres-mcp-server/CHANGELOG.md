@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Breaking
+
+Behavior changes in this release that can break an existing caller or
+deployment. Each is intentional; they are collected here because the remedy is
+not always obvious from the entries below.
+
+- **Rejection error strings changed.** A blocked query previously returned one
+  of two fixed strings — `Your MCP tool only allows readonly query. …` or
+  `Your query contains risky injection patterns` — regardless of what was
+  actually wrong. It now returns the guard's own message naming the specific
+  violation (for example `Exactly one SQL statement is allowed`,
+  `Statement type not allowed in read-only mode: InsertStmt`, or
+  `Dangerous function call not allowed: dblink_connect`). The messages are more
+  actionable but are not a stable API. Callers that branch on the previous two
+  strings must update; treat any non-empty `error` as a rejection rather than
+  matching text.
+- **Direct (psycopg / PG Wire) connections now default to
+  `sslmode=verify-full`,** which verifies the server hostname against the
+  certificate. Deployments that connect to an IP address, through an SSH tunnel
+  or port-forward, or via a CNAME that does not match the certificate will fail
+  to connect where they previously succeeded (libpq's old default, `prefer`,
+  verified nothing). Remedy: pass `--sslmode=verify-ca` to keep certificate
+  verification without the hostname check, or `--ca_bundle <path>` / `--ca_bundle
+  system` for a private trust store. Encryption cannot be disabled; plaintext
+  modes are not offered. To make the migration self-service, a TLS verification
+  failure while opening the pool now logs the specific remediation (hostname
+  mismatch → `--sslmode=verify-ca`; untrusted chain or self-signed certificate →
+  `--ca_bundle`; unreadable CA file → check the `--ca_bundle` path) instead of
+  leaving the operator with raw OpenSSL text. Unrelated failures — unreachable
+  host, bad password, pool timeout — are unaffected and produce no TLS advice.
+
+### Fixed
+
+- A query using both an array slice and `query_parameters` no longer fails at
+  execution on the direct (psycopg / PG Wire) path. The SQL policy guard and the
+  psycopg executor each carried their own rule for deciding which `:name`
+  sequences are parameter placeholders, and the executor's was looser: it
+  rewrote the slice in `SELECT tags[1:limit_idx] FROM items` — which the guard
+  correctly leaves alone — into the unparseable
+  `SELECT tags[1%(limit_idx)s] FROM items`, so a statement the guard had already
+  approved failed at the database. The looser rule also rewrote `:word`
+  sequences preceded by a word character inside string literals (`'a:b'`). The
+  matching rule now lives once in `named_params` and both layers import it; only
+  the replacement text differs (`$1` for parsing, `%(name)s` for binding).
+
 ### Added
 
 - `create_cluster` gains an optional `enable_iam_auth` flag (default `False`)
@@ -57,6 +102,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Read-only mode now rejects several statements the previous keyword list missed,
   including `SELECT … INTO`, `REASSIGN OWNED`, `CHECKPOINT`, `COMMIT PREPARED`,
   `UNLISTEN`, `DEALLOCATE`, and transaction-control statements.
+- Defined semantic read-only behavior for function calls and audited PostgreSQL
+  core through PG18 plus selected PostgreSQL-supplied/common RDS extensions.
+  Known calls that intentionally change sequence, statistics, WAL/backup,
+  replication slot/origin, BRIN/GIN index, large-object, catalog, session, or
+  scheduled-job state are rejected in read-only mode even when expressed as a
+  `SELECT`. Ordinary reads/calculations remain allowed despite incidental engine
+  statistics/cache/snapshot/lock bookkeeping. Severe recovery/server control,
+  corruption helpers, buffer-cache eviction, PG18 `pg_ls_summariesdir`, and
+  bulk session resets (`RESET ALL` / `DISCARD ALL`) that include
+  security-sensitive GUCs are blocked in both modes.
 - Extended the always-blocked dangerous-function set with the `pg_ls_dir` family,
   the `adminpack` file functions (e.g. `pg_file_write`), and the Aurora-native
   `aws_lambda.invoke` / `aws_s3.query_export_to_s3` / `aws_s3.table_import_from_s3`.

@@ -19,6 +19,8 @@ import threading
 import time
 from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import PsycopgPoolConnection
 from datetime import datetime, timedelta
+from psycopg import OperationalError
+from psycopg_pool import PoolTimeout
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -1343,3 +1345,165 @@ class TestPsycopgTLS:
         # The default is an encrypted, CA-verifying mode (never plaintext).
         assert DEFAULT_SSLMODE == 'verify-full'
         assert DEFAULT_SSLMODE in ALLOWED_SSLMODES
+
+
+class TestTLSRemediationHint:
+    """Operator remediation surfaced when a TLS verification failure blocks the pool.
+
+    ``sslmode=verify-full`` is the default, so deployments that previously
+    connected under libpq's unverified ``prefer`` can start failing on an IP,
+    tunnel, or CNAME endpoint. Those failures are fixable with a flag, so the
+    hint has to name the flag; unrelated failures must stay silent.
+    """
+
+    def _hint(self, exc, sslmode='verify-full'):
+        from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import (
+            _tls_remediation_hint,
+        )
+
+        return _tls_remediation_hint(exc, sslmode)
+
+    def test_hostname_mismatch_recommends_verify_ca(self):
+        """A hostname mismatch points at --sslmode=verify-ca, not at disabling TLS."""
+        exc = OperationalError(
+            'connection failed: server certificate for "db.example.com" does not match '
+            'host name "10.0.1.5"'
+        )
+        hint = self._hint(exc)
+        assert hint is not None
+        assert '--sslmode=verify-ca' in hint
+        # Must not advertise a plaintext downgrade; no such mode is offered.
+        assert '--sslmode=disable' not in hint
+        assert '--sslmode=prefer' not in hint
+
+    def test_untrusted_chain_recommends_ca_bundle(self):
+        """An untrusted chain points at --ca_bundle before the weaker require mode."""
+        exc = OperationalError('SSL error: certificate verify failed')
+        hint = self._hint(exc)
+        assert hint is not None
+        assert '--ca_bundle' in hint
+        assert hint.index('--ca_bundle') < hint.index('--sslmode=require')
+
+    def test_self_signed_certificate_recommends_ca_bundle(self):
+        """A self-signed server certificate is the private-CA case."""
+        exc = OperationalError('SSL error: self-signed certificate in certificate chain')
+        hint = self._hint(exc)
+        assert hint is not None
+        assert '--ca_bundle' in hint
+
+    def test_unreadable_ca_file_recommends_checking_path(self):
+        """A missing CA file is a configuration error, not a trust decision."""
+        exc = OperationalError('root certificate file "/nope/ca.pem" does not exist')
+        hint = self._hint(exc)
+        assert hint is not None
+        assert '--ca_bundle' in hint
+
+    def test_tls_detail_on_wrapped_cause_is_found(self):
+        """TLS detail often sits on a wrapped cause, so the chain is walked, not str(exc)."""
+        cause = OperationalError('server certificate for "db" does not match host name "1.2.3.4"')
+        outer = RuntimeError('pool initialization incomplete')
+        outer.__cause__ = cause
+        hint = self._hint(outer)
+        assert hint is not None
+        assert '--sslmode=verify-ca' in hint
+
+    def test_non_tls_failure_returns_no_hint(self):
+        """An unreachable host or bad password must not be answered with TLS advice."""
+        assert self._hint(OperationalError('could not translate host name to address')) is None
+        assert self._hint(OperationalError('password authentication failed for user "u"')) is None
+        assert self._hint(PoolTimeout('pool initialization incomplete after 30 sec')) is None
+
+    def test_require_mode_returns_no_hint(self):
+        """sslmode=require verifies nothing, so a cert error there is not actionable."""
+        exc = OperationalError('SSL error: certificate verify failed')
+        assert self._hint(exc, sslmode='require') is None
+
+    def test_cyclic_exception_chain_terminates(self):
+        """A __context__ cycle must not hang the chain walk."""
+        first = OperationalError('one')
+        second = OperationalError('two')
+        first.__context__ = second
+        second.__context__ = first
+        assert self._hint(first) is None
+
+    @pytest.mark.asyncio
+    async def test_initialize_pool_logs_hint_and_preserves_exception(self):
+        """The hint is logged; the original exception type still propagates."""
+        exc = OperationalError(
+            'connection failed: server certificate for "db.example.com" does not match '
+            'host name "10.0.1.5"'
+        )
+        logged: list = []
+
+        with (
+            patch(
+                'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.AsyncConnectionPool'
+            ) as mock_pool_class,
+            patch.object(PsycopgPoolConnection, '_get_credentials_from_secret') as mock_get_creds,
+            patch(
+                'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.logger.error',
+                side_effect=lambda msg, *a, **k: logged.append(str(msg)),
+            ),
+        ):
+            mock_pool = AsyncMock()
+            mock_pool.open.side_effect = exc
+            mock_pool_class.return_value = mock_pool
+            mock_get_creds.return_value = ('db_user', 'db_password')
+
+            conn = PsycopgPoolConnection(
+                host='10.0.1.5',
+                port=5432,
+                database='test_db',
+                readonly=True,
+                secret_arn='arn:secret',
+                db_user='',
+                is_iam_auth=False,
+                region='us-east-1',
+                is_test=True,
+                ca_bundle_path='/tmp/ca.pem',
+            )
+
+            # The original exception type is preserved, not replaced by a wrapper.
+            with pytest.raises(OperationalError):
+                await conn.initialize_pool()
+
+        assert conn.pool is None
+        assert any('--sslmode=verify-ca' in message for message in logged)
+
+    @pytest.mark.asyncio
+    async def test_initialize_pool_stays_quiet_for_non_tls_failure(self):
+        """A non-TLS pool failure logs no TLS remediation."""
+        logged: list = []
+
+        with (
+            patch(
+                'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.AsyncConnectionPool'
+            ) as mock_pool_class,
+            patch.object(PsycopgPoolConnection, '_get_credentials_from_secret') as mock_get_creds,
+            patch(
+                'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.logger.error',
+                side_effect=lambda msg, *a, **k: logged.append(str(msg)),
+            ),
+        ):
+            mock_pool = AsyncMock()
+            mock_pool.open.side_effect = PoolTimeout('pool initialization incomplete after 30 sec')
+            mock_pool_class.return_value = mock_pool
+            mock_get_creds.return_value = ('db_user', 'db_password')
+
+            conn = PsycopgPoolConnection(
+                host='localhost',
+                port=5432,
+                database='test_db',
+                readonly=True,
+                secret_arn='arn:secret',
+                db_user='',
+                is_iam_auth=False,
+                region='us-east-1',
+                is_test=True,
+                ca_bundle_path='/tmp/ca.pem',
+            )
+
+            with pytest.raises(PoolTimeout):
+                await conn.initialize_pool()
+
+        assert not any('--sslmode' in message for message in logged)
