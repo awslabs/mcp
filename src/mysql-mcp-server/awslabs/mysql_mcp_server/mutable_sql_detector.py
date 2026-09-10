@@ -95,6 +95,54 @@ MUTATING_PATTERN = re.compile(
     r'(?i)\b(' + '|'.join(re.escape(k) for k in _MUTATING_KEYWORDS_BY_LENGTH) + r')\b'
 )
 
+
+# Mutating statement verbs that are also common identifiers or functions.
+#
+# Unlike MUTATING_KEYWORDS above (matched anywhere), these are matched only
+# at statement start. ``DO expr`` returns no result set yet has side effects
+# (e.g. ``DO GET_LOCK(...)``); the rest control transactions, replication, or
+# server lifecycle. Several are ordinary words (``start``, ``stop``,
+# ``change``, ``release``, ``do``) and ``REPLACE`` is a string function, so a
+# bare ``\b`` anywhere-match would reject benign reads like
+# ``SELECT start FROM t`` or ``SELECT REPLACE(col, 'a', 'b')``. Anchoring to
+# statement start avoids that while still blocking the verb form.
+STATEMENT_START_MUTATING_KEYWORDS = {
+    # DML / expression execution
+    'IMPORT',  # IMPORT TABLE — bulk import from .ibd files
+    'REPLACE',  # bare REPLACE ... SET (REPLACE INTO already covered above)
+    'DO',  # DO expr — runs expressions / side-effecting stored functions
+    # Transaction control
+    'START',  # START TRANSACTION / START REPLICA / START GROUP_REPLICATION
+    'BEGIN',  # alias for START TRANSACTION
+    'COMMIT',  # makes pending mutations durable
+    'ROLLBACK',  # ROLLBACK / ROLLBACK TO SAVEPOINT
+    'SAVEPOINT',  # creates a named transaction savepoint
+    'RELEASE',  # RELEASE SAVEPOINT
+    'XA',  # XA START/END/PREPARE/COMMIT/ROLLBACK — distributed transactions
+    # Replication management
+    'CHANGE',  # CHANGE REPLICATION SOURCE TO / CHANGE REPLICATION FILTER
+    'PURGE',  # PURGE BINARY LOGS — deletes binlog files from disk
+    'STOP',  # STOP REPLICA / STOP GROUP_REPLICATION
+    'BINLOG',  # BINLOG 'base64-event' — injects a raw binary log event
+    # Server administration
+    'CLONE',  # CLONE LOCAL / CLONE INSTANCE — copies the data directory
+    'RESTART',  # restarts the server process
+    'SHUTDOWN',  # terminates the server
+}
+
+# Sorted longest-first for deterministic output (see MUTATING_PATTERN).
+_STATEMENT_START_KEYWORDS_BY_LENGTH = sorted(
+    STATEMENT_START_MUTATING_KEYWORDS, key=len, reverse=True
+)
+# Anchor to statement start: start of the (comment-stripped) SQL or right
+# after a ``;``. No re.MULTILINE, so a mid-statement newline is not a new
+# anchor. The single capturing group makes ``findall`` return the keyword.
+STATEMENT_START_MUTATING_PATTERN = re.compile(
+    r'(?i)(?:^|;)\s*('
+    + '|'.join(re.escape(k) for k in _STATEMENT_START_KEYWORDS_BY_LENGTH)
+    + r')\b'
+)
+
 SUSPICIOUS_PATTERNS = [
     r"(?i)'.*?--",  # comment injection
     r'(?i)\bor\b\s+\d+\s*=\s*\d+',  # numeric tautology e.g. OR 1=1
@@ -203,6 +251,10 @@ def detect_mutating_keywords(sql_text: str) -> list[str]:
     conservative answer for a readonly gate is "yes, this mutates").
     A non-keyword sentinel is returned so callers' ``bool(matches)``
     checks fire without misreporting a specific keyword.
+
+    Two scans run against the comment-stripped SQL: ``MUTATING_PATTERN``
+    (keywords anywhere) and ``STATEMENT_START_MUTATING_PATTERN`` (verbs that
+    are also common identifiers, matched only at statement start).
     """
     if re.search(MYSQL_CONDITIONAL_COMMENT_PATTERN, sql_text):
         # Defence in depth: keep this function correct in isolation, even
@@ -210,6 +262,7 @@ def detect_mutating_keywords(sql_text: str) -> list[str]:
         return ['MYSQL_CONDITIONAL_COMMENT']
     sql_for_check = sqlparse.format(sql_text, strip_comments=True)
     matches = MUTATING_PATTERN.findall(sql_for_check)
+    matches += STATEMENT_START_MUTATING_PATTERN.findall(sql_for_check)
     return list({m.upper() for m in matches})
 
 

@@ -45,6 +45,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **CWE-184** — read-only mode now rejects statement-leading mutating verbs
+  that the fixed `MUTATING_KEYWORDS` scan did not catch. `DO expr`
+  evaluates expressions purely for their side effects and
+  returns no result set, so `DO GET_LOCK(...)` or `DO <writing_function>()`
+  previously slipped past the read-only gate on the RDS Data API path. Also
+  now rejected: `IMPORT`, `START`, `BEGIN`, `COMMIT`, `ROLLBACK`,
+  `SAVEPOINT`, `RELEASE`, `XA`, `CHANGE`, `PURGE`, `STOP`, `BINLOG`,
+  `CLONE`, `RESTART`, `SHUTDOWN`, and bare `REPLACE ... SET`. These verbs
+  are matched by a new `STATEMENT_START_MUTATING_KEYWORDS` set anchored to
+  statement start (beginning of the comment-stripped SQL or immediately
+  after a `;`) rather than added to `MUTATING_KEYWORDS`, because several are
+  common English words or identifiers (`start`, `stop`, `change`, `release`,
+  `do`) and `REPLACE` is a heavily used string function — a bare
+  anywhere-match would falsely reject benign reads such as
+  `SELECT start FROM schedule`, `SELECT REPLACE(col, 'a', 'b')`, or
+  `WHERE note = 'things to do'`. Follow-up to the read-only bypass
+  hardening first shipped in 1.0.22; the durable control remains a
+  least-privilege MySQL user / IAM role, per the README **Security model**
+  section.
 - **BREAKING (CWE-319):** TLS is now enforced on the Secrets Manager credential
   path (`mysqlwire` with a managed secret), not just IAM auth. Previously these
   connections were plaintext-capable; the server now upgrades them to verified
