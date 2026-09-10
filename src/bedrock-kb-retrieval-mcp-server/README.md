@@ -22,8 +22,29 @@ MCP server for accessing Amazon Bedrock Knowledge Bases
 - Include or exclude specific data sources
 - Prioritize results from specific data sources
 
-### Rerank results
+### Agentic retrieval on managed knowledge bases
 
+* Plan a multi-step retrieval strategy and synthesise a cited answer
+* Search several knowledge bases in one call
+* Optional condensed trace of the agent's planning and retrieval steps
+* Managed knowledge bases only; the tool rejects other types with a clear message
+
+### Reach ACL-protected content
+
+* Pass `user_id` to retrieve content from ACL-aware data sources (SharePoint, OneDrive,
+  Confluence with per-document ACLs)
+* Without it, that content is inaccessible, and agentic retrieval's full-document
+  expansion step fails with "UserContext is required for ACL-aware data sources"
+* Results are filtered to what that user is authorised to see
+
+### Support both managed and vector knowledge bases
+
+* Works with vector knowledge bases (`type: VECTOR`) and managed knowledge bases (`type: MANAGED`)
+* The knowledge base type is detected automatically and the correct `Retrieve` configuration is sent (`vectorSearchConfiguration` or `managedSearchConfiguration`)
+* Data-source filtering uses the metadata key appropriate to the knowledge base type
+* The `ListKnowledgeBases` tool reports each knowledge base's `type`
+
+### Rerank results
 - Improve relevance of retrieval results
 - Use Amazon Bedrock reranking capabilities
 - Sort results by relevance to your query
@@ -50,8 +71,21 @@ If you intend to use reranking functionality, your Bedrock Knowledge Base needs 
 
 1. Your IAM role must have permissions for both `bedrock:Rerank` and `bedrock:InvokeModel` actions
 2. The Amazon Bedrock Knowledge Bases service role must also have these permissions
-3. Reranking is only available in specific regions. Please refer to the official [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/rerank-supported.html) for an up to date list of supported regions.
+3. Reranking availability differs **per model**: `amazon.rerank-v1:0` is not offered in `us-east-1`, while `cohere.rerank-v3-5:0` is. The server validates the (region, model) pair and fails fast with a clear message. Please refer to the official [documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/rerank-supported.html) for an up to date list of supported regions.
 4. Enable model access for the available reranking models in the specified region.
+
+### Agentic Retrieval Requirements
+
+The `AgenticQueryKnowledgeBases` tool calls `AgenticRetrieveStream`, which is supported for
+**managed knowledge bases only** (`type: MANAGED`). It plans a retrieval strategy and, unless
+you pass `generate_response=false`, invokes a foundation model to write a cited answer.
+
+1. Your IAM role needs `bedrock:AgenticRetrieveStream` on the knowledge base, in addition to
+   the permissions listed above
+2. Because it invokes a foundation model, it costs materially more per call than
+   `QueryKnowledgeBases`. Pass `generate_response=false` for retrieval without synthesis
+3. `RetrieveAndGenerate` is not supported for managed knowledge bases, so agentic retrieval
+   with `generate_response=true` is the way to get a generated answer from one
 
 ### Controlling Reranking
 
