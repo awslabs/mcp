@@ -10,7 +10,7 @@ consult [DSQL Supported Data Types](https://docs.aws.amazon.com/aurora-dsql/late
 ## Table of Contents
 
 1. [COLLATE — C Collation Rules](#collate--c-collation-rules)
-2. [NUMERIC Precision](#numeric-precision)
+2. [NUMERIC Precision and Scale](#numeric-precision-and-scale)
 3. [JSON and JSONB](#json-and-jsonb)
 4. [Types Mapped to TEXT by dsql_lint](#types-mapped-to-text-by-dsql_lint)
 5. [Quick Conversion Template](#quick-conversion-template)
@@ -45,18 +45,26 @@ Warn users that ORDER BY behavior changes for mixed-case or non-ASCII data.
 
 ---
 
-## NUMERIC Precision
+## NUMERIC Precision and Scale
 
-PostgreSQL allows unbounded NUMERIC. DSQL enforces max precision 38, scale 37 (DSQL service limit).
+DSQL accepts PostgreSQL's bounds for explicitly declared `NUMERIC(p,s)`: precision `p` **MUST**
+be from 1 through 1000, and scale `s` **MUST** be from -1000 through 1000. Scale **MAY**
+exceed precision or be negative.
 
-Specify precision explicitly to avoid surprises:
+A bare `NUMERIC` defaults to `NUMERIC(18,6)` in DSQL; it does not retain PostgreSQL's
+unconstrained `NUMERIC` behavior. During migration, you **MUST** choose explicit `(p,s)` bounds
+when source values may not fit that default.
+
+Preserve valid explicit `NUMERIC(p,s)` declarations during migration; no DSQL-specific narrowing
+is required:
 
 ```sql
--- PostgreSQL: stores any precision
-CREATE TABLE t (val NUMERIC);
-
--- DSQL: specify explicit precision
-CREATE TABLE t (val NUMERIC(20,10));
+CREATE TABLE measurements (
+  exact_fraction NUMERIC(1000,1000),
+  lower_bound_scale NUMERIC(1,-1000),
+  rounded_thousands NUMERIC(10,-3),
+  fractional_only NUMERIC(3,5)
+);
 ```
 
 **MONEY type:** Convert to `numeric(19,4)` — preserves monetary precision.
