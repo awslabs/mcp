@@ -25,6 +25,7 @@ from awslabs.redshift_mcp_server.review.models import (
     ReviewResult,
 )
 from loguru import logger
+from mcp.server.mcpserver.exceptions import ToolError
 from typing import Any, Callable
 
 
@@ -56,7 +57,7 @@ async def review_cluster(
             break
 
     if not cluster_info:
-        raise Exception(
+        raise ToolError(
             f'Cluster {cluster_identifier} not found. Please use list_clusters to get valid cluster identifiers.'
         )
 
@@ -95,7 +96,7 @@ async def review_cluster(
         except Exception as e:
             logger.error('Review query {} failed: {}', query_name, str(e))
             if 'permission denied' in str(e).lower():
-                raise Exception(
+                raise ToolError(
                     f'Review requires superuser or sys:monitor access. Request an administrator '
                     f'to run: '
                     f'GRANT ROLE sys:monitor TO "<database_user>"; where <database_user> is the '

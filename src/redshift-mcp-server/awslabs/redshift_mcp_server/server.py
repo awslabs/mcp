@@ -44,6 +44,7 @@ from awslabs.redshift_mcp_server.review.models import ReviewResult
 from awslabs.redshift_mcp_server.sql_guard import assert_executable, might_write
 from loguru import logger
 from mcp.server.mcpserver import Context, Elicit, MCPServer, Resolve
+from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ClientCapabilities, ElicitationCapability, ToolAnnotations
 from pydantic import BaseModel, Field
 from typing import Annotated
@@ -259,7 +260,7 @@ def _write_confirmation(
         A standing approval when no confirmation is required, else a request to ask.
 
     Raises:
-        Exception: If the SQL is rejected by the guard, or the client cannot be asked.
+        ToolError: If the SQL is rejected by the guard, or the client cannot be asked.
     """
     if ACCESS_MODE != ACCESS_MODE_READ_WRITE or SKIP_WRITE_CONFIRMATION:
         return ConfirmWrite(confirmed=True)
@@ -279,7 +280,7 @@ def _write_confirmation(
             f'Refused a write on {cluster_identifier}:{database_name}: the client cannot '
             'be asked to confirm it.'
         )
-        raise Exception(
+        raise ToolError(
             'This MCP client cannot prompt for confirmation, so the statement was not '
             'run. Use a client that supports elicitation, or set '
             'UNSAFE_SKIP_WRITE_CONFIRMATION=true to execute writes unconfirmed.'
@@ -378,7 +379,6 @@ async def list_clusters_tool(ctx: Context) -> list[RedshiftCluster]:
 
     except Exception as e:
         logger.error(f'Error in list_clusters_tool: {str(e)}')
-        await ctx.error(f'Failed to list clusters: {str(e)}')
         raise
 
 
@@ -455,7 +455,6 @@ async def list_databases_tool(
 
     except Exception as e:
         logger.error(f'Error in list_databases_tool: {str(e)}')
-        await ctx.error(f'Failed to list databases on cluster {cluster_identifier}: {str(e)}')
         raise
 
 
@@ -538,9 +537,6 @@ async def list_schemas_tool(
 
     except Exception as e:
         logger.error(f'Error in list_schemas_tool: {str(e)}')
-        await ctx.error(
-            f'Failed to list schemas in database {schema_database_name} on cluster {cluster_identifier}: {str(e)}'
-        )
         raise
 
 
@@ -630,9 +626,6 @@ async def list_tables_tool(
 
     except Exception as e:
         logger.error(f'Error in list_tables_tool: {str(e)}')
-        await ctx.error(
-            f'Failed to list tables in schema {table_schema_name} in database {table_database_name} on cluster {cluster_identifier}: {str(e)}'
-        )
         raise
 
 
@@ -736,9 +729,6 @@ async def list_columns_tool(
 
     except Exception as e:
         logger.error(f'Error in list_columns_tool: {str(e)}')
-        await ctx.error(
-            f'Failed to list columns in table {column_table_name} in schema {column_schema_name} in database {column_database_name} on cluster {cluster_identifier}: {str(e)}'
-        )
         raise
 
 
@@ -845,7 +835,7 @@ async def execute_query_tool(
         )
 
         if not confirmation.confirmed:
-            raise Exception('Statement not confirmed; nothing was executed.')
+            raise ToolError('Statement not confirmed; nothing was executed.')
 
         query_result_data = await execute_query(
             cluster_identifier=cluster_identifier,
@@ -864,9 +854,6 @@ async def execute_query_tool(
 
     except Exception as e:
         logger.error(f'Error in execute_query_tool: {str(e)}')
-        await ctx.error(
-            f'Failed to execute query on cluster {cluster_identifier} in database {database_name}: {str(e)}'
-        )
         raise
 
 
@@ -973,7 +960,6 @@ async def review_cluster_tool(
 
     except Exception as e:
         logger.error(f'Error in review_cluster_tool: {str(e)}')
-        await ctx.error(f'Failed to review cluster {cluster_identifier}: {str(e)}')
         raise
 
 

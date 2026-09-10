@@ -38,6 +38,7 @@ from awslabs.redshift_mcp_server.redshift import (
 )
 from botocore.config import Config
 from botocore.exceptions import ClientError
+from mcp.server.mcpserver.exceptions import ToolError
 from sqlglot import exp
 from types import SimpleNamespace
 
@@ -372,7 +373,7 @@ class TestExecuteProtectedStatement:
             'awslabs.redshift_mcp_server.redshift._execute_statement'
         )
 
-        with pytest.raises(Exception, match='single SQL statement is allowed'):
+        with pytest.raises(ToolError, match='single SQL statement is allowed'):
             await _execute_protected_statement(
                 'test-cluster',
                 'test-db',
@@ -520,7 +521,7 @@ class TestExecuteProtectedStatement:
 
         oversized_sql = 'SELECT 1' + ' ' * (MAX_SQL_LEN + 1)
 
-        with pytest.raises(Exception, match='exceeds the maximum allowed length'):
+        with pytest.raises(ToolError, match='exceeds the maximum allowed length'):
             await _execute_protected_statement(
                 'test-cluster', 'test-db', oversized_sql, allow_read_write=False
             )
@@ -537,7 +538,7 @@ class TestExecuteProtectedStatement:
         )
         mock_discover_clusters.return_value = []
 
-        with pytest.raises(Exception, match='Cluster nonexistent-cluster not found'):
+        with pytest.raises(ToolError, match='Cluster nonexistent-cluster not found'):
             await _execute_protected_statement(
                 'nonexistent-cluster', 'test-db', 'SELECT 1', allow_read_write=False
             )
@@ -554,7 +555,7 @@ class TestExecuteProtectedStatement:
             _fake_cluster(identifier='another-cluster', type='serverless'),
         ]
 
-        with pytest.raises(Exception, match='Cluster target-cluster not found'):
+        with pytest.raises(ToolError, match='Cluster target-cluster not found'):
             await _execute_protected_statement(
                 'target-cluster', 'test-db', 'SELECT 1', allow_read_write=False
             )
@@ -631,6 +632,7 @@ class TestExecuteProtectedStatement:
 
         mock_execute_statement.side_effect = execute_side_effect
 
+        # The ROLLBACK failure is re-raised as it came from the Data API, not reclassified.
         with pytest.raises(Exception, match='ROLLBACK statement failed'):
             await _execute_protected_statement(
                 'test-cluster', 'test-db', 'SELECT 1', allow_read_write=False
@@ -667,7 +669,7 @@ class TestExecuteProtectedStatement:
         mock_execute_statement.side_effect = execute_side_effect
 
         with pytest.raises(
-            Exception,
+            ToolError,
             match='User SQL failed: SQL syntax error; ROLLBACK statement failed: ROLLBACK statement failed',
         ):
             await _execute_protected_statement(
@@ -694,7 +696,7 @@ class TestExecuteStatement:
         )
 
         cluster_info = _fake_cluster()
-        with pytest.raises(Exception, match='Statement failed: SQL syntax error'):
+        with pytest.raises(ToolError, match='Statement failed: SQL syntax error'):
             await _execute_statement(
                 cluster_info, 'cluster', 'db', 'SELECT 1', query_poll_interval=0
             )
@@ -718,7 +720,7 @@ class TestExecuteStatement:
 
         cluster_info = _fake_cluster()
         # Use small timeout and poll interval to trigger timeout quickly
-        with pytest.raises(Exception, match='Statement timed out after'):
+        with pytest.raises(ToolError, match='Statement timed out after'):
             await _execute_statement(
                 cluster_info,
                 'test-cluster',
@@ -849,7 +851,7 @@ class TestExecuteStatement:
             return_value=mock_client,
         )
 
-        with pytest.raises(Exception, match='Statement failed: SQL syntax error'):
+        with pytest.raises(ToolError, match='Statement failed: SQL syntax error'):
             await _execute_statement(_fake_cluster(), 'test-cluster', 'dev', 'SELECT 1')
 
         mock_client.describe_statement.assert_called_once()
@@ -1363,8 +1365,8 @@ class TestDiscoverFunctions:
             await discover_clusters()
 
     @pytest.mark.asyncio
-    async def test_discover_clusters_both_access_denied_raises_permission_error(self, mocker):
-        """Test that PermissionError is raised when both clients get access-denied."""
+    async def test_discover_clusters_both_access_denied_raises_tool_error(self, mocker):
+        """Test that ToolError is raised when both clients get access-denied."""
         mock_redshift_client = mocker.Mock()
         mock_paginator = mocker.Mock()
         mock_paginator.paginate.side_effect = ClientError(
@@ -1390,9 +1392,7 @@ class TestDiscoverFunctions:
             return_value=mock_serverless_client,
         )
 
-        with pytest.raises(
-            PermissionError, match='IAM lacks both redshift and redshift-serverless'
-        ):
+        with pytest.raises(ToolError, match='IAM lacks both redshift and redshift-serverless'):
             await discover_clusters()
 
     @pytest.mark.asyncio

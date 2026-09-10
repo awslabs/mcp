@@ -120,7 +120,7 @@ or docker after a successful `docker build -t awslabs/redshift-mcp-server:latest
 - `AWS_DEFAULT_REGION`: Default AWS region (used if AWS_REGION not set and no region in profile)
 - `AWS_PROFILE`: AWS profile to use (optional, uses default if not specified)
 - `LOG_LEVEL`: Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`)
-- `LOG_FILE`: Path to log file (optional, logs to stdout if not specified)
+- `LOG_FILE`: Path to log file (optional, logs to stderr if not specified)
 - `ACCESS_MODE`: Access mode for `execute_query` (optional, defaults to `read-only`). Supported modes are `read-only` and `read-write`; any other value falls back to `read-only`. Read [Read-Write Mode](#read-write-mode) before selecting `read-write`.
 - `UNSAFE_SKIP_WRITE_CONFIRMATION`: Skips the per-write confirmation prompt (optional, defaults to `false`). Ignored in `read-only` mode. See [Confirming each write](#confirming-each-write).
 

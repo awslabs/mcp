@@ -45,6 +45,7 @@ from awslabs.redshift_mcp_server.sql_guard import assert_executable
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from loguru import logger
+from mcp.server.mcpserver.exceptions import ToolError
 from sqlglot import exp
 
 
@@ -269,7 +270,7 @@ async def _execute_protected_statement(
         - String with the query_id.
 
     Raises:
-        Exception: If cluster not found, query fails, or times out.
+        ToolError: If cluster not found, query fails, or times out.
     """
     # Validate the statement with the read-only guard before doing any work.
     assert_executable(sql, allow_read_write=allow_read_write)
@@ -283,7 +284,7 @@ async def _execute_protected_statement(
             break
 
     if not cluster_info:
-        raise Exception(
+        raise ToolError(
             f'Cluster {cluster_identifier} not found. Please use list_clusters to get valid cluster identifiers.'
         )
 
@@ -344,7 +345,7 @@ async def _execute_protected_statement(
                     logger.error(f'ROLLBACK statement execution failed: {close_error}')
                     if user_sql_error is not None:
                         # Both failed - raise combined error
-                        raise Exception(
+                        raise ToolError(
                             f'User SQL failed: {user_sql_error}; '
                             f'ROLLBACK statement failed: {close_error}'
                         ) from close_error
@@ -399,7 +400,7 @@ async def _execute_statement(
         The terminal statement response, carrying Id, Status, SessionId and HasResultSet.
 
     Raises:
-        Exception: If the statement fails, is aborted, or times out.
+        ToolError: If the statement fails, is aborted, or times out.
     """
     data_client = client_manager.redshift_data_client()
 
@@ -414,6 +415,9 @@ async def _execute_statement(
         elif cluster_info.type == 'serverless':
             request_params['WorkgroupName'] = cluster_identifier
         else:
+            # Discovery only ever sets 'provisioned' or 'serverless', so reaching this is
+            # our bug, not something the caller can act on. Left as a bare exception so
+            # the SDK reports it as a crash and logs the traceback.
             raise Exception(f'Unknown cluster type: {cluster_info.type}')
 
     # Add parameters if provided
@@ -457,11 +461,11 @@ async def _execute_statement(
                 )
                 error_msg = described.get('Error', 'Unknown error')
             logger.error(f'Statement failed: {error_msg}')
-            raise Exception(f'Statement failed: {error_msg}')
+            raise ToolError(f'Statement failed: {error_msg}')
 
         if time.monotonic() >= deadline:
             logger.error(f'Statement timed out: {statement_id}')
-            raise Exception(f'Statement timed out after {query_timeout} seconds')
+            raise ToolError(f'Statement timed out after {query_timeout} seconds')
 
         await asyncio.sleep(query_poll_interval)
 
@@ -487,7 +491,7 @@ async def discover_clusters() -> list[RedshiftCluster]:
         List of RedshiftCluster models.
 
     Raises:
-        Exception: If both provisioned and serverless discovery fail.
+        ToolError: If both provisioned and serverless discovery fail.
     """
     clusters = []
     provisioned_error = None
@@ -582,7 +586,7 @@ async def discover_clusters() -> list[RedshiftCluster]:
             f'Serverless: {serverless_error}'
         )
         logger.error(msg)
-        raise PermissionError(msg)
+        raise ToolError(msg)
 
     logger.info(f'Total clusters discovered: {len(clusters)}')
     return clusters

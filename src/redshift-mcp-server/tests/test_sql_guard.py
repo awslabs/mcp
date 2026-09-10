@@ -21,6 +21,7 @@ pins one behavior; cases reflect how sqlglot (Redshift dialect) parses each inpu
 import pytest
 from awslabs.redshift_mcp_server.consts import MAX_SQL_LEN
 from awslabs.redshift_mcp_server.sql_guard import assert_executable, might_write
+from mcp.server.mcpserver.exceptions import ToolError
 
 
 # Placeholder IAM role ARN for UNLOAD payloads.
@@ -44,7 +45,7 @@ class TestNestedCommentBypassRegression:
     )
     def test_nested_comment_prefix_then_denied_statement_is_rejected(self, sql):
         """A denied statement hidden behind a nested-comment prefix is rejected."""
-        with pytest.raises(Exception):
+        with pytest.raises(ToolError):
             assert_executable(sql)
 
     def test_nested_comment_prefix_then_select_cannot_smuggle_a_denied_op(self):
@@ -53,7 +54,7 @@ class TestNestedCommentBypassRegression:
         assert_executable('/* a /* b */ SELECT 1 FROM */ SELECT 99 AS pwned')
 
         # The same prefix before a denied statement is rejected, so it cannot smuggle.
-        with pytest.raises(Exception):
+        with pytest.raises(ToolError):
             assert_executable('/* a /* b */ SELECT 1 FROM */ TRUNCATE pwned')
 
     def test_nested_comment_that_swallows_a_denied_op_then_benign_select_is_allowed(self):
@@ -111,7 +112,7 @@ class TestDenyList:
     )
     def test_transaction_control_is_rejected(self, sql):
         """Transaction-control statements (with WORK/TRANSACTION variants) are rejected."""
-        with pytest.raises(Exception):
+        with pytest.raises(ToolError):
             assert_executable(sql)
 
     @pytest.mark.parametrize(
@@ -129,7 +130,7 @@ class TestDenyList:
     )
     def test_case_and_leading_trivia_variants_are_rejected(self, sql):
         """Mixed case and leading whitespace/comments do not hide a deny-listed keyword."""
-        with pytest.raises(Exception):
+        with pytest.raises(ToolError):
             assert_executable(sql)
 
     @pytest.mark.parametrize(
@@ -143,7 +144,7 @@ class TestDenyList:
     )
     def test_truncate_is_rejected(self, sql):
         """`TRUNCATE`, including the no-space `TRUNCATE"tbl"` form, is rejected."""
-        with pytest.raises(Exception):
+        with pytest.raises(ToolError):
             assert_executable(sql)
 
     @pytest.mark.parametrize(
@@ -164,7 +165,7 @@ class TestDenyList:
     )
     def test_egress_dcl_maintenance_and_call_are_rejected(self, sql):
         """Egress, DCL, maintenance, comment, cancel, and CALL statements are rejected."""
-        with pytest.raises(Exception):
+        with pytest.raises(ToolError):
             assert_executable(sql)
 
     @pytest.mark.parametrize(
@@ -175,12 +176,12 @@ class TestDenyList:
     )
     def test_leading_semicolon_before_deny_keyword_is_rejected(self, sql):
         """Leading semicolons cannot smuggle a deny-listed keyword past the guard."""
-        with pytest.raises(Exception):
+        with pytest.raises(ToolError):
             assert_executable(sql)
 
     def test_truncate_rejection_reason_is_pinned(self):
         """A denied TRUNCATE surfaces the `Statement type not allowed` reason."""
-        with pytest.raises(Exception, match='Statement type not allowed'):
+        with pytest.raises(ToolError, match='Statement type not allowed'):
             assert_executable('TRUNCATE foo')
 
 
@@ -197,7 +198,7 @@ class TestMultiStatement:
     )
     def test_multi_statement_is_rejected(self, sql):
         """Stacked statements (mode-flip + write, GUC-flip + truncate, stacked reads) are rejected."""
-        with pytest.raises(Exception, match='single SQL statement is allowed'):
+        with pytest.raises(ToolError, match='single SQL statement is allowed'):
             assert_executable(sql)
 
 
@@ -252,12 +253,12 @@ class TestFailClosed:
         from awslabs.redshift_mcp_server.consts import MAX_SQL_LEN
 
         oversized = 'SELECT 1' + ' ' * (MAX_SQL_LEN + 1)
-        with pytest.raises(Exception, match='maximum allowed length'):
+        with pytest.raises(ToolError, match='maximum allowed length'):
             assert_executable(oversized)
 
     def test_unparseable_sql_is_rejected_and_chains_the_cause(self):
         """An unparseable statement fails closed with a generic reason; the parser error is preserved via the chained cause, not the message."""
-        with pytest.raises(Exception, match='could not be parsed') as exc_info:
+        with pytest.raises(ToolError, match='could not be parsed') as exc_info:
             assert_executable('SELECT FROM WHERE')
 
         # The reason is a stable, generic message (does not embed the submitted SQL or parser text).
@@ -268,7 +269,7 @@ class TestFailClosed:
     def test_deeply_nested_input_is_rejected(self):
         """Deeply nested input (parser recursion limit) fails closed."""
         sql = '(' * 5000 + 'SELECT 1' + ')' * 5000
-        with pytest.raises(Exception, match='could not be parsed'):
+        with pytest.raises(ToolError, match='could not be parsed'):
             assert_executable(sql)
 
 
@@ -289,7 +290,7 @@ class TestReadWriteMode:
 
     def test_multi_statement_still_rejected_in_read_write(self):
         """Statement stacking is rejected regardless of mode."""
-        with pytest.raises(Exception, match='single SQL statement is allowed'):
+        with pytest.raises(ToolError, match='single SQL statement is allowed'):
             assert_executable('SELECT 1; SELECT 2', allow_read_write=True)
 
 
@@ -465,7 +466,7 @@ class TestMightWriteFailsTowardsWriting:
 
     def test_unparseable_sql_is_rejected(self):
         """A parse failure fails closed, as it does in the guard."""
-        with pytest.raises(Exception, match='could not be parsed'):
+        with pytest.raises(ToolError, match='could not be parsed'):
             might_write('SELECT FROM WHERE ;;')
 
     def test_comment_only_input_might_write(self):

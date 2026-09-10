@@ -28,6 +28,7 @@ Both fail closed: any parse error is a rejection, and anything unrecognized migh
 import sqlglot
 from awslabs.redshift_mcp_server.consts import MAX_SQL_LEN
 from loguru import logger
+from mcp.server.mcpserver.exceptions import ToolError
 from sqlglot import exp
 from typing import NoReturn
 
@@ -103,12 +104,12 @@ def _reject(reason: str, cause: BaseException | None = None) -> NoReturn:
         cause: Optional underlying exception to chain so the real error is not hidden.
 
     Raises:
-        Exception: Always raised with `reason`, chained from `cause` when provided.
+        ToolError: Always raised with `reason`, chained from `cause` when provided.
     """
     logger.warning(f'SQL guard rejected query: {reason}')
     if cause is not None:
-        raise Exception(reason) from cause
-    raise Exception(reason)
+        raise ToolError(reason) from cause
+    raise ToolError(reason)
 
 
 def _parse(sql: str) -> list[exp.Expression]:
@@ -122,7 +123,7 @@ def _parse(sql: str) -> list[exp.Expression]:
         semicolons or comment/whitespace-only input.
 
     Raises:
-        Exception: via `_reject` on any sqlglot error (parse/tokenize, or
+        ToolError: via `_reject` on any sqlglot error (parse/tokenize, or
             `RecursionError` on deep nesting); the original error is chained as the
             cause, not swallowed.
     """
@@ -239,7 +240,7 @@ def assert_executable(sql: str, allow_read_write: bool = False) -> None:
             read-only statement-type deny-list.
 
     Raises:
-        Exception: If the SQL is rejected by the guard.
+        ToolError: If the SQL is rejected by the guard.
     """
     if len(sql) > MAX_SQL_LEN:
         _reject('SQL exceeds the maximum allowed length')

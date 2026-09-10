@@ -49,7 +49,8 @@ from awslabs.redshift_mcp_server.server import (
     review_cluster_tool,
 )
 from datetime import datetime
-from mcp.server.mcpserver import Context, Elicit
+from mcp.server.mcpserver import Context, Elicit, MCPServer
+from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
 
 
 class TestResolveAccessMode:
@@ -185,7 +186,7 @@ class TestWriteConfirmation:
         self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
         ctx = self._ctx(mocker)
 
-        with pytest.raises(Exception, match='single SQL statement is allowed'):
+        with pytest.raises(ToolError, match='single SQL statement is allowed'):
             _write_confirmation(ctx, 'test-cluster', 'dev', 'SELECT 1; DROP TABLE t')
 
         ctx.session.check_client_capability.assert_not_called()
@@ -194,7 +195,7 @@ class TestWriteConfirmation:
         """A client without elicitation support is refused rather than run unconfirmed."""
         self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
 
-        with pytest.raises(Exception, match='cannot prompt for confirmation'):
+        with pytest.raises(ToolError, match='cannot prompt for confirmation'):
             _write_confirmation(
                 self._ctx(mocker, can_elicit=False), 'test-cluster', 'dev', 'DELETE FROM t'
             )
@@ -203,7 +204,7 @@ class TestWriteConfirmation:
         """The refusal tells the operator which setting lets them proceed."""
         self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
 
-        with pytest.raises(Exception, match='UNSAFE_SKIP_WRITE_CONFIRMATION'):
+        with pytest.raises(ToolError, match='UNSAFE_SKIP_WRITE_CONFIRMATION'):
             _write_confirmation(
                 self._ctx(mocker, can_elicit=False), 'test-cluster', 'dev', 'DELETE FROM t'
             )
@@ -352,10 +353,9 @@ class TestListClustersTool:
     @pytest.mark.asyncio
     async def test_list_clusters_tool_error(self, mocker):
         """Test list_clusters_tool error handling."""
-        from unittest.mock import AsyncMock, Mock
+        from unittest.mock import Mock
 
         mock_ctx = Mock()
-        mock_ctx.error = AsyncMock()
 
         mocker.patch(
             'awslabs.redshift_mcp_server.server.discover_clusters',
@@ -364,8 +364,6 @@ class TestListClustersTool:
 
         with pytest.raises(Exception, match='Test error'):
             await list_clusters_tool(mock_ctx)
-
-        mock_ctx.error.assert_called_once_with('Failed to list clusters: Test error')
 
 
 class TestListDatabasesTool:
@@ -427,10 +425,9 @@ class TestListDatabasesTool:
     @pytest.mark.asyncio
     async def test_list_databases_tool_error(self, mocker):
         """Test list_databases_tool error handling."""
-        from unittest.mock import AsyncMock, Mock
+        from unittest.mock import Mock
 
         mock_ctx = Mock()
-        mock_ctx.error = AsyncMock()
 
         mocker.patch(
             'awslabs.redshift_mcp_server.server.discover_databases',
@@ -439,10 +436,6 @@ class TestListDatabasesTool:
 
         with pytest.raises(Exception, match='DB error'):
             await list_databases_tool(mock_ctx, 'test-cluster')
-
-        mock_ctx.error.assert_called_once_with(
-            'Failed to list databases on cluster test-cluster: DB error'
-        )
 
 
 class TestListSchemasTool:
@@ -502,10 +495,9 @@ class TestListSchemasTool:
     @pytest.mark.asyncio
     async def test_list_schemas_tool_error(self, mocker):
         """Test list_schemas_tool error handling."""
-        from unittest.mock import AsyncMock, Mock
+        from unittest.mock import Mock
 
         mock_ctx = Mock()
-        mock_ctx.error = AsyncMock()
 
         mocker.patch(
             'awslabs.redshift_mcp_server.server.discover_schemas',
@@ -514,10 +506,6 @@ class TestListSchemasTool:
 
         with pytest.raises(Exception, match='Schema error'):
             await list_schemas_tool(mock_ctx, 'test-cluster', 'test-db')
-
-        mock_ctx.error.assert_called_once_with(
-            'Failed to list schemas in database test-db on cluster test-cluster: Schema error'
-        )
 
 
 class TestListTablesTool:
@@ -575,10 +563,9 @@ class TestListTablesTool:
     @pytest.mark.asyncio
     async def test_list_tables_tool_error(self, mocker):
         """Test list_tables_tool error handling."""
-        from unittest.mock import AsyncMock, Mock
+        from unittest.mock import Mock
 
         mock_ctx = Mock()
-        mock_ctx.error = AsyncMock()
 
         mocker.patch(
             'awslabs.redshift_mcp_server.server.discover_tables',
@@ -587,10 +574,6 @@ class TestListTablesTool:
 
         with pytest.raises(Exception, match='Table error'):
             await list_tables_tool(mock_ctx, 'test-cluster', 'test-db', 'test-schema')
-
-        mock_ctx.error.assert_called_once_with(
-            'Failed to list tables in schema test-schema in database test-db on cluster test-cluster: Table error'
-        )
 
 
 class TestListColumnsTool:
@@ -662,10 +645,9 @@ class TestListColumnsTool:
     @pytest.mark.asyncio
     async def test_list_columns_tool_error(self, mocker):
         """Test list_columns_tool error handling."""
-        from unittest.mock import AsyncMock, Mock
+        from unittest.mock import Mock
 
         mock_ctx = Mock()
-        mock_ctx.error = AsyncMock()
 
         mocker.patch(
             'awslabs.redshift_mcp_server.server.discover_columns',
@@ -676,10 +658,6 @@ class TestListColumnsTool:
             await list_columns_tool(
                 mock_ctx, 'test-cluster', 'test-db', 'test-schema', 'test-table'
             )
-
-        mock_ctx.error.assert_called_once_with(
-            'Failed to list columns in table test-table in schema test-schema in database test-db on cluster test-cluster: Column error'
-        )
 
 
 class TestExecuteQueryTool:
@@ -758,13 +736,12 @@ class TestExecuteQueryTool:
         Decline and cancel never reach here: the framework aborts the call at the
         resolver, so this covers only the accepted-but-refused path.
         """
-        from unittest.mock import AsyncMock, Mock
+        from unittest.mock import Mock
 
         mock_execute_query = mocker.patch('awslabs.redshift_mcp_server.server.execute_query')
         mock_ctx = Mock()
-        mock_ctx.error = AsyncMock()
 
-        with pytest.raises(Exception, match='not confirmed'):
+        with pytest.raises(ToolError, match='not confirmed'):
             await execute_query_tool(
                 mock_ctx,
                 ConfirmWrite(confirmed=False),
@@ -806,10 +783,9 @@ class TestExecuteQueryTool:
     @pytest.mark.asyncio
     async def test_execute_query_tool_error(self, mocker):
         """Test execute_query_tool error handling."""
-        from unittest.mock import AsyncMock, Mock
+        from unittest.mock import Mock
 
         mock_ctx = Mock()
-        mock_ctx.error = AsyncMock()
 
         mocker.patch(
             'awslabs.redshift_mcp_server.server.execute_query',
@@ -820,10 +796,6 @@ class TestExecuteQueryTool:
             await execute_query_tool(
                 mock_ctx, ConfirmWrite(confirmed=True), 'test-cluster', 'test-db', 'SELECT 1'
             )
-
-        mock_ctx.error.assert_called_once_with(
-            'Failed to execute query on cluster test-cluster in database test-db: Query error'
-        )
 
 
 class TestReviewClusterTool:
@@ -849,7 +821,6 @@ class TestReviewClusterTool:
     def _make_mock_ctx(self, mocker):
         """Build a mock Context."""
         mock_ctx = mocker.Mock(spec=Context)
-        mock_ctx.error = mocker.AsyncMock()
         mock_ctx.request_context = mocker.Mock()
         return mock_ctx
 
@@ -930,6 +901,38 @@ class TestReviewClusterTool:
                 database_name='dev',
             )
 
-        mock_ctx.error.assert_called_once_with(
-            'Failed to review cluster test-cluster: Data API timeout'
-        )
+
+class TestAnticipatedFailuresReachTheModel:
+    """Regression cover for GH #4603: anticipated failures keep their text."""
+
+    @pytest.mark.asyncio
+    async def test_tool_error_keeps_its_message_and_bare_exception_does_not(self):
+        """Pin the SDK contract this server's exception choice depends on.
+
+        The SDK classifies a tool failure by its exception type: `ToolError` is
+        anticipated and its message reaches the model, anything else is a crash whose
+        text is withheld. Every failure the caller can act on is therefore raised as
+        `ToolError`. If a future SDK release changes that split, this test fails and
+        names the reason rather than leaving the server quietly opaque again.
+        """
+        message = 'Statement failed: ERROR: column "error" does not exist'
+        scratch = MCPServer('test-anticipated-failures')
+
+        @scratch.tool(name='anticipated')
+        async def anticipated() -> str:
+            """Fails the way this server's tools fail."""
+            raise ToolError(message)
+
+        @scratch.tool(name='crash')
+        async def crash() -> str:
+            """Fails with a bare exception, as this server used to."""
+            raise Exception(message)
+
+        with pytest.raises(ToolError) as anticipated_failure:
+            await scratch.call_tool('anticipated', {})
+        assert message in str(anticipated_failure.value)
+        assert not isinstance(anticipated_failure.value, UnexpectedToolError)
+
+        with pytest.raises(UnexpectedToolError) as crash_failure:
+            await scratch.call_tool('crash', {})
+        assert message not in str(crash_failure.value)
