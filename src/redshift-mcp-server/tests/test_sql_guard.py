@@ -157,16 +157,28 @@ class TestDenyList:
             'ANALYZE',
             'ANALYZE foo',
             "COMMENT ON TABLE foo IS 'note'",
-            'CANCEL 12345',
             'CALL my_proc()',
             "UNLOAD ('SELECT 1') TO 's3://bucket/prefix'",
             f"UNLOAD ('SELECT 1') TO 's3://bucket/prefix' IAM_ROLE '{_ARN}'",
         ],
     )
     def test_egress_dcl_maintenance_and_call_are_rejected(self, sql):
-        """Egress, DCL, maintenance, comment, cancel, and CALL statements are rejected."""
+        """Egress, DCL, maintenance, comment, and CALL statements are rejected."""
         with pytest.raises(ToolError):
             assert_executable(sql)
+
+    def test_cancel_is_rejected_by_whichever_path_reaches_it(self):
+        """`CANCEL` is refused either way, but only its bare form reaches the deny list.
+
+        `CANCEL <pid>` does not parse in this dialect, so it is rejected before the deny list
+        is consulted. Pinning both paths keeps the entry from looking like it covers the form
+        that carries a pid.
+        """
+        with pytest.raises(ToolError, match='SQL could not be parsed'):
+            assert_executable('CANCEL 12345')
+
+        with pytest.raises(ToolError, match='not allowed in read-only mode: CANCEL'):
+            assert_executable('CANCEL')
 
     @pytest.mark.parametrize(
         'sql',
@@ -203,7 +215,42 @@ class TestMultiStatement:
 
 
 class TestSessionSettings:
-    """Session-setting statements are allowed (rendered inert by single-statement + BEGIN READ ONLY)."""
+    """Session settings are rejected in read-only mode, because one of them clears it.
+
+    They were allowed while every call was its own session, on the grounds that a single
+    statement plus `BEGIN READ ONLY` rendered them inert. Named transactions span calls, so
+    `SET transaction_read_only TO off` inside one strips the read-only property and every
+    later statement in that transaction writes for real. Denying the pair costs nothing:
+    outside a transaction a setting has no later statement to apply to.
+    """
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            'SET transaction_read_only TO off',
+            'SET transaction_read_only = off',
+            'SET SESSION transaction_read_only TO off',
+            'SET LOCAL transaction_read_only TO off',
+            'SET TRANSACTION READ WRITE',
+            'SET SESSION CHARACTERISTICS AS TRANSACTION READ WRITE',
+            'RESET transaction_read_only',
+            'RESET ALL',
+        ],
+        ids=[
+            'set_to_off',
+            'set_equals_off',
+            'set_session',
+            'set_local',
+            'set_transaction',
+            'session_characteristics',
+            'reset_it',
+            'reset_all',
+        ],
+    )
+    def test_statements_that_clear_read_only_are_rejected(self, sql):
+        """Each of these would let a later statement in the same transaction write."""
+        with pytest.raises(ToolError, match='Statement type not allowed in read-only mode'):
+            assert_executable(sql)
 
     @pytest.mark.parametrize(
         'sql',
@@ -213,9 +260,18 @@ class TestSessionSettings:
             'RESET search_path',
         ],
     )
-    def test_session_settings_are_allowed(self, sql):
-        """`SET`/`RESET` session settings pass the guard."""
-        assert_executable(sql)
+    def test_harmless_session_settings_are_rejected_too(self, sql):
+        """Told apart from the dangerous ones only by a value, so the whole pair goes."""
+        with pytest.raises(ToolError, match='Statement type not allowed in read-only mode'):
+            assert_executable(sql)
+
+    @pytest.mark.parametrize(
+        'sql',
+        ['SET search_path TO public', 'SET transaction_read_only TO off', 'RESET ALL'],
+    )
+    def test_session_settings_are_allowed_when_writes_are(self, sql):
+        """A caller permitted to write gains nothing from clearing a property it does not have."""
+        assert_executable(sql, enforce_read_only=False)
 
 
 class TestNoFalsePositives:

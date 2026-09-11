@@ -33,6 +33,13 @@ QUERY_TIMEOUT = 3600
 QUERY_POLL_INTERVAL = 1
 QUERY_LONG_POLL = 30
 
+# How long an open transaction may sit idle before Redshift ends it, in seconds. Sent as the
+# Data API's SessionKeepAliveSeconds, whose own ceiling is 86400.
+SESSION_KEEPALIVE_DEFAULT = 600
+SESSION_KEEPALIVE_MAX = 86400
+# How many transactions one caller may hold open at once against one cluster and database.
+MAX_OPEN_TRANSACTIONS_PER_TARGET_DEFAULT = 10
+
 # SQL discovery commands. Results are read positionally; {placeholders} are
 # filled with quoted identifiers by the caller.
 DATABASES_SQL = 'SHOW DATABASES;'

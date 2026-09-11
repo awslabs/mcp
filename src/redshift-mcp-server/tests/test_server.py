@@ -28,6 +28,10 @@ from awslabs.redshift_mcp_server.models import (
     RedshiftSchema,
     RedshiftTable,
 )
+from awslabs.redshift_mcp_server.redshift import (
+    max_open_transactions_per_target,
+    session_keepalive,
+)
 from awslabs.redshift_mcp_server.review.models import (
     ReviewFinding,
     ReviewRecommendation,
@@ -35,6 +39,7 @@ from awslabs.redshift_mcp_server.review.models import (
 )
 from awslabs.redshift_mcp_server.server import (
     ConfirmWrite,
+    _current_settings,
     _execute_query_annotations,
     _resolve_access_mode,
     _resolve_skip_write_confirmation,
@@ -157,6 +162,29 @@ class TestWriteConfirmation:
         assert 'DELETE FROM t' in result.message
         assert 'cannot be rolled back' in result.message
 
+    def test_a_write_inside_a_transaction_is_not_described_as_final(self, mocker):
+        """Inside a transaction the write is not final until it is committed."""
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+
+        result = _write_confirmation(
+            self._ctx(mocker), 'test-cluster', 'dev', 'DELETE FROM t', in_transaction='load'
+        )
+
+        assert isinstance(result, Elicit)
+        assert "transaction 'load'" in result.message
+        assert 'not final until you commit' in result.message
+        assert 'cannot be rolled back' not in result.message
+
+    def test_closing_a_transaction_asks_nothing(self, mocker):
+        """A bare commit or rollback runs no statement of the caller's."""
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+
+        result = _write_confirmation(
+            self._ctx(mocker), 'test-cluster', 'dev', None, commit_transaction='load'
+        )
+
+        assert result == ConfirmWrite(confirmed=True)
+
     def test_read_in_read_write_mode_asks_nothing(self, mocker):
         """A recognized read is not confirmed, even when writes are permitted."""
         self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
@@ -234,6 +262,40 @@ class TestExecuteQueryAnnotations:
         assert annotations.open_world_hint is True
 
 
+class TestCurrentSettings:
+    """The settings block reports resolved values the caller cannot read for itself."""
+
+    def test_lists_every_setting_with_its_value(self):
+        """Each setting the prose names appears with the value this server resolved."""
+        settings = _current_settings()
+
+        assert '## Current Settings' in settings
+        assert f'`ACCESS_MODE`: {ACCESS_MODE_READ_ONLY}' in settings
+        assert '`UNSAFE_SKIP_WRITE_CONFIRMATION`: false' in settings
+        assert f'`SESSION_KEEPALIVE`: {session_keepalive()} seconds' in settings
+        assert (
+            f'`MAX_OPEN_TRANSACTIONS_PER_TARGET`: {max_open_transactions_per_target()}' in settings
+        )
+
+    def test_confirmed_writes_hand_over_nothing(self):
+        """With the prompt on, the caller is asked to take on no duty of its own."""
+        assert 'get their agreement yourself' not in _current_settings()
+
+    def test_skipped_confirmation_states_it_and_delegates_the_check(self, mocker):
+        """With the prompt off, the block reports the mechanism and hands over the duty."""
+        mocker.patch('awslabs.redshift_mcp_server.server.SKIP_WRITE_CONFIRMATION', True)
+
+        settings = _current_settings()
+
+        assert '`UNSAFE_SKIP_WRITE_CONFIRMATION`: true' in settings
+        assert 'get their agreement yourself' in settings
+
+    def test_the_instructions_end_with_the_settings(self):
+        """The instructions are the one place the block appears, so the caller reads it once."""
+        assert mcp.instructions is not None
+        assert mcp.instructions.endswith(_current_settings())
+
+
 @pytest.mark.asyncio
 async def test_tool_annotations():
     """Test that every tool advertises its read-only behavior to MCP clients.
@@ -271,7 +333,15 @@ async def test_resolved_confirmation_is_not_a_tool_argument():
 
     properties = tools['execute_query'].input_schema['properties']
 
-    assert set(properties) == {'cluster_identifier', 'database_name', 'sql'}
+    assert set(properties) == {
+        'cluster_identifier',
+        'database_name',
+        'sql',
+        'begin_transaction',
+        'in_transaction',
+        'commit_transaction',
+        'rollback_transaction',
+    }
 
 
 class TestListClustersTool:
@@ -727,6 +797,10 @@ class TestExecuteQueryTool:
             database_name='dev',
             sql='SELECT 1 AS id',
             enforce_read_only=not allow_writes,
+            begin_transaction=None,
+            in_transaction=None,
+            commit_transaction=None,
+            rollback_transaction=None,
         )
 
     @pytest.mark.asyncio

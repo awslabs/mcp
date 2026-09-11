@@ -51,18 +51,28 @@ _READ_ONLY_DENY_KEYWORD_LIST = frozenset(
         'VACUUM',
         'ANALYZE',
         'COMMENT',
+        # Only bare `CANCEL` reaches this list. `CANCEL <pid>`, the form that does anything,
+        # does not parse in this dialect and is rejected as unparseable instead.
         'CANCEL',
+        # A session setting can clear the read-only property BEGIN READ ONLY established:
+        # `SET transaction_read_only TO off`, `SET TRANSACTION READ WRITE`, `SET SESSION
+        # CHARACTERISTICS AS TRANSACTION READ WRITE`, and `RESET` of any of those or of ALL.
+        # A single statement could not exploit that, since its transaction ends with the
+        # call, but a named transaction spans calls and a later statement in it would write.
+        # Nothing is lost by denying them: outside a transaction a setting has no future to
+        # apply to.
+        'SET',
+        'RESET',
     }
 )
 
 # Bare commands treated as reads, matched by name because sqlglot has no node class
-# for them. Anything not listed might write.
+# for them. Anything not listed might write. `DESC` and `DESCRIBE` are deliberately absent:
+# Redshift has neither, so allow-listing them would only widen the surface.
 _READ_COMMAND_ALLOW_KEYWORD_LIST = frozenset(
     {
         'SHOW',
         'EXPLAIN',
-        'DESC',
-        'DESCRIBE',
     }
 )
 
@@ -175,6 +185,9 @@ def _read_only_denied_keyword(node: exp.Expression) -> str | None:
     # ANALYZE, including `ANALYZE <table>`.
     if isinstance(node, exp.Analyze):
         return 'ANALYZE'
+    # SET has its own node; RESET and `SET SESSION CHARACTERISTICS` fall through to Command.
+    if isinstance(node, exp.Set):
+        return 'SET'
     # Generic/bare commands sqlglot has no dedicated class for: UNLOAD, CALL, VACUUM,
     # and any other deny-listed word surfaced as a command (matched by name).
     if isinstance(node, exp.Command):

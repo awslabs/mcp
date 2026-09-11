@@ -26,8 +26,11 @@ from awslabs.redshift_mcp_server.models import RedshiftCluster
 from awslabs.redshift_mcp_server.redshift import (
     _APP_NAME_SQL,
     RedshiftClientManager,
+    RedshiftTransactionManager,
     _execute_batch,
-    _execute_protected_statement,
+    _execute_standalone_statement,
+    _resolve_int_env,
+    _resolve_transaction_action,
     _sql_identifier,
     discover_clusters,
     discover_columns,
@@ -35,11 +38,14 @@ from awslabs.redshift_mcp_server.redshift import (
     discover_schemas,
     discover_tables,
     execute_query,
+    max_open_transactions_per_target,
+    session_keepalive,
 )
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from mcp.server.mcpserver.exceptions import ToolError
 from sqlglot import exp
+from typing import Any
 
 
 def _fake_cluster(identifier='test-cluster', type='provisioned', status='available'):
@@ -57,7 +63,7 @@ def _fake_sub(index, status='FINISHED', has_result_set=False, error=None):
     return sub
 
 
-def _fake_batch(subs, status=None, error=None):
+def _fake_batch(subs, status=None, error=None, session_id=None):
     """Build the terminal batch response that _execute_batch() returns.
 
     Each entry of `subs` is either a status string or the keyword arguments for _fake_sub.
@@ -74,6 +80,8 @@ def _fake_batch(subs, status=None, error=None):
     batch = {'Id': 'batch-id', 'Status': status, 'SubStatements': sub_statements}
     if error is not None:
         batch['Error'] = error
+    if session_id is not None:
+        batch['SessionId'] = session_id
     return batch
 
 
@@ -286,7 +294,7 @@ class TestRedshiftClientManagerDataClient:
 
 
 class TestExecuteProtectedStatement:
-    """Tests for _execute_protected_statement function."""
+    """Tests for _execute_standalone_statement function."""
 
     @pytest.mark.asyncio
     async def test_read_is_wrapped_in_a_read_only_transaction(self, mocker):
@@ -300,7 +308,7 @@ class TestExecuteProtectedStatement:
             return_value=_fake_batch(['FINISHED', 'FINISHED', 'FINISHED', 'FINISHED']),
         )
 
-        _, query_id = await _execute_protected_statement(
+        _, query_id = await _execute_standalone_statement(
             'test-cluster', 'test-db', 'SELECT 1', enforce_read_only=True
         )
 
@@ -326,7 +334,7 @@ class TestExecuteProtectedStatement:
             return_value=_fake_batch(['FINISHED', 'FINISHED']),
         )
 
-        _, query_id = await _execute_protected_statement(
+        _, query_id = await _execute_standalone_statement(
             'test-cluster',
             'test-db',
             'CREATE TABLE t (id int)',
@@ -351,7 +359,7 @@ class TestExecuteProtectedStatement:
             return_value=_fake_batch(['FINISHED', 'FINISHED']),
         )
 
-        await _execute_protected_statement(
+        await _execute_standalone_statement(
             'test-cluster',
             'test-db',
             'SHOW DATABASES;',
@@ -370,7 +378,7 @@ class TestExecuteProtectedStatement:
         mock_execute_batch = mocker.patch('awslabs.redshift_mcp_server.redshift._execute_batch')
 
         with pytest.raises(ToolError, match='single SQL statement is allowed'):
-            await _execute_protected_statement(
+            await _execute_standalone_statement(
                 'test-cluster',
                 'test-db',
                 'CREATE TABLE t (id int); DROP TABLE t;',
@@ -390,7 +398,7 @@ class TestExecuteProtectedStatement:
 
         for sql in ('UNLOAD ($$SELECT 1$$) TO $$s3://b/k$$ IAM_ROLE $$r$$', 'VACUUM t', 'COMMIT'):
             with pytest.raises(ToolError):
-                await _execute_protected_statement('test-cluster', 'test-db', sql)
+                await _execute_standalone_statement('test-cluster', 'test-db', sql)
 
         mock_execute_batch.assert_not_called()
 
@@ -404,7 +412,7 @@ class TestExecuteProtectedStatement:
         mock_execute_batch = mocker.patch('awslabs.redshift_mcp_server.redshift._execute_batch')
 
         with pytest.raises(ToolError, match='exceeds the maximum allowed length'):
-            await _execute_protected_statement(
+            await _execute_standalone_statement(
                 'test-cluster', 'test-db', 'SELECT ' + 'x' * MAX_SQL_LEN
             )
 
@@ -416,7 +424,7 @@ class TestExecuteProtectedStatement:
         mocker.patch('awslabs.redshift_mcp_server.redshift.discover_clusters', return_value=[])
 
         with pytest.raises(ToolError, match='Cluster nonexistent-cluster not found'):
-            await _execute_protected_statement('nonexistent-cluster', 'test-db', 'SELECT 1')
+            await _execute_standalone_statement('nonexistent-cluster', 'test-db', 'SELECT 1')
 
     @pytest.mark.asyncio
     async def test_cluster_not_in_list(self, mocker):
@@ -427,7 +435,7 @@ class TestExecuteProtectedStatement:
         )
 
         with pytest.raises(ToolError, match='Cluster target-cluster not found'):
-            await _execute_protected_statement('target-cluster', 'test-db', 'SELECT 1')
+            await _execute_standalone_statement('target-cluster', 'test-db', 'SELECT 1')
 
     @pytest.mark.asyncio
     async def test_results_are_fetched_for_the_callers_statement_only(self, mocker):
@@ -453,7 +461,7 @@ class TestExecuteProtectedStatement:
             return_value=mock_data_client,
         )
 
-        results_response, query_id = await _execute_protected_statement(
+        results_response, query_id = await _execute_standalone_statement(
             'test-cluster', 'test-db', 'SELECT 1 AS one'
         )
 
@@ -478,7 +486,7 @@ class TestExecuteProtectedStatement:
             return_value=mock_data_client,
         )
 
-        results_response, _ = await _execute_protected_statement(
+        results_response, _ = await _execute_standalone_statement(
             'test-cluster',
             'test-db',
             'SET timezone TO UTC',
@@ -508,7 +516,7 @@ class TestExecuteProtectedStatement:
         )
 
         with pytest.raises(ToolError, match='relation "nope" does not exist'):
-            await _execute_protected_statement('test-cluster', 'test-db', 'SELECT * FROM nope')
+            await _execute_standalone_statement('test-cluster', 'test-db', 'SELECT * FROM nope')
 
     @pytest.mark.asyncio
     async def test_a_refused_connection_reports_the_reason_the_batch_carries(self, mocker):
@@ -532,7 +540,7 @@ class TestExecuteProtectedStatement:
         )
 
         with pytest.raises(ToolError, match='Cannot connect to shared database'):
-            await _execute_protected_statement(
+            await _execute_standalone_statement(
                 'test-cluster', 'awsdatacatalog', 'SHOW SCHEMAS', enforce_read_only=False
             )
 
@@ -549,7 +557,7 @@ class TestExecuteProtectedStatement:
         )
 
         with pytest.raises(ToolError, match='Statement failed: Unknown error'):
-            await _execute_protected_statement('test-cluster', 'test-db', 'SELECT 1')
+            await _execute_standalone_statement('test-cluster', 'test-db', 'SELECT 1')
 
     @pytest.mark.asyncio
     async def test_failed_wrapper_fails_the_call_even_though_the_read_ran(self, mocker):
@@ -571,7 +579,7 @@ class TestExecuteProtectedStatement:
         )
 
         with pytest.raises(ToolError, match='ROLLBACK went wrong'):
-            await _execute_protected_statement('test-cluster', 'test-db', 'SELECT 1')
+            await _execute_standalone_statement('test-cluster', 'test-db', 'SELECT 1')
 
     @pytest.mark.asyncio
     async def test_parameters_are_passed_through_to_the_batch(self, mocker):
@@ -586,7 +594,7 @@ class TestExecuteProtectedStatement:
         )
         parameters = [{'name': 'answer', 'value': '365'}]
 
-        await _execute_protected_statement(
+        await _execute_standalone_statement(
             'test-cluster', 'test-db', 'SELECT :answer', parameters=parameters
         )
 
@@ -673,6 +681,41 @@ class TestExecuteBatch:
             _fake_cluster(), 'test-cluster', 'test-db', ['SELECT :answer'], parameters=parameters
         )
         assert mock_data_client.batch_execute_statement.call_args[1]['Parameters'] == parameters
+
+    @pytest.mark.asyncio
+    async def test_a_session_replaces_the_cluster_and_database(self, mocker):
+        """A session already holds the connection, and the API refuses to be told again."""
+        mock_data_client = self._data_client(mocker, describes=[_fake_batch(['FINISHED'])])
+
+        await _execute_batch(
+            _fake_cluster(), 'test-cluster', 'test-db', ['SELECT 1'], session_id='session-1'
+        )
+
+        request = mock_data_client.batch_execute_statement.call_args[1]
+        assert request['SessionId'] == 'session-1'
+        assert 'ClusterIdentifier' not in request
+        assert 'WorkgroupName' not in request
+        assert 'Database' not in request
+
+    @pytest.mark.asyncio
+    async def test_a_keepalive_is_sent_when_given(self, mocker):
+        """It is what mints a session on an open, and what restarts the idle clock later."""
+        mock_data_client = self._data_client(
+            mocker, describes=[_fake_batch(['FINISHED']), _fake_batch(['FINISHED'])]
+        )
+
+        await _execute_batch(_fake_cluster(), 'test-cluster', 'test-db', ['BEGIN'])
+        assert (
+            'SessionKeepAliveSeconds'
+            not in (mock_data_client.batch_execute_statement.call_args[1])
+        )
+
+        await _execute_batch(
+            _fake_cluster(), 'test-cluster', 'test-db', ['BEGIN'], session_keepalive=42
+        )
+        assert (
+            mock_data_client.batch_execute_statement.call_args[1]['SessionKeepAliveSeconds'] == 42
+        )
 
     @pytest.mark.asyncio
     async def test_a_settled_submit_still_describes_for_the_sub_statement_ids(self, mocker):
@@ -863,7 +906,7 @@ class TestConcurrency:
 
         results = await asyncio.gather(
             *[
-                _execute_protected_statement('test-cluster', 'test-db', f'SELECT {i}')
+                _execute_standalone_statement('test-cluster', 'test-db', f'SELECT {i}')
                 for i in range(5)
             ]
         )
@@ -892,7 +935,7 @@ class TestConcurrency:
             return_value=mock_data_client,
         )
 
-        await _execute_protected_statement('test-cluster', 'test-db', 'SELECT 1')
+        await _execute_standalone_statement('test-cluster', 'test-db', 'SELECT 1')
 
         request = mock_data_client.batch_execute_statement.call_args[1]
         assert 'SessionId' not in request
@@ -1350,9 +1393,9 @@ class TestDiscoverFunctions:
     @pytest.mark.asyncio
     async def test_discover_databases(self, mocker):
         """Test discover_databases function."""
-        # Mock _execute_protected_statement
+        # Mock _execute_standalone_statement
         mock_execute_protected = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+            'awslabs.redshift_mcp_server.redshift._execute_standalone_statement'
         )
         # Verify column order is handled correctly.
         mock_execute_protected.return_value = (
@@ -1401,7 +1444,7 @@ class TestDiscoverFunctions:
     async def test_discover_databases_error(self, mocker):
         """Test error handling in discover_databases."""
         mock_execute_protected = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+            'awslabs.redshift_mcp_server.redshift._execute_standalone_statement'
         )
         mock_execute_protected.side_effect = Exception('Database discovery failed')
 
@@ -1411,9 +1454,9 @@ class TestDiscoverFunctions:
     @pytest.mark.asyncio
     async def test_discover_schemas(self, mocker):
         """Test discover_schemas function."""
-        # Mock _execute_protected_statement
+        # Mock _execute_standalone_statement
         mock_execute_protected = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+            'awslabs.redshift_mcp_server.redshift._execute_standalone_statement'
         )
         mock_execute_protected.return_value = (
             {
@@ -1466,7 +1509,7 @@ class TestDiscoverFunctions:
     async def test_discover_schemas_error(self, mocker):
         """Test error handling in discover_schemas."""
         mock_execute_protected = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+            'awslabs.redshift_mcp_server.redshift._execute_standalone_statement'
         )
         mock_execute_protected.side_effect = Exception('Schema discovery failed')
 
@@ -1476,9 +1519,9 @@ class TestDiscoverFunctions:
     @pytest.mark.asyncio
     async def test_discover_tables(self, mocker):
         """Test discover_tables function."""
-        # Mock _execute_protected_statement
+        # Mock _execute_standalone_statement
         mock_execute_protected = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+            'awslabs.redshift_mcp_server.redshift._execute_standalone_statement'
         )
         mock_execute_protected.return_value = (
             {
@@ -1533,7 +1576,7 @@ class TestDiscoverFunctions:
     async def test_discover_tables_error(self, mocker):
         """Test error handling in discover_tables."""
         mock_execute_protected = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+            'awslabs.redshift_mcp_server.redshift._execute_standalone_statement'
         )
         mock_execute_protected.side_effect = Exception('Table discovery failed')
 
@@ -1543,9 +1586,9 @@ class TestDiscoverFunctions:
     @pytest.mark.asyncio
     async def test_discover_columns(self, mocker):
         """Test discover_columns function."""
-        # Mock _execute_protected_statement
+        # Mock _execute_standalone_statement
         mock_execute_protected = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+            'awslabs.redshift_mcp_server.redshift._execute_standalone_statement'
         )
         mock_execute_protected.return_value = (
             {
@@ -1611,7 +1654,7 @@ class TestDiscoverFunctions:
     async def test_discover_columns_error(self, mocker):
         """Test error handling in discover_columns."""
         mock_execute_protected = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+            'awslabs.redshift_mcp_server.redshift._execute_standalone_statement'
         )
         mock_execute_protected.side_effect = Exception('Column discovery failed')
 
@@ -1625,9 +1668,9 @@ class TestExecuteQuery:
     @pytest.mark.asyncio
     async def test_execute_query_success(self, mocker):
         """Test successful query execution."""
-        # Mock _execute_protected_statement
+        # Mock _execute_standalone_statement
         mock_execute_protected = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+            'awslabs.redshift_mcp_server.redshift._execute_standalone_statement'
         )
         mock_execute_protected.return_value = (
             {
@@ -1673,7 +1716,7 @@ class TestExecuteQuery:
         The mapping from ACCESS_MODE onto this flag happens once, in the tool.
         """
         mock_execute_protected = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift._execute_protected_statement',
+            'awslabs.redshift_mcp_server.redshift._execute_standalone_statement',
             return_value=({'ColumnMetadata': [], 'Records': []}, 'query-123'),
         )
 
@@ -1686,9 +1729,9 @@ class TestExecuteQuery:
     @pytest.mark.asyncio
     async def test_execute_query_no_result_set(self, mocker):
         """SET-style statements with no result set return an empty, successful result."""
-        # Mock _execute_protected_statement to mimic a no-result-set statement
+        # Mock _execute_standalone_statement to mimic a no-result-set statement
         mock_execute_protected = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+            'awslabs.redshift_mcp_server.redshift._execute_standalone_statement'
         )
         mock_execute_protected.return_value = (
             {'Records': [], 'ColumnMetadata': []},
@@ -1709,9 +1752,9 @@ class TestExecuteQuery:
     @pytest.mark.asyncio
     async def test_execute_query_error_handling(self, mocker):
         """Test error handling in execute_query."""
-        # Mock _execute_protected_statement to raise exception
+        # Mock _execute_standalone_statement to raise exception
         mock_execute_protected = mocker.patch(
-            'awslabs.redshift_mcp_server.redshift._execute_protected_statement'
+            'awslabs.redshift_mcp_server.redshift._execute_standalone_statement'
         )
         mock_execute_protected.side_effect = Exception('Query execution failed')
 
@@ -1748,3 +1791,540 @@ class TestSqlIdentifier:
         identifier = sqlglot.parse_one(statement, read='redshift').find(exp.Identifier)
         assert identifier is not None
         assert identifier.name == value
+
+
+class TestResolveIntEnv:
+    """`_resolve_int_env` reads a setting without letting a typo stop the server."""
+
+    def test_unset_uses_the_default(self, monkeypatch):
+        """Nothing configured is the normal case."""
+        monkeypatch.delenv('PROBE_SETTING', raising=False)
+        assert _resolve_int_env('PROBE_SETTING', 600) == 600
+
+    def test_a_valid_value_is_taken_with_surrounding_space_ignored(self, monkeypatch):
+        """Values arrive from shells and JSON config, where stray space is common."""
+        monkeypatch.setenv('PROBE_SETTING', '  120  ')
+        assert _resolve_int_env('PROBE_SETTING', 600) == 120
+
+    @pytest.mark.parametrize(
+        'value',
+        ['abc', '', '12.5', '0', '-1'],
+        ids=['letters', 'empty', 'fractional', 'zero', 'negative'],
+    )
+    def test_an_unusable_value_falls_back(self, monkeypatch, value):
+        """A mistyped timeout should not take the server down at import."""
+        monkeypatch.setenv('PROBE_SETTING', value)
+        assert _resolve_int_env('PROBE_SETTING', 600) == 600
+
+    def test_a_value_past_the_ceiling_falls_back(self, monkeypatch):
+        """The Data API refuses a keepalive above 86400, so sending one would fail every call."""
+        monkeypatch.setenv('PROBE_SETTING', '86401')
+        assert _resolve_int_env('PROBE_SETTING', 600, maximum=86400) == 600
+
+    def test_a_value_below_the_floor_falls_back(self, monkeypatch):
+        """A floor above 1 is rejected on its own terms, not just against zero."""
+        monkeypatch.setenv('PROBE_SETTING', '5')
+        assert _resolve_int_env('PROBE_SETTING', 600, minimum=10) == 600
+
+
+class TestRedshiftTransactionManager:
+    """Tests for RedshiftTransactionManager."""
+
+    def _manager(self, max_open_per_target=10):
+        """Build a manager with no transactions in it."""
+        return RedshiftTransactionManager(max_open_per_target=max_open_per_target)
+
+    def test_one_lock_per_transaction(self):
+        """Two statements in one transaction must serialize; two transactions must not."""
+        manager = self._manager()
+
+        assert manager.lock('a') is manager.lock('a')
+        assert manager.lock('a') is not manager.lock('b')
+
+    def test_a_reserved_and_attached_transaction_reports_its_session(self):
+        """The session is what every later statement in the transaction runs on."""
+        manager = self._manager()
+
+        manager.reserve('key', 'target', 'load')
+        manager.attach('key', 'session-1')
+
+        assert manager.session_id('key', 'load') == 'session-1'
+
+    def test_reserving_an_open_name_is_refused(self):
+        """Silently joining someone else's transaction is the failure mode to avoid."""
+        manager = self._manager()
+        manager.reserve('key', 'target', 'load')
+
+        with pytest.raises(ToolError, match="Transaction 'load' is already open"):
+            manager.reserve('key', 'target', 'load')
+
+    def test_the_cap_is_counted_per_target(self):
+        """A busy database must not stop work on another one."""
+        manager = self._manager(max_open_per_target=2)
+        manager.reserve('a:dev:one', 'a:dev', 'one')
+        manager.reserve('a:dev:two', 'a:dev', 'two')
+
+        with pytest.raises(ToolError, match='Too many open transactions'):
+            manager.reserve('a:dev:three', 'a:dev', 'three')
+
+        # Another database is a different target, so it still has room.
+        manager.reserve('a:other:one', 'a:other', 'one')
+
+    def test_a_closed_name_frees_its_slot(self):
+        """The cap bounds what is open, not what was ever opened."""
+        manager = self._manager(max_open_per_target=1)
+        manager.reserve('key', 'target', 'load')
+        manager.forget('key')
+
+        manager.reserve('key', 'target', 'load')
+
+    @pytest.mark.parametrize(
+        'reserve_first', [False, True], ids=['never_opened', 'reserved_but_not_attached']
+    )
+    def test_an_unknown_transaction_names_every_way_it_could_be_gone(self, reserve_first):
+        """Three causes are indistinguishable from here, so the message covers all of them."""
+        manager = self._manager()
+        if reserve_first:
+            manager.reserve('key', 'target', 'load')
+
+        with pytest.raises(ToolError) as failure:
+            manager.session_id('key', 'load')
+
+        message = str(failure.value)
+        assert "No open transaction named 'load'" in message
+        assert 'never opened' in message
+        assert 'rolled back' in message
+        assert 'expired' in message
+
+    def test_forgetting_an_unknown_transaction_is_harmless(self):
+        """Cleanup runs on paths that may not have reserved anything."""
+        self._manager().forget('key')
+
+    def test_an_unset_cap_falls_back_to_the_configured_one(self):
+        """The server's own manager takes no cap, so the setting is read on first use."""
+        manager = RedshiftTransactionManager()
+
+        for i in range(max_open_transactions_per_target()):
+            manager.reserve(f'target:{i}', 'target', str(i))
+
+        with pytest.raises(ToolError, match='Too many open transactions'):
+            manager.reserve('target:over', 'target', 'over')
+
+
+class TestResolveTransaction:
+    """`_resolve_transaction_action` reduces every invalid combination to one rule."""
+
+    def test_no_transaction_parameter_runs_the_statement_alone(self):
+        """The ordinary call is unaffected by any of this."""
+        assert _resolve_transaction_action('SELECT 1', None, None, None, None) == (None, None)
+
+    @pytest.mark.parametrize(
+        ('parameter', 'arguments'),
+        [
+            ('begin_transaction', ('load', None, None, None)),
+            ('in_transaction', (None, 'load', None, None)),
+            ('commit_transaction', (None, None, 'load', None)),
+            ('rollback_transaction', (None, None, None, 'load')),
+        ],
+    )
+    def test_one_parameter_names_the_action_and_the_transaction(self, parameter, arguments):
+        """Each parameter both picks the action and carries the name."""
+        assert _resolve_transaction_action('SELECT 1', *arguments) == (parameter, 'load')
+
+    def test_two_parameters_are_refused_and_both_are_named(self):
+        """The caller has to know which two conflicted to fix the call."""
+        with pytest.raises(ToolError) as failure:
+            _resolve_transaction_action('SELECT 1', 'load', None, 'other', None)
+
+        assert 'Only one transaction parameter' in str(failure.value)
+        assert 'begin_transaction' in str(failure.value)
+        assert 'commit_transaction' in str(failure.value)
+
+    @pytest.mark.parametrize('name', ['', '   '], ids=['empty', 'blank'])
+    def test_a_blank_name_is_refused(self, name):
+        """An empty name would key a transaction nobody can address again."""
+        with pytest.raises(ToolError, match='needs the name of a transaction'):
+            _resolve_transaction_action('SELECT 1', name, None, None, None)
+
+    def test_sql_is_required_without_a_transaction_parameter(self):
+        """Otherwise the call asks for nothing at all."""
+        with pytest.raises(ToolError, match='sql is required'):
+            _resolve_transaction_action(None, None, None, None, None)
+
+    def test_sql_is_required_to_add_to_a_transaction(self):
+        """in_transaction with no statement would open nothing and run nothing."""
+        with pytest.raises(ToolError, match='sql is required with in_transaction'):
+            _resolve_transaction_action(None, None, 'load', None, None)
+
+    @pytest.mark.parametrize(
+        'arguments',
+        [('load', None, None, None), (None, None, 'load', None), (None, None, None, 'load')],
+        ids=['begin', 'commit', 'rollback'],
+    )
+    def test_sql_is_optional_when_opening_or_closing(self, arguments):
+        """A transaction can be opened, or closed, without a statement of its own."""
+        action, name = _resolve_transaction_action(None, *arguments)
+
+        assert name == 'load'
+        assert action is not None
+
+
+class TestTransactionLifecycle:
+    """Opening, adding to, and closing a named transaction."""
+
+    @pytest.fixture(autouse=True)
+    def _isolate_transactions(self, mocker):
+        """Give each test its own manager, since the real one outlives a single call."""
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.transaction_manager',
+            RedshiftTransactionManager(max_open_per_target=10),
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.discover_clusters',
+            return_value=[_fake_cluster()],
+        )
+
+    def _batches(self, mocker, *responses):
+        """Script the batches the Data API will answer with."""
+        return mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_batch', side_effect=list(responses)
+        )
+
+    @pytest.mark.asyncio
+    async def test_opening_a_read_only_transaction(self, mocker):
+        """A read-only caller gets a read-only transaction, so the engine still refuses writes."""
+        batches = self._batches(
+            mocker, _fake_batch(['FINISHED', 'FINISHED'], session_id='session-1')
+        )
+
+        await execute_query('test-cluster', 'dev', begin_transaction='load')
+
+        assert batches.call_args[1]['sqls'] == [_APP_NAME_SQL, 'BEGIN READ ONLY']
+        assert batches.call_args[1]['session_keepalive'] == session_keepalive()
+        assert batches.call_args[1]['session_id'] is None
+
+    @pytest.mark.asyncio
+    async def test_opening_a_read_write_transaction(self, mocker):
+        """A read-write caller gets a writable transaction."""
+        batches = self._batches(
+            mocker, _fake_batch(['FINISHED', 'FINISHED'], session_id='session-1')
+        )
+
+        await execute_query(
+            'test-cluster', 'dev', begin_transaction='load', enforce_read_only=False
+        )
+
+        assert batches.call_args[1]['sqls'] == [_APP_NAME_SQL, 'BEGIN']
+
+    @pytest.mark.asyncio
+    async def test_opening_with_a_first_statement_returns_that_statement(self, mocker):
+        """Opening and running the first statement in one call saves a round trip."""
+        self._batches(
+            mocker,
+            _fake_batch(
+                ['FINISHED', 'FINISHED', {'has_result_set': True}], session_id='session-1'
+            ),
+        )
+        mock_data_client = mocker.Mock()
+        mock_data_client.get_statement_result.return_value = {
+            'Records': [[{'longValue': 1}]],
+            'ColumnMetadata': [{'name': 'one'}],
+        }
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
+            return_value=mock_data_client,
+        )
+
+        result = await execute_query(
+            'test-cluster', 'dev', 'SELECT 1 AS one', begin_transaction='load'
+        )
+
+        assert result['rows'] == [[1]]
+        assert result['query_id'] == 'batch-id:3'
+
+    @pytest.mark.asyncio
+    async def test_opening_without_a_statement_reports_the_batch(self, mocker):
+        """There is no statement of the caller's to report, so the batch stands in for it."""
+        self._batches(mocker, _fake_batch(['FINISHED', 'FINISHED'], session_id='session-1'))
+
+        result = await execute_query('test-cluster', 'dev', begin_transaction='load')
+
+        assert result == {'columns': [], 'rows': [], 'row_count': 0, 'query_id': 'batch-id'}
+
+    @pytest.mark.asyncio
+    async def test_a_statement_inside_a_transaction_is_sent_bare_on_its_session(self, mocker):
+        """The transaction is already the wrapper, so wrapping again would nest a BEGIN."""
+        batches = self._batches(
+            mocker,
+            _fake_batch(['FINISHED', 'FINISHED'], session_id='session-1'),
+            _fake_batch(['FINISHED']),
+        )
+
+        await execute_query('test-cluster', 'dev', begin_transaction='load')
+        await execute_query('test-cluster', 'dev', 'SELECT 1', in_transaction='load')
+
+        assert batches.call_args[1]['sqls'] == ['SELECT 1']
+        assert batches.call_args[1]['session_id'] == 'session-1'
+        # Re-sent so the idle clock restarts on every statement of the transaction.
+        assert batches.call_args[1]['session_keepalive'] == session_keepalive()
+
+    @pytest.mark.asyncio
+    async def test_the_guard_still_applies_inside_a_read_only_transaction(self, mocker):
+        """A transaction is not a way around read-only mode."""
+        batches = self._batches(
+            mocker, _fake_batch(['FINISHED', 'FINISHED'], session_id='session-1')
+        )
+        await execute_query('test-cluster', 'dev', begin_transaction='load')
+
+        with pytest.raises(ToolError, match='Statement type not allowed in read-only mode'):
+            await execute_query('test-cluster', 'dev', 'TRUNCATE t', in_transaction='load')
+
+        # The rejected statement never reached the cluster.
+        assert batches.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_a_statement_the_guard_rejects_leaves_the_transaction_open(self, mocker):
+        """It never ran, so the transaction is not aborted and the caller can carry on."""
+        batches = self._batches(
+            mocker,
+            _fake_batch(['FINISHED', 'FINISHED'], session_id='session-1'),
+            _fake_batch(['FINISHED']),
+        )
+        await execute_query('test-cluster', 'dev', begin_transaction='load')
+
+        with pytest.raises(ToolError, match='single SQL statement is allowed'):
+            await execute_query('test-cluster', 'dev', 'SELECT 1; SELECT 2', in_transaction='load')
+
+        # Still usable, on the same session.
+        await execute_query('test-cluster', 'dev', 'SELECT 1', in_transaction='load')
+        assert batches.call_args[1]['session_id'] == 'session-1'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ('parameter', 'closer'),
+        [('commit_transaction', 'COMMIT'), ('rollback_transaction', 'ROLLBACK')],
+    )
+    async def test_closing_on_its_own(self, mocker, parameter, closer):
+        """A transaction can be ended without a last statement."""
+        batches = self._batches(
+            mocker,
+            _fake_batch(['FINISHED', 'FINISHED'], session_id='session-1'),
+            _fake_batch(['FINISHED']),
+        )
+
+        closing: dict[str, Any] = {parameter: 'load'}
+
+        await execute_query('test-cluster', 'dev', begin_transaction='load')
+        await execute_query('test-cluster', 'dev', **closing)
+
+        assert batches.call_args[1]['sqls'] == [closer]
+        assert batches.call_args[1]['session_id'] == 'session-1'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ('parameter', 'closer'),
+        [('commit_transaction', 'COMMIT'), ('rollback_transaction', 'ROLLBACK')],
+    )
+    async def test_closing_with_a_last_statement(self, mocker, parameter, closer):
+        """One batch runs the statement and ends the transaction, which is one round trip."""
+        batches = self._batches(
+            mocker,
+            _fake_batch(['FINISHED', 'FINISHED'], session_id='session-1'),
+            _fake_batch(['FINISHED', 'FINISHED']),
+        )
+
+        closing: dict[str, Any] = {parameter: 'load'}
+
+        await execute_query('test-cluster', 'dev', begin_transaction='load')
+        await execute_query('test-cluster', 'dev', 'SELECT 1', **closing)
+
+        assert batches.call_args[1]['sqls'] == ['SELECT 1', closer]
+
+    @pytest.mark.asyncio
+    async def test_a_closed_transaction_is_gone(self, mocker):
+        """The name must not outlive the transaction, or a later call looks like it worked."""
+        self._batches(
+            mocker,
+            _fake_batch(['FINISHED', 'FINISHED'], session_id='session-1'),
+            _fake_batch(['FINISHED']),
+        )
+
+        await execute_query('test-cluster', 'dev', begin_transaction='load')
+        await execute_query('test-cluster', 'dev', commit_transaction='load')
+
+        with pytest.raises(ToolError, match="No open transaction named 'load'"):
+            await execute_query('test-cluster', 'dev', commit_transaction='load')
+
+    @pytest.mark.asyncio
+    async def test_reopening_the_same_name_is_refused_while_it_is_open(self, mocker):
+        """Fail closed: the alternative is silently joining a transaction the caller forgot."""
+        self._batches(mocker, _fake_batch(['FINISHED', 'FINISHED'], session_id='session-1'))
+
+        await execute_query('test-cluster', 'dev', begin_transaction='load')
+
+        with pytest.raises(ToolError, match="Transaction 'load' is already open"):
+            await execute_query('test-cluster', 'dev', begin_transaction='load')
+
+    @pytest.mark.asyncio
+    async def test_a_failed_open_does_not_leave_the_name_claimed(self, mocker):
+        """Otherwise a failed open would block the name until the process restarted."""
+        self._batches(
+            mocker,
+            _fake_batch([{'status': 'FAILED', 'error': 'ERROR: nope'}, 'FINISHED']),
+            _fake_batch(['FINISHED', 'FINISHED'], session_id='session-2'),
+        )
+
+        with pytest.raises(ToolError, match='ERROR: nope'):
+            await execute_query('test-cluster', 'dev', begin_transaction='load')
+
+        # The name is free again.
+        await execute_query('test-cluster', 'dev', begin_transaction='load')
+
+    @pytest.mark.asyncio
+    async def test_an_open_without_a_session_is_refused(self, mocker):
+        """Without the session id there is no way to reach the transaction again."""
+        self._batches(mocker, _fake_batch(['FINISHED', 'FINISHED']))
+
+        with pytest.raises(ToolError, match='the Data API returned no session'):
+            await execute_query('test-cluster', 'dev', begin_transaction='load')
+
+    @pytest.mark.asyncio
+    async def test_a_failed_statement_rolls_the_transaction_back_and_drops_it(self, mocker):
+        """An aborted transaction refuses everything later and would commit nothing."""
+        batches = self._batches(
+            mocker,
+            _fake_batch(['FINISHED', 'FINISHED'], session_id='session-1'),
+            _fake_batch([{'status': 'FAILED', 'error': 'ERROR: division by zero'}]),
+            _fake_batch(['FINISHED']),
+        )
+
+        await execute_query('test-cluster', 'dev', begin_transaction='load')
+
+        with pytest.raises(ToolError, match='division by zero'):
+            await execute_query('test-cluster', 'dev', 'SELECT 1/0', in_transaction='load')
+
+        # Rolled back on the way out, on the transaction's own session.
+        assert batches.call_args[1]['sqls'] == ['ROLLBACK']
+        assert batches.call_args[1]['session_id'] == 'session-1'
+
+        # And the name is gone, so a later commit cannot look successful.
+        with pytest.raises(ToolError, match="No open transaction named 'load'"):
+            await execute_query('test-cluster', 'dev', commit_transaction='load')
+
+    @pytest.mark.asyncio
+    async def test_a_failing_rollback_does_not_replace_the_real_error(self, mocker):
+        """The caller needs the statement's failure; the idle timeout ends the session anyway."""
+        self._batches(
+            mocker,
+            _fake_batch(['FINISHED', 'FINISHED'], session_id='session-1'),
+            _fake_batch([{'status': 'FAILED', 'error': 'ERROR: division by zero'}]),
+            ClientError({'Error': {'Code': 'ValidationException'}}, 'BatchExecuteStatement'),
+        )
+
+        await execute_query('test-cluster', 'dev', begin_transaction='load')
+
+        with pytest.raises(ToolError, match='division by zero'):
+            await execute_query('test-cluster', 'dev', 'SELECT 1/0', in_transaction='load')
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'message',
+        ['Session is expired', 'Session is not available', 'Session with Id: x is invalid'],
+    )
+    async def test_a_session_taken_away_reads_as_a_missing_transaction(self, mocker, message):
+        """The transaction is gone with everything it had not committed, which is the fact."""
+        self._batches(
+            mocker,
+            _fake_batch(['FINISHED', 'FINISHED'], session_id='session-1'),
+            ClientError(
+                {'Error': {'Code': 'ValidationException', 'Message': message}},
+                'BatchExecuteStatement',
+            ),
+        )
+
+        await execute_query('test-cluster', 'dev', begin_transaction='load')
+
+        with pytest.raises(ToolError, match="No open transaction named 'load'"):
+            await execute_query('test-cluster', 'dev', 'SELECT 1', in_transaction='load')
+
+        # Dropped, so the caller is not told to commit something that no longer exists.
+        with pytest.raises(ToolError, match="No open transaction named 'load'"):
+            await execute_query('test-cluster', 'dev', commit_transaction='load')
+
+    @pytest.mark.asyncio
+    async def test_an_unrelated_aws_error_is_not_disguised_as_a_missing_transaction(self, mocker):
+        """Throttling or a credential problem is not the transaction's fault."""
+        self._batches(
+            mocker,
+            _fake_batch(['FINISHED', 'FINISHED'], session_id='session-1'),
+            ClientError(
+                {'Error': {'Code': 'ThrottlingException', 'Message': 'Rate exceeded'}},
+                'BatchExecuteStatement',
+            ),
+        )
+
+        await execute_query('test-cluster', 'dev', begin_transaction='load')
+
+        with pytest.raises(ClientError):
+            await execute_query('test-cluster', 'dev', 'SELECT 1', in_transaction='load')
+
+    @pytest.mark.asyncio
+    async def test_transactions_on_different_databases_are_independent(self, mocker):
+        """The name is scoped to the cluster and database it was opened against."""
+        self._batches(
+            mocker,
+            _fake_batch(['FINISHED', 'FINISHED'], session_id='session-dev'),
+            _fake_batch(['FINISHED', 'FINISHED'], session_id='session-other'),
+            _fake_batch(['FINISHED']),
+        )
+
+        await execute_query('test-cluster', 'dev', begin_transaction='load')
+        await execute_query('test-cluster', 'other', begin_transaction='load')
+
+        # Closing one leaves the other open.
+        await execute_query('test-cluster', 'dev', commit_transaction='load')
+
+        with pytest.raises(ToolError, match="No open transaction named 'load'"):
+            await execute_query('test-cluster', 'dev', commit_transaction='load')
+
+    @pytest.mark.asyncio
+    async def test_the_cap_refuses_the_next_transaction(self, mocker):
+        """A runaway caller would otherwise hold connections until they timed out."""
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.transaction_manager',
+            RedshiftTransactionManager(max_open_per_target=1),
+        )
+        self._batches(mocker, _fake_batch(['FINISHED', 'FINISHED'], session_id='session-1'))
+
+        await execute_query('test-cluster', 'dev', begin_transaction='one')
+
+        with pytest.raises(ToolError, match='Too many open transactions'):
+            await execute_query('test-cluster', 'dev', begin_transaction='two')
+
+    @pytest.mark.asyncio
+    async def test_statements_in_one_transaction_are_serialized(self, mocker):
+        """A SessionId is strictly serial: a second concurrent submit is refused at submit."""
+        in_flight = 0
+        overlapped = False
+
+        async def batch(**kwargs):
+            nonlocal in_flight, overlapped
+            if kwargs.get('session_id') is not None:
+                in_flight += 1
+                overlapped = overlapped or in_flight > 1
+                await asyncio.sleep(0)
+                in_flight -= 1
+                return _fake_batch(['FINISHED'])
+            return _fake_batch(['FINISHED', 'FINISHED'], session_id='session-1')
+
+        mocker.patch('awslabs.redshift_mcp_server.redshift._execute_batch', side_effect=batch)
+
+        await execute_query('test-cluster', 'dev', begin_transaction='load')
+        await asyncio.gather(
+            *[
+                execute_query('test-cluster', 'dev', f'SELECT {i}', in_transaction='load')
+                for i in range(4)
+            ]
+        )
+
+        assert not overlapped

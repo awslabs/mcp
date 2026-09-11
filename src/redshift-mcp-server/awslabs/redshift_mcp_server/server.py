@@ -38,6 +38,8 @@ from awslabs.redshift_mcp_server.redshift import (
     discover_schemas,
     discover_tables,
     execute_query,
+    max_open_transactions_per_target,
+    session_keepalive,
 )
 from awslabs.redshift_mcp_server.review.executor import review_cluster
 from awslabs.redshift_mcp_server.review.models import ReviewResult
@@ -128,6 +130,33 @@ ACCESS_MODE = _resolve_access_mode()
 SKIP_WRITE_CONFIRMATION = _resolve_skip_write_confirmation(ACCESS_MODE)
 
 
+def _current_settings() -> str:
+    """Report the settings this server resolved at startup.
+
+    Appended to the prose that names these settings, since the caller cannot read the
+    server's environment and would otherwise have to guess which branch of that prose
+    applies.
+
+    Returns:
+        A markdown section listing each setting and its resolved value.
+    """
+    settings = (
+        f'- `ACCESS_MODE`: {ACCESS_MODE}\n'
+        f'- `UNSAFE_SKIP_WRITE_CONFIRMATION`: {str(SKIP_WRITE_CONFIRMATION).lower()}\n'
+        f'- `SESSION_KEEPALIVE`: {session_keepalive()} seconds\n'
+        f'- `MAX_OPEN_TRANSACTIONS_PER_TARGET`: {max_open_transactions_per_target()}\n'
+    )
+
+    if SKIP_WRITE_CONFIRMATION:
+        settings += (
+            '\nNo confirmation prompt reaches the user before a write runs, so the database '
+            'user privileges are the only remaining control. Tell the user what a write will '
+            'change and get their agreement yourself before submitting it.\n'
+        )
+
+    return f'\n## Current Settings\n\nFixed for the life of this server process:\n\n{settings}'
+
+
 mcp = MCPServer(
     'awslabs.redshift-mcp-server',
     instructions="""
@@ -161,7 +190,7 @@ This tool runs the SHOW COLUMNS command to discover available columns.
 Executes SQL queries against a Redshift cluster or serverless workgroup.
 This tool uses the Redshift Data API to run queries and return results.
 Read-only by default; read-write is opt-in via the ACCESS_MODE environment variable.
-Check the tool's annotations to see which mode this server is running in.
+The resolved settings are listed at the end of these instructions.
 
 ### review_cluster
 Runs a diagnostic review of a Redshift cluster or serverless workgroup.
@@ -172,15 +201,20 @@ Requires the connected database user to hold the sys:monitor role (or be a super
 
 1. Ensure your AWS configuration and credentials are configured (environment variables or profile configuration file).
 2. Use the list_clusters tool to discover available Redshift instances.
-3. Note the cluster identifiers for use with other tools (coming in future milestones).
+3. Note the cluster identifiers, which every other tool takes as its first argument.
 
 ## Concurrency
 
-Each statement runs on its own connection, so calls never queue behind each other:
-- Queries to the same `cluster:database` run concurrently, including a long-running one.
-- No state carries between calls. A temporary table, a `SET`, or an open transaction from one call is not visible to the next.
-- In read-only mode each query is isolated in its own read-only transaction.
-- In read-write mode each statement runs directly with autocommit, with no transaction wrapper.
+Without a transaction parameter, each statement runs on its own connection:
+- Statements against the same `cluster:database` run concurrently, including behind a long-running one.
+- No session state carries between calls.
+- In read-only mode the statement is isolated in its own read-only transaction.
+- In read-write mode it runs directly with autocommit, with no transaction wrapper.
+
+To carry state across calls, name a transaction with the execute_query tool's
+`begin_transaction`, `in_transaction`, `commit_transaction` and `rollback_transaction`
+parameters. Its statements share one connection and are serialized against each other,
+but not against anything else.
 
 ## AWS Client Best Practices
 
@@ -211,9 +245,10 @@ Each statement runs on its own connection, so calls never queue behind each othe
 
 ### Connection Guidelines
 
-- We use the Redshift API and Redshift Data API.
+- We use the Redshift API, the Redshift Serverless API and the Redshift Data API.
 - Leverage IAM authentication when possible instead of secrets (database passwords).
-""",
+"""
+    + _current_settings(),
     dependencies=['boto3', 'loguru', 'pydantic', 'sqlglot'],
 )
 
@@ -238,7 +273,14 @@ class ConfirmWrite(BaseModel):
 
 
 def _write_confirmation(
-    ctx: Context, cluster_identifier: str, database_name: str, sql: str
+    ctx: Context,
+    cluster_identifier: str,
+    database_name: str,
+    sql: str | None,
+    begin_transaction: str | None = None,
+    in_transaction: str | None = None,
+    commit_transaction: str | None = None,
+    rollback_transaction: str | None = None,
 ) -> ConfirmWrite | Elicit[ConfirmWrite]:
     """Resolve the caller's approval for one statement.
 
@@ -251,7 +293,12 @@ def _write_confirmation(
         ctx: The tool call context, used to check what the client can do.
         cluster_identifier: The target cluster, named in the prompt.
         database_name: The target database, named in the prompt.
-        sql: The statement awaiting approval.
+        sql: The statement awaiting approval, or None when a transaction is only being
+            closed, which carries no statement of the caller's.
+        begin_transaction: Name of a transaction being opened, if any.
+        in_transaction: Name of a transaction being added to, if any.
+        commit_transaction: Name of a transaction being committed, if any.
+        rollback_transaction: Name of a transaction being rolled back, if any.
 
     A decline or cancel is not observable here: the framework aborts the call after this
     returns, so only the request to ask is logged, not its answer.
@@ -263,6 +310,11 @@ def _write_confirmation(
         ToolError: If the SQL is rejected by the guard, or the client cannot be asked.
     """
     if ACCESS_MODE != ACCESS_MODE_READ_WRITE or SKIP_WRITE_CONFIRMATION:
+        return ConfirmWrite(confirmed=True)
+
+    if sql is None:
+        # Closing a transaction runs nothing of the caller's, and every write inside it was
+        # confirmed when it was submitted.
         return ConfirmWrite(confirmed=True)
 
     # Reject before asking, so a statement that cannot run never raises a prompt. Only
@@ -289,10 +341,19 @@ def _write_confirmation(
 
     logger.info(f'Asking the caller to confirm a write on {cluster_identifier}:{database_name}')
 
+    # What the caller is agreeing to differs inside a transaction, where the write is not
+    # final until it is committed.
+    transaction = begin_transaction or in_transaction or commit_transaction or rollback_transaction
+    consequence = (
+        'It runs with autocommit and cannot be rolled back.'
+        if transaction is None
+        else f'It runs inside transaction {transaction!r} and is not final until you commit.'
+    )
+
     return Elicit(
         message=(
             f'Execute this statement against {cluster_identifier}:{database_name}? '
-            f'It runs with autocommit and cannot be rolled back.\n\n{sql}'
+            f'{consequence}\n\n{sql}'
         ),
         schema=ConfirmWrite,
     )
@@ -748,13 +809,39 @@ async def execute_query_tool(
         ...,
         description='The database name to execute the query against. Must be a valid database name from the list_databases tool.',
     ),
-    sql: str = Field(
-        ...,
-        description=(
-            'The SQL statement to execute. Must be a single SQL statement. Whether writes '
-            'are permitted is fixed by the server configuration, not by this call.'
+    sql: Annotated[
+        str | None,
+        Field(
+            description=(
+                'The SQL statement to execute. Must be a single SQL statement. Whether writes '
+                'are permitted is fixed by the server configuration, not by this call. '
+                'Required unless a transaction is only being committed or rolled back.'
+            )
         ),
-    ),
+    ] = None,
+    begin_transaction: Annotated[
+        str | None,
+        Field(
+            description=(
+                'Open a transaction under this name and run sql inside it, if given. The name '
+                'is yours to choose and to reuse on later calls. Fails if it is already open.'
+            )
+        ),
+    ] = None,
+    in_transaction: Annotated[
+        str | None,
+        Field(description='Run sql inside the transaction already open under this name.'),
+    ] = None,
+    commit_transaction: Annotated[
+        str | None,
+        Field(description='Run sql, if given, then commit the transaction open under this name.'),
+    ] = None,
+    rollback_transaction: Annotated[
+        str | None,
+        Field(
+            description='Run sql, if given, then roll back the transaction open under this name.'
+        ),
+    ] = None,
 ) -> QueryResult:
     """Execute a SQL query against a Redshift cluster or serverless workgroup.
 
@@ -775,7 +862,11 @@ async def execute_query_tool(
                          IMPORTANT: Use a valid cluster identifier from the list_clusters tool.
     - database_name: The database name to execute the query against.
                     IMPORTANT: Use a valid database name from the list_databases tool.
-    - sql: The SQL statement to execute. Must be a single SQL statement.
+    - sql: The SQL statement to execute. Must be a single SQL statement. Required unless a
+           transaction is only being committed or rolled back.
+    - begin_transaction / in_transaction / commit_transaction / rollback_transaction: The name
+           of a transaction to start, run the query in, commit, or roll back. At most one of the four per
+           call.
 
     ## Response Structure
 
@@ -796,31 +887,63 @@ async def execute_query_tool(
 
     ## Data Type Handling
 
-    The tool automatically handles various Redshift data types:
-    - String values (VARCHAR, CHAR, TEXT).
-    - Numeric values (INTEGER, BIGINT, DECIMAL, FLOAT).
-    - Boolean values.
-    - NULL values.
-    - Date and timestamp values (returned as strings).
+    Values are typed as the Data API returns them:
+    - `INTEGER` and `BIGINT` as integers, `REAL` and `DOUBLE PRECISION` as floats.
+    - Booleans as booleans, `NULL` as null.
+    - Everything else as a string, including `VARCHAR`, `DECIMAL`, dates, times,
+      timestamps and `SUPER`.
 
     ## Execution Mode
 
     The mode is fixed at server startup by the `ACCESS_MODE` environment
-    variable and cannot be changed per call.
+    variable and cannot be changed per call. This server's resolved settings are listed
+    at the end of its instructions.
 
     - Read-only (default): the statement runs inside `BEGIN READ ONLY ... ROLLBACK`, so
       nothing is persisted, and statement types the transaction cannot neutralize
-      (`UNLOAD`, `GRANT`, `TRUNCATE`, `VACUUM`, transaction control, and similar) are
-      rejected before execution.
+      (`UNLOAD`, `GRANT`, `TRUNCATE`, `VACUUM`, `SET`, `RESET`, transaction control, and
+      similar) are rejected before execution.
     - Read-write (`ACCESS_MODE=read-write`): the statement runs directly with
-      autocommit and can create, modify, and delete data and objects. Transactions are
-      not supported yet, so for now there is no rollback and nothing to undo.
+      autocommit and can create, modify, and delete data and objects. Outside a
+      transaction there is no rollback and nothing to undo.
 
     In read-write mode each statement is confirmed by the caller before it runs, unless
     the operator set `UNSAFE_SKIP_WRITE_CONFIRMATION=true`. Clients that cannot prompt
-    are refused rather than executed unconfirmed.
+    are refused rather than executed unconfirmed. Closing a transaction is not itself a
+    write, so a bare commit or rollback asks nothing.
 
     Both modes accept a single statement only; multi-statement submissions are rejected.
+
+    ## Transactions
+
+    Name a transaction to keep it open across calls:
+
+        begin_transaction='load' with the first statement, or on its own
+        in_transaction='load' for each statement after that
+        commit_transaction='load' or rollback_transaction='load' to end it
+
+    At most one of the four per call. `sql` is optional on commit and rollback, so a
+    transaction can be closed on its own or with one last statement.
+
+    Both modes support this. A read-only transaction gives several statements one
+    consistent snapshot; a read-write one makes several statements succeed or fail
+    together. Writes inside it are still confirmed one at a time, and a declined write
+    leaves the transaction open for you to commit or roll back.
+
+    A transaction is bound to the server process and to the cluster and database it was
+    opened against. A statement that fails inside one aborts it: the transaction is rolled
+    back and the name is dropped, so the next call reports it as unknown rather than
+    committing nothing under the impression it worked. An idle transaction is ended by
+    Redshift after `SESSION_KEEPALIVE` seconds, and `MAX_OPEN_TRANSACTIONS_PER_TARGET`
+    caps how many may be open at once against one cluster and database.
+
+    Close a transaction in the same stretch of work that opened it. While it is open it
+    holds a Redshift connection and can block other writers on the tables it touched, so
+    open one only once the statements it groups are decided, and keep nothing else between
+    them: no waiting on the user, no waiting on another system, no exploring, and no
+    working out what to do next. If the user asks for a transaction to be held open across
+    any of that, tell them first that it stays open until they close it and that it may
+    block other writers, then get their agreement before opening it.
 
     ## Security Considerations
 
@@ -843,6 +966,10 @@ async def execute_query_tool(
             database_name=database_name,
             sql=sql,
             enforce_read_only=ACCESS_MODE != ACCESS_MODE_READ_WRITE,
+            begin_transaction=begin_transaction,
+            in_transaction=in_transaction,
+            commit_transaction=commit_transaction,
+            rollback_transaction=rollback_transaction,
         )
 
         # Convert to QueryResult model
