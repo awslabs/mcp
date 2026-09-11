@@ -19,6 +19,7 @@ It supports both Aurora MySQL and RDS MySQL instances via direct connection
 parameters (host, port, database, user, password) or via AWS Secrets Manager.
 """
 
+import asyncio
 import asyncmy
 import asyncmy.cursors
 import boto3
@@ -133,7 +134,8 @@ class AsyncmyPoolConnection(AbstractDBConnection):
         self.is_test = is_test
         self.ca_bundle_path = ca_bundle_path
         self.pool: Optional[asyncmy.Pool] = None
-        self.rw_lock = RWLock()
+        self._rw_lock: Optional[RWLock] = None
+        self._rw_lock_loop: Optional[asyncio.AbstractEventLoop] = None
         self.created_time = datetime.now()
 
         if is_iam_auth:
@@ -142,6 +144,23 @@ class AsyncmyPoolConnection(AbstractDBConnection):
             # set pool expiry before IAM auth token expiry of 15 minutes
             self.pool_expiry_min = 14
             logger.info(f'Use IAM auth for user: {db_user}')
+
+    @property
+    def rw_lock(self) -> RWLock:
+        """Reader/writer lock bound to the event loop that is running now.
+
+        aiorwlock binds a lock to the loop that first acquires it and refuses
+        every other loop. The startup self-test in server.py runs under
+        asyncio.run() and the MCP server then starts its own loop, so a lock
+        created once in __init__ made the first real query fail with
+        "is bound to a different event loop". A loop that stopped cannot hold
+        the lock any more, so it is simply re-created for the new loop.
+        """
+        loop = asyncio.get_running_loop()
+        if self._rw_lock is None or self._rw_lock_loop is not loop:
+            self._rw_lock = RWLock()
+            self._rw_lock_loop = loop
+        return self._rw_lock
 
     async def initialize_pool(self):
         """Initialize the connection pool."""
