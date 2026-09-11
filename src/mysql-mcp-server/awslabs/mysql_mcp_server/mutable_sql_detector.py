@@ -96,20 +96,29 @@ MUTATING_PATTERN = re.compile(
 )
 
 
-# Mutating statement verbs that are also common identifiers or functions.
+# Statement-leading verbs that are non-read / state-affecting, and that are
+# also common identifiers or functions.
+#
+# "State-affecting" is broader than "mutates data": some entries change data
+# or server/replication state (IMPORT, REPLACE, CHANGE, PURGE, SHUTDOWN, ...)
+# while others are transaction control that a read-only session still must
+# not issue (BEGIN, COMMIT, ROLLBACK, SAVEPOINT, RELEASE, and DO with no
+# side-effecting call). ``DO expr`` returns no result set yet can have side
+# effects (e.g. ``DO GET_LOCK(...)``).
 #
 # Unlike MUTATING_KEYWORDS above (matched anywhere), these are matched only
-# at statement start. ``DO expr`` returns no result set yet has side effects
-# (e.g. ``DO GET_LOCK(...)``); the rest control transactions, replication, or
-# server lifecycle. Several are ordinary words (``start``, ``stop``,
-# ``change``, ``release``, ``do``) and ``REPLACE`` is a string function, so a
-# bare ``\b`` anywhere-match would reject benign reads like
+# at statement start, because several are ordinary words (``start``,
+# ``stop``, ``change``, ``release``, ``do``) and ``REPLACE`` is a string
+# function, so a bare ``\b`` anywhere-match would reject benign reads like
 # ``SELECT start FROM t`` or ``SELECT REPLACE(col, 'a', 'b')``. Anchoring to
 # statement start avoids that while still blocking the verb form.
 STATEMENT_START_MUTATING_KEYWORDS = {
     # DML / expression execution
     'IMPORT',  # IMPORT TABLE — bulk import from .ibd files
-    'REPLACE',  # bare REPLACE ... SET (REPLACE INTO already covered above)
+    # Any statement-leading REPLACE (REPLACE ... SET / REPLACE ... VALUES).
+    # REPLACE INTO is also in MUTATING_KEYWORDS; both firing on
+    # ``REPLACE INTO ...`` is harmless (deduped by the caller).
+    'REPLACE',
     'DO',  # DO expr — runs expressions / side-effecting stored functions
     # Transaction control
     'START',  # START TRANSACTION / START REPLICA / START GROUP_REPLICATION
@@ -128,20 +137,70 @@ STATEMENT_START_MUTATING_KEYWORDS = {
     'CLONE',  # CLONE LOCAL / CLONE INSTANCE — copies the data directory
     'RESTART',  # restarts the server process
     'SHUTDOWN',  # terminates the server
+    # Session / server state (no data mutation, but not a read). SET is
+    # already blocked via MUTATING_KEYWORDS; USE is the session-state sibling.
+    'USE',  # USE <db> — switches the session's default database
+    'CACHE',  # CACHE INDEX ... IN ... — assigns table indexes to a key cache
+    'LOAD INDEX',  # LOAD INDEX INTO CACHE ... — preloads indexes into a key cache
 }
 
-# Sorted longest-first for deterministic output (see MUTATING_PATTERN).
+# Sorted for stable, hash-seed-independent output. Unlike MUTATING_PATTERN,
+# ordering is not required for correctness here: no entry is a prefix of
+# another and a statement has exactly one leading verb, so alternation order
+# cannot change which keyword matches.
 _STATEMENT_START_KEYWORDS_BY_LENGTH = sorted(
     STATEMENT_START_MUTATING_KEYWORDS, key=len, reverse=True
 )
 # Anchor to statement start: start of the (comment-stripped) SQL or right
 # after a ``;``. No re.MULTILINE, so a mid-statement newline is not a new
 # anchor. The single capturing group makes ``findall`` return the keyword.
+#
+# Known coupling: a ``;`` inside a string literal (string literals are not
+# comment-stripped) also matches the ``;`` branch — e.g.
+# ``WHERE note = 'do it; commit later'`` reports ``COMMIT``. This is a false
+# positive in isolation, but such input is independently rejected by the
+# stacked-queries entry in SUSPICIOUS_PATTERNS, so there is no live
+# over-block; the "no false positive" property here relies on that rule
+# staying at least as strict.
 STATEMENT_START_MUTATING_PATTERN = re.compile(
     r'(?i)(?:^|;)\s*('
     + '|'.join(re.escape(k) for k in _STATEMENT_START_KEYWORDS_BY_LENGTH)
     + r')\b'
 )
+
+# Functions with server-side / session side effects that are dangerous in a
+# read context regardless of how they are invoked — ``DO f()``, ``SELECT f()``,
+# inside a WHERE clause, etc. Blocking the statement verb alone (e.g. ``DO``)
+# is not enough because the read-shaped form ``SELECT GET_LOCK(...)`` calls the
+# same function. These parallel the existing ``sleep()`` / ``benchmark()`` /
+# ``load_file()`` entries and are rejected in BOTH read and write mode:
+#
+#   get_lock / release_lock / release_all_locks
+#       Acquire/release server-wide advisory (named) locks — a side effect
+#       that can stall other sessions. (Note: is_free_lock / is_used_lock are
+#       read-only status probes and are deliberately NOT listed.)
+#   master_pos_wait / source_pos_wait / wait_for_executed_gtid_set /
+#   wait_until_sql_thread_after_gtids
+#       Block the session until replication reaches a position — a stalling
+#       side effect, same class as sleep().
+#   sys_exec / sys_eval
+#       sys-schema / UDF helpers that run OS commands / arbitrary code.
+#
+# Matching is anchored to a following ``(`` so a column or alias with the same
+# name (e.g. ``SELECT get_lock FROM t``) is not flagged. ``LAST_INSERT_ID`` is
+# handled by a separate pattern below because only its argument form has a
+# side effect.
+SIDE_EFFECTING_FUNCTIONS = {
+    'get_lock',
+    'release_lock',
+    'release_all_locks',
+    'master_pos_wait',
+    'source_pos_wait',
+    'wait_for_executed_gtid_set',
+    'wait_until_sql_thread_after_gtids',
+    'sys_exec',
+    'sys_eval',
+}
 
 SUSPICIOUS_PATTERNS = [
     r"(?i)'.*?--",  # comment injection
@@ -157,6 +216,12 @@ SUSPICIOUS_PATTERNS = [
     r'(?i)\bload_file\s*\(',
     r'(?i)\binto\s+outfile\b',
     r'(?i)\binto\s+dumpfile\b',  # MySQL-specific file write
+    # side-effecting functions (advisory locks, replication waits, code exec);
+    # anchored to ``(`` so same-named identifiers are not matched
+    r'(?i)\b(?:' + '|'.join(sorted(SIDE_EFFECTING_FUNCTIONS)) + r')\s*\(',
+    # LAST_INSERT_ID(expr) sets the session value (side effect); the no-arg
+    # read form LAST_INSERT_ID() is allowed
+    r'(?i)\blast_insert_id\s*\(\s*[^)\s]',
 ]
 
 # MySQL conditional comment marker (`/*!`). MySQL 5.0+ executes the contents
@@ -232,15 +297,40 @@ SECURITY_SENSITIVE_VAR_PATTERN = re.compile(
 )
 
 
+# MySQL ``#`` line comment. sqlparse only strips a ``#`` comment when a space
+# follows the ``#``; the no-space form (``#x\n...``) is left intact, which
+# would let a 2-char ``#x\n`` prefix hide a statement-leading verb from the
+# anchored scan (e.g. ``#x\nDO GET_LOCK(...)`` or ``#x\nSHUTDOWN``). MySQL
+# treats ``#`` as a comment to end-of-line regardless of the next character,
+# so we strip it explicitly after sqlparse has done its string-literal-aware
+# pass over the other comment forms.
+MYSQL_HASH_COMMENT_PATTERN = re.compile(r'#[^\n]*')
+
+
+def _strip_comments_for_scan(sql: str) -> str:
+    """Normalise SQL for keyword/pattern scanning by removing comments.
+
+    ``sqlparse.format(strip_comments=True)`` removes ``-- ...``, ``/* ... */``
+    and the space-prefixed ``# ...`` form while respecting string literals.
+    It does NOT remove the no-space MySQL ``#`` line comment, so any residual
+    ``#`` comment is stripped afterwards (see MYSQL_HASH_COMMENT_PATTERN).
+    """
+    stripped = sqlparse.format(sql, strip_comments=True)
+    return MYSQL_HASH_COMMENT_PATTERN.sub('', stripped)
+
+
 def detect_mutating_keywords(sql_text: str) -> list[str]:
-    """Return a list of mutating keywords found in the SQL (excluding comments).
+    r"""Return a list of mutating keywords found in the SQL (excluding comments).
 
     SQL inline comments (`/* ... */`, `-- ...`, `# ...`) are treated as
     whitespace by the database parser but as opaque characters by Python
     regex. To prevent bypasses such as `LOAD/**/DATA INFILE ...`, the SQL
-    is normalised with `sqlparse.format(strip_comments=True)` before the
-    keyword scan so a comment between adjacent keywords no longer hides
-    the multi-word match (e.g. `LOAD DATA`, `RENAME TABLE`).
+    is normalised by `_strip_comments_for_scan` before the keyword scan so
+    a comment between adjacent keywords no longer hides the multi-word
+    match (e.g. `LOAD DATA`, `RENAME TABLE`). That helper also removes the
+    no-space MySQL `#` line comment (`#x\n...`), which sqlparse leaves in
+    place and which would otherwise hide a statement-leading verb from the
+    anchored scan (e.g. `#x\nDO GET_LOCK(...)`).
 
     MySQL conditional comments (`/*!50000 ... */`) are handled separately:
     sqlparse strips them entirely, so a payload like
@@ -260,7 +350,7 @@ def detect_mutating_keywords(sql_text: str) -> list[str]:
         # Defence in depth: keep this function correct in isolation, even
         # when callers do not also invoke check_sql_injection_risk.
         return ['MYSQL_CONDITIONAL_COMMENT']
-    sql_for_check = sqlparse.format(sql_text, strip_comments=True)
+    sql_for_check = _strip_comments_for_scan(sql_text)
     matches = MUTATING_PATTERN.findall(sql_for_check)
     matches += STATEMENT_START_MUTATING_PATTERN.findall(sql_for_check)
     return list({m.upper() for m in matches})
@@ -309,8 +399,9 @@ def check_sql_injection_risk(sql: str) -> list[dict]:
         )
         return issues
 
-    # Stage 2: strip ordinary comments, then run the regex sweep.
-    sql_for_check = sqlparse.format(sql, strip_comments=True)
+    # Stage 2: strip ordinary comments (including no-space MySQL ``#``),
+    # then run the regex sweep.
+    sql_for_check = _strip_comments_for_scan(sql)
 
     # Stage 2a: reject SET of security-sensitive session variables in
     # both read and write mode. These disable integrity / security

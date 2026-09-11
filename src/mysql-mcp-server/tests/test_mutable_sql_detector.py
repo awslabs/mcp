@@ -34,6 +34,7 @@ import pytest
 from awslabs.mysql_mcp_server.mutable_sql_detector import (
     MUTATING_KEYWORDS,
     SECURITY_SENSITIVE_VARS,
+    SIDE_EFFECTING_FUNCTIONS,
     STATEMENT_START_MUTATING_KEYWORDS,
     check_sql_injection_risk,
     detect_mutating_keywords,
@@ -916,6 +917,10 @@ _STATEMENT_START_KEYWORD_PAYLOADS: dict[str, str] = {
     'CLONE': "CLONE INSTANCE FROM 'user'@'host':3306 IDENTIFIED BY 'pw'",
     'RESTART': 'RESTART',
     'SHUTDOWN': 'SHUTDOWN',
+    # Session / server state
+    'USE': 'USE mydb',
+    'CACHE': 'CACHE INDEX t IN kc',
+    'LOAD INDEX': 'LOAD INDEX INTO CACHE t',
 }
 
 
@@ -1110,12 +1115,17 @@ class TestStatementStartKeywordsNoFalsePositives:
 
 
 def test_statement_start_and_general_keyword_sets_are_disjoint():
-    """The two keyword sets must not overlap.
+    """The two keyword sets must be string-disjoint.
 
-    A keyword belongs in exactly one set: MUTATING_KEYWORDS (matched
+    A keyword string belongs in exactly one set: MUTATING_KEYWORDS (matched
     anywhere) or STATEMENT_START_MUTATING_KEYWORDS (matched only at
     statement start). Overlap would mean an anchored verb is also matched
     anywhere, silently defeating the false-positive protection.
+
+    Note: string-disjoint is not behaviour-disjoint. ``REPLACE`` (here) and
+    ``REPLACE INTO`` (in MUTATING_KEYWORDS) are different strings but overlap
+    on the ``REPLACE INTO ...`` token, which both scans report; that overlap
+    is intentional and harmless (deduped by the caller).
     """
     overlap = MUTATING_KEYWORDS & STATEMENT_START_MUTATING_KEYWORDS
     assert not overlap, f'Keyword in both sets: {sorted(overlap)}'
@@ -1145,15 +1155,21 @@ def test_statement_start_and_general_keyword_sets_are_disjoint():
 class TestStatementStartKeywordFullCoverageMatrix:
     """Every statement-leading keyword: detected as a verb, ignored as data."""
 
-    @pytest.mark.parametrize('keyword', sorted(STATEMENT_START_MUTATING_KEYWORDS))
-    def test_keyword_detected_at_statement_start(self, keyword):
-        """The keyword leading a statement is reported (no false negative)."""
-        assert keyword in detect_mutating_keywords(f'{keyword} some_expr()')
+    @pytest.mark.parametrize(
+        'keyword,payload',
+        sorted(_STATEMENT_START_KEYWORD_PAYLOADS.items()),
+    )
+    def test_keyword_detected_at_statement_start(self, keyword, payload):
+        """The keyword leading a real statement is reported (no false negative)."""
+        assert keyword in detect_mutating_keywords(payload)
 
-    @pytest.mark.parametrize('keyword', sorted(STATEMENT_START_MUTATING_KEYWORDS))
-    def test_keyword_detected_lowercase(self, keyword):
+    @pytest.mark.parametrize(
+        'keyword,payload',
+        sorted(_STATEMENT_START_KEYWORD_PAYLOADS.items()),
+    )
+    def test_keyword_detected_lowercase(self, keyword, payload):
         """Detection is case-insensitive."""
-        assert keyword in detect_mutating_keywords(f'{keyword.lower()} some_expr()')
+        assert keyword in detect_mutating_keywords(payload.lower())
 
     @pytest.mark.parametrize(
         'keyword,payload',
@@ -1477,3 +1493,174 @@ class TestSemicolonInStringLiteralOverBlock:
     def test_semicolon_in_string_is_rejected(self):
         """``WHERE note = 'a; commit b'`` — blocked by the stacked-queries rule."""
         assert check_sql_injection_risk("SELECT * FROM t WHERE note = 'a; commit b'")
+
+
+# ---------------------------------------------------------------------------
+# Comment / whitespace obfuscation dimension for statement-leading verbs.
+#
+# The keyword-coverage matrix above varies the *keyword*; this class varies
+# the *comment/whitespace prefix* for a fixed set of high-value verbs. It
+# specifically pins the MySQL ``#`` line comment (including the no-space
+# ``#x`` form that sqlparse leaves in place), which would otherwise hide a
+# leading verb from the anchored scan on the RDS Data API path where
+# detect_mutating_keywords is the sole gate.
+# ---------------------------------------------------------------------------
+
+
+class TestLeadingCommentObfuscationIsStripped:
+    """A leading comment must not hide a statement-leading mutating verb."""
+
+    @pytest.mark.parametrize(
+        'prefix',
+        [
+            '',
+            '-- c\n',
+            '--\n',
+            '/* c */',
+            '/* c */ ',
+            '# c\n',  # hash comment WITH space (sqlparse strips)
+            '#\n',  # bare hash
+            '#c\n',  # hash comment NO space (sqlparse leaves it — must strip explicitly)
+            '#x\n',
+            '   \n\t',  # whitespace only
+        ],
+    )
+    @pytest.mark.parametrize('verb', ["DO GET_LOCK('x', 60)", 'SHUTDOWN', 'START REPLICA'])
+    def test_leading_comment_or_ws_does_not_hide_verb(self, prefix, verb):
+        """``<prefix><verb>`` is still detected regardless of the prefix form."""
+        expected = verb.split()[0].split('(')[0].upper()
+        assert expected in detect_mutating_keywords(prefix + verb)
+
+    @pytest.mark.parametrize(
+        'prefix',
+        ['#c\n', '#x\n', '# \n', '-- c\n', '/* c */'],
+    )
+    def test_comment_before_verb_after_semicolon_is_detected(self, prefix):
+        """``SELECT 1;<comment>DO ...`` — comment after ``;`` must not hide DO."""
+        assert 'DO' in detect_mutating_keywords(f"SELECT 1;{prefix}DO GET_LOCK('x', 1)")
+
+    def test_hash_no_space_bypass_is_closed(self):
+        r"""Regression: ``#x\nDO GET_LOCK(...)`` and ``#c\nSHUTDOWN`` are rejected.
+
+        sqlparse does not strip a ``#`` comment unless a space follows it, so
+        without an explicit ``#`` strip these single statements slipped past
+        the anchored scan (the stacked-queries rule does not apply — there is
+        no ``;``). This is the sole gate on the RDS Data API path.
+        """
+        assert 'DO' in detect_mutating_keywords("#x\nDO GET_LOCK('x', 60)")
+        assert 'SHUTDOWN' in detect_mutating_keywords('#c\nSHUTDOWN')
+
+    def test_hash_inside_string_literal_is_not_a_false_positive(self):
+        """A ``#`` inside a string literal in a benign read is not over-stripped into a match."""
+        sql = "SELECT id FROM t WHERE tag = '#sale'"
+        assert detect_mutating_keywords(sql) == []
+        assert check_sql_injection_risk(sql) == []
+
+
+# ---------------------------------------------------------------------------
+# Side-effecting functions blocked regardless of invocation form.
+#
+# Blocking the statement verb (``DO``) is not enough: the read-shaped twin
+# ``SELECT GET_LOCK(...)`` calls the same side-effecting function. These are
+# rejected via SUSPICIOUS_PATTERNS in both read and write mode, matching the
+# existing sleep()/benchmark()/load_file() treatment. Anchored to a ``(`` so
+# same-named identifiers are not flagged.
+# ---------------------------------------------------------------------------
+
+
+class TestSideEffectingFunctions:
+    """`SELECT f(...)` for a side-effecting function is blocked, symmetric with `DO f(...)`."""
+
+    @pytest.mark.parametrize('fn', sorted(SIDE_EFFECTING_FUNCTIONS))
+    def test_side_effecting_function_in_select_is_blocked(self, fn):
+        """Each side-effecting function is rejected when wrapped in a SELECT."""
+        assert check_sql_injection_risk(f"SELECT {fn}('x')")
+
+    @pytest.mark.parametrize('fn', sorted(SIDE_EFFECTING_FUNCTIONS))
+    def test_side_effecting_function_case_insensitive(self, fn):
+        """Detection is case-insensitive."""
+        assert check_sql_injection_risk(f'SELECT {fn.upper()}(1)')
+
+    def test_do_and_select_get_lock_are_symmetric(self):
+        """The reported asymmetry is closed: both DO and SELECT forms are blocked."""
+        do_blocked = bool(detect_mutating_keywords("DO GET_LOCK('x', 60)"))
+        select_blocked = bool(check_sql_injection_risk("SELECT GET_LOCK('x', 60)"))
+        assert do_blocked and select_blocked
+
+    def test_get_lock_with_whitespace_before_paren_is_blocked(self):
+        """``GET_LOCK ('x', 60)`` — whitespace before the paren still matches."""
+        assert check_sql_injection_risk("SELECT GET_LOCK ('x', 60)")
+
+    def test_sys_exec_in_where_clause_is_blocked(self):
+        """A side-effecting function anywhere in the query (not just the select list)."""
+        assert check_sql_injection_risk("SELECT id FROM t WHERE sys_exec('id') = 0")
+
+    # ---- false-positive guards ----
+
+    def test_last_insert_id_no_arg_is_allowed(self):
+        """``LAST_INSERT_ID()`` (no arg) is a benign read and must be allowed."""
+        assert check_sql_injection_risk('SELECT LAST_INSERT_ID()') == []
+        assert detect_mutating_keywords('SELECT LAST_INSERT_ID()') == []
+
+    def test_last_insert_id_with_arg_is_blocked(self):
+        """``LAST_INSERT_ID(expr)`` sets the session value (side effect) — blocked."""
+        assert check_sql_injection_risk('SELECT LAST_INSERT_ID(5)')
+
+    def test_last_insert_id_empty_parens_with_spaces_is_allowed(self):
+        """``LAST_INSERT_ID(  )`` is still the no-arg read form."""
+        assert check_sql_injection_risk('SELECT LAST_INSERT_ID(  )') == []
+
+    def test_read_only_lock_status_probes_are_allowed(self):
+        """``IS_FREE_LOCK`` / ``IS_USED_LOCK`` report status only — not blocked."""
+        assert check_sql_injection_risk("SELECT IS_FREE_LOCK('x')") == []
+        assert check_sql_injection_risk("SELECT IS_USED_LOCK('x')") == []
+
+    def test_same_named_identifier_is_not_blocked(self):
+        """A column/table named like a function (no following ``(``) is not flagged."""
+        assert check_sql_injection_risk('SELECT get_lock FROM t') == []
+        assert check_sql_injection_risk('SELECT id FROM release_lock') == []
+
+
+# ---------------------------------------------------------------------------
+# Session / server-state statement verbs (USE, CACHE INDEX, LOAD INDEX ...).
+# ---------------------------------------------------------------------------
+
+
+class TestSessionStateStatementVerbs:
+    """USE / CACHE INDEX / LOAD INDEX INTO CACHE are gated; hints/identifiers are not."""
+
+    def test_use_database_is_detected(self):
+        """``USE <db>`` switches the session default database (session state)."""
+        assert 'USE' in detect_mutating_keywords('USE mydb')
+
+    def test_cache_index_is_detected(self):
+        """``CACHE INDEX ... IN ...`` assigns indexes to a key cache."""
+        assert 'CACHE' in detect_mutating_keywords('CACHE INDEX t IN kc')
+
+    def test_load_index_into_cache_is_detected(self):
+        """``LOAD INDEX INTO CACHE ...`` preloads indexes into a key cache."""
+        assert 'LOAD INDEX' in detect_mutating_keywords('LOAD INDEX INTO CACHE t')
+
+    def test_use_after_semicolon_is_detected(self):
+        """``SELECT 1; USE mydb`` — USE leads the chained statement."""
+        assert 'USE' in detect_mutating_keywords('SELECT 1; USE mydb')
+
+    # ---- false-positive guards ----
+
+    def test_use_index_optimizer_hint_is_not_flagged(self):
+        """``SELECT ... USE INDEX (idx)`` — the USE here is an index hint, not USE <db>.
+
+        The statement-start anchor is what distinguishes the two: the hint's
+        USE is mid-statement, so it must not be flagged.
+        """
+        assert detect_mutating_keywords('SELECT * FROM t USE INDEX (idx)') == []
+        assert check_sql_injection_risk('SELECT * FROM t USE INDEX (idx)') == []
+
+    def test_force_and_ignore_index_hints_are_not_flagged(self):
+        """Sibling optimizer hints are unaffected."""
+        assert detect_mutating_keywords('SELECT * FROM t FORCE INDEX (idx)') == []
+        assert detect_mutating_keywords('SELECT * FROM t IGNORE INDEX (idx)') == []
+
+    def test_use_cache_prefixed_identifiers_are_not_flagged(self):
+        """Columns like ``use_flag``, ``cache_size``, ``usage`` are not verbs."""
+        assert detect_mutating_keywords('SELECT use_flag, cache_size, usage FROM t') == []
