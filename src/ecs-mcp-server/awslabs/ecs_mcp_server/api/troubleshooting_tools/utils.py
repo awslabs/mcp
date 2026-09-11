@@ -26,6 +26,8 @@ from botocore.exceptions import ClientError
 
 from awslabs.ecs_mcp_server.utils.arn_parser import parse_arn
 from awslabs.ecs_mcp_server.utils.aws import get_aws_client
+from awslabs.ecs_mcp_server.utils.config import get_config
+from awslabs.ecs_mcp_server.utils.security import redact_task_definition
 
 logger = logging.getLogger(__name__)
 
@@ -254,7 +256,8 @@ async def find_task_definitions(
     Returns
     -------
     List[Dict[str, Any]]
-        List of task definition dictionaries with full details.
+        List of task definition dictionaries with full details. Environment variable
+        values and secret references are redacted unless ALLOW_SENSITIVE_DATA is enabled.
 
     Raises
     ------
@@ -272,19 +275,20 @@ async def find_task_definitions(
         )
         return []
 
+    task_definitions: List[Dict[str, Any]] = []
     try:
         if cluster_name and service_name:
-            return await _get_task_definition_by_service(cluster_name, service_name, ecs_client)
-
-        if cluster_name and task_id:
-            return await _get_task_definition_by_task(task_id, cluster_name, ecs_client)
-
-        if stack_name:
-            return await _get_task_definitions_by_stack(stack_name, ecs_client)
-
-        if family_prefix:
-            return await _get_task_definitions_by_family_prefix(family_prefix, ecs_client)
-
+            task_definitions = await _get_task_definition_by_service(
+                cluster_name, service_name, ecs_client
+            )
+        elif cluster_name and task_id:
+            task_definitions = await _get_task_definition_by_task(task_id, cluster_name, ecs_client)
+        elif stack_name:
+            task_definitions = await _get_task_definitions_by_stack(stack_name, ecs_client)
+        elif family_prefix:
+            task_definitions = await _get_task_definitions_by_family_prefix(
+                family_prefix, ecs_client
+            )
     except ClientError as e:
         logger.warning(f"AWS client error in find_task_definitions: {e}")
         return []
@@ -292,7 +296,10 @@ async def find_task_definitions(
         logger.warning(f"Unexpected error in find_task_definitions: {e}")
         return []
 
-    return []
+    if get_config().get("allow-sensitive-data", False):
+        return task_definitions
+
+    return [redact_task_definition(task_definition) for task_definition in task_definitions]
 
 
 async def get_cloudformation_stack_if_exists(resource_arn: str) -> Optional[Dict[str, Any]]:

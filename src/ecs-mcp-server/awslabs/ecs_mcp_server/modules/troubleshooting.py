@@ -81,6 +81,8 @@ def register_module(mcp: FastMCP) -> None:
         - Required: ecs_cluster_name
         - Optional: ecs_service_name (Name of the ECS Service to troubleshoot),
                    symptoms_description (Description of symptoms experienced by the user)
+        - Note: task definition environment variable values and secret references in the
+                response are redacted unless ALLOW_SENSITIVE_DATA=true
         - Example: action="get_ecs_troubleshooting_guidance",
                    parameters={"ecs_cluster_name": "my-cluster", "ecs_service_name": "my-service",
                                "symptoms_description": "ALB returning 503 errors"}
