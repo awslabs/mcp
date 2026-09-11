@@ -150,6 +150,29 @@ class RedshiftColumn(RedshiftDataModel):
     remarks: Optional[str] = Field(None, description='Remarks about the column')
 
 
+class RedshiftUDF(RedshiftDataModel):
+    """Information about a user-defined function in a Redshift database."""
+
+    schema_name: str = Field(..., description='The schema where the UDF is defined')
+    function_name: str = Field(..., description='The name of the UDF')
+    language_type: str = Field(
+        ...,
+        description='The language of the UDF (python, sql, or lambda)',
+    )
+    volatility: Optional[str] = Field(
+        None, description='Volatility category: IMMUTABLE, STABLE, or VOLATILE'
+    )
+    return_type: Optional[str] = Field(None, description='The return data type of the UDF')
+    arguments: Optional[str] = Field(
+        None, description='The argument signature of the UDF (names and types)'
+    )
+    source_code: Optional[str] = Field(None, description='The source code body of the UDF')
+    description: Optional[str] = Field(None, description='User-provided description of the UDF')
+    full_definition: Optional[str] = Field(
+        None, description='The full CREATE FUNCTION DDL statement'
+    )
+
+
 class QueryResult(BaseModel):
     """Result of a SQL query execution."""
 
