@@ -527,7 +527,7 @@ Your AWS credentials need the following IAM permissions:
         "redshift:DescribeClusters",
         "redshift-serverless:ListWorkgroups",
         "redshift-serverless:GetWorkgroup",
-        "redshift-data:ExecuteStatement",
+        "redshift-data:BatchExecuteStatement",
         "redshift-data:DescribeStatement",
         "redshift-data:GetStatementResult",
         "redshift-serverless:GetCredentials",
