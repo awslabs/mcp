@@ -160,93 +160,55 @@ def _current_settings() -> str:
 mcp = MCPServer(
     'awslabs.redshift-mcp-server',
     instructions="""
-# Amazon Redshift MCP Server.
+# Amazon Redshift MCP Server
 
-This MCP server provides comprehensive access to Amazon Redshift clusters and serverless workgroups.
+Discovers, explores and queries Amazon Redshift clusters and serverless workgroups over the
+Redshift, Redshift Serverless and Redshift Data APIs.
 
-## Available Tools
+## Tools
 
-### list_clusters
-Lists all available Redshift clusters and serverless workgroups in your AWS account.
-This tool provides essential information needed to connect to and query your Redshift instances.
+- `list_clusters` — provisioned clusters and serverless workgroups in the account.
+- `list_databases`, `list_schemas`, `list_tables`, `list_columns` — metadata discovery, via
+  `SHOW DATABASES`, `SHOW SCHEMAS`, `SHOW TABLES` and `SHOW COLUMNS`.
+- `execute_query` — run one SQL statement. Read-only by default; read-write is opt-in via
+  `ACCESS_MODE`. Supports named transactions across calls.
+- `review_cluster` — diagnostic review of a cluster or workgroup. Needs the `sys:monitor`
+  role, or a superuser.
 
-### list_databases
-Lists all databases in a specified Redshift cluster.
-This tool runs the SHOW DATABASES command to discover available databases.
+## Discovery order
 
-### list_schemas
-Lists all schemas in a specified database within a Redshift cluster.
-This tool runs the SHOW SCHEMAS command to discover available schemas.
-
-### list_tables
-Lists all tables in a specified schema within a Redshift database.
-This tool runs the SHOW TABLES command to discover available tables.
-
-### list_columns
-Lists all columns in a specified table within a Redshift schema.
-This tool runs the SHOW COLUMNS command to discover available columns.
-
-### execute_query
-Executes SQL queries against a Redshift cluster or serverless workgroup.
-This tool uses the Redshift Data API to run queries and return results.
-Read-only by default; read-write is opt-in via the ACCESS_MODE environment variable.
-The resolved settings are listed at the end of these instructions.
-
-### review_cluster
-Runs a diagnostic review of a Redshift cluster or serverless workgroup.
-Returns identified potential issues and respective recommendations ordered by required mitigation effort.
-Requires the connected database user to hold the sys:monitor role (or be a superuser).
-
-## Getting Started
-
-1. Ensure your AWS configuration and credentials are configured (environment variables or profile configuration file).
-2. Use the list_clusters tool to discover available Redshift instances.
-3. Note the cluster identifiers, which every other tool takes as its first argument.
+Work down the hierarchy: `list_clusters` for an identifier, then `list_databases` for that
+cluster, then `list_schemas`, `list_tables` and `list_columns`. Every tool takes the cluster
+identifier as its first argument, and only a cluster whose status is `available` can be
+queried.
 
 ## Concurrency
 
-Without a transaction parameter, each statement runs on its own connection:
-- Statements against the same `cluster:database` run concurrently, including behind a long-running one.
-- No session state carries between calls.
-- In read-only mode the statement is isolated in its own read-only transaction.
-- In read-write mode it runs directly with autocommit, with no transaction wrapper.
+Without a transaction parameter, each statement runs on its own connection: statements
+against the same `cluster:database` run concurrently, including behind a long-running one,
+and no session state carries between calls.
 
-To carry state across calls, name a transaction with the execute_query tool's
-`begin_transaction`, `in_transaction`, `commit_transaction` and `rollback_transaction`
-parameters. Its statements share one connection and are serialized against each other,
-but not against anything else.
+To carry state across calls, name a transaction with `execute_query`'s `begin_transaction`,
+`in_transaction`, `commit_transaction` and `rollback_transaction` parameters. Its statements
+share one connection and are serialized against each other, but not against anything else.
 
-## AWS Client Best Practices
+## Credentials and region
 
-### Authentication and Configuration
+The default AWS credentials chain, with `AWS_PROFILE` if set. Region precedence is
+`AWS_REGION`, then `AWS_DEFAULT_REGION`, then the profile's own region.
 
-- Default AWS credentials chain (IAM roles, ~/.aws/credentials, etc.).
-- AWS_PROFILE environment variable (if set).
-- Region configuration (in order of precedence):
-  - AWS_REGION environment variable (highest priority)
-  - AWS_DEFAULT_REGION environment variable
-  - Region specified in AWS profile configuration
+Report AWS client errors in full — they name the misconfiguration. For a region error point
+at `AWS_REGION`, `AWS_DEFAULT_REGION` or the profile; for a credentials error, at the
+credentials setup and its permissions.
 
-### Error Handling
+## Query guidelines
 
-- Always print out AWS client errors in full to help diagnose configuration issues.
-- For region-related errors, suggest checking AWS_REGION, AWS_DEFAULT_REGION, or AWS profile configuration.
-- For credential errors, suggest verifying AWS credentials setup and permissions.
-
-## Amazon Redshift Best Practices
-
-### Query Guidelines
-
-- Always specify the database and schema when referencing objects to avoid ambiguity.
-- Leverage distribution in WHERE and JOIN predicates and sort keys in ORDER BY for optimal query performance.
-- Use LIMIT clauses for exploratory queries to avoid large result sets.
-- Analyze table to update table statistics if it is not updated or too off before making a decision on the query structure.
-- Prefer explicitly specifying columns in SELECT over "*" for better performance.
-
-### Connection Guidelines
-
-- We use the Redshift API, the Redshift Serverless API and the Redshift Data API.
-- Leverage IAM authentication when possible instead of secrets (database passwords).
+- Qualify objects with database and schema to avoid ambiguity.
+- Filter on the distribution key and join on it where possible; order by the sort key.
+- `LIMIT` exploratory queries.
+- Name columns explicitly rather than `SELECT *`.
+- Check whether statistics are current before drawing conclusions from a plan.
+- Prefer IAM authentication over database passwords.
 """
     + _current_settings(),
     dependencies=['boto3', 'loguru', 'pydantic', 'sqlglot'],
@@ -388,49 +350,18 @@ def _execute_query_annotations(access_mode: str) -> ToolAnnotations:
     annotations=_read_only_annotations('List Redshift clusters and workgroups'),
 )
 async def list_clusters_tool(ctx: Context) -> list[RedshiftCluster]:
-    """List all available Amazon Redshift clusters and serverless workgroups.
+    """List Redshift clusters and serverless workgroups in the account.
 
-    This tool discovers and returns information about all Redshift clusters and serverless workgroups
-    in your AWS account, including their current status, connection details, and configuration.
+    Returns one entry per cluster: identifier, type (provisioned or serverless), status,
+    database_name, endpoint, port, vpc_id, node_type, number_of_nodes, creation_time,
+    master_username, publicly_accessible, encrypted and tags.
 
-    ## Usage Requirements
+    Only a cluster whose status is 'available' can be queried, and its identifier is what
+    every other tool takes as its first argument.
 
-    - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
-    - Required IAM permissions: redshift:DescribeClusters, redshift-serverless:ListWorkgroups, redshift-serverless:GetWorkgroup.
-
-    ## Response Structure
-
-    Returns a list of RedshiftCluster objects with the following structure:
-
-    - identifier: Unique identifier for the cluster/workgroup.
-    - type: Type of cluster (provisioned or serverless).
-    - status: Current status of the cluster.
-    - database_name: Default database name.
-    - endpoint: Connection endpoint information.
-    - port: Connection port.
-    - vpc_id: VPC ID where the cluster resides.
-    - node_type: Node type (for provisioned clusters).
-    - number_of_nodes: Number of nodes (for provisioned clusters).
-    - creation_time: When the cluster was created.
-    - master_username: Master username for the cluster.
-    - publicly_accessible: Whether the cluster is publicly accessible.
-    - encrypted: Whether the cluster is encrypted.
-    - tags: Tags associated with the cluster.
-
-    ## Usage Tips
-
-    1. Use this tool to discover available Redshift instances before attempting connections.
-    2. Note the cluster identifiers for use with other database tools.
-    3. Check the status field to ensure clusters are 'available' before querying.
-    4. Use the endpoint and port information for direct database connections if needed.
-    5. Consider the cluster type (provisioned vs serverless) when planning your queries.
-
-    ## Interpretation Best Practices
-
-    1. Filter results by status to find only available clusters.
-    2. Use cluster identifiers as input for other Redshift tools.
-    3. Consider cluster configuration (node type, encryption) for performance planning.
-    4. Check tags for environment or team information to select appropriate clusters.
+    Requires redshift:DescribeClusters, redshift-serverless:ListWorkgroups and
+    redshift-serverless:GetWorkgroup. Whichever of provisioned or serverless discovery is
+    denied is skipped, so a partial list is normal; both denied is an error.
     """
     try:
         logger.info('Discovering Redshift clusters and serverless workgroups')
@@ -459,50 +390,17 @@ async def list_databases_tool(
         description='The database to connect to for metadata discovery. Defaults to "dev".',
     ),
 ) -> list[RedshiftDatabase]:
-    """List all databases in a specified Amazon Redshift cluster.
+    """List the databases in a cluster, via SHOW DATABASES.
 
-    This tool runs the SHOW DATABASES command to discover all databases
-    that the user has access to in the specified cluster, including local databases
-    and databases created from datashares.
+    Returns database_name, database_owner, database_type (local or shared), database_acl,
+    parameters and database_isolation_level.
 
-    ## Usage Requirements
+    A 'shared' database comes from a datashare, and appears only if the connecting
+    principal has been granted access to the consumer database (GRANT USAGE ON DATABASE
+    <db> TO <principal>) — so a datashare can exist without being listed here.
 
-    - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
-    - The cluster must be available and accessible.
-    - Required IAM permissions: redshift-data:BatchExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
-    - The user must have access to the specified database to run the discovery commands.
-
-    ## Parameters
-
-    - cluster_identifier: The unique identifier of the Redshift cluster to query.
-                         IMPORTANT: Use a valid cluster identifier from the list_clusters tool.
-    - database_name: The database to connect to for metadata discovery (defaults to 'dev').
-
-    ## Response Structure
-
-    Returns a list of RedshiftDatabase objects with the following structure:
-
-    - database_name: The name of the database.
-    - database_owner: The database owner user ID.
-    - database_type: The type of database (local or shared).
-    - database_acl: Access control information (for internal use).
-    - parameters: The properties of the database.
-    - database_isolation_level: The isolation level (Snapshot Isolation or Serializable).
-
-    ## Usage Tips
-
-    1. First use list_clusters to get valid cluster identifiers.
-    2. Ensure the cluster status is 'available' before querying databases.
-    3. Use the default database name unless you know a specific database exists.
-    4. Note database types to understand if they are local or shared from datashares.
-    5. Shared (datashare) databases appear only if the connecting principal has been granted access to the consumer database (e.g. GRANT USAGE ON DATABASE <db> TO <principal>); otherwise they are omitted even though the datashare exists.
-
-    ## Interpretation Best Practices
-
-    1. Focus on 'local' database types for cluster-native databases.
-    2. 'shared' database types indicate databases from datashares.
-    3. Use database names for subsequent schema and table discovery.
-    4. Consider database isolation levels for transaction planning.
+    Requires redshift-data:BatchExecuteStatement, redshift-data:DescribeStatement and
+    redshift-data:GetStatementResult.
     """
     try:
         logger.info(f'Discovering databases on cluster: {cluster_identifier}')
@@ -535,54 +433,18 @@ async def list_schemas_tool(
         description='The database name to list schemas for. Also used to connect to. Must be a valid database name from the list_databases tool.',
     ),
 ) -> list[RedshiftSchema]:
-    """List all schemas in a specified database within a Redshift cluster.
+    """List the schemas in a database, via SHOW SCHEMAS.
 
-    This tool runs the SHOW SCHEMAS command to discover all schemas
-    that the user has access to in the specified database, including local schemas,
-    external schemas, and shared schemas from datashares.
+    Returns database_name, schema_name, schema_owner, schema_type (local, external or
+    shared), schema_acl, source_database and schema_option.
 
-    ## Usage Requirements
+    An 'external' schema points at S3 or another database. A 'shared' schema comes from a
+    datashare and appears only if the principal has been granted access to the consumer
+    database. A database auto-mounted from a Glue Data Catalog cannot be explored: Redshift
+    refuses to connect to it, so this tool fails on one even though list_databases lists it.
 
-    - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
-    - The cluster must be available and accessible.
-    - Required IAM permissions: redshift-data:BatchExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
-    - The user must have access to the database to run the discovery commands.
-
-    ## Parameters
-
-    - cluster_identifier: The unique identifier of the Redshift cluster to query.
-                         IMPORTANT: Use a valid cluster identifier from the list_clusters tool.
-    - schema_database_name: The database name to list schemas for. Also used to connect to.
-                           IMPORTANT: Use a valid database name from the list_databases tool.
-
-    ## Response Structure
-
-    Returns a list of RedshiftSchema objects with the following structure:
-
-    - database_name: The name of the database where the schema exists.
-    - schema_name: The name of the schema.
-    - schema_owner: The user ID of the schema owner.
-    - schema_type: The type of the schema (external, local, or shared).
-    - schema_acl: The permissions for the specified user or user group for the schema.
-    - source_database: The name of the source database for external schema.
-    - schema_option: The options of the schema (external schema attribute).
-
-    ## Usage Tips
-
-    1. First use list_clusters to get valid cluster identifiers.
-    2. Then use list_databases to get valid database names for the cluster.
-    3. Ensure the cluster status is 'available' before querying schemas.
-    4. Note schema types to understand if they are local, external, or shared.
-    5. External schemas connect to external data sources like S3 or other databases.
-    6. Schemas in a shared (datashare) database appear only if the connecting principal has been granted access to the consumer database (e.g. GRANT USAGE ON DATABASE <db> TO <principal>); otherwise they are omitted even though the datashare exists.
-
-    ## Interpretation Best Practices
-
-    1. Focus on 'local' schema types for cluster-native schemas.
-    2. 'external' schema types indicate connections to external data sources.
-    3. 'shared' schema types indicate schemas from datashares.
-    4. Use schema names for subsequent table and column discovery.
-    5. Consider schema permissions (schema_acl) for access planning.
+    Requires redshift-data:BatchExecuteStatement, redshift-data:DescribeStatement and
+    redshift-data:GetStatementResult.
     """
     try:
         logger.info(
@@ -621,55 +483,15 @@ async def list_tables_tool(
         description='The schema name to list tables for. Also used to connect to. Must be a valid schema name from the list_schemas tool.',
     ),
 ) -> list[RedshiftTable]:
-    """List all tables in a specified schema within a Redshift database.
+    """List the tables in a schema, via SHOW TABLES.
 
-    This tool runs the SHOW TABLES command to discover all tables
-    that the user has access to in the specified schema, including base tables,
-    views, external tables, and shared tables.
+    Returns database_name, schema_name, table_name, table_acl, table_type and remarks,
+    where table_type is TABLE, VIEW, EXTERNAL TABLE or SHARED TABLE.
 
-    ## Usage Requirements
+    An unknown schema returns an empty list rather than an error.
 
-    - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
-    - The cluster must be available and accessible.
-    - Required IAM permissions: redshift-data:BatchExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
-    - The user must have access to the database to run the discovery commands.
-
-    ## Parameters
-
-    - cluster_identifier: The unique identifier of the Redshift cluster to query.
-                         IMPORTANT: Use a valid cluster identifier from the list_clusters tool.
-    - table_database_name: The database name to list tables for.
-                          IMPORTANT: Use a valid database name from the list_databases tool.
-    - table_schema_name: The schema name to list tables for.
-                        IMPORTANT: Use a valid schema name from the list_schemas tool.
-
-    ## Response Structure
-
-    Returns a list of RedshiftTable objects with the following structure:
-
-    - database_name: The name of the database where the table exists.
-    - schema_name: The schema name for the table.
-    - table_name: The name of the table.
-    - table_acl: The permissions for the specified user or user group for the table.
-    - table_type: The type of the table (views, base tables, external tables, shared tables).
-    - remarks: Remarks about the table.
-
-    ## Usage Tips
-
-    1. First use list_clusters to get valid cluster identifiers.
-    2. Then use list_databases to get valid database names for the cluster.
-    3. Then use list_schemas to get valid schema names for the database.
-    4. Ensure the cluster status is 'available' before querying tables.
-    5. Note table types to understand if they are base tables, views, external tables, or shared tables.
-
-    ## Interpretation Best Practices
-
-    1. Focus on 'TABLE' table types for regular database tables.
-    2. 'VIEW' table types indicate database views.
-    3. 'EXTERNAL TABLE' types indicate connections to external data sources.
-    4. 'SHARED TABLE' types indicate tables from datashares.
-    5. Use table names for subsequent column discovery and query operations.
-    6. Consider table permissions (table_acl) for access planning.
+    Requires redshift-data:BatchExecuteStatement, redshift-data:DescribeStatement and
+    redshift-data:GetStatementResult.
     """
     try:
         logger.info(
@@ -714,64 +536,16 @@ async def list_columns_tool(
         description='The table name to list columns for. Must be a valid table name from the list_tables tool.',
     ),
 ) -> list[RedshiftColumn]:
-    """List all columns in a specified table within a Redshift schema.
+    """List the columns in a table, via SHOW COLUMNS.
 
-    This tool runs the SHOW COLUMNS command to discover all columns
-    that the user has access to in the specified table, including detailed information
-    about data types, constraints, and column properties.
+    Returns database_name, schema_name, table_name, column_name, ordinal_position,
+    column_default, is_nullable, data_type, character_maximum_length, numeric_precision,
+    numeric_scale and remarks.
 
-    ## Usage Requirements
+    An unknown table returns an empty list rather than an error.
 
-    - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
-    - The cluster must be available and accessible.
-    - Required IAM permissions: redshift-data:BatchExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
-    - The user must have access to the database to run the discovery commands.
-
-    ## Parameters
-
-    - cluster_identifier: The unique identifier of the Redshift cluster to query.
-                         IMPORTANT: Use a valid cluster identifier from the list_clusters tool.
-    - column_database_name: The database name to list columns for.
-                           IMPORTANT: Use a valid database name from the list_databases tool.
-    - column_schema_name: The schema name to list columns for.
-                         IMPORTANT: Use a valid schema name from the list_schemas tool.
-    - column_table_name: The table name to list columns for.
-                        IMPORTANT: Use a valid table name from the list_tables tool.
-
-    ## Response Structure
-
-    Returns a list of RedshiftColumn objects with the following structure:
-
-    - database_name: The name of the database.
-    - schema_name: The name of the schema.
-    - table_name: The name of the table.
-    - column_name: The name of the column.
-    - ordinal_position: The position of the column in the table.
-    - column_default: The default value of the column.
-    - is_nullable: Whether the column is nullable (yes or no).
-    - data_type: The data type of the column.
-    - character_maximum_length: The maximum number of characters in the column.
-    - numeric_precision: The numeric precision.
-    - numeric_scale: The numeric scale.
-    - remarks: Remarks about the column.
-
-    ## Usage Tips
-
-    1. First use list_clusters to get valid cluster identifiers.
-    2. Then use list_databases to get valid database names for the cluster.
-    3. Then use list_schemas to get valid schema names for the database.
-    4. Then use list_tables to get valid table names for the schema.
-    5. Ensure the cluster status is 'available' before querying columns.
-    6. Note data types and constraints for query planning and data validation.
-
-    ## Interpretation Best Practices
-
-    1. Use ordinal_position to understand column order in the table.
-    2. Check is_nullable for required vs optional fields.
-    3. Use data_type information for proper data handling in queries.
-    4. Consider character_maximum_length for string field validation.
-    5. Use numeric_precision and numeric_scale for numeric field handling.
-    6. Use column names for SELECT statements and query construction.
+    Requires redshift-data:BatchExecuteStatement, redshift-data:DescribeStatement and
+    redshift-data:GetStatementResult.
     """
     try:
         logger.info(
@@ -843,74 +617,30 @@ async def execute_query_tool(
         ),
     ] = None,
 ) -> QueryResult:
-    """Execute a SQL query against a Redshift cluster or serverless workgroup.
+    """Execute one SQL statement against a Redshift cluster or serverless workgroup.
 
-    This tool uses the Redshift Data API to execute SQL queries and return results.
-    It supports both provisioned clusters and serverless workgroups, and handles
-    various data types in the result set.
-
-    ## Usage Requirements
-
-    - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
-    - The cluster must be available and accessible.
-    - Required IAM permissions: redshift-data:BatchExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
-    - The user must have appropriate permissions to execute queries in the specified database.
-
-    ## Parameters
-
-    - cluster_identifier: The unique identifier of the Redshift cluster to query.
-                         IMPORTANT: Use a valid cluster identifier from the list_clusters tool.
-    - database_name: The database name to execute the query against.
-                    IMPORTANT: Use a valid database name from the list_databases tool.
-    - sql: The SQL statement to execute. Must be a single SQL statement. Required unless a
-           transaction is only being committed or rolled back.
-    - begin_transaction / in_transaction / commit_transaction / rollback_transaction: The name
-           of a transaction to start, run the query in, commit, or roll back. At most one of the four per
-           call.
-
-    ## Response Structure
-
-    Returns a QueryResult object with the following structure:
-
-    - columns: List of column names in the result set.
-    - rows: List of rows, where each row is a list of values.
-    - row_count: Number of rows returned.
-    - query_id: Unique identifier for the query execution.
-
-    ## Usage Tips
-
-    1. First use list_clusters to get valid cluster identifiers.
-    2. Then use list_databases to get valid database names for the cluster.
-    3. Ensure the cluster status is 'available' before executing queries.
-    4. Use LIMIT clauses for exploratory queries to avoid large result sets.
-    5. Consider using the metadata discovery tools to understand table structures before querying.
-
-    ## Data Type Handling
-
-    Values are typed as the Data API returns them:
-    - `INTEGER` and `BIGINT` as integers, `REAL` and `DOUBLE PRECISION` as floats.
-    - Booleans as booleans, `NULL` as null.
-    - Everything else as a string, including `VARCHAR`, `DECIMAL`, dates, times,
-      timestamps and `SUPER`.
+    Returns columns (names), rows, row_count and query_id. Values are typed as the Data API
+    returns them: INTEGER and BIGINT as integers, REAL and DOUBLE PRECISION as floats,
+    booleans as booleans, NULL as null, and everything else as a string, including VARCHAR,
+    DECIMAL, dates, times, timestamps and SUPER.
 
     ## Execution Mode
 
-    The mode is fixed at server startup by the `ACCESS_MODE` environment
-    variable and cannot be changed per call. This server's resolved settings are listed
-    at the end of its instructions.
+    Fixed at server startup by the ACCESS_MODE environment variable, not per call. This
+    server's resolved settings are listed at the end of its instructions.
 
     - Read-only (default): the statement runs inside `BEGIN READ ONLY ... ROLLBACK`, so
       nothing is persisted, and statement types the transaction cannot neutralize
       (`UNLOAD`, `GRANT`, `TRUNCATE`, `VACUUM`, `SET`, `RESET`, transaction control, and
       similar) are rejected before execution.
-    - Read-write (`ACCESS_MODE=read-write`): the statement runs directly with
-      autocommit and can create, modify, and delete data and objects. Outside a
-      transaction there is no rollback and nothing to undo.
+    - Read-write (`ACCESS_MODE=read-write`): the statement runs directly with autocommit
+      and can create, modify and delete data and objects. Outside a transaction there is
+      no rollback and nothing to undo.
 
-    In read-write mode each statement is confirmed by the caller before it runs, unless
-    the operator set `UNSAFE_SKIP_WRITE_CONFIRMATION=true`. Clients that cannot prompt
-    are refused rather than executed unconfirmed. Closing a transaction is not itself a
-    write, so a bare commit or rollback asks nothing.
+    In read-write mode each statement is confirmed by the caller before it runs, unless the
+    operator set `UNSAFE_SKIP_WRITE_CONFIRMATION=true`. A client that cannot prompt is
+    refused rather than executed unconfirmed. Closing a transaction is not itself a write,
+    so a bare commit or rollback asks nothing.
 
     Both modes accept a single statement only; multi-statement submissions are rejected.
 
@@ -934,8 +664,8 @@ async def execute_query_tool(
     opened against. A statement that fails inside one aborts it: the transaction is rolled
     back and the name is dropped, so the next call reports it as unknown rather than
     committing nothing under the impression it worked. An idle transaction is ended by
-    Redshift after `SESSION_KEEPALIVE` seconds, and `MAX_OPEN_TRANSACTIONS_PER_TARGET`
-    caps how many may be open at once against one cluster and database.
+    Redshift after SESSION_KEEPALIVE seconds, and MAX_OPEN_TRANSACTIONS_PER_TARGET caps how
+    many may be open at once against one cluster and database.
 
     Close a transaction in the same stretch of work that opened it. While it is open it
     holds a Redshift connection and can block other writers on the tables it touched, so
@@ -945,12 +675,13 @@ async def execute_query_tool(
     any of that, tell them first that it stays open until they close it and that it may
     block other writers, then get their agreement before opening it.
 
-    ## Security Considerations
+    ## Security
 
-    - Avoid dynamic SQL construction with user input.
-    - Consider database object permissions.
-    - The database user's privileges are the real boundary. In read-write mode, grant
-      only the privileges the workload needs.
+    Avoid building SQL from untrusted input. The database user's privileges are the real
+    boundary, so grant only what the workload needs.
+
+    Requires redshift-data:BatchExecuteStatement, redshift-data:DescribeStatement and
+    redshift-data:GetStatementResult.
     """
     try:
         logger.info(
@@ -1002,76 +733,42 @@ async def review_cluster_tool(
 ) -> ReviewResult:
     """Run a diagnostic review of a Redshift cluster or serverless workgroup.
 
-    Returns identified potential issues and respective recommendations
-    ordered by required mitigation effort.
+    Evaluates diagnostic signals against system views and returns the findings that
+    triggered, with a recommendation for each. Provisioned-only diagnostics are skipped
+    automatically for a serverless workgroup.
 
-    ## Usage Requirements
+    ## Reading the result
 
-    - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
-    - The cluster must be available and accessible.
-    - Required IAM permissions: redshift-data:BatchExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
-    - The connected database user must be able to read Redshift system views, which
-      require superuser or sys:monitor access. If the current user is not a superuser,
-      it must be granted the sys:monitor role:
-      GRANT ROLE sys:monitor TO "<database_user>"; where <database_user> is the output
-      of SELECT current_user, quoted because IAM identities contain a colon
-      (IAM:<user> or IAMR:<role>).
-    - Without that access the review fails fast rather than returning partial results.
+    - signals_evaluated: how many signals ran.
+    - findings: one entry per triggered signal, carrying signal_name, section,
+      affected_row_count, unit, and recommendation_ids.
+    - recommendations: deduplicated, each with id, text (markdown, including
+      documentation links) and triggered_by_signals.
+    - queries_executed: names of the diagnostic queries that ran.
 
-    ## Parameters
+    Count findings as len(findings), never from affected_row_count: that field counts
+    affected objects in its own `unit` (7 tables, 3 nodes), so two findings each affecting
+    7 tables is "2 findings across 7 tables", not 14. Each signal is an independent
+    count(*) and one object can match several, so affected_row_count is NOT additive
+    across findings or recommendations, and values in different units are NOT comparable.
 
-    - cluster_identifier: The unique identifier of the Redshift cluster to review.
-                         IMPORTANT: Use a valid cluster identifier from the list_clusters tool.
-    - database_name: The database to connect to for querying system views. Defaults to "dev".
+    Zero findings means the cluster is healthy across every signal evaluated. Follow the
+    documentation links in each recommendation. When there are findings, offer to act on
+    them, starting with the lowest-effort, highest-impact items.
 
-    ## Response Structure
+    ## Access
 
-    Returns a ReviewResult object with the following structure:
+    The connected database user must be able to read Redshift system views, which requires
+    superuser or the sys:monitor role:
 
-    - signals_evaluated: Total number of diagnostic signals evaluated.
-    - findings: List of triggered findings (one per triggered signal branch). The
-      number of findings is len(findings) - do NOT derive it from affected_row_count.
-      Each finding contains:
-        - signal_name: The specific signal (condition) that was triggered.
-        - section: The diagnostic query section this finding belongs to.
-        - affected_row_count: How many objects match the signal, counted in `unit`
-          (for example, 7 tables). This is the number of affected objects, NOT a
-          count of findings, and values are NOT comparable across different units.
-          Each signal is an independent count(*); the same object (a table, node, ...)
-          may match several signals, so do NOT sum affected_row_count across findings
-          or recommendations - the totals overlap and would over-count distinct objects.
-        - unit: Unit of affected_row_count (e.g. tables, nodes, queues, queries).
-        - recommendation_ids: List of recommendation IDs associated with this finding.
-    - recommendations: Deduplicated list of recommendations ordered by effort, each containing:
-        - id: Unique identifier for the recommendation.
-        - text: Markdown text with description and documentation links.
-        - triggered_by_signals: Names of signals that triggered this recommendation.
-    - queries_executed: Names of diagnostic queries that were executed.
+        GRANT ROLE sys:monitor TO "<database_user>";
 
-    ## Usage Tips
+    <database_user> is the output of SELECT current_user, quoted because an IAM identity
+    contains a colon (IAM:<user> or IAMR:<role>). Without that access the review fails
+    fast rather than returning partial results.
 
-    1. First use list_clusters to get valid cluster identifiers.
-    2. Then use list_databases to get valid database names for the cluster.
-    3. Ensure the cluster status is 'available' before running the review.
-    4. Provisioned-only diagnostics are automatically skipped for serverless workgroups.
-    5. Review runs read-only diagnostic queries against system views and tables.
-
-    ## Interpretation Best Practices
-
-    1. When counting findings, use the number of entries in `findings` (for example,
-       two findings each affecting 7 tables = "2 findings across 7 tables", not 14).
-       Rank by affected_row_count only within the same unit; counts in different
-       units (tables vs nodes vs queues) are not comparable.
-    2. Each recommendation includes documentation links — always follow these links for detailed guidance.
-    3. Use triggered_by_signals to understand which diagnostics surfaced each recommendation.
-    4. A review with zero findings indicates the cluster is healthy across all evaluated signals.
-    5. Findings are independent per-signal diagnostics; do NOT sum affected_row_count
-       across findings or recommendations. The same object can match several signals,
-       so the counts overlap and are not additive.
-    6. Close with a call to action: when there are findings, end the response by
-       offering to help act on them - suggest starting with the lowest-effort,
-       highest-impact items and ask whether to proceed.
-       When there are no findings, state that the cluster is healthy across the evaluated signals.
+    Requires redshift-data:BatchExecuteStatement, redshift-data:DescribeStatement and
+    redshift-data:GetStatementResult.
     """
     try:
         logger.info(f'Running review on cluster {cluster_identifier}, database {database_name}')
