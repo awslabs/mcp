@@ -297,14 +297,61 @@ SECURITY_SENSITIVE_VAR_PATTERN = re.compile(
 )
 
 
-# MySQL ``#`` line comment. sqlparse only strips a ``#`` comment when a space
-# follows the ``#``; the no-space form (``#x\n...``) is left intact, which
-# would let a 2-char ``#x\n`` prefix hide a statement-leading verb from the
-# anchored scan (e.g. ``#x\nDO GET_LOCK(...)`` or ``#x\nSHUTDOWN``). MySQL
-# treats ``#`` as a comment to end-of-line regardless of the next character,
-# so we strip it explicitly after sqlparse has done its string-literal-aware
-# pass over the other comment forms.
-MYSQL_HASH_COMMENT_PATTERN = re.compile(r'#[^\n]*')
+def _strip_mysql_hash_comments(sql: str) -> str:
+    r"""Remove MySQL ``#`` line comments while preserving string literals.
+
+    sqlparse only strips the space-prefixed ``# `` form, leaving the no-space
+    ``#x`` form intact (which would let a ``#x\n`` prefix hide a
+    statement-leading verb, e.g. ``#x\nDO GET_LOCK(...)``). A blind
+    ``#[^\n]*`` strip is NOT safe: a ``#`` inside a ``'...'`` / ``"..."``
+    string literal or a ``` `...` ``` identifier is data, not a comment
+    (``'#sale'``, ``'#ffffff'``), and stripping to end-of-line there would
+    delete trailing real SQL — hiding a mutation such as
+    ``WHERE c = '#foo'; DROP TABLE t``.
+
+    This scanner therefore strips ``#...EOL`` only when the ``#`` is outside
+    any quoted region. Quote tracking honours MySQL's default escaping:
+    backslash escapes inside ``'...'`` / ``"..."`` (the server does not set
+    NO_BACKSLASH_ESCAPES) and doubled-quote escapes (``''``, ``""``,
+    ``` `` ```). ``--`` and ``/* */`` are already removed by sqlparse before
+    this runs.
+    """
+    out: list[str] = []
+    i, n = 0, len(sql)
+    quote: str | None = None
+    while i < n:
+        ch = sql[i]
+        if quote is not None:
+            out.append(ch)
+            # Backslash escape (not inside backtick identifiers): the next
+            # char is part of the string, never a closing quote.
+            if ch == '\\' and quote != '`' and i + 1 < n:
+                out.append(sql[i + 1])
+                i += 2
+                continue
+            if ch == quote:
+                # A doubled quote is an escaped quote, still inside the string.
+                if i + 1 < n and sql[i + 1] == quote:
+                    out.append(sql[i + 1])
+                    i += 2
+                    continue
+                quote = None
+            i += 1
+            continue
+        if ch in ("'", '"', '`'):
+            quote = ch
+            out.append(ch)
+            i += 1
+            continue
+        if ch == '#':
+            # Comment to end of line; drop up to (but not including) the
+            # newline so a mutation on a later line is still scanned.
+            while i < n and sql[i] != '\n':
+                i += 1
+            continue
+        out.append(ch)
+        i += 1
+    return ''.join(out)
 
 
 def _strip_comments_for_scan(sql: str) -> str:
@@ -312,11 +359,13 @@ def _strip_comments_for_scan(sql: str) -> str:
 
     ``sqlparse.format(strip_comments=True)`` removes ``-- ...``, ``/* ... */``
     and the space-prefixed ``# ...`` form while respecting string literals.
-    It does NOT remove the no-space MySQL ``#`` line comment, so any residual
-    ``#`` comment is stripped afterwards (see MYSQL_HASH_COMMENT_PATTERN).
+    It does NOT remove the no-space MySQL ``#`` line comment, so a
+    string-literal-aware pass (see ``_strip_mysql_hash_comments``) removes any
+    residual ``#`` comment without touching ``#`` characters inside string
+    literals or identifiers.
     """
     stripped = sqlparse.format(sql, strip_comments=True)
-    return MYSQL_HASH_COMMENT_PATTERN.sub('', stripped)
+    return _strip_mysql_hash_comments(stripped)
 
 
 def detect_mutating_keywords(sql_text: str) -> list[str]:

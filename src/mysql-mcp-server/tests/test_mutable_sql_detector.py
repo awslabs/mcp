@@ -1664,3 +1664,111 @@ class TestSessionStateStatementVerbs:
     def test_use_cache_prefixed_identifiers_are_not_flagged(self):
         """Columns like ``use_flag``, ``cache_size``, ``usage`` are not verbs."""
         assert detect_mutating_keywords('SELECT use_flag, cache_size, usage FROM t') == []
+
+
+# ---------------------------------------------------------------------------
+# The `#`-comment strip must be string-literal aware.
+#
+# A ``#`` inside a string literal or backtick identifier is data, not a
+# comment, so stripping ``#...EOL`` there would delete trailing real SQL and
+# hide a mutation. These pin the false-NEGATIVE direction (mutation after a
+# ``#``-bearing string must still be detected) as well as the benign reads.
+# ---------------------------------------------------------------------------
+
+
+class TestHashStripIsStringLiteralAware:
+    """`#` inside quotes is preserved; a `#` comment outside quotes is stripped."""
+
+    # ---- false negatives: mutation after a #-bearing string MUST be caught ----
+
+    def test_hash_in_string_then_stacked_drop_is_detected(self):
+        """``WHERE c = '#foo'; DROP TABLE t`` — the trailing DROP must survive."""
+        sql = "SELECT id FROM t WHERE c = '#foo'; DROP TABLE t"
+        assert 'DROP' in detect_mutating_keywords(sql)
+        assert check_sql_injection_risk(sql)  # stacked-query + DROP patterns
+
+    def test_hash_only_string_then_stacked_drop_is_detected(self):
+        """``SELECT '#' ; DROP TABLE users`` — string is just ``#``."""
+        sql = "SELECT '#' ; DROP TABLE users"
+        assert 'DROP' in detect_mutating_keywords(sql)
+        assert check_sql_injection_risk(sql)
+
+    def test_hash_in_string_then_sleep_probe_is_detected(self):
+        """``WHERE c = '#x' OR SLEEP(5)`` — the SLEEP probe must survive."""
+        assert check_sql_injection_risk("SELECT id FROM t WHERE c = '#x' OR SLEEP(5)")
+
+    def test_hash_in_backtick_identifier_then_get_lock_is_detected(self):
+        """``SELECT `a#b`, GET_LOCK('x',1)`` — GET_LOCK after a #-identifier."""
+        assert check_sql_injection_risk("SELECT `a#b`, GET_LOCK('x', 1)")
+
+    def test_hash_in_string_then_union_select_is_detected(self):
+        """``SELECT '#a' UNION SELECT ...`` — UNION-injection must survive."""
+        assert check_sql_injection_risk("SELECT '#a' UNION SELECT password FROM users")
+
+    def test_backslash_escaped_quote_then_hash_then_drop_is_detected(self):
+        r"""``SELECT 'a\'#b'; DROP TABLE t`` — escaped quote keeps the string open."""
+        sql = "SELECT 'a\\'#b'; DROP TABLE t"
+        assert 'DROP' in detect_mutating_keywords(sql)
+
+    def test_doubled_quote_then_hash_then_drop_is_detected(self):
+        """``SELECT 'it''s a #test'; DROP TABLE t`` — doubled-quote escape."""
+        sql = "SELECT 'it''s a #test'; DROP TABLE t"
+        assert 'DROP' in detect_mutating_keywords(sql)
+
+    def test_double_quoted_string_with_hash_then_delete_is_detected(self):
+        """``SELECT "d#e"; DELETE FROM t`` — double-quoted string with a ``#``."""
+        assert 'DELETE' in detect_mutating_keywords('SELECT "d#e"; DELETE FROM t')
+
+    def test_multiple_hash_comment_lines_then_verb_is_detected(self):
+        r"""``#a\n#b\nDO GET_LOCK(...)`` — real comment lines before a verb."""
+        assert 'DO' in detect_mutating_keywords("#a\n#b\nDO GET_LOCK('x', 1)")
+
+    # ---- false positives: benign #-bearing data must stay allowed ----
+
+    def test_hashtag_string_is_allowed(self):
+        """``tag = '#sale'`` — a hashtag literal is benign."""
+        sql = "SELECT id FROM t WHERE tag = '#sale'"
+        assert detect_mutating_keywords(sql) == []
+        assert check_sql_injection_risk(sql) == []
+
+    def test_hex_color_string_is_allowed(self):
+        """``'#ffffff'`` — a hex colour literal is benign."""
+        sql = "SELECT '#ffffff' AS color FROM t"
+        assert detect_mutating_keywords(sql) == []
+        assert check_sql_injection_risk(sql) == []
+
+    def test_multiple_hash_strings_are_allowed(self):
+        """Several ``#``-bearing string literals in one read are benign."""
+        sql = "SELECT '#a', '#b' FROM t"
+        assert detect_mutating_keywords(sql) == []
+        assert check_sql_injection_risk(sql) == []
+
+    def test_backtick_hash_identifiers_are_allowed(self):
+        """Backtick identifiers containing ``#`` are benign."""
+        assert detect_mutating_keywords('SELECT `c#1`, `c#2` FROM t') == []
+
+    def test_doubled_quote_hash_string_is_allowed(self):
+        """``'it''s #1'`` — doubled-quote escape with a ``#`` is benign data."""
+        assert detect_mutating_keywords("SELECT 'it''s #1' AS n") == []
+        assert check_sql_injection_risk("SELECT 'it''s #1' AS n") == []
+
+    def test_trailing_hash_comment_after_read_is_allowed(self):
+        """A genuine trailing ``#`` comment on a read is stripped, not flagged."""
+        sql = 'SELECT id FROM users # trailing note\nWHERE active = 1'
+        assert detect_mutating_keywords(sql) == []
+        assert check_sql_injection_risk(sql) == []
+
+    def test_fully_commented_line_is_inert_but_next_line_is_not(self):
+        """A whole-line ``#`` comment is inert, but the next line is not.
+
+        A whole-line ``#`` comment executes nothing in MySQL, so a verb
+        entirely inside the comment is inert (allowed); the same verb on a
+        line AFTER the comment is a real statement and must be blocked. (The
+        pre-`#`-strip code false-positive-blocked the inert form because the
+        commented-out keyword text was still scanned.)
+        """
+        # entire line is a comment -> no statement executes -> allowed
+        assert detect_mutating_keywords('#x DROP TABLE t') == []
+        assert check_sql_injection_risk('#x DROP TABLE t') == []
+        # real statement on the next line -> blocked
+        assert 'DROP' in detect_mutating_keywords('#x\nDROP TABLE t')
