@@ -25,12 +25,18 @@ import re
 from typing import Any, Dict, Set
 
 from awslabs.ecs_mcp_server.utils.aws import get_aws_client
+from awslabs.ecs_mcp_server.utils.security import (
+    REDACTED,
+    redact_container_definition,
+    redact_task_definition,
+)
 
 logger = logging.getLogger(__name__)
 
 # Operations that return sensitive data (environment variables, secrets, etc.)
 # These require ALLOW_SENSITIVE_DATA=true or their responses will be sanitized.
 SENSITIVE_DATA_OPERATIONS: Set[str] = {
+    "DescribeExpressGatewayService",
     "DescribeTaskDefinition",
     "DescribeTasks",
 }
@@ -135,6 +141,8 @@ def _sanitize_sensitive_response(response: Dict[str, Any], api_operation: str) -
     For DescribeTaskDefinition: redacts containerDefinitions[].environment values
     and containerDefinitions[].secrets.
     For DescribeTasks: redacts containers[].environment values and overrides.
+    For DescribeExpressGatewayService: redacts the environment values and secrets of
+    every active configuration's primaryContainer.
 
     Args:
         response: The raw API response
@@ -146,28 +154,26 @@ def _sanitize_sensitive_response(response: Dict[str, Any], api_operation: str) -
     sanitized = copy.deepcopy(response)
 
     if api_operation == "DescribeTaskDefinition":
-        task_def = sanitized.get("taskDefinition", {})
-        for container in task_def.get("containerDefinitions", []):
-            # Redact environment variable values (keep names for debugging)
-            for env_var in container.get("environment", []):
-                env_var["value"] = "[REDACTED]"
-            # Remove secrets entirely (they reference SSM/Secrets Manager ARNs)
-            if "secrets" in container:
-                container["secrets"] = [
-                    {"name": s.get("name", ""), "valueFrom": "[REDACTED]"}
-                    for s in container["secrets"]
-                ]
+        if "taskDefinition" in sanitized:
+            sanitized["taskDefinition"] = redact_task_definition(sanitized["taskDefinition"])
 
     elif api_operation == "DescribeTasks":
         for task in sanitized.get("tasks", []):
             # Redact container overrides environment values
             for override in task.get("overrides", {}).get("containerOverrides", []):
                 for env_var in override.get("environment", []):
-                    env_var["value"] = "[REDACTED]"
+                    env_var["value"] = REDACTED
             # Redact container-level environment from containers
             for container in task.get("containers", []):
                 for env_var in container.get("environment", []):
-                    env_var["value"] = "[REDACTED]"
+                    env_var["value"] = REDACTED
+
+    elif api_operation == "DescribeExpressGatewayService":
+        for configuration in sanitized.get("service", {}).get("activeConfigurations", []):
+            if "primaryContainer" in configuration:
+                configuration["primaryContainer"] = redact_container_definition(
+                    configuration["primaryContainer"]
+                )
 
     return sanitized
 
