@@ -986,7 +986,11 @@ class TestSchemaValidator:
 
     @given(
         operation=st.sampled_from(['Query', 'Scan']),
-        index_name=st.text(min_size=1, max_size=50).filter(lambda x: x.strip() != ''),
+        # A GSI name becomes a suffix of generated method names, so it is restricted to
+        # identifier characters and hyphens. This property is about consistent_read rather
+        # than naming, so the strategy generates names that are usable in generated code;
+        # rejection of unusable names is covered by the name validator's own tests.
+        index_name=st.from_regex(r'[A-Za-z][A-Za-z0-9_-]{0,20}', fullmatch=True),
         consistent_read=st.one_of(st.just(False), st.none()),
     )
     def test_property_gsi_queries_accept_consistent_read_false_or_omitted(

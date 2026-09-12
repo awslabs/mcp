@@ -19,6 +19,9 @@ ensuring fields exist, operators/functions are supported, parameter requirements
 are met, and key attributes are not used in filter expressions.
 """
 
+from awslabs.dynamodb_mcp_server.repo_generation_tool.core.name_validator import (
+    validate_literal_safe,
+)
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.schema_definitions import (
     VALID_FILTER_FUNCTIONS,
     VALID_FILTER_LOGICAL_OPERATORS,
@@ -231,6 +234,21 @@ class FilterExpressionValidator:
                 )
             )
             return errors
+
+        # Parameter references are written into the generated method docstring and into
+        # comments describing the filter, so they are checked for characters that would end
+        # the docstring or the comment and leave the remainder as live code.
+        for param_key in ('param', 'param2'):
+            if isinstance(condition.get(param_key), str):
+                errors.extend(
+                    validate_literal_safe(condition[param_key], f'{condition_path}.{param_key}')
+                )
+        if isinstance(condition.get('params'), list):
+            for i, param_ref in enumerate(condition['params']):
+                if isinstance(param_ref, str):
+                    errors.extend(
+                        validate_literal_safe(param_ref, f'{condition_path}.params[{i}]')
+                    )
 
         # Validate parameter requirements
         if operator == 'between':
