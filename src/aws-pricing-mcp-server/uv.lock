@@ -81,8 +81,6 @@ dependencies = [
     { name = "loguru" },
     { name = "mcp", extra = ["cli"] },
     { name = "pydantic" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
     { name = "typing-extensions" },
 ]
 
@@ -92,6 +90,7 @@ dev = [
     { name = "pre-commit" },
     { name = "pyright" },
     { name = "pytest" },
+    { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "ruff" },
 ]
@@ -102,8 +101,6 @@ requires-dist = [
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "mcp", extras = ["cli"], specifier = ">=2.0.0,<3.0.0" },
     { name = "pydantic", specifier = ">=2.10.5" },
-    { name = "pytest", specifier = ">=8.1.1" },
-    { name = "pytest-asyncio", specifier = ">=0.20.3" },
     { name = "typing-extensions", specifier = ">=4.13.2" },
 ]
 
@@ -113,6 +110,7 @@ dev = [
     { name = "pre-commit", specifier = ">=4.1.0" },
     { name = "pyright", specifier = ">=1.1.398" },
     { name = "pytest", specifier = ">=8.0.0" },
+    { name = "pytest-asyncio", specifier = ">=0.20.3" },
     { name = "pytest-cov", specifier = ">=4.1.0" },
     { name = "ruff", specifier = ">=0.9.7" },
 ]

@@ -82,7 +82,6 @@ dependencies = [
     { name = "mcp", extra = ["cli"] },
     { name = "protego" },
     { name = "pydantic" },
-    { name = "pytest" },
     { name = "readabilipy" },
     { name = "requests" },
 ]
@@ -106,7 +105,6 @@ requires-dist = [
     { name = "mcp", extras = ["cli"], specifier = ">=2.0.0,<3.0.0" },
     { name = "protego", specifier = ">=0.3.1" },
     { name = "pydantic", specifier = ">=2.0.0" },
-    { name = "pytest", specifier = ">=8.3.5" },
     { name = "readabilipy", specifier = ">=0.2.0" },
     { name = "requests", specifier = ">=2.32.3" },
 ]
