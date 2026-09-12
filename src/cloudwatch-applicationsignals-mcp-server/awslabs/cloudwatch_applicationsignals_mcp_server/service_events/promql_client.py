@@ -96,13 +96,20 @@ def _reset_session() -> None:
 
 
 def _get_credentials():
-    """Resolve SigV4 credentials from the shared boto3 session."""
-    import boto3
-    import os
+    """Resolve SigV4 credentials via the client factory so FAS creds are honoured.
 
-    profile = os.environ.get('AWS_PROFILE')
-    session = boto3.Session(profile_name=profile, region_name=_region())
-    creds = session.get_credentials()
+    The client factory only exposes boto3 clients, so we read the resolved
+    credentials off a factory-built client: FAS credentials when a custom factory
+    is registered (remote server), otherwise the default/profile credential chain
+    (local/CLI). This keeps PromQL request signing on the same credentials as every
+    other AWS call instead of a separate boto3 session.
+    """
+    from ..aws_clients import get_client
+
+    # Any service works; creating the client does not make an API call. We only
+    # read its resolved credentials for SigV4 signing.
+    client = get_client('sts')
+    creds = client._request_signer._credentials
     if creds is None:
         raise PromQLQueryError('AWS credentials not found')
     return creds.get_frozen_credentials()

@@ -30,10 +30,15 @@ def mock_aws_clients():
     """Mock all AWS clients to prevent real API calls during tests."""
     mock_applicationsignals_client = MagicMock()
 
+    def _get_client(service_name):
+        if service_name == 'application-signals':
+            return mock_applicationsignals_client
+        return MagicMock()
+
     patches = [
         patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.change_tools.applicationsignals_client',
-            mock_applicationsignals_client,
+            'awslabs.cloudwatch_applicationsignals_mcp_server.change_tools.get_client',
+            side_effect=_get_client,
         ),
     ]
 
