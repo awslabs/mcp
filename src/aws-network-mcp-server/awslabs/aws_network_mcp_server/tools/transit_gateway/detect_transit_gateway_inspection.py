@@ -64,8 +64,20 @@ async def detect_tgw_inspection(
         nfw_client = get_aws_client('network-firewall', region, profile_name)
 
         # Get AWS Network Firewalls (VPC-attached)
+        # list_firewalls() only returns FirewallName/FirewallArn, not VpcId, so we
+        # describe each firewall to find which ones are VPC-attached. TGW-attached
+        # firewalls (and any other non-VPC firewall) simply won't have a VpcId.
         aws_firewalls = nfw_client.list_firewalls()['Firewalls']
-        aws_firewall_vpcs = {fw['VpcId'] for fw in aws_firewalls}
+        aws_firewall_vpcs = set()
+        for fw in aws_firewalls:
+            try:
+                firewall_details = nfw_client.describe_firewall(FirewallName=fw['FirewallName'])
+                vpc_id = firewall_details['Firewall'].get('VpcId')
+                if vpc_id:
+                    aws_firewall_vpcs.add(vpc_id)
+            except Exception:
+                # If we can't describe a firewall, skip it rather than fail the whole call
+                continue
 
         # Get all TGW attachments (VPC and Network Function)
         all_attachments = ec2_client.describe_transit_gateway_attachments(
