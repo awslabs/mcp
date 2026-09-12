@@ -14,4 +14,10 @@
 
 """awslabs.stepfunctions-tool-mcp-server"""
 
-__version__ = '0.2.1'
+from importlib.metadata import version
+
+
+try:
+    __version__ = version('awslabs.stepfunctions-tool-mcp-server')
+except Exception:  # pragma: no cover
+    __version__ = '0.2.1'
