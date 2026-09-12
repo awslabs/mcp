@@ -118,6 +118,7 @@ class TestQueryKnowledgeBasesTool:
             reranking=True,
             reranking_model_name='AMAZON',
             data_source_ids=['ds-12345', 'ds-67890'],
+            metadata_filter=None,
         )
 
         # Check that the result is correct
@@ -134,6 +135,42 @@ class TestQueryKnowledgeBasesTool:
             reranking=True,
             reranking_model_name='AMAZON',
             data_source_ids=['ds-12345', 'ds-67890'],
+            metadata_filter=None,
+        )
+
+    @pytest.mark.asyncio
+    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.query_knowledge_base')
+    async def test_query_knowledge_bases_tool_with_metadata_filter(
+        self, mock_query_knowledge_base
+    ):
+        """Test that metadata_filter is forwarded to query_knowledge_base."""
+        mock_query_knowledge_base.return_value = json.dumps(
+            {
+                'content': {'text': 'Filtered result', 'type': 'TEXT'},
+                'location': {'s3Location': {'uri': 's3://test-bucket/filtered.txt'}},
+                'score': 0.91,
+            }
+        )
+
+        await query_knowledge_bases_tool(
+            query='engineering docs',
+            knowledge_base_id='kb-12345',
+            number_of_results=5,
+            reranking=False,
+            reranking_model_name='AMAZON',
+            data_source_ids=None,
+            metadata_filter={'equals': {'key': 'department', 'value': 'engineering'}},
+        )
+
+        mock_query_knowledge_base.assert_called_once_with(
+            query='engineering docs',
+            knowledge_base_id='kb-12345',
+            kb_agent_client=mock.ANY,
+            number_of_results=5,
+            reranking=False,
+            reranking_model_name='AMAZON',
+            data_source_ids=None,
+            metadata_filter={'equals': {'key': 'department', 'value': 'engineering'}},
         )
 
 
