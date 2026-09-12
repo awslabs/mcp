@@ -18,6 +18,7 @@ from .get_cloudwan_routes import get_cwan_routes
 from .get_cloudwan_attachment_details import get_cwan_attachment
 from .get_cloudwan_details import get_cwan
 from .get_cloudwan_logs import get_cwan_logs
+from .get_cloudwan_policy import get_cwan_policy
 from .get_cloudwan_peering_details import get_cwan_peering
 from .list_cloudwan_peerings import list_cwan_peerings
 from .list_core_networks import list_core_networks
@@ -31,6 +32,7 @@ __all__ = [
     'get_cwan',
     'get_cwan_logs',
     'get_cwan_peering',
+    'get_cwan_policy',
     'list_cwan_peerings',
     'list_core_networks',
     'simulate_cwan_route_change',
