@@ -34,8 +34,11 @@ ENV UV_PYTHON_PREFERENCE=only-managed
 # Run without updating the uv.lock file like running with `--frozen`
 ENV UV_FROZEN=true
 
-# Copy the required files first
+# Copy the required files first. third_party_stubs is a local uv.sources path
+# dependency (see pyproject.toml [tool.uv.sources]), so it must be present before
+# `uv sync` below can resolve it, same as pyproject.toml/uv.lock.
 COPY pyproject.toml uv.lock uv-requirements.txt ./
+COPY third_party_stubs ./third_party_stubs
 
 # Python optimization and uv configuration
 ENV PIP_NO_CACHE_DIR=1 \
