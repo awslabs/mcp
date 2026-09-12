@@ -954,8 +954,9 @@ def main():
 
             if db_connection:
                 ctx = DummyCtx()
-                response = asyncio.run(
-                    run_query(
+
+                async def validate_connection():
+                    response = await run_query(
                         'SELECT 1',
                         ctx,
                         ConnectionMethod[args.connection_method],
@@ -963,7 +964,14 @@ def main():
                         args.db_endpoint,
                         args.database,
                     )
-                )
+                    # asyncio.run() tears this loop down; a connection pool
+                    # created here would be unusable under the loop mcp.run()
+                    # starts next. Release it so the first real query opens
+                    # a fresh pool on the server's own loop.
+                    await db_connection.close()
+                    return response
+
+                response = asyncio.run(validate_connection())
                 if (
                     isinstance(response, list)
                     and len(response) == 1
