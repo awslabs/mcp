@@ -26,6 +26,7 @@ import fastmcp
 import importlib
 import json
 import pytest
+from datetime import date
 from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -329,6 +330,8 @@ async def test_coh_real_summaries_reload_identity_decorator(mock_context):
             group_by='ResourceType',
             max_results=50,
             filters=parsed,
+            next_token=None,
+            max_pages=None,
         )
 
 
@@ -364,7 +367,16 @@ async def test_coh_real_list_recommendations_reload_identity_decorator(mock_cont
             'cost-optimization-hub', region_name='us-east-1'
         )
         mock_parse_json.assert_called_once_with(filters_str, 'filters')
-        mock_list_recs.assert_awaited_once_with(mock_context, fake_client, 25, parsed, True)
+        mock_list_recs.assert_awaited_once_with(
+            mock_context,
+            fake_client,
+            25,
+            parsed,
+            True,
+            next_token=None,
+            max_pages=None,
+            order_by=None,
+        )
 
 
 @pytest.mark.asyncio
@@ -467,7 +479,7 @@ async def test_coh_real_list_recommendations_no_filters_reload_identity_decorato
         mock_create_client.assert_called_once_with(
             'cost-optimization-hub', region_name='us-east-1'
         )
-        # parse_json should not be called when filters is None
+        # parse_json should not be called when filters and order_by are None
         mock_parse_json.assert_not_called()
         mock_list_recs.assert_awaited_once_with(
             mock_context,
@@ -475,6 +487,9 @@ async def test_coh_real_list_recommendations_no_filters_reload_identity_decorato
             None,  # max_results
             None,  # filters
             None,  # include_all_recommendations
+            next_token=None,
+            max_pages=None,
+            order_by=None,
         )
 
 
@@ -581,3 +596,586 @@ async def test_coh_real_main_exception_reload_identity_decorator(mock_context):
 
         assert res['status'] == 'error'
         mock_handle_error.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_coh_real_list_recommendations_order_by_reload_identity_decorator(mock_context):
+    """list_recommendations forwards a parsed order_by to the helper."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client') as mock_create_client,
+        patch.object(coh_mod, 'parse_json') as mock_parse_json,
+        patch.object(coh_mod, 'list_recommendations', new_callable=AsyncMock) as mock_list_recs,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        order_by_str = '{"dimension":"EstimatedMonthlySavings","order":"Desc"}'
+        parsed_order_by = {'dimension': 'EstimatedMonthlySavings', 'order': 'Desc'}
+        mock_parse_json.return_value = parsed_order_by
+        mock_list_recs.return_value = {'status': 'success', 'data': {'items': []}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_recommendations',
+            order_by=order_by_str,
+        )
+
+        assert res['status'] == 'success'
+        # filters is None so parse_json is only invoked for order_by.
+        mock_parse_json.assert_called_once_with(order_by_str, 'order_by')
+        mock_list_recs.assert_awaited_once_with(
+            mock_context,
+            fake_client,
+            None,
+            None,
+            None,
+            next_token=None,
+            max_pages=None,
+            order_by=parsed_order_by,
+        )
+
+
+@pytest.mark.asyncio
+async def test_coh_real_list_recommendations_invalid_order_by_reload_identity_decorator(
+    mock_context,
+):
+    """list_recommendations rejects an unsupported order_by dimension before the API call."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client', return_value=MagicMock()),
+        patch.object(coh_mod, 'parse_json', return_value={'dimension': 'Nope', 'order': 'Desc'}),
+        patch.object(coh_mod, 'list_recommendations', new_callable=AsyncMock) as mock_list_recs,
+    ):
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_recommendations',
+            order_by='{"dimension":"Nope","order":"Desc"}',
+        )
+
+    assert res['status'] == 'error'
+    assert 'Invalid order_by dimension' in res['message']
+    # Validation short-circuits before the helper is invoked.
+    mock_list_recs.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_coh_real_efficiency_metrics_reload_identity_decorator(mock_context):
+    """Real dispatcher wires list_efficiency_metrics with parsed/validated params."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client') as mock_create_client,
+        patch.object(coh_mod, '_today', return_value=date(2026, 9, 4)),
+        patch.object(coh_mod, 'parse_json') as mock_parse_json,
+        patch.object(coh_mod, 'list_efficiency_metrics', new_callable=AsyncMock) as mock_list_eff,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        order_by_str = '{"dimension":"Score","order":"Desc"}'
+        parsed_order_by = {'dimension': 'Score', 'order': 'Desc'}
+        mock_parse_json.return_value = parsed_order_by
+        mock_list_eff.return_value = {'status': 'success', 'data': {'groups': []}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_efficiency_metrics',
+            granularity='Monthly',
+            start_date='2026-06',
+            end_date='2026-08',
+            group_by='Region',
+            order_by=order_by_str,
+            max_results=25,
+        )
+
+        assert res['status'] == 'success'
+        mock_create_client.assert_called_once_with(
+            'cost-optimization-hub', region_name='us-east-1'
+        )
+        mock_parse_json.assert_called_once_with(order_by_str, 'order_by')
+        mock_list_eff.assert_awaited_once_with(
+            mock_context,
+            fake_client,
+            granularity='Monthly',
+            start_date='2026-06',
+            end_date='2026-08',
+            group_by='Region',
+            order_by=parsed_order_by,
+            max_results=25,
+            next_token=None,
+            max_pages=None,
+        )
+
+
+@pytest.mark.asyncio
+async def test_coh_real_efficiency_metrics_defaults_reload_identity_decorator(mock_context):
+    """Omitted granularity/dates default to Monthly + a coerced lookback window."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client') as mock_create_client,
+        # today matches the mocked lookback end so the default window is within
+        # range and is not clamped.
+        patch.object(coh_mod, '_today', return_value=date(2026, 8, 23)),
+        patch.object(
+            coh_mod, 'get_date_range', return_value=('2026-05-25', '2026-08-23')
+        ) as mock_dr,
+        patch.object(coh_mod, 'list_efficiency_metrics', new_callable=AsyncMock) as mock_list_eff,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_list_eff.return_value = {'status': 'success', 'data': {'groups': []}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_efficiency_metrics',
+        )
+
+        assert res['status'] == 'success'
+        mock_dr.assert_called_once_with(None, None, default_days_ago=90)
+        # Monthly granularity truncates the YYYY-MM-DD lookback bounds to YYYY-MM.
+        mock_list_eff.assert_awaited_once_with(
+            mock_context,
+            fake_client,
+            granularity='Monthly',
+            start_date='2026-05',
+            end_date='2026-08',
+            group_by=None,
+            order_by=None,
+            max_results=None,
+            next_token=None,
+            max_pages=None,
+        )
+
+
+@pytest.mark.asyncio
+async def test_coh_real_efficiency_metrics_invalid_granularity_reload_identity_decorator(
+    mock_context,
+):
+    """An unsupported granularity is rejected before any API call."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with patch.object(coh_mod, 'create_aws_client', return_value=MagicMock()):
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_efficiency_metrics',
+            granularity='Weekly',
+        )
+
+    assert res['status'] == 'error'
+    assert 'Invalid granularity' in res['message']
+
+
+@pytest.mark.asyncio
+async def test_coh_real_efficiency_metrics_invalid_group_by_reload_identity_decorator(
+    mock_context,
+):
+    """Efficiency metrics reject group_by values other than AccountId/Region."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with patch.object(coh_mod, 'create_aws_client', return_value=MagicMock()):
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_efficiency_metrics',
+            granularity='Monthly',
+            group_by='Service',
+        )
+
+    assert res['status'] == 'error'
+    assert 'Invalid group_by for list_efficiency_metrics' in res['message']
+
+
+@pytest.mark.asyncio
+async def test_coh_real_efficiency_metrics_invalid_order_by_reload_identity_decorator(
+    mock_context,
+):
+    """An out-of-range order_by dimension is rejected."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client', return_value=MagicMock()),
+        patch.object(coh_mod, 'parse_json', return_value={'dimension': 'Nope', 'order': 'Desc'}),
+    ):
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_efficiency_metrics',
+            granularity='Monthly',
+            start_date='2026-06',
+            end_date='2026-08',
+            order_by='{"dimension":"Nope","order":"Desc"}',
+        )
+
+    assert res['status'] == 'error'
+    assert 'Invalid order_by dimension' in res['message']
+
+
+@pytest.mark.asyncio
+async def test_coh_real_efficiency_metrics_exception_reload_identity_decorator(mock_context):
+    """A helper exception is caught and surfaced as a friendly error."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client', return_value=MagicMock()),
+        patch.object(coh_mod, 'list_efficiency_metrics', new_callable=AsyncMock) as mock_list_eff,
+    ):
+        mock_list_eff.side_effect = Exception('boom')
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_efficiency_metrics',
+            granularity='Monthly',
+            start_date='2026-06',
+            end_date='2026-08',
+        )
+
+    assert res['status'] == 'error'
+    assert 'Error fetching efficiency metrics' in res['message']
+
+
+@pytest.mark.asyncio
+async def test_coh_real_unsupported_operation_lists_efficiency_metrics(mock_context):
+    """The unsupported-operation error advertises list_efficiency_metrics."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with patch.object(coh_mod, 'create_aws_client', return_value=MagicMock()):
+        res = await real_fn(mock_context, operation='definitely_not_supported')  # type: ignore
+
+    assert res['status'] == 'error'
+    assert 'list_efficiency_metrics' in json.dumps(res)
+
+
+@pytest.mark.asyncio
+async def test_coh_real_efficiency_metrics_daily_passthrough_reload_identity_decorator(
+    mock_context,
+):
+    """Daily granularity keeps full YYYY-MM-DD dates (no month truncation)."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client') as mock_create_client,
+        patch.object(coh_mod, '_today', return_value=date(2026, 9, 4)),
+        patch.object(coh_mod, 'list_efficiency_metrics', new_callable=AsyncMock) as mock_list_eff,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_list_eff.return_value = {'status': 'success', 'data': {'groups': []}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_efficiency_metrics',
+            granularity='Daily',
+            start_date='2026-05-01',
+            end_date='2026-05-31',
+        )
+
+        assert res['status'] == 'success'
+        mock_list_eff.assert_awaited_once_with(
+            mock_context,
+            fake_client,
+            granularity='Daily',
+            start_date='2026-05-01',
+            end_date='2026-05-31',
+            group_by=None,
+            order_by=None,
+            max_results=None,
+            next_token=None,
+            max_pages=None,
+        )
+
+
+@pytest.mark.asyncio
+async def test_coh_real_efficiency_metrics_invalid_date_reload_identity_decorator(mock_context):
+    """A malformed date is rejected before any API call."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with patch.object(coh_mod, 'create_aws_client', return_value=MagicMock()):
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_efficiency_metrics',
+            granularity='Daily',
+            start_date='05/01/2026',
+            end_date='2026-05-31',
+        )
+
+    assert res['status'] == 'error'
+    assert 'Invalid start_date' in res['message']
+
+
+@pytest.mark.asyncio
+async def test_coh_real_efficiency_metrics_daily_rejects_monthly_format_date(mock_context):
+    """Daily granularity with a YYYY-MM date is rejected locally, not forwarded.
+
+    A month-only date is only valid for Monthly; validating against the resolved
+    granularity catches the mismatch before the API call and names the expected
+    format.
+    """
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client', return_value=MagicMock()),
+        patch.object(coh_mod, 'list_efficiency_metrics', new_callable=AsyncMock) as mock_list_eff,
+    ):
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_efficiency_metrics',
+            granularity='Daily',
+            start_date='2026-06',
+            end_date='2026-08-31',
+        )
+
+    assert res['status'] == 'error'
+    assert 'Invalid start_date' in res['message']
+    assert 'YYYY-MM-DD' in res['message']
+    mock_list_eff.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_coh_real_efficiency_metrics_rejects_unpadded_date(mock_context):
+    """A non-zero-padded date is rejected locally, not forwarded.
+
+    strptime alone is lenient (it accepts '2026-6-5'), but COH requires strict
+    zero-padded yyyy-MM-dd and rejects unpadded values with a ValidationException.
+    The strftime round-trip in _is_valid_efficiency_date catches it locally.
+    """
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client', return_value=MagicMock()),
+        patch.object(coh_mod, 'list_efficiency_metrics', new_callable=AsyncMock) as mock_list_eff,
+    ):
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_efficiency_metrics',
+            granularity='Daily',
+            start_date='2026-6-5',
+            end_date='2026-08-31',
+        )
+
+    assert res['status'] == 'error'
+    assert 'Invalid start_date' in res['message']
+    mock_list_eff.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_coh_real_efficiency_metrics_monthly_truncates_daily_format_date(mock_context):
+    """Monthly granularity accepts a YYYY-MM-DD date by truncating it to YYYY-MM."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client') as mock_create_client,
+        patch.object(coh_mod, '_today', return_value=date(2026, 9, 4)),
+        patch.object(coh_mod, 'list_efficiency_metrics', new_callable=AsyncMock) as mock_list_eff,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_list_eff.return_value = {'status': 'success', 'data': {'groups': []}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_efficiency_metrics',
+            granularity='Monthly',
+            start_date='2026-06-15',
+            end_date='2026-08-20',
+        )
+
+    assert res['status'] == 'success'
+    mock_list_eff.assert_awaited_once_with(
+        mock_context,
+        fake_client,
+        granularity='Monthly',
+        start_date='2026-06',
+        end_date='2026-08',
+        group_by=None,
+        order_by=None,
+        max_results=None,
+        next_token=None,
+        max_pages=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_coh_real_efficiency_metrics_order_by_not_dict_reload_identity_decorator(
+    mock_context,
+):
+    """A non-object order_by JSON is rejected."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client', return_value=MagicMock()),
+        patch.object(coh_mod, 'parse_json', return_value=['Score']),
+    ):
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_efficiency_metrics',
+            granularity='Monthly',
+            start_date='2026-06',
+            end_date='2026-08',
+            order_by='["Score"]',
+        )
+
+    assert res['status'] == 'error'
+    assert 'order_by must be a JSON object' in res['message']
+
+
+@pytest.mark.asyncio
+async def test_coh_real_efficiency_metrics_invalid_order_value_reload_identity_decorator(
+    mock_context,
+):
+    """An order value outside Asc/Desc is rejected."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client', return_value=MagicMock()),
+        patch.object(
+            coh_mod, 'parse_json', return_value={'dimension': 'Score', 'order': 'Sideways'}
+        ),
+    ):
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_efficiency_metrics',
+            granularity='Monthly',
+            start_date='2026-06',
+            end_date='2026-08',
+            order_by='{"dimension":"Score","order":"Sideways"}',
+        )
+
+    assert res['status'] == 'error'
+    assert 'Invalid order_by order' in res['message']
+
+
+@pytest.mark.asyncio
+async def test_coh_real_efficiency_metrics_clamps_daily_over_90_days(mock_context):
+    """A Daily start older than 90 days before today is clamped forward with a range_note."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client') as mock_create_client,
+        patch.object(coh_mod, '_today', return_value=date(2026, 9, 4)),
+        patch.object(coh_mod, 'list_efficiency_metrics', new_callable=AsyncMock) as mock_list_eff,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_list_eff.return_value = {'status': 'success', 'data': {'groups': []}}
+
+        # today=2026-09-04 -> earliest allowed start = today-90d = 2026-06-06.
+        # start 2026-01-01 predates it -> clamp start to 2026-06-06.
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_efficiency_metrics',
+            granularity='Daily',
+            start_date='2026-01-01',
+            end_date='2026-09-01',
+        )
+
+        assert res['status'] == 'success'
+        call_kwargs = mock_list_eff.call_args[1]
+        assert call_kwargs['start_date'] == '2026-06-06'
+        assert call_kwargs['end_date'] == '2026-09-01'
+        # The effective (moved-forward) start is surfaced via operation_parameters.
+        assert res['data']['operation_parameters']['start_date'] == '2026-06-06'
+
+
+@pytest.mark.asyncio
+async def test_coh_real_efficiency_metrics_clamps_monthly_over_3_months(mock_context):
+    """A Monthly start older than 3 months before this month is clamped forward with a note."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client') as mock_create_client,
+        patch.object(coh_mod, '_today', return_value=date(2026, 9, 4)),
+        patch.object(coh_mod, 'list_efficiency_metrics', new_callable=AsyncMock) as mock_list_eff,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_list_eff.return_value = {'status': 'success', 'data': {'groups': []}}
+
+        # today=2026-09 -> earliest allowed start month = 2026-06.
+        # start 2026-01 predates it -> clamp start to 2026-06.
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_efficiency_metrics',
+            granularity='Monthly',
+            start_date='2026-01',
+            end_date='2026-09',
+        )
+
+        assert res['status'] == 'success'
+        call_kwargs = mock_list_eff.call_args[1]
+        assert call_kwargs['start_date'] == '2026-06'
+        assert call_kwargs['end_date'] == '2026-09'
+        assert res['data']['operation_parameters']['start_date'] == '2026-06'
+
+
+@pytest.mark.asyncio
+async def test_coh_real_efficiency_metrics_no_clamp_within_limit(mock_context):
+    """A window inside the API span is passed through unchanged with no range_note."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client') as mock_create_client,
+        patch.object(coh_mod, '_today', return_value=date(2026, 9, 4)),
+        patch.object(coh_mod, 'list_efficiency_metrics', new_callable=AsyncMock) as mock_list_eff,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_list_eff.return_value = {'status': 'success', 'data': {'groups': []}}
+
+        # today=2026-09; start 2026-06 is exactly 3 months back -> boundary, NOT clamped.
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_efficiency_metrics',
+            granularity='Monthly',
+            start_date='2026-06',
+            end_date='2026-09',
+        )
+
+        assert res['status'] == 'success'
+        call_kwargs = mock_list_eff.call_args[1]
+        assert call_kwargs['start_date'] == '2026-06'
+
+
+def test_clamp_efficiency_time_span_unit():
+    """Direct unit coverage of the clamp helper (start-to-now limit) across edges."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    clamp = coh_mod._clamp_efficiency_time_span  # type: ignore
+
+    # Pin 'now' so the start-to-now limit is deterministic: today=2026-09-04 ->
+    # earliest Daily start = 2026-06-06, earliest Monthly month = 2026-06.
+    with patch.object(coh_mod, '_today', return_value=date(2026, 9, 4)):
+        # Daily start older than the 90-day window -> moved to earliest.
+        assert clamp('2026-01-01', '2026-09-01', 'Daily') == '2026-06-06'
+
+        # Daily start exactly at the boundary -> unchanged.
+        assert clamp('2026-06-06', '2026-09-01', 'Daily') == '2026-06-06'
+
+        # Daily window entirely older than the range -> passthrough (service rejects).
+        assert clamp('2026-01-01', '2026-05-01', 'Daily') == '2026-01-01'
+
+        # Monthly start older than 3 months back -> moved to earliest month.
+        assert clamp('2026-01', '2026-09', 'Monthly') == '2026-06'
+
+        # Monthly start exactly 3 months back -> unchanged.
+        assert clamp('2026-06', '2026-09', 'Monthly') == '2026-06'
+
+        # Unparseable date passes through untouched (upstream validation guards this).
+        assert clamp('not-a-date', '2026-09-01', 'Daily') == 'not-a-date'

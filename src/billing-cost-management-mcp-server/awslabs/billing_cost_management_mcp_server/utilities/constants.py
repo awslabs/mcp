@@ -18,6 +18,17 @@ This module centralizes constant definitions to ensure consistency
 and make maintenance easier across the codebase.
 """
 
+from typing import List, Tuple
+
+
+# ===== SQL Offload: Column Spec =====
+# Used by `sql_utils._create_and_insert` to drive CREATE/INSERT for any
+# helper-flattened record stream. Each spec is ``(column_name, sqlite_type)``;
+# the column type also drives value coercion at insert time (REAL is coerced
+# via ``float()`` to handle Decimal values that sqlite3 can't bind natively).
+ColumnSpec = Tuple[str, str]
+
+
 # ===== AWS Regions =====
 REGION_US_EAST_1 = 'us-east-1'
 
@@ -25,6 +36,7 @@ REGION_US_EAST_1 = 'us-east-1'
 OPERATION_LIST_RECOMMENDATION_SUMMARIES = 'list_recommendation_summaries'
 OPERATION_LIST_RECOMMENDATIONS = 'list_recommendations'
 OPERATION_GET_RECOMMENDATION = 'get_recommendation'
+OPERATION_LIST_EFFICIENCY_METRICS = 'list_efficiency_metrics'
 
 # ===== Cost Optimization Hub Group By Values =====
 GROUP_BY_ACCOUNT_ID = 'AccountId'
@@ -44,6 +56,85 @@ COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES = [
     GROUP_BY_ROLLBACK_POSSIBLE,
     GROUP_BY_IMPLEMENTATION_EFFORT,
 ]
+
+# ===== Cost Optimization Hub - ListEfficiencyMetrics =====
+# The efficiency-metrics API groups only by account ID or Region (no per-service
+# or per-resource-type efficiency score exists), so it accepts a narrower group_by
+# set than the recommendation APIs above.
+EFFICIENCY_METRICS_VALID_GROUP_BY_VALUES = [
+    GROUP_BY_ACCOUNT_ID,
+    GROUP_BY_REGION,
+]
+
+# Time granularity. Note the title-case values (Daily/Monthly) differ from Cost
+# Explorer's DAILY/MONTHLY.
+GRANULARITY_DAILY = 'Daily'
+GRANULARITY_MONTHLY = 'Monthly'
+EFFICIENCY_METRICS_VALID_GRANULARITY = [GRANULARITY_DAILY, GRANULARITY_MONTHLY]
+
+# Maximum look-back span the ListEfficiencyMetrics API serves per granularity:
+# 90 days of Daily detail, 3 months of Monthly. Requests exceeding these are
+# clamped (start moved forward) rather than rejected with a ValidationException.
+EFFICIENCY_METRICS_MAX_DAILY_SPAN_DAYS = 90
+EFFICIENCY_METRICS_MAX_MONTHLY_SPAN_MONTHS = 3
+
+# ===== Cost Optimization Hub - orderBy (shared by list_recommendations and
+# list_efficiency_metrics) =====
+ORDER_ASC = 'Asc'
+ORDER_DESC = 'Desc'
+ORDER_BY_VALID_ORDERS = [ORDER_ASC, ORDER_DESC]
+
+COST_OPTIMIZATION_HUB_LIST_EFFICIENCY_METRICS_VALID_ORDER_DIMENSIONS = [
+    'Score',
+    'Savings',
+    'Spend',
+]
+
+COST_OPTIMIZATION_HUB_LIST_RECOMMENDATIONS_VALID_ORDER_DIMENSIONS = [
+    'EstimatedMonthlySavings',
+    'EstimatedMonthlyCost',
+    'RestartNeeded',
+    'ImplementationEffort',
+    'AccountId',
+    'RollbackPossible',
+    'Region',
+    'ResourceType',
+    'ActionType',
+    'ResourceArn',
+    'ResourceId',
+    'EstimatedSavingsPercentage',
+]
+
+# Maps a list_recommendations ``orderBy`` dimension (CamelCase API name) to the
+# snake_case column it is stored under in the offloaded SQLite table
+# (COST_OPTIMIZATION_HUB_RECOMMENDATION_COLUMNS). Used to build a sample query
+# that mirrors the caller's requested ordering. Every orderBy dimension the API
+# accepts has a stored column; a dimension absent from this map (e.g. an
+# unexpected value) falls back to the default sample query.
+COST_OPTIMIZATION_HUB_ORDER_DIMENSION_TO_COLUMN = {
+    'EstimatedMonthlySavings': 'estimated_monthly_savings',
+    'EstimatedMonthlyCost': 'estimated_monthly_cost',
+    'ImplementationEffort': 'implementation_effort',
+    'AccountId': 'account_id',
+    'Region': 'region',
+    'ResourceType': 'current_resource_type',
+    'ActionType': 'action_type',
+    'ResourceArn': 'resource_arn',
+    'ResourceId': 'resource_id',
+    'EstimatedSavingsPercentage': 'estimated_savings_percentage',
+    'RestartNeeded': 'restart_needed',
+    'RollbackPossible': 'rollback_possible',
+}
+
+# Maps a list_efficiency_metrics ``orderBy`` dimension to the snake_case column
+# it is stored under in the offloaded SQLite table
+# (COST_OPTIMIZATION_HUB_EFFICIENCY_METRICS_COLUMNS). Used to build a
+# group-ranking sample query that mirrors the caller's requested ordering.
+COST_OPTIMIZATION_HUB_EFFICIENCY_ORDER_DIMENSION_TO_COLUMN = {
+    'Score': 'score',
+    'Savings': 'savings',
+    'Spend': 'spend',
+}
 
 # ===== Recommendation Details - Action Types =====
 ACTION_TYPE_PURCHASE_SAVINGS_PLAN = 'PurchaseSavingsPlans'
@@ -117,3 +208,44 @@ ENV_STORAGE_LENS_MANIFEST_LOCATION = (
 ENV_STORAGE_LENS_OUTPUT_LOCATION = (
     'STORAGE_LENS_OUTPUT_LOCATION'  # S3 location for Athena query results
 )
+
+
+# Schema used to offload ``list_recommendations`` responses to SQLite.
+COST_OPTIMIZATION_HUB_RECOMMENDATION_COLUMNS: List[ColumnSpec] = [
+    ('recommendation_id', 'TEXT'),
+    ('account_id', 'TEXT'),
+    ('region', 'TEXT'),
+    ('resource_id', 'TEXT'),
+    ('resource_arn', 'TEXT'),
+    ('action_type', 'TEXT'),
+    ('current_resource_type', 'TEXT'),
+    ('recommended_resource_type', 'TEXT'),
+    ('current_resource_summary', 'TEXT'),
+    ('recommended_resource_summary', 'TEXT'),
+    ('estimated_monthly_savings', 'REAL'),
+    ('estimated_savings_percentage', 'REAL'),
+    ('estimated_monthly_cost', 'REAL'),
+    ('currency_code', 'TEXT'),
+    ('implementation_effort', 'TEXT'),
+    ('last_refresh_timestamp', 'TEXT'),
+    ('lookback_period_in_days', 'INTEGER'),
+    ('restart_needed', 'BOOLEAN'),
+    ('rollback_possible', 'BOOLEAN'),
+]
+
+
+# Schema used to offload ``list_efficiency_metrics`` responses to SQLite. The
+# response nests a per-timestamp series under each group, so it is denormalized
+# to one row per (group, timestamp). A no-data group (empty ``metrics_by_time``)
+# is preserved as a single row with null metrics so the group and its
+# explanatory ``message`` survive offload rather than vanishing. The dimension
+# column is ``group_value`` (not ``group``) because ``group`` is a SQL reserved
+# word and ``_create_and_insert`` does not quote identifiers.
+COST_OPTIMIZATION_HUB_EFFICIENCY_METRICS_COLUMNS: List[ColumnSpec] = [
+    ('group_value', 'TEXT'),
+    ('message', 'TEXT'),
+    ('timestamp', 'TEXT'),
+    ('score', 'REAL'),
+    ('savings', 'REAL'),
+    ('spend', 'REAL'),
+]

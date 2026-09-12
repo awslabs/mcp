@@ -17,8 +17,9 @@
 These functions handle the specific operations for the Cost Optimization Hub tool.
 """
 
-from ..utilities.aws_service_base import format_response
+from ..utilities.aws_service_base import format_response, paginate_aws_response
 from ..utilities.logging_utils import get_context_logger
+from ..utilities.sql_utils import convert_response_if_needed
 from botocore.exceptions import ClientError
 from datetime import datetime
 from fastmcp import Context
@@ -61,99 +62,78 @@ async def list_recommendations(
     max_results: Optional[int] = None,
     filters: Optional[Dict[str, Any]] = None,
     include_all_recommendations: Optional[bool] = None,
+    next_token: Optional[str] = None,
+    max_pages: Optional[int] = None,
+    order_by: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """List recommendations from Cost Optimization Hub.
+
+    - When neither ``next_token`` nor ``max_pages`` is provided, a single boto3
+      call is made and the raw response (including ``nextToken``, if any) is
+      returned. Callers wanting more pages re-invoke with the returned token.
+    - When either is provided, ``paginate_aws_response`` walks pages up to
+      ``max_pages`` and returns a combined ``items`` list with a ``Pagination``
+      envelope so the SQL-offload helper can carry pagination metadata through.
 
     Args:
         ctx: MCP context
         coh_client: Cost Optimization Hub client
-        max_results: Maximum total results to return across all pages; None means all available
+        max_results: Per-page result count (boto3 ``maxResults``). NOT a total
+            cap. To bound total fetched results, combine with ``max_pages``.
         filters: Optional filters dictionary
         include_all_recommendations: Whether to include all recommendations
+        next_token: Pagination token to resume from a previous response
+        max_pages: Maximum number of pages to fetch when paginating
+        order_by: Optional ordering dict ``{'dimension': ..., 'order': 'Asc'|'Desc'}``
+            passed through as the COH ``orderBy`` structure
 
     Returns:
-        Dict containing recommendations from all pages
+        Dict containing recommendations and (when paginated) pagination metadata
     """
-    # Get context logger for consistent logging
     ctx_logger = get_context_logger(ctx, __name__)
 
     try:
-        # Prepare the request parameters
+        # Build the boto3 request payload. Field names match the COH API
+        # (``filter``, ``maxResults``, ``nextToken``, ``includeAllRecommendations``,
+        # ``orderBy``).
         request_params: Dict[str, Any] = {
             'includeAllRecommendations': bool(include_all_recommendations or False)
         }
-
         if filters:
             request_params['filter'] = dict(filters)
+        if order_by:
+            request_params['orderBy'] = dict(order_by)
+        if max_results:
+            request_params['maxResults'] = int(max_results)
+        if next_token:
+            request_params['nextToken'] = next_token
 
-        # Initialize collection for all recommendations across pages
-        all_recommendations = []
-        current_token = None
-        page_count = 0
-
-        # Loop to handle pagination automatically
-        while True:
-            # Update token if we're on a subsequent page
-            if current_token:
-                request_params['nextToken'] = current_token
-
-            # Add max_results for this page
-            if max_results:
-                remaining_results = max_results - len(all_recommendations)
-                if remaining_results <= 0:
-                    break
-                request_params['maxResults'] = min(100, remaining_results)
-            else:
-                request_params['maxResults'] = 100
-
-            # Make the API call for this page
-            page_count += 1
-            await ctx_logger.info(
-                f'Fetching page {page_count} of recommendations from Cost Optimization Hub'
+        # Pagination dispatch — same shape as cost_explorer_operations.
+        if next_token or max_pages:
+            items, pagination_metadata = await paginate_aws_response(
+                ctx,
+                'listRecommendations',
+                lambda **params: coh_client.list_recommendations(**params),
+                request_params,
+                'items',
+                'nextToken',
+                'nextToken',
+                max_pages,
             )
-            response = coh_client.list_recommendations(**request_params)
+            raw_response: Dict[str, Any] = {
+                'items': items,
+                'Pagination': pagination_metadata,
+            }
+        else:
+            await ctx_logger.info('Fetching recommendations from Cost Optimization Hub')
+            raw_response = coh_client.list_recommendations(**request_params)
 
-            # Process this page of recommendations
-            recommendations = response.get('items', [])
-            await ctx_logger.info(
-                f'Retrieved {len(recommendations)} recommendations on page {page_count}'
-            )
+        # Flatten boto3 items into snake_case dicts. Done after pagination so
+        # both code paths reuse the same formatting.
+        all_recommendations = raw_response.get('items', [])
+        await ctx_logger.info(f'Processing {len(all_recommendations)} total recommendations')
 
-            # Add recommendations from this page to our collection
-            all_recommendations.extend(recommendations)
-
-            # Check if we've reached the user's requested max_results
-            if max_results and len(all_recommendations) >= max_results:
-                # Truncate to exact max_results
-                all_recommendations = all_recommendations[:max_results]
-                await ctx_logger.info(f'Reached user-specified maximum of {max_results} results')
-                break
-
-            # Check for next page
-            current_token = response.get('nextToken')
-
-            # If no more pages, break the loop
-            if not current_token:
-                break
-
-        # Format all collected recommendations
         formatted_recommendations = []
-
-        await ctx_logger.info(
-            f'Processing {len(all_recommendations)} total recommendations from {page_count} page(s)'
-        )
-
-        # Handle empty recommendations
-        if not all_recommendations:
-            await ctx_logger.info('No recommendations found across any pages')
-            return format_response(
-                'success',
-                {
-                    'recommendations': [],
-                },
-            )
-
-        # Process all recommendations
         for item in all_recommendations:
             recommendation = {
                 'recommendation_id': item.get('recommendationId'),
@@ -173,45 +153,39 @@ async def list_recommendations(
                 'implementation_effort': item.get('implementationEffort'),
                 'last_refresh_timestamp': format_timestamp(item.get('lastRefreshTimestamp')),
                 'lookback_period_in_days': item.get('recommendationLookbackPeriodInDays'),
+                'restart_needed': item.get('restartNeeded'),
+                'rollback_possible': item.get('rollbackPossible'),
             }
             formatted_recommendations.append(recommendation)
 
-        # Return formatted response
-        return format_response(
-            'success',
-            {
-                'recommendations': formatted_recommendations,
-            },
+        # Preserve the pagination envelope through SQL offload so the model
+        # can resume. ``_derive_pagination_envelope`` recognizes both the
+        # multi-page ``Pagination`` dict and a single-page ``nextToken`` key.
+        response_payload: Dict[str, Any] = {'recommendations': formatted_recommendations}
+        if 'Pagination' in raw_response:
+            response_payload['Pagination'] = raw_response['Pagination']
+        elif 'nextToken' in raw_response:
+            response_payload['nextToken'] = raw_response['nextToken']
+
+        offload_or_inline = await convert_response_if_needed(
+            ctx,
+            response_payload,
+            'cost_optimization_hub_list_recommendations',
+            pagination_token_key='nextToken',
+            order_by=order_by,
         )
+
+        return format_response('success', offload_or_inline)
 
     except ClientError as e:
         error_code = e.response.get('Error', {}).get('Code', 'Unknown')
         error_message = e.response.get('Error', {}).get('Message', 'An unknown error occurred')
-
-        if error_code == 'ValidationException':
-            await ctx_logger.warning(f'Cost Optimization Hub validation error: {error_message}')
-            return format_response(
-                'error',
-                {'error_code': error_code, 'error_message': error_message},
-                f'Cost Optimization Hub validation error: {error_message}',
-            )
-        elif error_code == 'AccessDeniedException':
-            await ctx_logger.error(f'Access denied for Cost Optimization Hub: {error_message}')
-            return format_response(
-                'error',
-                {'error_code': error_code},
-                'Access denied for Cost Optimization Hub. Ensure you have the necessary permissions: cost-optimization-hub:ListRecommendations.',
-            )
-        elif error_code == 'ResourceNotFoundException':
-            await ctx_logger.warning(f'Cost Optimization Hub resource not found: {error_message}')
-            return format_response(
-                'error',
-                {'error_code': error_code},
-                'Cost Optimization Hub resources not found. The service may not be enabled in this account or region.',
-            )
-        else:
-            # Re-raise for other errors to be handled by the parent try-catch
-            raise
+        await ctx_logger.error(f'AWS ClientError in list_recommendations: {error_code}')
+        return format_response(
+            'error',
+            {'error_code': error_code},
+            error_message,
+        )
 
     except Exception as e:
         # Let the parent try-catch handle other exceptions
@@ -346,174 +320,126 @@ async def list_recommendation_summaries(
     group_by: str,
     max_results: Optional[int] = None,
     filters: Optional[Dict[str, Any]] = None,
+    next_token: Optional[str] = None,
+    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """List recommendation summaries from Cost Optimization Hub.
+
+    - When neither ``next_token`` nor ``max_pages`` is provided, a single boto3
+      call is made and the raw response is formatted (its ``nextToken`` field,
+      if any, is exposed in the result so callers can resume).
+    - When either is provided, ``paginate_aws_response`` walks pages up to
+      ``max_pages`` and the combined summaries are returned with a
+      ``Pagination`` envelope so callers can continue paging.
 
     Args:
         ctx: MCP context
         coh_client: Cost Optimization Hub client
-        group_by: Grouping parameter
-        max_results: Maximum total results to return across all pages; None means all available
+        group_by: Grouping parameter (e.g. ``RESOURCE_TYPE``)
+        max_results: Per-page result count (boto3 ``maxResults``). NOT a total
+            cap. Combine with ``max_pages`` to bound total fetched results.
         filters: Optional filters dictionary
+        next_token: Pagination token to resume from a previous response
+        max_pages: Maximum number of pages to fetch when paginating
 
     Returns:
-        Dict containing recommendation summaries from all pages
+        Dict containing recommendation summaries and (when paginated)
+        pagination metadata.
     """
-    # Get context logger for consistent logging
     ctx_logger = get_context_logger(ctx, __name__)
 
     try:
-        # Prepare the request parameters
+        # Build the boto3 request payload. Field names match the COH API.
         request_params: Dict[str, Any] = {'groupBy': str(group_by)}
-
         if filters:
             request_params['filter'] = dict(filters)
+        if max_results:
+            request_params['maxResults'] = int(max_results)
+        if next_token:
+            request_params['nextToken'] = next_token
 
-        # Initialize collection for all summaries across pages
-        all_summaries = []
-        current_token = None
-        page_count = 0
-        response = None  # Initialize to store last response
+        # The top-level metadata fields (``groupBy``, ``currencyCode``,
+        # ``estimatedTotalDedupedSavings``, ``metrics``) are global aggregates
+        # over the full filtered result set, not per-page values. Capture the
+        # FIRST response (rather than the last) so the aggregate header
+        # describes the result set the caller started paginating — and so the
+        # code stays correct if the API ever made these fields page-scoped.
+        first_response: Dict[str, Any] = {}
 
-        # Loop to handle pagination automatically
-        while True:
-            # Update token if we're on a subsequent page
-            if current_token:
-                request_params['nextToken'] = current_token
+        if next_token or max_pages:
 
-            # Add max_results for this page
-            if max_results:
-                remaining_results = max_results - len(all_summaries)
-                if remaining_results <= 0:
-                    break
-                request_params['maxResults'] = min(100, remaining_results)
-            else:
-                request_params['maxResults'] = 100
+            def api_call(**params: Any) -> Dict[str, Any]:
+                # Stash the first response so we can read its top-level
+                # aggregate fields after paginate_aws_response returns.
+                nonlocal first_response
+                response = coh_client.list_recommendation_summaries(**params)
+                if not first_response:
+                    first_response = response
+                return response
 
-            # Make the API call for this page
-            page_count += 1
-            await ctx_logger.info(
-                f'Fetching page {page_count} of recommendation summaries grouped by {group_by}'
+            items, pagination_metadata = await paginate_aws_response(
+                ctx,
+                'listRecommendationSummaries',
+                api_call,
+                request_params,
+                'items',
+                'nextToken',
+                'nextToken',
+                max_pages,
             )
-            response = coh_client.list_recommendation_summaries(**request_params)
-
-            # Process this page of summaries
-            summaries = response.get('items', [])
-            await ctx_logger.info(
-                f'Retrieved {len(summaries)} recommendation summaries on page {page_count}'
-            )
-
-            # Add summaries from this page to our collection
-            all_summaries.extend(summaries)
-
-            # Check if we've reached the user's requested max_results
-            if max_results and len(all_summaries) >= max_results:
-                # Truncate to exact max_results
-                all_summaries = all_summaries[:max_results]
-                await ctx_logger.info(f'Reached user-specified maximum of {max_results} results')
-                break
-
-            # Check for next page
-            current_token = response.get('nextToken')
-
-            # If no more pages, break the loop
-            if not current_token:
-                break
-
-        # Format all collected summaries
-        formatted_summaries = []
-
-        await ctx_logger.info(
-            f'Processing {len(all_summaries)} total recommendation summaries from {page_count} page(s)'
-        )
-
-        # Handle empty summaries
-        if not all_summaries:
-            await ctx_logger.info('No recommendation summaries found across any pages')
-            formatted_response = {
-                'group_by': group_by,
-                'currency_code': 'USD',
-                'estimated_total_savings': 0,
-                'summaries': [],
+            raw_response: Dict[str, Any] = {
+                'items': items,
+                'Pagination': pagination_metadata,
             }
-            return format_response('success', formatted_response)
+        else:
+            await ctx_logger.info(f'Fetching recommendation summaries grouped by {group_by}')
+            first_response = coh_client.list_recommendation_summaries(**request_params)
+            raw_response = first_response
 
-        # Process all summaries
-        for item in all_summaries:
-            formatted_summary = {
+        # Flatten boto3 items into snake_case dicts. Done after pagination so
+        # both code paths reuse the same formatting.
+        all_summaries = raw_response.get('items', [])
+        await ctx_logger.info(f'Processing {len(all_summaries)} total recommendation summaries')
+
+        formatted_summaries = [
+            {
                 'group': item.get('group'),
                 'estimated_monthly_savings': item.get('estimatedMonthlySavings'),
                 'recommendation_count': item.get('recommendationCount'),
             }
-            formatted_summaries.append(formatted_summary)
+            for item in all_summaries
+        ]
 
-        # Format response
-        formatted_response = {
-            'group_by': response.get('groupBy') if response else group_by,
-            'currency_code': response.get('currencyCode', 'USD') if response else 'USD',
-            'estimated_total_savings': response.get('estimatedTotalDedupedSavings')
-            if response
-            else None,
+        formatted_response: Dict[str, Any] = {
+            'group_by': first_response.get('groupBy', group_by),
+            'currency_code': first_response.get('currencyCode', 'USD'),
+            'estimated_total_savings': first_response.get('estimatedTotalDedupedSavings'),
             'summaries': formatted_summaries,
         }
-
-        # Add metrics if present
-        if response and 'metrics' in response:
+        if 'metrics' in first_response:
             formatted_response['metrics'] = {
-                'savings_percentage': response['metrics'].get('savingsPercentage')
+                'savings_percentage': first_response['metrics'].get('savingsPercentage')
             }
 
-        # Return formatted response
+        # Preserve resumption state. Multi-page path carries the canonical
+        # ``Pagination`` envelope; single-page exposes the raw ``nextToken``
+        # so callers can continue paging on their own.
+        if 'Pagination' in raw_response:
+            formatted_response['Pagination'] = raw_response['Pagination']
+        elif 'nextToken' in raw_response:
+            formatted_response['nextToken'] = raw_response['nextToken']
+
         return format_response('success', formatted_response)
 
     except ClientError as e:
         error_code = e.response.get('Error', {}).get('Code', 'Unknown')
         error_message = e.response.get('Error', {}).get('Message', 'An unknown error occurred')
-        await ctx_logger.error(
-            f'AWS ClientError in list_recommendation_summaries: {error_code} - {error_message}'
+        await ctx_logger.error(f'AWS ClientError in list_recommendation_summaries: {error_code}')
+        return format_response(
+            'error',
+            {'error_code': error_code},
+            error_message,
         )
-
-        if error_code == 'ValidationException':
-            return format_response(
-                'error',
-                {
-                    'error_code': error_code,
-                    'error_message': error_message,
-                    'valid_group_by_values': [
-                        'ACCOUNT_ID',
-                        'RECOMMENDATION_TYPE',
-                        'RESOURCE_TYPE',
-                        'TAG',
-                        'USAGE_TYPE',
-                    ],
-                },
-                f'Invalid parameters for recommendation summaries: {error_message}. Valid group_by values are: ACCOUNT_ID, RECOMMENDATION_TYPE, RESOURCE_TYPE, TAG, USAGE_TYPE.',
-            )
-        elif error_code in ['AccessDeniedException', 'UnauthorizedException']:
-            return format_response(
-                'error',
-                {'error_code': error_code, 'error_message': error_message},
-                'Access denied for Cost Optimization Hub. Ensure you have the necessary permissions: cost-optimization-hub:ListRecommendationSummaries.',
-            )
-        elif error_code == 'ResourceNotFoundException':
-            return format_response(
-                'error',
-                {'error_code': error_code, 'error_message': error_message},
-                'Cost Optimization Hub resources not found. The service may not be enabled in this account or region.',
-            )
-        else:
-            # For other AWS errors, format a user-friendly response
-            return format_response(
-                'error',
-                {
-                    'error_code': error_code,
-                    'error_message': error_message,
-                    'request_id': e.response.get('ResponseMetadata', {}).get(
-                        'RequestId', 'Unknown'
-                    ),
-                },
-                f'AWS Error: {error_message}',
-            )
 
     except Exception as e:
         # Handle non-AWS errors
@@ -528,3 +454,148 @@ async def list_recommendation_summaries(
             },
             'Error retrieving recommendation summaries. Try using list_recommendations operation instead.',
         )
+
+
+async def list_efficiency_metrics(
+    ctx: Context,
+    coh_client: Any,
+    granularity: str,
+    start_date: str,
+    end_date: str,
+    group_by: Optional[str] = None,
+    order_by: Optional[Dict[str, Any]] = None,
+    max_results: Optional[int] = None,
+    next_token: Optional[str] = None,
+    max_pages: Optional[int] = None,
+) -> Dict[str, Any]:
+    """List cost efficiency metrics from Cost Optimization Hub.
+
+    Returns time-series efficiency data (efficiency score, estimated savings, and
+    spend) aggregated over the requested time period and optionally grouped by
+    account ID or Region.
+
+    - When neither ``next_token`` nor ``max_pages`` is provided, a single boto3
+      call is made and the raw response (including ``nextToken``, if any) is
+      formatted so callers can resume.
+    - When either is provided, ``paginate_aws_response`` walks pages up to
+      ``max_pages`` and the combined groups are returned with a ``Pagination``
+      envelope.
+
+    Args:
+        ctx: MCP context
+        coh_client: Cost Optimization Hub client
+        granularity: ``Daily`` or ``Monthly`` (COH title-case values)
+        start_date: Inclusive start of the window (``YYYY-MM-DD`` or ``YYYY-MM``)
+        end_date: Exclusive end of the window (``YYYY-MM-DD`` or ``YYYY-MM``)
+        group_by: Optional grouping dimension (``AccountId`` or ``Region``); omit
+            to aggregate across all resources
+        order_by: Optional ordering dict ``{'dimension': 'Score'|'Savings'|'Spend',
+            'order': 'Asc'|'Desc'}`` passed through as the COH ``orderBy`` structure
+        max_results: Per-page result count (boto3 ``maxResults``). NOT a total
+            cap. Combine with ``max_pages`` to bound total fetched results.
+        next_token: Pagination token to resume from a previous response
+        max_pages: Maximum number of pages to fetch when paginating
+
+    Returns:
+        Dict containing efficiency metrics grouped over time and (when paginated)
+        pagination metadata.
+    """
+    ctx_logger = get_context_logger(ctx, __name__)
+
+    try:
+        request_params: Dict[str, Any] = {
+            'granularity': str(granularity),
+            'timePeriod': {'start': str(start_date), 'end': str(end_date)},
+        }
+        if group_by:
+            request_params['groupBy'] = str(group_by)
+        if order_by:
+            request_params['orderBy'] = dict(order_by)
+        if max_results:
+            request_params['maxResults'] = int(max_results)
+        if next_token:
+            request_params['nextToken'] = next_token
+
+        # Pagination dispatch — same shape as the other list helpers, but the
+        # result list lives under ``efficiencyMetricsByGroup``.
+        if next_token or max_pages:
+            groups, pagination_metadata = await paginate_aws_response(
+                ctx,
+                'listEfficiencyMetrics',
+                lambda **params: coh_client.list_efficiency_metrics(**params),
+                request_params,
+                'efficiencyMetricsByGroup',
+                'nextToken',
+                'nextToken',
+                max_pages,
+            )
+            raw_response: Dict[str, Any] = {
+                'efficiencyMetricsByGroup': groups,
+                'Pagination': pagination_metadata,
+            }
+        else:
+            await ctx_logger.info(
+                f'Fetching efficiency metrics ({granularity}) from Cost Optimization Hub'
+            )
+            raw_response = coh_client.list_efficiency_metrics(**request_params)
+
+        # Flatten boto3 groups into snake_case dicts. Done after pagination so
+        # both code paths reuse the same formatting.
+        all_groups = raw_response.get('efficiencyMetricsByGroup', [])
+        await ctx_logger.info(f'Processing {len(all_groups)} total efficiency-metric groups')
+
+        formatted_groups = [
+            {
+                'group': group.get('group'),
+                'message': group.get('message'),
+                'metrics_by_time': [
+                    {
+                        'timestamp': point.get('timestamp'),
+                        'score': point.get('score'),
+                        'savings': point.get('savings'),
+                        'spend': point.get('spend'),
+                    }
+                    for point in (group.get('metricsByTime') or [])
+                ],
+            }
+            for group in all_groups
+        ]
+
+        formatted_response: Dict[str, Any] = {
+            'granularity': granularity,
+            'time_period': {'start': start_date, 'end': end_date},
+            'group_by': group_by,
+            'groups': formatted_groups,
+        }
+
+        # Preserve resumption state. Multi-page path carries the canonical
+        # ``Pagination`` envelope; single-page exposes the raw ``nextToken``.
+        if 'Pagination' in raw_response:
+            formatted_response['Pagination'] = raw_response['Pagination']
+        elif 'nextToken' in raw_response:
+            formatted_response['nextToken'] = raw_response['nextToken']
+
+        offload_or_inline = await convert_response_if_needed(
+            ctx,
+            formatted_response,
+            'cost_optimization_hub_list_efficiency_metrics',
+            pagination_token_key='nextToken',
+            order_by=order_by,
+        )
+
+        return format_response('success', offload_or_inline)
+
+    except ClientError as e:
+        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+        error_message = e.response.get('Error', {}).get('Message', 'An unknown error occurred')
+        await ctx_logger.error(f'AWS ClientError in list_efficiency_metrics: {error_code}')
+        return format_response(
+            'error',
+            {'error_code': error_code},
+            error_message,
+        )
+
+    except Exception as e:
+        # Let the parent try-catch handle other exceptions
+        await ctx_logger.error(f'Unexpected error in list_efficiency_metrics: {str(e)}')
+        raise
