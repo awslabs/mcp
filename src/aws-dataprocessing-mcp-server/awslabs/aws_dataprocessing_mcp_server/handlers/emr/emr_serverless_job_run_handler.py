@@ -21,10 +21,11 @@ from awslabs.aws_dataprocessing_mcp_server.models.emr_models import (
     ListJobRunsData,
     StartJobRunData,
 )
-from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
+from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper, ClientFactory
 from awslabs.aws_dataprocessing_mcp_server.utils.consts import (
     EMR_SERVERLESS_JOB_RUN_RESOURCE_TYPE,
 )
+from awslabs.aws_dataprocessing_mcp_server.utils.error_helper import create_error_result
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     LogLevel,
     log_with_request_id,
@@ -38,18 +39,27 @@ from typing import Annotated, Any, Dict, List, Optional
 class EMRServerlessJobRunHandler:
     """Handler for Amazon EMR Serverless Job Run operations."""
 
-    def __init__(self, mcp, allow_write: bool = False, allow_sensitive_data_access: bool = False):
+    def __init__(
+        self,
+        mcp,
+        allow_write: bool = False,
+        allow_sensitive_data_access: bool = False,
+        client_factory: Optional[ClientFactory] = None,
+    ):
         """Initialize the EMR Serverless Job Run handler.
 
         Args:
             mcp: The MCP server instance
             allow_write: Whether to enable write access (default: False)
             allow_sensitive_data_access: Whether to allow access to sensitive data (default: False)
+            client_factory: Optional service-aware boto3 client factory
         """
         self.mcp = mcp
         self.allow_write = allow_write
         self.allow_sensitive_data_access = allow_sensitive_data_access
-        self.emr_serverless_client = AwsHelper.create_boto3_client('emr-serverless')
+        self._provided_client_factory = client_factory
+        self.client_factory = client_factory or AwsHelper.create_boto3_client
+        self.emr_serverless_client = self.client_factory('emr-serverless')
 
         # Register tools
         self.mcp.tool(name='manage_aws_emr_serverless_job_runs')(
@@ -480,4 +490,4 @@ class EMRServerlessJobRunHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_emr_serverless_job_runs: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return self._create_error_response(operation, error_message)
+            return create_error_result(e, error_message)

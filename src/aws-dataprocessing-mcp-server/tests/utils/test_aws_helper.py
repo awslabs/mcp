@@ -146,6 +146,21 @@ class TestAwsHelper:
         # Verify that the account ID is not cached
         assert AwsHelper._aws_account_id is None
 
+    def test_get_aws_account_id_with_client_factory_bypasses_ambient_cache(self):
+        """Injected STS clients use their own identity without reading or writing the ambient cache."""
+        AwsHelper._aws_account_id = '111111111111'
+        mock_sts_client = MagicMock()
+        mock_sts_client.get_caller_identity.return_value = {'Account': '222222222222'}
+        client_factory = MagicMock(return_value=mock_sts_client)
+
+        with patch('boto3.client') as mock_boto3_client:
+            account_id = AwsHelper.get_aws_account_id(client_factory)
+
+        assert account_id == '222222222222'
+        assert AwsHelper._aws_account_id == '111111111111'
+        client_factory.assert_called_once_with('sts')
+        mock_boto3_client.assert_not_called()
+
     def test_get_aws_partition_cached(self):
         """Test that get_aws_partition returns the cached partition if available."""
         # Set the cached partition
@@ -190,6 +205,23 @@ class TestAwsHelper:
 
         # Verify that the partition is not cached
         assert AwsHelper._aws_partition is None
+
+    def test_get_aws_partition_with_client_factory_bypasses_ambient_cache(self):
+        """Injected STS clients use their own partition without reading or writing the ambient cache."""
+        AwsHelper._aws_partition = 'aws'
+        mock_sts_client = MagicMock()
+        mock_sts_client.get_caller_identity.return_value = {
+            'Arn': 'arn:aws-us-gov:sts::222222222222:assumed-role/role-name/session-name'
+        }
+        client_factory = MagicMock(return_value=mock_sts_client)
+
+        with patch('boto3.client') as mock_boto3_client:
+            partition = AwsHelper.get_aws_partition(client_factory)
+
+        assert partition == 'aws-us-gov'
+        assert AwsHelper._aws_partition == 'aws'
+        client_factory.assert_called_once_with('sts')
+        mock_boto3_client.assert_not_called()
 
     def test_create_boto3_client_with_region(self):
         """Test that create_boto3_client creates a client with the specified region."""

@@ -376,7 +376,10 @@ async def test_query_client_error_handling(handler, mock_athena_client):
     """Test error handling when Athena client raises an exception."""
     handler.athena_client = mock_athena_client
     mock_athena_client.get_query_execution.side_effect = ClientError(
-        {'Error': {'Code': 'InvalidRequestException', 'Message': 'Invalid request'}},
+        {
+            'Error': {'Code': 'InvalidRequestException', 'Message': 'Invalid request'},
+            'ResponseMetadata': {'HTTPStatusCode': 400, 'RequestId': 'athena-request-id'},
+        },
         'GetQueryExecution',
     )
 
@@ -387,6 +390,15 @@ async def test_query_client_error_handling(handler, mock_athena_client):
 
     assert response.is_error
     assert 'Error in manage_aws_athena_queries' in response.content[0].text
+    assert response.structured_content == {
+        'error': {
+            'code': 'InvalidRequestException',
+            'error_type': 'ClientError',
+            'message': 'Invalid request',
+            'http_status': 400,
+            'request_id': 'athena-request-id',
+        }
+    }
 
 
 # Named Query Tests
