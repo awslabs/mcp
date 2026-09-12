@@ -130,6 +130,7 @@ class TestQueryKnowledgeBasesTool:
             query='test query',
             knowledge_base_id='kb-12345',
             kb_agent_client=mock.ANY,  # We can't directly access the global variable in tests
+            kb_agent_mgmt_client=mock.ANY,  # We can't directly access the global variable in tests
             number_of_results=10,
             reranking=True,
             reranking_model_name='AMAZON',
