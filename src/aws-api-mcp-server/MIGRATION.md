@@ -20,8 +20,7 @@ The AWS MCP Server replaces and expands on these with:
 
 | Tool | Purpose |
 |------|---------|
-| `aws___call_aws` | Execute authenticated AWS API calls (same coverage as the old `call_aws`) |
-| `aws___run_script` | Execute Python code in a sandboxed environment — chain multiple API calls in one pass |
+| `aws___run_script` | Execute Python code in a sandboxed environment — chain multiple API calls in one pass. This is the successor to `call_aws`; a single AWS API call is expressed as a short `run_script` snippet (see the example below). |
 | `aws___search_documentation` | Search AWS documentation, best practices, and agent skills |
 | `aws___read_documentation` | Retrieve full AWS documentation pages as markdown |
 | `aws___retrieve_skill` | Load domain-specific procedures (CloudFormation authoring, serverless patterns, etc.) |
@@ -30,11 +29,26 @@ The AWS MCP Server replaces and expands on these with:
 | `aws___get_presigned_url` | Generate pre-signed S3 URLs for uploads/downloads |
 | `aws___get_tasks` | Poll the status of long-running tasks |
 
+> **Note:** `aws___call_aws` was deprecated on July 15, 2026 and **removed from the managed AWS MCP Server on August 31, 2026**. It is no longer a live tool — a `tools/call` on it returns `The call_aws tool has been removed, use another one.` Use `aws___run_script` instead (see [API coverage](#api-coverage) below).
+
 For the full and up-to-date tool list, see [Understanding the MCP Server tools](https://docs.aws.amazon.com/aws-mcp/latest/userguide/understanding-mcp-server-tools.html).
 
 ### API coverage
 
-API coverage does not change. Any service, action, and parameter you reached through `call_aws` is reachable through `aws___call_aws` and `aws___run_script`, because both resolve to the same underlying AWS API surface. What changes is efficiency: `call_aws` forced one round trip per API call, so a workflow that listed resources, filtered them, and then acted on each one turned into a long sequence of separate tool calls. `aws___run_script` executes a script, so that same workflow becomes one call that lists, filters, loops, and acts inline. Fewer round trips means fewer tokens spent restating intermediate state.
+API coverage does not change. Any service, action, and parameter you reached through `call_aws` is reachable through `aws___run_script`, because it resolves to the same underlying AWS API surface. What changes is efficiency: `call_aws` forced one round trip per API call, so a workflow that listed resources, filtered them, and then acted on each one turned into a long sequence of separate tool calls. `aws___run_script` executes a script, so that same workflow becomes one call that lists, filters, loops, and acts inline. Fewer round trips means fewer tokens spent restating intermediate state.
+
+A single `call_aws` CLI command ports to a one-line `run_script` snippet using `call_boto3`:
+
+```python
+# Old: call_aws with "aws secretsmanager get-secret-value --secret-id my/secret"
+# New: aws___run_script running
+call_boto3("secretsmanager", "GetSecretValue", {"SecretId": "my/secret"})
+```
+
+Two things commonly trip up a port from `call_aws`:
+
+- **`call_boto3` takes the PascalCase API operation name** (`GetSecretValue`, `DescribeInstances`), not the CLI's kebab/snake-case (`get-secret-value`). This is the first error most readers hit after the port.
+- **A `run_script` call that makes one AWS API call takes about 13–15 seconds.** Clients that ported from `call_aws` with a 10-second timeout will fail on every call — raise the client timeout accordingly.
 
 ### Knowledge tools
 
