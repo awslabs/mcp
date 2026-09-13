@@ -15,11 +15,153 @@
 """Tests for deployment_troubleshooter module."""
 
 import json
+import pytest
 from awslabs.aws_iac_mcp_server.tools.cloudformation_deployment_troubleshooter import (
     DeploymentTroubleshooter,
 )
 from datetime import datetime, timezone
 from unittest.mock import Mock, patch
+
+
+class TestFailedOperationEvents:
+    """Retrieve the failed deployment, not just its successful rollback."""
+
+    @pytest.mark.parametrize(
+        'operation_type', ['CREATE_STACK', 'UPDATE_STACK', 'CREATE_CHANGESET']
+    )
+    @patch(
+        'awslabs.aws_iac_mcp_server.tools.cloudformation_deployment_troubleshooter.get_aws_client'
+    )
+    def test_selects_deployment_operation_after_rollback(self, mock_client, operation_type):
+        """A completed rollback must not hide the original resource failure."""
+        cfn = Mock()
+        mock_client.side_effect = [cfn, Mock()]
+        cfn.describe_stacks.return_value = {
+            'Stacks': [
+                {
+                    'StackStatus': 'UPDATE_ROLLBACK_COMPLETE',
+                    'LastOperations': [
+                        {'OperationType': 'CONTINUE_ROLLBACK', 'OperationId': 'continue-id'},
+                        {'OperationType': 'ROLLBACK', 'OperationId': 'rollback-id'},
+                        {'OperationType': operation_type, 'OperationId': 'deployment-id'},
+                    ],
+                }
+            ]
+        }
+        failure = {
+            'EventId': 'failed-resource',
+            'ResourceStatus': 'CREATE_FAILED',
+            'ResourceStatusReason': 'Bucket already exists',
+            'ResourceType': 'AWS::S3::Bucket',
+        }
+        cfn.describe_events.side_effect = lambda **kwargs: {
+            'OperationEvents': [failure] if kwargs.get('OperationId') == 'deployment-id' else []
+        }
+
+        result = DeploymentTroubleshooter().troubleshoot_stack_deployment(
+            'test-stack', include_cloudtrail=False
+        )
+
+        assert result['status'] == 'success'
+        assert result['raw_data']['cloudformation_events'] == [failure]
+        assert result['raw_data']['failed_event_count'] == 1
+        cfn.describe_events.assert_called_once_with(
+            OperationId='deployment-id', Filters={'FailedEvents': True}
+        )
+
+    @pytest.mark.parametrize('last_operations', [[], [{}], [{'OperationType': 'UPDATE_STACK'}]])
+    @patch(
+        'awslabs.aws_iac_mcp_server.tools.cloudformation_deployment_troubleshooter.get_aws_client'
+    )
+    def test_missing_operation_id_falls_back_to_stack(self, mock_client, last_operations):
+        """Older or incomplete stack metadata keeps the StackName query path."""
+        cfn = Mock()
+        mock_client.side_effect = [cfn, Mock()]
+        cfn.describe_stacks.return_value = {
+            'Stacks': [{'StackStatus': 'CREATE_FAILED', 'LastOperations': last_operations}]
+        }
+        cfn.describe_events.return_value = {'OperationEvents': []}
+
+        result = DeploymentTroubleshooter().troubleshoot_stack_deployment(
+            'test-stack', include_cloudtrail=False
+        )
+
+        assert result['status'] == 'success'
+        cfn.describe_events.assert_called_once_with(
+            StackName='test-stack', Filters={'FailedEvents': True}
+        )
+
+    @pytest.mark.parametrize('operation_type', ['ROLLBACK', 'CONTINUE_ROLLBACK'])
+    @patch(
+        'awslabs.aws_iac_mcp_server.tools.cloudformation_deployment_troubleshooter.get_aws_client'
+    )
+    def test_failed_rollback_operations_are_paginated(self, mock_client, operation_type):
+        """A failed rollback must not be hidden by the preceding deployment."""
+        cfn = Mock()
+        mock_client.side_effect = [cfn, Mock()]
+        cfn.describe_stacks.return_value = {
+            'Stacks': [
+                {
+                    'StackStatus': 'UPDATE_ROLLBACK_FAILED',
+                    'LastOperations': [
+                        {'OperationType': operation_type, 'OperationId': 'rollback-id'},
+                        {'OperationType': 'UPDATE_STACK', 'OperationId': 'deployment-id'},
+                    ],
+                }
+            ]
+        }
+        cfn.describe_events.side_effect = [
+            {'OperationEvents': [{'EventId': 'one'}], 'NextToken': 'page-two'},
+            {'OperationEvents': [{'EventId': 'two'}]},
+        ]
+
+        result = DeploymentTroubleshooter().troubleshoot_stack_deployment(
+            'test-stack', include_cloudtrail=False
+        )
+
+        assert result['status'] == 'success'
+        assert result['raw_data']['failed_event_count'] == 2
+        assert result['raw_data']['cloudformation_events'] == [
+            {'EventId': 'one'},
+            {'EventId': 'two'},
+        ]
+        assert cfn.describe_events.call_args_list[0].kwargs == {
+            'OperationId': 'rollback-id',
+            'Filters': {'FailedEvents': True},
+        }
+        assert cfn.describe_events.call_args_list[1].kwargs == {
+            'OperationId': 'rollback-id',
+            'Filters': {'FailedEvents': True},
+            'NextToken': 'page-two',
+        }
+
+    @patch(
+        'awslabs.aws_iac_mcp_server.tools.cloudformation_deployment_troubleshooter.get_aws_client'
+    )
+    def test_rollback_only_metadata_uses_rollback_operation(self, mock_client):
+        """A stack exposing no deployment operation still has usable metadata."""
+        cfn = Mock()
+        mock_client.side_effect = [cfn, Mock()]
+        cfn.describe_stacks.return_value = {
+            'Stacks': [
+                {
+                    'StackStatus': 'ROLLBACK_COMPLETE',
+                    'LastOperations': [
+                        {'OperationType': 'ROLLBACK', 'OperationId': 'rollback-id'}
+                    ],
+                }
+            ]
+        }
+        cfn.describe_events.return_value = {'OperationEvents': []}
+
+        result = DeploymentTroubleshooter().troubleshoot_stack_deployment(
+            'test-stack', include_cloudtrail=False
+        )
+
+        assert result['status'] == 'success'
+        cfn.describe_events.assert_called_once_with(
+            OperationId='rollback-id', Filters={'FailedEvents': True}
+        )
 
 
 class TestDeploymentTroubleshooterInit:
