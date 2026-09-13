@@ -24,7 +24,7 @@ This module addresses security concerns by:
 from awslabs.aws_serverless_mcp_server.templates.iam_policies import SecurePolicyGenerator
 from awslabs.aws_serverless_mcp_server.tools.common.base_tool import BaseTool
 from awslabs.aws_serverless_mcp_server.utils.data_scrubber import DataScrubber
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Any, Dict
 
@@ -39,7 +39,7 @@ class SecureEsmGuidanceTool(BaseTool):
     - Using security-approved templates only
     """
 
-    def __init__(self, mcp: FastMCP, allow_write: bool = False):
+    def __init__(self, mcp: MCPServer, allow_write: bool = False):
         """Initialize the secure ESM guidance tool."""
         super().__init__(allow_write=allow_write)
         self.allow_write = allow_write

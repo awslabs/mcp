@@ -220,6 +220,11 @@ class TestDownloadS3Content:
 
             result = await download_s3_content('https://s3.example.com/file.txt')
             assert result == {'content': 'file contents here'}
+            timeout = MockClient.call_args.kwargs['timeout']
+            assert timeout.connect == 10.0
+            assert timeout.read == 60.0
+            assert timeout.write == 60.0
+            assert timeout.pool == 10.0
 
     @pytest.mark.asyncio
     async def test_saves_to_disk(self, tmp_path):

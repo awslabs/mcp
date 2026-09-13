@@ -14,8 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Deprecated
+
+- Deprecate the standalone DSQL skill and its compatibility aliases in favor
+  of the canonical `dsql` skill in the
+  [`databases-on-aws` plugin](https://github.com/awslabs/agent-plugins/tree/main/plugins/databases-on-aws/skills/dsql).
+
 ### Added
 
+- Add native foreign key guidance across the DSQL skill and Kiro Power, including supported referential actions, match types, deferrable constraints, `SET CONSTRAINTS`, tenant-scoped composite keys, async validation for existing tables, cascade row-limit considerations, and retry handling for SQLSTATE `40001`.
+- Require `dsql-lint` 0.2.17 or newer so lint fixes preserve supported foreign keys and add `NOT VALID` to post-creation constraints.
 - Add `ALTER TABLE ASYNC ... VALIDATE CONSTRAINT` guidance to DSQL steering. CHECK constraints can now be added with `NOT VALID` and validated asynchronously, following the same async DDL pattern as `CREATE INDEX ASYNC`.
 
 ### Security
@@ -31,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Update DSQL steering for PostgreSQL-compatible explicit `NUMERIC(p,s)` bounds: precision 1–1000 and scale -1000–1000, including negative scales and scales greater than precision. Bare `NUMERIC` defaults to `NUMERIC(18,6)`.
 - Bump `dsql-lint` dependency to `>=0.2.1,<0.3` and lock to `0.2.6`. `0.2.6` accepts both `JSON` and `JSONB` as stored column types (earlier 0.2.x versions rewrote `JSONB` → `JSON`).
 - Steering, skill, and migration guides updated:
   - For arrays: PREFER `JSONB` (operators and `jsonb_array_elements_text` work directly); MAY use `TEXT` for columns the database never inspects.

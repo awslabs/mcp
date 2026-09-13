@@ -174,6 +174,36 @@ class TestBillingViewArnSupport:
         call_kwargs = mock_ce_client.get_dimension_values.call_args[1]
         assert call_kwargs['BillingViewArn'] == sample_billing_view_arn
 
+    async def test_get_dimension_values_with_context(self, mock_context, mock_ce_client):
+        """Test get_dimension_values includes Context."""
+        result = await get_dimension_values(
+            mock_context,
+            mock_ce_client,
+            dimension='SAVINGS_PLANS_TYPE',
+            context='SAVINGS_PLANS',
+        )
+        assert result['status'] == 'success'
+        call_kwargs = mock_ce_client.get_dimension_values.call_args[1]
+        assert call_kwargs['Context'] == 'SAVINGS_PLANS'
+        assert call_kwargs['Dimension'] == 'SAVINGS_PLANS_TYPE'
+
+    async def test_get_dimension_values_without_context_omits_it(
+        self, mock_context, mock_ce_client
+    ):
+        """Test get_dimension_values leaves Context out when not supplied.
+
+        The API defaults to COST_AND_USAGE, so sending it explicitly would change
+        nothing; omitting it keeps the request minimal.
+        """
+        result = await get_dimension_values(
+            mock_context,
+            mock_ce_client,
+            dimension='SERVICE',
+        )
+        assert result['status'] == 'success'
+        call_kwargs = mock_ce_client.get_dimension_values.call_args[1]
+        assert 'Context' not in call_kwargs
+
     async def test_get_cost_forecast_with_billing_view_arn(
         self, mock_context, mock_ce_client, sample_billing_view_arn
     ):

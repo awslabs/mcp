@@ -1996,3 +1996,196 @@ class TestDataModelFromJson:
                 match=r'Data model contains duplicate table names\. table_names: DuplicateTable',
             ):
                 DataModel.from_json(data)
+
+
+class TestTableNameValidation:
+    """Test TableName validation against DynamoDB's name constraints."""
+
+    @pytest.mark.parametrize(
+        'table_name',
+        [
+            "Users', {}); require('child_process').execSync('id'); ({",
+            "Users'; //",
+            'Users"',
+            'Users`',
+            'Users;drop',
+            'Users Table',
+            'Users\nTable',
+            'Users\n',
+            'Users\r',
+            'Users\t',
+            'Users/../etc',
+            'Users$(id)',
+            'Users{}',
+        ],
+    )
+    def test_table_name_with_disallowed_characters_rejected(self, table_name):
+        """Error: TableName outside the DynamoDB character set is rejected."""
+        data = copy.deepcopy(BASE_SIMPLE_TABLE)
+        data['tables'][0]['TableName'] = table_name
+        with pytest.raises(ValueError, match=r'tables\[0\]\.TableName must contain only'):
+            DataModel.from_json(data)
+
+    @pytest.mark.parametrize('table_name', ['', 'U', 'Us'])
+    def test_table_name_too_short_rejected(self, table_name):
+        """Error: TableName shorter than 3 characters is rejected."""
+        data = copy.deepcopy(BASE_SIMPLE_TABLE)
+        data['tables'][0]['TableName'] = table_name
+        with pytest.raises(ValueError, match=r'tables\[0\]\.TableName must be between 3 and 255'):
+            DataModel.from_json(data)
+
+    def test_table_name_too_long_rejected(self):
+        """Error: TableName longer than 255 characters is rejected."""
+        data = copy.deepcopy(BASE_SIMPLE_TABLE)
+        data['tables'][0]['TableName'] = 'A' * 256
+        with pytest.raises(ValueError, match=r'tables\[0\]\.TableName must be between 3 and 255'):
+            DataModel.from_json(data)
+
+    @pytest.mark.parametrize(
+        'table_name',
+        [
+            'Users',
+            'user-profiles',
+            'user_profiles',
+            'my.table',
+            '123',
+            'A.b-c_D9',
+            'A' * 255,
+        ],
+    )
+    def test_table_name_allowed_by_dynamodb_accepted(self, table_name):
+        """Any name DynamoDB accepts is accepted here."""
+        data = copy.deepcopy(BASE_SIMPLE_TABLE)
+        data['tables'][0]['TableName'] = table_name
+        model = DataModel.from_json(data)
+        assert model.tables[0].table_name == table_name
+
+
+class TestIndexNameValidation:
+    """Test GSI IndexName validation against DynamoDB's name constraints."""
+
+    @staticmethod
+    def _with_gsi(index_name):
+        data = copy.deepcopy(BASE_SIMPLE_TABLE)
+        data['tables'][0]['AttributeDefinitions'].append(
+            {'AttributeName': 'gsipk', 'AttributeType': 'S'}
+        )
+        data['tables'][0]['GlobalSecondaryIndexes'] = [
+            {
+                'IndexName': index_name,
+                'KeySchema': [{'AttributeName': 'gsipk', 'KeyType': 'HASH'}],
+            }
+        ]
+        return data
+
+    def test_index_name_with_quote_rejected(self):
+        """Error: IndexName containing a single quote is rejected."""
+        data = self._with_gsi("idx', x: '")
+        with pytest.raises(
+            ValueError,
+            match=r'tables\[0\]\.GlobalSecondaryIndexes\[0\]\.IndexName must contain only',
+        ):
+            DataModel.from_json(data)
+
+    def test_index_name_too_short_rejected(self):
+        """Error: IndexName shorter than 3 characters is rejected."""
+        data = self._with_gsi('ix')
+        with pytest.raises(
+            ValueError,
+            match=r'tables\[0\]\.GlobalSecondaryIndexes\[0\]\.IndexName must be between 3 and 255',
+        ):
+            DataModel.from_json(data)
+
+    def test_index_name_trailing_newline_rejected(self):
+        """Error: a trailing newline does not slip past the anchored pattern."""
+        data = self._with_gsi('idx\n')
+        with pytest.raises(
+            ValueError,
+            match=r'tables\[0\]\.GlobalSecondaryIndexes\[0\]\.IndexName must contain only',
+        ):
+            DataModel.from_json(data)
+
+    def test_index_name_valid_accepted(self):
+        """Valid IndexName is accepted."""
+        data = self._with_gsi('by-status.v1_2')
+        model = DataModel.from_json(data)
+        assert model.tables[0].global_secondary_indexes is not None
+        gsi = model.tables[0].global_secondary_indexes[0]
+        assert gsi.index_name == 'by-status.v1_2'
+
+
+class TestAttributeNameValidation:
+    """Test attribute name validation.
+
+    DynamoDB places no character restriction on attribute names, so they are length-checked
+    only. Escaping in the CDK template is what makes them safe to render.
+    """
+
+    def test_attribute_name_with_quote_accepted(self):
+        """Attribute names containing quotes are legal in DynamoDB and must be accepted."""
+        evil = "pk', type: 0}, x: {a: '"
+        data = {
+            'tables': [
+                {
+                    'TableName': 'QuoteTable',
+                    'AttributeDefinitions': [{'AttributeName': evil, 'AttributeType': 'S'}],
+                    'KeySchema': [{'AttributeName': evil, 'KeyType': 'HASH'}],
+                }
+            ]
+        }
+        model = DataModel.from_json(data)
+        assert model.tables[0].partition_key.name == evil
+
+    def test_attribute_name_too_long_rejected(self):
+        """Error: attribute name longer than 255 characters is rejected."""
+        data = copy.deepcopy(BASE_SIMPLE_TABLE)
+        data['tables'][0]['AttributeDefinitions'][0]['AttributeName'] = 'a' * 256
+        data['tables'][0]['KeySchema'][0]['AttributeName'] = 'a' * 256
+        with pytest.raises(
+            ValueError,
+            match=r'tables\[0\]\.AttributeDefinitions\[0\]\.AttributeName '
+            r'must be between 1 and 255',
+        ):
+            DataModel.from_json(data)
+
+    def test_ttl_attribute_with_quote_accepted(self):
+        """TTL attribute names containing quotes are accepted and escaped downstream."""
+        data = copy.deepcopy(BASE_SIMPLE_TABLE)
+        data['tables'][0]['TimeToLiveSpecification'] = {
+            'Enabled': True,
+            'AttributeName': "ttl'; //",
+        }
+        model = DataModel.from_json(data)
+        assert model.tables[0].ttl_attribute == "ttl'; //"
+
+    def test_ttl_attribute_too_long_rejected(self):
+        """Error: TTL attribute name longer than 255 characters is rejected."""
+        data = copy.deepcopy(BASE_SIMPLE_TABLE)
+        data['tables'][0]['TimeToLiveSpecification'] = {
+            'Enabled': True,
+            'AttributeName': 't' * 256,
+        }
+        with pytest.raises(
+            ValueError,
+            match=r'TimeToLiveSpecification\.AttributeName must be between 1 and 255',
+        ):
+            DataModel.from_json(data)
+
+    def test_non_key_attribute_too_long_rejected(self):
+        """Error: NonKeyAttributes entry longer than 255 characters is rejected."""
+        data = copy.deepcopy(BASE_SIMPLE_TABLE)
+        data['tables'][0]['AttributeDefinitions'].append(
+            {'AttributeName': 'gsipk', 'AttributeType': 'S'}
+        )
+        data['tables'][0]['GlobalSecondaryIndexes'] = [
+            {
+                'IndexName': 'by-status',
+                'KeySchema': [{'AttributeName': 'gsipk', 'KeyType': 'HASH'}],
+                'Projection': {'ProjectionType': 'INCLUDE', 'NonKeyAttributes': ['n' * 256]},
+            }
+        ]
+        with pytest.raises(
+            ValueError,
+            match=r'NonKeyAttributes\[0\] must be between 1 and 255',
+        ):
+            DataModel.from_json(data)

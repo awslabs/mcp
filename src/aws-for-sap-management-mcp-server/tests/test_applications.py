@@ -532,12 +532,12 @@ class TestRequestConsent:
     async def test_consent_no_elicitation_support(self):
         """Test request_consent when client doesn't support elicitation."""
         from awslabs.aws_for_sap_management_mcp_server.common import request_consent
-        from mcp.shared.exceptions import McpError
-        from mcp.types import METHOD_NOT_FOUND, ErrorData
+        from mcp.shared.exceptions import MCPError
+        from mcp.types import METHOD_NOT_FOUND
 
         mock_ctx = MagicMock()
         mock_ctx.elicit = AsyncMock(
-            side_effect=McpError(ErrorData(code=METHOD_NOT_FOUND, message='Not supported'))
+            side_effect=MCPError(code=METHOD_NOT_FOUND, message='Not supported')
         )
 
         with pytest.raises(ValueError, match='does not support elicitation'):
@@ -545,17 +545,14 @@ class TestRequestConsent:
 
     @pytest.mark.asyncio
     async def test_consent_other_mcp_error(self):
-        """Test request_consent re-raises non-METHOD_NOT_FOUND McpError."""
+        """Test request_consent re-raises non-METHOD_NOT_FOUND MCPError."""
         from awslabs.aws_for_sap_management_mcp_server.common import request_consent
-        from mcp.shared.exceptions import McpError
-        from mcp.types import ErrorData
+        from mcp.shared.exceptions import MCPError
 
         mock_ctx = MagicMock()
-        mock_ctx.elicit = AsyncMock(
-            side_effect=McpError(ErrorData(code=-32000, message='Other error'))
-        )
+        mock_ctx.elicit = AsyncMock(side_effect=MCPError(code=-32000, message='Other error'))
 
-        with pytest.raises(McpError):
+        with pytest.raises(MCPError):
             await request_consent('Test op', 'I acknowledge', mock_ctx)
 
 
@@ -725,8 +722,8 @@ class TestStopApplicationCascade:
     @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_no_elicitation_support_with_nw_apps(self, mock_get_client, tools, ctx):
         """Test stop with NW apps when client doesn't support elicitation."""
-        from mcp.shared.exceptions import McpError
-        from mcp.types import METHOD_NOT_FOUND, ErrorData
+        from mcp.shared.exceptions import MCPError
+        from mcp.types import METHOD_NOT_FOUND
 
         mock_client = MagicMock()
         mock_client.get_application.side_effect = [
@@ -742,7 +739,7 @@ class TestStopApplicationCascade:
         mock_get_client.return_value = mock_client
 
         ctx.elicit = AsyncMock(
-            side_effect=McpError(ErrorData(code=METHOD_NOT_FOUND, message='Not supported'))
+            side_effect=MCPError(code=METHOD_NOT_FOUND, message='Not supported')
         )
 
         result = await tools.stop_application(ctx, application_id='hana-1')
@@ -1074,9 +1071,8 @@ class TestStopApplicationEdgeCases:
     @pytest.mark.asyncio
     @patch('awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.tools.get_aws_client')
     async def test_cascade_elicitation_other_mcp_error(self, mock_get_client, tools, ctx):
-        """Test stop with NW apps when elicitation raises non-METHOD_NOT_FOUND McpError (lines 674, 684-685)."""
-        from mcp.shared.exceptions import McpError
-        from mcp.types import ErrorData
+        """Test stop with NW apps when elicitation raises non-METHOD_NOT_FOUND MCPError (lines 674, 684-685)."""
+        from mcp.shared.exceptions import MCPError
 
         mock_client = MagicMock()
         mock_client.get_application.side_effect = [
@@ -1091,9 +1087,7 @@ class TestStopApplicationEdgeCases:
         ]
         mock_get_client.return_value = mock_client
 
-        ctx.elicit = AsyncMock(
-            side_effect=McpError(ErrorData(code=-32000, message='Internal error'))
-        )
+        ctx.elicit = AsyncMock(side_effect=MCPError(code=-32000, message='Internal error'))
 
-        with pytest.raises(McpError):
+        with pytest.raises(MCPError):
             await tools.stop_application(ctx, application_id='hana-1')

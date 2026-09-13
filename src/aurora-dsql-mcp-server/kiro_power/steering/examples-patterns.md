@@ -36,43 +36,13 @@ async function deleteOrder(pool, tenantId, orderId) {
 
 ---
 
-## Application-Layer Referential Integrity
+## Multi-Tenant Foreign Key
 
-SHOULD validate references for custom business rules (DSQL provides database-level integrity).
-
-```javascript
-async function createLineItem(pool, tenantId, lineItemData) {
-  const orderCheck = await pool.query(
-    'SELECT order_id FROM orders WHERE tenant_id = $1 AND order_id = $2',
-    [tenantId, lineItemData.order_id]
-  );
-
-  if (orderCheck.rows.length === 0) {
-    throw new Error('Order does not exist');
-  }
-
-  await pool.query(
-    'INSERT INTO line_items (tenant_id, order_id, product_id, quantity) VALUES ($1, $2, $3, $4)',
-    [tenantId, lineItemData.order_id, lineItemData.product_id, lineItemData.quantity]
-  );
-}
-
-async function deleteProduct(pool, tenantId, productId) {
-  const check = await pool.query(
-    'SELECT COUNT(*) as count FROM line_items WHERE tenant_id = $1 AND product_id = $2',
-    [tenantId, productId]
-  );
-
-  if (parseInt(check.rows[0].count) > 0) {
-    throw new Error('Product has existing orders');
-  }
-
-  await pool.query(
-    'DELETE FROM products WHERE tenant_id = $1 AND product_id = $2',
-    [tenantId, productId]
-  );
-}
-```
+For a tenant-scoped relationship where the database must enforce tenant equality, **MUST** include
+a non-null tenant key in both keys. Under `MATCH SIMPLE`, optional relationship columns **MAY**
+remain nullable. Preserve ordinary foreign keys for shared or globally identified rows. See the
+executable [Foreign Key Pattern](../../mcp/tools/workflow-patterns.md#pattern-5-foreign-key) and
+follow [Foreign Key Constraints](../foreign-keys.md) for operational guidance.
 
 ---
 
@@ -131,7 +101,12 @@ INSERT INTO distributors VALUES (nextval('order_seq'), 'nothing');
 
 ## Data Serialization
 
-**Pattern:** Arrays must be serialized into a single-column representation. PREFER `JSONB` for queryable arrays; MAY use `TEXT` when opaque to the database. For document columns, choose `JSONB` (queryable with `@>`/`?`/indexed paths) or `JSON` (write-heavy or byte-exact). Per [DSQL docs](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with-postgresql-compatibility-supported-data-types.html).
+Arrays and `INET` are [runtime-only](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with-postgresql-compatibility-supported-data-types.html#working-with-postgresql-compatibility-query-runtime) — not valid as column types. **MUST** serialize arrays and structured data into a single-column representation. WHICH format is a choice — ASK the user which access pattern fits:
+
+- **PREFER** `JSONB` when querying inside the value (`@>`, `?`, `?|`, `?&`, `jsonb_array_elements_text`, indexed JSONB paths); values are normalized at write.
+- **MAY** use `TEXT` when the column is opaque to the database — the application reads the whole value, parses it, and never queries inside it.
+- `JSON` is valid when writes dominate (no parse/sort overhead), byte-exact input matters (audit, replay, duplicate keys), or only `->`/`->>` is needed.
+- When migrating, **SHOULD** keep existing `JSON` columns as `JSON`; **MAY** upgrade to `JSONB` if JSONB-only operators or indexed paths are needed.
 
 **JSONB (write + query with operators):**
 
@@ -139,13 +114,12 @@ INSERT INTO distributors VALUES (nextval('order_seq'), 'nothing');
 const categories = ['backend', 'api', 'database'];
 await pool.query(
   'INSERT INTO projects (project_id, categories) VALUES ($1, $2::jsonb)',
-  [projectId, JSON.stringify(categories)]
+  [projectId, JSON.stringify(categories)],
 );
 
-const preferences = { theme: 'dark', notifications: true };
 await pool.query(
   'INSERT INTO user_settings (user_id, preferences) VALUES ($1, $2::jsonb)',
-  [userId, JSON.stringify(preferences)]
+  [userId, JSON.stringify({ theme: 'dark', notifications: true })],
 );
 ```
 
@@ -156,7 +130,8 @@ SELECT project_id, jsonb_array_elements_text(categories) AS category FROM projec
 
 -- ->/->> work on both JSON and JSONB:
 SELECT user_id, preferences->>'theme' AS theme
-FROM user_settings WHERE preferences->>'notifications' = 'true';
+FROM user_settings
+WHERE preferences->>'notifications' = 'true';
 ```
 
 **JSON (write-heavy, byte-exact, key-extraction only):**
@@ -164,8 +139,8 @@ FROM user_settings WHERE preferences->>'notifications' = 'true';
 ```javascript
 const auditPayload = { event: 'login', ts: 1717890000, user_id: '...' };
 await pool.query(
-  'INSERT INTO audit_log (id, payload) VALUES ($1, $2)',  // no cast: column is JSON
-  [eventId, JSON.stringify(auditPayload)]
+  'INSERT INTO audit_log (id, payload) VALUES ($1, $2)', // no cast: column is JSON
+  [eventId, JSON.stringify(auditPayload)],
 );
 ```
 
@@ -179,7 +154,7 @@ SELECT id, payload->>'event' AS event FROM audit_log WHERE payload->>'user_id' =
 const tagsCsv = ['backend', 'api', 'database'].join(',');
 await pool.query(
   'INSERT INTO projects (project_id, tags_csv) VALUES ($1, $2)',
-  [projectId, tagsCsv]
+  [projectId, tagsCsv],
 );
 // Application parses tags_csv.split(',') on read; the database never inspects it.
 ```

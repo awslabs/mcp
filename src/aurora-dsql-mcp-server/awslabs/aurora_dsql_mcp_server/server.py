@@ -61,7 +61,7 @@ from awslabs.aurora_dsql_mcp_server.mutable_sql_detector import (
 )
 from botocore.config import Config
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Annotated, Any, List
 from urllib.parse import urlparse
@@ -82,7 +82,7 @@ aws_profile = None
 knowledge_server = 'https://d38p8g9d7yc7ms.cloudfront.net'
 knowledge_timeout = 30.0
 
-mcp = FastMCP(
+mcp = MCPServer(
     'awslabs-aurora-dsql-mcp-server',
     instructions="""
     # Aurora DSQL MCP server.

@@ -15,7 +15,7 @@
 import logging
 import os
 from boto3 import client as boto3_client
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Any, Dict, List, Literal, Optional
 
@@ -53,11 +53,11 @@ class EsmRecommendTool:
         },
     }
 
-    def __init__(self, mcp: FastMCP):
+    def __init__(self, mcp: MCPServer):
         """Initialize the ESM recommendation tool and AWS client connections.
 
         Args:
-            mcp: FastMCP instance for tool registration
+            mcp: MCPServer instance for tool registration
         """
         # Register configuration analysis and validation tools
         mcp.tool(name='esm_get_config_tradeoff')(self.esm_get_config_tradeoff_tool)

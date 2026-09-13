@@ -39,7 +39,7 @@ from awslabs.redshift_mcp_server.server import (
     review_cluster_tool,
 )
 from datetime import datetime
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 
 
 @pytest.mark.asyncio
@@ -62,10 +62,10 @@ async def test_tool_annotations():
         annotations = tools[name].annotations
         assert annotations is not None
         assert annotations.title == title
-        assert annotations.readOnlyHint is True
-        assert annotations.destructiveHint is False
-        assert annotations.idempotentHint is True
-        assert annotations.openWorldHint is True
+        assert annotations.read_only_hint is True
+        assert annotations.destructive_hint is False
+        assert annotations.idempotent_hint is True
+        assert annotations.open_world_hint is True
 
 
 class TestListClustersTool:
