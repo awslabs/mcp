@@ -540,6 +540,15 @@ Your AWS credentials need the following IAM permissions:
 }
 ```
 
+### Upgrading from an earlier version
+
+> [!IMPORTANT]
+> **Add `redshift-data:BatchExecuteStatement` to your policy.** Earlier versions needed only `redshift-data:ExecuteStatement`; every statement now runs as a batch.
+
+Until you add it, the server keeps the read-only behaviour of the earlier version: discovery, `review_cluster` and reads work, while writes and [named transactions](#transactions) are refused with a message naming the action.
+
+The server logs one warning on the first denial and retries the batch path every 5 minutes, so granting the action takes effect without a restart. This compatibility path will be removed in a later release.
+
 ### Database Permissions
 
 In addition to AWS IAM permissions, you need appropriate database-level permissions:

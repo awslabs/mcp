@@ -18,6 +18,7 @@ import asyncio
 import pytest
 import sqlglot
 import time
+from awslabs.redshift_mcp_server import redshift as redshift_module
 from awslabs.redshift_mcp_server.consts import (
     MAX_SQL_LEN,
     QUERY_LONG_POLL,
@@ -27,8 +28,14 @@ from awslabs.redshift_mcp_server.redshift import (
     _APP_NAME_SQL,
     RedshiftClientManager,
     RedshiftTransactionManager,
+    _begin_transaction,
     _execute_batch,
     _execute_standalone_statement,
+    _execute_statement_fallback_no_batch,
+    _execute_statement_in_transaction,
+    _is_no_batch,
+    _latch_no_batch,
+    _no_batch_active,
     _resolve_int_env,
     _resolve_transaction_action,
     _sql_identifier,
@@ -83,6 +90,34 @@ def _fake_batch(subs, status=None, error=None, session_id=None):
     if session_id is not None:
         batch['SessionId'] = session_id
     return batch
+
+
+@pytest.fixture(autouse=True)
+def _reset_module_state():
+    """Clear the batch-denied latch and any open transaction, both module state."""
+    redshift_module._no_batch_since = None
+    redshift_module.transaction_manager._transactions.clear()
+    redshift_module.transaction_manager._locks.clear()
+    yield
+    redshift_module._no_batch_since = None
+    redshift_module.transaction_manager._transactions.clear()
+    redshift_module.transaction_manager._locks.clear()
+
+
+def _batch_denied_error(action='redshift-data:BatchExecuteStatement'):
+    """Build the AccessDeniedException the Data API raises for a denied action."""
+    return ClientError(
+        {
+            'Error': {
+                'Code': 'AccessDeniedException',
+                'Message': (
+                    'User: arn:aws:sts::1:assumed-role/r/s is not authorized to perform: '
+                    f'{action} on resource: arn:aws:redshift:us-east-1:1:cluster:c'
+                ),
+            }
+        },
+        'BatchExecuteStatement',
+    )
 
 
 class TestRedshiftClientManagerRedshiftClient:
@@ -2328,3 +2363,326 @@ class TestTransactionLifecycle:
         )
 
         assert not overlapped
+
+
+class TestBatchDeniedDetection:
+    """Only the batch action being denied selects the compatibility path."""
+
+    def test_access_denied_is_the_signal(self):
+        """A denied BatchExecuteStatement arrives as AccessDeniedException."""
+        assert _is_no_batch(_batch_denied_error()) is True
+
+    def test_an_unreachable_cluster_is_not_the_signal(self):
+        """Denied cluster credentials answer ValidationException, so the two do not collide.
+
+        Measured against the Data API: revoking redshift:GetClusterCredentialsWithIAM makes
+        both ExecuteStatement and BatchExecuteStatement fail with ValidationException, which
+        is why the error code alone is a safe discriminator.
+        """
+        error = ClientError(
+            {
+                'Error': {
+                    'Code': 'ValidationException',
+                    'Message': 'is not authorized to perform: redshift:GetClusterCredentialsWithIAM',
+                }
+            },
+            'BatchExecuteStatement',
+        )
+
+        assert _is_no_batch(error) is False
+
+
+class TestBatchLatch:
+    """The latch holds the compatibility path without paying a denied call per statement."""
+
+    def test_the_batch_path_is_attempted_by_default(self):
+        """Nothing is assumed about the credentials until a call is refused."""
+        assert _no_batch_active() is False
+
+    def test_a_denial_latches_and_names_the_grant(self, mocker):
+        """One warning per latch, carrying the action to grant."""
+        warning = mocker.patch('awslabs.redshift_mcp_server.redshift.logger.warning')
+
+        _latch_no_batch(_batch_denied_error())
+
+        assert _no_batch_active() is True
+        assert warning.call_count == 1
+        assert 'redshift-data:BatchExecuteStatement' in warning.call_args[0][0]
+
+    def test_the_batch_path_is_probed_again_once_the_window_elapses(self, mocker):
+        """A granted policy is picked up without restarting the server."""
+        mocker.patch('awslabs.redshift_mcp_server.redshift.FALLBACK_NO_BATCH_REPROBE', 0)
+        _latch_no_batch(_batch_denied_error())
+
+        assert _no_batch_active() is False
+        # Consumed, so a still-denied batch latches again rather than warning per statement.
+        assert redshift_module._no_batch_since is None
+
+
+class TestExecuteSingleStatement:
+    """The compatibility path runs one statement on its own connection."""
+
+    def _data_client(self, mocker, submit=None, describe=None, records=None):
+        """Wire a Data API client scripted for ExecuteStatement."""
+        client = mocker.Mock()
+        client.execute_statement.return_value = submit or {'Id': 'stmt-id', 'Status': 'FINISHED'}
+        client.describe_statement.return_value = describe or {
+            'Id': 'stmt-id',
+            'Status': 'FINISHED',
+            'HasResultSet': records is not None,
+        }
+        client.get_statement_result.return_value = records or {'Records': [], 'ColumnMetadata': []}
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_data_client',
+            return_value=client,
+        )
+        return client
+
+    @pytest.mark.asyncio
+    async def test_a_result_set_is_fetched(self, mocker):
+        """The statement's own id reaches its result, with no sub-statement to index."""
+        records = {'Records': [[{'longValue': 1}]], 'ColumnMetadata': [{'name': 'n'}]}
+        client = self._data_client(mocker, records=records)
+
+        results, query_id = await _execute_statement_fallback_no_batch(
+            _fake_cluster(), 'test-cluster', 'test-db', 'SELECT 1'
+        )
+
+        assert results == records
+        assert query_id == 'stmt-id'
+        assert client.execute_statement.call_args[1]['Sql'] == 'SELECT 1'
+
+    @pytest.mark.asyncio
+    async def test_no_result_set_is_not_fetched(self, mocker):
+        """GetStatementResult answers ResourceNotFoundException for a statement without one."""
+        client = self._data_client(mocker)
+
+        results, _ = await _execute_statement_fallback_no_batch(
+            _fake_cluster(), 'test-cluster', 'test-db', 'SET x TO 1'
+        )
+
+        assert results == {'Records': [], 'ColumnMetadata': []}
+        client.get_statement_result.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_provisioned_and_serverless_are_addressed_differently(self, mocker):
+        """A workgroup is not a cluster, and the Data API takes them under different names."""
+        client = self._data_client(mocker)
+
+        await _execute_statement_fallback_no_batch(
+            _fake_cluster(), 'test-cluster', 'test-db', 'SELECT 1'
+        )
+        assert client.execute_statement.call_args[1]['ClusterIdentifier'] == 'test-cluster'
+
+        await _execute_statement_fallback_no_batch(
+            _fake_cluster(type='serverless'), 'test-wg', 'test-db', 'SELECT 1'
+        )
+        assert client.execute_statement.call_args[1]['WorkgroupName'] == 'test-wg'
+
+    @pytest.mark.asyncio
+    async def test_an_engine_failure_carries_its_message(self, mocker):
+        """The caller needs the engine's reason, not a generic failure."""
+        self._data_client(
+            mocker,
+            describe={'Id': 'stmt-id', 'Status': 'FAILED', 'Error': 'ERROR: relation not found'},
+        )
+
+        with pytest.raises(ToolError, match='relation not found'):
+            await _execute_statement_fallback_no_batch(
+                _fake_cluster(), 'test-cluster', 'test-db', 'SELECT * FROM nope'
+            )
+
+    @pytest.mark.asyncio
+    async def test_an_unknown_cluster_type_is_our_bug(self, mocker):
+        """Discovery only ever sets provisioned or serverless."""
+        self._data_client(mocker)
+
+        with pytest.raises(Exception, match='Unknown cluster type'):
+            await _execute_statement_fallback_no_batch(
+                _fake_cluster(type='mystery'), 'test-cluster', 'test-db', 'SELECT 1'
+            )
+
+    @pytest.mark.asyncio
+    async def test_parameters_are_forwarded(self, mocker):
+        """A parameterised read still binds its placeholders on the compatibility path."""
+        client = self._data_client(mocker)
+        parameters = [{'name': 'id', 'value': '1'}]
+
+        await _execute_statement_fallback_no_batch(
+            _fake_cluster(), 'test-cluster', 'test-db', 'SELECT :id', parameters=parameters
+        )
+
+        assert client.execute_statement.call_args[1]['Parameters'] == parameters
+
+
+class TestCompatibilityPathRouting:
+    """A denied batch falls back for reads, and refuses what it cannot wrap."""
+
+    def _deny_the_batch(self, mocker):
+        """Make the batch path answer AccessDeniedException."""
+        return mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_batch_for_statement',
+            side_effect=_batch_denied_error(),
+        )
+
+    def _capture_single(self, mocker):
+        """Stand in for the compatibility path."""
+        return mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_statement_fallback_no_batch',
+            return_value=({'Records': [], 'ColumnMetadata': []}, 'stmt-id'),
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_read_falls_back_on_the_same_call(self, mocker):
+        """Nothing ran, so the statement is retried rather than failing the caller's call."""
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._resolve_cluster', return_value=_fake_cluster()
+        )
+        batch = self._deny_the_batch(mocker)
+        single = self._capture_single(mocker)
+
+        _, query_id = await _execute_standalone_statement('test-cluster', 'test-db', 'SELECT 1')
+
+        assert batch.call_count == 1
+        assert single.call_args[1]['sql'] == 'SELECT 1'
+        assert query_id == 'stmt-id'
+        assert _no_batch_active() is True
+
+    @pytest.mark.asyncio
+    async def test_the_wrapper_is_dropped_with_the_batch(self, mocker):
+        """One statement per connection leaves nowhere to put BEGIN READ ONLY."""
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._resolve_cluster', return_value=_fake_cluster()
+        )
+        self._deny_the_batch(mocker)
+        single = self._capture_single(mocker)
+
+        await _execute_standalone_statement('test-cluster', 'test-db', 'SELECT 1')
+
+        assert single.call_args[1]['sql'] == 'SELECT 1'
+
+    @pytest.mark.asyncio
+    async def test_a_latched_server_does_not_attempt_the_batch(self, mocker):
+        """The point of the latch is to stop paying a denied call per statement."""
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._resolve_cluster', return_value=_fake_cluster()
+        )
+        batch = mocker.patch('awslabs.redshift_mcp_server.redshift._execute_batch_for_statement')
+        single = self._capture_single(mocker)
+        _latch_no_batch(_batch_denied_error())
+
+        await _execute_standalone_statement('test-cluster', 'test-db', 'SELECT 1')
+
+        batch.assert_not_called()
+        assert single.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_server_authored_discovery_still_works(self, mocker):
+        """Every SHOW this server issues classifies as a read, so discovery survives."""
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._resolve_cluster', return_value=_fake_cluster()
+        )
+        single = self._capture_single(mocker)
+        _latch_no_batch(_batch_denied_error())
+
+        await _execute_standalone_statement(
+            'test-cluster', 'test-db', 'SHOW DATABASES;', enforce_read_only=False
+        )
+
+        assert single.call_args[1]['sql'] == 'SHOW DATABASES;'
+
+    @pytest.mark.asyncio
+    async def test_a_write_is_refused_and_names_the_grant(self, mocker):
+        """Without the wrapper a write cannot be contained, so it is refused rather than run."""
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._resolve_cluster', return_value=_fake_cluster()
+        )
+        single = self._capture_single(mocker)
+        _latch_no_batch(_batch_denied_error())
+
+        with pytest.raises(ToolError, match='redshift-data:BatchExecuteStatement'):
+            await _execute_standalone_statement(
+                'test-cluster', 'test-db', 'INSERT INTO t VALUES (1)', enforce_read_only=False
+            )
+
+        single.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_an_unrelated_client_error_is_not_absorbed(self, mocker):
+        """A denial that is not about the batch action must not select the fallback."""
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._resolve_cluster', return_value=_fake_cluster()
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_batch_for_statement',
+            side_effect=ClientError(
+                {'Error': {'Code': 'ValidationException', 'Message': 'nope'}}, 'Batch'
+            ),
+        )
+        single = self._capture_single(mocker)
+
+        with pytest.raises(ClientError):
+            await _execute_standalone_statement('test-cluster', 'test-db', 'SELECT 1')
+
+        single.assert_not_called()
+        assert _no_batch_active() is False
+
+
+class TestTransactionsNeedTheBatch:
+    """A transaction is several statements on one connection, which the fallback cannot give."""
+
+    @pytest.mark.asyncio
+    async def test_opening_is_refused_while_latched(self):
+        """Refused before any work, so no name is reserved."""
+        _latch_no_batch(_batch_denied_error())
+
+        with pytest.raises(ToolError, match='Named transactions need'):
+            await _begin_transaction('test-cluster', 'test-db', 'load', 'SELECT 1')
+
+    @pytest.mark.asyncio
+    async def test_adding_to_one_is_refused_while_latched(self):
+        """The same refusal, so the caller is not told the name is merely unknown."""
+        _latch_no_batch(_batch_denied_error())
+
+        with pytest.raises(ToolError, match='Named transactions need'):
+            await _execute_statement_in_transaction('test-cluster', 'test-db', 'load', 'SELECT 1')
+
+    @pytest.mark.asyncio
+    async def test_a_denial_while_opening_drops_the_name(self, mocker):
+        """A reserved name must not linger when the batch it needed was refused."""
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._resolve_cluster', return_value=_fake_cluster()
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_batch_for_statement',
+            side_effect=_batch_denied_error(),
+        )
+
+        with pytest.raises(ToolError, match='Named transactions need'):
+            await _begin_transaction('test-cluster', 'test-db', 'load', 'SELECT 1')
+
+        assert _no_batch_active() is True
+        # The name is free again, so a later call under it reports it as unknown.
+        with pytest.raises(ToolError, match='No open transaction'):
+            redshift_module.transaction_manager.session_id('test-cluster:test-db:load', 'load')
+
+    @pytest.mark.asyncio
+    async def test_a_denial_inside_one_drops_the_name(self, mocker):
+        """An open transaction turns unreachable, so its name goes rather than misleading."""
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._resolve_cluster', return_value=_fake_cluster()
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_batch_for_statement',
+            side_effect=_batch_denied_error(),
+        )
+        key = 'test-cluster:test-db:load'
+        redshift_module.transaction_manager.reserve(key, 'test-cluster:test-db', 'load')
+        redshift_module.transaction_manager.attach(key, 'session-1')
+
+        with pytest.raises(ToolError, match='Named transactions need'):
+            await _execute_statement_in_transaction('test-cluster', 'test-db', 'load', 'SELECT 1')
+
+        assert _no_batch_active() is True
+        with pytest.raises(ToolError, match='No open transaction'):
+            redshift_module.transaction_manager.session_id(key, 'load')

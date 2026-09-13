@@ -27,6 +27,7 @@ from awslabs.redshift_mcp_server.consts import (
     CLIENT_USER_AGENT_NAME,
     COLUMNS_SQL,
     DATABASES_SQL,
+    FALLBACK_NO_BATCH_REPROBE,
     MAX_OPEN_TRANSACTIONS_PER_TARGET_DEFAULT,
     QUERY_LONG_POLL,
     QUERY_POLL_INTERVAL,
@@ -44,7 +45,7 @@ from awslabs.redshift_mcp_server.models import (
     RedshiftSchema,
     RedshiftTable,
 )
-from awslabs.redshift_mcp_server.sql_guard import assert_executable
+from awslabs.redshift_mcp_server.sql_guard import assert_executable, might_write
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from loguru import logger
@@ -68,6 +69,26 @@ _TRANSACTION_CLOSERS = {'commit_transaction': 'COMMIT', 'rollback_transaction': 
 
 # Tags the connection with an application name.
 _APP_NAME_SQL = f"SET application_name TO '{CLIENT_USER_AGENT_NAME}/{__version__}'"
+
+# When BatchExecuteStatement was last denied, or None while it is believed permitted. Holds
+# the compatibility path in place without paying a denied call per statement.
+_no_batch_since: float | None = None
+
+# Refusals for what the compatibility path cannot carry, kept together so they stay consistent
+# with each other. A write needs the read-only wrapper around it; a transaction needs several
+# statements grouped. Both need one connection, and that path gives one statement per call.
+_FALLBACK_NO_BATCH_REFUSES_WRITE = (
+    'This statement needs redshift-data:BatchExecuteStatement, which the current credentials '
+    'are denied. Without it each statement runs on its own connection, so the read-only '
+    'transaction that would contain a write cannot be opened. Reads still work; grant the '
+    'action to run anything else.'
+)
+
+_FALLBACK_NO_BATCH_REFUSES_TRANSACTION = (
+    'Named transactions need redshift-data:BatchExecuteStatement, which the current '
+    'credentials are denied. Without it each statement runs on its own connection, so there '
+    'is nothing to group. Reads still work; grant the action to use transactions.'
+)
 
 
 def _resolve_int_env(
@@ -487,23 +508,43 @@ async def _execute_standalone_statement(
 
     cluster_info = await _resolve_cluster(cluster_identifier)
 
-    sqls = [_APP_NAME_SQL]
-    if enforce_read_only:
-        sqls.append('BEGIN READ ONLY')
-    caller_index = len(sqls)
-    sqls.append(sql)
-    if enforce_read_only:
-        sqls.append('ROLLBACK')
+    if not _no_batch_active():
+        sqls = [_APP_NAME_SQL]
+        if enforce_read_only:
+            sqls.append('BEGIN READ ONLY')
+        caller_index = len(sqls)
+        sqls.append(sql)
+        if enforce_read_only:
+            sqls.append('ROLLBACK')
 
-    results_response, query_id, _ = await _execute_batch_for_statement(
+        try:
+            results_response, query_id, _ = await _execute_batch_for_statement(
+                cluster_info=cluster_info,
+                cluster_identifier=cluster_identifier,
+                database_name=database_name,
+                sqls=sqls,
+                caller_index=caller_index,
+                parameters=parameters,
+            )
+            return results_response, query_id
+        except ClientError as e:
+            if not _is_no_batch(e):
+                raise
+            # Nothing ran, so the same statement can be retried below rather than failing
+            # this call on a permissions problem the compatibility path can absorb.
+            _latch_no_batch(e)
+
+    if might_write(sql):
+        raise ToolError(_FALLBACK_NO_BATCH_REFUSES_WRITE)
+
+    # A recognized read cannot write, so it needs no wrapper and can go on its own.
+    return await _execute_statement_fallback_no_batch(
         cluster_info=cluster_info,
         cluster_identifier=cluster_identifier,
         database_name=database_name,
-        sqls=sqls,
-        caller_index=caller_index,
+        sql=sql,
         parameters=parameters,
     )
-    return results_response, query_id
 
 
 async def _begin_transaction(
@@ -537,6 +578,9 @@ async def _begin_transaction(
         ToolError: If the name is already open, the target is at its cap, the cluster is
             unknown, or a statement fails.
     """
+    if _no_batch_active():
+        raise ToolError(_FALLBACK_NO_BATCH_REFUSES_TRANSACTION)
+
     if sql is not None:
         assert_executable(sql, enforce_read_only=enforce_read_only)
 
@@ -563,10 +607,13 @@ async def _begin_transaction(
                 parameters=parameters,
                 session_keepalive=session_keepalive(),
             )
-        except Exception:
+        except Exception as e:
             # The transaction never opened, or opened and then failed, in which case the
             # session dies with the batch. Either way the name must not linger.
             transaction_manager.forget(key)
+            if isinstance(e, ClientError) and _is_no_batch(e):
+                _latch_no_batch(e)
+                raise ToolError(_FALLBACK_NO_BATCH_REFUSES_TRANSACTION) from e
             raise
 
         if session_id is None:
@@ -615,6 +662,9 @@ async def _execute_statement_in_transaction(
         ToolError: If no transaction is open under that name, its session is gone, or a
             statement fails.
     """
+    if _no_batch_active():
+        raise ToolError(_FALLBACK_NO_BATCH_REFUSES_TRANSACTION)
+
     if sql is not None:
         assert_executable(sql, enforce_read_only=enforce_read_only)
 
@@ -641,6 +691,12 @@ async def _execute_statement_in_transaction(
                 session_keepalive=session_keepalive(),
             )
         except ClientError as e:
+            if _is_no_batch(e):
+                # The transaction stays open on the cluster but is now unreachable, so drop
+                # the name and let its idle timeout end it.
+                _latch_no_batch(e)
+                transaction_manager.forget(key)
+                raise ToolError(_FALLBACK_NO_BATCH_REFUSES_TRANSACTION) from e
             if not _is_session_gone(e):
                 raise
             # The service took the session away, so the transaction is gone with everything
@@ -712,6 +768,202 @@ def _is_session_gone(error: ClientError) -> bool:
         marker in message
         for marker in ('Session is expired', 'Session is not available', 'is invalid')
     )
+
+
+async def _settle_statement(
+    statement_id: str,
+    response: dict,
+    query_poll_interval: float,
+    query_timeout: float,
+    query_long_poll: int,
+) -> dict:
+    """Poll one submitted statement or batch until it reaches a terminal status.
+
+    Submit and describe report status alike, so one loop settles the long-polled submit and
+    every later poll. A terminal submit response still gets one describe, because only
+    describe carries the sub-statement ids and the result-set flag the caller needs.
+
+    Args:
+        statement_id: The id returned at submit.
+        response: The submit response, already carrying a status when long polling settled it.
+        query_poll_interval: Polling interval in seconds.
+        query_timeout: Maximum time in seconds to wait.
+        query_long_poll: Data API WaitTimeSeconds, 1-30, or 0 to disable long polling.
+
+    Returns:
+        The terminal DescribeStatement response.
+
+    Raises:
+        ToolError: If it does not settle within query_timeout.
+    """
+    data_client = client_manager.redshift_data_client()
+    long_poll_params = {'WaitTimeSeconds': query_long_poll} if query_long_poll else {}
+    described = False
+
+    # Wall clock, since a long poll blocks server-side.
+    deadline = time.monotonic() + query_timeout
+    while True:
+        if response.get('Status') in _TERMINAL_STATUSES:
+            if not described:
+                response = await asyncio.to_thread(data_client.describe_statement, Id=statement_id)
+            logger.debug(f'Statement settled: {statement_id} ({response["Status"]})')
+            return response
+
+        if time.monotonic() >= deadline:
+            logger.error(f'Statement timed out: {statement_id}')
+            raise ToolError(f'Statement timed out after {query_timeout} seconds')
+
+        await asyncio.sleep(query_poll_interval)
+
+        try:
+            response = await asyncio.to_thread(
+                data_client.describe_statement, Id=statement_id, **long_poll_params
+            )
+            described = True
+        except ClientError as e:
+            if e.response.get('Error', {}).get('Code') != 'ActiveWaitingRequestsExceededException':
+                raise
+            logger.warning(f'Long polling limit reached, polling instead: {statement_id}')
+            long_poll_params = {}
+
+
+# --- Fallback: no_batch ---
+# Serves credentials denied redshift-data:BatchExecuteStatement by running one statement
+# per call, which keeps the read-only contract of the release before named transactions.
+# Everything tagged no_batch belongs to it and nothing above depends on it, so the whole
+# path can be deleted with its constants and tests once the action is universal.
+
+
+def _is_no_batch(error: ClientError) -> bool:
+    """Report whether the error means BatchExecuteStatement itself is denied.
+
+    Only the action being denied selects the compatibility path. A cluster the credentials
+    cannot reach answers ValidationException instead, so the two do not collide and the
+    error code alone is enough to tell them apart.
+
+    Args:
+        error: The botocore error raised at submit.
+
+    Returns:
+        True when the batch action is denied to these credentials.
+    """
+    return error.response.get('Error', {}).get('Code') in _ACCESS_DENIED
+
+
+def _no_batch_active() -> bool:
+    """Report whether the no_batch fallback is in force, and consume a due re-probe.
+
+    Returns:
+        True while the batch path is known denied, and False once per
+        FALLBACK_NO_BATCH_REPROBE seconds after that, so a granted policy is picked up
+        without a restart.
+    """
+    global _no_batch_since
+
+    if _no_batch_since is None:
+        return False
+
+    if time.monotonic() - _no_batch_since < FALLBACK_NO_BATCH_REPROBE:
+        return True
+
+    # Due for a probe. Clearing it first means a still-denied batch latches again, which is
+    # what keeps the warning to one per re-probe window rather than one per statement.
+    _no_batch_since = None
+    return False
+
+
+def _latch_no_batch(error: ClientError) -> None:
+    """Record that the batch action is denied, and name the grant that restores it.
+
+    Args:
+        error: The denial, quoted so the operator can see which principal was refused.
+    """
+    global _no_batch_since
+    _no_batch_since = time.monotonic()
+    logger.warning(
+        'redshift-data:BatchExecuteStatement is denied, so statements now run one at a time: '
+        'reads still work, writes and named transactions do not. Grant the action to restore '
+        f'them; the batch path is retried in {FALLBACK_NO_BATCH_REPROBE}s. {error}'
+    )
+
+
+async def _execute_statement_fallback_no_batch(
+    cluster_info: RedshiftCluster,
+    cluster_identifier: str,
+    database_name: str,
+    sql: str,
+    parameters: list[dict] | None = None,
+    query_poll_interval: float = QUERY_POLL_INTERVAL,
+    query_timeout: float = QUERY_TIMEOUT,
+    query_long_poll: int = QUERY_LONG_POLL,
+) -> tuple[dict, str]:
+    """Execute one statement through ExecuteStatement, for credentials denied the batch.
+
+    The compatibility path, used only while redshift-data:BatchExecuteStatement is denied.
+    One statement per call means no connection is shared, so there is nowhere to put
+    `BEGIN READ ONLY` or `SET application_name`: the caller must have established that this
+    statement cannot write before choosing this path.
+
+    Args:
+        cluster_info: Cluster information model.
+        cluster_identifier: The cluster identifier.
+        database_name: The database to execute against.
+        sql: The single statement to execute.
+        parameters: Optional list of parameter dictionaries with 'name' and 'value' keys.
+        query_poll_interval: Polling interval in seconds.
+        query_timeout: Maximum time in seconds to wait.
+        query_long_poll: Data API WaitTimeSeconds, 1-30, or 0 to disable long polling.
+
+    Returns:
+        Tuple of the raw get_statement_result response and the statement's id.
+
+    Raises:
+        ToolError: If the statement fails or does not settle within query_timeout.
+    """
+    data_client = client_manager.redshift_data_client()
+
+    request_params: dict[str, str | int | list] = {'Sql': sql, 'Database': database_name}
+    if cluster_info.type == 'provisioned':
+        request_params['ClusterIdentifier'] = cluster_identifier
+    elif cluster_info.type == 'serverless':
+        request_params['WorkgroupName'] = cluster_identifier
+    else:
+        # Discovery only ever sets 'provisioned' or 'serverless', so reaching this is our
+        # bug, not something the caller can act on.
+        raise Exception(f'Unknown cluster type: {cluster_info.type}')
+
+    if parameters:
+        request_params['Parameters'] = parameters
+
+    long_poll_params = {'WaitTimeSeconds': query_long_poll} if query_long_poll else {}
+
+    response = await asyncio.to_thread(
+        data_client.execute_statement, **request_params, **long_poll_params
+    )
+    statement_id = response['Id']
+    logger.debug(f'Executed statement {statement_id} on the compatibility path')
+
+    settled = await _settle_statement(
+        statement_id=statement_id,
+        response=response,
+        query_poll_interval=query_poll_interval,
+        query_timeout=query_timeout,
+        query_long_poll=query_long_poll,
+    )
+
+    if settled['Status'] != 'FINISHED':
+        error = settled.get('Error', 'Unknown error')
+        logger.error(f'Statement failed: {error}')
+        raise ToolError(f'Statement failed: {error}')
+
+    if not settled.get('HasResultSet'):
+        return {'Records': [], 'ColumnMetadata': []}, statement_id
+
+    results_response = await asyncio.to_thread(data_client.get_statement_result, Id=statement_id)
+    return results_response, statement_id
+
+
+# --- Main path ---
 
 
 async def _execute_batch(
@@ -793,35 +1045,13 @@ async def _execute_batch(
 
     logger.debug(f'Executed batch {statement_id} of {len(sqls)} statements')
 
-    # BatchExecuteStatement and DescribeStatement report status alike, so one loop settles
-    # the long-polled submit and every later poll. Wall clock, since a long poll blocks
-    # server-side.
-    deadline = time.monotonic() + query_timeout
-    while True:
-        if response.get('Status') in _TERMINAL_STATUSES:
-            if 'SubStatements' not in response:
-                # Only DescribeStatement carries the sub-statement ids, and those ids are
-                # the only way to reach one statement's result, so a submit that settled
-                # under its own long poll still needs a describe.
-                response = await asyncio.to_thread(data_client.describe_statement, Id=statement_id)
-            logger.debug(f'Batch settled: {statement_id} ({response["Status"]})')
-            return response
-
-        if time.monotonic() >= deadline:
-            logger.error(f'Batch timed out: {statement_id}')
-            raise ToolError(f'Statement timed out after {query_timeout} seconds')
-
-        await asyncio.sleep(query_poll_interval)
-
-        try:
-            response = await asyncio.to_thread(
-                data_client.describe_statement, Id=statement_id, **long_poll_params
-            )
-        except ClientError as e:
-            if e.response.get('Error', {}).get('Code') != 'ActiveWaitingRequestsExceededException':
-                raise
-            logger.warning(f'Long polling limit reached, polling instead: {statement_id}')
-            long_poll_params = {}
+    return await _settle_statement(
+        statement_id=statement_id,
+        response=response,
+        query_poll_interval=query_poll_interval,
+        query_timeout=query_timeout,
+        query_long_poll=query_long_poll,
+    )
 
 
 def _fetch_provisioned_clusters() -> list[dict]:

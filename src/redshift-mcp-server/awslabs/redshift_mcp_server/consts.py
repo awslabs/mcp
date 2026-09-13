@@ -39,6 +39,9 @@ SESSION_KEEPALIVE_DEFAULT = 600
 SESSION_KEEPALIVE_MAX = 86400
 # How many transactions one caller may hold open at once against one cluster and database.
 MAX_OPEN_TRANSACTIONS_PER_TARGET_DEFAULT = 10
+# How long to keep using the single-statement compatibility path after
+# redshift-data:BatchExecuteStatement was denied, before trying the batch path again.
+FALLBACK_NO_BATCH_REPROBE = 300
 
 # SQL discovery commands. Results are read positionally; {placeholders} are
 # filled with quoted identifiers by the caller.
