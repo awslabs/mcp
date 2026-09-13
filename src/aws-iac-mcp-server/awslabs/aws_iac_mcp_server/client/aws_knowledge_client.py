@@ -80,8 +80,8 @@ def _parse_search_documentation_result(result: CallToolResult) -> List[Knowledge
         KnowledgeResult(
             rank=item['rank_order'],
             title=item['title'],
-            url=item['url'],
-            context=item['context'],
+            url=item.get('url'),
+            context=item.get('context') or item.get('skill_description') or '',
         )
         for item in raw_results
     ]
