@@ -240,8 +240,36 @@ class TestParseSearchResult:
     def test_missing_required_field_in_item(self):
         """Test handling of search result items missing required fields.
 
-        Verifies that search result items missing required fields like
-        'url' or 'context' are rejected with appropriate error messages.
+        Verifies that search result items missing the required 'title' field
+        are rejected with appropriate error messages.
+        """
+        mock_result = MagicMock()
+        mock_result.is_error = False
+        mock_content = TextContent(
+            type='text',
+            text=json.dumps(
+                {
+                    'content': {
+                        'result': [
+                            {
+                                'rank_order': 1,
+                                # Missing title
+                            }
+                        ]
+                    }
+                }
+            ),
+        )
+        mock_result.content = [mock_content]
+
+        with pytest.raises(KeyError):
+            _parse_search_documentation_result(mock_result)
+
+    def test_item_missing_url_and_context(self):
+        """Test handling of search result items without url or context.
+
+        Verifies that an item with neither field parses with url set to None
+        and context set to an empty string, instead of raising KeyError.
         """
         mock_result = MagicMock()
         mock_result.is_error = False
@@ -263,5 +291,51 @@ class TestParseSearchResult:
         )
         mock_result.content = [mock_content]
 
-        with pytest.raises(KeyError):
-            _parse_search_documentation_result(mock_result)
+        parsed = _parse_search_documentation_result(mock_result)
+
+        assert len(parsed) == 1
+        assert parsed[0].url is None
+        assert parsed[0].context == ''
+
+    def test_mixed_document_and_skill_results(self):
+        """Test parsing a result list with both document and skill items.
+
+        Verifies that skill items (rank_order, title, skill_name,
+        skill_description) parse next to document items. Skill items have no
+        url or context, so url is None and context comes from
+        skill_description.
+        """
+        mock_result = MagicMock()
+        mock_result.is_error = False
+        mock_content = TextContent(
+            type='text',
+            text=json.dumps(
+                {
+                    'content': {
+                        'result': [
+                            {
+                                'rank_order': 1,
+                                'title': 'AWS Lambda',
+                                'url': 'https://docs.aws.amazon.com/lambda/',
+                                'context': 'Serverless compute service',
+                            },
+                            {
+                                'rank_order': 2,
+                                'title': 'lambda-skill',
+                                'skill_name': 'lambda-skill',
+                                'skill_description': 'Guidance for Lambda skill usage',
+                            },
+                        ]
+                    }
+                }
+            ),
+        )
+        mock_result.content = [mock_content]
+
+        parsed = _parse_search_documentation_result(mock_result)
+
+        assert len(parsed) == 2
+        assert parsed[0].url == 'https://docs.aws.amazon.com/lambda/'
+        assert parsed[0].context == 'Serverless compute service'
+        assert parsed[1].url is None
+        assert parsed[1].context == 'Guidance for Lambda skill usage'
