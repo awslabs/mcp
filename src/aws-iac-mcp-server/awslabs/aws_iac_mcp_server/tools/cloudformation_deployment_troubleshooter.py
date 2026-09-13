@@ -133,10 +133,41 @@ class DeploymentTroubleshooter:
             except self.cfn_client.exceptions.ClientError as e:
                 raise Exception(f'Stack {stack_name} not found or inaccessible: {str(e)}')
 
-            # Get failed events only using new API
-            cloudformation_events = self.cfn_client.describe_events(
-                StackName=stack_name, Filters={'FailedEvents': True}
-            )['OperationEvents']
+            # A successful rollback can be the latest operation even when deployment failed.
+            last_operations = stacks[0].get('LastOperations') or []
+            rollback_failed = str(stacks[0].get('StackStatus', '')).endswith('ROLLBACK_FAILED')
+            operation_id = next(
+                (
+                    op['OperationId']
+                    for op in last_operations
+                    if op.get('OperationId')
+                    and (
+                        rollback_failed
+                        or op.get('OperationType') not in ('ROLLBACK', 'CONTINUE_ROLLBACK')
+                    )
+                ),
+                None,
+            )
+            if operation_id is None:
+                operation_id = next(
+                    (op['OperationId'] for op in last_operations if op.get('OperationId')),
+                    None,
+                )
+
+            event_query: Dict[str, Any] = {'Filters': {'FailedEvents': True}}
+            if operation_id:
+                event_query['OperationId'] = operation_id
+            else:
+                event_query['StackName'] = stack_name
+
+            cloudformation_events = []
+            while True:
+                event_page = self.cfn_client.describe_events(**event_query)
+                cloudformation_events.extend(event_page.get('OperationEvents', []))
+                next_token = event_page.get('NextToken')
+                if not next_token:
+                    break
+                event_query['NextToken'] = next_token
 
             # Match events against known failure patterns
             matched_failures = []
