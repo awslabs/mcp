@@ -1,12 +1,12 @@
 # End-to-end test: Every tool, both warehouse types
 
-2026-09-14 03:17 UTC
+2026-09-14 07:31 UTC
 
 - **Scenario**: `tools`
-- **Code under test**: `feat/redshift-session-redesign` at `6d0c99ad`, uncommitted changes
+- **Code under test**: `feat/redshift-session-redesign` at `6eda5981`
 - **Agent**: `kiro-cli`, model `claude-opus-5`
 - **Exit status**: `0`
-- **Duration**: 22.4 min
+- **Duration**: 20.1 min
 - **Region**: `us-east-1`
 - **Provisioned**: `mcp-e2e-provisioned`, ra3.large x2
 - **Serverless**: `mcp-e2e-serverless`, 8 RPU
@@ -16,22 +16,20 @@
 
 | Scenario | Result | Comment |
 |---|---|---|
-| list_clusters | PASS | Both target warehouses discovered as available; provisioned and serverless entries populated correctly. |
-| list_databases | PASS | Same four databases on both warehouses; `dev` local, three auto-mounted catalogs. |
-| list_schemas | PASS | `tickit` present on both, with ACLs for both the profile and the denied-batch role. |
-| list_tables | PASS | Same seven TICKIT tables on both; unknown schema returns an empty list, not an error. |
+| list_clusters | PASS | Both target warehouses found on `ro_*` and on the batch-denied `nb_*`; unrelated clusters listed but untouched. Serverless `vpc_id` reports a subnet id, matching what the unit tests pin. |
+| list_databases | PASS | Identical output on both warehouses. |
+| list_schemas | PASS | `tickit` present on both. An auto-mounted Glue catalog database fails with Redshift's explanatory message, as documented. |
+| list_tables | PASS | Same 7 tables on both; unknown schema returns an empty list, not an error. |
 | list_columns | PASS | `tickit.sales` identical on both; unknown table returns an empty list, not an error. |
-| execute_query | PASS | Reads, typed values, guard rejections, engine backstop, transactions and failures all behaved; detail in the notes below. |
-| review_cluster | PASS | 11 signals / 10 findings on provisioned, 8 signals / 2 findings on serverless (provisioned-only diagnostics skipped, `ServerlessScaling` added). Identical results on the compatibility path. |
+| execute_query | PASS | Reads, value typing, read-only guard, engine backstop, transactions, breaker, failed SQL and the no-batch fallback all verified on both warehouses across all five configurations. |
+| review_cluster | PASS | 11 signals / 10 findings on provisioned, 8 signals / 2 findings on Serverless; provisioned-only diagnostics skipped and `ServerlessScaling` added. Same result on the fallback path. |
 
-- Read-only guard: `TRUNCATE`, `COMMIT`, `SET transaction_read_only TO off`, `UNLOAD`, `GRANT` and `VACUUM` were each rejected by statement type; stacked statements and comment-only input were rejected as not a single statement; `SELECT FROM WHERE` failed closed as unparseable. A deny-listed keyword used as a literal or alias was allowed, and a nested-comment prefix could not smuggle a `TRUNCATE` — the guard classified the same single statement the engine ran.
-- Engine backstop: `CREATE TABLE`, `DELETE` and `SELECT … INTO` pass the guard by design and were refused by the read-only transaction with `ERROR: transaction is read-only`, leaving nothing behind on either warehouse.
-- Transaction protections: a failed statement rolled the transaction back and dropped its name, so a later commit reported the name as unknown rather than appearing to succeed; a guard rejection left the transaction open on the same session; reopening an open name was refused; the cap refused an eleventh open on one target while another target still had room, and a rolled-back slot was reusable.
-- Write confirmation: at `rw_*` every write was refused because the CLI cannot prompt, naming `UNSAFE_SKIP_WRITE_CONFIRMATION` as the opt-out, and nothing reached the cluster. Reads and transaction closes asked nothing. A confirm or a decline round trip remains unreachable from this client.
-- Unsafe read-write: writes ran unconfirmed on both warehouses; a rollback discarded an uncommitted insert, a commit persisted an update and an insert, `TRUNCATE` ran where read-only mode had refused it, and a failure inside a transaction discarded the whole transaction including its earlier successful write.
-- Compatibility path (`BatchExecuteStatement` denied): all five discovery tools, user reads against `tickit` and the full diagnostic review worked, running as the denied-batch role with unsuffixed statement ids. Writes were refused naming the missing grant instead of running unwrapped, and named transactions were refused with their own reason rather than reported as an unknown name — at both access modes.
-- Not exercised: oversized (>64 KiB) SQL and deep-nesting recursion rejection, both covered by unit tests only, since the payload cost outweighs the e2e value.
-- Incidental: a probe query mixing `svv_all_tables` with user tables failed with `Specified types or functions … not supported on Redshift tables`. That is a Redshift leader-node restriction, correctly surfaced verbatim, not a server defect.
+- Read-only protection: deny-listed types (`COMMIT`, `ROLLBACK`, `TRUNCATE`, `GRANT`, `UNLOAD`, `VACUUM`, `SET`) refused with the statement type named; nested-comment prefix, leading semicolon, mixed case and `truncate"t"` did not smuggle anything past it; stacked statements and unparseable SQL refused; the same keywords as aliases or literals ran normally. Non-deny-listed writes (`INSERT`, `CREATE TABLE`, a data-modifying CTE) were passed to the engine on purpose and rejected there as `transaction is read-only`, with nothing persisted.
+- Transaction breaker: a failing statement inside a read-write transaction discarded an earlier committed-looking `INSERT` and dropped the name, so the follow-up commit was refused instead of silently doing nothing. A guard rejection, by contrast, left the transaction open and usable, which is correct since nothing was executed.
+- The guard is enforced inside open transactions, not only outside them: `SET transaction_read_only TO off` was refused as an in-transaction statement, which is the reason that pair is deny-listed.
+- `nb_*` and `nbw_*` served reads against user tables and refused writes and named transactions with their own explanations. At `nbw_*` a deny-listed `TRUNCATE` reached the fallback's write refusal rather than the read-only refusal, confirming the mode was genuinely read-write.
+- `rw_*` never completes a confirmation round trip from this client, so only the fail-closed refusal was observed; `rwu_*` covered the allowed-write path. `MAX_OPEN_TRANSACTIONS_PER_TARGET` was not driven to its limit and idle expiry was not waited out.
+- Incidental: `SELECT ... AS unload` passed the guard and then failed at Redshift as a reserved word. That is the engine, not the guard, and is itself evidence the guard does not match keywords by text.
 
 ## Prompt
 
@@ -60,29 +58,43 @@ intelligible without the rest of the reply.
 
 ## Transcript
 
-I'll start by looking at the unit tests to understand what behaviours to cover.Discovery and reads are consistent across both warehouses. Now the read-only guard.Now the named transaction lifecycle. Opening one on the provisioned cluster.Now the transaction cap. Opening ten on one target.Cap holds and is per target. Rolling all of them back now.Now the read-write configuration, where each write must be confirmed.Now the unsafe read-write configuration, which runs writes without asking.Now the compatibility path, where BatchExecuteStatement is denied.A few remaining guard shapes.That error is Redshift refusing to mix a leader-only view with user tables in one query — splitting it.All checks are done, both warehouses are clean, and the seeded TICKIT counts are unchanged (172,456 sales / 49,990 users / 8,798 events / 202 venues / 11 categories on both).
+I'll start by exploring the project structure and unit tests to understand what behaviours to verify.Let me read the guard implementation and its unit tests to derive scenarios.Now I'll begin testing. Starting with cluster discovery.Both target warehouses are discovered. Now schema exploration on both, in parallel.Schema exploration matches on both. Now the documented empty-result cases for unknown objects.Both return empty lists as documented. Now `execute_query` reads on both warehouses.Now the read-only SQL protection. First the deny-list.Now the smuggling and fail-closed paths.Now the other side of the guard: deny-listed keyword text that is only an identifier or literal must still run.The guard passed that through; Redshift itself rejects `unload` as an alias. Retrying with aliases Redshift accepts.Now the engine backstop: ordinary writes pass the guard on purpose and must be stopped by the read-only transaction.Confirming nothing was actually persisted by those attempts.Now failed user SQL behaviour in more depth.Now transactions. A read-only transaction across calls, on the provisioned cluster.Checking the guard still applies inside an open transaction — this is the reason `SET` is deny-listed.Transaction survived the guard rejection. Now testing the duplicate-name gate while it is still open.Now the transaction breaker: a failing statement inside a transaction must abort it and drop the name.Now the same transaction surfaces on Serverless, including a bare rollback.Now `review_cluster` on both warehouses.`review_cluster` skips provisioned-only diagnostics on Serverless as documented. Now the `rw_*` configuration, where writes need confirmation.Now `rwu_*`, where writes run unconfirmed. I'll work in a dedicated scratch schema and clean up after.Now a read-write transaction, rolled back.Rollback discarded it. Now the commit path, and then the breaker inside a write transaction.Now the breaker where it matters most: a failed statement after a successful write inside a transaction.The breaker rolled back the earlier successful write too. Now the write path on Serverless.Now the `nb_*` configuration, which reaches the no-batch fallback.The fallback served the read; note the query id carries no sub-statement suffix. Now its refusals.Now the discovery tools on the fallback path, and on Serverless too.Now `nbw_*`, where write confirmation is out of the way so the fallback's own refusal surfaces.One documented edge remains: an auto-mounted Glue catalog database cannot be explored.Matches the documented behaviour. Now cleaning up the objects I created.All checks are done and both warehouses are back to their seeded state (identical row counts across all seven TICKIT tables, no leftover objects).
 
-What the run covered: all seven tools against `mcp-e2e-provisioned` and `mcp-e2e-serverless`, with the full discovery chain on each; the read-only guard (deny list, statement stacking, unparseable and comment-only input, keyword-as-identifier false positives, nested-comment smuggling, and the engine read-only backstop for writes the deny list deliberately lets through); the named-transaction protections (abort-and-drop on a failed statement, refusal to reopen an open name, unknown-name reporting, the ten-per-target cap and its per-target scoping, and parameter validation); failed user SQL; and the `BatchExecuteStatement`-denied compatibility path at both access modes.
+What I covered: all seven tools, each against both `mcp-e2e-provisioned` and `mcp-e2e-serverless`, plus `execute_query` across all five configurations. Scenario ideas came from `tests/test_sql_guard.py` (deny-list, smuggling, fail-closed, no-false-positives, write classification), `tests/test_redshift.py` (transaction lifecycle, breaker, no-batch fallback), and `tests/test_server.py`.
 
-Two behaviours are worth singling out. In the unsafe read-write configuration a failed statement inside a transaction rolled back the earlier successful `INSERT` too, and the name was then refused for commit — the transaction committed nothing, which is the point. And in read-write with confirmation, the write was refused because this CLI cannot prompt; the declined write left the transaction open and usable rather than tearing it down.
+The three protections behaved as designed. The read-only guard refused the deny-listed statement types structurally — nested-comment prefixes, leading semicolons, mixed case and the no-space `truncate"t"` form were all rejected, while the same keywords used as aliases or string literals ran fine. Ordinary writes are deliberately passed through and were stopped by the `BEGIN READ ONLY` wrapper with `ERROR: transaction is read-only`; I confirmed afterwards that nothing persisted. The transaction breaker rolled back a whole read-write transaction when a later statement failed, discarding an earlier successful `INSERT`, and dropped the name so a subsequent commit was refused rather than reporting success. Failed user SQL surfaced the engine's own message in every case, including full Redshift detail blocks, and the connection stayed usable.
+
+Three things I could not reach. The `rw_*` confirmation round trip is unobservable from this client, so only the fail-closed branch was exercised, as the harness README says. I did not drive `MAX_OPEN_TRANSACTIONS_PER_TARGET` to its limit, since that means holding ten live connections; the duplicate-name gate that shares the same code path was verified. Idle-transaction expiry was not waited out.
 
 [tool] Reading listing redshift-mcp-server
 
 [tool] status: Completed
 
-[tool] Reading sql_guard.py:1, test_sql_guard.py:1
+[tool] Reading sql_guard.py:1, consts.py:1
 
 [tool] status: Completed
 
-[tool] Running: grep -n "breaker\|MAX_OPEN_TRANSACTIONS\|aborted\|unknown transaction\|class Test" tests/test_redshift.py | head -80
+[tool] Reading test_sql_guard.py:1
 
 [tool] status: Completed
 
-[tool] Reading test_redshift.py:1866-2765
+[tool] Running: grep -n '^class ' tests/test_redshift.py tests/test_server.py tests/test_review_executor.py | sed 's/:.*class /: /'
 
 [tool] status: Completed
 
-[tool] Running: grep -n "class Test\|def test_" tests/test_server.py | head -80; echo ---; sed -n '980,1120p' tests/test_redshift.py
+[tool] Running: awk '/^class TestRedshiftTransactionManager|^class TestResolveTransaction|^class TestTransactionLifecycle|^class TestTransactionsNeedTheBatch|^class TestBatchDeniedDetection|^class TestCompatibilit...
+
+[tool] status: Completed
+
+[tool] Running: grep -rn 'breaker\|MAX_OPEN_TRANSACTIONS\|aborted\|is unknown\|too many' awslabs/redshift_mcp_server/redshift.py | head -40
+
+[tool] status: Completed
+
+[tool] Reading redshift.py:331-390, redshift.py:651-740, redshift.py:801-860
+
+[tool] status: Completed
+
+[tool] Running: grep -n '_FALLBACK_NO_BATCH\|def _no_batch_active\|def _latch_no_batch\|def _is_no_batch' -A 12 awslabs/redshift_mcp_server/redshift.py | head -80
 
 [tool] status: Completed
 
@@ -90,6 +102,10 @@ Two behaviours are worth singling out. In the unsafe read-write configuration a 
 
 [tool] status: Completed
 
+[tool] Running: grep -n 'subnetIds\|vpc_id' awslabs/redshift_mcp_server/redshift.py
+
+[tool] status: Completed
+
 [tool] Running: @awslabs.redshift-mcp-server/list_databases
 
 [tool] status: Completed
@@ -122,19 +138,15 @@ Two behaviours are worth singling out. In the unsafe read-write configuration a 
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
+[tool] Running: @awslabs.redshift-mcp-server/list_columns
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/list_tables
 
 [tool] status: Completed
 
 [tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/review_cluster
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/review_cluster
 
 [tool] status: Completed
 
@@ -214,94 +226,6 @@ Two behaviours are worth singling out. In the unsafe read-write configuration a 
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server/list_columns
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Reading consts.py:1
-
-[tool] status: Completed
-
-[tool] Running: grep -o '"[A-Z_]*": *"[^"]*"' e2e_tests/.kiro/agents/*.json | sort -u | grep -v ARN | head -30
-
-[tool] status: Completed
-
-[tool] Running: grep -rn "breaker" awslabs/ tests/ e2e_tests/*.py README.md | head
-
-[tool] status: Completed
-
 [tool] Running: @awslabs.redshift-mcp-server/execute_query
 
 [tool] status: Completed
@@ -382,35 +306,11 @@ Two behaviours are worth singling out. In the unsafe read-write configuration a 
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
+[tool] Running: @awslabs.redshift-mcp-server/review_cluster
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write/execute_query
+[tool] Running: @awslabs.redshift-mcp-server/review_cluster
 
 [tool] status: Completed
 
@@ -506,7 +406,7 @@ Two behaviours are worth singling out. In the unsafe read-write configuration a 
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/list_tables
 
 [tool] status: Completed
 
@@ -518,11 +418,23 @@ Two behaviours are worth singling out. In the unsafe read-write configuration a 
 
 [tool] status: Completed
 
-[tool] Running: grep -n "_execute_standalone_statement" -A 60 awslabs/redshift_mcp_server/redshift.py | sed -n '1,120p'
+[tool] Reading redshift.py:571-630
 
 [tool] status: Completed
 
-[tool] Reading redshift.py:520-599
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
 
 [tool] status: Completed
 
@@ -534,39 +446,7 @@ Two behaviours are worth singling out. In the unsafe read-write configuration a 
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/list_tables
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/list_databases
-
-[tool] status: Completed
-
 [tool] Running: @awslabs.redshift-mcp-server-no-batch/list_columns
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
 
 [tool] status: Completed
 
@@ -594,23 +474,7 @@ Two behaviours are worth singling out. In the unsafe read-write configuration a 
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server-no-batch-write/review_cluster
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
+[tool] Running: @awslabs.redshift-mcp-server-no-batch-write/execute_query
 
 [tool] status: Completed
 
@@ -618,11 +482,23 @@ Two behaviours are worth singling out. In the unsafe read-write configuration a 
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
+[tool] Running: @awslabs.redshift-mcp-server/list_schemas
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/list_tables
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/list_schemas
 
 [tool] status: Completed
 
