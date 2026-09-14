@@ -302,8 +302,10 @@ def _write_confirmation(
             'UNSAFE_SKIP_WRITE_CONFIRMATION=true to execute writes unconfirmed.'
         )
 
-    # Stated as a requirement rather than an act, because the SDK resolves this dependency twice
-    # per call, once to raise the prompt and once after the answer, and only the first asks.
+    # Logged twice per call, which is worth keeping: the SDK resolves this dependency once to
+    # raise the prompt and once after the answer, so the pair brackets the round trip and the gap
+    # between the two is how long the caller took to decide. Worded as a requirement rather than
+    # an act, since only the first one asks.
     logger.info(f'Write on {cluster_identifier}:{database_name} requires confirmation')
 
     # What the caller is agreeing to differs inside a transaction, where the write is not
