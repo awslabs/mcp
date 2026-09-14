@@ -1529,3 +1529,115 @@ def test_validated_write_kubeconfig_raises_when_no_access():
 
     with pytest.raises(LocalFileAccessDisabledError):
         _validated_write_kubeconfig(mock_self, mock_config)
+
+
+# ---------------------------------------------------------------------------
+# Regional availability tool tests
+# ---------------------------------------------------------------------------
+
+
+class TestGetRegionalAvailability:
+    """Tests for the get_regional_availability tool."""
+
+    @pytest.mark.asyncio
+    async def test_successful_query(self):
+        """Test successful regional availability query."""
+        mock_provider = MagicMock()
+        mock_provider.get_availability.return_value = {
+            'service': 'ec2',
+            'feature': 'instances',
+            'regions': {'us-east-1': 'AVAILABLE', 'eu-west-1': 'PREVIEW'},
+        }
+
+        with patch.object(server_module, 'REGIONAL_DATA_PROVIDER', mock_provider):
+            # Import inline to get the function regardless of conditional registration
+            from awslabs.aws_api_mcp_server.server import get_regional_availability
+
+            ctx = DummyCtx()
+            result = await get_regional_availability(
+                ctx=ctx,
+                service_name='ec2',
+                feature_name='instances',
+                regions=['us-east-1', 'eu-west-1'],
+            )
+            import json
+
+            parsed = json.loads(result)
+            assert parsed['service'] == 'ec2'
+            assert parsed['regions']['us-east-1'] == 'AVAILABLE'
+            mock_provider.get_availability.assert_called_once_with(
+                service_name='ec2',
+                feature_name='instances',
+                regions=['us-east-1', 'eu-west-1'],
+            )
+
+    @pytest.mark.asyncio
+    async def test_query_service_only(self):
+        """Test query with only service_name."""
+        mock_provider = MagicMock()
+        mock_provider.get_availability.return_value = {
+            'service': 'lambda',
+            'feature': None,
+            'regions': {'us-east-1': 'AVAILABLE'},
+        }
+
+        with patch.object(server_module, 'REGIONAL_DATA_PROVIDER', mock_provider):
+            from awslabs.aws_api_mcp_server.server import get_regional_availability
+
+            ctx = DummyCtx()
+            result = await get_regional_availability(ctx=ctx, service_name='lambda')
+            import json
+
+            parsed = json.loads(result)
+            assert parsed['service'] == 'lambda'
+
+    @pytest.mark.asyncio
+    async def test_provider_error_raises(self):
+        """Test that provider errors are wrapped in AwsApiMcpError."""
+        mock_provider = MagicMock()
+        mock_provider.get_availability.side_effect = Exception('S3 connection failed')
+
+        with patch.object(server_module, 'REGIONAL_DATA_PROVIDER', mock_provider):
+            from awslabs.aws_api_mcp_server.server import get_regional_availability
+
+            ctx = DummyCtx()
+            with pytest.raises(AwsApiMcpError, match='Error querying regional availability'):
+                await get_regional_availability(ctx=ctx, service_name='ec2')
+
+
+class TestListAvailableServices:
+    """Tests for the list_available_services tool."""
+
+    @pytest.mark.asyncio
+    async def test_list_services(self):
+        """Test listing available services."""
+        mock_provider = MagicMock()
+        mock_provider.list_services.return_value = [
+            {'service': 'ec2', 'features': ['instances', 'vpcs']},
+            {'service': 's3', 'features': []},
+        ]
+
+        with patch.object(server_module, 'REGIONAL_DATA_PROVIDER', mock_provider):
+            from awslabs.aws_api_mcp_server.server import list_available_services
+
+            ctx = DummyCtx()
+            result = await list_available_services(ctx=ctx)
+            import json
+
+            parsed = json.loads(result)
+            assert len(parsed) == 2
+            assert parsed[0]['service'] == 'ec2'
+
+    @pytest.mark.asyncio
+    async def test_list_services_error(self):
+        """Test that errors are wrapped in AwsApiMcpError."""
+        mock_provider = MagicMock()
+        mock_provider.list_services.side_effect = Exception('boom')
+
+        with patch.object(server_module, 'REGIONAL_DATA_PROVIDER', mock_provider):
+            from awslabs.aws_api_mcp_server.server import list_available_services
+
+            ctx = DummyCtx()
+            with pytest.raises(AwsApiMcpError, match='Error listing available services'):
+                await list_available_services(ctx=ctx)
+
