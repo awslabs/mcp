@@ -12,4 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-MCP_SERVER_VERSION = '1.0.0'
+from importlib.metadata import version
+
+
+try:
+    MCP_SERVER_VERSION = version('awslabs.amazon-translate-mcp-server')
+except Exception:  # pragma: no cover
+    MCP_SERVER_VERSION = '1.0.7'

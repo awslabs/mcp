@@ -52,7 +52,7 @@ class AwsHelper:
         Returns:
             boto3.client: Configured boto3 client
         """
-        from awslabs.stepfunctions_tool_mcp_server.server import __version__
+        from awslabs.stepfunctions_tool_mcp_server import __version__
 
         # Create config with user agent
         config = botocore.config.Config(
