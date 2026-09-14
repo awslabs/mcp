@@ -95,12 +95,22 @@ def _git(*args: str) -> str:
 def _revision() -> str:
     """Describe the code under test precisely enough to find it again.
 
+    The reports are excluded from the dirty check. They are this harness's output, not part of
+    what ran, and each is written before the next scenario is reported: counting them would
+    mark every run after the first as carrying uncommitted changes, which says nothing about
+    the code and quietly devalues the report as evidence.
+
     Returns:
         Branch and short commit, marked dirty when the tree carries uncommitted changes.
     """
     branch = _git('rev-parse', '--abbrev-ref', 'HEAD') or 'unknown'
     commit = _git('rev-parse', '--short', 'HEAD') or 'unknown'
-    dirty = ', uncommitted changes' if _git('status', '--porcelain') else ''
+    reports = REPORT_TEMPLATE.format(key='*')
+    dirty = (
+        ', uncommitted changes'
+        if _git('status', '--porcelain', '--', f':(exclude)e2e_tests/{reports}')
+        else ''
+    )
     return f'`{branch}` at `{commit}`{dirty}'
 
 
