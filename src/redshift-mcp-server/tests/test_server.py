@@ -43,6 +43,7 @@ from awslabs.redshift_mcp_server.server import (
     _execute_query_annotations,
     _resolve_access_mode,
     _resolve_skip_write_confirmation,
+    _tool_failed,
     _write_confirmation,
     execute_query_tool,
     list_clusters_tool,
@@ -53,6 +54,7 @@ from awslabs.redshift_mcp_server.server import (
     mcp,
     review_cluster_tool,
 )
+from botocore.exceptions import ClientError
 from datetime import datetime
 from mcp.server.mcpserver import Context, Elicit, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
@@ -1010,3 +1012,33 @@ class TestAnticipatedFailuresReachTheModel:
         with pytest.raises(UnexpectedToolError) as crash_failure:
             await scratch.call_tool('crash', {})
         assert message not in str(crash_failure.value)
+
+    @pytest.mark.asyncio
+    async def test_aws_reported_failures_keep_their_message(self):
+        """An AWS error reaches the caller; a defect in this server does not.
+
+        Found end to end against a paused cluster: the Data API refused the submission with
+        `Redshift endpoint is not available`, the server logged exactly that, and the caller
+        got a bare "Error executing tool execute_query" with nothing to act on. Every
+        infrastructure condition failed the same way, because a `ClientError` was re-raised
+        as itself and the SDK withholds the text of anything that is not a `ToolError`.
+        """
+        denied = ClientError(
+            {
+                'Error': {
+                    'Code': 'ValidationException',
+                    'Message': 'Redshift endpoint is not available.',
+                }
+            },
+            'BatchExecuteStatement',
+        )
+
+        with pytest.raises(ToolError) as reported:
+            _tool_failed('execute_query_tool', denied)
+        assert 'Redshift endpoint is not available.' in str(reported.value)
+        assert not isinstance(reported.value, UnexpectedToolError)
+
+        # A bug here tells the caller nothing, so it stays a crash rather than becoming advice.
+        defect = KeyError('Records')
+        with pytest.raises(KeyError):
+            _tool_failed('execute_query_tool', defect)

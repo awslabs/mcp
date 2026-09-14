@@ -44,12 +44,13 @@ from awslabs.redshift_mcp_server.redshift import (
 from awslabs.redshift_mcp_server.review.executor import review_cluster
 from awslabs.redshift_mcp_server.review.models import ReviewResult
 from awslabs.redshift_mcp_server.sql_guard import assert_executable, might_write
+from botocore.exceptions import ClientError
 from loguru import logger
 from mcp.server.mcpserver import Context, Elicit, MCPServer, Resolve
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ClientCapabilities, ElicitationCapability, ToolAnnotations
 from pydantic import BaseModel, Field
-from typing import Annotated
+from typing import Annotated, NoReturn
 
 
 # Remove default handler and add custom configuration
@@ -301,7 +302,9 @@ def _write_confirmation(
             'UNSAFE_SKIP_WRITE_CONFIRMATION=true to execute writes unconfirmed.'
         )
 
-    logger.info(f'Asking the caller to confirm a write on {cluster_identifier}:{database_name}')
+    # Stated as a requirement rather than an act, because the SDK resolves this dependency twice
+    # per call, once to raise the prompt and once after the answer, and only the first asks.
+    logger.info(f'Write on {cluster_identifier}:{database_name} requires confirmation')
 
     # What the caller is agreeing to differs inside a transaction, where the write is not
     # final until it is committed.
@@ -345,6 +348,33 @@ def _execute_query_annotations(access_mode: str) -> ToolAnnotations:
     )
 
 
+def _tool_failed(tool: str, error: Exception) -> NoReturn:
+    """Log a failed tool call and raise what the caller needs to see.
+
+    The SDK withholds the text of anything that is not a `ToolError`, so an AWS error would
+    otherwise reach the caller as a bare "Error executing tool ..." with nothing to act on.
+
+    A `ClientError` is AWS reporting a condition the caller can usually resolve: a paused or
+    resuming cluster, an endpoint not yet available, throttling, expired credentials, a missing
+    grant. Its message is theirs to read. Anything else is a defect in this server, whose text
+    would tell them nothing useful, so it stays withheld.
+
+    Args:
+        tool: Name of the tool that failed, for the log.
+        error: What it failed with.
+
+    Raises:
+        ToolError: If AWS reported the failure.
+        Exception: The original error otherwise, for the SDK to report as a crash.
+    """
+    logger.error(f'Error in {tool}: {error}')
+
+    if isinstance(error, ClientError):
+        raise ToolError(str(error)) from error
+
+    raise error
+
+
 @mcp.tool(
     name='list_clusters',
     annotations=_read_only_annotations('List Redshift clusters and workgroups'),
@@ -371,8 +401,7 @@ async def list_clusters_tool(ctx: Context) -> list[RedshiftCluster]:
         return clusters
 
     except Exception as e:
-        logger.error(f'Error in list_clusters_tool: {str(e)}')
-        raise
+        _tool_failed('list_clusters_tool', e)
 
 
 @mcp.tool(
@@ -414,8 +443,7 @@ async def list_databases_tool(
         return databases
 
     except Exception as e:
-        logger.error(f'Error in list_databases_tool: {str(e)}')
-        raise
+        _tool_failed('list_databases_tool', e)
 
 
 @mcp.tool(
@@ -460,8 +488,7 @@ async def list_schemas_tool(
         return schemas
 
     except Exception as e:
-        logger.error(f'Error in list_schemas_tool: {str(e)}')
-        raise
+        _tool_failed('list_schemas_tool', e)
 
 
 @mcp.tool(
@@ -509,8 +536,7 @@ async def list_tables_tool(
         return tables
 
     except Exception as e:
-        logger.error(f'Error in list_tables_tool: {str(e)}')
-        raise
+        _tool_failed('list_tables_tool', e)
 
 
 @mcp.tool(
@@ -564,8 +590,7 @@ async def list_columns_tool(
         return columns
 
     except Exception as e:
-        logger.error(f'Error in list_columns_tool: {str(e)}')
-        raise
+        _tool_failed('list_columns_tool', e)
 
 
 @mcp.tool(
@@ -712,8 +737,7 @@ async def execute_query_tool(
         return query_result
 
     except Exception as e:
-        logger.error(f'Error in execute_query_tool: {str(e)}')
-        raise
+        _tool_failed('execute_query_tool', e)
 
 
 @mcp.tool(
@@ -784,8 +808,7 @@ async def review_cluster_tool(
         return result
 
     except Exception as e:
-        logger.error(f'Error in review_cluster_tool: {str(e)}')
-        raise
+        _tool_failed('review_cluster_tool', e)
 
 
 def main():
