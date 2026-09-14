@@ -74,14 +74,14 @@ _APP_NAME_SQL = f"SET application_name TO '{CLIENT_USER_AGENT_NAME}/{__version__
 # the compatibility path in place without paying a denied call per statement.
 _no_batch_since: float | None = None
 
-# Refusals for what the compatibility path cannot carry, kept together so they stay consistent
-# with each other. A write needs the read-only wrapper around it; a transaction needs several
-# statements grouped. Both need one connection, and that path gives one statement per call.
+# Refusals for what the compatibility path will not carry, kept together so they stay consistent
+# with each other. A transaction cannot be grouped by one statement per call. A write is declined
+# for a different reason: this path keeps the contract of the release before read-write mode,
+# which served reads only, so it refuses writes at every access mode.
 _FALLBACK_NO_BATCH_REFUSES_WRITE = (
-    'This statement needs redshift-data:BatchExecuteStatement, which the current credentials '
-    'are denied. Without it each statement runs on its own connection, so the read-only '
-    'transaction that would contain a write cannot be opened. Reads still work; grant the '
-    'action to run anything else.'
+    'Writes need redshift-data:BatchExecuteStatement, which the current credentials are denied. '
+    'Without it the server serves reads only, whatever the access mode. Grant the action to run '
+    'anything else.'
 )
 
 _FALLBACK_NO_BATCH_REFUSES_TRANSACTION = (
