@@ -5,7 +5,7 @@ Redshift warehouses.
 
 The harness provisions the AWS resources, generates an agent config that hands the agent the
 server built from this working tree, gives it a scenario in prose, and records what it did and
-concluded in `reports/`. A scenario names the surface to cover and points at the package's unit
+concluded in a report per scenario. A scenario names the surface to cover and points at the unit
 tests for the cases; it never says what should happen, because an agent told the answer reports
 it back instead of finding it out.
 
@@ -118,8 +118,13 @@ through.
 
 ## Reports
 
-`reports/<scenario>-<YYYYMMDD-HHMM>.md`, one per scenario run, committed. They are the evidence a
-commit or pull request points at, so they are worth reading before being cited.
+`report_branch.md` and `report_tools.md`, one per scenario, overwritten by each run and committed.
+They are the evidence a commit or pull request points at, so they are worth reading before being
+cited, and a change that alters behaviour wants them regenerated alongside it.
+
+Undated, and overwritten rather than accumulated: a report belongs to the commit that carries it,
+so git holds the history. `git log -p report_branch.md` shows how the answer changed and which
+change moved it.
 
 Each opens with the branch and commit under test, the warehouses and their sizes, and the exit
 status and duration. Then three sections, in the order a reader wants them:

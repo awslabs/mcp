@@ -33,7 +33,14 @@ import sys
 import time
 from datetime import datetime, timezone
 from e2e_tests import agent, deploy, scenarios, tickit
-from e2e_tests.config import HARNESS_ROOT, PACKAGE_ROOT, REPORTS_DIR, Config, ConfigError, load
+from e2e_tests.config import (
+    HARNESS_ROOT,
+    PACKAGE_ROOT,
+    REPORT_TEMPLATE,
+    Config,
+    ConfigError,
+    load,
+)
 from pathlib import Path
 
 
@@ -220,8 +227,7 @@ def _report(
         Path to the written report.
     """
     now = datetime.now(timezone.utc)
-    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    path = REPORTS_DIR / f'{scenario.key}-{now:%Y%m%d-%H%M}.md'
+    path = HARNESS_ROOT / REPORT_TEMPLATE.format(key=scenario.key)
 
     facts = {
         'Scenario': f'`{scenario.key}`',

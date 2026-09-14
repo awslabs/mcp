@@ -44,8 +44,10 @@ PACKAGE_ROOT = HARNESS_ROOT.parent
 CONFIG_PATH = HARNESS_ROOT / 'config.toml'
 EXAMPLE_PATH = HARNESS_ROOT / 'config.toml.example'
 
-# Committed, and referred to from commit messages and pull requests as evidence of testing.
-REPORTS_DIR = HARNESS_ROOT / 'reports'
+# One report per scenario, overwritten by each run and committed alongside the change it tests.
+# Undated on purpose: a report belongs to the commit that carries it, so git holds the history and
+# a filename carrying a timestamp would only accumulate copies of the same document.
+REPORT_TEMPLATE = 'report_{key}.md'
 
 # kiro-cli discovers an agent from the working directory it is invoked in, so the generated
 # agent has to sit here for the harness to own it rather than the workspace.
