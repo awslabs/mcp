@@ -53,15 +53,15 @@ class TestParseS3Uri:
         """Parse an S3 access-point ARN with prefix."""
         arn = 'arn:aws:s3:us-east-1:123456789012:accesspoint/my-ap/data/v1'
         bucket, prefix = RegionalDataProvider._parse_s3_uri(arn)
-        assert bucket == 'arn:aws:s3:us-east-1:123456789012:accesspoint'
-        assert prefix == 'my-ap/data/v1'
+        assert bucket == 'arn:aws:s3:us-east-1:123456789012:accesspoint/my-ap'
+        assert prefix == 'data/v1'
 
     def test_access_point_arn_no_prefix(self):
         """Parse an S3 access-point ARN with no prefix beyond the AP name."""
         arn = 'arn:aws:s3:us-east-1:123456789012:accesspoint/my-ap'
         bucket, prefix = RegionalDataProvider._parse_s3_uri(arn)
-        assert bucket == 'arn:aws:s3:us-east-1:123456789012:accesspoint'
-        assert prefix == 'my-ap'
+        assert bucket == 'arn:aws:s3:us-east-1:123456789012:accesspoint/my-ap'
+        assert prefix == ''
 
     def test_invalid_scheme(self):
         """Non-s3:// URIs should raise ValueError."""

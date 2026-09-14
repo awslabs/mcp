@@ -26,6 +26,7 @@ from urllib.parse import urlparse
 
 import boto3
 from botocore.exceptions import ClientError
+from botocore.config import Config
 from loguru import logger
 
 from ..common.config import AWS_API_MCP_PROFILE_NAME
@@ -61,8 +62,10 @@ class RegionalDataProvider:
         self.cache_ttl = cache_ttl
         self._cache: dict[str, Any] = {}
         self._cache_timestamp: float = 0.0
+        self._cache_populated: bool = False
         session = boto3.Session(profile_name=AWS_API_MCP_PROFILE_NAME)
-        self._s3_client = session.client('s3')
+        config = Config(s3={'use_arn_region': True})
+        self._s3_client = session.client('s3', config=config)
 
     # ------------------------------------------------------------------
     # URI parsing
@@ -77,11 +80,13 @@ class RegionalDataProvider:
           - ``arn:aws:s3:us-east-1:123456789012:accesspoint/my-ap/some/prefix``
         """
         if uri.startswith('arn:'):
-            # Access-point ARN – split ARN from the object prefix.
-            parts = uri.split('/', 1)
-            arn = parts[0]
-            prefix = parts[1].rstrip('/') if len(parts) > 1 else ''
-            return arn, prefix
+            # Access-point ARN – keep the access-point name as part of the bucket/arn
+            parts = uri.split('/')
+            if len(parts) >= 2:
+                arn = f"{parts[0]}/{parts[1]}"
+                prefix = '/'.join(parts[2:]).rstrip('/') if len(parts) > 2 else ''
+                return arn, prefix
+            return uri, ''
 
         parsed = urlparse(uri)
         if parsed.scheme != 's3':
@@ -112,7 +117,7 @@ class RegionalDataProvider:
     # ------------------------------------------------------------------
 
     def _is_cache_valid(self) -> bool:
-        return bool(self._cache) and (time.monotonic() - self._cache_timestamp) < self.cache_ttl
+        return self._cache_populated and (time.monotonic() - self._cache_timestamp) < self.cache_ttl
 
     def _load_data(self) -> dict[str, Any]:
         """Load the service index and all per-service feature data from S3.
@@ -124,6 +129,15 @@ class RegionalDataProvider:
             return self._cache
 
         logger.info('Loading regional availability data from {}', self._s3_uri)
+
+        # Try Capability Insights standard layout first
+        try:
+            catalog = self._get_object_json(self._s3_key('data/json/products.json'))
+            return self._parse_products_catalog(catalog)
+        except ClientError as exc:
+            if exc.response.get('Error', {}).get('Code') != 'NoSuchKey':
+                raise
+            logger.debug('data/json/products.json not found, falling back to legacy layout.')
 
         try:
             index = self._get_object_json(self._s3_key('services.json'))
@@ -153,24 +167,69 @@ class RegionalDataProvider:
                             self._s3_key(svc_name, f'{feat_name}.json')
                         )
                         svc_data[feat_name] = feat_data.get('regions', feat_data)
-                    except ClientError:
-                        logger.debug(
-                            'Could not load feature data for {}/{}', svc_name, feat_name
-                        )
+                    except ClientError as exc:
+                        if exc.response['Error']['Code'] == 'NoSuchKey':
+                            logger.debug(
+                                'Could not load feature data for {}/{}', svc_name, feat_name
+                            )
+                        else:
+                            raise
             else:
                 # No explicit features – try loading a single service-level file.
                 try:
                     svc_level = self._get_object_json(self._s3_key(f'{svc_name}.json'))
                     svc_data['_service'] = svc_level.get('regions', svc_level)
-                except ClientError:
-                    logger.debug('Could not load service-level data for {}', svc_name)
+                except ClientError as exc:
+                    if exc.response['Error']['Code'] == 'NoSuchKey':
+                        logger.debug('Could not load service-level data for {}', svc_name)
+                    else:
+                        raise
 
             if svc_data:
                 data[svc_name] = svc_data
 
         self._cache = data
         self._cache_timestamp = time.monotonic()
+        self._cache_populated = True
         logger.info('Loaded regional data for {} services', len(data))
+        return data
+
+    def _parse_products_catalog(self, catalog: dict[str, Any]) -> dict[str, Any]:
+        """Parse Capability Insights standard products.json."""
+        data: dict[str, Any] = {}
+        products = catalog.get('products', catalog) if isinstance(catalog, dict) else catalog
+        if not isinstance(products, list):
+            logger.warning('Expected products list in catalog, got {}', type(products))
+            return data
+
+        name_keys = ['name', 'service', 'serviceCode', 'code', 'id']
+
+        for prod in products:
+            if not isinstance(prod, dict):
+                continue
+            
+            svc_name = next((prod[k] for k in name_keys if k in prod), None)
+            if not svc_name:
+                continue
+
+            svc_data: dict[str, Any] = {}
+            if 'regionalAvailability' in prod:
+                svc_data['_service'] = prod['regionalAvailability']
+
+            for child in prod.get('childProducts', []):
+                if not isinstance(child, dict):
+                    continue
+                child_name = next((child[k] for k in name_keys if k in child), None)
+                if child_name and 'regionalAvailability' in child:
+                    svc_data[child_name] = child['regionalAvailability']
+
+            if svc_data:
+                data[svc_name] = svc_data
+                
+        self._cache = data
+        self._cache_timestamp = time.monotonic()
+        self._cache_populated = True
+        logger.info('Loaded regional data for {} services from products.json', len(data))
         return data
 
     def _build_index_from_listing(self) -> dict[str, Any]:
