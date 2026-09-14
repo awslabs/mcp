@@ -118,10 +118,20 @@ through.
 
 ## Reports
 
-`reports/<scenario>-<YYYYMMDD-HHMM>.md`, one per scenario run, committed. Each carries the
-branch and commit under test, the warehouses and their sizes, the exit status and duration, the
-prompt the agent was given, and its full transcript. They are the evidence a commit or pull
-request points at, so they are worth reading before being cited.
+`reports/<scenario>-<YYYYMMDD-HHMM>.md`, one per scenario run, committed. They are the evidence a
+commit or pull request points at, so they are worth reading before being cited.
+
+Each opens with the branch and commit under test, the warehouses and their sizes, and the exit
+status and duration. Then three sections, in the order a reader wants them:
+
+1. **Summary** — a table, one row per scenario or per tool, PASS or FAIL, and a comment only
+   where there is something to say, followed by any notes. Written by the agent, which is asked
+   for exactly this shape; the harness lifts it out of the reply and puts it first.
+2. **Prompt** — what was actually asked, so a surprising row can be weighed against it.
+3. **Transcript** — everything else the agent said and every tool it called.
+
+A run whose agent produced no summary says so in place of the table, rather than leaving an empty
+section that reads like a clean result.
 
 ## Not committed
 

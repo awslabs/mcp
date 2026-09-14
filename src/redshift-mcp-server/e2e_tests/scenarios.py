@@ -28,12 +28,19 @@ from e2e_tests import agent
 from e2e_tests.config import Config
 
 
+# The heading the agent is told to put its summary behind, and the harness looks for when
+# splitting the reply. Distinctive enough to find by search, because the CLI streams the agent's
+# prose without separating one passage from the next.
+SUMMARY_HEADING = '## Summary'
+
+
 @dataclass(frozen=True)
 class Scenario:
     """One agent run: a prompt, and how to name what comes out of it."""
 
     key: str
     title: str
+    row_unit: str
     template: str
 
     def prompt(self, config: Config) -> str:
@@ -50,6 +57,7 @@ class Scenario:
         )
         return self.template.format(
             servers=inventory,
+            summary=_SUMMARY.format(heading=SUMMARY_HEADING, unit=self.row_unit).strip(),
             cluster=config.cluster_identifier,
             workgroup=config.workgroup_name,
             database=config.database,
@@ -69,9 +77,22 @@ the same tables, so a check that holds on one should hold on the other. Other cl
 this account; leave them alone.
 """
 
+_SUMMARY = """
+End your reply with a section that begins on its own line with `{heading}` and holds nothing but,
+in this order:
+
+1. A markdown table with the columns Scenario, Result and Comment. One row per {unit}. Result is
+   PASS or FAIL. Leave Comment empty unless there is something to say.
+2. Only if anything is worth noting, a short bulleted list under the table.
+
+This section is lifted into a committed report and read on its own, so keep every row
+intelligible without the rest of the reply.
+"""
+
 BRANCH = Scenario(
     key='branch',
     title='Changes on this branch',
+    row_unit='scenario',
     template=_ENVIRONMENT
     + """
 Run an end-to-end test covering the scenarios for the changes introduced in the current branch \
@@ -84,13 +105,14 @@ action, which is what the denied configurations above are for. Work out from the
 unit tests what each tool should do under those credentials, and verify it. Verify too that \
 behaviour under the configurations that are not denied it is unchanged.
 
-Provide a short testing summary, one line per scenario.
+{summary}
 """,
 )
 
 TOOLS = Scenario(
     key='tools',
     title='Every tool, both warehouse types',
+    row_unit='tool',
     template=_ENVIRONMENT
     + """
 Run a complete set of end-to-end tests covering all of the server's tools. Check both the \
@@ -98,7 +120,7 @@ provisioned cluster and the Serverless workgroup, including the database schema 
 both. Check the SQL read-only protection, the transaction breaker protection, and failed user \
 SQL behaviour. Get the test scenario ideas from the unit tests under the project directory.
 
-Provide a short testing summary, one line per tool.
+{summary}
 """,
 )
 

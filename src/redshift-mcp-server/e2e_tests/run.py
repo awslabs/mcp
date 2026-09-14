@@ -145,6 +145,53 @@ def _invoke(config: Config, prompt: str) -> tuple[int, str, float]:
     return status, _ANSI.sub('', output), time.monotonic() - started
 
 
+def _as_paragraphs(text: str) -> str:
+    """Separate lines so that markdown keeps them apart.
+
+    The transcript arrives as consecutive lines, most of them one tool call each. Rendered as
+    markdown those run together into a single paragraph, so each becomes its own.
+
+    Args:
+        text: Lines to separate.
+
+    Returns:
+        The same lines, one paragraph each.
+    """
+    return '\n\n'.join(line for line in text.splitlines() if line.strip())
+
+
+def _split_summary(transcript: str) -> tuple[str | None, str]:
+    """Separate the agent's summary from the rest of what it said.
+
+    Found by searching rather than by matching a whole line, because the CLI streams one passage
+    of prose straight into the next and the heading can arrive with text still on its left. Tool
+    activity after the summary, which is usually cleanup, stays with the transcript.
+
+    Args:
+        transcript: What the agent said, control sequences already stripped.
+
+    Returns:
+        The summary, or None when the agent produced none, and the transcript without it.
+    """
+    cut = transcript.rfind(scenarios.SUMMARY_HEADING)
+    if cut == -1:
+        return None, _as_paragraphs(transcript)
+
+    summary: list[str] = []
+    trailing: list[str] = []
+
+    for line in transcript[cut + len(scenarios.SUMMARY_HEADING) :].splitlines():
+        if trailing or line.startswith('[tool]'):
+            trailing.append(line)
+        else:
+            summary.append(line)
+
+    return (
+        '\n'.join(summary).strip(),
+        _as_paragraphs('\n'.join([transcript[:cut], *trailing])),
+    )
+
+
 def _report(
     config: Config,
     scenario: scenarios.Scenario,
@@ -155,6 +202,10 @@ def _report(
     seeded_rows: int,
 ) -> Path:
     """Write the run down, in the form it will be read in a pull request.
+
+    The summary leads, because that is what a reader came for. The prompt follows, so a
+    surprising row can be weighed against what was actually asked. The transcript is last, for
+    whoever is checking one particular claim.
 
     Args:
         config: The harness config.
@@ -186,17 +237,25 @@ def _report(
         'Sample data': f'`{config.schema}` in `{config.database}`, {seeded_rows:,} rows each',
     }
 
+    summary, remainder = _split_summary(transcript)
+    if summary is None:
+        summary = (
+            'The agent ended without one, so nothing here has been summarised. Read the '
+            'transcript before citing this run.'
+        )
+
     path.write_text(
         f'# End-to-end test: {scenario.title}\n\n'
         f'{now:%Y-%m-%d %H:%M} UTC\n\n'
         + '\n'.join(f'- **{key}**: {value}' for key, value in facts.items())
         + '\n\n'
+        f'## Summary\n\n{summary}\n\n'
         '## Prompt\n\n'
-        "Written by the harness, not by hand. The agent derives the cases from the package's\n"
+        "Written by the harness, not by hand. The agent derives the cases from the package's "
         'unit tests, and is told where to look rather than what to expect.\n\n'
-        f'```text\n{prompt.strip()}\n```\n\n'
+        f'{prompt.strip()}\n\n'
         '## Transcript\n\n'
-        f'```text\n{transcript.strip()}\n```\n'
+        f'{remainder.strip()}\n'
     )
 
     return path
