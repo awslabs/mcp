@@ -588,7 +588,9 @@ The mode is read once at startup, so it is fixed for the life of the server proc
 | Transaction wrapper | `BEGIN READ ONLY` … `ROLLBACK`, so nothing is persisted | None; each statement runs with autocommit |
 | Named [transactions](#transactions) | Opened `READ ONLY`, giving several statements one snapshot | Writable, so several statements commit or roll back together |
 | Writes and DDL | Rejected, either by the statement guard or by the read-only transaction | Executed and committed immediately |
-| Statement-type deny list | Denies `UNLOAD`, `GRANT`, `REVOKE`, `TRUNCATE`, `VACUUM`, `ANALYZE`, `CALL`, `COMMENT`, `CANCEL`, `SET`, `RESET`, and transaction control | Not applied |
+| Statement-type deny list | Denies `UNLOAD`, `GRANT`, `REVOKE`, `TRUNCATE`, `VACUUM`, `ANALYZE`, `CALL`, `COMMENT`, `CANCEL`, `SET` and `RESET` | Not applied |
+| Transaction control in `sql` | Rejected | Rejected |
+| `TRUNCATE` inside a named transaction | Rejected | Rejected, because it commits and cannot be rolled back |
 | Multiple statements | Rejected | Rejected |
 | Per-statement confirmation | Not asked; nothing is persisted | Asked before anything that could change something, unless `UNSAFE_SKIP_WRITE_CONFIRMATION=true` |
 | How the tool describes itself to your client | Read-only and non-destructive | Destructive, so clients can warn you or ask before running it |

@@ -654,7 +654,7 @@ async def _begin_transaction(
         raise ToolError(_FALLBACK_NO_BATCH_REFUSES_TRANSACTION)
 
     if sql is not None:
-        assert_executable(sql, enforce_read_only=enforce_read_only)
+        assert_executable(sql, enforce_read_only=enforce_read_only, in_transaction=True)
 
     cluster_info = await _resolve_cluster(cluster_identifier)
 
@@ -751,7 +751,7 @@ async def _execute_statement_in_transaction(
         raise ToolError(_FALLBACK_NO_BATCH_REFUSES_TRANSACTION)
 
     if sql is not None:
-        assert_executable(sql, enforce_read_only=enforce_read_only)
+        assert_executable(sql, enforce_read_only=enforce_read_only, in_transaction=True)
 
     cluster_info = await _resolve_cluster(cluster_identifier)
     key = _transaction_key(cluster_identifier, database_name, name)

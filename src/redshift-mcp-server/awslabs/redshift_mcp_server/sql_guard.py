@@ -33,37 +33,56 @@ from sqlglot import exp
 from typing import NoReturn
 
 
-# Operations denied in read-only mode: the ones a read-only transaction cannot
-# neutralize. Each keyword maps to a sqlglot node type, or to a bare-command name.
-_READ_ONLY_DENY_KEYWORD_LIST = frozenset(
+# Transaction control, denied in every access mode. The server owns transaction boundaries and
+# offers them as parameters; a caller's COMMIT inside a named transaction ends it while the
+# server still believes it open, so later statements autocommit while the caller thinks they are
+# staged and a rollback reports success having undone nothing. Outside a transaction these are
+# no-ops on a connection about to be discarded, so denying them everywhere costs nothing.
+_TRANSACTION_CONTROL_KEYWORD_LIST = frozenset(
     {
-        'UNLOAD',
         'BEGIN',
         'START',
         'COMMIT',
         'END',
         'ROLLBACK',
         'ABORT',
-        'TRUNCATE',
-        'CALL',
-        'GRANT',
-        'REVOKE',
-        'VACUUM',
-        'ANALYZE',
-        'COMMENT',
-        # Only bare `CANCEL` reaches this list. `CANCEL <pid>`, the form that does anything,
-        # does not parse in this dialect and is rejected as unparseable instead.
-        'CANCEL',
-        # A session setting can clear the read-only property BEGIN READ ONLY established:
-        # `SET transaction_read_only TO off`, `SET TRANSACTION READ WRITE`, `SET SESSION
-        # CHARACTERISTICS AS TRANSACTION READ WRITE`, and `RESET` of any of those or of ALL.
-        # A single statement could not exploit that, since its transaction ends with the
-        # call, but a named transaction spans calls and a later statement in it would write.
-        # Nothing is lost by denying them: outside a transaction a setting has no future to
-        # apply to.
-        'SET',
-        'RESET',
     }
+)
+
+# Statements that commit whatever transaction they run in, denied inside a named transaction in
+# every access mode. TRUNCATE commits and cannot be rolled back, so inside a transaction it ends
+# it exactly as a COMMIT would, from a statement that reads as ordinary DML. Standalone it is an
+# honest write, so it is refused only where a transaction is in play.
+_IMPLICIT_COMMIT_KEYWORD_LIST = frozenset({'TRUNCATE'})
+
+# Operations denied in read-only mode: the ones a read-only transaction cannot
+# neutralize. Each keyword maps to a sqlglot node type, or to a bare-command name.
+_READ_ONLY_DENY_KEYWORD_LIST = (
+    _TRANSACTION_CONTROL_KEYWORD_LIST
+    | _IMPLICIT_COMMIT_KEYWORD_LIST
+    | frozenset(
+        {
+            'UNLOAD',
+            'CALL',
+            'GRANT',
+            'REVOKE',
+            'VACUUM',
+            'ANALYZE',
+            'COMMENT',
+            # Only bare `CANCEL` reaches this list. `CANCEL <pid>`, the form that does
+            # anything, does not parse in this dialect and is rejected as unparseable instead.
+            'CANCEL',
+            # A session setting can clear the read-only property BEGIN READ ONLY established:
+            # `SET transaction_read_only TO off`, `SET TRANSACTION READ WRITE`, `SET SESSION
+            # CHARACTERISTICS AS TRANSACTION READ WRITE`, and `RESET` of any of those or of
+            # ALL. A single statement could not exploit that, since its transaction ends with
+            # the call, but a named transaction spans calls and a later statement in it would
+            # write. Nothing is lost by denying them: outside a transaction a setting has no
+            # future to apply to.
+            'SET',
+            'RESET',
+        }
+    )
 )
 
 # Bare commands treated as reads, matched by name because sqlglot has no node class
@@ -147,7 +166,7 @@ def _parse(sql: str) -> list[exp.Expression]:
 # --- Read-only deny-list ---
 
 
-def _read_only_denied_keyword(node: exp.Expression) -> str | None:
+def _denied_keyword(node: exp.Expression) -> str | None:
     """Map a single AST node to a read-only deny-list keyword, or None.
 
     Detection is structural (node type, or for generic commands the command name),
@@ -197,8 +216,8 @@ def _read_only_denied_keyword(node: exp.Expression) -> str | None:
     return None
 
 
-def _read_only_denied_root(statement: exp.Expression) -> str | None:
-    """Map a whole-statement bare identifier to a read-only deny-list keyword, or None.
+def _denied_root(statement: exp.Expression, keywords: frozenset[str]) -> str | None:
+    """Map a whole-statement bare identifier to one of `keywords`, or None.
 
     sqlglot parses `START`/`ABORT` (and their WORK/TRANSACTION variants) as bare
     identifiers rather than statement nodes, so they are classified by the root
@@ -207,20 +226,21 @@ def _read_only_denied_root(statement: exp.Expression) -> str | None:
 
     Args:
         statement: The parsed statement (tree root).
+        keywords: The deny-list to match against.
 
     Returns:
-        The matching deny-list keyword, or None.
+        The matching keyword, or None.
     """
     node = statement.this if isinstance(statement, exp.Alias) else statement
     if isinstance(node, exp.Column):
         name = node.name.upper()
-        if name in _READ_ONLY_DENY_KEYWORD_LIST:
+        if name in keywords:
             return name
     return None
 
 
-def _read_only_denied_operation(statement: exp.Expression) -> str | None:
-    """Return the deny-list keyword if the statement is, or contains, a denied operation.
+def _denied_operation(statement: exp.Expression, keywords: frozenset[str]) -> str | None:
+    """Return the keyword if the statement is, or contains, one of `keywords`.
 
     First classifies a whole-statement bare identifier (the `START`/`ABORT` family),
     then walks the entire parse tree (defense-in-depth, not just the root) so a denied
@@ -228,29 +248,34 @@ def _read_only_denied_operation(statement: exp.Expression) -> str | None:
 
     Args:
         statement: A parsed sqlglot statement.
+        keywords: The deny-list to match against.
 
     Returns:
-        The matching deny-list keyword, or None if no node is a denied operation.
+        The matching keyword, or None if no node is one of them.
     """
-    keyword = _read_only_denied_root(statement)
+    keyword = _denied_root(statement, keywords)
     if keyword is not None:
         return keyword
     for node in statement.walk():
-        keyword = _read_only_denied_keyword(node)
-        if keyword is not None:
+        keyword = _denied_keyword(node)
+        if keyword is not None and keyword in keywords:
             return keyword
     return None
 
 
-def assert_executable(sql: str, enforce_read_only: bool = True) -> None:
+def assert_executable(
+    sql: str, enforce_read_only: bool = True, in_transaction: bool = False
+) -> None:
     """Validate that the SQL is a single permitted statement.
 
     Fails closed: oversized input and any parser error are rejected.
 
     Args:
         sql: The SQL statement to validate.
-        enforce_read_only: When False, enforce single-statement only and skip the
-            read-only statement-type deny-list.
+        enforce_read_only: When False, skip the read-only statement-type deny-list. The
+            single-statement rule and the transaction-control denial apply either way.
+        in_transaction: True when the statement runs inside a named transaction, which also
+            denies statements that would commit it out from under the server.
 
     Raises:
         ToolError: If the SQL is rejected by the guard.
@@ -263,12 +288,30 @@ def assert_executable(sql: str, enforce_read_only: bool = True) -> None:
     if len(statements) != 1:
         _reject('Only a single SQL statement is allowed')
 
-    if not enforce_read_only:
-        return
+    # Read-only first: its list already contains everything the two below match, so in read-only
+    # mode they never fire and its wording, the one callers have always seen, is preserved. Only
+    # read-write reaches them.
+    if enforce_read_only:
+        keyword = _denied_operation(statements[0], _READ_ONLY_DENY_KEYWORD_LIST)
+        if keyword is not None:
+            _reject(f'Statement type not allowed in read-only mode: {keyword}')
 
-    keyword = _read_only_denied_operation(statements[0])
+    keyword = _denied_operation(statements[0], _TRANSACTION_CONTROL_KEYWORD_LIST)
     if keyword is not None:
-        _reject(f'Statement type not allowed in read-only mode: {keyword}')
+        _reject(
+            f'Transaction control is not available to a statement: {keyword}. Use the '
+            f'begin_transaction, in_transaction, commit_transaction and rollback_transaction '
+            f'parameters, which keep this server and the engine agreeing on what is open.'
+        )
+
+    if in_transaction:
+        keyword = _denied_operation(statements[0], _IMPLICIT_COMMIT_KEYWORD_LIST)
+        if keyword is not None:
+            _reject(
+                f'{keyword} commits the transaction it runs in and cannot be rolled back, so '
+                f'it is not available inside a named transaction. Close the transaction first, '
+                f'then run it on its own.'
+            )
 
 
 # --- Write classification ---

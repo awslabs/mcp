@@ -197,6 +197,68 @@ class TestDenyList:
             assert_executable('TRUNCATE foo')
 
 
+class TestTransactionControlIsRefusedInEveryMode:
+    """The server owns transaction boundaries, so a statement may never move them.
+
+    Read-write mode used to skip the whole deny-list, which let a caller's COMMIT reach the
+    session of a named transaction. The engine committed and the server went on believing the
+    transaction open: later statements autocommitted while the caller thought them staged, and
+    a rollback reported success having undone nothing.
+    """
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            'BEGIN',
+            'BEGIN WORK',
+            'BEGIN TRANSACTION',
+            'START',
+            'START TRANSACTION',
+            'COMMIT',
+            'COMMIT WORK',
+            'COMMIT TRANSACTION',
+            'END',
+            'END WORK',
+            'END TRANSACTION',
+            'ROLLBACK',
+            'ROLLBACK WORK',
+            'ROLLBACK TRANSACTION',
+            'ABORT',
+            'ABORT WORK',
+            'ABORT TRANSACTION',
+        ],
+    )
+    def test_rejected_with_read_only_enforcement_off(self, sql):
+        """Refused in read-write mode too, where the deny-list no longer applies."""
+        with pytest.raises(ToolError, match='Transaction control is not available'):
+            assert_executable(sql, enforce_read_only=False)
+
+    def test_the_refusal_names_the_parameters_to_use_instead(self):
+        """A caller told only "no" would have nowhere to go, since transactions are supported."""
+        with pytest.raises(ToolError, match='in_transaction'):
+            assert_executable('COMMIT', enforce_read_only=False)
+
+
+class TestImplicitCommitInsideATransaction:
+    """TRUNCATE commits the transaction it runs in, so inside a named one it is refused.
+
+    Redshift documents TRUNCATE as committing and as impossible to roll back. Inside a named
+    transaction that ends it while the server still believes it open, which is the COMMIT
+    desync arriving from a statement that reads as ordinary DML.
+    """
+
+    @pytest.mark.parametrize('sql', ['TRUNCATE t', 'TRUNCATE TABLE t', 'TRUNCATE"t"'])
+    def test_rejected_inside_a_transaction(self, sql):
+        """Every spelling the guard recognises, in read-write mode where the deny-list is off."""
+        with pytest.raises(ToolError, match='commits the transaction it runs in'):
+            assert_executable(sql, enforce_read_only=False, in_transaction=True)
+
+    @pytest.mark.parametrize('sql', ['TRUNCATE t', 'TRUNCATE TABLE t'])
+    def test_allowed_standalone_in_read_write_mode(self, sql):
+        """Outside a transaction it is an honest write, and refusing it would remove a capability."""
+        assert_executable(sql, enforce_read_only=False)
+
+
 class TestMultiStatement:
     """Submissions with more than one executable statement are rejected."""
 
@@ -295,6 +357,25 @@ class TestNoFalsePositives:
     def test_keyword_text_as_identifier_alias_or_literal_is_allowed(self, sql):
         """A single read is allowed even when it embeds deny-listed keyword text."""
         assert_executable(sql)
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            "SELECT '; COMMIT;'",
+            'SELECT $$ ; COMMIT ; $$ AS x',
+            'SELECT abort FROM t',
+            'SELECT start, end FROM t',
+            "INSERT INTO t (note) VALUES ('commit')",
+            'UPDATE t SET rollback_count = rollback_count + 1',
+        ],
+    )
+    def test_keyword_text_is_still_allowed_in_read_write_mode(self, sql):
+        """The transaction-control check runs in read-write mode, so it must not overreach.
+
+        Read-write mode previously ran no statement-type check at all, so this is the mode
+        where a new false positive would first be felt - on ordinary writes, at that.
+        """
+        assert_executable(sql, enforce_read_only=False)
 
     def test_dollar_quoted_body_with_semicolons_is_a_single_statement(self):
         """A `$$…$$` body containing `;` is one statement (not split), and allowed."""

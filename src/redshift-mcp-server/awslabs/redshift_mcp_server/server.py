@@ -282,7 +282,13 @@ def _write_confirmation(
 
     # Reject before asking, so a statement that cannot run never raises a prompt. Only
     # this server's read-only protection is off here; the mode is read-write by this point.
-    assert_executable(sql, enforce_read_only=False)
+    assert_executable(
+        sql,
+        enforce_read_only=False,
+        in_transaction=bool(
+            begin_transaction or in_transaction or commit_transaction or rollback_transaction
+        ),
+    )
 
     if not might_write(sql):
         return ConfirmWrite(confirmed=True)
@@ -658,16 +664,23 @@ async def execute_query_tool(
 
     - Read-only (default): the statement runs inside `BEGIN READ ONLY ... ROLLBACK`, so
       nothing is persisted, and statement types the transaction cannot neutralize
-      (`UNLOAD`, `GRANT`, `TRUNCATE`, `VACUUM`, `SET`, `RESET`, transaction control, and
-      similar) are rejected before execution.
+      (`UNLOAD`, `GRANT`, `TRUNCATE`, `VACUUM`, `SET`, `RESET`, and similar) are rejected
+      before execution.
     - Read-write (`ACCESS_MODE=read-write`): the statement runs directly with autocommit
       and can create, modify and delete data and objects. Outside a transaction there is
       no rollback and nothing to undo.
 
+    Transaction control is refused in both modes: `BEGIN`, `START`, `COMMIT`, `END`,
+    `ROLLBACK` and `ABORT` belong to the transaction parameters below, not to `sql`. A
+    statement that moved a boundary itself would leave this server and the engine
+    disagreeing about what is open. `TRUNCATE` is refused inside a named transaction for the
+    same reason, since it commits and cannot be rolled back; outside one it runs normally in
+    read-write mode.
+
     In read-write mode each statement is confirmed by the caller before it runs, unless the
     operator set `UNSAFE_SKIP_WRITE_CONFIRMATION=true`. A client that cannot prompt is
     refused rather than executed unconfirmed. Closing a transaction is not itself a write,
-    so a bare commit or rollback asks nothing.
+    so `commit_transaction` or `rollback_transaction` alone asks nothing.
 
     Both modes accept a single statement only; multi-statement submissions are rejected.
 
