@@ -512,7 +512,7 @@ if REGIONAL_DATA_S3_URI:
 
     Returns:
         JSON with service name, feature name, and a mapping of region codes to
-        availability status (e.g. AVAILABLE, NOT_AVAILABLE, PREVIEW).
+        availability status (e.g. Available, Planning, Not Expanding, Not Available).
     """,
         annotations=ToolAnnotations(
             title='Get regional availability from Capability Insights data',

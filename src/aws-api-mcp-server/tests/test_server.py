@@ -995,6 +995,40 @@ async def test_get_execution_plan_is_available_when_env_var_is_not_set():
     assert 'get_execution_plan' not in tool_names
 
 
+@patch('awslabs.aws_api_mcp_server.core.common.config.REGIONAL_DATA_S3_URI', 's3://bucket/prefix')
+async def test_regional_availability_tools_available_when_uri_is_set():
+    """Test regional tools are registered when S3 URI is configured."""
+    # Re-import the server module to ensure the tools are registered
+    import awslabs.aws_api_mcp_server.server
+    import importlib
+
+    importlib.reload(awslabs.aws_api_mcp_server.server)
+
+    from awslabs.aws_api_mcp_server.server import server
+
+    tools = await server.list_tools()
+    tool_names = [tool.name for tool in tools]
+    assert 'get_regional_availability' in tool_names
+    assert 'list_available_services' in tool_names
+
+
+@patch('awslabs.aws_api_mcp_server.core.common.config.REGIONAL_DATA_S3_URI', '')
+async def test_regional_availability_tools_absent_when_uri_is_not_set():
+    """Test regional tools are not registered when S3 URI is empty."""
+    # Re-import the server module to ensure the tools are not registered
+    import awslabs.aws_api_mcp_server.server
+    import importlib
+
+    importlib.reload(awslabs.aws_api_mcp_server.server)
+
+    from awslabs.aws_api_mcp_server.server import server
+
+    tools = await server.list_tools()
+    tool_names = [tool.name for tool in tools]
+    assert 'get_regional_availability' not in tool_names
+    assert 'list_available_services' not in tool_names
+
+
 @patch('awslabs.aws_api_mcp_server.core.common.config.ENABLE_AGENT_SCRIPTS', True)
 async def test_get_execution_plan_script_not_found():
     """Test get_execution_plan returns error when script does not exist."""
