@@ -1,12 +1,12 @@
 # End-to-end test: Every tool, both warehouse types
 
-2026-09-14 02:04 UTC
+2026-09-14 03:17 UTC
 
 - **Scenario**: `tools`
-- **Code under test**: `feat/redshift-session-redesign` at `b1ed1958`, uncommitted changes
+- **Code under test**: `feat/redshift-session-redesign` at `6d0c99ad`, uncommitted changes
 - **Agent**: `kiro-cli`, model `claude-opus-5`
 - **Exit status**: `0`
-- **Duration**: 18.1 min
+- **Duration**: 22.4 min
 - **Region**: `us-east-1`
 - **Provisioned**: `mcp-e2e-provisioned`, ra3.large x2
 - **Serverless**: `mcp-e2e-serverless`, 8 RPU
@@ -16,18 +16,22 @@
 
 | Scenario | Result | Comment |
 |---|---|---|
-| list_clusters | PASS | Both harness warehouses listed with correct type and status; works under denied-batch credentials, which need no Data API |
-| list_databases | PASS | Identical on both warehouses; batch and fallback paths agree |
-| list_schemas | PASS | `tickit` found on both; unknown database and auto-mounted Glue catalogue fail with the documented connect error |
-| list_tables | PASS | Same 7 TICKIT tables on both; unknown schema returns an empty list, not an error |
-| list_columns | PASS | Column types and ordinals identical on both; unknown table returns an empty list |
-| execute_query | PASS | Reads, type mapping, guard rejections, engine backstop, named transactions, the breaker, the per-target cap and all five configurations behaved as documented |
-| review_cluster | PASS | 11 signals on provisioned, 8 on serverless with provisioned-only ones skipped and `ServerlessScaling` added; unknown cluster errors rather than reporting clean |
+| list_clusters | PASS | Both target warehouses discovered as available; provisioned and serverless entries populated correctly. |
+| list_databases | PASS | Same four databases on both warehouses; `dev` local, three auto-mounted catalogs. |
+| list_schemas | PASS | `tickit` present on both, with ACLs for both the profile and the denied-batch role. |
+| list_tables | PASS | Same seven TICKIT tables on both; unknown schema returns an empty list, not an error. |
+| list_columns | PASS | `tickit.sales` identical on both; unknown table returns an empty list, not an error. |
+| execute_query | PASS | Reads, typed values, guard rejections, engine backstop, transactions and failures all behaved; detail in the notes below. |
+| review_cluster | PASS | 11 signals / 10 findings on provisioned, 8 signals / 2 findings on serverless (provisioned-only diagnostics skipped, `ServerlessScaling` added). Identical results on the compatibility path. |
 
-- TICKIT row counts matched exactly across both warehouses (172,456 sales / 49,990 users / 192,497 listings) before and after the run, and both scratch tables were dropped, so nothing was left behind.
-- `rw_*` never completes a confirmation round trip from this client: the write is refused for want of an elicitation channel. That is the fail-closed branch; a confirm and a decline remain unobservable here.
-- The guard's oversized-input rejection (>64 KiB) was not re-tested end to end, since it is a pre-parse length check with no server-side interaction beyond what the unit suite already covers.
-- One finding worth reading rather than acting on: `review_cluster` reports "should consider migrating to RG instances" against the harness's own `ra3.large` cluster, which is expected for the node type the harness provisions.
+- Read-only guard: `TRUNCATE`, `COMMIT`, `SET transaction_read_only TO off`, `UNLOAD`, `GRANT` and `VACUUM` were each rejected by statement type; stacked statements and comment-only input were rejected as not a single statement; `SELECT FROM WHERE` failed closed as unparseable. A deny-listed keyword used as a literal or alias was allowed, and a nested-comment prefix could not smuggle a `TRUNCATE` — the guard classified the same single statement the engine ran.
+- Engine backstop: `CREATE TABLE`, `DELETE` and `SELECT … INTO` pass the guard by design and were refused by the read-only transaction with `ERROR: transaction is read-only`, leaving nothing behind on either warehouse.
+- Transaction protections: a failed statement rolled the transaction back and dropped its name, so a later commit reported the name as unknown rather than appearing to succeed; a guard rejection left the transaction open on the same session; reopening an open name was refused; the cap refused an eleventh open on one target while another target still had room, and a rolled-back slot was reusable.
+- Write confirmation: at `rw_*` every write was refused because the CLI cannot prompt, naming `UNSAFE_SKIP_WRITE_CONFIRMATION` as the opt-out, and nothing reached the cluster. Reads and transaction closes asked nothing. A confirm or a decline round trip remains unreachable from this client.
+- Unsafe read-write: writes ran unconfirmed on both warehouses; a rollback discarded an uncommitted insert, a commit persisted an update and an insert, `TRUNCATE` ran where read-only mode had refused it, and a failure inside a transaction discarded the whole transaction including its earlier successful write.
+- Compatibility path (`BatchExecuteStatement` denied): all five discovery tools, user reads against `tickit` and the full diagnostic review worked, running as the denied-batch role with unsuffixed statement ids. Writes were refused naming the missing grant instead of running unwrapped, and named transactions were refused with their own reason rather than reported as an unknown name — at both access modes.
+- Not exercised: oversized (>64 KiB) SQL and deep-nesting recursion rejection, both covered by unit tests only, since the payload cost outweighs the e2e value.
+- Incidental: a probe query mixing `svv_all_tables` with user tables failed with `Specified types or functions … not supported on Redshift tables`. That is a Redshift leader-node restriction, correctly surfaced verbatim, not a server defect.
 
 ## Prompt
 
@@ -56,47 +60,29 @@ intelligible without the rest of the reply.
 
 ## Transcript
 
-I'll start by looking at the unit tests to understand what behaviours to cover.Now the live testing. Starting with discovery on both warehouses.Both targets present. Now schema exploration on both warehouses.Now the read-only guard. Deny-listed statements target non-existent objects so nothing is at risk if the guard were to let one through.Now named transactions. Read-only snapshot first, closed cleanly.Now the transaction breaker: a failed statement inside a transaction must abort it and drop the name.Checking the open-transaction cap (default 10 per target).Now review_cluster on both warehouses.Now the write configurations. `rw_*` first — writes must fail closed since this client cannot be prompted.Now `rwu_*`, where writes run unconfirmed. Using a scratch table in `public`.Now a read-write transaction: rollback must discard, commit must persist.Now the breaker where it matters most: a failed statement inside a read-write transaction must not leave partial work.Now the denied-batch configurations. First `nb_*` reads through the fallback path.Cleaning up the scratch tables.All coverage is done and the warehouses are back to their seeded state.
+I'll start by looking at the unit tests to understand what behaviours to cover.Discovery and reads are consistent across both warehouses. Now the read-only guard.Now the named transaction lifecycle. Opening one on the provisioned cluster.Now the transaction cap. Opening ten on one target.Cap holds and is per target. Rolling all of them back now.Now the read-write configuration, where each write must be confirmed.Now the unsafe read-write configuration, which runs writes without asking.Now the compatibility path, where BatchExecuteStatement is denied.A few remaining guard shapes.That error is Redshift refusing to mix a leader-only view with user tables in one query — splitting it.All checks are done, both warehouses are clean, and the seeded TICKIT counts are unchanged (172,456 sales / 49,990 users / 8,798 events / 202 venues / 11 categories on both).
 
-What I exercised, beyond the plain happy path of each of the seven tools on both warehouses:
+What the run covered: all seven tools against `mcp-e2e-provisioned` and `mcp-e2e-serverless`, with the full discovery chain on each; the read-only guard (deny list, statement stacking, unparseable and comment-only input, keyword-as-identifier false positives, nested-comment smuggling, and the engine read-only backstop for writes the deny list deliberately lets through); the named-transaction protections (abort-and-drop on a failed statement, refusal to reopen an open name, unknown-name reporting, the ten-per-target cap and its per-target scoping, and parameter validation); failed user SQL; and the `BatchExecuteStatement`-denied compatibility path at both access modes.
 
-The SQL guard rejected every deny-listed statement type it is meant to (`TRUNCATE`, `GRANT`, `VACUUM`, `UNLOAD`, `COMMIT`, `ABORT`, `SET transaction_read_only TO off`), stacked statements, and unparseable input, each with the message the unit tests pin. It also declined to fire on deny-listed keyword text used as a literal or alias, and rejected a `TRUNCATE` hidden behind a nested block comment. Ordinary writes that pass the guard on purpose — `INSERT`, `CREATE TABLE`, a data-modifying CTE — were refused by the engine with `ERROR: transaction is read-only` on both warehouses, so the `BEGIN READ ONLY ... ROLLBACK` wrapper is doing its job.
-
-The transaction breaker was checked where it can actually cost data: a read-write transaction wrote a row, the next statement failed, and afterwards the row was gone, the name was dropped, and a `COMMIT` of it was refused rather than reporting success while persisting nothing. A guard rejection inside a transaction, by contrast, left it open and usable, which is right since nothing was submitted. The per-target cap held at 10 and the 11th open was refused while the other warehouse still accepted one.
-
-Failed user SQL surfaced the engine's own message (`relation ... does not exist`, `division by zero`, `VALUES lists must all be the same length`) on both warehouses and on both the batch and fallback paths.
-
-Across configurations: `rw_*` refused writes fail-closed because this client cannot be prompted, and the refused `CREATE TABLE` left nothing behind. `rwu_*` ran writes for real, with rollback discarding and commit persisting both statements. `nb_*` and `nbw_*` served reads and all four metadata tools through the no-batch fallback with results identical to the batch path, and refused writes and named transactions with the fallback's own explanations rather than a confirmation error.
+Two behaviours are worth singling out. In the unsafe read-write configuration a failed statement inside a transaction rolled back the earlier successful `INSERT` too, and the name was then refused for commit — the transaction committed nothing, which is the point. And in read-write with confirmation, the write was refused because this CLI cannot prompt; the declined write left the transaction open and usable rather than tearing it down.
 
 [tool] Reading listing redshift-mcp-server
 
 [tool] status: Completed
 
-[tool] Reading sql_guard.py:1
+[tool] Reading sql_guard.py:1, test_sql_guard.py:1
 
 [tool] status: Completed
 
-[tool] Running: grep -n "breaker\|MAX_OPEN_TRANSACTIONS\|SESSION_KEEPALIVE\|no_batch\|BatchExecuteStatement" /local/home/sergkono/AWSLabsMCP/src/redshift-mcp-server/awslabs/redshift_mcp_server/*.py | head -80
+[tool] Running: grep -n "breaker\|MAX_OPEN_TRANSACTIONS\|aborted\|unknown transaction\|class Test" tests/test_redshift.py | head -80
 
 [tool] status: Completed
 
-[tool] Reading redshift.py:241-540
+[tool] Reading test_redshift.py:1866-2765
 
 [tool] status: Completed
 
-[tool] Reading redshift.py:546-835
-
-[tool] status: Completed
-
-[tool] Running: cd /local/home/sergkono/AWSLabsMCP/src/redshift-mcp-server/tests && grep -n "^async def test\|^def test\|^class Test" test_sql_guard.py
-
-[tool] status: Completed
-
-[tool] Reading test_sql_guard.py:26-445
-
-[tool] status: Completed
-
-[tool] Running: cd /local/home/sergkono/AWSLabsMCP/src/redshift-mcp-server/e2e_tests && ls .kiro/agents && sed -e 's/\(AWS_SECRET_ACCESS_KEY\|AWS_SESSION_TOKEN\)":[^,]*/\1": "REDACTED"/g' .kiro/agents/*.json | hea...
+[tool] Running: grep -n "class Test\|def test_" tests/test_server.py | head -80; echo ---; sed -n '980,1120p' tests/test_redshift.py
 
 [tool] status: Completed
 
@@ -106,265 +92,41 @@ Across configurations: `rw_*` refused writes fail-closed because this client can
 
 [tool] Running: @awslabs.redshift-mcp-server/list_databases
 
+[tool] status: Completed
+
 [tool] Running: @awslabs.redshift-mcp-server/list_databases
 
+[tool] status: Completed
+
 [tool] Running: @awslabs.redshift-mcp-server/list_schemas
 
+[tool] status: Completed
+
 [tool] Running: @awslabs.redshift-mcp-server/list_schemas
 
 [tool] status: Completed
 
-[tool] status: Completed
-
-[tool] status: Completed
+[tool] Running: @awslabs.redshift-mcp-server/list_tables
 
 [tool] status: Completed
 
 [tool] Running: @awslabs.redshift-mcp-server/list_tables
 
-[tool] Running: @awslabs.redshift-mcp-server/list_tables
+[tool] status: Completed
 
 [tool] Running: @awslabs.redshift-mcp-server/list_columns
 
+[tool] status: Completed
+
 [tool] Running: @awslabs.redshift-mcp-server/list_columns
 
 [tool] status: Completed
 
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/list_tables
-
-[tool] Running: @awslabs.redshift-mcp-server/list_columns
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Running: grep -n "MAX_SQL_LEN\|FALLBACK_NO_BATCH_REPROBE" /local/home/sergkono/AWSLabsMCP/src/redshift-mcp-server/awslabs/redshift_mcp_server/consts.py
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] status: Completed
-
 [tool] Running: @awslabs.redshift-mcp-server/execute_query
 
 [tool] status: Completed
 
 [tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
 
 [tool] status: Completed
 
@@ -376,6 +138,270 @@ Across configurations: `rw_*` refused writes fail-closed because this client can
 
 [tool] status: Completed
 
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/list_tables
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/list_columns
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Reading consts.py:1
+
+[tool] status: Completed
+
+[tool] Running: grep -o '"[A-Z_]*": *"[^"]*"' e2e_tests/.kiro/agents/*.json | sort -u | grep -v ARN | head -30
+
+[tool] status: Completed
+
+[tool] Running: grep -rn "breaker" awslabs/ tests/ e2e_tests/*.py README.md | head
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
 [tool] Running: @awslabs.redshift-mcp-server-read-write/execute_query
 
 [tool] status: Completed
@@ -384,55 +410,31 @@ Across configurations: `rw_*` refused writes fail-closed because this client can
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write/execute_query
-
 [tool] Running: @awslabs.redshift-mcp-server-read-write/execute_query
 
 [tool] status: Completed
 
-[tool] status: Completed
+[tool] Running: @awslabs.redshift-mcp-server-read-write/execute_query
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+[tool] Running: @awslabs.redshift-mcp-server-read-write/execute_query
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+[tool] Running: @awslabs.redshift-mcp-server-read-write/execute_query
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
+[tool] Running: @awslabs.redshift-mcp-server-read-write/execute_query
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+[tool] Running: @awslabs.redshift-mcp-server-read-write/execute_query
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
+[tool] Running: @awslabs.redshift-mcp-server-read-write/execute_query
 
 [tool] status: Completed
 
@@ -446,9 +448,9 @@ Across configurations: `rw_*` refused writes fail-closed because this client can
 
 [tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
 
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
 [tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
 
 [tool] status: Completed
 
@@ -456,67 +458,119 @@ Across configurations: `rw_*` refused writes fail-closed because this client can
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
 
 [tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
 
 [tool] status: Completed
 
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/list_databases
-
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/list_schemas
-
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/list_tables
-
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/list_columns
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
 
 [tool] status: Completed
 
-[tool] status: Completed
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
 
 [tool] status: Completed
 
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
 
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+[tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
 
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
+[tool] Running: grep -n "_execute_standalone_statement" -A 60 awslabs/redshift_mcp_server/redshift.py | sed -n '1,120p'
+
+[tool] status: Completed
+
+[tool] Reading redshift.py:520-599
+
+[tool] status: Completed
 
 [tool] Running: @awslabs.redshift-mcp-server-no-batch/list_clusters
 
 [tool] status: Completed
 
-[tool] status: Completed
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/list_schemas
 
 [tool] status: Completed
 
-[tool] status: Completed
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/list_tables
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server-no-batch-write/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server-no-batch-write/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server-no-batch-write/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server-no-batch-write/execute_query
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/list_databases
 
 [tool] status: Completed
 
-[tool] status: Completed
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/list_columns
 
 [tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
 
 [tool] status: Completed
 
@@ -524,34 +578,58 @@ Across configurations: `rw_*` refused writes fail-closed because this client can
 
 [tool] status: Completed
 
+[tool] Running: @awslabs.redshift-mcp-server-no-batch-write/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch-write/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch-write/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch-write/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch-write/review_cluster
+
+[tool] status: Completed
+
 [tool] Running: @awslabs.redshift-mcp-server/execute_query
 
-[tool] Running: @awslabs.redshift-mcp-server/list_schemas
-
-[tool] Running: @awslabs.redshift-mcp-server/review_cluster
-
 [tool] status: Completed
 
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] status: Completed
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
 
 [tool] status: Completed
 
 [tool] Running: @awslabs.redshift-mcp-server/execute_query
 
+[tool] status: Completed
+
 [tool] Running: @awslabs.redshift-mcp-server/execute_query
 
 [tool] status: Completed
 
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+
 [tool] status: Completed
 
-[tool] Running: cd /local/home/sergkono/AWSLabsMCP/src/redshift-mcp-server/e2e_tests/.logs && grep -n "Rollback of the aborted\|Closed transaction\|VALUES lists" awslabs.redshift-mcp-server-read-write-unsafe.log |...
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
 
 [tool] status: Completed
