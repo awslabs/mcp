@@ -95,6 +95,7 @@ dev = [
     { name = "pytest-cov" },
     { name = "pytest-mock" },
     { name = "ruff" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
 ]
 
 [package.metadata]
@@ -117,6 +118,7 @@ dev = [
     { name = "pytest-cov", specifier = ">=4.1.0" },
     { name = "pytest-mock", specifier = ">=3.12.0" },
     { name = "ruff", specifier = ">=0.9.7" },
+    { name = "tomli", marker = "python_full_version < '3.11'", specifier = ">=2.0.1" },
 ]
 
 [[package]]
