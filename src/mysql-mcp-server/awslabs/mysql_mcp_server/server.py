@@ -25,6 +25,7 @@ from awslabs.mysql_mcp_server.connection.cp_api_connection import (
     internal_create_aurora_cluster,
     internal_get_cluster_properties,
     internal_get_instance_properties,
+    internal_get_instance_properties_by_identifier,
     internal_require_aws_port,
     internal_resolve_cluster_endpoint,
     setup_aurora_iam_policy_for_current_user,
@@ -604,6 +605,25 @@ def create_cluster_worker(
             async_job_status_lock.release()
 
 
+def is_db_instance_not_found(error: Exception) -> bool:
+    """Return True iff `error` means "no such DB instance", not a real failure.
+
+    :func:`internal_get_instance_properties_by_identifier` surfaces RDS's
+    ``DBInstanceNotFound`` as a ``ClientError``, but raises ``ValueError``
+    when the identifier is empty/blank rather than not-found — narrow on
+    the error code, not the exception type, so a blank identifier is not
+    mistaken for "no such instance" and silently retried as a cluster
+    lookup.
+
+    Narrow on purpose: an ``AccessDenied`` or throttling ``ClientError``
+    must propagate rather than be retried as a cluster lookup, which would
+    only fail again with a less informative error.
+    """
+    if isinstance(error, ClientError):
+        return error.response.get('Error', {}).get('Code') == 'DBInstanceNotFound'
+    return False
+
+
 def internal_connect_to_database(
     region: Annotated[str, Field(description='region')],
     database_type: Annotated[DatabaseType, Field(description='database type')],
@@ -713,7 +733,49 @@ def internal_connect_to_database(
     cluster_arn: str = ''
     secret_arn: str = ''
 
-    if cluster_identifier:
+    # RDS MySQL / MariaDB identifiers are ambiguous when no db_endpoint is
+    # supplied: the identifier can name a standalone DB instance, or — for
+    # MySQL only — an RDS Multi-AZ DB cluster. Both report Engine='mysql'
+    # but live behind different APIs (describe_db_instances vs.
+    # describe_db_clusters), so neither database_type nor the identifier
+    # string alone says which one applies. Aurora MySQL is unambiguous
+    # (always a cluster), as is any call that already supplies db_endpoint
+    # (the existing cluster/instance paths below resolve those directly).
+    # Try the instance lookup first (the common case for #3787) and fall
+    # back to the cluster lookup only when RDS reports no such instance.
+    instance_properties: Optional[Dict[str, Any]] = None
+    if cluster_identifier and not db_endpoint and database_type != DatabaseType.AURORA_MYSQL:
+        try:
+            instance_properties = internal_get_instance_properties_by_identifier(
+                cluster_identifier, region
+            )
+        except (ClientError, ValueError) as e:
+            if not is_db_instance_not_found(e):
+                raise
+            logger.info(
+                f'No DB instance matched for database_type={database_type.value!r}; '
+                f"retrying '{cluster_identifier}' as an RDS Multi-AZ DB cluster"
+            )
+
+    if instance_properties is not None:
+        # Standalone RDS instance resolved by identifier alone. Connect with
+        # the AWS-sourced host and port so the connection string never comes
+        # from caller input. A missing address or a missing/malformed AWS
+        # port fails closed — we never guess a default port.
+        masteruser = instance_properties.get('MasterUsername', '')
+        secret_arn = instance_properties.get('MasterUserSecret', {}).get('SecretArn')
+        instance_endpoint = instance_properties.get('Endpoint', {}) or {}
+        resolved_host = instance_endpoint.get('Address', '')
+        if not resolved_host:
+            raise ValueError(
+                f"AWS returned no endpoint address for instance '{cluster_identifier}'; "
+                'refusing to connect to a caller-supplied host.'
+            )
+        db_endpoint = resolved_host
+        port = internal_require_aws_port(
+            instance_endpoint.get('Port'), f"instance endpoint '{db_endpoint}'"
+        )
+    elif cluster_identifier:
         cluster_properties = internal_get_cluster_properties(
             cluster_identifier=cluster_identifier, region=region
         )
