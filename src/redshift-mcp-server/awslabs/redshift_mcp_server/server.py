@@ -207,7 +207,7 @@ credentials setup and its permissions.
 - Qualify objects with database and schema to avoid ambiguity.
 - Filter on the distribution key and join on it where possible; order by the sort key.
 - `LIMIT` exploratory queries.
-- Name columns explicitly rather than `SELECT *`.
+- Name the columns you need rather than selecting every column.
 - Check whether statistics are current before drawing conclusions from a plan.
 - Prefer IAM authentication over database passwords.
 """
