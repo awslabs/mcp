@@ -440,7 +440,65 @@ if REGIONAL_DATA_S3_URI:
         s3_uri=REGIONAL_DATA_S3_URI, cache_ttl=REGIONAL_DATA_CACHE_TTL
     )
 
-    @server.tool(
+
+async def get_regional_availability(
+    ctx: Context,
+    service_name: Annotated[
+        str,
+        Field(
+            description='The AWS service identifier to query (e.g. "ec2", "lambda", "s3").'
+        ),
+    ],
+    feature_name: Annotated[
+        Optional[str],
+        Field(
+            default=None,
+            description='Optional feature within the service to query availability for.',
+        ),
+    ] = None,
+    regions: Annotated[
+        Optional[list[str]],
+        Field(
+            default=None,
+            description='Optional list of AWS region codes to filter results (e.g. ["us-east-1", "eu-west-1"]). If not provided, returns all regions.',
+        ),
+    ] = None,
+) -> str:
+    """Query regional availability for an AWS service or feature."""
+    logger.info(
+        'Querying regional availability: service={}, feature={}, regions={}',
+        service_name,
+        feature_name,
+        regions,
+    )
+    try:
+        result = REGIONAL_DATA_PROVIDER.get_availability(
+            service_name=service_name,
+            feature_name=feature_name,
+            regions=regions,
+        )
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        error_message = f'Error querying regional availability data: {str(e)}'
+        logger.error(error_message)
+        await ctx.error(error_message)
+        raise AwsApiMcpError(error_message)
+
+
+async def list_available_services(ctx: Context) -> str:
+    """List services available in the regional availability data."""
+    try:
+        result = REGIONAL_DATA_PROVIDER.list_services()
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        error_message = f'Error listing available services: {str(e)}'
+        logger.error(error_message)
+        await ctx.error(error_message)
+        raise AwsApiMcpError(error_message)
+
+
+if REGIONAL_DATA_S3_URI:
+    server.tool(
         name='get_regional_availability',
         description="""Retrieve regional availability information for AWS services and features.
     This tool queries data from the Capability Insights for AWS data set stored in a
@@ -461,51 +519,9 @@ if REGIONAL_DATA_S3_URI:
             readOnlyHint=True,
             openWorldHint=True,
         ),
-    )
-    async def get_regional_availability(
-        ctx: Context,
-        service_name: Annotated[
-            str,
-            Field(
-                description='The AWS service identifier to query (e.g. "ec2", "lambda", "s3").'
-            ),
-        ],
-        feature_name: Annotated[
-            Optional[str],
-            Field(
-                default=None,
-                description='Optional feature within the service to query availability for.',
-            ),
-        ] = None,
-        regions: Annotated[
-            Optional[list[str]],
-            Field(
-                default=None,
-                description='Optional list of AWS region codes to filter results (e.g. ["us-east-1", "eu-west-1"]). If not provided, returns all regions.',
-            ),
-        ] = None,
-    ) -> str:
-        """Query regional availability for an AWS service or feature."""
-        logger.info(
-            'Querying regional availability: service={}, feature={}, regions={}',
-            service_name,
-            feature_name,
-            regions,
-        )
-        try:
-            result = REGIONAL_DATA_PROVIDER.get_availability(
-                service_name=service_name,
-                feature_name=feature_name,
-                regions=regions,
-            )
-            return json.dumps(result, indent=2)
-        except Exception as e:
-            error_message = f'Error querying regional availability data: {str(e)}'
-            logger.error(error_message)
-            await ctx.error(error_message)
-            raise AwsApiMcpError(error_message)
+    )(get_regional_availability)
 
-    @server.tool(
+    server.tool(
         name='list_available_services',
         description="""List all AWS services available in the configured Capability Insights data set.
     Returns the services and their features for which regional availability data is available.
@@ -516,17 +532,8 @@ if REGIONAL_DATA_S3_URI:
             readOnlyHint=True,
             openWorldHint=True,
         ),
-    )
-    async def list_available_services(ctx: Context) -> str:
-        """List services available in the regional availability data."""
-        try:
-            result = REGIONAL_DATA_PROVIDER.list_services()
-            return json.dumps(result, indent=2)
-        except Exception as e:
-            error_message = f'Error listing available services: {str(e)}'
-            logger.error(error_message)
-            await ctx.error(error_message)
-            raise AwsApiMcpError(error_message)
+    )(list_available_services)
+
 
 
 def main():
