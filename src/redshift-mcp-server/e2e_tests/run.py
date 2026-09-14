@@ -279,32 +279,61 @@ def test(config: Config, keys: list[str], keep_up: bool) -> int:
         A process exit status: zero only when every scenario finished cleanly.
     """
     session = _session(config)
-    deploy.up(session, config)
-
-    agent_path = agent.write(config, session.client('sts'))
-    print(f'agent      {agent_path}')
-
-    seeded_rows = sum(tickit.EXPECTED_ROWS.values())
     failures = 0
 
-    for key in keys:
-        scenario = scenarios.ALL[key]
-        prompt = scenario.prompt(config)
-        print(f'scenario   {key} running, up to {config.timeout_seconds / 60:.0f} min')
+    # Everything after `up` runs under `finally`, because by then the cluster, the workgroup and
+    # two IAM roles exist and are billing. A crash in the agent, the report or the harness itself
+    # must not be the reason someone finds them still running tomorrow.
+    try:
+        deploy.up(session, config)
 
-        status, transcript, seconds = _invoke(config, prompt)
-        path = _report(config, scenario, prompt, status, transcript, seconds, seeded_rows)
-        print(f'scenario   {key} exit {status} in {seconds / 60:.1f} min -> {path}')
+        agent_path = agent.write(config, session.client('sts'))
+        print(f'agent      {agent_path}')
 
-        if status != 0:
-            failures += 1
+        seeded_rows = sum(tickit.EXPECTED_ROWS.values())
 
-    if keep_up:
-        print('lifecycle  left running, --keep-up was given')
-    else:
-        deploy.teardown(session, config)
+        for key in keys:
+            scenario = scenarios.ALL[key]
+            prompt = scenario.prompt(config)
+            print(f'scenario   {key} running, up to {config.timeout_seconds / 60:.0f} min')
+
+            status, transcript, seconds = _invoke(config, prompt)
+            path = _report(config, scenario, prompt, status, transcript, seconds, seeded_rows)
+            print(f'scenario   {key} exit {status} in {seconds / 60:.1f} min -> {path}')
+
+            if status != 0:
+                failures += 1
+    finally:
+        _teardown(session, config, keep_up)
 
     return 1 if failures else 0
+
+
+def _teardown(session, config: Config, keep_up: bool) -> None:
+    """Apply the configured teardown, reporting rather than raising if it fails.
+
+    Called from a `finally`, so raising here would replace whatever went wrong in the run with
+    a teardown error and hide the original cause. A teardown that fails is reported loudly
+    instead, since the resources are still billing and someone has to deal with them.
+
+    Args:
+        session: A boto3 session for the configured profile and region.
+        config: The harness config.
+        keep_up: Skip teardown, leaving the warehouses running for the next run.
+    """
+    if keep_up:
+        print('lifecycle  left running, --keep-up was given')
+        return
+
+    try:
+        deploy.teardown(session, config)
+    except Exception as e:
+        print(
+            f'lifecycle  TEARDOWN FAILED: {e}\n'
+            f'lifecycle  the warehouses are still running and still billing. Run '
+            f'"python -m e2e_tests.run pause" or "down" by hand.',
+            file=sys.stderr,
+        )
 
 
 def main(argv: list[str] | None = None) -> int:
