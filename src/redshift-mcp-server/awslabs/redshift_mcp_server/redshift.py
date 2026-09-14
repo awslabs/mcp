@@ -61,6 +61,10 @@ def _sql_identifier(value: str) -> str:
 # ClientError codes that indicate missing IAM permissions.
 _ACCESS_DENIED = {'AccessDeniedException', 'UnauthorizedAccess', 'AccessDenied'}
 
+# botocore's name for the batch call, as it appears on ClientError.operation_name. Used to tell
+# a denial of the batch action from a denial of the two calls that settle and read it.
+_BATCH_OPERATION = 'BatchExecuteStatement'
+
 # Statement statuses the Data API does not move on from.
 _TERMINAL_STATUSES = frozenset({'FINISHED', 'FAILED', 'ABORTED'})
 
@@ -287,26 +291,49 @@ class RedshiftTransactionManager:
         """
         self._transactions: dict[str, dict] = {}
         self._locks: dict[str, asyncio.Lock] = {}
+        self._generations: dict[str, int] = {}
         self._max_open_per_target = max_open_per_target
 
-    def lock(self, key: str) -> asyncio.Lock:
-        """Get or create the lock that serializes work on one transaction's session.
+    def claim(self, key: str) -> tuple[asyncio.Lock, int]:
+        """Get the lock that serializes one transaction, and the generation to check after.
 
         A SessionId is strictly serial: a second statement submitted while one is in flight
-        is refused at submit, so every use of a session has to hold this.
+        is refused at submit, so every use of a session has to hold this lock.
+
+        The generation exists because acquiring the lock is an await, and the name can change
+        hands across it. A caller queued behind the holder would otherwise wake to find a
+        different transaction under the same name and add its statement to that one. Capture
+        the generation here, and pass it to `assert_current` once the lock is held.
 
         Args:
             key: The transaction key to lock on.
 
         Returns:
-            The lock for that transaction, created on first use.
+            The lock for that name, created on first use, and the generation it was taken at.
         """
         # No await between the get and the set, so lazy creation cannot interleave.
         existing = self._locks.get(key)
         if existing is None:
             existing = asyncio.Lock()
             self._locks[key] = existing
-        return existing
+        return existing, self._generations.get(key, 0)
+
+    def assert_current(self, key: str, generation: int, name: str) -> None:
+        """Refuse to act on a name that changed hands while the lock was being acquired.
+
+        Args:
+            key: The transaction key.
+            generation: The generation returned by `claim` before the await.
+            name: The caller's name for the transaction, for the error message.
+
+        Raises:
+            ToolError: If the name was closed, or closed and reopened, in the meantime.
+        """
+        if self._generations.get(key, 0) != generation:
+            raise ToolError(
+                f'Transaction {name!r} closed while this statement was waiting for it. '
+                f'Nothing ran. Open it again if the work still applies.'
+            )
 
     def reserve(self, key: str, target: str, name: str) -> None:
         """Claim a name before opening its transaction.
@@ -333,6 +360,7 @@ class RedshiftTransactionManager:
             if self._max_open_per_target is not None
             else max_open_transactions_per_target()
         )
+        self._reap_expired(target)
         open_count = sum(1 for entry in self._transactions.values() if entry['target'] == target)
         if open_count >= cap:
             raise ToolError(
@@ -340,7 +368,43 @@ class RedshiftTransactionManager:
                 f'opening another, or raise MAX_OPEN_TRANSACTIONS_PER_TARGET.'
             )
 
-        self._transactions[key] = {'target': target, 'session_id': None}
+        self._transactions[key] = {
+            'target': target,
+            'session_id': None,
+            'touched_at': time.monotonic(),
+        }
+
+    def _reap_expired(self, target: str) -> None:
+        """Drop entries whose session the service has already ended.
+
+        Redshift ends a session left idle for SESSION_KEEPALIVE seconds and says nothing about
+        it. Without this, a caller who opens transactions and walks away holds the target's
+        cap against everyone else until each dead name is touched and found gone.
+
+        Args:
+            target: The cluster and database whose entries to check.
+        """
+        keepalive = session_keepalive()
+        now = time.monotonic()
+        expired = [
+            key
+            for key, entry in self._transactions.items()
+            if entry['target'] == target and now - entry['touched_at'] > keepalive
+        ]
+
+        for key in expired:
+            logger.info(f'Reaped transaction {key}: idle past SESSION_KEEPALIVE={keepalive}s')
+            self.forget(key)
+
+    def touch(self, key: str) -> None:
+        """Restart the idle clock on a transaction that was just used.
+
+        Args:
+            key: The transaction key that just ran a statement.
+        """
+        entry = self._transactions.get(key)
+        if entry is not None:
+            entry['touched_at'] = time.monotonic()
 
     def attach(self, key: str, session_id: str) -> None:
         """Record the session the Data API minted for a claimed transaction.
@@ -376,12 +440,16 @@ class RedshiftTransactionManager:
     def forget(self, key: str) -> None:
         """Drop a transaction, whether it closed cleanly or was lost.
 
+        The lock is kept. A caller may already be queued on it, and replacing it would leave
+        that caller holding a lock nobody else respects. Bumping the generation is what tells
+        it the name it waited for is gone.
+
         Args:
             key: The transaction key to drop.
         """
         if self._transactions.pop(key, None) is not None:
             logger.info(f'Closed transaction {key}')
-        self._locks.pop(key, None)
+        self._generations[key] = self._generations.get(key, 0) + 1
 
 
 async def _execute_batch_for_statement(
@@ -390,6 +458,7 @@ async def _execute_batch_for_statement(
     database_name: str,
     sqls: list[str],
     caller_index: int | None,
+    session_sink: list[str] | None = None,
     parameters: list[dict] | None = None,
     session_id: str | None = None,
     session_keepalive: int | None = None,
@@ -403,6 +472,8 @@ async def _execute_batch_for_statement(
         sqls: The statements to run, in order, on one connection.
         caller_index: Index of the caller's statement in `sqls`, or None when the batch
             carries none of the caller's SQL, as a bare COMMIT does.
+        session_sink: Appended with the session id as soon as one is minted, so a caller can
+            end it even when the batch then fails and never returns it.
         parameters: Optional list of parameter dictionaries with 'name' and 'value' keys.
         session_id: Session to run on, for a statement inside a transaction.
         session_keepalive: Idle timeout to mint a session with, when opening a transaction.
@@ -419,6 +490,7 @@ async def _execute_batch_for_statement(
         cluster_identifier=cluster_identifier,
         database_name=database_name,
         sqls=sqls,
+        session_sink=session_sink,
         parameters=parameters,
         session_id=session_id,
         session_keepalive=session_keepalive,
@@ -596,7 +668,14 @@ async def _begin_transaction(
         caller_index = len(sqls)
         sqls.append(sql)
 
-    async with transaction_manager.lock(key):
+    lock, generation = transaction_manager.claim(key)
+    # A batch that mints a session and then fails leaves that session alive and holding an
+    # aborted transaction. The id never reaches the return value in that case, so it is
+    # collected here and rolled back below.
+    opened_session: list[str] = []
+
+    async with lock:
+        transaction_manager.assert_current(key, generation, name)
         try:
             results_response, query_id, session_id = await _execute_batch_for_statement(
                 cluster_info=cluster_info,
@@ -604,12 +683,18 @@ async def _begin_transaction(
                 database_name=database_name,
                 sqls=sqls,
                 caller_index=caller_index,
+                session_sink=opened_session,
                 parameters=parameters,
                 session_keepalive=session_keepalive(),
             )
         except Exception as e:
-            # The transaction never opened, or opened and then failed, in which case the
-            # session dies with the batch. Either way the name must not linger.
+            # The transaction never opened, or opened and then failed. Either way the name
+            # must not linger, and a session that did get minted has to be ended rather than
+            # left to idle out holding an aborted transaction.
+            if opened_session:
+                await _rollback_lost_transaction(
+                    cluster_info, cluster_identifier, database_name, opened_session[0]
+                )
             transaction_manager.forget(key)
             if isinstance(e, ClientError) and _is_no_batch(e):
                 _latch_no_batch(e)
@@ -676,7 +761,9 @@ async def _execute_statement_in_transaction(
     if closer is not None:
         sqls.append(closer)
 
-    async with transaction_manager.lock(key):
+    lock, generation = transaction_manager.claim(key)
+    async with lock:
+        transaction_manager.assert_current(key, generation, name)
         session_id = transaction_manager.session_id(key, name)
 
         try:
@@ -719,6 +806,9 @@ async def _execute_statement_in_transaction(
 
         if closer is not None:
             transaction_manager.forget(key)
+        else:
+            # Still open, and just used, so its idle clock starts again from here.
+            transaction_manager.touch(key)
 
     return results_response, query_id
 
@@ -837,17 +927,24 @@ async def _settle_statement(
 def _is_no_batch(error: ClientError) -> bool:
     """Report whether the error means BatchExecuteStatement itself is denied.
 
-    Only the action being denied selects the compatibility path. A cluster the credentials
-    cannot reach answers ValidationException instead, so the two do not collide and the
-    error code alone is enough to tell them apart.
+    The operation is checked as well as the code, because the callers wrap the whole batch
+    flow: the submit, the DescribeStatement that settles it, and the GetStatementResult that
+    reads it. A denial on either of those two is not something this path can absorb - it
+    needs both itself - so treating it as a denied batch would latch the fallback, refuse
+    writes and transactions, and still fail on the very next call.
+
+    A cluster the credentials cannot reach answers ValidationException rather than a denial,
+    so that case does not reach here at all.
 
     Args:
-        error: The botocore error raised at submit.
+        error: The botocore error raised by one of the batch flow's calls.
 
     Returns:
-        True when the batch action is denied to these credentials.
+        True when the batch action, specifically, is denied to these credentials.
     """
-    return error.response.get('Error', {}).get('Code') in _ACCESS_DENIED
+    if error.response.get('Error', {}).get('Code') not in _ACCESS_DENIED:
+        return False
+    return error.operation_name == _BATCH_OPERATION
 
 
 def _no_batch_active() -> bool:
@@ -971,6 +1068,7 @@ async def _execute_batch(
     cluster_identifier: str,
     database_name: str,
     sqls: list[str],
+    session_sink: list[str] | None = None,
     parameters: list[dict] | None = None,
     session_id: str | None = None,
     session_keepalive: int | None = None,
@@ -989,6 +1087,8 @@ async def _execute_batch(
         cluster_identifier: The cluster identifier.
         database_name: The database name.
         sqls: The statements to run, in order, on one connection.
+        session_sink: Appended with the session id as soon as one is minted, so a caller can
+            end it even when the batch then fails and never returns it.
         parameters: Optional list of parameter dictionaries with 'name' and 'value' keys.
         session_id: Run on this existing session instead of a fresh connection.
         session_keepalive: Mint a session with this idle timeout, in seconds. Re-sent on
@@ -1042,6 +1142,11 @@ async def _execute_batch(
         data_client.batch_execute_statement, **request_params, **long_poll_params
     )
     statement_id = response['Id']
+
+    if session_sink is not None and response.get('SessionId'):
+        # Recorded before settling, because a batch that mints a session and then fails still
+        # leaves that session alive for its keepalive. The caller needs the id to end it.
+        session_sink.append(response['SessionId'])
 
     logger.debug(f'Executed batch {statement_id} of {len(sqls)} statements')
 

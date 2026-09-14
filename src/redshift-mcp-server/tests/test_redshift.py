@@ -22,6 +22,7 @@ from awslabs.redshift_mcp_server import redshift as redshift_module
 from awslabs.redshift_mcp_server.consts import (
     MAX_SQL_LEN,
     QUERY_LONG_POLL,
+    SESSION_KEEPALIVE_MAX,
 )
 from awslabs.redshift_mcp_server.models import RedshiftCluster
 from awslabs.redshift_mcp_server.redshift import (
@@ -30,6 +31,7 @@ from awslabs.redshift_mcp_server.redshift import (
     RedshiftTransactionManager,
     _begin_transaction,
     _execute_batch,
+    _execute_batch_for_statement,
     _execute_standalone_statement,
     _execute_statement_fallback_no_batch,
     _execute_statement_in_transaction,
@@ -653,6 +655,33 @@ class TestExecuteBatch:
             return_value=mock_data_client,
         )
         return mock_data_client
+
+    @pytest.mark.asyncio
+    async def test_a_minted_session_is_reported_before_the_batch_settles(self, mocker):
+        """A batch that mints a session and then fails still leaves that session alive.
+
+        The id is recorded at submit rather than on return, so the caller can end a session
+        belonging to a transaction that never opened.
+        """
+        self._data_client(
+            mocker,
+            submit={'Id': 'batch-id', 'SessionId': 'session-1'},
+            describes=[_fake_batch(['FINISHED', 'FAILED'])],
+        )
+        opened_session: list[str] = []
+
+        with pytest.raises(ToolError, match='Statement failed'):
+            await _execute_batch_for_statement(
+                _fake_cluster(),
+                'test-cluster',
+                'test-db',
+                [_APP_NAME_SQL, 'BEGIN'],
+                caller_index=1,
+                session_sink=opened_session,
+                session_keepalive=60,
+            )
+
+        assert opened_session == ['session-1']
 
     @pytest.mark.asyncio
     async def test_batch_runs_with_auto_commit_and_no_data_api_transaction(self, mocker):
@@ -1873,8 +1902,62 @@ class TestRedshiftTransactionManager:
         """Two statements in one transaction must serialize; two transactions must not."""
         manager = self._manager()
 
-        assert manager.lock('a') is manager.lock('a')
-        assert manager.lock('a') is not manager.lock('b')
+        assert manager.claim('a')[0] is manager.claim('a')[0]
+        assert manager.claim('a')[0] is not manager.claim('b')[0]
+
+    def test_a_name_that_changed_hands_while_waiting_is_refused(self):
+        """A caller queued on the lock must not land in whatever transaction now holds the name.
+
+        Acquiring the lock is an await, so the name can be closed and reopened across it. The
+        lock is deliberately not replaced on close, since a waiter already holds a reference to
+        it; the generation is what tells that waiter the transaction it queued for is gone.
+        """
+        manager = self._manager()
+        manager.reserve('key', 'target', 'load')
+        manager.attach('key', 'session-1')
+
+        lock, generation = manager.claim('key')
+
+        # Closed and reopened under the same name, as another call would do.
+        manager.forget('key')
+        manager.reserve('key', 'target', 'load')
+        manager.attach('key', 'session-2')
+
+        assert manager.claim('key')[0] is lock, 'the lock must survive the close'
+        with pytest.raises(ToolError, match='closed while this statement was waiting'):
+            manager.assert_current('key', generation, 'load')
+
+    def test_a_transaction_idle_past_its_keepalive_stops_holding_the_cap(self):
+        """Redshift ends an idle session silently, so its entry must not hold the cap forever.
+
+        Without reaping, a caller who opens transactions and walks away blocks the target for
+        everyone until each dead name is touched and found gone.
+        """
+        manager = self._manager(max_open_per_target=1)
+        manager.reserve('stale', 'target', 'abandoned')
+        manager.attach('stale', 'session-1')
+
+        # Older than any keepalive the server accepts, as an abandoned transaction becomes.
+        manager._transactions['stale']['touched_at'] -= SESSION_KEEPALIVE_MAX + 1
+
+        # Reserving at all is the assertion: the cap is 1, so this only fits if the stale
+        # entry was reaped rather than counted.
+        manager.reserve('fresh', 'target', 'wanted')
+
+        with pytest.raises(ToolError, match='No open transaction'):
+            manager.session_id('stale', 'abandoned')
+
+    def test_using_a_transaction_restarts_its_idle_clock(self):
+        """The keepalive counts idle time, so a transaction in use must not be reaped."""
+        manager = self._manager(max_open_per_target=1)
+        manager.reserve('key', 'target', 'load')
+        manager.attach('key', 'session-1')
+        manager._transactions['key']['touched_at'] -= SESSION_KEEPALIVE_MAX + 1
+
+        manager.touch('key')
+
+        with pytest.raises(ToolError, match='Too many open transactions'):
+            manager.reserve('other', 'target', 'second')
 
     def test_a_reserved_and_attached_transaction_reports_its_session(self):
         """The session is what every later statement in the transaction runs on."""
@@ -2391,6 +2474,30 @@ class TestBatchDeniedDetection:
 
         assert _is_no_batch(error) is False
 
+    def test_a_denial_of_another_call_in_the_flow_is_not_the_signal(self):
+        """The callers wrap the whole batch flow, so the operation has to be checked too.
+
+        A batch is submitted, settled with DescribeStatement, then read with
+        GetStatementResult, and one `except ClientError` covers all three. The compatibility
+        path needs the latter two itself, so latching on a denial of either would refuse
+        writes and transactions and then fail anyway on the next call.
+        """
+        for operation in ('DescribeStatement', 'GetStatementResult'):
+            error = ClientError(
+                {
+                    'Error': {
+                        'Code': 'AccessDeniedException',
+                        'Message': (
+                            'User: arn:aws:sts::1:assumed-role/r/s is not authorized to '
+                            f'perform: redshift-data:{operation}'
+                        ),
+                    }
+                },
+                operation,
+            )
+
+            assert _is_no_batch(error) is False, operation
+
 
 class TestBatchLatch:
     """The latch holds the compatibility path without paying a denied call per statement."""
@@ -2663,6 +2770,34 @@ class TestTransactionsNeedTheBatch:
 
         assert _no_batch_active() is True
         # The name is free again, so a later call under it reports it as unknown.
+        with pytest.raises(ToolError, match='No open transaction'):
+            redshift_module.transaction_manager.session_id('test-cluster:test-db:load', 'load')
+
+    @pytest.mark.asyncio
+    async def test_a_session_minted_by_a_failed_open_is_rolled_back(self, mocker):
+        """A transaction that opened and then failed must not leave its session holding it.
+
+        Dropping the name alone would leave an aborted transaction alive on a session nobody
+        can reach, until its keepalive expires, and outside the cap the whole time.
+        """
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._resolve_cluster', return_value=_fake_cluster()
+        )
+        rollback = mocker.patch('awslabs.redshift_mcp_server.redshift._rollback_lost_transaction')
+
+        async def mint_then_fail(*args, **kwargs):
+            kwargs['session_sink'].append('session-1')
+            raise ToolError('Statement failed: ERROR: syntax error')
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift._execute_batch_for_statement',
+            side_effect=mint_then_fail,
+        )
+
+        with pytest.raises(ToolError, match='Statement failed'):
+            await _begin_transaction('test-cluster', 'test-db', 'load', 'SELECT bad syntax')
+
+        assert rollback.call_args[0][3] == 'session-1'
         with pytest.raises(ToolError, match='No open transaction'):
             redshift_module.transaction_manager.session_id('test-cluster:test-db:load', 'load')
 
