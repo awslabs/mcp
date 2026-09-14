@@ -21,6 +21,26 @@ from typing import Any, Dict, List, Sequence
 from urllib.parse import quote_plus, urljoin
 
 
+# An unresolved cross-reference leaves an href with no filename, e.g. './.html#anchor'.
+_EMPTY_TARGET_FILENAMES = frozenset({'.html', '.htm'})
+
+
+def has_empty_link_target(href: str) -> bool:
+    """Report whether an href points at a path with no filename."""
+    path = href.split('#', 1)[0].split('?', 1)[0].strip()
+    if not path:
+        return False  # fragment-only link; resolves to the current page
+    return path.rsplit('/', 1)[-1].casefold() in _EMPTY_TARGET_FILENAMES
+
+
+def _unwrap_broken_links(root) -> None:
+    """Replace links whose target has no filename with their own text."""
+    for anchor in root.find_all('a'):
+        href = anchor.get('href')
+        if isinstance(href, str) and has_empty_link_target(href):
+            anchor.unwrap()
+
+
 def extract_content_from_html(html: str) -> str:
     """Extract and convert HTML content to Markdown format.
 
@@ -86,6 +106,8 @@ def extract_content_from_html(html: str) -> str:
             for element in main_content.select(selector):
                 element.decompose()
 
+        _unwrap_broken_links(main_content)
+
         # Define tags to strip - these are elements we don't want in the output
         tags_to_strip = [
             'script',
@@ -128,8 +150,8 @@ def extract_content_from_html(html: str) -> str:
         content = markdownify.markdownify(
             str(main_content),
             heading_style=markdownify.ATX,
-            autolinks=True,
-            default_title=True,
+            autolinks=False,  # markdownify gates this on default_title; keep [url](url)
+            default_title=False,  # would repeat the href as the title: [text](url "url")
             escape_asterisks=True,
             escape_underscores=True,
             newline_style='SPACES',

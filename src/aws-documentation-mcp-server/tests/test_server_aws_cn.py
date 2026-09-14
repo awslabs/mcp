@@ -52,6 +52,7 @@ class TestReadDocumentationChina:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = '<html><body><h1>Test</h1><p>This is a test.</p></body></html>'
         mock_response.headers = {'content-type': 'text/html'}
 
@@ -122,6 +123,7 @@ class TestGetAvailableServices:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = '<html><body><h1>AWS Services in China</h1><p>Available services list.</p></body></html>'
         mock_response.headers = {'content-type': 'text/html'}
 
@@ -207,6 +209,7 @@ class TestGetAvailableServices:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = 'Plain text content'
         mock_response.headers = {'content-type': 'text/plain'}
 
@@ -252,6 +255,7 @@ class TestGetAvailableServices:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.history = []  # not a redirect
         mock_response.text = '<html><body><h1>AWS Services in China</h1><p>Available services list.</p></body></html>'
         mock_response.headers = {'content-type': 'text/html'}
 

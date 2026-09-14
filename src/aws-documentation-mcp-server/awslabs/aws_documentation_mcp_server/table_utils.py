@@ -14,9 +14,92 @@
 """Table parsing and filtering utilities for AWS Documentation MCP Server."""
 
 import re
+from awslabs.aws_documentation_mcp_server.util import has_empty_link_target
 from bs4 import BeautifulSoup, Tag
 from bs4.element import NavigableString
 from typing import Optional
+
+
+# Note, tip, warning and important callouts all carry these classes, on the block and on its title.
+_CALLOUT_CLASSES = ('awsdocs-note-title', 'awsdocs-note')
+_CALLOUT_TITLE_CLASS = 'awsdocs-note-title'
+_HEADING_TAGS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']
+
+
+def _in_callout(element: Tag) -> bool:
+    """Report whether an element belongs to a callout rather than to content."""
+    for candidate in (element, *element.parents):
+        classes = candidate.get('class') or [] if isinstance(candidate, Tag) else []
+        if any(cls in _CALLOUT_CLASSES for cls in classes):
+            return True
+    return False
+
+
+# Delimiting multi-value cells keeps the Nth value in one column aligned with the Nth in the next.
+_VALUE_DELIMITER = '; '
+_BREAK_MARKER = '\x00'  # placeholder for value boundaries; survives get_text(strip=True)
+# A callout inside a cell qualifies the value rather than adding one, so it joins with a space.
+_SOFT_MARKER = '\x01'
+_BREAK_TAGS = ['br', 'p', 'div', 'li', 'dt', 'dd', 'tr']
+
+
+# A callout boundary wins over any block boundary beside it: the callout qualifies the value it
+# follows rather than starting a new one.
+_ADJACENT_MARKERS = re.compile(
+    f'[{_BREAK_MARKER}\\s]*{_SOFT_MARKER}[{_BREAK_MARKER}{_SOFT_MARKER}\\s]*'
+)
+
+
+def _join_values(text: str) -> str:
+    """Join marker-separated values with '; ', dropping empty segments."""
+    absorbed = _ADJACENT_MARKERS.sub(_SOFT_MARKER, text)
+    segments = (_collapse_soft_breaks(segment) for segment in absorbed.split(_BREAK_MARKER))
+    return _VALUE_DELIMITER.join(segment for segment in segments if segment)
+
+
+def _collapse_soft_breaks(segment: str) -> str:
+    """Reduce soft boundaries and surrounding whitespace to single spaces."""
+    return ' '.join(segment.replace(_SOFT_MARKER, ' ').split())
+
+
+def _mark_breaks(cell: Tag) -> None:
+    """Insert boundary markers at <br /> and block-element edges inside a cell."""
+    for tag in cell.find_all(_BREAK_TAGS):
+        if not isinstance(tag, Tag):
+            continue
+        marker = _SOFT_MARKER if _in_callout(tag) else _BREAK_MARKER
+        if tag.name == 'br':
+            tag.replace_with(NavigableString(marker))
+        else:
+            tag.insert_before(NavigableString(marker))
+            tag.insert_after(NavigableString(marker))
+
+
+def _strip_callout_titles(cell: Tag) -> None:
+    """Remove 'Note' and 'Important' labels, which are chrome rather than cell content."""
+    for title in cell.find_all(class_=_CALLOUT_TITLE_CLASS):
+        if isinstance(title, Tag):
+            title.decompose()
+
+
+def _cell_text(cell: Tag) -> str:
+    """Extract cell text, joining multi-value cells with '; '."""
+    _strip_callout_titles(cell)
+    _mark_breaks(cell)
+    return _join_values(cell.get_text(strip=True))
+
+
+def _heading_text(heading: Tag) -> str:
+    """Extract heading text, dropping markers left behind by cell processing."""
+    return _join_values(heading.get_text(strip=True))
+
+
+def _nearest_heading(table: Tag) -> Optional[Tag]:
+    """Find the heading a table sits under, skipping callout titles."""
+    heading = table.find_previous(_HEADING_TAGS)
+    while isinstance(heading, Tag) and _in_callout(heading):
+        heading = heading.find_previous(_HEADING_TAGS)
+    return heading if isinstance(heading, Tag) else None
 
 
 def _safe_span(cell: Tag, attr: str) -> int:
@@ -98,7 +181,7 @@ def parse_html_tables(html: str, section_title: Optional[str] = None) -> Optiona
     for table, sub_heading in tables:
         table_data = _extract_table_data(table)
         if table_data and 'rows' in table_data:
-            table_data['table_heading'] = sub_heading.get_text(strip=True) if sub_heading else None
+            table_data['table_heading'] = _heading_text(sub_heading) if sub_heading else None
             parsed_tables.append(table_data)
 
     if not parsed_tables:
@@ -125,9 +208,8 @@ def _find_all_tables(soup: BeautifulSoup) -> Optional[dict]:
     for table in tables:
         table_data = _extract_table_data(table)
         if table_data and 'rows' in table_data:
-            # Find the nearest heading for this table
-            heading = table.find_previous(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
-            table_data['table_heading'] = heading.get_text(strip=True) if heading else None
+            heading = _nearest_heading(table)
+            table_data['table_heading'] = _heading_text(heading) if heading else None
             parsed_tables.append(table_data)
 
     if not parsed_tables:
@@ -139,7 +221,7 @@ def _find_all_tables(soup: BeautifulSoup) -> Optional[dict]:
 
     return {
         'tables': parsed_tables,
-        'detected_section': heading.get_text(strip=True) if heading else '(all tables)',
+        'detected_section': _heading_text(heading) if isinstance(heading, Tag) else '(all tables)',
     }
 
 
@@ -163,7 +245,7 @@ def _parse_multi_row_thead(header_rows: list[Tag]) -> list[str]:
             # Skip columns already filled by rowspan from above
             while col_idx < len(grid[row_idx]) and grid[row_idx][col_idx]:
                 col_idx += 1
-            text = cell.get_text(strip=True)
+            text = _cell_text(cell)
             colspan = _safe_span(cell, 'colspan')
             rowspan = _safe_span(cell, 'rowspan')
             for r in range(rowspan):
@@ -225,7 +307,7 @@ def _extract_table_data(table: Tag) -> Optional[dict]:
                 if not isinstance(th, Tag):
                     continue
                 colspan = _safe_span(th, 'colspan')
-                text = th.get_text(strip=True)
+                text = _cell_text(th)
                 for i in range(colspan):
                     headers.append(text if i == 0 else f'{text}_{i + 1}')
             headers = _deduplicate_headers(headers)
@@ -236,7 +318,7 @@ def _extract_table_data(table: Tag) -> Optional[dict]:
                 if not isinstance(cell, Tag):
                     continue
                 colspan = _safe_span(cell, 'colspan')
-                text = cell.get_text(strip=True)
+                text = _cell_text(cell)
                 for i in range(colspan):
                     headers.append(text if i == 0 else f'{text}_{i + 1}')
             headers = _deduplicate_headers(headers)
@@ -377,12 +459,14 @@ def _cell_to_text(cell: Tag) -> str:
     # Check if cell contains any links
     links = cell.find_all('a')
     if not links:
-        return cell.get_text(strip=True)
+        return _cell_text(cell)
 
     # Build text with markdown links
+    _strip_callout_titles(cell)
+    _mark_breaks(cell)
     parts: list[str] = []
     _extract_with_links(cell, parts)
-    return ' '.join(parts).strip()
+    return _join_values(' '.join(parts))
 
 
 def _extract_with_links(element: Tag, parts: list[str]) -> None:
@@ -395,8 +479,9 @@ def _extract_with_links(element: Tag, parts: list[str]) -> None:
         elif isinstance(child, Tag):
             if child.name == 'a':
                 href = str(child.get('href', ''))
-                text = child.get_text(strip=True)
-                if href and text:
+                # Join inside the link so markers never straddle the markdown syntax
+                text = _join_values(child.get_text(strip=True))
+                if href and text and not has_empty_link_target(href):
                     parts.append(f'[{text}]({href})')
                 elif text:
                     parts.append(text)
