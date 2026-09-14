@@ -102,6 +102,7 @@ from awslabs.aws_healthomics_mcp_server.tools.run_metrics import (
     list_run_metrics,
 )
 from awslabs.aws_healthomics_mcp_server.tools.run_timeline import generate_run_timeline
+from awslabs.aws_healthomics_mcp_server.tools.run_validation import validate_run_readiness
 from awslabs.aws_healthomics_mcp_server.tools.sequence_store_tools import (
     activate_read_sets,
     create_sequence_store,
@@ -169,6 +170,7 @@ This MCP server provides tools for creating, managing, and analyzing genomic wor
 - **ListAHOWorkflowVersions**: List versions of a workflow
 
 ### Workflow Execution
+- **ValidateAHORunReadiness**: Run pre-flight checks (workflow status, IAM role trust policy, output bucket region and writability, container accessibility, input existence) before starting a run
 - **StartAHORun**: Start a workflow run
 - **ListAHORuns**: List workflow runs
 - **GetAHORun**: Get details about a specific run
@@ -290,6 +292,7 @@ mcp.tool(name='CreateAHOWorkflowVersion')(create_workflow_version)
 mcp.tool(name='ListAHOWorkflowVersions')(list_workflow_versions)
 
 # Register workflow execution tools
+mcp.tool(name='ValidateAHORunReadiness')(validate_run_readiness)
 mcp.tool(name='StartAHORun')(start_run)
 mcp.tool(name='ListAHORuns')(list_runs)
 mcp.tool(name='GetAHORun')(get_run)
