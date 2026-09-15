@@ -76,7 +76,7 @@ async def find_ip_address(
     if not all_regions:
         try:
             response = ec2_client.describe_network_interfaces(
-                Filters=[{'Name': 'private-ip-address', 'Values': [ip_address]}]
+                Filters=[{'Name': 'addresses.private-ip-address', 'Values': [ip_address]}]
             )
 
             if response['NetworkInterfaces']:
@@ -107,7 +107,7 @@ async def find_ip_address(
             ec2_client = get_aws_client('ec2', region, profile_name)
             try:
                 response = ec2_client.describe_network_interfaces(
-                    Filters=[{'Name': 'private-ip-address', 'Values': [ip_address]}]
+                    Filters=[{'Name': 'addresses.private-ip-address', 'Values': [ip_address]}]
                 )
 
                 if response['NetworkInterfaces']:
