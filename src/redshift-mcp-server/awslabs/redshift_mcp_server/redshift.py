@@ -65,11 +65,12 @@ _ACCESS_DENIED = {'AccessDeniedException', 'UnauthorizedAccess', 'AccessDenied'}
 # a denial of the batch action from a denial of the two calls that settle and read it.
 _BATCH_OPERATION = 'BatchExecuteStatement'
 
-# Keepalive sent on the batch that closes a transaction, so its session drains in about a second
+# Keepalive sent on the batch that closes a transaction, so its session is released soon after
 # rather than idling for SESSION_KEEPALIVE with nothing left to run. The Data API has no close
 # operation, and omitting the parameter keeps the timeout the session already had, so a small
-# value is the only lever. It cannot cut a slow COMMIT short, since the timer counts idle time
-# from when the statement finishes. Zero mints no session at all, so it is not usable here.
+# value is the only lever; zero mints no session at all. Reaping runs on the Data API's own
+# schedule, so release lands tens of seconds after the close, not on the second. It cannot cut a
+# slow COMMIT short, since the timer counts idle time from when the statement finishes.
 _SESSION_DRAIN = 1
 
 # Statement statuses the Data API does not move on from.
