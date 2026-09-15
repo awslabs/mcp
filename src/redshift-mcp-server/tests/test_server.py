@@ -15,6 +15,9 @@
 """Tests for the Redshift MCP Server tools."""
 
 import pytest
+from awslabs.redshift_mcp_server.consts import (
+    VERBOSITY_LEVEL_STANDARD,
+)
 from awslabs.redshift_mcp_server.models import (
     QueryResult,
     RedshiftCluster,
@@ -66,6 +69,149 @@ async def test_tool_annotations():
         assert annotations.destructive_hint is False
         assert annotations.idempotent_hint is True
         assert annotations.open_world_hint is True
+
+
+# Each discovery tool with the parameters it publishes and what it takes to call it.
+DISCOVERY_TOOLS = {
+    'list_databases': {
+        'parameters': {'cluster_identifier', 'database_name', 'verbosity_level'},
+        'tool': list_databases_tool,
+        'patch': 'awslabs.redshift_mcp_server.server.discover_databases',
+        'args': ('test-cluster', 'dev'),
+        'model': RedshiftDatabase,
+        'values': lambda index: {
+            'database_name': f'db{index}',
+            'database_owner': 100,
+            'database_type': 'local',
+            'database_acl': 'rw',
+            'parameters': 'none',
+            'database_isolation_level': 'Serializable',
+        },
+    },
+    'list_schemas': {
+        'parameters': {'cluster_identifier', 'schema_database_name', 'verbosity_level'},
+        'tool': list_schemas_tool,
+        'patch': 'awslabs.redshift_mcp_server.server.discover_schemas',
+        'args': ('test-cluster', 'dev'),
+        'model': RedshiftSchema,
+        'values': lambda index: {
+            'database_name': 'dev',
+            'schema_name': f'sc{index}',
+            'schema_owner': 100,
+            'schema_type': 'local',
+            'schema_acl': 'rw',
+            'source_database': 'src',
+            'schema_option': 'opt',
+        },
+    },
+    'list_tables': {
+        'parameters': {
+            'cluster_identifier',
+            'table_database_name',
+            'table_schema_name',
+            'verbosity_level',
+        },
+        'tool': list_tables_tool,
+        'patch': 'awslabs.redshift_mcp_server.server.discover_tables',
+        'args': ('test-cluster', 'dev', 'public'),
+        'model': RedshiftTable,
+        'values': lambda index: {
+            'database_name': 'dev',
+            'schema_name': 'public',
+            'table_name': f'tb{index}',
+            'table_acl': 'rw',
+            'table_type': 'TABLE',
+            'remarks': 'note',
+        },
+    },
+    'list_columns': {
+        'parameters': {
+            'cluster_identifier',
+            'column_database_name',
+            'column_schema_name',
+            'column_table_name',
+            'verbosity_level',
+        },
+        'tool': list_columns_tool,
+        'patch': 'awslabs.redshift_mcp_server.server.discover_columns',
+        'args': ('test-cluster', 'dev', 'public', 'orders'),
+        'model': RedshiftColumn,
+        'values': lambda index: {
+            'database_name': 'dev',
+            'schema_name': 'public',
+            'table_name': 'orders',
+            'column_name': f'col{index}',
+            'ordinal_position': index,
+            'column_default': '0',
+            'is_nullable': 'NO',
+            'data_type': 'integer',
+            'character_maximum_length': 255,
+            'numeric_precision': 10,
+            'numeric_scale': 0,
+            'remarks': 'note',
+        },
+    },
+}
+
+
+def _discovery_items(spec, count):
+    """Build a discover_* return value of count items."""
+    return [spec['model'].model_validate(spec['values'](i)) for i in range(1, count + 1)]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('tool_name', list(DISCOVERY_TOOLS))
+async def test_discovery_tool_input_schema(tool_name):
+    """Each discovery tool publishes exactly the parameters it accepts.
+
+    The full parameter set is written out here rather than checking a few names, so a parameter
+    added later fails this test until it is added here too. That makes any change to what a
+    caller can pass a deliberate one.
+    """
+    tools = {tool.name: tool for tool in await mcp.list_tools()}
+    properties = tools[tool_name].input_schema['properties']
+
+    assert set(properties) == DISCOVERY_TOOLS[tool_name]['parameters']
+
+    verbosity = properties['verbosity_level']
+    assert verbosity['default'] == 'standard'
+    assert {'low', 'standard'} == {
+        value for option in verbosity['anyOf'] for value in option.get('enum', [])
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('tool_name', list(DISCOVERY_TOOLS))
+async def test_discovery_tool_returns_a_plain_list_of_models(mocker, tool_name):
+    """A discovery tool returns every item it found as a plain list of its own model.
+
+    A list rather than an envelope, and typed items rather than dictionaries, so the
+    published output schema keeps describing the fields.
+    """
+    spec = DISCOVERY_TOOLS[tool_name]
+    mocker.patch(spec['patch'], return_value=_discovery_items(spec, 3))
+
+    result = await spec['tool'](Context(), *spec['args'])
+
+    assert isinstance(result, list)
+    assert len(result) == 3
+    assert all(isinstance(item, spec['model']) for item in result)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('level', [None, 'low', 'standard'])
+@pytest.mark.parametrize('tool_name', list(DISCOVERY_TOOLS))
+async def test_discovery_tool_applies_the_requested_level(mocker, tool_name, level):
+    """Each item carries exactly the level's fields; omitting the level means standard."""
+    spec = DISCOVERY_TOOLS[tool_name]
+    mocker.patch(spec['patch'], return_value=_discovery_items(spec, 1))
+    expected_level = level or VERBOSITY_LEVEL_STANDARD
+
+    result = await spec['tool'](Context(), *spec['args'], verbosity_level=level)
+
+    assert set(result[0].model_dump()) == set(
+        spec['model'].fields_at_verbosity_level(expected_level)
+    )
 
 
 class TestListClustersTool:
@@ -217,7 +363,7 @@ class TestListDatabasesTool:
 
         # Verify return type
         assert isinstance(result, list)
-        assert len(result) == 0
+        assert result == []
 
     @pytest.mark.asyncio
     async def test_list_databases_tool_error(self, mocker):
@@ -292,7 +438,7 @@ class TestListSchemasTool:
 
         # Verify return type
         assert isinstance(result, list)
-        assert len(result) == 0
+        assert result == []
 
     @pytest.mark.asyncio
     async def test_list_schemas_tool_error(self, mocker):
@@ -365,7 +511,7 @@ class TestListTablesTool:
 
         # Verify return type
         assert isinstance(result, list)
-        assert len(result) == 0
+        assert result == []
 
     @pytest.mark.asyncio
     async def test_list_tables_tool_error(self, mocker):
@@ -452,7 +598,7 @@ class TestListColumnsTool:
 
         # Verify return type
         assert isinstance(result, list)
-        assert len(result) == 0
+        assert result == []
 
     @pytest.mark.asyncio
     async def test_list_columns_tool_error(self, mocker):

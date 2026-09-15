@@ -14,12 +14,27 @@
 
 """Redshift MCP Server constants."""
 
+from typing import Literal
+
+
 # System
+
+# Verbosity levels for the discovery tools, least to most detail. A field marked with a
+# level is returned at that level and at every level after it.
+VERBOSITY_LEVEL_LOW = 'low'
+VERBOSITY_LEVEL_STANDARD = 'standard'
+VERBOSITY_LEVELS = (VERBOSITY_LEVEL_LOW, VERBOSITY_LEVEL_STANDARD)
+VERBOSITY_LEVEL_DEFAULT = VERBOSITY_LEVEL_STANDARD
+# The tools' parameter type. Literal takes only literals, so a new level goes both in
+# VERBOSITY_LEVELS and here; a test holds the two to the same values in the same order.
+VerbosityLevel = Literal['low', 'standard']
+
 CLIENT_CONNECT_TIMEOUT = 60
 CLIENT_READ_TIMEOUT = 600
 CLIENT_RETRIES = {'max_attempts': 5, 'mode': 'adaptive'}
 CLIENT_USER_AGENT_NAME = 'awslabs/mcp/redshift-mcp-server'
 DEFAULT_LOG_LEVEL = 'WARNING'
+MAX_RESULT_ROWS_DEFAULT = 1000
 QUERY_TIMEOUT = 3600
 QUERY_POLL_INTERVAL = 1
 QUERY_LONG_POLL = 30
