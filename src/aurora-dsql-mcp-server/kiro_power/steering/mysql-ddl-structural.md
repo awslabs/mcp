@@ -1,6 +1,8 @@
 # MySQL to DSQL: Structural Changes
 
-Part of [MySQL to DSQL DDL Migration](ddl-operations.md). See [Common Verify & Swap Pattern](ddl-operations.md#common-verify--swap-pattern) for the shared migration end-pattern.
+Part of [MySQL to DSQL DDL Migration](ddl-operations.md). For table recreation, read
+[Table Recreation](../ddl-migrations/overview.md#table-recreation), then follow the
+[Common Verify & Swap Pattern](ddl-operations.md#common-verify--swap-pattern).
 
 ---
 
@@ -13,11 +15,24 @@ ALTER TABLE table_name ADD CONSTRAINT constraint_name UNIQUE (column_name);
 ALTER TABLE table_name ADD CONSTRAINT constraint_name CHECK (condition);
 ALTER TABLE table_name DROP CONSTRAINT constraint_name;
 -- or MySQL-specific:
+ALTER TABLE table_name DROP FOREIGN KEY foreign_key_name;
 ALTER TABLE table_name DROP INDEX index_name;
 ALTER TABLE table_name DROP CHECK constraint_name;
 ```
 
-**DSQL:** MUST use **Table Recreation Pattern**.
+**DSQL direct mappings:**
+
+- Add a foreign key with `NOT VALID`, validate it asynchronously, and translate MySQL
+  `DROP FOREIGN KEY` to `DROP CONSTRAINT`. See [Foreign Key Constraints](../foreign-keys.md).
+- Add a CHECK constraint with `NOT VALID`, then validate it asynchronously. See
+  [Constraint Operations](../ddl-migrations/constraint-operations.md#add-check-constraint-preferred).
+- Add a UNIQUE constraint through a completed `CREATE UNIQUE INDEX ASYNC`, then
+  `ADD CONSTRAINT ... UNIQUE USING INDEX`. See
+  [Constraint Operations](../ddl-migrations/constraint-operations.md#add-unique-constraint).
+- Drop CHECK, UNIQUE, and foreign-key constraints directly with `DROP CONSTRAINT`. See
+  [Constraint Operations](../ddl-migrations/constraint-operations.md#drop-constraint).
+- Translate MySQL `ALTER TABLE table_name DROP INDEX index_name` to
+  `DROP INDEX index_name`.
 
 ### Pre-Migration Validation (for ADD CONSTRAINT)
 
@@ -38,70 +53,6 @@ readonly_query(
 )
 -- MUST ABORT if invalid_count > 0
 ```
-
-### Migration Steps (ADD CONSTRAINT)
-
-#### Step 1: Create new table with the constraint
-
-```sql
-transact([
-  "CREATE TABLE target_table_new (
-     id UUID PRIMARY KEY,
-     email VARCHAR(255) UNIQUE,  -- Added UNIQUE constraint
-     age INTEGER CHECK (age >= 0),  -- Added CHECK constraint
-     other_column TEXT
-   )"
-])
-```
-
-#### Step 2: Copy data
-
-```sql
-transact([
-  "INSERT INTO target_table_new (id, email, age, other_column)
-   SELECT id, email, age, other_column
-   FROM target_table"
-])
-```
-
-**Step 3: Verify and swap** (see [Common Pattern](ddl-operations.md#common-verify--swap-pattern))
-
-### Migration Steps (DROP CONSTRAINT)
-
-#### Step 1: Identify existing constraints
-
-```sql
-readonly_query(
-  "SELECT constraint_name, constraint_type
-   FROM information_schema.table_constraints
-   WHERE table_name = 'target_table'
-   AND constraint_type IN ('UNIQUE', 'CHECK')"
-)
-```
-
-#### Step 2: Create new table without the constraint
-
-```sql
-transact([
-  "CREATE TABLE target_table_new (
-     id UUID PRIMARY KEY,
-     email VARCHAR(255),  -- Removed UNIQUE constraint
-     other_column TEXT
-   )"
-])
-```
-
-#### Step 3: Copy data
-
-```sql
-transact([
-  "INSERT INTO target_table_new (id, email, other_column)
-   SELECT id, email, other_column
-   FROM target_table"
-])
-```
-
-**Step 4: Verify and swap** (see [Common Pattern](ddl-operations.md#common-verify--swap-pattern))
 
 ---
 
@@ -135,6 +86,12 @@ readonly_query(
 -- MUST ABORT if null_count > 0
 ```
 
+Review dependencies before starting
+[Table Recreation](../ddl-migrations/overview.md#table-recreation).
+For every retained FK that references the current primary-key columns, the replacement **MUST**
+keep those columns covered by a `PRIMARY KEY` or `UNIQUE` constraint. Obtain explicit approval
+before removing a relationship; **MUST** abort when a retained FK cannot be restored.
+
 ### Migration Steps
 
 #### Step 1: Create new table with new primary key
@@ -143,7 +100,7 @@ readonly_query(
 transact([
   "CREATE TABLE target_table_new (
      new_pk_column UUID PRIMARY KEY,  -- New PK
-     old_pk_column VARCHAR(255),      -- Demoted to regular column
+     old_pk_column VARCHAR(255) UNIQUE, -- Retain when inbound FKs reference the old key
      other_column TEXT
    )"
 ])

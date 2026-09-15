@@ -95,6 +95,12 @@ from awslabs.aws_healthomics_mcp_server.tools.run_group import (
     list_run_groups,
     update_run_group,
 )
+from awslabs.aws_healthomics_mcp_server.tools.run_metrics import (
+    compare_run_metrics,
+    get_run_metrics,
+    get_workflow_metrics,
+    list_run_metrics,
+)
 from awslabs.aws_healthomics_mcp_server.tools.run_timeline import generate_run_timeline
 from awslabs.aws_healthomics_mcp_server.tools.sequence_store_tools import (
     activate_read_sets,
@@ -197,6 +203,12 @@ This MCP server provides tools for creating, managing, and analyzing genomic wor
 - **GetAHOTaskLogs**: Retrieve logs for specific workflow tasks
 - **AnalyzeAHORunPerformance**: Analyze workflow run performance and resource utilization to provide optimization recommendations
 - **GenerateAHORunTimeline**: Generate a Gantt-style SVG timeline visualization showing task execution phases and parallelism
+
+### Vended Metrics (fine-grained resource utilization)
+- **ListAHORunMetrics**: List which vended metric series (CPU, memory, GPU, network, filesystem I/O, scratch storage) actually exist for a run — use first to detect availability and per-configuration gaps
+- **GetAHORunMetrics**: Retrieve vended metric time series and summary statistics for a run, with task/direction filtering for point queries, aggregation, trending, and graphing
+- **CompareAHORunMetrics**: Compare two runs' metrics aligned by task name to explain wall-clock differences
+- **GetAHOWorkflowMetrics**: Aggregate metrics across a workflow's recent runs into per-task distributions (p50/p90/max) for right-sizing and regression detection
 
 ### Troubleshooting
 - **DiagnoseAHORunFailure**: Diagnose a failed workflow run
@@ -312,6 +324,12 @@ mcp.tool(name='GetAHORunEngineLogs')(get_run_engine_logs)
 mcp.tool(name='GetAHOTaskLogs')(get_task_logs)
 mcp.tool(name='AnalyzeAHORunPerformance')(analyze_run_performance)
 mcp.tool(name='GenerateAHORunTimeline')(generate_run_timeline)
+
+# Register vended metrics tools
+mcp.tool(name='ListAHORunMetrics')(list_run_metrics)
+mcp.tool(name='GetAHORunMetrics')(get_run_metrics)
+mcp.tool(name='CompareAHORunMetrics')(compare_run_metrics)
+mcp.tool(name='GetAHOWorkflowMetrics')(get_workflow_metrics)
 
 # Register troubleshooting tools
 mcp.tool(name='DiagnoseAHORunFailure')(diagnose_run_failure)

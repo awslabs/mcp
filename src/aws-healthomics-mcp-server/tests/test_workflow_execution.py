@@ -2613,3 +2613,108 @@ class TestGetRunPassesScratchStorageModeThrough:
         else:
             # When the API response omits scratchStorageMode, the result omits it entirely.
             assert 'scratchStorageMode' not in result
+
+
+# Feature: run-log-level, Property: start_run forwards logLevel only when provided
+class TestStartRunLogLevel:
+    """start_run handling of the optional log_level parameter.
+
+    - When log_level is None (default), no logLevel key is forwarded to the HealthOmics
+      start_run API, preserving backward-compatible behavior and the API default.
+    - When log_level is a valid enum value (OFF, FATAL, ERROR, ALL), it is forwarded to
+      the API and reflected in the response.
+    - When log_level is invalid, a validation error is returned and the API is not called.
+    """
+
+    _base_params = {
+        'workflow_id': 'wfl-12345',
+        'role_arn': 'arn:aws:iam::123456789012:role/HealthOmicsRole',
+        'name': 'test-run',
+        'output_uri': 's3://my-bucket/outputs/',
+        'parameters': {'param1': 'value1'},
+    }
+
+    _api_response = {
+        'id': 'run-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:run/run-12345',
+        'status': 'PENDING',
+        'name': 'test-run',
+        'workflowId': 'wfl-12345',
+        'uuid': 'uuid-abc-123',
+        'tags': {},
+    }
+
+    @pytest.mark.asyncio
+    async def test_start_run_omits_log_level_when_none(self):
+        """log_level=None => no logLevel key in the params passed to the API."""
+        mock_ctx = AsyncMock()
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        wrapper = MCPToolTestWrapper(start_run)
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+            return_value=mock_client,
+        ):
+            result = await wrapper.call(
+                ctx=mock_ctx,
+                **self._base_params,
+                log_level=None,
+            )
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        mock_client.start_run.assert_called_once()
+        call_kwargs = mock_client.start_run.call_args.kwargs
+        assert 'logLevel' not in call_kwargs, (
+            'logLevel must not be forwarded when the caller omits it'
+        )
+        # Response still surfaces the (None) effective value for observability.
+        assert result['logLevel'] is None
+
+    @pytest.mark.parametrize('log_level', ['OFF', 'FATAL', 'ERROR', 'ALL'])
+    @pytest.mark.asyncio
+    async def test_start_run_forwards_valid_log_level(self, log_level):
+        """Each valid enum value is forwarded to the API and reflected in the response."""
+        mock_ctx = AsyncMock()
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        wrapper = MCPToolTestWrapper(start_run)
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+            return_value=mock_client,
+        ):
+            result = await wrapper.call(
+                ctx=mock_ctx,
+                **self._base_params,
+                log_level=log_level,
+            )
+
+        assert 'error' not in result, f'Unexpected error for log_level={log_level!r}: {result}'
+        mock_client.start_run.assert_called_once()
+        call_kwargs = mock_client.start_run.call_args.kwargs
+        assert call_kwargs['logLevel'] == log_level
+        assert result['logLevel'] == log_level
+
+    @pytest.mark.asyncio
+    async def test_start_run_invalid_log_level_returns_error(self):
+        """An invalid log_level returns a validation error and never calls the API."""
+        mock_ctx = AsyncMock()
+        mock_client = MagicMock()
+
+        wrapper = MCPToolTestWrapper(start_run)
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+            return_value=mock_client,
+        ):
+            result = await wrapper.call(
+                ctx=mock_ctx,
+                **self._base_params,
+                log_level='INVALID',
+            )
+
+        assert 'error' in result
+        mock_client.start_run.assert_not_called()
