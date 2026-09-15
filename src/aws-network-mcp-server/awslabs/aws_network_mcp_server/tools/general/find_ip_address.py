@@ -102,7 +102,7 @@ async def find_ip_address(
         response = ec2_client.describe_regions()
         regions = [region['RegionName'] for region in response['Regions']]
 
-        error = None
+        skipped_regions: list[dict[str, str]] = []
         for region in regions:
             ec2_client = get_aws_client('ec2', region, profile_name)
             try:
@@ -122,13 +122,29 @@ async def find_ip_address(
                     return response['NetworkInterfaces'][0]
 
             except Exception as e:
-                error = str(e)
+                skipped_regions.append({'region': region, 'error': str(e)})
                 continue
 
-        # Return error if we got one during the search to not hide it.
-        if error:
+        # If every region raised an error (none were searchable), surface all of
+        # them so genuine permission or connectivity problems are not hidden.
+        if skipped_regions and len(skipped_regions) == len(regions):
+            skipped_summary = ', '.join(
+                f"{r['region']} ({r['error']})" for r in skipped_regions
+            )
             raise ToolError(
-                f'Error searching IP address in all regions: {error}. REQUIRED TO REMEDIATE BEFORE CONTINUING'
+                f'Error searching IP address in all regions - could not search any region: {skipped_summary}. REQUIRED TO REMEDIATE BEFORE CONTINUING'
+            )
+
+        # At least one region was searchable but the IP was not found. Report the
+        # skipped regions so the caller knows the search was not exhaustive.
+        if skipped_regions:
+            skipped_summary = ', '.join(
+                f"{r['region']} ({r['error']})" for r in skipped_regions
+            )
+            raise ToolError(
+                f'IP address {ip_address} was not found in any searchable region. '
+                f'The following regions were skipped due to errors: {skipped_summary}. '
+                f'REQUIRED TO REMEDIATE BEFORE CONTINUING'
             )
 
         raise ToolError('IP address was not found in any region')
