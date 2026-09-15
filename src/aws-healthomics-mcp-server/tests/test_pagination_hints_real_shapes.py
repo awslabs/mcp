@@ -20,14 +20,19 @@ Feature: pagination-continuation-hints
 hand-written fake functions -- it proves the wrapper is internally
 consistent, but nothing there fails if a real tool's response shape drifts
 (a reordered field, a second list-valued field, an items list moved under a
-new key). This file closes that gap: every case here wraps a REAL tool
-function (``list_workflows``, ``list_ecr_repositories``,
-``search_genomics_files``) with ``paginating()``, using the same client-mock
-seams as ``test_workflow_management.py`` / ``test_ecr_tools.py`` /
-``test_genomics_file_search_integration_working.py``, and asserts on the
-resulting ``pagination`` block. A future change to any of these three
-functions that breaks the "exactly one list field" or "token key" invariant
-the wrapper depends on will fail one of these tests.
+new key). This file pins one representative real tool per idiom
+(``list_workflows``, ``list_ecr_repositories``, ``search_genomics_files``) by
+wrapping it with ``paginating()``, using the same client-mock seams as
+``test_workflow_management.py`` / ``test_ecr_tools.py`` /
+``test_genomics_file_search_integration_working.py``, and asserting on the
+resulting ``pagination`` block against that tool's own real output. A future
+change to any of these three functions that breaks the "exactly one list
+field" or "token key" invariant the wrapper depends on will fail one of
+these tests; verified directly by temporarily reproducing such a change
+during development (see ``guard-DECISIONS.md`` in the task evidence). The
+other ~16 registered tools sharing the dict/nextToken idiom are not
+individually pinned here -- see ``guard-DECISIONS.md`` for why one
+representative tool per idiom was judged sufficient for this task's scope.
 
 No AWS credentials, account, or network access is used anywhere in this
 file; all AWS-facing clients and the search orchestrator are mocked.
@@ -38,19 +43,32 @@ from awslabs.aws_healthomics_mcp_server.tools.ecr_tools import list_ecr_reposito
 from awslabs.aws_healthomics_mcp_server.tools.genomics_file_search import search_genomics_files
 from awslabs.aws_healthomics_mcp_server.tools.workflow_management import list_workflows
 from awslabs.aws_healthomics_mcp_server.utils.pagination import paginating
+
+# Reusing test_ecr_tools.py's private mock-building helpers deliberately, per
+# this task's brief, rather than duplicating a second copy of the ECR client
+# mock scaffolding; if their signatures change, this file's ECR-idiom tests
+# will fail loudly at import or call time.
 from tests.test_ecr_tools import (
     _create_mock_ecr_client,
     _create_policy_not_found_exception,
     _create_sample_repository,
 )
 from tests.test_helpers import call_mcp_tool_directly
+from typing import Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
 # ---------------------------------------------------------------------------
-# Dict + nextToken idiom: ListAHOWorkflows (also covers ListAHORuns' idiom --
-# both build their response dict the same way, via a single transformed list
-# plus a conditionally-present nextToken key).
+# Dict + nextToken idiom: ListAHOWorkflows.
+#
+# list_runs (workflow_execution.py) uses this idiom's response shape too, but
+# is deliberately NOT pinned here: it has a separate, already-tracked
+# false-completeness bug (client-side date filtering can truncate results
+# without ever setting nextToken), and a guard test would either bake that
+# bug in as "correct" or assert a fix that doesn't exist yet. list_workflows
+# builds its response the same way (a single transformed list plus a
+# conditionally-present nextToken key) without that complication, so it pins
+# the idiom's shape invariant on its own.
 # ---------------------------------------------------------------------------
 
 
@@ -214,7 +232,13 @@ class TestEcrNextTokenIdiomAgainstRealListEcrRepositories:
 class TestSearchIdiomAgainstRealSearchGenomicsFiles:
     """Wraps the real ``search_genomics_files`` with a mocked search orchestrator."""
 
-    def _mock_response(self, has_more: bool, continuation_token, result_count: int):
+    def _mock_response(
+        self,
+        has_more: bool,
+        continuation_token,
+        result_count: int,
+        total_available: Optional[int] = None,
+    ):
         results = [{'path': f's3://bucket/f{i}.bam'} for i in range(result_count)]
         enhanced_response = {
             'results': results,
@@ -224,7 +248,9 @@ class TestSearchIdiomAgainstRealSearchGenomicsFiles:
             'pagination': {
                 'offset': 0,
                 'limit': 100,
-                'total_available': result_count,
+                'total_available': total_available
+                if total_available is not None
+                else result_count,
                 'has_more': has_more,
                 'continuation_token': continuation_token,
             },
@@ -239,11 +265,25 @@ class TestSearchIdiomAgainstRealSearchGenomicsFiles:
 
     @pytest.mark.asyncio
     async def test_incomplete_page_pagination_block_matches_real_response(self):
+        """Exercises the storage-level pagination path (search_paginated()).
+
+        Only this path can legitimately mint a fresh continuation_token
+        (genomics_search_orchestrator.py's search_paginated() builds one from
+        next_global_token.encode() when has_more_results is True); the plain
+        search() path only ever passes the caller's own input token straight
+        through (see genomics_search_orchestrator.py line ~202), so it can
+        never produce this has_more=True + fresh-token shape. Using
+        enable_storage_pagination=True here so the mocked method matches the
+        real code path that can actually reach this state.
+        """
         mock_ctx = AsyncMock()
         mock_orchestrator = MagicMock()
-        mock_orchestrator.search = AsyncMock(
+        mock_orchestrator.search_paginated = AsyncMock(
             return_value=self._mock_response(
-                has_more=True, continuation_token='real-search-token', result_count=3
+                has_more=True,
+                continuation_token='real-search-token',
+                result_count=3,
+                total_available=10,
             )
         )
 
@@ -254,9 +294,14 @@ class TestSearchIdiomAgainstRealSearchGenomicsFiles:
             return_value=mock_orchestrator,
         ):
             result = await call_mcp_tool_directly(
-                wrapped, mock_ctx, file_type='bam', search_terms=['x']
+                wrapped,
+                mock_ctx,
+                file_type='bam',
+                search_terms=['x'],
+                enable_storage_pagination=True,
             )
 
+        mock_orchestrator.search_paginated.assert_called_once()
         assert len(result['results']) == 3
         assert result['pagination']['has_more'] is True  # pre-existing field, untouched
         assert result['pagination']['continuation_token'] == 'real-search-token'
