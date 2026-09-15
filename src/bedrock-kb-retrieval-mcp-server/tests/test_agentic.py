@@ -23,12 +23,13 @@ from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.agentic import (
 from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.kb_types import (
     clear_knowledge_base_type_cache,
 )
+from typing import Any, Optional
 from unittest.mock import MagicMock
 
 
-def result_event(count=2, answer='The answer.', citations=True):
+def result_event(count=2, answer: Optional[str] = 'The answer.', citations=True):
     """Build a terminal result event with `count` results."""
-    event = {
+    event: dict[str, Any] = {
         'result': {
             'results': [
                 {
@@ -41,7 +42,7 @@ def result_event(count=2, answer='The answer.', citations=True):
         }
     }
     if answer is not None:
-        generated = {'answer': answer}
+        generated: dict[str, Any] = {'answer': answer}
         if citations:
             generated['citations'] = [
                 {'startIndex': 0, 'endIndex': 10, 'references': [{'resultIndex': 0}]}

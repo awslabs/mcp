@@ -34,6 +34,7 @@ content the model actually needs.
 
 import json
 from .kb_types import is_managed_knowledge_base
+from collections.abc import Mapping
 from loguru import logger
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -69,7 +70,7 @@ class AgenticRetrievalError(Exception):
     """An error reported inside the agentic retrieval event stream."""
 
 
-def _result_item(item: dict, index: int) -> dict:
+def _result_item(item: Mapping[str, Any], index: int) -> dict:
     """Flatten one result item into something compact and JSON-safe."""
     content = item.get('content', {}) or {}
     flattened: dict[str, Any] = {
@@ -86,7 +87,7 @@ def _result_item(item: dict, index: int) -> dict:
     return flattened
 
 
-def _citation(citation: dict) -> dict:
+def _citation(citation: Mapping[str, Any]) -> dict:
     """Flatten a citation, resolving references down to result indexes."""
     return {
         'startIndex': citation.get('startIndex'),
@@ -118,7 +119,7 @@ def _build_retrievers(
     return retrievers
 
 
-def _raise_if_error_event(event: dict) -> None:
+def _raise_if_error_event(event: Mapping[str, Any]) -> None:
     """Convert a modelled error event into an exception."""
     for key in _ERROR_EVENT_KEYS:
         if key in event:
