@@ -39,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Update `SELECT FOR UPDATE` guidance for non-key predicates and joined tables, locking-clause-targeted OCC conflict checks, supported lock clauses, targeted-row primary-key accounting toward the 10 MiB transaction-size limit, and whole-transaction SQLSTATE `40001` retries.
 - Update DSQL steering for PostgreSQL-compatible explicit `NUMERIC(p,s)` bounds: precision 1–1000 and scale -1000–1000, including negative scales and scales greater than precision. Bare `NUMERIC` defaults to `NUMERIC(18,6)`.
 - Bump `dsql-lint` dependency to `>=0.2.1,<0.3` and lock to `0.2.6`. `0.2.6` accepts both `JSON` and `JSONB` as stored column types (earlier 0.2.x versions rewrote `JSONB` → `JSON`).
 - Steering, skill, and migration guides updated:
