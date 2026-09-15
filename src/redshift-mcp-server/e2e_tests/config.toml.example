@@ -1,0 +1,54 @@
+# Copy to config.toml and fill in. config.toml is git-ignored; this example is not.
+# Replace each <UPPER_SNAKE> token, angle brackets included.
+
+[aws]
+# The only way the harness takes credentials, for itself and for the server under test.
+profile = "<AWS_PROFILE>"
+region = "<REGION>"
+
+[provisioned]
+cluster_identifier = "mcp-e2e-provisioned"
+node_type = "ra3.large"
+# Two, not one: a single-node cluster differs in slice layout and concurrency enough that its
+# results do not represent a real deployment.
+number_of_nodes = 2
+master_username = "mcpadmin"
+# "default" works while the account still has a default VPC; name your own otherwise.
+cluster_subnet_group_name = "default"
+
+[serverless]
+namespace_name = "mcp-e2e-namespace"
+workgroup_name = "mcp-e2e-serverless"
+# 8 RPU is the smallest base capacity most regions accept.
+base_capacity = 8
+
+[database]
+# Both warehouses are seeded by COPY from s3://redshift-downloads/tickit/, so one set of
+# observations holds on each.
+name = "dev"
+schema = "tickit"
+
+[iam]
+# Both created and deleted by the harness. The first lets Redshift read the public
+# sample-data bucket. The second is assumed with a session policy denying
+# redshift-data:BatchExecuteStatement, which is how the no_batch fallback gets exercised.
+s3_read_role_name = "mcp-e2e-redshift-s3-read"
+denied_batch_role_name = "mcp-e2e-denied-batch"
+
+[agent]
+# The tests are written by an agent at run time, so a run needs an agent CLI on PATH.
+command = "kiro-cli"
+# Name of the agent config the harness generates under e2e_tests/.kiro/agents/.
+name = "redshift-mcp-e2e"
+model = "claude-opus-5"
+# A scenario explores until it is satisfied, so this is a ceiling, not an estimate. Measured
+# runs took 20-40 min.
+timeout_seconds = 5400
+
+[lifecycle]
+# Pause the provisioned cluster after a run rather than deleting it: a paused cluster bills
+# storage only, and resuming is faster than creating. Serverless has no pause operation and
+# bills nothing while idle, so it is left alone.
+pause_after_run = true
+# Deletes both warehouses instead, ending storage charges. The next run pays full creation.
+destroy_after_run = false

@@ -19,7 +19,9 @@ pins one behavior; cases reflect how sqlglot (Redshift dialect) parses each inpu
 """
 
 import pytest
-from awslabs.redshift_mcp_server.sql_guard import assert_executable
+from awslabs.redshift_mcp_server.consts import MAX_SQL_LEN
+from awslabs.redshift_mcp_server.sql_guard import assert_executable, might_write
+from mcp.server.mcpserver.exceptions import ToolError
 
 
 # Placeholder IAM role ARN for UNLOAD payloads.
@@ -43,7 +45,7 @@ class TestNestedCommentBypassRegression:
     )
     def test_nested_comment_prefix_then_denied_statement_is_rejected(self, sql):
         """A denied statement hidden behind a nested-comment prefix is rejected."""
-        with pytest.raises(Exception):
+        with pytest.raises(ToolError):
             assert_executable(sql)
 
     def test_nested_comment_prefix_then_select_cannot_smuggle_a_denied_op(self):
@@ -52,7 +54,7 @@ class TestNestedCommentBypassRegression:
         assert_executable('/* a /* b */ SELECT 1 FROM */ SELECT 99 AS pwned')
 
         # The same prefix before a denied statement is rejected, so it cannot smuggle.
-        with pytest.raises(Exception):
+        with pytest.raises(ToolError):
             assert_executable('/* a /* b */ SELECT 1 FROM */ TRUNCATE pwned')
 
     def test_nested_comment_that_swallows_a_denied_op_then_benign_select_is_allowed(self):
@@ -110,7 +112,7 @@ class TestDenyList:
     )
     def test_transaction_control_is_rejected(self, sql):
         """Transaction-control statements (with WORK/TRANSACTION variants) are rejected."""
-        with pytest.raises(Exception):
+        with pytest.raises(ToolError):
             assert_executable(sql)
 
     @pytest.mark.parametrize(
@@ -128,7 +130,7 @@ class TestDenyList:
     )
     def test_case_and_leading_trivia_variants_are_rejected(self, sql):
         """Mixed case and leading whitespace/comments do not hide a deny-listed keyword."""
-        with pytest.raises(Exception):
+        with pytest.raises(ToolError):
             assert_executable(sql)
 
     @pytest.mark.parametrize(
@@ -142,7 +144,7 @@ class TestDenyList:
     )
     def test_truncate_is_rejected(self, sql):
         """`TRUNCATE`, including the no-space `TRUNCATE"tbl"` form, is rejected."""
-        with pytest.raises(Exception):
+        with pytest.raises(ToolError):
             assert_executable(sql)
 
     @pytest.mark.parametrize(
@@ -155,16 +157,28 @@ class TestDenyList:
             'ANALYZE',
             'ANALYZE foo',
             "COMMENT ON TABLE foo IS 'note'",
-            'CANCEL 12345',
             'CALL my_proc()',
             "UNLOAD ('SELECT 1') TO 's3://bucket/prefix'",
             f"UNLOAD ('SELECT 1') TO 's3://bucket/prefix' IAM_ROLE '{_ARN}'",
         ],
     )
     def test_egress_dcl_maintenance_and_call_are_rejected(self, sql):
-        """Egress, DCL, maintenance, comment, cancel, and CALL statements are rejected."""
-        with pytest.raises(Exception):
+        """Egress, DCL, maintenance, comment, and CALL statements are rejected."""
+        with pytest.raises(ToolError):
             assert_executable(sql)
+
+    def test_cancel_is_rejected_by_whichever_path_reaches_it(self):
+        """`CANCEL` is refused either way, but only its bare form reaches the deny list.
+
+        `CANCEL <pid>` does not parse in this dialect, so it is rejected before the deny list
+        is consulted. Pinning both paths keeps the entry from looking like it covers the form
+        that carries a pid.
+        """
+        with pytest.raises(ToolError, match='SQL could not be parsed'):
+            assert_executable('CANCEL 12345')
+
+        with pytest.raises(ToolError, match='not allowed in read-only mode: CANCEL'):
+            assert_executable('CANCEL')
 
     @pytest.mark.parametrize(
         'sql',
@@ -174,13 +188,75 @@ class TestDenyList:
     )
     def test_leading_semicolon_before_deny_keyword_is_rejected(self, sql):
         """Leading semicolons cannot smuggle a deny-listed keyword past the guard."""
-        with pytest.raises(Exception):
+        with pytest.raises(ToolError):
             assert_executable(sql)
 
     def test_truncate_rejection_reason_is_pinned(self):
         """A denied TRUNCATE surfaces the `Statement type not allowed` reason."""
-        with pytest.raises(Exception, match='Statement type not allowed'):
+        with pytest.raises(ToolError, match='Statement type not allowed'):
             assert_executable('TRUNCATE foo')
+
+
+class TestTransactionControlIsRefusedInEveryMode:
+    """The server owns transaction boundaries, so a statement may never move them.
+
+    Read-write mode used to skip the whole deny-list, which let a caller's COMMIT reach the
+    session of a named transaction. The engine committed and the server went on believing the
+    transaction open: later statements autocommitted while the caller thought them staged, and
+    a rollback reported success having undone nothing.
+    """
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            'BEGIN',
+            'BEGIN WORK',
+            'BEGIN TRANSACTION',
+            'START',
+            'START TRANSACTION',
+            'COMMIT',
+            'COMMIT WORK',
+            'COMMIT TRANSACTION',
+            'END',
+            'END WORK',
+            'END TRANSACTION',
+            'ROLLBACK',
+            'ROLLBACK WORK',
+            'ROLLBACK TRANSACTION',
+            'ABORT',
+            'ABORT WORK',
+            'ABORT TRANSACTION',
+        ],
+    )
+    def test_rejected_with_read_only_enforcement_off(self, sql):
+        """Refused in read-write mode too, where the deny-list no longer applies."""
+        with pytest.raises(ToolError, match='Transaction control is not available'):
+            assert_executable(sql, enforce_read_only=False)
+
+    def test_the_refusal_names_the_parameters_to_use_instead(self):
+        """A caller told only "no" would have nowhere to go, since transactions are supported."""
+        with pytest.raises(ToolError, match='in_transaction'):
+            assert_executable('COMMIT', enforce_read_only=False)
+
+
+class TestImplicitCommitInsideATransaction:
+    """TRUNCATE commits the transaction it runs in, so inside a named one it is refused.
+
+    Redshift documents TRUNCATE as committing and as impossible to roll back. Inside a named
+    transaction that ends it while the server still believes it open, which is the COMMIT
+    desync arriving from a statement that reads as ordinary DML.
+    """
+
+    @pytest.mark.parametrize('sql', ['TRUNCATE t', 'TRUNCATE TABLE t', 'TRUNCATE"t"'])
+    def test_rejected_inside_a_transaction(self, sql):
+        """Every spelling the guard recognises, in read-write mode where the deny-list is off."""
+        with pytest.raises(ToolError, match='commits the transaction it runs in'):
+            assert_executable(sql, enforce_read_only=False, in_transaction=True)
+
+    @pytest.mark.parametrize('sql', ['TRUNCATE t', 'TRUNCATE TABLE t'])
+    def test_allowed_standalone_in_read_write_mode(self, sql):
+        """Outside a transaction it is an honest write, and refusing it would remove a capability."""
+        assert_executable(sql, enforce_read_only=False)
 
 
 class TestMultiStatement:
@@ -196,12 +272,47 @@ class TestMultiStatement:
     )
     def test_multi_statement_is_rejected(self, sql):
         """Stacked statements (mode-flip + write, GUC-flip + truncate, stacked reads) are rejected."""
-        with pytest.raises(Exception, match='single SQL statement is allowed'):
+        with pytest.raises(ToolError, match='single SQL statement is allowed'):
             assert_executable(sql)
 
 
 class TestSessionSettings:
-    """Session-setting statements are allowed (rendered inert by single-statement + BEGIN READ ONLY)."""
+    """Session settings are rejected in read-only mode, because one of them clears it.
+
+    They were allowed while every call was its own session, on the grounds that a single
+    statement plus `BEGIN READ ONLY` rendered them inert. Named transactions span calls, so
+    `SET transaction_read_only TO off` inside one strips the read-only property and every
+    later statement in that transaction writes for real. Denying the pair costs nothing:
+    outside a transaction a setting has no later statement to apply to.
+    """
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            'SET transaction_read_only TO off',
+            'SET transaction_read_only = off',
+            'SET SESSION transaction_read_only TO off',
+            'SET LOCAL transaction_read_only TO off',
+            'SET TRANSACTION READ WRITE',
+            'SET SESSION CHARACTERISTICS AS TRANSACTION READ WRITE',
+            'RESET transaction_read_only',
+            'RESET ALL',
+        ],
+        ids=[
+            'set_to_off',
+            'set_equals_off',
+            'set_session',
+            'set_local',
+            'set_transaction',
+            'session_characteristics',
+            'reset_it',
+            'reset_all',
+        ],
+    )
+    def test_statements_that_clear_read_only_are_rejected(self, sql):
+        """Each of these would let a later statement in the same transaction write."""
+        with pytest.raises(ToolError, match='Statement type not allowed in read-only mode'):
+            assert_executable(sql)
 
     @pytest.mark.parametrize(
         'sql',
@@ -211,9 +322,18 @@ class TestSessionSettings:
             'RESET search_path',
         ],
     )
-    def test_session_settings_are_allowed(self, sql):
-        """`SET`/`RESET` session settings pass the guard."""
-        assert_executable(sql)
+    def test_harmless_session_settings_are_rejected_too(self, sql):
+        """Told apart from the dangerous ones only by a value, so the whole pair goes."""
+        with pytest.raises(ToolError, match='Statement type not allowed in read-only mode'):
+            assert_executable(sql)
+
+    @pytest.mark.parametrize(
+        'sql',
+        ['SET search_path TO public', 'SET transaction_read_only TO off', 'RESET ALL'],
+    )
+    def test_session_settings_are_allowed_when_writes_are(self, sql):
+        """A caller permitted to write gains nothing from clearing a property it does not have."""
+        assert_executable(sql, enforce_read_only=False)
 
 
 class TestNoFalsePositives:
@@ -238,6 +358,25 @@ class TestNoFalsePositives:
         """A single read is allowed even when it embeds deny-listed keyword text."""
         assert_executable(sql)
 
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            "SELECT '; COMMIT;'",
+            'SELECT $$ ; COMMIT ; $$ AS x',
+            'SELECT abort FROM t',
+            'SELECT start, end FROM t',
+            "INSERT INTO t (note) VALUES ('commit')",
+            'UPDATE t SET rollback_count = rollback_count + 1',
+        ],
+    )
+    def test_keyword_text_is_still_allowed_in_read_write_mode(self, sql):
+        """The transaction-control check runs in read-write mode, so it must not overreach.
+
+        Read-write mode previously ran no statement-type check at all, so this is the mode
+        where a new false positive would first be felt - on ordinary writes, at that.
+        """
+        assert_executable(sql, enforce_read_only=False)
+
     def test_dollar_quoted_body_with_semicolons_is_a_single_statement(self):
         """A `$$…$$` body containing `;` is one statement (not split), and allowed."""
         assert_executable('SELECT $$ a ; COMMIT ; b $$ AS payload')
@@ -251,12 +390,12 @@ class TestFailClosed:
         from awslabs.redshift_mcp_server.consts import MAX_SQL_LEN
 
         oversized = 'SELECT 1' + ' ' * (MAX_SQL_LEN + 1)
-        with pytest.raises(Exception, match='maximum allowed length'):
+        with pytest.raises(ToolError, match='maximum allowed length'):
             assert_executable(oversized)
 
     def test_unparseable_sql_is_rejected_and_chains_the_cause(self):
         """An unparseable statement fails closed with a generic reason; the parser error is preserved via the chained cause, not the message."""
-        with pytest.raises(Exception, match='could not be parsed') as exc_info:
+        with pytest.raises(ToolError, match='could not be parsed') as exc_info:
             assert_executable('SELECT FROM WHERE')
 
         # The reason is a stable, generic message (does not embed the submitted SQL or parser text).
@@ -267,12 +406,12 @@ class TestFailClosed:
     def test_deeply_nested_input_is_rejected(self):
         """Deeply nested input (parser recursion limit) fails closed."""
         sql = '(' * 5000 + 'SELECT 1' + ')' * 5000
-        with pytest.raises(Exception, match='could not be parsed'):
+        with pytest.raises(ToolError, match='could not be parsed'):
             assert_executable(sql)
 
 
 class TestReadWriteMode:
-    """With allow_read_write=True the deny-list is skipped but single-statement still holds."""
+    """With enforce_read_only=False the deny-list is skipped but single-statement still holds."""
 
     @pytest.mark.parametrize(
         'sql',
@@ -284,12 +423,12 @@ class TestReadWriteMode:
     )
     def test_single_statement_is_allowed_in_read_write(self, sql):
         """A single statement passes even when its operation is deny-listed."""
-        assert_executable(sql, allow_read_write=True)
+        assert_executable(sql, enforce_read_only=False)
 
     def test_multi_statement_still_rejected_in_read_write(self):
         """Statement stacking is rejected regardless of mode."""
-        with pytest.raises(Exception, match='single SQL statement is allowed'):
-            assert_executable('SELECT 1; SELECT 2', allow_read_write=True)
+        with pytest.raises(ToolError, match='single SQL statement is allowed'):
+            assert_executable('SELECT 1; SELECT 2', enforce_read_only=False)
 
 
 class TestReadOnlyPassesWritesToEngineBackstop:
@@ -335,3 +474,138 @@ class TestReadOnlyPassesWithPrefixedWritesToEngineBackstop:
         # Read-only (default): write node and its CTE are not deny-listed, so allowed past
         # the guard to the engine, where BEGIN READ ONLY rejects the write.
         assert_executable(sql)
+
+
+class TestMightWriteRecognizesReads:
+    """Recognized reads answer False, so they are not confirmed in read-write mode."""
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            'SELECT 1',
+            'SELECT a FROM public.t WHERE a > 1',
+            'WITH a AS (SELECT 1) SELECT * FROM a',
+            'SELECT a FROM t QUALIFY row_number() OVER (ORDER BY a) = 1',
+            '(SELECT 1)',
+            # Set operations: Intersect and Except are not Union subclasses, so all
+            # three are covered through the shared SetOperation base.
+            'SELECT 1 UNION SELECT 2',
+            'SELECT 1 UNION ALL SELECT 2',
+            'SELECT 1 INTERSECT SELECT 2',
+            'SELECT 1 EXCEPT SELECT 2',
+        ],
+    )
+    def test_read_statements_do_not_need_confirmation(self, sql):
+        """A plain read is classified as a read."""
+        assert might_write(sql) is False
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            'SHOW search_path',
+            'SHOW DATABASES',
+            'SHOW SCHEMAS FROM DATABASE dev',
+            'SHOW TABLES FROM SCHEMA dev.public',
+            'SHOW COLUMNS FROM TABLE dev.public.t',
+            'SHOW GRANTS FOR public.t',
+            'SHOW DATASHARES',
+        ],
+    )
+    def test_allow_listed_commands_are_reads(self, sql):
+        """Every SHOW form parses as one command name, so the allow-list covers them all."""
+        assert might_write(sql) is False
+
+    def test_explain_of_a_read_is_a_read(self):
+        """`EXPLAIN` returns a plan without running its payload."""
+        assert might_write('EXPLAIN SELECT 1') is False
+
+
+class TestMightWriteRecognizesWrites:
+    """Anything that could change something answers True."""
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            'INSERT INTO t VALUES (1)',
+            'UPDATE t SET a = 1',
+            'DELETE FROM t',
+            'MERGE INTO t USING s ON t.id = s.id WHEN MATCHED THEN UPDATE SET a = s.a',
+            f"COPY t FROM 's3://b/p' IAM_ROLE '{_ARN}'",
+            f"UNLOAD ('select 1') TO 's3://b/p' IAM_ROLE '{_ARN}'",
+            'CREATE TABLE t (id int)',
+            'CREATE TABLE t AS SELECT 1',
+            'CREATE MATERIALIZED VIEW mv AS SELECT 1',
+            'REFRESH MATERIALIZED VIEW mv',
+            'DROP TABLE t',
+            'ALTER TABLE t ADD COLUMN c int',
+            'ALTER TABLE t APPEND FROM s',
+            'TRUNCATE t',
+            'VACUUM',
+            'ANALYZE t',
+            'GRANT SELECT ON t TO u',
+            'REVOKE SELECT ON t FROM u',
+            "COMMENT ON TABLE t IS 'x'",
+            'CALL p()',
+            'EXECUTE p',
+            'LOCK t',
+            'BEGIN',
+            'COMMIT',
+            'ROLLBACK',
+        ],
+    )
+    def test_write_statements_need_confirmation(self, sql):
+        """A statement that changes data, schema, permissions, or transaction state writes."""
+        assert might_write(sql) is True
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            'SELECT 1 INTO t',
+            'SELECT * INTO TEMP tmp FROM t',
+            'SELECT * INTO TEMPORARY tmp FROM t',
+            'SELECT * INTO TABLE t FROM s',
+            'WITH a AS (SELECT 1 AS n) SELECT n INTO t FROM a',
+        ],
+    )
+    def test_select_into_is_a_write_despite_the_select_root(self, sql):
+        """`SELECT ... INTO` creates a table, so the Select root must not make it a read."""
+        assert might_write(sql) is True
+
+    def test_data_modifying_cte_under_a_select_is_a_write(self):
+        """A write hidden in a CTE is caught by the subtree walk, not the root check."""
+        assert might_write('WITH a AS (INSERT INTO t VALUES (1) RETURNING *) SELECT * FROM a')
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            'SET search_path TO public',
+            'RESET search_path',
+            'DECLARE c CURSOR FOR SELECT 1',
+            'FETCH 10 FROM c',
+            'PREPARE p AS SELECT 1',
+        ],
+    )
+    def test_unlisted_session_statements_are_treated_as_writes(self, sql):
+        """Session and cursor statements are not allow-listed, so they fail towards writing."""
+        assert might_write(sql) is True
+
+
+class TestMightWriteFailsTowardsWriting:
+    """Input the classifier cannot judge is treated as a write."""
+
+    def test_multi_statement_might_write(self):
+        """Stacked statements are not a recognized read."""
+        assert might_write('SELECT 1; DROP TABLE t') is True
+
+    def test_oversized_sql_might_write_without_parsing(self):
+        """Oversized input short-circuits to True; `assert_executable` rejects it later."""
+        assert might_write('SELECT ' + '1' * (MAX_SQL_LEN + 1)) is True
+
+    def test_unparseable_sql_is_rejected(self):
+        """A parse failure fails closed, as it does in the guard."""
+        with pytest.raises(ToolError, match='could not be parsed'):
+            might_write('SELECT FROM WHERE ;;')
+
+    def test_comment_only_input_might_write(self):
+        """Input with no statement is not a recognized read."""
+        assert might_write('/* just a comment */') is True

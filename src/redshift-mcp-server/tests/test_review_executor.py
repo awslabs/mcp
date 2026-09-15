@@ -17,6 +17,7 @@
 import pytest
 from awslabs.redshift_mcp_server.models import RedshiftCluster
 from awslabs.redshift_mcp_server.review.executor import review_cluster
+from mcp.server.mcpserver.exceptions import ToolError
 from unittest.mock import AsyncMock
 
 
@@ -69,7 +70,7 @@ def _make_sql_recorder():
     """
     recorded: dict[str, str] = {}
 
-    async def _execute(cluster_identifier, database_name, sql, allow_read_write=False):
+    async def _execute(cluster_identifier, database_name, sql, enforce_read_only=True):
         recorded[sql.splitlines()[0].removeprefix('--').strip()] = sql
         return _make_empty_response()
 
@@ -237,7 +238,7 @@ class TestErrorPropagation:
             ]
         )
 
-        with pytest.raises(Exception, match='Cluster missing-cluster not found'):
+        with pytest.raises(ToolError, match='Cluster missing-cluster not found'):
             await review_cluster(
                 cluster_identifier='missing-cluster',
                 execute_query_func=execute_query_func,
@@ -273,7 +274,7 @@ class TestErrorPropagation:
             side_effect=RuntimeError('permission denied for relation sys_auto_table_optimization')
         )
 
-        with pytest.raises(Exception, match='Review requires superuser or sys:monitor access'):
+        with pytest.raises(ToolError, match='Review requires superuser or sys:monitor access'):
             await review_cluster(
                 cluster_identifier='test-cluster',
                 execute_query_func=execute_query_func,
