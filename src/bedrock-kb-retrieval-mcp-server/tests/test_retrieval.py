@@ -197,3 +197,60 @@ class TestQueryKnowledgeBase:
         assert documents[0]['content']['type'] == 'TEXT'
         assert documents[0]['location']['s3Location']['uri'] == 's3://test-bucket/document.txt'
         assert documents[0]['score'] == 0.85
+
+    @pytest.mark.asyncio
+    async def test_query_knowledge_base_with_metadata_filter(
+        self, mock_bedrock_agent_runtime_client
+    ):
+        """Test querying a knowledge base with a metadata filter."""
+        await query_knowledge_base(
+            query='test query',
+            knowledge_base_id='kb-12345',
+            kb_agent_client=mock_bedrock_agent_runtime_client,
+            metadata_filter={'equals': {'key': 'department', 'value': 'engineering'}},
+        )
+
+        mock_bedrock_agent_runtime_client.retrieve.assert_called_once_with(
+            knowledgeBaseId='kb-12345',
+            retrievalQuery={'text': 'test query'},
+            retrievalConfiguration={
+                'vectorSearchConfiguration': {
+                    'numberOfResults': 20,
+                    'filter': {'equals': {'key': 'department', 'value': 'engineering'}},
+                }
+            },
+        )
+
+    @pytest.mark.asyncio
+    async def test_query_knowledge_base_with_data_source_and_metadata_filter(
+        self, mock_bedrock_agent_runtime_client
+    ):
+        """Test combining data source IDs and metadata filter uses andAll."""
+        await query_knowledge_base(
+            query='test query',
+            knowledge_base_id='kb-12345',
+            kb_agent_client=mock_bedrock_agent_runtime_client,
+            data_source_ids=['ds-12345'],
+            metadata_filter={'equals': {'key': 'department', 'value': 'engineering'}},
+        )
+
+        mock_bedrock_agent_runtime_client.retrieve.assert_called_once_with(
+            knowledgeBaseId='kb-12345',
+            retrievalQuery={'text': 'test query'},
+            retrievalConfiguration={
+                'vectorSearchConfiguration': {
+                    'numberOfResults': 20,
+                    'filter': {
+                        'andAll': [
+                            {
+                                'in': {
+                                    'key': 'x-amz-bedrock-kb-data-source-id',
+                                    'value': ['ds-12345'],
+                                }
+                            },
+                            {'equals': {'key': 'department', 'value': 'engineering'}},
+                        ]
+                    },
+                }
+            },
+        )
