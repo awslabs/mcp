@@ -26,8 +26,7 @@ from botocore.exceptions import ClientError
 
 from awslabs.ecs_mcp_server.utils.arn_parser import parse_arn
 from awslabs.ecs_mcp_server.utils.aws import get_aws_client
-from awslabs.ecs_mcp_server.utils.config import get_config
-from awslabs.ecs_mcp_server.utils.security import redact_task_definition
+from awslabs.ecs_mcp_server.utils.security import redact_unless_sensitive_data_allowed
 
 logger = logging.getLogger(__name__)
 
@@ -257,7 +256,8 @@ async def find_task_definitions(
     -------
     List[Dict[str, Any]]
         List of task definition dictionaries with full details. Environment variable
-        values and secret references are redacted unless ALLOW_SENSITIVE_DATA is enabled.
+        values and secret or credential references are redacted unless ALLOW_SENSITIVE_DATA
+        is enabled.
 
     Raises
     ------
@@ -296,10 +296,7 @@ async def find_task_definitions(
         logger.warning(f"Unexpected error in find_task_definitions: {e}")
         return []
 
-    if get_config().get("allow-sensitive-data", False):
-        return task_definitions
-
-    return [redact_task_definition(task_definition) for task_definition in task_definitions]
+    return redact_unless_sensitive_data_allowed(task_definitions)
 
 
 async def get_cloudformation_stack_if_exists(resource_arn: str) -> Optional[Dict[str, Any]]:

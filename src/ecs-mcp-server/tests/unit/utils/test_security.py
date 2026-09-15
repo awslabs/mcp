@@ -11,8 +11,8 @@ import pytest
 from awslabs.ecs_mcp_server.utils.security import (
     REDACTED,
     ValidationError,
-    redact_container_definition,
-    redact_task_definition,
+    redact_sensitive_fields,
+    redact_unless_sensitive_data_allowed,
     validate_app_name,
     validate_cloudformation_template,
 )
@@ -283,11 +283,15 @@ class TestValidateCloudFormationTemplate:
         assert "sensitive directory" in str(excinfo.value)
 
 
-class TestRedactTaskDefinition:
-    """Tests for redact_task_definition."""
+class TestRedactSensitiveFields:
+    """Tests for redact_sensitive_fields."""
 
-    @staticmethod
-    def _task_definition():
+    ARN_SM = "arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/api-key"
+    ARN_SSM = "arn:aws:ssm:us-east-1:123456789012:parameter/prod/token"
+    ARN_S3 = "arn:aws:s3:::my-bucket/app.env"
+
+    @classmethod
+    def _task_definition(cls):
         return {
             "taskDefinitionArn": "arn:aws:ecs:us-east-1:123456789012:task-definition/my-app:5",
             "family": "my-app",
@@ -298,22 +302,22 @@ class TestRedactTaskDefinition:
                     "name": "app",
                     "image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-app:latest",
                     "cpu": 256,
+                    "command": ["node", "server.js"],
                     "environment": [
                         {"name": "DB_HOST", "value": "prod-db.example.com"},
                         {"name": "DB_PASSWORD", "value": "super-secret-password"},
                     ],
-                    "secrets": [
-                        {
-                            "name": "API_KEY",
-                            "valueFrom": (
-                                "arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/api-key"
-                            ),
-                        },
-                        {
-                            "name": "API_TOKEN",
-                            "valueFrom": "arn:aws:ssm:us-east-1:123456789012:parameter/prod/token",
-                        },
-                    ],
+                    "environmentFiles": [{"value": cls.ARN_S3, "type": "s3"}],
+                    "secrets": [{"name": "API_KEY", "valueFrom": cls.ARN_SM}],
+                    "repositoryCredentials": {"credentialsParameter": cls.ARN_SM},
+                    "logConfiguration": {
+                        "logDriver": "splunk",
+                        "options": {"splunk-url": "https://splunk.example.com"},
+                        "secretOptions": [{"name": "splunk-token", "valueFrom": cls.ARN_SSM}],
+                    },
+                    "resourceRequirements": [{"type": "GPU", "value": "1"}],
+                    "dockerLabels": {"team": "ecs"},
+                    "credentialSpecs": ["credentialspec:arn:aws:s3:::my-bucket/gmsa-credspec.json"],
                 },
                 {
                     "name": "sidecar",
@@ -321,136 +325,238 @@ class TestRedactTaskDefinition:
                     "environment": [{"name": "LOG_LEVEL", "value": "debug"}],
                 },
             ],
+            "volumes": [
+                {
+                    "name": "share",
+                    "fsxWindowsFileServerVolumeConfiguration": {
+                        "fileSystemId": "fs-0123456789abcdef0",
+                        "rootDirectory": "share",
+                        "authorizationConfig": {
+                            "credentialsParameter": cls.ARN_SM,
+                            "domain": "corp",
+                        },
+                    },
+                }
+            ],
+            "tags": [{"key": "Environment", "value": "production"}],
         }
 
-    def test_redacts_environment_values_and_keeps_names(self):
-        """Environment variable values are redacted for every container; names are kept."""
-        result = redact_task_definition(self._task_definition())
+    def test_redacts_every_secret_bearing_field_of_a_task_definition(self):
+        """Values, file locations, secret and credential references are all redacted."""
+        result = redact_sensitive_fields(self._task_definition())
 
         app, sidecar = result["containerDefinitions"]
         assert app["environment"] == [
             {"name": "DB_HOST", "value": REDACTED},
             {"name": "DB_PASSWORD", "value": REDACTED},
         ]
-        assert sidecar["environment"] == [{"name": "LOG_LEVEL", "value": REDACTED}]
-
-    def test_redacts_secret_references_and_keeps_names(self):
-        """Secret valueFrom ARNs are redacted; secret names are kept."""
-        result = redact_task_definition(self._task_definition())
-
-        assert result["containerDefinitions"][0]["secrets"] == [
-            {"name": "API_KEY", "valueFrom": REDACTED},
-            {"name": "API_TOKEN", "valueFrom": REDACTED},
+        assert app["environmentFiles"] == [{"value": REDACTED, "type": "s3"}]
+        assert app["secrets"] == [{"name": "API_KEY", "valueFrom": REDACTED}]
+        assert app["repositoryCredentials"] == {"credentialsParameter": REDACTED}
+        assert app["logConfiguration"]["secretOptions"] == [
+            {"name": "splunk-token", "valueFrom": REDACTED}
         ]
+        assert app["credentialSpecs"] == [REDACTED]
+        assert sidecar["environment"] == [{"name": "LOG_LEVEL", "value": REDACTED}]
+        assert result["volumes"][0]["fsxWindowsFileServerVolumeConfiguration"][
+            "authorizationConfig"
+        ] == {"credentialsParameter": REDACTED, "domain": "corp"}
 
-    def test_redacted_output_contains_no_sensitive_values(self):
-        """No environment value or secret ARN survives anywhere in the redacted output."""
-        serialized = json.dumps(redact_task_definition(self._task_definition()))
+    def test_no_sensitive_value_survives_anywhere(self):
+        """Serialising the result shows none of the original secrets or references."""
+        serialized = json.dumps(redact_sensitive_fields(self._task_definition()))
 
-        assert "super-secret-password" not in serialized
-        assert "prod-db.example.com" not in serialized
-        assert "secretsmanager" not in serialized
-        assert "arn:aws:ssm" not in serialized
+        for needle in (
+            "super-secret-password",
+            "prod-db.example.com",
+            self.ARN_SM,
+            self.ARN_SSM,
+            self.ARN_S3,
+            "gmsa-credspec",
+        ):
+            assert needle not in serialized
 
-    def test_preserves_non_sensitive_fields(self):
-        """Fields needed for troubleshooting are left untouched."""
+    def test_keeps_names_and_non_sensitive_values(self):
+        """Names, images, commands, log options, tags and resource requirements are untouched."""
         original = self._task_definition()
-        result = redact_task_definition(original)
+        result = redact_sensitive_fields(original)
 
+        app = result["containerDefinitions"][0]
         assert result["taskDefinitionArn"] == original["taskDefinitionArn"]
-        assert result["family"] == "my-app"
-        assert result["revision"] == 5
         assert result["executionRoleArn"] == original["executionRoleArn"]
-        assert (
-            result["containerDefinitions"][0]["image"]
-            == (original["containerDefinitions"][0]["image"])
-        )
-        assert result["containerDefinitions"][0]["cpu"] == 256
+        assert app["image"] == original["containerDefinitions"][0]["image"]
+        assert app["command"] == ["node", "server.js"]
+        assert app["logConfiguration"]["logDriver"] == "splunk"
+        assert app["logConfiguration"]["options"] == {"splunk-url": "https://splunk.example.com"}
+        assert app["dockerLabels"] == {"team": "ecs"}
+        # "value" is only sensitive under environment / environmentFiles
+        assert app["resourceRequirements"] == [{"type": "GPU", "value": "1"}]
+        assert result["tags"] == [{"key": "Environment", "value": "production"}]
         assert [c["name"] for c in result["containerDefinitions"]] == ["app", "sidecar"]
 
-    def test_does_not_mutate_input(self):
-        """The caller's task definition is left exactly as it was."""
-        original = self._task_definition()
-        snapshot = json.loads(json.dumps(original))
+    def test_redacts_express_gateway_service_response(self):
+        """The primaryContainer of every active configuration is redacted."""
+        response = {
+            "service": {
+                "serviceName": "my-api",
+                "status": "ACTIVE",
+                "activeConfigurations": [
+                    {
+                        "serviceRevisionArn": "arn:rev/1",
+                        "cpu": "1024",
+                        "primaryContainer": {
+                            "image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-api:1",
+                            "containerPort": 8080,
+                            "environment": [{"name": "DB_PASS", "value": "p@ssw0rd"}],
+                            "secrets": [{"name": "TOKEN", "valueFrom": self.ARN_SSM}],
+                            "repositoryCredentials": {"credentialsParameter": self.ARN_SM},
+                        },
+                    }
+                ],
+            }
+        }
 
-        redact_task_definition(original)
+        result = redact_sensitive_fields(response)
 
-        assert original == snapshot
+        container = result["service"]["activeConfigurations"][0]["primaryContainer"]
+        assert container["environment"] == [{"name": "DB_PASS", "value": REDACTED}]
+        assert container["secrets"] == [{"name": "TOKEN", "valueFrom": REDACTED}]
+        assert container["repositoryCredentials"] == {"credentialsParameter": REDACTED}
+        assert container["containerPort"] == 8080
+        assert result["service"]["status"] == "ACTIVE"
 
-    def test_container_without_secrets_gains_no_secrets_key(self):
-        """A container that declares no secrets is not given an empty secrets list."""
-        result = redact_task_definition(self._task_definition())
-
-        assert "secrets" not in result["containerDefinitions"][1]
-
-    @pytest.mark.parametrize(
-        "task_definition",
-        [
-            {},
-            {"family": "no-containers"},
-            {"containerDefinitions": []},
-            {"containerDefinitions": [{"name": "bare"}]},
-            {"containerDefinitions": [{"name": "empty", "environment": [], "secrets": []}]},
-        ],
-    )
-    def test_handles_task_definitions_without_sensitive_fields(self, task_definition):
-        """Task definitions with no environment or secrets are returned unchanged."""
-        assert redact_task_definition(task_definition) == task_definition
-
-
-class TestRedactContainerDefinition:
-    """Tests for redact_container_definition."""
-
-    @staticmethod
-    def _primary_container():
-        return {
-            "image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-api:1",
-            "containerPort": 8080,
-            "command": ["node", "server.js"],
-            "environment": [{"name": "DB_PASSWORD", "value": "super-secret-password"}],
-            "secrets": [
+    def test_redacts_task_overrides_and_service_connect_log_secrets(self):
+        """Container overrides (tasks) and Service Connect log secrets (services) are covered."""
+        response = {
+            "tasks": [
                 {
-                    "name": "API_KEY",
-                    "valueFrom": (
-                        "arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/api-key"
-                    ),
+                    "taskArn": "arn:aws:ecs:us-east-1:123456789012:task/c/1",
+                    "overrides": {
+                        "containerOverrides": [
+                            {
+                                "name": "app",
+                                "environment": [{"name": "OVERRIDE", "value": "override-val"}],
+                                "environmentFiles": [{"value": self.ARN_S3, "type": "s3"}],
+                            }
+                        ]
+                    },
+                }
+            ],
+            "services": [
+                {
+                    "serviceName": "svc",
+                    "deployments": [
+                        {
+                            "serviceConnectConfiguration": {
+                                "logConfiguration": {
+                                    "logDriver": "awsfirelens",
+                                    "secretOptions": [{"name": "apikey", "valueFrom": self.ARN_SM}],
+                                }
+                            }
+                        }
+                    ],
                 }
             ],
         }
 
-    def test_redacts_environment_values_and_secret_references(self):
-        """Values and secret ARNs are redacted; names are kept."""
-        result = redact_container_definition(self._primary_container())
+        result = redact_sensitive_fields(response)
 
-        assert result["environment"] == [{"name": "DB_PASSWORD", "value": REDACTED}]
-        assert result["secrets"] == [{"name": "API_KEY", "valueFrom": REDACTED}]
-
-    def test_preserves_non_sensitive_fields(self):
-        """Image, port and command are left untouched."""
-        original = self._primary_container()
-        result = redact_container_definition(original)
-
-        assert result["image"] == original["image"]
-        assert result["containerPort"] == 8080
-        assert result["command"] == ["node", "server.js"]
+        override = result["tasks"][0]["overrides"]["containerOverrides"][0]
+        assert override["environment"] == [{"name": "OVERRIDE", "value": REDACTED}]
+        assert override["environmentFiles"] == [{"value": REDACTED, "type": "s3"}]
+        log_config = result["services"][0]["deployments"][0]["serviceConnectConfiguration"][
+            "logConfiguration"
+        ]
+        assert log_config == {
+            "logDriver": "awsfirelens",
+            "secretOptions": [{"name": "apikey", "valueFrom": REDACTED}],
+        }
 
     def test_does_not_mutate_input(self):
-        """The caller's container definition is left exactly as it was."""
-        original = self._primary_container()
+        """The caller's structure is left exactly as it was."""
+        original = self._task_definition()
         snapshot = json.loads(json.dumps(original))
 
-        redact_container_definition(original)
+        redact_sensitive_fields(original)
 
         assert original == snapshot
 
+    def test_only_redacts_fields_that_are_present(self):
+        """No keys are invented: an item without value or valueFrom stays as it is."""
+        data = {
+            "containerDefinitions": [
+                {"name": "bare"},
+                {"environment": [{"name": "NO_VALUE"}], "secrets": [{"name": "NO_REF"}]},
+            ]
+        }
+
+        assert redact_sensitive_fields(data) == data
+
     @pytest.mark.parametrize(
-        "container",
+        "data",
         [
             {},
-            {"image": "nginx:latest"},
-            {"image": "nginx:latest", "environment": [], "secrets": []},
+            [],
+            {"family": "no-containers"},
+            {"containerDefinitions": []},
+            {"containerDefinitions": [{"name": "empty", "environment": [], "secrets": []}]},
+            {"status": "error", "error": "Task definition not found"},
+            "not-a-structure",
+            None,
         ],
     )
-    def test_handles_containers_without_sensitive_fields(self, container):
-        """Containers with no environment or secrets are returned unchanged."""
-        assert redact_container_definition(container) == container
+    def test_returns_structures_without_sensitive_fields_unchanged(self, data):
+        """Anything with no sensitive field, including non-dict input, is returned as is."""
+        assert redact_sensitive_fields(data) == data
+
+    def test_redacts_execute_command_session_token(self):
+        """The ExecuteCommand session token is redacted; the session id and stream URL are kept."""
+        response = {
+            "taskArn": "arn:aws:ecs:us-east-1:123456789012:task/c/1",
+            "interactive": True,
+            "session": {
+                "sessionId": "ecs-execute-command-0123456789abcdef0",
+                "streamUrl": "wss://ssmmessages.us-east-1.amazonaws.com/v1/data-channel/ecs-execute",
+                "tokenValue": "AAEAAd0S3cr3tT0k3n",
+            },
+        }
+
+        result = redact_sensitive_fields(response)
+
+        assert result["session"] == {
+            "sessionId": "ecs-execute-command-0123456789abcdef0",
+            "streamUrl": "wss://ssmmessages.us-east-1.amazonaws.com/v1/data-channel/ecs-execute",
+            "tokenValue": REDACTED,
+        }
+        assert result["interactive"] is True
+
+
+class TestRedactUnlessSensitiveDataAllowed:
+    """Tests for redact_unless_sensitive_data_allowed."""
+
+    DATA = {"containerDefinitions": [{"environment": [{"name": "SECRET", "value": "s3cret"}]}]}
+
+    def test_redacts_when_flag_unset(self, monkeypatch):
+        """Shipped default: the data is redacted."""
+        monkeypatch.delenv("ALLOW_SENSITIVE_DATA", raising=False)
+
+        result = redact_unless_sensitive_data_allowed(self.DATA)
+
+        assert result["containerDefinitions"][0]["environment"][0]["value"] == REDACTED
+        assert self.DATA["containerDefinitions"][0]["environment"][0]["value"] == "s3cret"
+
+    def test_returns_data_unchanged_when_flag_enabled(self, monkeypatch):
+        """With ALLOW_SENSITIVE_DATA=true the data is returned as is."""
+        monkeypatch.setenv("ALLOW_SENSITIVE_DATA", "true")
+
+        assert redact_unless_sensitive_data_allowed(self.DATA) is self.DATA
+
+    @pytest.mark.parametrize("allowed", [False, True])
+    def test_uses_the_supplied_config_over_the_environment(self, allowed, monkeypatch):
+        """An explicit config wins over whatever the environment says."""
+        monkeypatch.setenv("ALLOW_SENSITIVE_DATA", "false" if allowed else "true")
+
+        result = redact_unless_sensitive_data_allowed(self.DATA, {"allow-sensitive-data": allowed})
+
+        expected = "s3cret" if allowed else REDACTED
+        assert result["containerDefinitions"][0]["environment"][0]["value"] == expected
