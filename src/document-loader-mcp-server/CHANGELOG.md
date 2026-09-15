@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.21] - 2026-09-01
+
 ### Security
 - Fixed a path containment bypass in the `DOCUMENT_BASE_DIR` sandbox (CVE pending).
   `_get_base_directory()` previously returned the filesystem root (`/`) whenever
