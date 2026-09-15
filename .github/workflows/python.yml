@@ -57,7 +57,12 @@ jobs:
         id: find-packages
         working-directory: src
         run: |
-          PACKAGES=$(find . -name pyproject.toml -exec dirname {} \; | sed 's/^\.\///' | jq -R -s -c 'split("\n")[:-1]')
+          # third_party_stubs/* directories are local uv.sources path overrides (see e.g.
+          # aws-healthomics-mcp-server/third_party_stubs/spython), not standalone,
+          # independently released MCP server packages -- they have no .python-version,
+          # lockfile, or README install instructions of their own, so they don't belong
+          # in this matrix.
+          PACKAGES=$(find . -name pyproject.toml -not -path '*/third_party_stubs/*' -exec dirname {} \; | sed 's/^\.\///' | jq -R -s -c 'split("\n")[:-1]')
           echo "packages=$PACKAGES" >> $GITHUB_OUTPUT
 
   build:

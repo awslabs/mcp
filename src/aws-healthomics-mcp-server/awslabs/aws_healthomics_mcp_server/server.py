@@ -277,7 +277,6 @@ AWS HealthOmics is available in select AWS regions. Use the GetAHOSupportedRegio
         'boto3',
         'pydantic',
         'loguru',
-        'miniwdl',
         'cwltool',
     ],
 )

@@ -14,6 +14,7 @@
 
 """Workflow linting tools for WDL and CWL workflow definitions."""
 
+import asyncio
 import os
 import tempfile
 from abc import ABC, abstractmethod
@@ -22,11 +23,63 @@ from awslabs.aws_healthomics_mcp_server.utils.content_resolver import (
     resolve_single_content,
 )
 from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
+from awslabs.aws_healthomics_mcp_server.vendor import wdl
+from awslabs.aws_healthomics_mcp_server.vendor.wdl import Lint as wdl_lint
 from loguru import logger
 from mcp.server.mcpserver import Context
 from pathlib import Path
 from pydantic import Field
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+
+def _format_wdl_position(pos: 'wdl.Error.SourcePosition') -> str:
+    """Format a vendored-miniwdl SourcePosition as `uri:line:column`."""
+    return f'{pos.uri}:{pos.line}:{pos.column}'
+
+
+def _format_wdl_error(exc: Exception) -> str:
+    """Format a WDL syntax/validation error (or MultipleValidationErrors) as readable text."""
+    if isinstance(exc, wdl.Error.MultipleValidationErrors):
+        return '\n'.join(_format_wdl_error(e) for e in exc.exceptions)
+    pos = getattr(exc, 'pos', None)
+    location = f'{_format_wdl_position(pos)}: ' if pos else ''
+    return f'{location}({type(exc).__name__}) {exc}'
+
+
+async def _check_wdl_document(uri: str, search_path: List[str]) -> Tuple[str, int]:
+    """Parse and lint a WDL document using the vendored miniwdl parser/lint modules.
+
+    Args:
+        uri: Path to the main WDL file to load
+        search_path: Local directories to search for WDL import statements
+
+    Returns:
+        Tuple of (human-readable output text, return code), mirroring the shape of
+        `miniwdl check`'s CLI output (0 for a document that parsed and typechecked
+        successfully, 1 for syntax/validation/import errors) for compatibility with
+        existing raw_output consumers.
+    """
+    try:
+        doc = await wdl.load_async(uri, path=search_path)
+    except (
+        wdl.Error.SyntaxError,
+        wdl.Error.ValidationError,
+        wdl.Error.MultipleValidationErrors,
+        wdl.Error.ImportError,
+    ) as e:
+        return _format_wdl_error(e), 1
+
+    wdl_lint.lint(doc)
+    findings = [f for f in wdl_lint.collect(doc) if not f[3]]  # drop suppressed findings
+
+    lines = [f'{uri} is syntactically valid WDL.']
+    if findings:
+        lines.append(f'{len(findings)} lint finding(s):')
+        for pos, linter_class, message, _suppressed in findings:
+            lines.append(f'  {_format_wdl_position(pos)} [{linter_class}] {message}')
+    else:
+        lines.append('No lint findings.')
+    return '\n'.join(lines), 0
 
 
 class WorkflowLinter(ABC):
@@ -118,7 +171,14 @@ class WorkflowLinter(ABC):
 
 
 class WDLWorkflowLinter(WorkflowLinter):
-    """Linter for WDL workflow definitions using miniwdl."""
+    """Linter for WDL workflow definitions using a vendored subset of miniwdl's parser/lint code.
+
+    miniwdl's own PyPI package declares a hard dependency on the GPL-licensed `pygtail`
+    (used only by its task-execution runtime, not by parsing/linting), which blocks this
+    Apache-2.0 project from depending on it directly. See
+    awslabs/aws_healthomics_mcp_server/vendor/wdl/VENDORED.md for the vendoring rationale
+    and provenance.
+    """
 
     def __init__(self):
         """Initialize the WDL workflow linter."""
@@ -127,10 +187,7 @@ class WDLWorkflowLinter(WorkflowLinter):
     async def lint_workflow(
         self, workflow_content: str, filename: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Lint WDL workflow using miniwdl."""
-        import subprocess  # nosec B404 - subprocess needed for workflow linting
-        import sys
-
+        """Lint WDL workflow using the vendored miniwdl parser/lint modules."""
         tmp_path = None
         try:
             # Create temporary file for the WDL content
@@ -138,20 +195,20 @@ class WDLWorkflowLinter(WorkflowLinter):
                 tmp_file.write(workflow_content)
                 tmp_path = Path(tmp_file.name)
 
-            # Capture raw linter output using miniwdl check command
-            result = subprocess.run(  # nosec B603 - safe: hardcoded cmd, no shell, timeout
-                [sys.executable, '-m', 'WDL', 'check', str(tmp_path)],
-                capture_output=True,
-                text=True,
-                timeout=30,
+            output_text, return_code = await asyncio.wait_for(
+                _check_wdl_document(str(tmp_path), search_path=[]), timeout=30
             )
-            raw_output = f'STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}\nReturn code: {result.returncode}'
+            raw_output = (
+                f'STDOUT:\n{output_text}\nSTDERR:\n\nReturn code: {return_code}'
+                if return_code == 0
+                else f'STDOUT:\n\nSTDERR:\n{output_text}\nReturn code: {return_code}'
+            )
 
             return self._create_success_response(
                 raw_output=raw_output, linter='miniwdl', filename=filename or tmp_path.name
             )
 
-        except subprocess.TimeoutExpired:
+        except asyncio.TimeoutError:
             return self._create_error_response(
                 'Linter execution timed out after 30 seconds',
                 filename or (tmp_path.name if tmp_path else None),
@@ -171,10 +228,7 @@ class WDLWorkflowLinter(WorkflowLinter):
     async def lint_workflow_bundle(
         self, workflow_files: Dict[str, str], main_workflow_file: str
     ) -> Dict[str, Any]:
-        """Lint WDL workflow bundle using miniwdl."""
-        import subprocess  # nosec B404 - subprocess needed for workflow linting
-        import sys
-
+        """Lint WDL workflow bundle using the vendored miniwdl parser/lint modules."""
         try:
             # Create temporary directory structure
             with tempfile.TemporaryDirectory() as tmp_dir:
@@ -212,15 +266,16 @@ class WDLWorkflowLinter(WorkflowLinter):
                         f'Main workflow file "{main_workflow_file}" not found in provided files'
                     )
 
-                # Capture raw linter output using miniwdl check command
-                result = subprocess.run(  # nosec B603 - safe: hardcoded cmd, no shell, timeout
-                    [sys.executable, '-m', 'WDL', 'check', str(main_file_path)],
-                    capture_output=True,
-                    text=True,
+                # Parse and lint the main file, searching the bundle directory for imports
+                output_text, return_code = await asyncio.wait_for(
+                    _check_wdl_document(str(main_file_path), search_path=[str(tmp_path)]),
                     timeout=30,
-                    cwd=str(tmp_path),
                 )
-                raw_output = f'STDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}\nReturn code: {result.returncode}'
+                raw_output = (
+                    f'STDOUT:\n{output_text}\nSTDERR:\n\nReturn code: {return_code}'
+                    if return_code == 0
+                    else f'STDOUT:\n\nSTDERR:\n{output_text}\nReturn code: {return_code}'
+                )
 
                 return self._create_success_response(
                     raw_output=raw_output,
@@ -229,7 +284,7 @@ class WDLWorkflowLinter(WorkflowLinter):
                     files_processed=list(workflow_files.keys()),
                 )
 
-        except subprocess.TimeoutExpired:
+        except asyncio.TimeoutError:
             return self._create_error_response('Linter execution timed out after 30 seconds')
         except Exception as e:
             logger.error(f'Error in WDL bundle linting: {str(e)}')
