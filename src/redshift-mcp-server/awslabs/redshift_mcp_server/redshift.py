@@ -65,6 +65,13 @@ _ACCESS_DENIED = {'AccessDeniedException', 'UnauthorizedAccess', 'AccessDenied'}
 # a denial of the batch action from a denial of the two calls that settle and read it.
 _BATCH_OPERATION = 'BatchExecuteStatement'
 
+# Keepalive sent on the batch that closes a transaction, so its session drains in about a second
+# rather than idling for SESSION_KEEPALIVE with nothing left to run. The Data API has no close
+# operation, and omitting the parameter keeps the timeout the session already had, so a small
+# value is the only lever. It cannot cut a slow COMMIT short, since the timer counts idle time
+# from when the statement finishes. Zero mints no session at all, so it is not usable here.
+_SESSION_DRAIN = 1
+
 # Statement statuses the Data API does not move on from.
 _TERMINAL_STATUSES = frozenset({'FINISHED', 'FAILED', 'ABORTED'})
 
@@ -775,7 +782,7 @@ async def _execute_statement_in_transaction(
                 caller_index=caller_index,
                 parameters=parameters,
                 session_id=session_id,
-                session_keepalive=session_keepalive(),
+                session_keepalive=_SESSION_DRAIN if closer is not None else session_keepalive(),
             )
         except ClientError as e:
             if _is_no_batch(e):

@@ -27,6 +27,7 @@ from awslabs.redshift_mcp_server.consts import (
 from awslabs.redshift_mcp_server.models import RedshiftCluster
 from awslabs.redshift_mcp_server.redshift import (
     _APP_NAME_SQL,
+    _SESSION_DRAIN,
     RedshiftClientManager,
     RedshiftTransactionManager,
     _begin_transaction,
@@ -2237,6 +2238,29 @@ class TestTransactionLifecycle:
 
         assert batches.call_args[1]['sqls'] == [closer]
         assert batches.call_args[1]['session_id'] == 'session-1'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('parameter', ['commit_transaction', 'rollback_transaction'])
+    async def test_closing_drains_the_session(self, mocker, parameter):
+        """Nothing is left to run on it, so it should not idle for the whole keepalive."""
+        batches = self._batches(
+            mocker,
+            _fake_batch(['FINISHED', 'FINISHED'], session_id='session-1'),
+            _fake_batch(['FINISHED']),
+            _fake_batch(['FINISHED']),
+        )
+
+        await execute_query('test-cluster', 'dev', begin_transaction='load')
+        await execute_query('test-cluster', 'dev', 'SELECT 1', in_transaction='load')
+
+        # Mid-transaction the session is still wanted, so it keeps the configured timeout.
+        assert batches.call_args[1]['session_keepalive'] == session_keepalive()
+
+        closing: dict[str, Any] = {parameter: 'load'}
+        await execute_query('test-cluster', 'dev', **closing)
+
+        assert batches.call_args[1]['session_keepalive'] == _SESSION_DRAIN
+        assert _SESSION_DRAIN < session_keepalive()
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
