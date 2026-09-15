@@ -106,7 +106,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "boto3", specifier = ">=1.43.0" },
+    { name = "boto3", specifier = ">=1.43.32" },
     { name = "loguru", specifier = ">=0.7.3" },
     { name = "mcp", extras = ["cli"], specifier = ">=2.0.0,<3.0.0" },
     { name = "pydantic", specifier = ">=2.11.1" },
@@ -114,7 +114,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "boto3-stubs", extras = ["bedrock-agent", "bedrock-agent-runtime"], specifier = ">=1.43.0" },
+    { name = "boto3-stubs", extras = ["bedrock-agent", "bedrock-agent-runtime"], specifier = ">=1.43.32" },
     { name = "commitizen", specifier = ">=4.4.1" },
     { name = "pre-commit", specifier = ">=4.2.0" },
     { name = "pyright", specifier = ">=1.1.398" },
