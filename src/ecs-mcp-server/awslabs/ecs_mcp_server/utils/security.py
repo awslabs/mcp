@@ -16,6 +16,7 @@
 Security utilities for the ECS MCP Server.
 """
 
+import copy
 import functools
 import json
 import logging
@@ -33,6 +34,9 @@ PERMISSION_NONE = "none"
 
 # Define permission type
 PermissionType = Literal["write", "sensitive-data", "none"]
+
+# Placeholder written in place of a sensitive value when ALLOW_SENSITIVE_DATA is disabled.
+REDACTED = "[REDACTED]"
 
 
 class SecurityError(Exception):
@@ -180,6 +184,58 @@ def check_permission(config: Dict[str, Any], permission_type: PermissionType) ->
         )
 
     return True
+
+
+def _redact_container_in_place(container: Dict[str, Any]) -> None:
+    """Redacts environment values and secret references of one container, in place."""
+    for env_var in container.get("environment", []):
+        env_var["value"] = REDACTED
+    if "secrets" in container:
+        container["secrets"] = [
+            {"name": secret.get("name", ""), "valueFrom": REDACTED}
+            for secret in container["secrets"]
+        ]
+
+
+def redact_container_definition(container: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Returns a copy of a container definition with sensitive values redacted.
+
+    Redacts ``environment[].value`` and ``secrets[].valueFrom`` while keeping the
+    variable and secret names. Applies to any ECS container shape that carries these
+    fields, such as task definition ``containerDefinitions[]`` entries and the
+    ``primaryContainer`` of an Express Mode service.
+
+    Args:
+        container: A container definition as returned by the ECS API
+
+    Returns:
+        Dict[str, Any]: A deep copy of the container definition with sensitive values redacted
+    """
+    redacted = copy.deepcopy(container)
+    _redact_container_in_place(redacted)
+    return redacted
+
+
+def redact_task_definition(task_definition: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Returns a copy of an ECS task definition with sensitive values redacted.
+
+    Redacts ``containerDefinitions[].environment[].value`` and
+    ``containerDefinitions[].secrets[].valueFrom`` while keeping the variable and
+    secret names, so the task definition stays useful for troubleshooting without
+    exposing configuration values or the ARNs they are loaded from.
+
+    Args:
+        task_definition: A task definition as returned by DescribeTaskDefinition
+
+    Returns:
+        Dict[str, Any]: A deep copy of the task definition with sensitive values redacted
+    """
+    redacted = copy.deepcopy(task_definition)
+    for container in redacted.get("containerDefinitions", []):
+        _redact_container_in_place(container)
+    return redacted
 
 
 class ResponseSanitizer:

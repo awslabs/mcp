@@ -23,6 +23,7 @@ class TestSensitiveDataOperations:
         """Verify the sensitive operations set includes the known sensitive APIs."""
         assert "DescribeTaskDefinition" in SENSITIVE_DATA_OPERATIONS
         assert "DescribeTasks" in SENSITIVE_DATA_OPERATIONS
+        assert "DescribeExpressGatewayService" in SENSITIVE_DATA_OPERATIONS
 
     def test_non_sensitive_operations_not_in_set(self):
         """Verify non-sensitive Describe/List operations are not in the set."""
@@ -194,6 +195,76 @@ class TestSanitizeSensitiveResponse:
             == "original"
         )
 
+    def test_describe_task_definition_without_task_definition_key(self):
+        """A response with no taskDefinition (e.g. an error shape) is returned unchanged."""
+        response = {"status": "error", "error": "Task definition not found"}
+
+        assert _sanitize_sensitive_response(response, "DescribeTaskDefinition") == response
+
+    def test_describe_express_gateway_service_redacts_every_active_configuration(self):
+        """Each active configuration's primaryContainer has its env values and secrets redacted."""
+
+        def configuration(revision, password):
+            return {
+                "serviceRevisionArn": (
+                    f"arn:aws:ecs:us-east-1:123456789012:service-revision/prod/my-api/{revision}"
+                ),
+                "cpu": "1024",
+                "primaryContainer": {
+                    "image": f"123456789012.dkr.ecr.us-east-1.amazonaws.com/my-api:{revision}",
+                    "containerPort": 8080,
+                    "environment": [{"name": "DB_PASS", "value": password}],
+                    "secrets": [
+                        {
+                            "name": "TOKEN",
+                            "valueFrom": "arn:aws:ssm:us-east-1:123456789012:parameter/token",
+                        }
+                    ],
+                },
+            }
+
+        response = {
+            "service": {
+                "serviceName": "my-api",
+                "activeConfigurations": [
+                    configuration(1, "old-pass"),
+                    configuration(2, "new-pass"),
+                ],
+            }
+        }
+
+        result = _sanitize_sensitive_response(response, "DescribeExpressGatewayService")
+
+        for revision, sanitized in enumerate(result["service"]["activeConfigurations"], start=1):
+            container = sanitized["primaryContainer"]
+            assert container["environment"] == [{"name": "DB_PASS", "value": "[REDACTED]"}]
+            assert container["secrets"] == [{"name": "TOKEN", "valueFrom": "[REDACTED]"}]
+            assert container["image"].endswith(f":{revision}")
+            assert container["containerPort"] == 8080
+            assert sanitized["cpu"] == "1024"
+        assert result["service"]["serviceName"] == "my-api"
+        # Original is untouched
+        assert response["service"]["activeConfigurations"][1]["primaryContainer"][
+            "environment"
+        ] == [{"name": "DB_PASS", "value": "new-pass"}]
+
+    def test_describe_express_gateway_service_without_service_key(self):
+        """A response with no service (e.g. an error shape) is returned unchanged."""
+        response = {"status": "error", "error": "Service not found"}
+
+        assert _sanitize_sensitive_response(response, "DescribeExpressGatewayService") == response
+
+    def test_describe_express_gateway_service_configuration_without_primary_container(self):
+        """An active configuration with no primaryContainer is returned unchanged."""
+        response = {
+            "service": {
+                "serviceName": "my-api",
+                "activeConfigurations": [{"serviceRevisionArn": "arn:rev/1", "cpu": "512"}],
+            }
+        }
+
+        assert _sanitize_sensitive_response(response, "DescribeExpressGatewayService") == response
+
 
 class TestEcsApiOperationSensitiveData:
     """Integration tests for ALLOW_SENSITIVE_DATA enforcement in ecs_api_operation."""
@@ -327,3 +398,78 @@ class TestEcsApiOperationSensitiveData:
         # Should pass through unmodified
         assert result["clusters"][0]["clusterName"] == "test"
         assert result["clusters"][0]["status"] == "ACTIVE"
+
+    @staticmethod
+    def _express_service_response():
+        return {
+            "service": {
+                "serviceName": "my-api",
+                "serviceArn": "arn:aws:ecs:us-east-1:123456789012:service/prod/my-api",
+                "status": "ACTIVE",
+                "activeConfigurations": [
+                    {
+                        "serviceRevisionArn": (
+                            "arn:aws:ecs:us-east-1:123456789012:service-revision/prod/my-api/1"
+                        ),
+                        "cpu": "1024",
+                        "memory": "2048",
+                        "primaryContainer": {
+                            "image": "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-api:1",
+                            "containerPort": 8080,
+                            "environment": [{"name": "DB_PASS", "value": "p@ssw0rd"}],
+                            "secrets": [
+                                {
+                                    "name": "TOKEN",
+                                    "valueFrom": "arn:aws:ssm:us-east-1:123456789012:parameter/x",
+                                }
+                            ],
+                        },
+                    }
+                ],
+            }
+        }
+
+    @pytest.mark.anyio
+    @patch("awslabs.ecs_mcp_server.utils.config.get_config")
+    @patch("awslabs.ecs_mcp_server.api.resource_management.get_aws_client")
+    async def test_describe_express_gateway_service_sanitized_when_sensitive_data_disabled(
+        self, mock_get_client, mock_get_config
+    ):
+        """DescribeExpressGatewayService response is sanitized when ALLOW_SENSITIVE_DATA=false."""
+        mock_get_config.return_value = {"allow-write": False, "allow-sensitive-data": False}
+
+        mock_ecs = MagicMock()
+        mock_ecs.describe_express_gateway_service.return_value = self._express_service_response()
+        mock_get_client.return_value = mock_ecs
+
+        result = await ecs_api_operation(
+            api_operation="DescribeExpressGatewayService",
+            api_params={"serviceArn": "arn:aws:ecs:us-east-1:123456789012:service/prod/my-api"},
+        )
+
+        container = result["service"]["activeConfigurations"][0]["primaryContainer"]
+        assert container["environment"] == [{"name": "DB_PASS", "value": "[REDACTED]"}]
+        assert container["secrets"] == [{"name": "TOKEN", "valueFrom": "[REDACTED]"}]
+        assert container["image"] == "123456789012.dkr.ecr.us-east-1.amazonaws.com/my-api:1"
+        assert container["containerPort"] == 8080
+        assert result["service"]["status"] == "ACTIVE"
+
+    @pytest.mark.anyio
+    @patch("awslabs.ecs_mcp_server.utils.config.get_config")
+    @patch("awslabs.ecs_mcp_server.api.resource_management.get_aws_client")
+    async def test_describe_express_gateway_service_not_sanitized_when_sensitive_data_enabled(
+        self, mock_get_client, mock_get_config
+    ):
+        """DescribeExpressGatewayService response is left intact when ALLOW_SENSITIVE_DATA=true."""
+        mock_get_config.return_value = {"allow-write": False, "allow-sensitive-data": True}
+
+        mock_ecs = MagicMock()
+        mock_ecs.describe_express_gateway_service.return_value = self._express_service_response()
+        mock_get_client.return_value = mock_ecs
+
+        result = await ecs_api_operation(
+            api_operation="DescribeExpressGatewayService",
+            api_params={"serviceArn": "arn:aws:ecs:us-east-1:123456789012:service/prod/my-api"},
+        )
+
+        assert result == self._express_service_response()

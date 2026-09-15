@@ -270,7 +270,7 @@ Controls whether write operations (creating or deleting infrastructure) are allo
 
 ### ALLOW_SENSITIVE_DATA
 
-Controls whether tools that return logs and detailed resource information are allowed.
+Controls whether tools that return logs and detailed resource information are allowed. When disabled, `ecs_resource_management` and `ecs_troubleshooting_tool` redact container environment variable values and secret references (in task definitions, tasks, and Express Mode services) instead of returning them.
 
 ```bash
 # Enable access to sensitive data
