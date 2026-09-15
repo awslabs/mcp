@@ -110,4 +110,4 @@ async def query_knowledge_base(
                 }
             )
 
-    return '\n\n'.join([json.dumps(document) for document in documents])
+    return '\n\n'.join([json.dumps(document, ensure_ascii=False) for document in documents])
