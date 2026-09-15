@@ -922,6 +922,38 @@ class TestCreateClusterWorker:
             connect_kwargs = mock_connect.call_args[1]
             assert 'secret_arn_override' not in connect_kwargs
 
+    def test_worker_forwards_enable_iam_auth(self):
+        """create_cluster_worker forwards enable_iam_auth to cluster creation."""
+        with (
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_create_serverless_cluster'
+            ) as mock_create,
+            patch('awslabs.postgres_mcp_server.server.setup_aurora_iam_policy_for_current_user'),
+            patch('awslabs.postgres_mcp_server.server.internal_create_connection'),
+            patch('awslabs.postgres_mcp_server.server.async_job_status'),
+            patch('awslabs.postgres_mcp_server.server.async_job_status_lock') as mock_lock,
+        ):
+            mock_create.return_value = {
+                'MasterUsername': 'postgres',
+                'DbClusterResourceId': 'cluster-123',
+                'Endpoint': 'test.endpoint.com',
+            }
+            mock_lock.acquire = MagicMock()
+            mock_lock.release = MagicMock()
+
+            server_module.create_cluster_worker(
+                job_id='test-job',
+                region='us-east-1',
+                database_type=DatabaseType.APG,
+                connection_method=ConnectionMethod.RDS_API,
+                cluster_identifier='test-cluster',
+                engine_version='17.5',
+                database='testdb',
+                enable_iam_auth=True,
+            )
+
+            assert mock_create.call_args[1]['enable_iam_auth'] is True
+
     def test_worker_failure_updates_job_status(self):
         """Test that worker updates job status on failure."""
         with (
