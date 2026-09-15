@@ -1526,6 +1526,202 @@ class TestConvertApiResponseToTableSpecificTypes:
 
     @patch('sqlite3.connect')
     @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
+    async def test_convert_coh_recommendations_order_by_aware_sample(
+        self, mock_get_path, mock_connect, mock_context
+    ):
+        """A requested order_by adds a matching sample query and is not leaked into the payload."""
+        mock_get_path.return_value = '/mock/path/session.db'
+        mock_cursor = MagicMock()
+        mock_connection = MagicMock()
+        mock_connection.cursor.return_value = mock_cursor
+        mock_connect.return_value = mock_connection
+        mock_cursor.description = [('recommendation_id',), ('account_id',)]
+        mock_cursor.fetchall.return_value = [('r-1', '111')]
+
+        response = {'recommendations': [{'recommendation_id': 'r-1', 'account_id': '111'}]}
+
+        result = await convert_api_response_to_table(
+            mock_context,
+            response,
+            'cost_optimization_hub_list_recommendations',
+            order_by={'dimension': 'AccountId', 'order': 'Asc'},
+        )
+
+        assert result['status'] == 'success'
+        # The raw order_by dict is popped, not spread into the response metadata.
+        assert 'order_by' not in result
+        names = [q['name'] for q in result['sample_queries']]
+        sqls = [q['sql'] for q in result['sample_queries']]
+        # A requested order_by yields a single coh sample mirroring it; the
+        # default savings view is not added on top (the generic "Basic query"
+        # is always present and is not counted here).
+        coh_samples = [
+            n
+            for n in names
+            if n.startswith('First 20 by requested order') or n == 'Top 20 savings opportunities'
+        ]
+        assert coh_samples == ['First 20 by requested order (AccountId ASC)']
+        assert any('ORDER BY account_id ASC' in s for s in sqls)
+
+    @patch('sqlite3.connect')
+    @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
+    async def test_convert_coh_recommendations_unmapped_dimension_no_extra_sample(
+        self, mock_get_path, mock_connect, mock_context
+    ):
+        """A dimension with no stored column falls back to the default sample only."""
+        mock_get_path.return_value = '/mock/path/session.db'
+        mock_cursor = MagicMock()
+        mock_connection = MagicMock()
+        mock_connection.cursor.return_value = mock_cursor
+        mock_connect.return_value = mock_connection
+        mock_cursor.description = [('recommendation_id',), ('account_id',)]
+        mock_cursor.fetchall.return_value = [('r-1', '111')]
+
+        response = {'recommendations': [{'recommendation_id': 'r-1', 'account_id': '111'}]}
+
+        result = await convert_api_response_to_table(
+            mock_context,
+            response,
+            'cost_optimization_hub_list_recommendations',
+            order_by={'dimension': 'NotARealDimension'},
+        )
+
+        names = [q['name'] for q in result['sample_queries']]
+        assert not any('requested order' in n.lower() for n in names)
+        assert any('Top 20 savings opportunities' == n for n in names)
+
+    @patch('sqlite3.connect')
+    @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
+    async def test_convert_coh_recommendations_boolean_dimension_sample(
+        self, mock_get_path, mock_connect, mock_context
+    ):
+        """RestartNeeded/RollbackPossible now map to stored boolean columns."""
+        mock_get_path.return_value = '/mock/path/session.db'
+        mock_cursor = MagicMock()
+        mock_connection = MagicMock()
+        mock_connection.cursor.return_value = mock_cursor
+        mock_connect.return_value = mock_connection
+        mock_cursor.description = [('recommendation_id',), ('restart_needed',)]
+        mock_cursor.fetchall.return_value = [('r-1', 0)]
+
+        response = {'recommendations': [{'recommendation_id': 'r-1', 'restart_needed': False}]}
+
+        result = await convert_api_response_to_table(
+            mock_context,
+            response,
+            'cost_optimization_hub_list_recommendations',
+            order_by={'dimension': 'RestartNeeded', 'order': 'Desc'},
+        )
+
+        sqls = [q['sql'] for q in result['sample_queries']]
+        assert any('ORDER BY restart_needed DESC' in s for s in sqls)
+
+    @patch('sqlite3.connect')
+    @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
+    async def test_convert_coh_recommendations_omitted_order_defaults_asc(
+        self, mock_get_path, mock_connect, mock_context
+    ):
+        """Omitting ``order`` defaults the sample to ASC, matching the API default."""
+        mock_get_path.return_value = '/mock/path/session.db'
+        mock_cursor = MagicMock()
+        mock_connection = MagicMock()
+        mock_connection.cursor.return_value = mock_cursor
+        mock_connect.return_value = mock_connection
+        mock_cursor.description = [('recommendation_id',), ('account_id',)]
+        mock_cursor.fetchall.return_value = [('r-1', '111')]
+
+        response = {'recommendations': [{'recommendation_id': 'r-1', 'account_id': '111'}]}
+
+        result = await convert_api_response_to_table(
+            mock_context,
+            response,
+            'cost_optimization_hub_list_recommendations',
+            order_by={'dimension': 'EstimatedMonthlySavings'},
+        )
+
+        sqls = [q['sql'] for q in result['sample_queries']]
+        assert any('ORDER BY estimated_monthly_savings ASC' in s for s in sqls)
+
+    @patch('sqlite3.connect')
+    @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
+    async def test_convert_coh_efficiency_order_by_aware_ranked_sample(
+        self, mock_get_path, mock_connect, mock_context
+    ):
+        """A requested order_by drives the group-ranking column/direction and is not leaked."""
+        mock_get_path.return_value = '/mock/path/session.db'
+        mock_cursor = MagicMock()
+        mock_connection = MagicMock()
+        mock_connection.cursor.return_value = mock_cursor
+        mock_connect.return_value = mock_connection
+        mock_cursor.description = [('group_value',), ('score',)]
+        mock_cursor.fetchall.return_value = [('us-east-1', 80.0)]
+
+        response = {
+            'groups': [
+                {
+                    'group': 'us-east-1',
+                    'message': None,
+                    'metrics_by_time': [
+                        {'timestamp': '2026-08', 'score': 80.0, 'savings': 5.0, 'spend': 100.0}
+                    ],
+                }
+            ]
+        }
+
+        result = await convert_api_response_to_table(
+            mock_context,
+            response,
+            'cost_optimization_hub_list_efficiency_metrics',
+            order_by={'dimension': 'Savings', 'order': 'Asc'},
+        )
+
+        assert 'order_by' not in result
+        names = [q['name'] for q in result['sample_queries']]
+        sqls = [q['sql'] for q in result['sample_queries']]
+        assert 'Latest efficiency metrics by group (ranked by savings)' in names
+        assert any('ORDER BY savings ASC' in s for s in sqls)
+
+    @patch('sqlite3.connect')
+    @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
+    async def test_convert_coh_efficiency_omitted_order_defaults_desc(
+        self, mock_get_path, mock_connect, mock_context
+    ):
+        """Efficiency omits-order default is DESC (opposite of recommendations)."""
+        mock_get_path.return_value = '/mock/path/session.db'
+        mock_cursor = MagicMock()
+        mock_connection = MagicMock()
+        mock_connection.cursor.return_value = mock_cursor
+        mock_connect.return_value = mock_connection
+        mock_cursor.description = [('group_value',), ('score',)]
+        mock_cursor.fetchall.return_value = [('us-east-1', 80.0)]
+
+        response = {
+            'groups': [
+                {
+                    'group': 'us-east-1',
+                    'message': None,
+                    'metrics_by_time': [
+                        {'timestamp': '2026-08', 'score': 80.0, 'savings': 5.0, 'spend': 100.0}
+                    ],
+                }
+            ]
+        }
+
+        # No order_by -> API default (Score DESC); dimension with omitted order -> DESC.
+        for order_by in (None, {'dimension': 'Score'}):
+            result = await convert_api_response_to_table(
+                mock_context,
+                response,
+                'cost_optimization_hub_list_efficiency_metrics',
+                order_by=order_by,
+            )
+            names = [q['name'] for q in result['sample_queries']]
+            sqls = [q['sql'] for q in result['sample_queries']]
+            assert 'Latest efficiency metrics by group (ranked by score)' in names
+            assert any('ORDER BY score DESC' in s for s in sqls)
+
+    @patch('sqlite3.connect')
+    @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
     async def test_convert_generic_response(self, mock_get_path, mock_connect, mock_context):
         """Test converting generic unknown response type."""
         # Setup
