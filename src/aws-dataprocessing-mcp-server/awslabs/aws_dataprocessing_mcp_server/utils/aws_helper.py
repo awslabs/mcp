@@ -30,7 +30,10 @@ from awslabs.aws_dataprocessing_mcp_server import __version__
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
+
+
+ClientFactory = Callable[[str], Any]
 
 
 class AwsHelper:
@@ -99,7 +102,7 @@ class AwsHelper:
     _aws_partition = None
 
     @classmethod
-    def get_aws_account_id(cls) -> str:
+    def get_aws_account_id(cls, client_factory: Optional[ClientFactory] = None) -> str:
         """Get the AWS account ID for the current session.
 
         The account ID is cached after the first call to avoid repeated STS calls.
@@ -107,21 +110,23 @@ class AwsHelper:
         Returns:
             The AWS account ID as a string
         """
-        # Return cached account ID if available
-        if cls._aws_account_id is not None:
+        # Injected clients may use a different AWS identity, so never mix them with the ambient cache.
+        if client_factory is None and cls._aws_account_id is not None:
             return cls._aws_account_id
 
         try:
-            sts_client = boto3.client('sts')
-            cls._aws_account_id = sts_client.get_caller_identity()['Account']
-            return cls._aws_account_id
+            sts_client = client_factory('sts') if client_factory else boto3.client('sts')
+            account_id = sts_client.get_caller_identity()['Account']
+            if client_factory is None:
+                cls._aws_account_id = account_id
+            return account_id
         except Exception:
             # If we can't get the account ID, return a placeholder
             # This is better than nothing for ARN construction
             return 'current-account'
 
     @classmethod
-    def get_aws_partition(cls) -> str:
+    def get_aws_partition(cls, client_factory: Optional[ClientFactory] = None) -> str:
         """Get the AWS partition for the current session.
 
         The partition is cached after the first call to avoid repeated STS calls.
@@ -130,17 +135,19 @@ class AwsHelper:
         Returns:
             The AWS partition as a string
         """
-        # Return cached partition if available
-        if cls._aws_partition is not None:
+        # Injected clients may use a different AWS identity, so never mix them with the ambient cache.
+        if client_factory is None and cls._aws_partition is not None:
             return cls._aws_partition
 
         try:
-            sts_client = boto3.client('sts')
+            sts_client = client_factory('sts') if client_factory else boto3.client('sts')
             # Extract partition from the ARN in the response
             arn = sts_client.get_caller_identity()['Arn']
             # ARN format: arn:partition:service:region:account-id:resource
-            cls._aws_partition = arn.split(':')[1]
-            return cls._aws_partition
+            partition = arn.split(':')[1]
+            if client_factory is None:
+                cls._aws_partition = partition
+            return partition
         except Exception:
             # If we can't get the partition, return the standard partition
             # This is better than nothing for ARN construction
@@ -233,20 +240,24 @@ class AwsHelper:
 
     @staticmethod
     def get_resource_tags_athena_workgroup(
-        athena_client: Any, workgroup_name: str
+        athena_client: Any,
+        workgroup_name: str,
+        client_factory: Optional[ClientFactory] = None,
     ) -> List[Dict[str, str]]:
         """Get tags for an Athena workgroup.
 
         Args:
             athena_client: Athena boto3 client
             workgroup_name: Athena workgroup name
+            client_factory: Optional service-aware boto3 client factory
 
         Returns:
             List of tag dictionaries
         """
         try:
+            partition = AwsHelper.get_aws_partition(client_factory) if client_factory else 'aws'
             response = athena_client.list_tags_for_resource(
-                ResourceARN=f'arn:aws:athena:{AwsHelper.get_or_default_aws_region()}:{AwsHelper.get_aws_account_id()}:workgroup/{workgroup_name}'
+                ResourceARN=f'arn:{partition}:athena:{AwsHelper.get_or_default_aws_region()}:{AwsHelper.get_aws_account_id(client_factory)}:workgroup/{workgroup_name}'
             )
             return response.get('Tags', [])
         except ClientError:
@@ -394,7 +405,11 @@ class AwsHelper:
 
     @classmethod
     def verify_athena_data_catalog_managed_by_mcp(
-        cls, athena_client: Any, name: str, work_group: Optional[str] = None
+        cls,
+        athena_client: Any,
+        name: str,
+        work_group: Optional[str] = None,
+        client_factory: Optional[ClientFactory] = None,
     ) -> Dict[str, Any]:
         """Verify if an Athena data catalog is managed by the MCP server.
 
@@ -404,6 +419,7 @@ class AwsHelper:
             athena_client: Athena boto3 client
             name: Name of the data catalog
             work_group: Optional workgroup name
+            client_factory: Optional service-aware boto3 client factory
 
         Returns:
             Dictionary with verification result:
@@ -425,11 +441,9 @@ class AwsHelper:
             athena_client.get_data_catalog(**get_params)
 
             # Construct the ARN for the data catalog
-            account_id = cls.get_aws_account_id()
+            account_id = cls.get_aws_account_id(client_factory)
             region = cls.get_or_default_aws_region()
-            data_catalog_arn = (
-                f'arn:{cls.get_aws_partition()}:athena:{region}:{account_id}:datacatalog/{name}'
-            )
+            data_catalog_arn = f'arn:{cls.get_aws_partition(client_factory)}:athena:{region}:{account_id}:datacatalog/{name}'
 
             # Get tags for the data catalog
             try:

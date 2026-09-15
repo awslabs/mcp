@@ -359,6 +359,30 @@ Controls whether the MCP server adds and verifies MCP-managed tags on resources.
 * Example: `"CUSTOM_TAGS": "true"`
 * **Important**: Enabling this option means resources won't be tagged as MCP-managed. This is done at the owner's consent and responsibility, as it bypasses the built-in resource management safeguards.
 
+### Embedding handlers with custom AWS clients
+
+When composing these handlers into another MCP server, each handler accepts an optional service-aware `client_factory(service_name)` argument. If it is omitted, handlers continue to use `AwsHelper.create_boto3_client`, including the server's existing user-agent configuration and ambient AWS credential resolution.
+
+The factory can return clients created from a caller-owned boto3 session and `botocore.config.Config`, allowing the embedding application to control credentials, retries, and timeouts. Depending on the operation, the factory can also be asked for an `sts` client so account and partition checks use the same AWS identity as the service client.
+
+```python
+from awslabs.aws_dataprocessing_mcp_server.handlers.athena.athena_query_handler import AthenaQueryHandler
+from boto3 import Session
+from botocore.config import Config
+
+session = Session(profile_name='my-profile')
+config = Config(connect_timeout=5, read_timeout=30, retries={'mode': 'standard', 'max_attempts': 3})
+
+
+def client_factory(service_name):
+    return session.client(service_name, config=config)
+
+
+handler = AthenaQueryHandler(mcp, client_factory=client_factory)
+```
+
+When an AWS `ClientError` reaches a tool error result, the existing human-readable text is preserved and `structured_content.error` contains `code`, `error_type`, `message`, `http_status`, and `request_id`. Non-AWS exceptions retain the existing text-only error result.
+
 ## Tools
 
 ### Glue Data Catalog Handler Tools
