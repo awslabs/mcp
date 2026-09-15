@@ -2354,6 +2354,24 @@ class TestTransactionLifecycle:
             await execute_query('test-cluster', 'dev', commit_transaction='load')
 
     @pytest.mark.asyncio
+    async def test_the_rollback_of_an_aborted_transaction_drains_its_session(self, mocker):
+        """The name goes with it, so nothing can reach the session the rollback ran on."""
+        batches = self._batches(
+            mocker,
+            _fake_batch(['FINISHED', 'FINISHED'], session_id='session-1'),
+            _fake_batch([{'status': 'FAILED', 'error': 'ERROR: division by zero'}]),
+            _fake_batch(['FINISHED']),
+        )
+
+        await execute_query('test-cluster', 'dev', begin_transaction='load')
+
+        with pytest.raises(ToolError, match='division by zero'):
+            await execute_query('test-cluster', 'dev', 'SELECT 1/0', in_transaction='load')
+
+        assert batches.call_args[1]['sqls'] == ['ROLLBACK']
+        assert batches.call_args[1]['session_keepalive'] == _SESSION_DRAIN
+
+    @pytest.mark.asyncio
     async def test_a_failing_rollback_does_not_replace_the_real_error(self, mocker):
         """The caller needs the statement's failure; the idle timeout ends the session anyway."""
         self._batches(

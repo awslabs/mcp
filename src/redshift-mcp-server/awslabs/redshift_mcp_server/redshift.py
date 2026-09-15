@@ -830,7 +830,8 @@ async def _rollback_lost_transaction(
     """Roll back a transaction whose statement failed, best effort.
 
     The session is being dropped either way, so a failure here changes nothing the caller can
-    act on: the transaction is already aborted, and the session's idle timeout ends it.
+    act on: the transaction is already aborted, and the session's idle timeout ends it. Every
+    caller drops the name straight after, so the session is drained rather than left to idle.
 
     Args:
         cluster_info: Cluster information model.
@@ -845,6 +846,7 @@ async def _rollback_lost_transaction(
             database_name=database_name,
             sqls=['ROLLBACK'],
             session_id=session_id,
+            session_keepalive=_SESSION_DRAIN,
         )
     except Exception as e:  # noqa: BLE001 - nothing here is actionable
         logger.warning(f'Rollback of the aborted transaction on {session_id} failed: {e}')
