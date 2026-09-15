@@ -10,12 +10,6 @@ dependencies = [
     "loguru>=0.7.0",
     "pydantic>=2.0.0",
     "fastapi>=0.100.0",
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.26.0",
-    "pytest-cov>=4.1.0",
-    "pytest-mock>=3.12.0",
-    "ruff>=0.0.291",
-    "pyright>=1.1.0",
 ]
 
 
@@ -27,6 +21,16 @@ packages = {find = {where = ["."]}}
 
 [project.entry-points.mcp]
 well-architected-security-mcp-server = "awslabs.well_architected_security_mcp_server.server:mcp"
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.26.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "ruff>=0.0.291",
+    "pyright>=1.1.0",
+]
 
 [build-system]
 requires = ["hatchling"]
