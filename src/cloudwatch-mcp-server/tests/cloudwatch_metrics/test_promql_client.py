@@ -171,3 +171,93 @@ class TestPromQLClient:
 
         assert result == ['metric1']
         assert mock_sleep.call_count == 1
+
+
+# Well-formed AWS regions spanning every partition, mapped to the
+# partition-correct PromQL base URL. The DNS suffix differs by partition
+# (amazonaws.com for aws/aws-us-gov, amazonaws.com.cn for China, and the ISO
+# partitions' own suffixes), so these lock in that the endpoint builder is
+# partition-aware and never assumes .amazonaws.com.
+PARTITION_BASE_URLS = {
+    'us-east-1': 'https://monitoring.us-east-1.amazonaws.com/api/v1',
+    'eu-west-3': 'https://monitoring.eu-west-3.amazonaws.com/api/v1',
+    'ap-southeast-5': 'https://monitoring.ap-southeast-5.amazonaws.com/api/v1',
+    'mx-central-1': 'https://monitoring.mx-central-1.amazonaws.com/api/v1',
+    'us-gov-west-1': 'https://monitoring.us-gov-west-1.amazonaws.com/api/v1',
+    'us-gov-east-1': 'https://monitoring.us-gov-east-1.amazonaws.com/api/v1',
+    'cn-north-1': 'https://monitoring.cn-north-1.amazonaws.com.cn/api/v1',
+    'cn-northwest-1': 'https://monitoring.cn-northwest-1.amazonaws.com.cn/api/v1',
+    'us-iso-east-1': 'https://monitoring.us-iso-east-1.c2s.ic.gov/api/v1',
+    'us-isob-east-1': 'https://monitoring.us-isob-east-1.sc2s.sgov.gov/api/v1',
+    'eu-isoe-west-1': 'https://monitoring.eu-isoe-west-1.cloud.adc-e.uk/api/v1',
+    'us-isof-south-1': 'https://monitoring.us-isof-south-1.csp.hci.ic.gov/api/v1',
+}
+
+# Malformed / malicious region values that must be rejected. Several would
+# otherwise break out of the monitoring host and cause a SigV4-signed request
+# (carrying the server's AWS credentials) to be sent to an attacker-controlled
+# endpoint (SOCCRE-24621).
+MALICIOUS_REGIONS = [
+    'evil.com/',
+    'x.attacker.com/',
+    'us-east-1/',
+    'us-east-1/../..',
+    'us-east-1.evil.com',
+    'us-east-1@evil.com',
+    '@evil.com',
+    'US-EAST-1',
+    '169.254.169.254',
+    'monitoring.evil.com',
+    'us-east-1#x',
+    'us-east-1:443',
+    'us-east-1\n',
+    'localhost',
+    'us_east_1',
+    '',
+]
+
+
+class TestPromQLClientRegionValidation:
+    """Region validation / SSRF guard tests for PromQLClient (SOCCRE-24621)."""
+
+    @pytest.mark.parametrize('region', list(PARTITION_BASE_URLS))
+    def test_get_base_url_is_partition_aware(self, region):
+        """Regions across every AWS partition build the partition-correct URL."""
+        assert PromQLClient._get_base_url(region) == PARTITION_BASE_URLS[region]
+
+    def test_get_base_url_rejects_unknown_but_wellformed_region(self):
+        """A syntactically valid but non-existent region is rejected (no endpoint)."""
+        with pytest.raises(ValueError):
+            PromQLClient._get_base_url('zz-zzz-9')
+
+    @pytest.mark.parametrize('region', MALICIOUS_REGIONS)
+    def test_get_base_url_rejects_malicious_region(self, region):
+        """Malformed/malicious regions raise ValueError before URL construction."""
+        with pytest.raises(ValueError):
+            PromQLClient._get_base_url(region)
+
+    @patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.promql_client.SigV4Auth')
+    @patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.promql_client.requests.Session')
+    @patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.promql_client.Session')
+    @pytest.mark.parametrize('region', [r for r in MALICIOUS_REGIONS if r] + ['zz-zzz-9'])
+    def test_make_request_rejects_region_before_signing(
+        self, mock_boto_session, mock_req_session, mock_sigv4, region
+    ):
+        """A rejected region fails closed before any credential/sign/network op.
+
+        Proves the ValueError is raised before boto3 Session creation, SigV4
+        signing, and the HTTP send — so no signed credential material is ever
+        emitted — and that it is not swallowed by the retry loop. The empty
+        string is excluded here because make_request defaults a falsy region to
+        AWS_REGION/us-east-1 before validation (still covered by _get_base_url).
+        """
+        with pytest.raises(ValueError):
+            PromQLClient.make_request(
+                endpoint='query',
+                params={'query': 'up'},
+                region=region,
+            )
+
+        mock_boto_session.assert_not_called()
+        mock_sigv4.assert_not_called()
+        mock_req_session.assert_not_called()
