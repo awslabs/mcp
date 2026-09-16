@@ -20,6 +20,7 @@ worse -- silently returns zero results.
 """
 
 from loguru import logger
+from mcp.server.mcpserver.exceptions import ToolError
 from typing import TYPE_CHECKING, Optional
 
 
@@ -47,6 +48,9 @@ VECTOR_DATA_SOURCE_ID_KEY = 'x-amz-bedrock-kb-data-source-id'
 # region, and a knowledge base's type never changes for its lifetime.
 _KB_TYPE_CACHE: dict[str, str] = {}
 
+# Knowledge base id -> set of its data source ids, cached on the same reasoning.
+_DATA_SOURCE_ID_CACHE: dict[str, set[str]] = {}
+
 
 def cache_knowledge_base_type(knowledge_base_id: str, knowledge_base_type: str) -> None:
     """Record a knowledge base's type so ``Retrieve`` calls can skip the lookup."""
@@ -54,9 +58,16 @@ def cache_knowledge_base_type(knowledge_base_id: str, knowledge_base_type: str) 
         _KB_TYPE_CACHE[knowledge_base_id] = knowledge_base_type
 
 
+def cache_data_source_ids(knowledge_base_id: str, data_source_ids: list[str]) -> None:
+    """Record a knowledge base's data source ids so validation can skip the lookup."""
+    if knowledge_base_id:
+        _DATA_SOURCE_ID_CACHE[knowledge_base_id] = set(data_source_ids)
+
+
 def clear_knowledge_base_type_cache() -> None:
-    """Clear the cache. Intended for tests."""
+    """Clear the caches. Intended for tests."""
     _KB_TYPE_CACHE.clear()
+    _DATA_SOURCE_ID_CACHE.clear()
 
 
 def get_knowledge_base_type(
@@ -108,3 +119,74 @@ def search_configuration_key(managed: bool) -> str:
 def data_source_id_metadata_key(managed: bool) -> str:
     """Return the metadata key holding data-source identity for the KB type."""
     return MANAGED_DATA_SOURCE_ID_KEY if managed else VECTOR_DATA_SOURCE_ID_KEY
+
+
+def get_data_source_ids(
+    knowledge_base_id: str,
+    agent_mgmt_client: Optional[AgentsforBedrockClient] = None,
+) -> Optional[set[str]]:
+    """Return the data source ids belonging to a knowledge base.
+
+    Returns ``None`` when they cannot be determined -- for example when the caller
+    lacks ``bedrock:ListDataSources``. Callers must treat ``None`` as "unknown" and
+    skip validation rather than assuming the knowledge base has no data sources.
+    """
+    cached = _DATA_SOURCE_ID_CACHE.get(knowledge_base_id)
+    if cached is not None:
+        return cached
+
+    if agent_mgmt_client is None:
+        return None
+
+    try:
+        ids: set[str] = set()
+        paginator = agent_mgmt_client.get_paginator('list_data_sources')
+        for page in paginator.paginate(knowledgeBaseId=knowledge_base_id):
+            for summary in page.get('dataSourceSummaries', []) or []:
+                ds_id = summary.get('dataSourceId')
+                if ds_id:
+                    ids.add(ds_id)
+    except Exception as exc:  # noqa: BLE001 - lookup is best-effort
+        logger.warning(
+            f'Could not list data sources for knowledge base {knowledge_base_id}: {exc}'
+        )
+        return None
+
+    _DATA_SOURCE_ID_CACHE[knowledge_base_id] = ids
+    return ids
+
+
+def validate_data_source_ids(
+    knowledge_base_ids: list[str],
+    data_source_ids: list[str],
+    agent_mgmt_client: Optional[AgentsforBedrockClient] = None,
+) -> None:
+    """Reject data source ids that belong to none of the given knowledge bases.
+
+    Filtering on a data source id that does not exist is accepted by the API and
+    simply matches nothing, so the caller receives an empty result set and no error.
+    That reads as "this data source is empty" rather than "this id is wrong", which
+    is the more likely explanation. Failing loudly with the valid ids is far more
+    useful than silently returning nothing.
+
+    Validation is skipped when the ids cannot be determined for any of the knowledge
+    bases, so a caller without ``bedrock:ListDataSources`` keeps working.
+    """
+    if not data_source_ids:
+        return
+
+    known: set[str] = set()
+    for knowledge_base_id in knowledge_base_ids:
+        ids = get_data_source_ids(knowledge_base_id, agent_mgmt_client)
+        if ids is None:
+            return  # cannot verify - do not guess
+        known |= ids
+
+    unknown = [ds for ds in data_source_ids if ds not in known]
+    if unknown:
+        raise ToolError(
+            f'Data source {", ".join(sorted(unknown))} does not belong to knowledge base '
+            f'{", ".join(knowledge_base_ids)}. Filtering on it would silently return no '
+            f'results. Valid data source ids: {sorted(known) if known else "none"}. '
+            'Use the ListKnowledgeBases tool to see each knowledge base and its data sources.'
+        )

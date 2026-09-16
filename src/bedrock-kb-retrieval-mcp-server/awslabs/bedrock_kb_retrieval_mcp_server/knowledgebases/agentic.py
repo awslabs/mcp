@@ -33,7 +33,7 @@ content the model actually needs.
 """
 
 import json
-from .kb_types import is_managed_knowledge_base
+from .kb_types import is_managed_knowledge_base, validate_data_source_ids
 from collections.abc import Mapping
 from loguru import logger
 from mcp.server.mcpserver.exceptions import ToolError
@@ -185,6 +185,11 @@ async def agentic_retrieve_knowledge_bases(
                 'Agentic retrieval supports managed knowledge bases only -- use the '
                 'QueryKnowledgeBases tool for vector knowledge bases.'
             )
+
+    # Same reasoning as the Retrieve path: an unknown data source id would silently
+    # narrow the search to nothing. Validated against the union across all retrievers,
+    # since an id only has to belong to one of them.
+    validate_data_source_ids(knowledge_base_ids, data_source_ids or [], kb_agent_mgmt_client)
 
     agentic_configuration: dict[str, Any] = {}
     if max_agent_iterations is not None:

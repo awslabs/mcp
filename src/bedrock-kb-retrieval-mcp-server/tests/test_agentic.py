@@ -67,12 +67,20 @@ def runtime_client(stream):
     return client
 
 
-def mgmt_client(kb_type='MANAGED'):
+def mgmt_client(kb_type='MANAGED', data_source_ids=('ds-1', 'ds-2')):
     """Management client stub returning the given knowledge base type."""
     client = MagicMock()
     client.get_knowledge_base.return_value = {
         'knowledgeBase': {'knowledgeBaseConfiguration': {'type': kb_type}}
     }
+    # A real management client lists the knowledge base's data sources. Leaving this
+    # to MagicMock would report none, which is not what any live knowledge base looks
+    # like and would make data-source validation reject valid ids.
+    paginator = MagicMock()
+    paginator.paginate.return_value = [
+        {'dataSourceSummaries': [{'dataSourceId': d} for d in (data_source_ids or [])]}
+    ]
+    client.get_paginator.return_value = paginator
     return client
 
 

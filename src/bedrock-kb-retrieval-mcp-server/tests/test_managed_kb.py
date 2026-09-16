@@ -37,12 +37,20 @@ RESPONSE = {
 }
 
 
-def mgmt_client(kb_type):
+def mgmt_client(kb_type, data_source_ids=('ds-1', 'ds-2')):
     """Management client stub returning the given knowledge base type."""
     client = MagicMock()
     client.get_knowledge_base.return_value = {
         'knowledgeBase': {'knowledgeBaseConfiguration': {'type': kb_type}}
     }
+    # A real management client lists the knowledge base's data sources. Leaving this
+    # to MagicMock would report none, which is not what any live knowledge base looks
+    # like and would make data-source validation reject valid ids.
+    paginator = MagicMock()
+    paginator.paginate.return_value = [
+        {'dataSourceSummaries': [{'dataSourceId': d} for d in (data_source_ids or [])]}
+    ]
+    client.get_paginator.return_value = paginator
     return client
 
 
@@ -378,3 +386,77 @@ class TestFallbackCachesLearnedType:
         assert kb_client.retrieve.call_count == 3
         last = kb_client.retrieve.call_args_list[-1][1]['retrievalConfiguration']
         assert 'managedSearchConfiguration' in last
+
+
+class TestDataSourceIdValidation:
+    """An unknown data source id must fail loudly rather than match nothing.
+
+    Filtering on a data source id that does not belong to the knowledge base is
+    accepted by the API and simply matches nothing, so the caller gets an empty
+    result set and no error -- which reads as "this data source is empty" rather
+    than "this id is wrong".
+    """
+
+    @pytest.mark.asyncio
+    async def test_unknown_data_source_id_rejected(self):
+        """An id belonging to no data source raises, naming the valid ids."""
+        with pytest.raises(ToolError, match='does not belong to knowledge base'):
+            await query_knowledge_base(
+                query='q',
+                knowledge_base_id='kb-1',
+                kb_agent_client=runtime_client(),
+                data_source_ids=['ds-nonexistent'],
+                kb_agent_mgmt_client=mgmt_client('MANAGED'),
+            )
+
+    @pytest.mark.asyncio
+    async def test_error_lists_the_valid_ids(self):
+        """The message includes the ids the caller could have used."""
+        with pytest.raises(ToolError, match=r'ds-1.*ds-2'):
+            await query_knowledge_base(
+                query='q',
+                knowledge_base_id='kb-1',
+                kb_agent_client=runtime_client(),
+                data_source_ids=['typo'],
+                kb_agent_mgmt_client=mgmt_client('MANAGED', data_source_ids=('ds-1', 'ds-2')),
+            )
+
+    @pytest.mark.asyncio
+    async def test_valid_data_source_id_passes(self):
+        """A known id proceeds to the API."""
+        kb_client = runtime_client()
+        await query_knowledge_base(
+            query='q',
+            knowledge_base_id='kb-1',
+            kb_agent_client=kb_client,
+            data_source_ids=['ds-1'],
+            kb_agent_mgmt_client=mgmt_client('MANAGED'),
+        )
+        assert kb_client.retrieve.called
+
+    @pytest.mark.asyncio
+    async def test_validation_skipped_without_mgmt_client(self):
+        """Without a management client the ids cannot be verified, so do not guess."""
+        kb_client = runtime_client()
+        await query_knowledge_base(
+            query='q',
+            knowledge_base_id='kb-1',
+            kb_agent_client=kb_client,
+            data_source_ids=['unverifiable'],
+        )
+        assert kb_client.retrieve.called
+
+    @pytest.mark.asyncio
+    async def test_validation_skipped_when_listing_fails(self):
+        """A caller lacking ListDataSources keeps working rather than being blocked."""
+        mgmt = mgmt_client('MANAGED')
+        mgmt.get_paginator.side_effect = Exception('AccessDeniedException')
+        kb_client = runtime_client()
+        await query_knowledge_base(
+            query='q',
+            knowledge_base_id='kb-1',
+            kb_agent_client=kb_client,
+            data_source_ids=['unverifiable'],
+            kb_agent_mgmt_client=mgmt,
+        )
+        assert kb_client.retrieve.called
