@@ -223,7 +223,7 @@ async def test_validate_prerequisites_with_custom_roles(
 # ============================================================================
 
 
-EXPRESS_SERVICE_WITH_SECRETS = {
+EXPRESS_SERVICE_RESPONSE = {
     "serviceArn": "arn:aws:ecs:us-west-2:123456789012:service/prod/my-svc",
     "status": "DRAINING",
     "activeConfigurations": [
@@ -259,12 +259,10 @@ async def test_delete_express_gateway_service_redacts_details_by_default(
     """With ALLOW_SENSITIVE_DATA unset, the echoed service carries no values or references."""
     monkeypatch.delenv("ALLOW_SENSITIVE_DATA", raising=False)
     mock_client = MagicMock()
-    mock_client.delete_express_gateway_service.return_value = {
-        "service": EXPRESS_SERVICE_WITH_SECRETS
-    }
+    mock_client.delete_express_gateway_service.return_value = {"service": EXPRESS_SERVICE_RESPONSE}
     mock_get_client.return_value = mock_client
 
-    result = await delete_express_gateway_service(EXPRESS_SERVICE_WITH_SECRETS["serviceArn"])
+    result = await delete_express_gateway_service(EXPRESS_SERVICE_RESPONSE["serviceArn"])
 
     assert result["status"] == "deleted"
     container = result["details"]["activeConfigurations"][0]["primaryContainer"]
@@ -283,14 +281,12 @@ async def test_delete_express_gateway_service_returns_details_when_allowed(
     """With ALLOW_SENSITIVE_DATA=true the echoed service is returned in full."""
     monkeypatch.setenv("ALLOW_SENSITIVE_DATA", "true")
     mock_client = MagicMock()
-    mock_client.delete_express_gateway_service.return_value = {
-        "service": EXPRESS_SERVICE_WITH_SECRETS
-    }
+    mock_client.delete_express_gateway_service.return_value = {"service": EXPRESS_SERVICE_RESPONSE}
     mock_get_client.return_value = mock_client
 
-    result = await delete_express_gateway_service(EXPRESS_SERVICE_WITH_SECRETS["serviceArn"])
+    result = await delete_express_gateway_service(EXPRESS_SERVICE_RESPONSE["serviceArn"])
 
-    assert result["details"] == EXPRESS_SERVICE_WITH_SECRETS
+    assert result["details"] == EXPRESS_SERVICE_RESPONSE
 
 
 @pytest.mark.anyio
