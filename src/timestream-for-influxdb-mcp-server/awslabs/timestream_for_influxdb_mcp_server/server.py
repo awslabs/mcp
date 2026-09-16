@@ -43,6 +43,13 @@ INFLUXDB_ORG = os.environ.get('INFLUXDB_ORG')
 INFLUXDB_ALLOWED_URLS = os.environ.get('INFLUXDB_ALLOWED_URLS', '')
 INFLUXDB_WRITE_MODE = os.environ.get('INFLUXDB_WRITE_MODE', 'false').lower() == 'true'
 
+# Operator-controlled write gate. Mutating tools (create/update/delete and
+# data-plane writes) are refused unless the server operator starts the process
+# with ALLOW_WRITE enabled. This is deliberately NOT a caller-supplied tool
+# parameter: a caller (or a prompt-injected agent) must not be able to
+# self-authorize destructive operations. Read-only is the default.
+ALLOW_WRITE = os.environ.get('ALLOW_WRITE', '').lower() in ('true', '1', 'yes')
+
 # Define Field parameters as global variables to avoid duplication
 # Common fields
 REQUIRED_FIELD_DB_CLUSTER_ID = Field(
@@ -89,12 +96,6 @@ REQUIRED_FIELD_VPC_SUBNET_IDS = Field(
 OPTIONAL_FIELD_PUBLICLY_ACCESSIBLE = Field(
     True,
     description='Configures the DB with a public IP to facilitate access from outside the VPC.',
-)
-
-OPTIONAL_FIELD_TOOL_WRITE_MODE = Field(
-    False,
-    description='Tool is run in write mode and will be able to perform any create/update/delete operations. '
-    'Default is read-only mode (False)',
 )
 
 OPTIONAL_FIELD_USERNAME = Field(
@@ -590,7 +591,6 @@ async def create_db_cluster(
     log_delivery_configuration: Optional[
         Dict[str, Any]
     ] = OPTIONAL_FIELD_LOG_DELIVERY_CONFIGURATION,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Create a new Timestream for InfluxDB database cluster.
 
@@ -599,9 +599,10 @@ async def create_db_cluster(
     Returns:
         Details of the created DB cluster.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'CreateDbCluster tool invocation not allowed when tool-write-mode is set to False'
+            'CreateDbCluster is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -671,7 +672,6 @@ async def create_db_instance(
     port: Optional[int] = OPTIONAL_FIELD_PORT,
     db_parameter_group_id: Optional[str] = OPTIONAL_FIELD_DB_PARAMETER_GROUP_ID,
     tags: Optional[Dict[str, str]] = OPTIONAL_FIELD_TAGS,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Create a new Timestream for InfluxDB database instance.
 
@@ -680,9 +680,10 @@ async def create_db_instance(
     Returns:
         Details of the created DB instance.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'CreateDbInstance tool invocation not allowed when tool-write-mode is set to False'
+            'CreateDbInstance is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -897,7 +898,6 @@ async def get_db_cluster(
 )
 async def delete_db_instance(
     identifier: str = REQUIRED_FIELD_DB_INSTANCE_IDENTIFIER,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Deletes a Timestream for InfluxDB DB instance.
 
@@ -906,9 +906,10 @@ async def delete_db_instance(
     Returns:
         Details of the deleted DB instance.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'DeleteDbInstance tool invocation not allowed when tool-write-mode is set to False'
+            'DeleteDbInstance is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -927,7 +928,6 @@ async def delete_db_instance(
 )
 async def delete_db_cluster(
     db_cluster_id: str = REQUIRED_FIELD_DB_CLUSTER_ID,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Deletes a Timestream for InfluxDB cluster.
 
@@ -936,9 +936,10 @@ async def delete_db_cluster(
     Returns:
         Details of the deleted DB cluster.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'DeleteDbCluster tool invocation not allowed when tool-write-mode is set to False'
+            'DeleteDbCluster is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -1009,7 +1010,6 @@ async def list_tags_for_resource(
 async def tag_resource(
     resource_arn: str = REQUIRED_FIELD_RESOURCE_ARN,
     tags: Dict[str, str] = REQUIRED_FIELD_TAGS_RESOURCE,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Tags are composed of a Key/Value pairs. You can use tags to categorize and track your Timestream for InfluxDB resources.
 
@@ -1018,9 +1018,10 @@ async def tag_resource(
     Returns:
         Status of the tag operation.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'TagResource tool invocation not allowed when tool-write-mode is set to False'
+            'TagResource is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -1043,7 +1044,6 @@ async def tag_resource(
 async def untag_resource(
     resource_arn: str = REQUIRED_FIELD_RESOURCE_ARN,
     tag_keys: List[str] = REQUIRED_FIELD_TAG_KEYS,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Removes the tag from the specified resource.
 
@@ -1052,9 +1052,10 @@ async def untag_resource(
     Returns:
         Status of the untag operation.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'UntagResource tool invocation not allowed when tool-write-mode is set to False'
+            'UntagResource is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -1079,7 +1080,6 @@ async def update_db_cluster(
     log_delivery_configuration: Optional[
         Dict[str, Any]
     ] = OPTIONAL_FIELD_LOG_DELIVERY_CONFIGURATION_UPDATE,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Updates a Timestream for InfluxDB cluster.
 
@@ -1088,9 +1088,10 @@ async def update_db_cluster(
     Returns:
         Details of the updated DB cluster.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'UpdateDbCluster tool invocation not allowed when tool-write-mode is set to False'
+            'UpdateDbCluster is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -1130,7 +1131,6 @@ async def update_db_instance(
     log_delivery_configuration: Optional[
         Dict[str, Any]
     ] = OPTIONAL_FIELD_LOG_DELIVERY_CONFIGURATION,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Updates a Timestream for InfluxDB DB instance.
 
@@ -1139,9 +1139,10 @@ async def update_db_instance(
     Returns:
         Details of the updated DB instance.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'UpdateDbInstance tool invocation not allowed when tool-write-mode is set to False'
+            'UpdateDbInstance is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -1301,7 +1302,6 @@ async def list_db_clusters_by_status(
 )
 async def create_db_parameter_group(
     name: str = REQUIRED_FIELD_PARAM_GROUP_NAME,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
     description: Optional[str] = OPTIONAL_FIELD_PARAM_GROUP_DESCRIPTION,
     parameters: Optional[Dict[str, Any]] = OPTIONAL_FIELD_PARAMETERS,
     tags: Optional[Dict[str, str]] = OPTIONAL_FIELD_TAGS,
@@ -1313,9 +1313,10 @@ async def create_db_parameter_group(
     Returns:
         Details of the created DB parameter group.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'CreateDbParamGroup tool invocation not allowed when tool-write-mode is set to False'
+            'CreateDbParamGroup is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -1350,7 +1351,6 @@ async def influxdb_write_points(
     time_precision: str = OPTIONAL_FIELD_WRITE_PRECISION,
     sync_mode: Optional[str] = OPTIONAL_FIELD_SYNC_MODE,
     verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Write data points to InfluxDB.
 
@@ -1367,9 +1367,10 @@ async def influxdb_write_points(
     Returns:
         Status of the write operation.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'InfluxDBWritePoints tool invocation not allowed when tool-write-mode is set to False'
+            'InfluxDBWritePoints is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     resolved_url, resolved_token, resolved_org = resolve_influxdb_config(url, token, org)
@@ -1435,16 +1436,16 @@ async def influxdb_write_line_protocol(
     time_precision: str = OPTIONAL_FIELD_WRITE_PRECISION,
     sync_mode: str = OPTIONAL_FIELD_SYNC_MODE,
     verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Write data in Line Protocol format to InfluxDB.
 
     Returns:
         Status of the write operation.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'InfluxDBWriteLineProtocol tool invocation not allowed when tool-write-mode is set to False'
+            'InfluxDBWriteLineProtocol is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     resolved_url, resolved_token, resolved_org = resolve_influxdb_config(url, token, org)
@@ -1604,16 +1605,16 @@ async def influxdb_create_bucket(
     ),
     description: Optional[str] = Field(None, description='Description of the bucket.'),
     verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Create a new bucket in InfluxDB.
 
     Returns:
         Details of the created bucket.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'InfluxDBCreateBucket tool invocation not allowed when tool-write-mode is set to False'
+            'InfluxDBCreateBucket is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     resolved_url, resolved_token, resolved_org = resolve_influxdb_config(url, token, org)
@@ -1709,16 +1710,16 @@ async def influxdb_create_org(
     url: Optional[str] = OPTIONAL_FIELD_URL,
     token: Optional[str] = OPTIONAL_FIELD_TOKEN,
     verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Create a new organization in InfluxDB.
 
     Returns:
         Details of the created organization.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'InfluxDBCreateOrg tool invocation not allowed when tool-write-mode is set to False'
+            'InfluxDBCreateOrg is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     resolved_url, resolved_token, _ = resolve_influxdb_config(
