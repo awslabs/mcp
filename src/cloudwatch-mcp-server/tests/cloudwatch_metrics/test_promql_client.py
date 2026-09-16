@@ -15,7 +15,11 @@
 
 import pytest
 import requests
-from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.promql_client import PromQLClient
+from awslabs.cloudwatch_mcp_server.cloudwatch_metrics.promql_client import (
+    PromQLClient,
+    _assert_aws_host,
+    _validate_region,
+)
 from unittest.mock import MagicMock, patch
 
 
@@ -191,6 +195,7 @@ PARTITION_BASE_URLS = {
     'us-isob-east-1': 'https://monitoring.us-isob-east-1.sc2s.sgov.gov/api/v1',
     'eu-isoe-west-1': 'https://monitoring.eu-isoe-west-1.cloud.adc-e.uk/api/v1',
     'us-isof-south-1': 'https://monitoring.us-isof-south-1.csp.hci.ic.gov/api/v1',
+    'eusc-de-east-1': 'https://monitoring.eusc-de-east-1.amazonaws.eu/api/v1',
 }
 
 # Malformed / malicious region values that must be rejected. Several would
@@ -225,10 +230,27 @@ class TestPromQLClientRegionValidation:
         """Regions across every AWS partition build the partition-correct URL."""
         assert PromQLClient._get_base_url(region) == PARTITION_BASE_URLS[region]
 
-    def test_get_base_url_rejects_unknown_but_wellformed_region(self):
-        """A syntactically valid but non-existent region is rejected (no endpoint)."""
+    def test_get_base_url_rejects_region_in_no_known_partition(self):
+        """A region whose prefix matches no AWS partition is rejected.
+
+        A region that DOES match a partition regex (e.g. a not-yet-launched
+        region in an existing geo like ``us-east-999``) is intentionally accepted
+        so newly launched regions work before botocore is updated. Such a name
+        still yields an AWS-owned host under the correct partition suffix (the
+        SSRF guard holds) and merely fails to resolve at DNS.
+        """
         with pytest.raises(ValueError):
             PromQLClient._get_base_url('zz-zzz-9')
+
+    def test_get_base_url_accepts_regex_matched_region_in_known_geo(self):
+        """Regions matching a partition regex are accepted (forward-compat).
+
+        They still build an AWS-owned host under that partition's suffix.
+        """
+        assert (
+            PromQLClient._get_base_url('us-east-999')
+            == 'https://monitoring.us-east-999.amazonaws.com/api/v1'
+        )
 
     @pytest.mark.parametrize('region', MALICIOUS_REGIONS)
     def test_get_base_url_rejects_malicious_region(self, region):
@@ -261,3 +283,45 @@ class TestPromQLClientRegionValidation:
         mock_boto_session.assert_not_called()
         mock_sigv4.assert_not_called()
         mock_req_session.assert_not_called()
+
+
+class TestPromQLHostAssertion:
+    """Direct tests for the _assert_aws_host backstop and _validate_region edges."""
+
+    @pytest.mark.parametrize(
+        'url',
+        [
+            'http://monitoring.us-east-1.amazonaws.com/api/v1',  # not https
+            'https://monitoring.us-east-1.amazonaws.com@evil.com/api/v1',  # userinfo (@)
+            'https://evil.com/api/v1',  # host not under a known AWS suffix
+            'https://monitoring.evilamazonaws.com/api/v1',  # suffix not preceded by a dot
+            'https://monitoring.us-east-1.amazonaws.com:8443/api/v1',  # unexpected port
+        ],
+    )
+    def test_assert_aws_host_rejects_non_aws(self, url):
+        """The backstop refuses to sign a request to a non-AWS/altered host."""
+        with pytest.raises(ValueError, match='non-AWS host'):
+            _assert_aws_host(url)
+
+    def test_assert_aws_host_rejects_malformed_authority(self):
+        """A malformed port makes urlsplit().port raise, which is caught and re-raised."""
+        with pytest.raises(ValueError, match='Invalid authority'):
+            _assert_aws_host('https://monitoring.us-east-1.amazonaws.com:notaport/api/v1')
+
+    @pytest.mark.parametrize(
+        'url',
+        [
+            'https://monitoring.us-east-1.amazonaws.com/api/v1',
+            'https://monitoring.us-east-1.amazonaws.com:443/api/v1',  # explicit standard port
+            'https://monitoring.cn-north-1.amazonaws.com.cn/api/v1',  # China suffix
+            'https://monitoring.us-iso-east-1.c2s.ic.gov/api/v1',  # ISO suffix
+        ],
+    )
+    def test_assert_aws_host_accepts_known_aws_hosts(self, url):
+        """Legitimate per-partition AWS hosts pass the assertion (no raise)."""
+        _assert_aws_host(url)
+
+    def test_validate_region_rejects_non_string(self):
+        """A non-string region is rejected without a regex match attempt."""
+        with pytest.raises(ValueError):
+            _validate_region(None)
