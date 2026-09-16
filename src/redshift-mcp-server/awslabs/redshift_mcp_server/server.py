@@ -26,6 +26,7 @@ from awslabs.redshift_mcp_server.models import (
     RedshiftDatabase,
     RedshiftSchema,
     RedshiftTable,
+    RedshiftUDF,
 )
 from awslabs.redshift_mcp_server.redshift import (
     discover_clusters,
@@ -33,6 +34,7 @@ from awslabs.redshift_mcp_server.redshift import (
     discover_databases,
     discover_schemas,
     discover_tables,
+    discover_udfs,
     execute_query,
 )
 from awslabs.redshift_mcp_server.review.executor import review_cluster
@@ -79,6 +81,12 @@ This tool runs the SHOW TABLES command to discover available tables.
 ### list_columns
 Lists all columns in a specified table within a Redshift schema.
 This tool runs the SHOW COLUMNS command to discover available columns.
+
+### list_udfs
+Lists all user-defined functions (UDFs) in a specified schema.
+Returns UDF properties including type (SQL, Python, or Lambda), volatility, arguments, return type,
+source code, and full CREATE FUNCTION DDL. Includes conversion guidance for Python-to-SQL,
+Python-to-Lambda, and SQL inlining.
 
 ### execute_query
 Executes SQL queries against a Redshift cluster or serverless workgroup.
@@ -567,6 +575,115 @@ async def list_columns_tool(
         logger.error(f'Error in list_columns_tool: {str(e)}')
         await ctx.error(
             f'Failed to list columns in table {column_table_name} in schema {column_schema_name} in database {column_database_name} on cluster {cluster_identifier}: {str(e)}'
+        )
+        raise
+
+
+@mcp.tool(
+    name='list_udfs',
+    annotations=_read_only_annotations('List Redshift user-defined functions'),
+)
+async def list_udfs_tool(
+    ctx: Context,
+    cluster_identifier: str = Field(
+        ...,
+        description='The cluster identifier to query for UDFs. Must be a valid cluster identifier from the list_clusters tool.',
+    ),
+    database_name: str = Field(
+        ...,
+        description='The database name to query for UDFs. Must be a valid database name from the list_databases tool.',
+    ),
+    schema_name: str = Field(
+        ...,
+        description='The schema name to filter UDFs for. Must be a valid schema name from the list_schemas tool.',
+    ),
+) -> list[RedshiftUDF]:
+    """List all user-defined functions (UDFs) in a specified schema.
+
+    This tool discovers UDFs and returns their properties including type (SQL, Python, or Lambda),
+    volatility, arguments, return type, and source code.
+
+    ## Usage Requirements
+
+    - Ensure your AWS credentials are properly configured (via AWS_PROFILE or default credentials).
+    - The cluster must be available and accessible.
+    - Required IAM permissions: redshift-data:ExecuteStatement, redshift-data:DescribeStatement, redshift-data:GetStatementResult.
+    - The user must have appropriate permissions to query system catalog views.
+
+    ## Response Structure
+
+    Returns a list of RedshiftUDF objects with the following structure:
+
+    - schema_name: The schema where the UDF is defined.
+    - function_name: The name of the UDF.
+    - language_type: The language of the UDF (python, sql, or lambda).
+    - volatility: Volatility category (IMMUTABLE, STABLE, or VOLATILE).
+    - return_type: The return data type of the UDF.
+    - arguments: The argument signature (names and types).
+    - source_code: The source code body of the UDF.
+    - description: User-provided description of the UDF.
+    - full_definition: The complete CREATE FUNCTION DDL statement.
+
+    ## Usage Tips
+
+    1. Use list_schemas first to discover available schemas.
+    2. Check the language_type field to understand how each UDF is implemented.
+    3. Python UDFs can potentially be converted to Lambda UDFs for better performance.
+    4. SQL UDFs with simple logic may be inlinable directly into queries.
+    5. The full_definition field contains the complete DDL to recreate the function.
+
+    ## UDF Types
+
+    - **sql**: Written in SQL. Runs natively in Redshift. Best performance for simple transformations.
+    - **python**: Written in Python (plpythonu). Runs in an isolated Python environment on the cluster.
+    - **lambda**: Invokes an AWS Lambda function. Useful for complex logic or external service calls.
+
+    ## Conversion Guidance
+
+    ### Python UDF to SQL Conversion
+    If the UDF logic is expressible in pure SQL (string operations, arithmetic, CASE expressions),
+    it can be converted to a SQL UDF for better performance. Look for:
+    - Simple arithmetic or string manipulation
+    - Conditional logic (if/else maps to CASE WHEN)
+    - No external library dependencies
+
+    ### Python UDF to Lambda UDF Conversion
+    For complex Python UDFs that cannot be expressed in SQL, converting to a Lambda UDF
+    provides better scalability and access to the full AWS SDK. Steps:
+    1. Extract the source_code from the response.
+    2. Create an AWS Lambda function with the equivalent logic.
+    3. Create a Lambda UDF in Redshift pointing to the Lambda ARN.
+    4. Consider using the AWS Lambda MCP server to create the Lambda function.
+
+    ### SQL Inlining
+    Simple SQL UDFs can often be inlined directly into queries for optimal performance,
+    eliminating function call overhead entirely.
+
+    ## Interpretation Best Practices
+
+    1. IMMUTABLE UDFs are safe to use in distribution keys and sort keys.
+    2. VOLATILE UDFs are re-evaluated for every row; use sparingly in large scans.
+    3. Python UDFs introduce overhead per-invocation; consider Lambda or SQL alternatives for hot paths.
+    """
+    try:
+        logger.info(
+            f'Discovering UDFs in schema {schema_name} in database {database_name} on cluster {cluster_identifier}'
+        )
+        udfs = await discover_udfs(
+            cluster_identifier=cluster_identifier,
+            database_name=database_name,
+            schema_name=schema_name,
+        )
+
+        logger.info(
+            f'Successfully retrieved {len(udfs)} UDFs from schema {schema_name} in database {database_name} on cluster {cluster_identifier}'
+        )
+        return udfs
+
+    except Exception as e:
+        logger.error(f'Error in list_udfs_tool: {str(e)}')
+        await ctx.error(
+            f'Failed to list UDFs in schema {schema_name} in database {database_name} on cluster {cluster_identifier}: {str(e)}'
         )
         raise
 
