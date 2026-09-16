@@ -22,6 +22,7 @@ from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.kb_types import (
     is_managed_knowledge_base,
 )
 from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.retrieval import query_knowledge_base
+from mcp.server.mcpserver.exceptions import ToolError
 from unittest.mock import MagicMock
 
 
@@ -302,7 +303,7 @@ class TestRerankingRegionValidation:
     async def test_amazon_model_rejected_in_us_east_1(self):
         """The Amazon reranking model is not offered in us-east-1 and must be refused."""
         kb_client = runtime_client(region='us-east-1')
-        with pytest.raises(ValueError, match="'AMAZON' reranking model is not available"):
+        with pytest.raises(ToolError, match="'AMAZON' reranking model is not available"):
             await query_knowledge_base(
                 query='q',
                 knowledge_base_id='kb-1',
