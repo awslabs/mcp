@@ -460,3 +460,47 @@ class TestDataSourceIdValidation:
             kb_agent_mgmt_client=mgmt,
         )
         assert kb_client.retrieve.called
+
+
+class TestDataSourceIdCaching:
+    """Data source ids are looked up once, not on every call."""
+
+    @pytest.mark.asyncio
+    async def test_ids_listed_once_across_calls(self):
+        """A second query reuses the cached ids instead of listing again."""
+        mgmt = mgmt_client('MANAGED')
+        kb_client = runtime_client()
+        for _ in range(3):
+            await query_knowledge_base(
+                query='q',
+                knowledge_base_id='kb-1',
+                kb_agent_client=kb_client,
+                data_source_ids=['ds-1'],
+                kb_agent_mgmt_client=mgmt,
+            )
+        assert kb_client.retrieve.call_count == 3
+        assert mgmt.get_paginator.call_count == 1, 'data sources should be listed once'
+
+    @pytest.mark.asyncio
+    async def test_discovery_populates_the_cache(self):
+        """After discovery, validation needs no further listing.
+
+        ListKnowledgeBases already enumerates data sources, so the common path of
+        discover-then-query should cost no extra API call.
+        """
+        from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.kb_types import (
+            cache_data_source_ids,
+        )
+
+        cache_data_source_ids('kb-1', ['ds-from-discovery'])
+        mgmt = mgmt_client('MANAGED')
+        kb_client = runtime_client()
+        await query_knowledge_base(
+            query='q',
+            knowledge_base_id='kb-1',
+            kb_agent_client=kb_client,
+            data_source_ids=['ds-from-discovery'],
+            kb_agent_mgmt_client=mgmt,
+        )
+        assert kb_client.retrieve.called
+        assert mgmt.get_paginator.call_count == 0, 'discovery already cached the ids'
