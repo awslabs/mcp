@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [0.3.0] - 2026-09-15
+
+### Security
+
+- Validate the caller-supplied `region` argument in the PromQL SigV4 client before it is used to build the CloudWatch endpoint. Previously an untrusted `region` (reachable via prompt injection through any of the five PromQL tools) could break out of the intended host (e.g. `region="attacker.com/"`) and cause a SigV4-signed request carrying the server's AWS credentials (`Authorization`, `X-Amz-Security-Token`) to be sent to an attacker-controlled endpoint (SSRF / credential disclosure). The region is now validated for shape, the endpoint host is resolved per-partition via botocore (so the correct DNS suffix is used for every partition — `amazonaws.com`, `amazonaws.com.cn`, and the GovCloud/ISO suffixes — instead of assuming `amazonaws.com`), and the constructed URL is asserted to target a known AWS host before signing. Malformed regions, and regions that resolve to no known AWS partition, raise `ValueError` before any credential retrieval, signing, or network I/O.
+
 ## [0.1.3] - 2026-05-20
 
 ### Added

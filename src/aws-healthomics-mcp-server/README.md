@@ -419,6 +419,47 @@ When tools return errors:
 - Use diagnostic tools to understand failure root causes
 - Provide clear, actionable error messages to users
 
+### Pagination
+
+Most `List*` tools, plus `ListECRRepositories`, `ListPullThroughCacheRules`,
+and `SearchGenomicsFiles`, add a `pagination` block to their response, in
+addition to whatever continuation field they already return. This does not
+cover every tool with "List" in its name: `ListAHORunMetrics` and the
+CloudWatch-log tools (`GetAHORunLogs`, `GetAHORunManifestLogs`,
+`GetAHORunEngineLogs`, `GetAHOTaskLogs`) drain their own pagination internally
+before returning and never carry this block.
+
+```json
+"pagination": {
+  "isComplete": false,
+  "returnedCount": 25,
+  "nextToken": "<echoed token>",
+  "instruction": "PARTIAL RESULTS -- this is one page, not the full set. ..."
+}
+```
+
+- `isComplete` is `false` whenever more results exist and `true` once they
+  don't -- the block is always present, on every page, so an AI assistant
+  never has to guess whether a response is the full result set.
+- `nextToken` is only present when `isComplete` is `false`, and echoes the
+  same token already in the response (`nextToken` or `next_token` for most
+  tools, `continuation_token` for `SearchGenomicsFiles`).
+- `instruction` is an imperative, tool-specific sentence naming the real
+  registered tool and its actual continuation parameter -- call that tool
+  again with the echoed token and repeat until `isComplete` is `true` before
+  answering questions about totals or "all" results.
+
+**Known limitation:** `ListAHORuns` with `created_after`/`created_before` set
+applies its date filter client-side after fetching a page and, if that leaves
+more matching runs than `max_results`, truncates without a continuation
+token (a pre-existing limitation, independent of this pagination block).
+When that happens `pagination.isComplete` will read `true` even though
+more matching runs exist; use a narrower date range or omit the date filter
+if you need guaranteed completeness.
+
+This block is additive: it never renames, moves, or removes an existing
+field.
+
 ## Installation
 
 | Kiro | Cursor | VS Code |
