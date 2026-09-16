@@ -21,6 +21,7 @@ from .kb_types import (
     search_configuration_key,
 )
 from loguru import logger
+from mcp.server.mcpserver.exceptions import ToolError
 from typing import TYPE_CHECKING, Literal, Optional
 
 
@@ -137,7 +138,7 @@ async def query_knowledge_base(
     if reranking:
         supported = RERANKING_MODEL_REGIONS.get(reranking_model_name, set())
         if region_name not in supported:
-            raise ValueError(
+            raise ToolError(
                 f"The '{reranking_model_name}' reranking model is not available in region "
                 f'{region_name}. Supported regions: {sorted(supported)}'
             )
