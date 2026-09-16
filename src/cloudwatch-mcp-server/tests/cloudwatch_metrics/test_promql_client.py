@@ -324,4 +324,4 @@ class TestPromQLHostAssertion:
     def test_validate_region_rejects_non_string(self):
         """A non-string region is rejected without a regex match attempt."""
         with pytest.raises(ValueError):
-            _validate_region(None)
+            _validate_region(None)  # type: ignore[arg-type]
