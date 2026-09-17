@@ -194,3 +194,7 @@ MAX_BATCH_COMMANDS = 20
 AUTH_TYPE = os.getenv('AUTH_TYPE')
 AUTH_ISSUER = os.getenv('AUTH_ISSUER')
 AUTH_JWKS_URI = os.getenv('AUTH_JWKS_URI')
+
+# Regional Availability Data Configuration
+REGIONAL_DATA_S3_URI = os.getenv('AWS_API_MCP_REGIONAL_DATA_S3_URI')
+REGIONAL_DATA_CACHE_TTL = int(os.getenv('AWS_API_MCP_REGIONAL_DATA_CACHE_TTL', '300'))
