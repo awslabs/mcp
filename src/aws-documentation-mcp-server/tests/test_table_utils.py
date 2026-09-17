@@ -697,7 +697,8 @@ class TestBreakDelimitedCells:
         </table></body></html>"""
         result = parse_html_tables(html, 'Sec')
         assert result is not None
-        assert result['rows'][0]['Note'] == 'Usefoohere'
+        # one value, so no delimiter — and the spaces around the inline tag survive
+        assert result['rows'][0]['Note'] == 'Use foo here'
 
     def test_multi_value_cell_with_links(self):
         """<br />-separated links each render as markdown and stay separated."""
@@ -1709,3 +1710,84 @@ class TestPreformattedCells:
         """In normal flow a newline is whitespace, not a value boundary."""
         assert self._cell('<code>alpha\nbeta</code>') == 'alpha beta'
         assert self._cell('alpha\nbeta') == 'alpha beta'
+
+
+class TestInlineSpacing:
+    """Inline tags carry the spaces around them, so prose does not fuse mid-sentence."""
+
+    def _cell(self, inner):
+        html = (
+            f'<html><body><h2>S</h2><table><thead><tr><th>Val</th></tr></thead>'
+            f'<tbody><tr><td>{inner}</td></tr></tbody></table></body></html>'
+        )
+        table = parse_html_tables(html, 'S')
+        assert table is not None
+        return table['rows'][0]['Val']
+
+    def test_code_tag_keeps_surrounding_spaces(self):
+        """The words either side of an inline tag stay separate words."""
+        assert (
+            self._cell('use the <code>Switch Role</code> feature') == 'use the Switch Role feature'
+        )
+
+    def test_consecutive_inline_tags_stay_separate(self):
+        """Two adjacent inline tags do not run together."""
+        assert self._cell('combined <b>Path</b> and <b>RoleName</b> values') == (
+            'combined Path and RoleName values'
+        )
+
+    def test_a_cell_with_a_link_spaces_the_same_way(self):
+        """A cell is spaced identically whether or not it happens to contain a link."""
+        with_link = self._cell('use the <code>Role</code> and <a href="x.html">docs</a>')
+        assert with_link == 'use the Role and [docs](x.html)'
+
+    def test_inline_markup_inside_link_text_keeps_its_spaces(self):
+        """The link label is spaced too, not just the prose around it."""
+        assert self._cell('<a href="x.html"><code>Path</code> and <code>RoleName</code></a>') == (
+            '[Path and RoleName](x.html)'
+        )
+
+    def test_heading_with_inline_markup_is_not_fused(self):
+        """table_heading comes from the heading text, spaced."""
+        html = """<html><body><h2>Using the <code>Switch Role</code> API</h2>
+        <table><thead><tr><th>A</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table>
+        </body></html>"""
+        table = parse_html_tables(html, None)
+        assert table is not None
+        assert table['detected_section'] == 'Using the Switch Role API'
+
+    def test_section_title_matches_a_heading_with_inline_markup(self):
+        """A caller passing the rendered heading text finds the section."""
+        html = """<html><body><h2>Using the <code>Switch Role</code> API</h2>
+        <table><thead><tr><th>A</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table>
+        </body></html>"""
+        table = parse_html_tables(html, 'Using the Switch Role API')
+        assert table is not None
+        assert 'error' not in table
+
+
+class TestLeadingCallout:
+    """A callout with no value before it qualifies the value after it."""
+
+    NOTE = '<div class="awsdocs-note"><h6 class="awsdocs-note-title">Note</h6><p>caveat</p></div>'
+
+    def _cell(self, inner):
+        html = (
+            f'<html><body><h2>S</h2><table><thead><tr><th>Val</th></tr></thead>'
+            f'<tbody><tr><td>{inner}</td></tr></tbody></table></body></html>'
+        )
+        table = parse_html_tables(html, 'S')
+        assert table is not None
+        return table['rows'][0]['Val']
+
+    def test_leading_callout_is_not_its_own_value(self):
+        """A cell opening with a callout yields two values, not three."""
+        assert self._cell(f'{self.NOTE}<p>alpha</p><p>beta</p>') == 'caveat alpha; beta'
+
+    def test_callout_between_values_is_unchanged(self):
+        """The mid-cell case keeps absorbing the boundary before it."""
+        assert self._cell(f'<p>alpha</p>{self.NOTE}<p>beta</p>') == 'alpha caveat; beta'
+
+    def test_a_cell_that_is_only_a_callout(self):
+        """With nothing to qualify, the prose is the value."""
+        assert self._cell(self.NOTE) == 'caveat'

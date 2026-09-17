@@ -47,11 +47,15 @@ class UnreadablePageError(ValueError):
 
 def has_readable_text(soup) -> bool:
     """Report whether a parsed document has body text outside scripts and styles."""
+    from bs4 import Comment
+
     body = soup.body or soup
     return any(
         text.strip()
         for text in body.find_all(string=True)
-        if text.parent is not None and text.parent.name not in ('script', 'style', 'noscript')
+        # a comment is markup, and prose can sit several levels inside a <noscript>
+        if not isinstance(text, Comment)
+        and text.find_parent(['script', 'style', 'noscript']) is None
     )
 
 
@@ -120,6 +124,11 @@ def extract_content_from_html(html: str) -> str:
         ]
 
         for selector in nav_selectors:
+            for element in main_content.select(selector):
+                element.decompose()
+
+        # markdownify's strip= drops the tag but keeps its text, so these go outright
+        for selector in ('script', 'style'):
             for element in main_content.select(selector):
                 element.decompose()
 

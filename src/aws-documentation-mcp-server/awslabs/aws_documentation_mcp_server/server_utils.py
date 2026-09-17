@@ -170,7 +170,7 @@ async def read_documentation_impl(
             logger.error(error_msg)
             await ctx.error(error_msg)
             raise ValueError(error_msg) from e
-        content = truncate_large_tables(content, url=url_str)
+        content = truncate_large_tables(content, url=page.served)
     else:
         content = page_raw
 
@@ -300,7 +300,7 @@ async def read_sections_impl(
 
     try:
         markdown = extract_content_from_html(filtered_content)
-        markdown = truncate_large_tables(markdown, url=url_str)
+        markdown = truncate_large_tables(markdown, url=page.served)
     except UnreadablePageError as e:
         error_msg = page.message(f'{page.served} could not be read: {e}')
         logger.error(error_msg)
@@ -360,7 +360,7 @@ async def search_table_impl(
             error_msg = f'Failed to fetch {url_str}: {str(e)}'
             logger.error(error_msg)
             await ctx.error(error_msg)
-            raise ValueError(error_msg)
+            raise ValueError(error_msg) from e
 
         page = Page.of(url_str, response)
 
@@ -392,7 +392,7 @@ async def search_table_impl(
 
     if table_data is None:
         return SearchTableResponse(
-            url=url_str,
+            url=page.served,
             section_title=section_title or '',
             query=query,
             tables_searched=0,
@@ -404,7 +404,7 @@ async def search_table_impl(
     if 'error' in table_data:
         sections_list = ', '.join(f'"{s}"' for s in table_data.get('available_sections', []))
         return SearchTableResponse(
-            url=url_str,
+            url=page.served,
             section_title=section_title or '',
             query=query,
             tables_searched=0,
@@ -449,7 +449,7 @@ async def search_table_impl(
     hint = page.message(hint) if hint else (page.message() or None)
 
     return SearchTableResponse(
-        url=url_str,
+        url=page.served,
         section_title=effective_section,
         query=query,
         tables_searched=len(tables_list),

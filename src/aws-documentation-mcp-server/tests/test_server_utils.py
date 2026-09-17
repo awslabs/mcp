@@ -1776,3 +1776,75 @@ class TestRedirectOnNonHtmlContent:
             str(excinfo.value)
             == 'Page content is not HTML. Use read_documentation to view this page.'
         )
+
+
+class TestResponseNamesThePageItRead:
+    """The structured url field reports the page the rows came from, not the one asked for."""
+
+    def _response(self, text, landed):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = text
+        mock_response.headers = {'content-type': 'text/html'}
+        mock_response.url = landed
+        return mock_response
+
+    def _client_for(self, mock_response):
+        patcher = patch('httpx.AsyncClient')
+        mock_client_class = patcher.start()
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client_class.return_value = mock_client
+        return patcher
+
+    TABLE = (
+        '<html><body><h2>Endpoints</h2><table><thead><tr><th>Region</th></tr></thead>'
+        '<tbody><tr><td>us-east-1</td></tr></tbody></table></body></html>'
+    )
+
+    @pytest.mark.asyncio
+    async def test_search_table_url_is_the_served_page(self):
+        """On a rename the rows come from the served page, so url names it."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        requested = 'https://docs.aws.amazon.com/general/latest/gr/old-name.html'
+        served = 'https://docs.aws.amazon.com/general/latest/gr/new-name.html'
+        patcher = self._client_for(self._response(self.TABLE, served))
+        try:
+            result = await search_table_impl(ctx, requested, None, 'us-east-1', 20, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert result.url == served
+        assert result.results, 'the rows should still be found'
+
+    @pytest.mark.asyncio
+    async def test_search_table_url_unchanged_without_a_redirect(self):
+        """With no substitution the served page is the requested page."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/endpoints.html'
+        patcher = self._client_for(self._response(self.TABLE, url))
+        try:
+            result = await search_table_impl(ctx, url, None, 'us-east-1', 20, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert result.url == url
+
+    @pytest.mark.asyncio
+    async def test_search_table_transport_failure_chains_the_cause(self):
+        """The original transport error stays reachable as __cause__."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/endpoints.html'
+        original = httpx.HTTPError('connection reset')
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client.get = AsyncMock(side_effect=original)
+            mock_client_class.return_value = mock_client
+            with pytest.raises(ValueError) as excinfo:
+                await search_table_impl(ctx, url, None, 'q', 20, 'test-uuid')
+        assert excinfo.value.__cause__ is original

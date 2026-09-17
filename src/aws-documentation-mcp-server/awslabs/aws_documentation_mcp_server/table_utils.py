@@ -52,11 +52,17 @@ _BREAK_TAGS = ['br', 'p', 'div', 'li', 'dt', 'dd', 'tr']
 # - 'a | callout | b' -> 'a callout; b'
 # - absorb before, keep after
 _ADJACENT_MARKERS = re.compile(f'[{_BREAK_MARKER}\\s]*{_SOFT_MARKER}[{_SOFT_MARKER}\\s]*')
+# - a leading callout has no value before it, so it qualifies the one after
+# - 'callout | a | b' -> 'callout a; b'
+_LEADING_CALLOUT = re.compile(
+    f'^([{_BREAK_MARKER}\\s]*{_SOFT_MARKER}[^{_BREAK_MARKER}]*){_BREAK_MARKER}+'
+)
 
 
 def _join_values(text: str) -> str:
     """Join marker-separated values with '; ', dropping empty segments."""
     absorbed = _ADJACENT_MARKERS.sub(_SOFT_MARKER, text)
+    absorbed = _LEADING_CALLOUT.sub(f'\\1{_SOFT_MARKER}', absorbed)
     segments = (_collapse_soft_breaks(segment) for segment in absorbed.split(_BREAK_MARKER))
     return _VALUE_DELIMITER.join(segment for segment in segments if segment)
 
@@ -97,12 +103,12 @@ def _cell_text(cell: Tag) -> str:
     _strip_callout_titles(cell)
     _mark_preformatted_lines(cell)
     _mark_breaks(cell)
-    return _join_values(cell.get_text(strip=True))
+    return _join_values(cell.get_text())
 
 
 def _heading_text(heading: Tag) -> str:
     """Extract heading text, dropping markers left behind by cell processing."""
-    return _join_values(heading.get_text(strip=True))
+    return _join_values(heading.get_text())
 
 
 def _nearest_heading(table: Tag) -> Optional[Tag]:
@@ -152,8 +158,8 @@ def parse_html_tables(html: str, section_title: Optional[str] = None) -> Optiona
     available_sections = []
 
     for heading in soup.find_all(['h1', 'h2', 'h3']):
-        heading_text = heading.get_text(strip=True)
-        normalized = ' '.join(heading_text.lower().split())
+        heading_text = ' '.join(heading.get_text().split())
+        normalized = heading_text.lower()
         available_sections.append(heading_text)
         if normalized == normalized_target:
             section_element = heading
@@ -495,7 +501,7 @@ def _extract_with_links(element: Tag, parts: list[str]) -> None:
             if child.name == 'a':
                 href = str(child.get('href', ''))
                 # join inside the link text; markers must not straddle '[text](url)'
-                text = _join_values(child.get_text(strip=True))
+                text = _join_values(child.get_text())
                 if href and text and not has_empty_link_target(href):
                     parts.append(f'[{text}]({href})')
                 elif text:
