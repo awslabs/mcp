@@ -240,20 +240,36 @@ class TestTransactionControlIsRefusedInEveryMode:
 
 
 class TestImplicitCommitInsideATransaction:
-    """TRUNCATE commits the transaction it runs in, so inside a named one it is refused.
+    """Statements that can commit the transaction they run in are refused inside a named one.
 
-    Redshift documents TRUNCATE as committing and as impossible to roll back. Inside a named
-    transaction that ends it while the server still believes it open, which is the COMMIT
+    Both arrive at the same place from different directions. TRUNCATE is documented as
+    committing and as impossible to roll back. CALL carries a procedure body the guard cannot
+    read, and a NONATOMIC procedure may issue its own COMMIT from inside a transaction block.
+    Either ends the transaction while the server still believes it open, which is the COMMIT
     desync arriving from a statement that reads as ordinary DML.
+
+    Measured through this server before CALL was refused: a staged INSERT and the procedure's
+    own row both persisted after rollback_transaction reported success.
     """
 
-    @pytest.mark.parametrize('sql', ['TRUNCATE t', 'TRUNCATE TABLE t', 'TRUNCATE"t"'])
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            'TRUNCATE t',
+            'TRUNCATE TABLE t',
+            'TRUNCATE"t"',
+            'CALL sp_purge(1)',
+            'CALL public.sp_purge()',
+        ],
+    )
     def test_rejected_inside_a_transaction(self, sql):
         """Every spelling the guard recognises, in read-write mode where the deny-list is off."""
-        with pytest.raises(ToolError, match='commits the transaction it runs in'):
+        with pytest.raises(ToolError, match='can commit the transaction it runs in'):
             assert_executable(sql, enforce_read_only=False, in_transaction=True)
 
-    @pytest.mark.parametrize('sql', ['TRUNCATE t', 'TRUNCATE TABLE t'])
+    @pytest.mark.parametrize(
+        'sql', ['TRUNCATE t', 'TRUNCATE TABLE t', 'CALL sp_purge(1)', 'CALL public.sp_purge()']
+    )
     def test_allowed_standalone_in_read_write_mode(self, sql):
         """Outside a transaction it is an honest write, and refusing it would remove a capability."""
         assert_executable(sql, enforce_read_only=False)
@@ -273,6 +289,20 @@ class TestMultiStatement:
     def test_multi_statement_is_rejected(self, sql):
         """Stacked statements (mode-flip + write, GUC-flip + truncate, stacked reads) are rejected."""
         with pytest.raises(ToolError, match='single SQL statement is allowed'):
+            assert_executable(sql)
+
+    @pytest.mark.parametrize(
+        'sql',
+        ['', '   ', '\n\t ', ';', '-- just a comment', '/* nothing here */'],
+        ids=['empty', 'spaces', 'whitespace', 'semicolon', 'line_comment', 'block_comment'],
+    )
+    def test_a_statement_that_is_absent_is_refused_as_absent(self, sql):
+        """Nothing to run is the opposite of too much to run, and must not read as it.
+
+        Folded into the single-statement rule, a caller who sent one blank string was told they
+        had sent more than one, and pointed at splitting a submission they never made.
+        """
+        with pytest.raises(ToolError, match='no statement to execute'):
             assert_executable(sql)
 
 
@@ -311,6 +341,47 @@ class TestSessionSettings:
     )
     def test_statements_that_clear_read_only_are_rejected(self, sql):
         """Each of these would let a later statement in the same transaction write."""
+        with pytest.raises(ToolError, match='Statement type not allowed in read-only mode'):
+            assert_executable(sql)
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            "SELECT set_config('transaction_read_only', 'off', false)",
+            "SELECT pg_catalog.set_config('transaction_read_only', 'off', false)",
+            "SELECT SET_CONFIG('transaction_read_only', 'off', false) AS applied",
+            "WITH c AS (SELECT set_config('transaction_read_only', 'off', false) AS v) "
+            'SELECT * FROM c',
+        ],
+    )
+    def test_the_function_form_of_set_is_rejected_too(self, sql):
+        """It clears the same property from inside a projection with no write node in it.
+
+        Reproduced on a cluster through this server: after one of these, a CREATE TABLE inside
+        the read-only transaction succeeded and commit_transaction persisted it.
+        """
+        with pytest.raises(ToolError, match='Statement type not allowed in read-only mode'):
+            assert_executable(sql)
+
+    def test_reading_a_session_setting_is_still_allowed(self):
+        """Only changing one is the problem; `current_setting` answers a question."""
+        assert_executable("SELECT current_setting('transaction_read_only')")
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            "PREPARE p AS SELECT set_config('transaction_read_only', 'off', false)",
+            'EXECUTE p',
+            "DECLARE c CURSOR FOR SELECT set_config('transaction_read_only', 'off', false)",
+            'FETCH ALL FROM c',
+        ],
+    )
+    def test_statements_carrying_hidden_sql_are_rejected(self, sql):
+        """Their body stays text, so every check here is blind to what will run.
+
+        One of these can therefore carry anything the rest of the deny-list refuses, which is
+        how the function form of SET was reached in read-only mode after being denied directly.
+        """
         with pytest.raises(ToolError, match='Statement type not allowed in read-only mode'):
             assert_executable(sql)
 
@@ -569,6 +640,51 @@ class TestMightWriteRecognizesWrites:
     )
     def test_select_into_is_a_write_despite_the_select_root(self, sql):
         """`SELECT ... INTO` creates a table, so the Select root must not make it a read."""
+        assert might_write(sql) is True
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            "SELECT set_config('transaction_read_only', 'off', false)",
+            "SELECT pg_catalog.set_config('transaction_read_only', 'off', false)",
+            "SELECT SET_CONFIG('a', 'b', false) AS applied",
+            "WITH c AS (SELECT set_config('a', 'b', false) AS v) SELECT * FROM c",
+            "SELECT set_config('a', 'b', false) FROM t UNION SELECT 1",
+        ],
+    )
+    def test_the_function_form_of_set_is_a_write(self, sql):
+        """`set_config` reaches the same session settings as the SET statement.
+
+        Measured on a cluster: after it clears `transaction_read_only`, a CREATE TABLE inside
+        the read-only transaction succeeds and a commit persists it. On the fallback this
+        answer is the only gate the statement meets.
+        """
+        assert might_write(sql) is True
+
+    def test_set_config_as_a_string_literal_is_still_a_read(self):
+        """Matching is structural, so the name in quotes is data rather than a call."""
+        assert might_write("SELECT 'set_config' AS name") is False
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            'SELECT a INTO t FROM x UNION SELECT b FROM y',
+            'SELECT a INTO t FROM x UNION ALL SELECT b FROM y',
+            'SELECT a INTO t FROM x INTERSECT SELECT b FROM y',
+            'SELECT a INTO t FROM x EXCEPT SELECT b FROM y',
+            '(SELECT * INTO t FROM x)',
+            '((SELECT * INTO t FROM x))',
+            'WITH c AS (SELECT 1 AS n) SELECT n INTO t FROM c UNION SELECT 2',
+        ],
+    )
+    def test_select_into_behind_a_set_operation_is_still_a_write(self, sql):
+        """Redshift's grammar allows these, and each one creates the table.
+
+        The INTO then hangs off a child Select rather than the root, so a root-only check reads
+        the Union, Intersect, Except or Subquery root as a plain read. On the fallback, which
+        has no read-only transaction around it, that answer is the only thing standing between
+        the statement and the cluster.
+        """
         assert might_write(sql) is True
 
     def test_data_modifying_cte_under_a_select_is_a_write(self):

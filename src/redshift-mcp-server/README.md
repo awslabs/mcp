@@ -344,7 +344,7 @@ Seller 48950 has 19 sales and 11 listings. Two tables have to change together, s
 
 19 sales deleted, and not yet visible to anything outside the transaction. Now the listings, committing as I go.
 
-> Execute this statement against redshift-cluster-analytics:sample_data_dev? It runs inside transaction 'seller_48950' and is not final until you commit.
+> Execute this statement against redshift-cluster-analytics:sample_data_dev? It runs inside transaction 'seller_48950' and commits it, so it is final and cannot be rolled back.
 >
 > DELETE FROM tickit.listing WHERE sellerid = 48950
 [approved]
@@ -491,7 +491,7 @@ execute_query(
 
 ### review_cluster
 
-Runs a diagnostic review of a Redshift cluster or serverless workgroup. Returns identified potential issues and respective recommendations ordered by required mitigation effort.
+Runs a diagnostic review of a Redshift cluster or serverless workgroup. Returns identified potential issues and their recommendations. Recommendations come in the order their signals first triggered; nothing sorts them by effort or impact.
 
 ```python
 review_cluster(cluster_identifier: str, database_name: str = 'dev') -> ReviewResult
@@ -588,9 +588,9 @@ The mode is read once at startup, so it is fixed for the life of the server proc
 | Transaction wrapper | `BEGIN READ ONLY` … `ROLLBACK`, so nothing is persisted | None; each statement runs with autocommit |
 | Named [transactions](#transactions) | Opened `READ ONLY`, giving several statements one snapshot | Writable, so several statements commit or roll back together |
 | Writes and DDL | Rejected, either by the statement guard or by the read-only transaction | Executed and committed immediately |
-| Statement-type deny list | Denies `UNLOAD`, `GRANT`, `REVOKE`, `TRUNCATE`, `VACUUM`, `ANALYZE`, `CALL`, `COMMENT`, `CANCEL`, `SET` and `RESET` | Not applied |
+| Statement-type deny list | Denies `UNLOAD`, `GRANT`, `REVOKE`, `TRUNCATE`, `VACUUM`, `ANALYZE`, `CALL`, `COMMENT`, `CANCEL`, `SET`, `RESET` and the `set_config` function that reaches the same settings, plus `PREPARE`, `EXECUTE`, `DECLARE` and `FETCH`, whose bodies the guard cannot read | Not applied |
 | Transaction control in `sql` | Rejected | Rejected |
-| `TRUNCATE` inside a named transaction | Rejected | Rejected, because it commits and cannot be rolled back |
+| `TRUNCATE` or `CALL` inside a named transaction | Rejected | Rejected: `TRUNCATE` commits and cannot be rolled back, and a `NONATOMIC` procedure can commit from inside the call. Both are available on their own |
 | Multiple statements | Rejected | Rejected |
 | Per-statement confirmation | Not asked; nothing is persisted | Asked before anything that could change something, unless `UNSAFE_SKIP_WRITE_CONFIRMATION=true` |
 | How the tool describes itself to your client | Read-only and non-destructive | Destructive, so clients can warn you or ask before running it |
@@ -672,11 +672,16 @@ What ends a transaction:
 | Cause | Result |
 | --- | --- |
 | `commit_transaction` | Its statements are persisted |
-| `rollback_transaction` | Its statements are discarded |
+| `rollback_transaction` | Its statements are discarded, as far as a rollback reaches: changes in the database go, and anything done outside it, such as an `UNLOAD` to S3, stands |
 | A statement inside it fails | Rolled back, and the name is dropped. Redshift refuses everything after a failed statement, so a later commit would report success while persisting nothing |
+| The call is cancelled | Rolled back, and the name is dropped, since nothing can reach the transaction again |
 | Idle longer than `SESSION_KEEPALIVE` | Redshift ends it and discards its statements |
 
 A statement the guard rejects never reaches the cluster, so it does not abort the transaction. One the engine rejects does.
+
+Some statements cannot run inside a transaction at all, whichever mode you are in. A write to an Iceberg table is one: Redshift answers `insert into an "iceberg" table is not allowed within multistatement transaction`, so submit it on its own rather than inside a named transaction. The same restriction is what keeps such a write out of read-only mode, where every statement runs inside `BEGIN READ ONLY`.
+
+Two more are refused by this server rather than by Redshift, because each can end the transaction from inside it and leave a rollback reporting success over work that stands: `TRUNCATE`, which commits what it does, and `CALL`, since a `NONATOMIC` procedure may issue its own `COMMIT`. Run either on its own instead.
 
 Keep them short. An open transaction holds a Redshift connection and can block other writers on the tables it touched, so the model is instructed to open one only once the statements it groups are decided, and to put nothing else between them — no waiting on you, no waiting on another system, no exploring. Asking for a transaction to be held open anyway is a legitimate thing to want, and the model is told to warn you what it costs before doing it.
 

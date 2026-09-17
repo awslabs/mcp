@@ -43,13 +43,6 @@ MAX_OPEN_TRANSACTIONS_PER_TARGET_DEFAULT = 10
 # redshift-data:BatchExecuteStatement was denied, before trying the batch path again.
 FALLBACK_NO_BATCH_REPROBE = 300
 
-# SQL discovery commands. Results are read positionally; {placeholders} are
-# filled with quoted identifiers by the caller.
-DATABASES_SQL = 'SHOW DATABASES;'
-SCHEMAS_SQL = 'SHOW SCHEMAS FROM DATABASE {database};'
-TABLES_SQL = 'SHOW TABLES FROM SCHEMA {database}.{schema};'
-COLUMNS_SQL = 'SHOW COLUMNS FROM TABLE {database}.{schema}.{table};'
-
 # SQL guardrails
 
 # Maximum SQL length accepted before parsing; longer input is rejected (fail closed).

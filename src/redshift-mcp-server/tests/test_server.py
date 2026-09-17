@@ -18,7 +18,6 @@ import pytest
 from awslabs.redshift_mcp_server.consts import (
     ACCESS_MODE_READ_ONLY,
     ACCESS_MODE_READ_WRITE,
-    ACCESS_MODES,
 )
 from awslabs.redshift_mcp_server.models import (
     QueryResult,
@@ -27,10 +26,6 @@ from awslabs.redshift_mcp_server.models import (
     RedshiftDatabase,
     RedshiftSchema,
     RedshiftTable,
-)
-from awslabs.redshift_mcp_server.redshift import (
-    max_open_transactions_per_target,
-    session_keepalive,
 )
 from awslabs.redshift_mcp_server.review.models import (
     ReviewFinding,
@@ -41,8 +36,6 @@ from awslabs.redshift_mcp_server.server import (
     ConfirmWrite,
     _current_settings,
     _execute_query_annotations,
-    _resolve_access_mode,
-    _resolve_skip_write_confirmation,
     _tool_failed,
     _write_confirmation,
     execute_query_tool,
@@ -54,80 +47,14 @@ from awslabs.redshift_mcp_server.server import (
     mcp,
     review_cluster_tool,
 )
-from botocore.exceptions import ClientError
+from awslabs.redshift_mcp_server.settings import (
+    max_open_transactions_per_target,
+    session_keepalive,
+)
+from botocore.exceptions import ClientError, NoRegionError
 from datetime import datetime
 from mcp.server.mcpserver import Context, Elicit, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
-
-
-class TestResolveAccessMode:
-    """Read-write is opt-in and any unsupported mode falls back to read-only."""
-
-    def test_unset_is_read_only(self, monkeypatch):
-        """An unset variable leaves the server in the default read-only mode."""
-        monkeypatch.delenv('ACCESS_MODE', raising=False)
-        assert _resolve_access_mode() == ACCESS_MODE_READ_ONLY
-
-    @pytest.mark.parametrize('value', ['read-write', 'READ-WRITE', 'Read-Write', ' read-write '])
-    def test_read_write_is_recognized(self, monkeypatch, value):
-        """`read-write` selects read-write mode, case- and whitespace-insensitively."""
-        monkeypatch.setenv('ACCESS_MODE', value)
-        assert _resolve_access_mode() == ACCESS_MODE_READ_WRITE
-
-    @pytest.mark.parametrize('value', ['read-only', 'READ-ONLY', ' read-only '])
-    def test_read_only_is_recognized(self, monkeypatch, value):
-        """`read-only` selects read-only mode explicitly."""
-        monkeypatch.setenv('ACCESS_MODE', value)
-        assert _resolve_access_mode() == ACCESS_MODE_READ_ONLY
-
-    @pytest.mark.parametrize(
-        'value',
-        [
-            '',
-            '   ',
-            'read_write',  # underscore instead of hyphen
-            'readwrite',
-            'read-wirte',  # typo: must not grant writes
-            'write',
-            'true',
-            'rw',
-            'admin',
-        ],
-    )
-    def test_unsupported_mode_falls_back_to_read_only(self, monkeypatch, value):
-        """Empty and unsupported values all fail closed to read-only."""
-        monkeypatch.setenv('ACCESS_MODE', value)
-        assert _resolve_access_mode() == ACCESS_MODE_READ_ONLY
-
-    def test_resolved_mode_is_always_supported(self, monkeypatch):
-        """Whatever is configured, the resolved mode is one the server knows."""
-        monkeypatch.setenv('ACCESS_MODE', 'nonsense')
-        assert _resolve_access_mode() in ACCESS_MODES
-
-
-class TestResolveSkipWriteConfirmation:
-    """The confirmation opt-out is off by default and inert outside read-write mode."""
-
-    def test_unset_keeps_confirmation(self, monkeypatch):
-        """An unset variable keeps the prompt."""
-        monkeypatch.delenv('UNSAFE_SKIP_WRITE_CONFIRMATION', raising=False)
-        assert _resolve_skip_write_confirmation(ACCESS_MODE_READ_WRITE) is False
-
-    def test_true_skips_confirmation_in_read_write(self, monkeypatch):
-        """`true` skips the prompt in read-write mode."""
-        monkeypatch.setenv('UNSAFE_SKIP_WRITE_CONFIRMATION', 'true')
-        assert _resolve_skip_write_confirmation(ACCESS_MODE_READ_WRITE) is True
-
-    def test_true_is_inert_in_read_only(self, monkeypatch):
-        """`true` has no effect when writes are not allowed at all."""
-        monkeypatch.setenv('UNSAFE_SKIP_WRITE_CONFIRMATION', 'true')
-        assert _resolve_skip_write_confirmation(ACCESS_MODE_READ_ONLY) is False
-
-    @pytest.mark.parametrize('value', ['false', '', '   ', 'ture', '1', 'yes'])
-    def test_everything_else_keeps_confirmation(self, monkeypatch, value):
-        """`false`, empty, and unrecognized values all keep the prompt."""
-        monkeypatch.setenv('UNSAFE_SKIP_WRITE_CONFIRMATION', value)
-        assert _resolve_skip_write_confirmation(ACCESS_MODE_READ_WRITE) is False
 
 
 class TestWriteConfirmation:
@@ -153,6 +80,20 @@ class TestWriteConfirmation:
         assert isinstance(result, Elicit)
         assert result.schema is ConfirmWrite
 
+    def test_a_write_the_fallback_will_refuse_raises_no_prompt(self, mocker):
+        """Asking about a statement certain to be refused spends the caller's attention.
+
+        While the batch action is denied the compatibility path serves reads only, so the write
+        is refused in the tool body a moment later whatever the caller answers.
+        """
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+        mocker.patch('awslabs.redshift_mcp_server.server.no_batch_latched', return_value=True)
+
+        result = _write_confirmation(self._ctx(mocker), 'test-cluster', 'dev', 'DELETE FROM t')
+
+        assert not isinstance(result, Elicit)
+        assert result.confirmed is True
+
     def test_prompt_names_target_and_statement(self, mocker):
         """The prompt tells the user which cluster and statement they are approving."""
         self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
@@ -175,7 +116,38 @@ class TestWriteConfirmation:
         assert isinstance(result, Elicit)
         assert "transaction 'load'" in result.message
         assert 'not final until you commit' in result.message
+        # Scoped the same way the rollback branch is: a rollback does not reach S3.
+        assert 'outside the database' in result.message
         assert 'cannot be rolled back' not in result.message
+
+    def test_a_write_that_commits_in_the_same_call_is_described_as_final(self, mocker):
+        """The call being approved takes the commit decision, so it cannot be called pending."""
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+
+        result = _write_confirmation(
+            self._ctx(mocker), 'test-cluster', 'dev', 'DELETE FROM t', commit_transaction='load'
+        )
+
+        assert isinstance(result, Elicit)
+        assert "transaction 'load'" in result.message
+        assert 'commits it' in result.message
+        assert 'cannot be rolled back' in result.message
+        assert 'not final until you commit' not in result.message
+
+    def test_a_write_that_is_rolled_back_in_the_same_call_says_it_is_discarded(self, mocker):
+        """Promising a pending commit would overstate what approving it keeps."""
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+
+        result = _write_confirmation(
+            self._ctx(mocker), 'test-cluster', 'dev', 'DELETE FROM t', rollback_transaction='load'
+        )
+
+        assert isinstance(result, Elicit)
+        assert "transaction 'load'" in result.message
+        assert 'in the database is discarded' in result.message
+        # Scoped, because a rollback does not reach what UNLOAD already wrote to S3.
+        assert 'outside the database' in result.message
+        assert 'not final until you commit' not in result.message
 
     def test_closing_a_transaction_asks_nothing(self, mocker):
         """A bare commit or rollback runs no statement of the caller's."""
@@ -1036,6 +1008,14 @@ class TestAnticipatedFailuresReachTheModel:
         with pytest.raises(ToolError) as reported:
             _tool_failed('execute_query_tool', denied)
         assert 'Redshift endpoint is not available.' in str(reported.value)
+        assert not isinstance(reported.value, UnexpectedToolError)
+
+        # The SDK refusing to make the call at all names something the operator must fix, and
+        # reaches them as a bare 'Error executing tool ...' unless it is wrapped.
+        misconfigured = NoRegionError()
+        with pytest.raises(ToolError) as reported:
+            _tool_failed('list_clusters_tool', misconfigured)
+        assert 'You must specify a region' in str(reported.value)
         assert not isinstance(reported.value, UnexpectedToolError)
 
         # A bug here tells the caller nothing, so it stays a crash rather than becoming advice.

@@ -209,6 +209,47 @@ def _split_summary(transcript: str) -> tuple[str | None, str]:
     )
 
 
+def _failed_scenarios(summary: str | None) -> list[str] | None:
+    """Read the agent's verdict out of the table it was asked to end with.
+
+    The exit status says only that the agent finished, so without reading the table a run whose
+    every row says FAIL still passes. A missing or unreadable table is not a pass either: it
+    means nothing graded the run.
+
+    Args:
+        summary: The agent's summary section, or None when it produced none.
+
+    Returns:
+        The Scenario cells of the rows marked FAIL, empty when every row passed, or None when
+        there was no table to read.
+    """
+    if summary is None:
+        return None
+
+    failed: list[str] = []
+    rows = 0
+
+    for line in summary.splitlines():
+        line = line.strip()
+        if not line.startswith('|'):
+            continue
+
+        cells = [cell.strip() for cell in line.strip('|').split('|')]
+        if len(cells) < 2:
+            continue
+
+        result = cells[1].upper()
+        # The header and the dashes under it are not rows.
+        if result == 'RESULT' or set(result) <= set('-: '):
+            continue
+
+        rows += 1
+        if 'FAIL' in result:
+            failed.append(cells[0] or '(unnamed)')
+
+    return failed if rows else None
+
+
 def _report(
     config: Config,
     scenario: scenarios.Scenario,
@@ -217,7 +258,7 @@ def _report(
     transcript: str,
     seconds: float,
     seeded_rows: int,
-) -> Path:
+) -> tuple[Path, list[str] | None]:
     """Write the run down, in the form it will be read in a pull request.
 
     The summary leads, because that is what a reader came for. The prompt follows, so a
@@ -254,6 +295,7 @@ def _report(
     }
 
     summary, remainder = _split_summary(transcript)
+    failed = _failed_scenarios(summary)
     if summary is None:
         summary = (
             'The agent ended without one, so nothing here has been summarised. Read the '
@@ -274,7 +316,7 @@ def _report(
         f'{remainder.strip()}\n'
     )
 
-    return path
+    return path, failed
 
 
 def test(config: Config, keys: list[str], keep_up: bool) -> int:
@@ -286,7 +328,8 @@ def test(config: Config, keys: list[str], keep_up: bool) -> int:
         keep_up: Skip teardown, leaving the warehouses running for the next run.
 
     Returns:
-        A process exit status: zero only when every scenario finished cleanly.
+        A process exit status: zero only when every scenario finished cleanly and its summary
+        table marked every row PASS.
     """
     session = _session(config)
     failures = 0
@@ -308,11 +351,21 @@ def test(config: Config, keys: list[str], keep_up: bool) -> int:
             print(f'scenario   {key} running, up to {config.timeout_seconds / 60:.0f} min')
 
             status, transcript, seconds = _invoke(config, prompt)
-            path = _report(config, scenario, prompt, status, transcript, seconds, seeded_rows)
+            path, failed = _report(
+                config, scenario, prompt, status, transcript, seconds, seeded_rows
+            )
             print(f'scenario   {key} exit {status} in {seconds / 60:.1f} min -> {path}')
 
+            # The exit status only says the agent finished. Its own table is the verdict, and a
+            # run with no table graded nothing, so neither counts as a pass on its own.
             if status != 0:
                 failures += 1
+            elif failed is None:
+                failures += 1
+                print(f'scenario   {key} FAILED: no summary table, so nothing graded the run')
+            elif failed:
+                failures += 1
+                print(f'scenario   {key} FAILED: {", ".join(failed)}')
     finally:
         _teardown(session, config, keep_up)
 

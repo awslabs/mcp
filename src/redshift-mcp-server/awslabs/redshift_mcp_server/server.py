@@ -16,12 +16,16 @@
 
 import os
 import sys
+from awslabs.redshift_mcp_server.catalog import (
+    discover_columns,
+    discover_databases,
+    discover_schemas,
+    discover_tables,
+)
+from awslabs.redshift_mcp_server.clusters import discover_clusters
 from awslabs.redshift_mcp_server.consts import (
-    ACCESS_MODE_DEFAULT,
     ACCESS_MODE_READ_WRITE,
-    ACCESS_MODES,
     LOG_LEVEL_DEFAULT,
-    UNSAFE_SKIP_WRITE_CONFIRMATION_DEFAULT,
 )
 from awslabs.redshift_mcp_server.models import (
     QueryResult,
@@ -32,19 +36,19 @@ from awslabs.redshift_mcp_server.models import (
     RedshiftTable,
 )
 from awslabs.redshift_mcp_server.redshift import (
-    discover_clusters,
-    discover_columns,
-    discover_databases,
-    discover_schemas,
-    discover_tables,
     execute_query,
-    max_open_transactions_per_target,
-    session_keepalive,
+    no_batch_latched,
 )
 from awslabs.redshift_mcp_server.review.executor import review_cluster
 from awslabs.redshift_mcp_server.review.models import ReviewResult
+from awslabs.redshift_mcp_server.settings import (
+    max_open_transactions_per_target,
+    resolve_access_mode,
+    resolve_skip_write_confirmation,
+    session_keepalive,
+)
 from awslabs.redshift_mcp_server.sql_guard import assert_executable, might_write
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 from loguru import logger
 from mcp.server.mcpserver import Context, Elicit, MCPServer, Resolve
 from mcp.server.mcpserver.exceptions import ToolError
@@ -63,72 +67,11 @@ logger.add(
 )
 
 
-def _resolve_access_mode() -> str:
-    """Resolve the access mode from the environment, failing closed to read-only.
-
-    Anything other than a supported mode falls back to `ACCESS_MODE_DEFAULT`, so a
-    typo cannot silently grant write access.
-
-    Returns:
-        The resolved mode, always one of `ACCESS_MODES`.
-    """
-    mode = os.environ.get('ACCESS_MODE', ACCESS_MODE_DEFAULT).strip().lower()
-
-    if mode not in ACCESS_MODES:
-        logger.warning(
-            f'ACCESS_MODE={mode!r} is not a supported mode '
-            f'({", ".join(sorted(ACCESS_MODES))}); falling back to {ACCESS_MODE_DEFAULT}.'
-        )
-        return ACCESS_MODE_DEFAULT
-
-    if mode == ACCESS_MODE_READ_WRITE:
-        logger.warning(
-            f'ACCESS_MODE={ACCESS_MODE_READ_WRITE}: the execute_query tool can modify and '
-            'delete data. Restrict the database user to the least privilege the workload needs.'
-        )
-
-    return mode
-
-
-def _resolve_skip_write_confirmation(access_mode: str) -> bool:
-    """Resolve whether to skip the per-write confirmation prompt.
-
-    Args:
-        access_mode: The resolved access mode, used to report a no-op setting.
-
-    Returns:
-        True when `UNSAFE_SKIP_WRITE_CONFIRMATION` is `true`, else False.
-    """
-    value = (
-        os.environ.get('UNSAFE_SKIP_WRITE_CONFIRMATION', UNSAFE_SKIP_WRITE_CONFIRMATION_DEFAULT)
-        .strip()
-        .lower()
-    )
-
-    if value not in {'true', 'false'}:
-        logger.warning(
-            f'UNSAFE_SKIP_WRITE_CONFIRMATION={value!r} is not "true" or "false"; '
-            'keeping the confirmation prompt.'
-        )
-        return False
-
-    if value == 'false':
-        return False
-
-    if access_mode != ACCESS_MODE_READ_WRITE:
-        logger.warning(f'UNSAFE_SKIP_WRITE_CONFIRMATION=true has no effect in {access_mode} mode.')
-        return False
-
-    logger.warning(
-        'UNSAFE_SKIP_WRITE_CONFIRMATION=true: writes execute without asking for '
-        'confirmation. The database user privileges are the only remaining control.'
-    )
-    return True
-
-
-# Resolved once at import: neither setting can change while the server runs.
-ACCESS_MODE = _resolve_access_mode()
-SKIP_WRITE_CONFIRMATION = _resolve_skip_write_confirmation(ACCESS_MODE)
+# Resolved here, rather than on first use like the settings that carry their own accessor,
+# because this point is past the logger.add above and so the warnings both resolvers raise
+# reach LOG_FILE. Once is enough: neither setting can change while the server runs.
+ACCESS_MODE = resolve_access_mode()
+SKIP_WRITE_CONFIRMATION = resolve_skip_write_confirmation(ACCESS_MODE)
 
 
 def _current_settings() -> str:
@@ -182,6 +125,11 @@ Work down the hierarchy: `list_clusters` for an identifier, then `list_databases
 cluster, then `list_schemas`, `list_tables` and `list_columns`. Every tool takes the cluster
 identifier as its first argument, and only a cluster whose status is `available` can be
 queried.
+
+A database is connected to, while a schema and a table are filtered for. So an unknown schema
+or table comes back as an empty list, but a database that does not exist or cannot be connected
+to is an error, and it is the same error on every tool that names one — including the three
+below `list_databases`, not only `list_schemas`.
 
 ## Concurrency
 
@@ -290,6 +238,14 @@ def _write_confirmation(
         ),
     )
 
+    # The guard is not the only thing that refuses a write. While the batch action is denied on
+    # this cluster the compatibility path serves reads only, so asking would have put a prompt
+    # in front of a statement certain to be refused a moment later. Peeked rather than probed,
+    # because deciding a statement's path consumes the re-probe and that decision is the tool
+    # body's to make.
+    if no_batch_latched(cluster_identifier) and might_write(sql):
+        return ConfirmWrite(confirmed=True)
+
     if not might_write(sql):
         return ConfirmWrite(confirmed=True)
 
@@ -314,14 +270,32 @@ def _write_confirmation(
     # an act, since only the first one asks.
     logger.info(f'Write on {cluster_identifier}:{database_name} requires confirmation')
 
-    # What the caller is agreeing to differs inside a transaction, where the write is not
-    # final until it is committed.
-    transaction = begin_transaction or in_transaction or commit_transaction or rollback_transaction
-    consequence = (
-        'It runs with autocommit and cannot be rolled back.'
-        if transaction is None
-        else f'It runs inside transaction {transaction!r} and is not final until you commit.'
-    )
+    # What the caller is agreeing to differs by action, and the difference is what they are
+    # deciding. A statement submitted with commit_transaction is committed by the same call,
+    # and one submitted with rollback_transaction is discarded by it, so neither is pending.
+    if commit_transaction is not None:
+        consequence = (
+            f'It runs inside transaction {commit_transaction!r} and commits it, so it is final '
+            f'and cannot be rolled back.'
+        )
+    elif rollback_transaction is not None:
+        # Scoped to the database deliberately. A rollback discards what the transaction wrote
+        # there, and reaches nothing outside it: UNLOAD has already written to S3 by then, and
+        # with CLEANPATH has already deleted what was there.
+        consequence = (
+            f'It runs inside transaction {rollback_transaction!r} and then rolls it back, so '
+            f'any change it makes in the database is discarded. Anything it does outside the '
+            f'database, such as writing to S3, is not.'
+        )
+    elif begin_transaction or in_transaction:
+        transaction = begin_transaction or in_transaction
+        consequence = (
+            f'It runs inside transaction {transaction!r}, so any change it makes in the '
+            f'database is not final until you commit. Anything it does outside the database, '
+            f'such as writing to S3, is final as soon as it runs.'
+        )
+    else:
+        consequence = 'It runs with autocommit and cannot be rolled back.'
 
     return Elicit(
         message=(
@@ -362,10 +336,19 @@ def _tool_failed(tool: str, error: Exception) -> NoReturn:
     The SDK withholds the text of anything that is not a `ToolError`, so an AWS error would
     otherwise reach the caller as a bare "Error executing tool ..." with nothing to act on.
 
+    Every tool routes its failures here, which makes this the one place a failure is logged at
+    ERROR; the paths below log the same fact at DEBUG, beside the SQL that caused it. Note for
+    whoever ships this log elsewhere: an engine error carries the offending value, column or
+    relation from the statement, so the line below can quote statement content that `LOG_LEVEL`
+    otherwise keeps at DEBUG.
+
     A `ClientError` is AWS reporting a condition the caller can usually resolve: a paused or
     resuming cluster, an endpoint not yet available, throttling, expired credentials, a missing
-    grant. Its message is theirs to read. Anything else is a defect in this server, whose text
-    would tell them nothing useful, so it stays withheld.
+    grant. Its message is theirs to read. A `BotoCoreError` is the SDK reporting that it cannot
+    make the call at all - no region, no credentials, an unknown profile, an unreachable
+    endpoint - which names something the operator has to fix and is useless withheld. Anything
+    else is a defect in this server, whose text would tell them nothing useful, so it stays
+    withheld.
 
     Args:
         tool: Name of the tool that failed, for the log.
@@ -377,7 +360,7 @@ def _tool_failed(tool: str, error: Exception) -> NoReturn:
     """
     logger.error(f'Error in {tool}: {error}')
 
-    if isinstance(error, ClientError):
+    if isinstance(error, (ClientError, BotoCoreError)):
         raise ToolError(str(error)) from error
 
     raise error
@@ -429,8 +412,13 @@ async def list_databases_tool(
 ) -> list[RedshiftDatabase]:
     """List the databases in a cluster, via SHOW DATABASES.
 
-    Returns database_name, database_owner, database_type (local or shared), database_acl,
-    parameters and database_isolation_level.
+    Returns database_name, database_owner, database_type, database_acl, parameters and
+    database_isolation_level.
+
+    database_type is 'local' for a database on the cluster itself, 'shared' for one from a
+    datashare, or 'auto mounted catalog' for one Redshift mounted from an external catalog such
+    as AWS Glue. An auto-mounted catalog is listed here but cannot be explored further, since
+    Redshift refuses to connect to it.
 
     A 'shared' database comes from a datashare, and appears only if the connecting
     principal has been granted access to the consumer database (GRANT USAGE ON DATABASE
@@ -664,7 +652,8 @@ async def execute_query_tool(
 
     - Read-only (default): the statement runs inside `BEGIN READ ONLY ... ROLLBACK`, so
       nothing is persisted, and statement types the transaction cannot neutralize
-      (`UNLOAD`, `GRANT`, `TRUNCATE`, `VACUUM`, `SET`, `RESET`, and similar) are rejected
+      (`UNLOAD`, `GRANT`, `REVOKE`, `TRUNCATE`, `VACUUM`, `ANALYZE`, `COMMENT`, `CALL`,
+      `CANCEL`, `SET`, `RESET`, `PREPARE`, `EXECUTE`, `DECLARE`, `FETCH`) are rejected
       before execution.
     - Read-write (`ACCESS_MODE=read-write`): the statement runs directly with autocommit
       and can create, modify and delete data and objects. Outside a transaction there is
@@ -677,7 +666,8 @@ async def execute_query_tool(
     same reason, since it commits and cannot be rolled back; outside one it runs normally in
     read-write mode.
 
-    In read-write mode each statement is confirmed by the caller before it runs, unless the
+    In read-write mode a statement that may write is confirmed by the caller before it runs,
+    while a recognized read runs unconfirmed. Confirmation is skipped entirely when the
     operator set `UNSAFE_SKIP_WRITE_CONFIRMATION=true`. A client that cannot prompt is
     refused rather than executed unconfirmed. Closing a transaction is not itself a write,
     so `commit_transaction` or `rollback_transaction` alone asks nothing.
@@ -692,28 +682,27 @@ async def execute_query_tool(
         in_transaction='load' for each statement after that
         commit_transaction='load' or rollback_transaction='load' to end it
 
-    At most one of the four per call. `sql` is optional on commit and rollback, so a
-    transaction can be closed on its own or with one last statement.
+    At most one of the four per call. `sql` is optional on commit and rollback.
 
     Both modes support this. A read-only transaction gives several statements one
-    consistent snapshot; a read-write one makes several statements succeed or fail
-    together. Writes inside it are still confirmed one at a time, and a declined write
-    leaves the transaction open for you to commit or roll back.
+    consistent snapshot; a read-write one makes them succeed or fail together. Writes
+    inside it are still confirmed one at a time, and a declined write leaves it open.
 
-    A transaction is bound to the server process and to the cluster and database it was
-    opened against. A statement that fails inside one aborts it: the transaction is rolled
-    back and the name is dropped, so the next call reports it as unknown rather than
-    committing nothing under the impression it worked. An idle transaction is ended by
-    Redshift after SESSION_KEEPALIVE seconds, and MAX_OPEN_TRANSACTIONS_PER_TARGET caps how
-    many may be open at once against one cluster and database.
+    A transaction is bound to this server process and to the cluster and database it was
+    opened against, so the same name against a different pair is a different transaction and
+    each call has to carry the pair its own transaction was opened on. A statement that fails
+    inside one aborts it: it is rolled back and its
+    name dropped, so the next call reports it as unknown rather than letting you commit
+    nothing and call it done. Redshift ends one left idle for SESSION_KEEPALIVE seconds, and
+    MAX_OPEN_TRANSACTIONS_PER_TARGET caps how many may be open at once against one cluster
+    and database.
 
-    Close a transaction in the same stretch of work that opened it. While it is open it
-    holds a Redshift connection and can block other writers on the tables it touched, so
-    open one only once the statements it groups are decided, and keep nothing else between
-    them: no waiting on the user, no waiting on another system, no exploring, and no
-    working out what to do next. If the user asks for a transaction to be held open across
-    any of that, tell them first that it stays open until they close it and that it may
-    block other writers, then get their agreement before opening it.
+    Open and close a transaction in the same stretch of work, because while open it holds a
+    Redshift connection and can block other writers on the tables it touched. Decide the
+    statements it groups first, then run them with nothing in between: no waiting on the
+    user, no waiting on another system, no exploring, no working out what to do next. If the
+    user asks for one to be held open across any of that, tell them first that it stays open
+    until they close it and may block other writers, then get their agreement.
 
     ## Security
 
@@ -782,8 +771,10 @@ async def review_cluster_tool(
     - findings: one entry per triggered signal, carrying signal_name, section,
       affected_row_count, unit, and recommendation_ids.
     - recommendations: deduplicated, each with id, text (markdown, including
-      documentation links) and triggered_by_signals.
-    - queries_executed: names of the diagnostic queries that ran.
+      documentation links) and triggered_by_signals. Their order carries no meaning: it is
+      the order their signals first triggered, not effort and not impact.
+    - queries_executed: names of the diagnostic queries that ran. One query carries several
+      signals, so this is shorter than signals_evaluated.
 
     Count findings as len(findings), never from affected_row_count: that field counts
     affected objects in its own `unit` (7 tables, 3 nodes), so two findings each affecting

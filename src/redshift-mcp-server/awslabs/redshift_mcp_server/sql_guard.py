@@ -49,11 +49,18 @@ _TRANSACTION_CONTROL_KEYWORD_LIST = frozenset(
     }
 )
 
-# Statements that commit whatever transaction they run in, denied inside a named transaction in
-# every access mode. TRUNCATE commits and cannot be rolled back, so inside a transaction it ends
-# it exactly as a COMMIT would, from a statement that reads as ordinary DML. Standalone it is an
-# honest write, so it is refused only where a transaction is in play.
-_IMPLICIT_COMMIT_KEYWORD_LIST = frozenset({'TRUNCATE'})
+# Statements that can commit whatever transaction they run in, denied inside a named transaction
+# in every access mode. TRUNCATE commits and cannot be rolled back, so inside a transaction it
+# ends it exactly as a COMMIT would, from a statement that reads as ordinary DML. CALL carries a
+# procedure body this guard cannot read, and a NONATOMIC procedure invoked from inside a
+# transaction block may issue its own COMMIT, after which the closing ROLLBACK discards nothing
+# and reports success. Standalone both are honest writes, so they are refused only where a
+# transaction is in play.
+_IMPLICIT_COMMIT_KEYWORD_LIST = frozenset({'TRUNCATE', 'CALL'})
+
+# The function form of SET, named here because it is matched as a function call rather than as
+# a statement type or a command name.
+_SET_CONFIG = 'SET_CONFIG'
 
 # Operations denied in read-only mode: the ones a read-only transaction cannot
 # neutralize. Each keyword maps to a sqlglot node type, or to a bare-command name.
@@ -81,6 +88,18 @@ _READ_ONLY_DENY_KEYWORD_LIST = (
             # future to apply to.
             'SET',
             'RESET',
+            # The function form of SET, which reaches the same settings from inside an
+            # ordinary projection.
+            _SET_CONFIG,
+            # Statements that carry SQL this guard never sees: sqlglot parses each as a bare
+            # command whose body stays text, so nothing in the tree says what will run and
+            # every check above is blind to it. One of these can therefore run anything the
+            # rest of this list denies. `might_write` already counts all four as writes, so
+            # this only brings the read-only path in line with the fallback.
+            'PREPARE',
+            'EXECUTE',
+            'DECLARE',
+            'FETCH',
         }
     )
 )
@@ -207,6 +226,13 @@ def _denied_keyword(node: exp.Expression) -> str | None:
     # SET has its own node; RESET and `SET SESSION CHARACTERISTICS` fall through to Command.
     if isinstance(node, exp.Set):
         return 'SET'
+    # `set_config('transaction_read_only', 'off', false)` clears the property BEGIN READ ONLY
+    # established, exactly as the SET statement would, while parsing as a projection with no
+    # write node anywhere in it. Measured: after it, a CREATE TABLE inside the read-only
+    # transaction succeeds and a commit persists it. Schema qualification does not hide it,
+    # since pg_catalog.set_config parses to this same node.
+    if isinstance(node, exp.Anonymous) and (node.name or '').upper() == _SET_CONFIG:
+        return _SET_CONFIG
     # Generic/bare commands sqlglot has no dedicated class for: UNLOAD, CALL, VACUUM,
     # and any other deny-listed word surfaced as a command (matched by name).
     if isinstance(node, exp.Command):
@@ -285,6 +311,11 @@ def assert_executable(
 
     statements = _parse(sql)  # fails closed on parse/tokenize error
 
+    # Nothing to run is its own condition. Folded into the rule below, whitespace or a comment
+    # was answered with 'only a single statement is allowed', which names the opposite problem.
+    if not statements:
+        _reject('sql holds no statement to execute')
+
     if len(statements) != 1:
         _reject('Only a single SQL statement is allowed')
 
@@ -308,9 +339,9 @@ def assert_executable(
         keyword = _denied_operation(statements[0], _IMPLICIT_COMMIT_KEYWORD_LIST)
         if keyword is not None:
             _reject(
-                f'{keyword} commits the transaction it runs in and cannot be rolled back, so '
-                f'it is not available inside a named transaction. Close the transaction first, '
-                f'then run it on its own.'
+                f'{keyword} can commit the transaction it runs in, and what it commits cannot '
+                f'be rolled back, so it is not available inside a named transaction. Close the '
+                f'transaction first, then run it on its own.'
             )
 
 
@@ -331,9 +362,16 @@ def _is_read_statement(statement: exp.Expression) -> bool:
     if any(True for _ in statement.find_all(*_WRITE_NODES)):
         return False
 
-    # `SELECT ... INTO` creates a table, so it is a write despite the Select root. The
-    # INTO forms (plain, TEMP, TEMPORARY, TABLE, and behind a CTE) all set this arg.
-    if isinstance(statement, exp.Select) and statement.args.get('into') is not None:
+    # Changing session state is not a read either. This is what keeps the fallback, where
+    # `might_write` is the only gate, from running the function form of SET unwrapped.
+    if any((node.name or '').upper() == _SET_CONFIG for node in statement.find_all(exp.Anonymous)):
+        return False
+
+    # `SELECT ... INTO` creates a table, so it is a write despite the Select root. Searched
+    # for anywhere in the tree rather than on the root, because Redshift's grammar allows a
+    # set operation or parentheses around it, which put the Select carrying INTO under a
+    # Union, Intersect, Except or Subquery root that _READ_ROOT_NODES would otherwise accept.
+    if any(True for _ in statement.find_all(exp.Into)):
         return False
 
     if isinstance(statement, _READ_ROOT_NODES):
