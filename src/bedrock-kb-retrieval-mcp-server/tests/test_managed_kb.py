@@ -22,6 +22,7 @@ from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.kb_types import (
     is_managed_knowledge_base,
 )
 from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.retrieval import query_knowledge_base
+from mcp.server.mcpserver.exceptions import ToolError
 from unittest.mock import MagicMock
 
 
@@ -36,12 +37,20 @@ RESPONSE = {
 }
 
 
-def mgmt_client(kb_type):
+def mgmt_client(kb_type, data_source_ids=('ds-1', 'ds-2')):
     """Management client stub returning the given knowledge base type."""
     client = MagicMock()
     client.get_knowledge_base.return_value = {
         'knowledgeBase': {'knowledgeBaseConfiguration': {'type': kb_type}}
     }
+    # A real management client lists the knowledge base's data sources. Leaving this
+    # to MagicMock would report none, which is not what any live knowledge base looks
+    # like and would make data-source validation reject valid ids.
+    paginator = MagicMock()
+    paginator.paginate.return_value = [
+        {'dataSourceSummaries': [{'dataSourceId': d} for d in (data_source_ids or [])]}
+    ]
+    client.get_paginator.return_value = paginator
     return client
 
 
@@ -302,7 +311,7 @@ class TestRerankingRegionValidation:
     async def test_amazon_model_rejected_in_us_east_1(self):
         """The Amazon reranking model is not offered in us-east-1 and must be refused."""
         kb_client = runtime_client(region='us-east-1')
-        with pytest.raises(ValueError, match="'AMAZON' reranking model is not available"):
+        with pytest.raises(ToolError, match="'AMAZON' reranking model is not available"):
             await query_knowledge_base(
                 query='q',
                 knowledge_base_id='kb-1',
@@ -377,3 +386,121 @@ class TestFallbackCachesLearnedType:
         assert kb_client.retrieve.call_count == 3
         last = kb_client.retrieve.call_args_list[-1][1]['retrievalConfiguration']
         assert 'managedSearchConfiguration' in last
+
+
+class TestDataSourceIdValidation:
+    """An unknown data source id must fail loudly rather than match nothing.
+
+    Filtering on a data source id that does not belong to the knowledge base is
+    accepted by the API and simply matches nothing, so the caller gets an empty
+    result set and no error -- which reads as "this data source is empty" rather
+    than "this id is wrong".
+    """
+
+    @pytest.mark.asyncio
+    async def test_unknown_data_source_id_rejected(self):
+        """An id belonging to no data source raises, naming the valid ids."""
+        with pytest.raises(ToolError, match='does not belong to knowledge base'):
+            await query_knowledge_base(
+                query='q',
+                knowledge_base_id='kb-1',
+                kb_agent_client=runtime_client(),
+                data_source_ids=['ds-nonexistent'],
+                kb_agent_mgmt_client=mgmt_client('MANAGED'),
+            )
+
+    @pytest.mark.asyncio
+    async def test_error_lists_the_valid_ids(self):
+        """The message includes the ids the caller could have used."""
+        with pytest.raises(ToolError, match=r'ds-1.*ds-2'):
+            await query_knowledge_base(
+                query='q',
+                knowledge_base_id='kb-1',
+                kb_agent_client=runtime_client(),
+                data_source_ids=['typo'],
+                kb_agent_mgmt_client=mgmt_client('MANAGED', data_source_ids=('ds-1', 'ds-2')),
+            )
+
+    @pytest.mark.asyncio
+    async def test_valid_data_source_id_passes(self):
+        """A known id proceeds to the API."""
+        kb_client = runtime_client()
+        await query_knowledge_base(
+            query='q',
+            knowledge_base_id='kb-1',
+            kb_agent_client=kb_client,
+            data_source_ids=['ds-1'],
+            kb_agent_mgmt_client=mgmt_client('MANAGED'),
+        )
+        assert kb_client.retrieve.called
+
+    @pytest.mark.asyncio
+    async def test_validation_skipped_without_mgmt_client(self):
+        """Without a management client the ids cannot be verified, so do not guess."""
+        kb_client = runtime_client()
+        await query_knowledge_base(
+            query='q',
+            knowledge_base_id='kb-1',
+            kb_agent_client=kb_client,
+            data_source_ids=['unverifiable'],
+        )
+        assert kb_client.retrieve.called
+
+    @pytest.mark.asyncio
+    async def test_validation_skipped_when_listing_fails(self):
+        """A caller lacking ListDataSources keeps working rather than being blocked."""
+        mgmt = mgmt_client('MANAGED')
+        mgmt.get_paginator.side_effect = Exception('AccessDeniedException')
+        kb_client = runtime_client()
+        await query_knowledge_base(
+            query='q',
+            knowledge_base_id='kb-1',
+            kb_agent_client=kb_client,
+            data_source_ids=['unverifiable'],
+            kb_agent_mgmt_client=mgmt,
+        )
+        assert kb_client.retrieve.called
+
+
+class TestDataSourceIdCaching:
+    """Data source ids are looked up once, not on every call."""
+
+    @pytest.mark.asyncio
+    async def test_ids_listed_once_across_calls(self):
+        """A second query reuses the cached ids instead of listing again."""
+        mgmt = mgmt_client('MANAGED')
+        kb_client = runtime_client()
+        for _ in range(3):
+            await query_knowledge_base(
+                query='q',
+                knowledge_base_id='kb-1',
+                kb_agent_client=kb_client,
+                data_source_ids=['ds-1'],
+                kb_agent_mgmt_client=mgmt,
+            )
+        assert kb_client.retrieve.call_count == 3
+        assert mgmt.get_paginator.call_count == 1, 'data sources should be listed once'
+
+    @pytest.mark.asyncio
+    async def test_discovery_populates_the_cache(self):
+        """After discovery, validation needs no further listing.
+
+        ListKnowledgeBases already enumerates data sources, so the common path of
+        discover-then-query should cost no extra API call.
+        """
+        from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.kb_types import (
+            cache_data_source_ids,
+        )
+
+        cache_data_source_ids('kb-1', ['ds-from-discovery'])
+        mgmt = mgmt_client('MANAGED')
+        kb_client = runtime_client()
+        await query_knowledge_base(
+            query='q',
+            knowledge_base_id='kb-1',
+            kb_agent_client=kb_client,
+            data_source_ids=['ds-from-discovery'],
+            kb_agent_mgmt_client=mgmt,
+        )
+        assert kb_client.retrieve.called
+        assert mgmt.get_paginator.call_count == 0, 'discovery already cached the ids'

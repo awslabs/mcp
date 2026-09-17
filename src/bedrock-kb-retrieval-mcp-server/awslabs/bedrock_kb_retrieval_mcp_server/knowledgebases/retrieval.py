@@ -19,8 +19,10 @@ from .kb_types import (
     data_source_id_metadata_key,
     is_managed_knowledge_base,
     search_configuration_key,
+    validate_data_source_ids,
 )
 from loguru import logger
+from mcp.server.mcpserver.exceptions import ToolError
 from typing import TYPE_CHECKING, Literal, Optional
 
 
@@ -137,10 +139,14 @@ async def query_knowledge_base(
     if reranking:
         supported = RERANKING_MODEL_REGIONS.get(reranking_model_name, set())
         if region_name not in supported:
-            raise ValueError(
+            raise ToolError(
                 f"The '{reranking_model_name}' reranking model is not available in region "
                 f'{region_name}. Supported regions: {sorted(supported)}'
             )
+    # A data source id that does not belong to this knowledge base is accepted by the
+    # API and matches nothing, so catch it here rather than return an empty result set.
+    validate_data_source_ids([knowledge_base_id], data_source_ids or [], kb_agent_mgmt_client)
+
     managed = is_managed_knowledge_base(knowledge_base_id, kb_agent_mgmt_client)
 
     # An unknown type defaults to the vector shape, matching prior behaviour. If that

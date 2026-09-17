@@ -17,6 +17,7 @@
 import json
 import pytest
 from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.retrieval import query_knowledge_base
+from mcp.server.mcpserver.exceptions import ToolError
 
 
 class TestQueryKnowledgeBase:
@@ -146,7 +147,7 @@ class TestQueryKnowledgeBase:
         mock_bedrock_agent_runtime_client.meta.region_name = 'eu-west-1'
 
         # Call the function with reranking enabled
-        with pytest.raises(ValueError) as excinfo:
+        with pytest.raises(ToolError) as excinfo:
             await query_knowledge_base(
                 query='test query',
                 knowledge_base_id='kb-12345',

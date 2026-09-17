@@ -23,6 +23,7 @@ from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.agentic import (
 from awslabs.bedrock_kb_retrieval_mcp_server.knowledgebases.kb_types import (
     clear_knowledge_base_type_cache,
 )
+from mcp.server.mcpserver.exceptions import ToolError
 from typing import Any, Optional
 from unittest.mock import MagicMock
 
@@ -66,12 +67,20 @@ def runtime_client(stream):
     return client
 
 
-def mgmt_client(kb_type='MANAGED'):
+def mgmt_client(kb_type='MANAGED', data_source_ids=('ds-1', 'ds-2')):
     """Management client stub returning the given knowledge base type."""
     client = MagicMock()
     client.get_knowledge_base.return_value = {
         'knowledgeBase': {'knowledgeBaseConfiguration': {'type': kb_type}}
     }
+    # A real management client lists the knowledge base's data sources. Leaving this
+    # to MagicMock would report none, which is not what any live knowledge base looks
+    # like and would make data-source validation reject valid ids.
+    paginator = MagicMock()
+    paginator.paginate.return_value = [
+        {'dataSourceSummaries': [{'dataSourceId': d} for d in (data_source_ids or [])]}
+    ]
+    client.get_paginator.return_value = paginator
     return client
 
 
@@ -247,7 +256,7 @@ class TestAgenticGuards:
     @pytest.mark.asyncio
     async def test_rejects_vector_knowledge_base(self):
         """A non-managed knowledge base is rejected with an actionable message."""
-        with pytest.raises(ValueError, match='not a managed knowledge base'):
+        with pytest.raises(ToolError, match='not a managed knowledge base'):
             await agentic_retrieve_knowledge_bases(
                 query='q',
                 knowledge_base_ids=['kb-vector-1'],
@@ -271,7 +280,7 @@ class TestAgenticGuards:
     @pytest.mark.asyncio
     async def test_requires_at_least_one_knowledge_base(self):
         """An empty knowledge base list is rejected."""
-        with pytest.raises(ValueError, match='At least one knowledge base'):
+        with pytest.raises(ToolError, match='At least one knowledge base'):
             await agentic_retrieve_knowledge_bases(
                 query='q',
                 knowledge_base_ids=[],
@@ -376,3 +385,35 @@ class TestAgenticUserContext:
             kb_agent_mgmt_client=mgmt_client(),
         )
         assert 'nextToken' not in client.agentic_retrieve_stream.call_args[1]
+
+
+class TestErrorsReachTheClient:
+    """Validation failures must surface as ToolError.
+
+    The MCP framework forwards a ToolError's message to the caller but replaces any
+    other exception with a bare "Error executing tool <name>". Raising ValueError
+    therefore hides the very guidance these checks exist to give.
+    """
+
+    @pytest.mark.asyncio
+    async def test_vector_kb_rejection_is_tool_error(self):
+        """Pointing the agentic tool at a vector KB raises ToolError, not ValueError."""
+        with pytest.raises(ToolError, match='QueryKnowledgeBases'):
+            await agentic_retrieve_knowledge_bases(
+                query='q',
+                knowledge_base_ids=['kb-vector-1'],
+                kb_agent_client=runtime_client([]),
+                kb_agent_mgmt_client=mgmt_client('VECTOR'),
+            )
+
+    @pytest.mark.asyncio
+    async def test_empty_kb_list_is_tool_error(self):
+        """An empty knowledge base list raises ToolError."""
+        with pytest.raises(ToolError, match='At least one knowledge base'):
+            await agentic_retrieve_knowledge_bases(
+                query='q', knowledge_base_ids=[], kb_agent_client=runtime_client([])
+            )
+
+    def test_stream_error_is_a_tool_error(self):
+        """AgenticRetrievalError is a ToolError so in-stream failures are not masked."""
+        assert issubclass(AgenticRetrievalError, ToolError)

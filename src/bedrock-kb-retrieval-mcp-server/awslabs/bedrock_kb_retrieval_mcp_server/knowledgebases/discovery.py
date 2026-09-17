@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from ..models import KnowledgeBaseMapping
-from .kb_types import cache_knowledge_base_type
+from .kb_types import cache_data_source_ids, cache_knowledge_base_type
 from loguru import logger
 from typing import TYPE_CHECKING
 
@@ -89,5 +89,8 @@ async def discover_knowledge_bases(
                 data_sources.append({'id': ds_id, 'name': ds_name})
 
         result[kb_id]['data_sources'] = data_sources
+        # Discovery has just listed these, so record them and spare the retrieval
+        # path from listing them again to validate a data source filter.
+        cache_data_source_ids(kb_id, [ds['id'] for ds in data_sources if ds.get('id')])
 
     return result

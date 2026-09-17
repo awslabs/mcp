@@ -33,9 +33,10 @@ content the model actually needs.
 """
 
 import json
-from .kb_types import is_managed_knowledge_base
+from .kb_types import is_managed_knowledge_base, validate_data_source_ids
 from collections.abc import Mapping
 from loguru import logger
+from mcp.server.mcpserver.exceptions import ToolError
 from typing import TYPE_CHECKING, Any, Optional
 
 
@@ -66,8 +67,13 @@ _ERROR_EVENT_KEYS = (
 )
 
 
-class AgenticRetrievalError(Exception):
-    """An error reported inside the agentic retrieval event stream."""
+class AgenticRetrievalError(ToolError):
+    """An error reported inside the agentic retrieval event stream.
+
+    Subclasses ``ToolError`` so the message reaches the calling client: the MCP
+    framework forwards ``ToolError`` text but replaces any other exception with a
+    generic "Error executing tool <name>".
+    """
 
 
 def _result_item(item: Mapping[str, Any], index: int) -> dict:
@@ -167,18 +173,23 @@ async def agentic_retrieve_knowledge_bases(
         ``citations`` present when ``generate_response`` is true.
     """
     if not knowledge_base_ids:
-        raise ValueError('At least one knowledge base ID is required.')
+        raise ToolError('At least one knowledge base ID is required.')
 
     # Agentic retrieval is only supported for managed knowledge bases. Checking up
     # front turns an opaque service ValidationException into an actionable message.
     for knowledge_base_id in knowledge_base_ids:
         managed = is_managed_knowledge_base(knowledge_base_id, kb_agent_mgmt_client)
         if managed is False:
-            raise ValueError(
+            raise ToolError(
                 f'Knowledge base {knowledge_base_id} is not a managed knowledge base. '
                 'Agentic retrieval supports managed knowledge bases only -- use the '
                 'QueryKnowledgeBases tool for vector knowledge bases.'
             )
+
+    # Same reasoning as the Retrieve path: an unknown data source id would silently
+    # narrow the search to nothing. Validated against the union across all retrievers,
+    # since an id only has to belong to one of them.
+    validate_data_source_ids(knowledge_base_ids, data_source_ids or [], kb_agent_mgmt_client)
 
     agentic_configuration: dict[str, Any] = {}
     if max_agent_iterations is not None:
