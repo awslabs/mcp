@@ -34,6 +34,8 @@ import pytest
 from awslabs.mysql_mcp_server.mutable_sql_detector import (
     MUTATING_KEYWORDS,
     SECURITY_SENSITIVE_VARS,
+    SIDE_EFFECTING_FUNCTIONS,
+    STATEMENT_START_MUTATING_KEYWORDS,
     check_sql_injection_risk,
     detect_mutating_keywords,
 )
@@ -875,3 +877,898 @@ class TestTransactionBypassCoverage:
     def test_single_statement_with_commit_in_block_comment_is_benign(self):
         """``SELECT 1 /* COMMIT */`` is a comment, not a bypass — must pass."""
         assert check_sql_injection_risk('SELECT 1 /* COMMIT */') == []
+
+
+# ---------------------------------------------------------------------------
+# Statement-leading mutating keywords
+#
+# These verbs mutate state (transactions, replication, server lifecycle,
+# side-effecting stored functions) but are anchored to statement start in
+# the detector because several of them are also common identifiers or
+# functions. The tests below pin two things:
+#   1. each keyword is detected when it leads a statement, and
+#   2. the same word is NOT flagged when it appears as a column name, an
+#      alias, or a function call inside a read-only SELECT.
+# ---------------------------------------------------------------------------
+
+
+# Minimal payload for every statement-leading keyword, each a real MySQL
+# statement whose leading verb is the keyword under test. Listed by hand so
+# adding a keyword without a payload fails the collection below.
+_STATEMENT_START_KEYWORD_PAYLOADS: dict[str, str] = {
+    # DML / expression execution
+    'IMPORT': "IMPORT TABLE FROM 't.sdi'",
+    'REPLACE': 'REPLACE t SET id = 1',
+    'DO': "DO GET_LOCK('t', 60)",
+    # Transaction control
+    'START': 'START TRANSACTION',
+    'BEGIN': 'BEGIN',
+    'COMMIT': 'COMMIT',
+    'ROLLBACK': 'ROLLBACK TO SAVEPOINT sp1',
+    'SAVEPOINT': 'SAVEPOINT sp1',
+    'RELEASE': 'RELEASE SAVEPOINT sp1',
+    'XA': "XA START 'xid'",
+    # Replication management
+    'CHANGE': "CHANGE REPLICATION SOURCE TO SOURCE_HOST = 'h'",
+    'PURGE': "PURGE BINARY LOGS TO 'mysql-bin.000001'",
+    'STOP': 'STOP REPLICA',
+    'BINLOG': "BINLOG 'base64encodedevent'",
+    # Server administration
+    'CLONE': "CLONE INSTANCE FROM 'user'@'host':3306 IDENTIFIED BY 'pw'",
+    'RESTART': 'RESTART',
+    'SHUTDOWN': 'SHUTDOWN',
+    # Session / server state
+    'USE': 'USE mydb',
+    'CACHE': 'CACHE INDEX t IN kc',
+    'LOAD INDEX': 'LOAD INDEX INTO CACHE t',
+}
+
+
+def test_every_statement_start_keyword_has_a_payload():
+    """The payload table must cover every entry in STATEMENT_START_MUTATING_KEYWORDS.
+
+    Adding a keyword to the set without adding a payload here fails this
+    test, forcing the author to think about how the new keyword leads a
+    real statement.
+    """
+    missing = STATEMENT_START_MUTATING_KEYWORDS - set(_STATEMENT_START_KEYWORD_PAYLOADS.keys())
+    assert not missing, f'Missing test payloads for: {sorted(missing)}'
+
+
+@pytest.mark.parametrize(
+    'keyword,payload',
+    sorted(_STATEMENT_START_KEYWORD_PAYLOADS.items()),
+)
+def test_statement_start_keyword_is_detected(keyword, payload):
+    """Every statement-leading keyword must be detected on its payload."""
+    matches = detect_mutating_keywords(payload)
+    assert keyword in matches, (
+        f'Expected {keyword!r} in detect_mutating_keywords({payload!r}), got {matches!r}'
+    )
+
+
+class TestStatementStartMutatingKeywords:
+    """Representative payloads for the statement-leading mutating verbs."""
+
+    def test_do_get_lock_is_detected(self):
+        """Primary payload: ``DO GET_LOCK('tablename', 60)``.
+
+        ``DO`` returns no result set, so it slips past result-shape checks,
+        yet it acquires a server lock that can stall other sessions.
+        """
+        assert 'DO' in detect_mutating_keywords("DO GET_LOCK('tablename', 60)")
+
+    def test_do_side_effecting_function_is_detected(self):
+        """``DO <side_effecting_function>()`` — invokes a writing stored function."""
+        assert 'DO' in detect_mutating_keywords('DO my_writing_function()')
+
+    def test_import_table_is_detected(self):
+        """``IMPORT TABLE`` — bulk import via .ibd files, creates/populates tables."""
+        assert 'IMPORT' in detect_mutating_keywords("IMPORT TABLE FROM 't.sdi'")
+
+    def test_commit_is_detected(self):
+        """``COMMIT`` — makes pending mutations durable."""
+        assert 'COMMIT' in detect_mutating_keywords('COMMIT')
+
+    def test_start_transaction_is_detected(self):
+        """``START TRANSACTION`` — begins a writable transaction."""
+        assert 'START' in detect_mutating_keywords('START TRANSACTION')
+
+    def test_start_replica_is_detected(self):
+        """``START REPLICA`` — starts replication threads."""
+        assert 'START' in detect_mutating_keywords('START REPLICA')
+
+    def test_begin_is_detected(self):
+        """``BEGIN`` — alias for START TRANSACTION."""
+        assert 'BEGIN' in detect_mutating_keywords('BEGIN')
+
+    def test_rollback_is_detected(self):
+        """``ROLLBACK`` — rolls back a transaction."""
+        assert 'ROLLBACK' in detect_mutating_keywords('ROLLBACK')
+
+    def test_rollback_to_savepoint_is_detected(self):
+        """``ROLLBACK TO SAVEPOINT sp1`` — partial rollback."""
+        assert 'ROLLBACK' in detect_mutating_keywords('ROLLBACK TO SAVEPOINT sp1')
+
+    def test_savepoint_is_detected(self):
+        """``SAVEPOINT sp1`` — creates a named transaction savepoint."""
+        assert 'SAVEPOINT' in detect_mutating_keywords('SAVEPOINT sp1')
+
+    def test_release_savepoint_is_detected(self):
+        """``RELEASE SAVEPOINT sp1`` — releases a savepoint."""
+        assert 'RELEASE' in detect_mutating_keywords('RELEASE SAVEPOINT sp1')
+
+    def test_xa_start_is_detected(self):
+        """``XA START 'xid'`` — distributed-transaction lifecycle."""
+        assert 'XA' in detect_mutating_keywords("XA START 'xid'")
+
+    def test_change_replication_source_is_detected(self):
+        """``CHANGE REPLICATION SOURCE TO ...`` — rewrites replication config."""
+        assert 'CHANGE' in detect_mutating_keywords(
+            "CHANGE REPLICATION SOURCE TO SOURCE_HOST = 'h'"
+        )
+
+    def test_purge_binary_logs_is_detected(self):
+        """``PURGE BINARY LOGS ...`` — deletes binlog files from disk."""
+        assert 'PURGE' in detect_mutating_keywords("PURGE BINARY LOGS TO 'mysql-bin.000001'")
+
+    def test_stop_replica_is_detected(self):
+        """``STOP REPLICA`` — halts replication threads."""
+        assert 'STOP' in detect_mutating_keywords('STOP REPLICA')
+
+    def test_binlog_is_detected(self):
+        """``BINLOG '...'`` — injects a raw binary log event."""
+        assert 'BINLOG' in detect_mutating_keywords("BINLOG 'base64encodedevent'")
+
+    def test_clone_is_detected(self):
+        """``CLONE INSTANCE ...`` — copies the entire instance data directory."""
+        assert 'CLONE' in detect_mutating_keywords(
+            "CLONE INSTANCE FROM 'user'@'host':3306 IDENTIFIED BY 'pw'"
+        )
+
+    def test_restart_is_detected(self):
+        """``RESTART`` — restarts the server process."""
+        assert 'RESTART' in detect_mutating_keywords('RESTART')
+
+    def test_shutdown_is_detected(self):
+        """``SHUTDOWN`` — terminates the server."""
+        assert 'SHUTDOWN' in detect_mutating_keywords('SHUTDOWN')
+
+    def test_bare_replace_set_is_detected(self):
+        """``REPLACE t SET ...`` — bare REPLACE (no INTO) is still a mutation."""
+        assert 'REPLACE' in detect_mutating_keywords('REPLACE t SET id = 1')
+
+    def test_lowercase_leading_verb_is_detected(self):
+        """Case-insensitive: lowercase leading verb still fires."""
+        assert 'COMMIT' in detect_mutating_keywords('commit')
+
+    def test_leading_whitespace_is_handled(self):
+        """Leading whitespace/newlines before the verb do not hide it."""
+        assert 'START' in detect_mutating_keywords('\n\t  START TRANSACTION')
+
+    def test_leading_block_comment_then_verb_is_detected(self):
+        """``/* header */ COMMIT`` — sqlparse strips the comment, verb still leads."""
+        assert 'COMMIT' in detect_mutating_keywords('/* durable now */ COMMIT')
+
+
+class TestStatementStartKeywordsAfterSemicolon:
+    """Statement-leading verbs are detected as the head of a chained statement."""
+
+    def test_commit_after_select_is_detected(self):
+        """``SELECT 1; COMMIT`` — COMMIT leads the second statement."""
+        assert 'COMMIT' in detect_mutating_keywords('SELECT 1; COMMIT')
+
+    def test_start_transaction_after_select_is_detected(self):
+        """``SELECT 1; START TRANSACTION`` — re-arms a writable transaction."""
+        assert 'START' in detect_mutating_keywords('SELECT 1; START TRANSACTION')
+
+    def test_do_after_select_is_detected(self):
+        """``SELECT 1; DO GET_LOCK('t', 60)`` — DO leads the second statement."""
+        assert 'DO' in detect_mutating_keywords("SELECT 1; DO GET_LOCK('t', 60)")
+
+
+class TestStatementStartKeywordsNoFalsePositives:
+    r"""These verbs are common identifiers/functions and MUST NOT fire mid-statement.
+
+    Every payload here is a legitimate read-only query. A regression that
+    reverts the statement-start anchoring back to a bare ``\\b`` anywhere
+    match would fail these by flagging benign SELECTs.
+    """
+
+    def test_column_named_start_is_not_flagged(self):
+        """``SELECT start, stop FROM schedule`` — columns, not verbs."""
+        assert detect_mutating_keywords('SELECT start, stop FROM schedule') == []
+
+    def test_column_named_change_is_not_flagged(self):
+        """``SELECT change FROM ledger`` — column, not CHANGE REPLICATION."""
+        assert detect_mutating_keywords('SELECT change FROM ledger') == []
+
+    def test_column_named_release_is_not_flagged(self):
+        """``SELECT release FROM versions`` — column, not RELEASE SAVEPOINT."""
+        assert detect_mutating_keywords('SELECT release FROM versions') == []
+
+    def test_replace_function_call_is_not_flagged(self):
+        """``SELECT REPLACE(name, 'a', 'b') FROM t`` — string function, not a mutation."""
+        assert detect_mutating_keywords("SELECT REPLACE(name, 'a', 'b') FROM t") == []
+
+    def test_do_prefixed_identifier_is_not_flagged(self):
+        """``SELECT do_work, doing FROM tasks`` — identifiers, not DO expr."""
+        assert detect_mutating_keywords('SELECT do_work, doing FROM tasks') == []
+
+    def test_prefixed_identifiers_are_not_flagged(self):
+        r"""Columns whose names start with a keyword must not match (``\b`` guard)."""
+        sql = 'SELECT begin_date, start_ts, change_log, clone_id FROM events'
+        assert detect_mutating_keywords(sql) == []
+
+    def test_xa_as_alias_is_not_flagged(self):
+        """``SELECT x.id FROM t AS xa`` — ``xa`` as a table alias is benign."""
+        assert detect_mutating_keywords('SELECT xa.id FROM t AS xa') == []
+
+    def test_multiline_select_with_keyword_column_is_not_flagged(self):
+        """A keyword-named column on its own line must not match.
+
+        Pins that ``^`` is NOT compiled with re.MULTILINE: a line break
+        inside a statement does not create a new statement-start anchor.
+        """
+        sql = 'SELECT id,\nstart,\nstop\nFROM ranges'
+        assert detect_mutating_keywords(sql) == []
+
+
+def test_statement_start_and_general_keyword_sets_are_disjoint():
+    """The two keyword sets must be string-disjoint.
+
+    A keyword string belongs in exactly one set: MUTATING_KEYWORDS (matched
+    anywhere) or STATEMENT_START_MUTATING_KEYWORDS (matched only at
+    statement start). Overlap would mean an anchored verb is also matched
+    anywhere, silently defeating the false-positive protection.
+
+    Note: string-disjoint is not behaviour-disjoint. ``REPLACE`` (here) and
+    ``REPLACE INTO`` (in MUTATING_KEYWORDS) are different strings but overlap
+    on the ``REPLACE INTO ...`` token, which both scans report; that overlap
+    is intentional and harmless (deduped by the caller).
+    """
+    overlap = MUTATING_KEYWORDS & STATEMENT_START_MUTATING_KEYWORDS
+    assert not overlap, f'Keyword in both sets: {sorted(overlap)}'
+
+
+# ---------------------------------------------------------------------------
+# Full-coverage matrix for statement-leading mutating keywords
+#
+# This is a security control, so the matrix pins BOTH directions for EVERY
+# keyword in STATEMENT_START_MUTATING_KEYWORDS, driven off the set itself so
+# a future addition to the set is automatically exercised:
+#
+#   * no false negatives (bypass) — the keyword is detected when it leads a
+#     statement, when it leads a chained statement after ``;``, after a bare
+#     leading ``;``, and case-insensitively; and
+#   * no false positives (over-block) — the same word is NOT flagged when it
+#     appears inside a string literal or as an identifier in a read query.
+#
+# String literals are the critical false-positive surface here: unlike
+# comments, they are NOT stripped before the regex scan, so a naive bare
+# ``\b<kw>\b`` anywhere-match would reject benign reads like
+# ``WHERE note = 'things to do'``. The statement-start anchor is what makes
+# these safe, and this matrix guards that guarantee for the whole set.
+# ---------------------------------------------------------------------------
+
+
+class TestStatementStartKeywordFullCoverageMatrix:
+    """Every statement-leading keyword: detected as a verb, ignored as data."""
+
+    @pytest.mark.parametrize(
+        'keyword,payload',
+        sorted(_STATEMENT_START_KEYWORD_PAYLOADS.items()),
+    )
+    def test_keyword_detected_at_statement_start(self, keyword, payload):
+        """The keyword leading a real statement is reported (no false negative)."""
+        assert keyword in detect_mutating_keywords(payload)
+
+    @pytest.mark.parametrize(
+        'keyword,payload',
+        sorted(_STATEMENT_START_KEYWORD_PAYLOADS.items()),
+    )
+    def test_keyword_detected_lowercase(self, keyword, payload):
+        """Detection is case-insensitive."""
+        assert keyword in detect_mutating_keywords(payload.lower())
+
+    @pytest.mark.parametrize(
+        'keyword,payload',
+        sorted(_STATEMENT_START_KEYWORD_PAYLOADS.items()),
+    )
+    def test_keyword_detected_after_semicolon(self, keyword, payload):
+        """A chained statement after ``;`` is reported by keyword.
+
+        Stacked queries are also rejected by SUSPICIOUS_PATTERNS, but the
+        readonly gate (detect_mutating_keywords) must name the mutating verb
+        of the chained statement in its own right.
+        """
+        assert keyword in detect_mutating_keywords(f'SELECT 1; {payload}')
+
+    @pytest.mark.parametrize('keyword', sorted(STATEMENT_START_MUTATING_KEYWORDS))
+    def test_keyword_detected_after_bare_leading_semicolon(self, keyword):
+        """A leading ``;`` before the verb must not hide it."""
+        assert keyword in detect_mutating_keywords(f'; {keyword} some_expr()')
+
+    @pytest.mark.parametrize('keyword', sorted(STATEMENT_START_MUTATING_KEYWORDS))
+    def test_keyword_in_string_literal_is_not_flagged(self, keyword):
+        """The keyword inside a string literal in a read query is NOT flagged.
+
+        String literals are not comment-stripped, so this is the primary
+        false-positive surface. The statement-start anchor is what keeps a
+        benign ``WHERE col = '<kw> ...'`` read from being rejected.
+        """
+        sql = f"SELECT id FROM t WHERE label = '{keyword.lower()} pending'"
+        assert keyword not in detect_mutating_keywords(sql)
+
+    @pytest.mark.parametrize('keyword', sorted(STATEMENT_START_MUTATING_KEYWORDS))
+    def test_keyword_as_identifier_prefix_is_not_flagged(self, keyword):
+        r"""A column/identifier that starts with the keyword is NOT flagged.
+
+        The trailing ``\b`` in the pattern prevents ``start_date``,
+        ``do_work``, ``change_log`` etc. from matching.
+        """
+        sql = f'SELECT {keyword.lower()}_col FROM events'
+        assert keyword not in detect_mutating_keywords(sql)
+
+    @pytest.mark.parametrize('keyword', sorted(STATEMENT_START_MUTATING_KEYWORDS))
+    def test_read_query_with_keyword_only_as_data_is_allowed(self, keyword):
+        """End-to-end: a read query that merely mentions the word passes both gates.
+
+        Combines the readonly gate and the injection gate the way
+        server.run_query() does, proving the query is actually allowed and
+        not rejected for an unrelated reason.
+        """
+        sql = f"SELECT id, note FROM tasks WHERE note = '{keyword.lower()} later'"
+        assert detect_mutating_keywords(sql) == []
+        assert check_sql_injection_risk(sql) == []
+
+
+class TestStatementStartStringLiteralFalsePositives:
+    """Named, reviewer-facing pins for the common-English-word keywords.
+
+    These duplicate a slice of the parametrized matrix above with explicit,
+    readable payloads so a security reviewer can eyeball the exact benign
+    reads that must never be blocked.
+    """
+
+    def test_do_inside_string_literal_is_not_flagged(self):
+        """``WHERE note = 'things to do'`` — the word "do" as data."""
+        assert 'DO' not in detect_mutating_keywords(
+            "SELECT note FROM tasks WHERE note = 'things to do'"
+        )
+
+    def test_start_inside_string_literal_is_not_flagged(self):
+        """``WHERE label = 'start of quarter'`` — "start" as data."""
+        assert 'START' not in detect_mutating_keywords(
+            "SELECT id FROM events WHERE label = 'start of quarter'"
+        )
+
+    def test_stop_inside_string_literal_is_not_flagged(self):
+        """``WHERE name = 'bus stop 5'`` — "stop" as data."""
+        assert 'STOP' not in detect_mutating_keywords(
+            "SELECT id FROM places WHERE name = 'bus stop 5'"
+        )
+
+    def test_change_inside_string_literal_is_not_flagged(self):
+        """``WHERE action = 'change requested'`` — "change" as data."""
+        assert 'CHANGE' not in detect_mutating_keywords(
+            "SELECT id FROM tickets WHERE action = 'change requested'"
+        )
+
+    def test_release_inside_string_literal_is_not_flagged(self):
+        """``WHERE tag = 'release candidate'`` — "release" as data."""
+        assert 'RELEASE' not in detect_mutating_keywords(
+            "SELECT id FROM builds WHERE tag = 'release candidate'"
+        )
+
+    def test_commit_inside_string_literal_is_not_flagged(self):
+        """``WHERE kind = 'commit'`` — "commit" as data."""
+        assert 'COMMIT' not in detect_mutating_keywords(
+            "SELECT sha FROM vcs_log WHERE kind = 'commit'"
+        )
+
+    def test_begin_inside_string_literal_is_not_flagged(self):
+        """``WHERE phase = 'begin'`` — "begin" as data."""
+        assert 'BEGIN' not in detect_mutating_keywords(
+            "SELECT id FROM phases WHERE phase = 'begin'"
+        )
+
+    def test_replace_function_call_is_not_flagged(self):
+        """``SELECT REPLACE(col, 'a', 'b')`` — REPLACE the string function, not the verb."""
+        assert 'REPLACE' not in detect_mutating_keywords(
+            "SELECT REPLACE(name, 'a', 'b') FROM users"
+        )
+
+    def test_multiple_keywords_as_data_in_one_read_is_not_flagged(self):
+        """A single read mentioning several keywords as data is fully allowed."""
+        sql = "SELECT id FROM audit WHERE note = 'do a change, then commit and release the stop'"
+        assert detect_mutating_keywords(sql) == []
+        assert check_sql_injection_risk(sql) == []
+
+
+# ---------------------------------------------------------------------------
+# Edge cases and obfuscation for the DO statement
+#
+# DO is the highest false-positive risk of the statement-leading verbs (it
+# is a two-letter common English word), so its detection is pinned here
+# against evasion attempts, whitespace/comment permutations, and the benign
+# forms that must stay allowed.
+# ---------------------------------------------------------------------------
+
+
+class TestDoStatementEdgeCases:
+    """DO detection across whitespace, comments, semicolons, and casing."""
+
+    def test_do_bare_is_detected(self):
+        """A lone ``DO`` token is reported (invalid SQL, but flagged safely)."""
+        assert 'DO' in detect_mutating_keywords('DO')
+
+    def test_do_no_space_before_paren_is_detected(self):
+        """``DO(1)`` — no space between DO and its expression."""
+        assert 'DO' in detect_mutating_keywords('DO(1)')
+
+    def test_do_tab_separator_is_detected(self):
+        r"""``DO\tSLEEP(1)`` — tab between DO and expression."""
+        assert 'DO' in detect_mutating_keywords('DO\tSLEEP(1)')
+
+    def test_do_crlf_leading_is_detected(self):
+        """Carriage-return / newline / tab before DO must not hide it."""
+        assert 'DO' in detect_mutating_keywords('\r\n\t DO my_udf()')
+
+    def test_do_comment_between_keyword_and_expr_is_detected(self):
+        """``DO/**/GET_LOCK(...)`` — comment AFTER the intact keyword is stripped."""
+        assert 'DO' in detect_mutating_keywords("DO/**/GET_LOCK('x', 1)")
+
+    def test_do_line_comment_after_keyword_is_detected(self):
+        r"""``DO -- c\n GET_LOCK(...)`` — line comment after DO is stripped."""
+        assert 'DO' in detect_mutating_keywords("DO -- c\n GET_LOCK('x', 1)")
+
+    def test_do_trailing_comment_is_detected(self):
+        """``DO GET_LOCK(...) -- trailing`` — trailing comment does not hide DO."""
+        assert 'DO' in detect_mutating_keywords("DO GET_LOCK('x', 1) -- trailing")
+
+    def test_do_trailing_semicolon_is_detected(self):
+        """``DO GET_LOCK(...);`` — trailing semicolon."""
+        assert 'DO' in detect_mutating_keywords("DO GET_LOCK('x', 1);")
+
+    def test_do_after_semicolon_no_space_is_detected(self):
+        """``SELECT 1;DO GET_LOCK(...)`` — no space after the separator."""
+        assert 'DO' in detect_mutating_keywords("SELECT 1;DO GET_LOCK('x', 1)")
+
+    def test_do_after_multiple_leading_semicolons_is_detected(self):
+        r"""``;;\n DO ...`` — several separators before the verb."""
+        assert 'DO' in detect_mutating_keywords(';;\n DO my_udf()')
+
+    def test_do_conditional_comment_is_rejected(self):
+        """``/*! DO SLEEP(1) */`` — MySQL conditional comment is rejected."""
+        assert detect_mutating_keywords('/*! DO SLEEP(1) */')
+
+    # ---- DO forms that are NOT flagged because they are not runnable ----
+
+    def test_split_do_identifier_is_not_flagged(self):
+        """``D/**/O GET_LOCK(...)`` — splitting the keyword yields ``D O``.
+
+        After comment-stripping this is ``D O GET_LOCK(...)`` which is not a
+        DO statement and not valid MySQL, so the database rejects it. The
+        detector deliberately does not pretend to recognise a DO here.
+        """
+        assert 'DO' not in detect_mutating_keywords("D/**/O GET_LOCK('x', 1)")
+
+    def test_paren_wrapped_do_is_not_flagged(self):
+        """``(DO GET_LOCK(...))`` — a parenthesised DO is not valid MySQL.
+
+        Not a bypass: MySQL does not accept a parenthesised DO statement,
+        so it cannot execute even though the anchored pattern does not fire.
+        """
+        assert 'DO' not in detect_mutating_keywords("(DO GET_LOCK('x', 1))")
+
+    # ---- DO as data / identifier: must stay allowed ----
+
+    def test_do_substrings_are_not_flagged(self):
+        """``undo``, ``redo``, ``todo``, ``doing`` etc. are not DO statements."""
+        sql = "SELECT undo_id, redo_flag, doing, dojo FROM t WHERE note = 'todo'"
+        assert 'DO' not in detect_mutating_keywords(sql)
+        assert check_sql_injection_risk(sql) == []
+
+    def test_do_as_trailing_word_in_string_is_not_flagged(self):
+        """``'things to do'`` — the word "do" ending a string literal."""
+        assert 'DO' not in detect_mutating_keywords("SELECT 'things to do' AS note")
+
+    def test_show_variables_like_undo_is_allowed(self):
+        """``SHOW VARIABLES LIKE '%undo%'`` is a benign metadata read."""
+        sql = "SHOW VARIABLES LIKE '%undo%'"
+        assert detect_mutating_keywords(sql) == []
+        assert check_sql_injection_risk(sql) == []
+
+
+# ---------------------------------------------------------------------------
+# DO used as an action clause inside compound / schedule / handler syntax.
+#
+# In these constructs the ``DO`` is NOT a statement-leading verb, so the DO
+# rule correctly does not fire on it. They are still rejected — by the outer
+# mutating verb (CREATE / ALTER / HANDLER) or the mutating body — and are in
+# any case only valid inside a stored program. These tests pin that the
+# block comes from the right place and that DO is not misattributed.
+# ---------------------------------------------------------------------------
+
+
+class TestDoAsActionClauseIsCoveredByOuterVerb:
+    """`WHILE ... DO`, `EVENT ... DO`, `HANDLER ... DO` are covered elsewhere."""
+
+    def test_alter_event_with_do_delete_is_blocked_by_alter(self):
+        """``ALTER EVENT ... DO DELETE ...`` — caught by ALTER (and DELETE)."""
+        sql = (
+            'ALTER EVENT my_cleanup_event ON SCHEDULE EVERY 12 HOUR '
+            'DO DELETE FROM logs WHERE log_date < NOW() - INTERVAL 15 DAY'
+        )
+        matches = detect_mutating_keywords(sql)
+        assert 'ALTER' in matches
+        assert 'DELETE' in matches
+
+    def test_create_event_with_do_is_blocked_by_create(self):
+        """``CREATE EVENT ... DO SELECT 1`` — caught by CREATE."""
+        assert 'CREATE' in detect_mutating_keywords(
+            'CREATE EVENT e ON SCHEDULE EVERY 12 HOUR DO SELECT 1'
+        )
+
+    def test_declare_handler_do_set_is_blocked_by_handler_and_set(self):
+        """``DECLARE ... HANDLER ... DO SET ...`` — caught by HANDLER and SET."""
+        matches = detect_mutating_keywords(
+            'DECLARE CONTINUE HANDLER FOR NOT FOUND DO SET completed = 1;'
+        )
+        assert 'HANDLER' in matches
+        assert 'SET' in matches
+
+    def test_while_do_placeholder_body_is_not_flagged_as_do(self):
+        """``WHILE cond DO ... END WHILE`` — the loop ``DO`` is not a DO statement.
+
+        A placeholder body is not runnable as a top-level statement (MySQL
+        only accepts WHILE inside a stored program), and the loop keyword
+        DO must not be misattributed as a ``DO expr`` mutation.
+        """
+        sql = 'WHILE search_condition DO\n    statement_list\nEND WHILE;'
+        assert 'DO' not in detect_mutating_keywords(sql)
+
+    def test_while_do_with_real_mutation_is_blocked_by_body(self):
+        """``WHILE ... DO INSERT ...`` — the body's INSERT is caught anywhere."""
+        assert 'INSERT' in detect_mutating_keywords(
+            'WHILE x DO INSERT INTO t VALUES (1); END WHILE;'
+        )
+
+
+# ---------------------------------------------------------------------------
+# Additional real-world false-positive guards for the new keywords.
+# ---------------------------------------------------------------------------
+
+
+class TestNewKeywordAdditionalFalsePositives:
+    """Reads that mention the new verbs as data / identifiers stay allowed."""
+
+    def test_keywords_in_in_list_are_not_flagged(self):
+        """Keywords as string literals in an ``IN (...)`` list are benign."""
+        sql = "SELECT id FROM orders WHERE status IN ('start', 'stop', 'change', 'commit')"
+        assert detect_mutating_keywords(sql) == []
+        assert check_sql_injection_risk(sql) == []
+
+    def test_keywords_as_aliases_are_not_flagged(self):
+        """Keywords as string-literal column aliases are benign."""
+        sql = "SELECT 'commit' AS action, 'rollback' AS undo_action"
+        assert detect_mutating_keywords(sql) == []
+        assert check_sql_injection_risk(sql) == []
+
+    def test_backticked_keyword_identifiers_are_not_flagged(self):
+        """Backticked identifiers named after keywords are benign reads."""
+        sql = 'SELECT `start`, `end` FROM `change`'
+        assert detect_mutating_keywords(sql) == []
+
+    def test_keyword_prefixed_identifiers_are_not_flagged(self):
+        """Identifiers that merely start with a keyword are benign."""
+        sql = (
+            'SELECT restart_required, xa_flag, savepoint_id, purged_at, '
+            'clone_url, changelog, binlog_file FROM cfg'
+        )
+        assert detect_mutating_keywords(sql) == []
+
+    def test_keyword_substring_in_like_is_allowed(self):
+        """``LIKE '%shutdown%'`` — keyword as a search substring is benign."""
+        sql = "SELECT id FROM logs WHERE msg LIKE '%shutdown%'"
+        assert detect_mutating_keywords(sql) == []
+        assert check_sql_injection_risk(sql) == []
+
+
+# ---------------------------------------------------------------------------
+# Documented over-block: a semicolon inside a string literal.
+#
+# ``WHERE note = 'a; commit b'`` is rejected. This is a deliberate,
+# pre-existing trade-off: the stacked-queries pattern in
+# check_sql_injection_risk flags any ``;`` followed by non-whitespace,
+# independent of the statement-start keyword scan. Pinned so a future change
+# that relaxes it must do so deliberately.
+# ---------------------------------------------------------------------------
+
+
+class TestSemicolonInStringLiteralOverBlock:
+    """A semicolon inside a string literal is blocked (documented trade-off)."""
+
+    def test_semicolon_in_string_is_rejected(self):
+        """``WHERE note = 'a; commit b'`` — blocked by the stacked-queries rule."""
+        assert check_sql_injection_risk("SELECT * FROM t WHERE note = 'a; commit b'")
+
+
+# ---------------------------------------------------------------------------
+# Comment / whitespace obfuscation dimension for statement-leading verbs.
+#
+# The keyword-coverage matrix above varies the *keyword*; this class varies
+# the *comment/whitespace prefix* for a fixed set of high-value verbs. It
+# specifically pins the MySQL ``#`` line comment (including the no-space
+# ``#x`` form that sqlparse leaves in place), which would otherwise hide a
+# leading verb from the anchored scan on the RDS Data API path where
+# detect_mutating_keywords is the sole gate.
+# ---------------------------------------------------------------------------
+
+
+class TestLeadingCommentObfuscationIsStripped:
+    """A leading comment must not hide a statement-leading mutating verb."""
+
+    @pytest.mark.parametrize(
+        'prefix',
+        [
+            '',
+            '-- c\n',
+            '--\n',
+            '/* c */',
+            '/* c */ ',
+            '# c\n',  # hash comment WITH space (sqlparse strips)
+            '#\n',  # bare hash
+            '#c\n',  # hash comment NO space (sqlparse leaves it — must strip explicitly)
+            '#x\n',
+            '   \n\t',  # whitespace only
+        ],
+    )
+    @pytest.mark.parametrize('verb', ["DO GET_LOCK('x', 60)", 'SHUTDOWN', 'START REPLICA'])
+    def test_leading_comment_or_ws_does_not_hide_verb(self, prefix, verb):
+        """``<prefix><verb>`` is still detected regardless of the prefix form."""
+        expected = verb.split()[0].split('(')[0].upper()
+        assert expected in detect_mutating_keywords(prefix + verb)
+
+    @pytest.mark.parametrize(
+        'prefix',
+        ['#c\n', '#x\n', '# \n', '-- c\n', '/* c */'],
+    )
+    def test_comment_before_verb_after_semicolon_is_detected(self, prefix):
+        """``SELECT 1;<comment>DO ...`` — comment after ``;`` must not hide DO."""
+        assert 'DO' in detect_mutating_keywords(f"SELECT 1;{prefix}DO GET_LOCK('x', 1)")
+
+    def test_hash_no_space_bypass_is_closed(self):
+        r"""Regression: ``#x\nDO GET_LOCK(...)`` and ``#c\nSHUTDOWN`` are rejected.
+
+        sqlparse does not strip a ``#`` comment unless a space follows it, so
+        without an explicit ``#`` strip these single statements slipped past
+        the anchored scan (the stacked-queries rule does not apply — there is
+        no ``;``). This is the sole gate on the RDS Data API path.
+        """
+        assert 'DO' in detect_mutating_keywords("#x\nDO GET_LOCK('x', 60)")
+        assert 'SHUTDOWN' in detect_mutating_keywords('#c\nSHUTDOWN')
+
+    def test_hash_inside_string_literal_is_not_a_false_positive(self):
+        """A ``#`` inside a string literal in a benign read is not over-stripped into a match."""
+        sql = "SELECT id FROM t WHERE tag = '#sale'"
+        assert detect_mutating_keywords(sql) == []
+        assert check_sql_injection_risk(sql) == []
+
+
+# ---------------------------------------------------------------------------
+# Side-effecting functions blocked regardless of invocation form.
+#
+# Blocking the statement verb (``DO``) is not enough: the read-shaped twin
+# ``SELECT GET_LOCK(...)`` calls the same side-effecting function. These are
+# rejected via SUSPICIOUS_PATTERNS in both read and write mode, matching the
+# existing sleep()/benchmark()/load_file() treatment. Anchored to a ``(`` so
+# same-named identifiers are not flagged.
+# ---------------------------------------------------------------------------
+
+
+class TestSideEffectingFunctions:
+    """`SELECT f(...)` for a side-effecting function is blocked, symmetric with `DO f(...)`."""
+
+    @pytest.mark.parametrize('fn', sorted(SIDE_EFFECTING_FUNCTIONS))
+    def test_side_effecting_function_in_select_is_blocked(self, fn):
+        """Each side-effecting function is rejected when wrapped in a SELECT."""
+        assert check_sql_injection_risk(f"SELECT {fn}('x')")
+
+    @pytest.mark.parametrize('fn', sorted(SIDE_EFFECTING_FUNCTIONS))
+    def test_side_effecting_function_case_insensitive(self, fn):
+        """Detection is case-insensitive."""
+        assert check_sql_injection_risk(f'SELECT {fn.upper()}(1)')
+
+    def test_do_and_select_get_lock_are_symmetric(self):
+        """The reported asymmetry is closed: both DO and SELECT forms are blocked."""
+        do_blocked = bool(detect_mutating_keywords("DO GET_LOCK('x', 60)"))
+        select_blocked = bool(check_sql_injection_risk("SELECT GET_LOCK('x', 60)"))
+        assert do_blocked and select_blocked
+
+    def test_get_lock_with_whitespace_before_paren_is_blocked(self):
+        """``GET_LOCK ('x', 60)`` — whitespace before the paren still matches."""
+        assert check_sql_injection_risk("SELECT GET_LOCK ('x', 60)")
+
+    def test_sys_exec_in_where_clause_is_blocked(self):
+        """A side-effecting function anywhere in the query (not just the select list)."""
+        assert check_sql_injection_risk("SELECT id FROM t WHERE sys_exec('id') = 0")
+
+    # ---- false-positive guards ----
+
+    def test_last_insert_id_no_arg_is_allowed(self):
+        """``LAST_INSERT_ID()`` (no arg) is a benign read and must be allowed."""
+        assert check_sql_injection_risk('SELECT LAST_INSERT_ID()') == []
+        assert detect_mutating_keywords('SELECT LAST_INSERT_ID()') == []
+
+    def test_last_insert_id_with_arg_is_blocked(self):
+        """``LAST_INSERT_ID(expr)`` sets the session value (side effect) — blocked."""
+        assert check_sql_injection_risk('SELECT LAST_INSERT_ID(5)')
+
+    def test_last_insert_id_empty_parens_with_spaces_is_allowed(self):
+        """``LAST_INSERT_ID(  )`` is still the no-arg read form."""
+        assert check_sql_injection_risk('SELECT LAST_INSERT_ID(  )') == []
+
+    def test_read_only_lock_status_probes_are_allowed(self):
+        """``IS_FREE_LOCK`` / ``IS_USED_LOCK`` report status only — not blocked."""
+        assert check_sql_injection_risk("SELECT IS_FREE_LOCK('x')") == []
+        assert check_sql_injection_risk("SELECT IS_USED_LOCK('x')") == []
+
+    def test_same_named_identifier_is_not_blocked(self):
+        """A column/table named like a function (no following ``(``) is not flagged."""
+        assert check_sql_injection_risk('SELECT get_lock FROM t') == []
+        assert check_sql_injection_risk('SELECT id FROM release_lock') == []
+
+
+# ---------------------------------------------------------------------------
+# Session / server-state statement verbs (USE, CACHE INDEX, LOAD INDEX ...).
+# ---------------------------------------------------------------------------
+
+
+class TestSessionStateStatementVerbs:
+    """USE / CACHE INDEX / LOAD INDEX INTO CACHE are gated; hints/identifiers are not."""
+
+    def test_use_database_is_detected(self):
+        """``USE <db>`` switches the session default database (session state)."""
+        assert 'USE' in detect_mutating_keywords('USE mydb')
+
+    def test_cache_index_is_detected(self):
+        """``CACHE INDEX ... IN ...`` assigns indexes to a key cache."""
+        assert 'CACHE' in detect_mutating_keywords('CACHE INDEX t IN kc')
+
+    def test_load_index_into_cache_is_detected(self):
+        """``LOAD INDEX INTO CACHE ...`` preloads indexes into a key cache."""
+        assert 'LOAD INDEX' in detect_mutating_keywords('LOAD INDEX INTO CACHE t')
+
+    def test_use_after_semicolon_is_detected(self):
+        """``SELECT 1; USE mydb`` — USE leads the chained statement."""
+        assert 'USE' in detect_mutating_keywords('SELECT 1; USE mydb')
+
+    # ---- false-positive guards ----
+
+    def test_use_index_optimizer_hint_is_not_flagged(self):
+        """``SELECT ... USE INDEX (idx)`` — the USE here is an index hint, not USE <db>.
+
+        The statement-start anchor is what distinguishes the two: the hint's
+        USE is mid-statement, so it must not be flagged.
+        """
+        assert detect_mutating_keywords('SELECT * FROM t USE INDEX (idx)') == []
+        assert check_sql_injection_risk('SELECT * FROM t USE INDEX (idx)') == []
+
+    def test_force_and_ignore_index_hints_are_not_flagged(self):
+        """Sibling optimizer hints are unaffected."""
+        assert detect_mutating_keywords('SELECT * FROM t FORCE INDEX (idx)') == []
+        assert detect_mutating_keywords('SELECT * FROM t IGNORE INDEX (idx)') == []
+
+    def test_use_cache_prefixed_identifiers_are_not_flagged(self):
+        """Columns like ``use_flag``, ``cache_size``, ``usage`` are not verbs."""
+        assert detect_mutating_keywords('SELECT use_flag, cache_size, usage FROM t') == []
+
+
+# ---------------------------------------------------------------------------
+# The `#`-comment strip must be string-literal aware.
+#
+# A ``#`` inside a string literal or backtick identifier is data, not a
+# comment, so stripping ``#...EOL`` there would delete trailing real SQL and
+# hide a mutation. These pin the false-NEGATIVE direction (mutation after a
+# ``#``-bearing string must still be detected) as well as the benign reads.
+# ---------------------------------------------------------------------------
+
+
+class TestHashStripIsStringLiteralAware:
+    """`#` inside quotes is preserved; a `#` comment outside quotes is stripped."""
+
+    # ---- false negatives: mutation after a #-bearing string MUST be caught ----
+
+    def test_hash_in_string_then_stacked_drop_is_detected(self):
+        """``WHERE c = '#foo'; DROP TABLE t`` — the trailing DROP must survive."""
+        sql = "SELECT id FROM t WHERE c = '#foo'; DROP TABLE t"
+        assert 'DROP' in detect_mutating_keywords(sql)
+        assert check_sql_injection_risk(sql)  # stacked-query + DROP patterns
+
+    def test_hash_only_string_then_stacked_drop_is_detected(self):
+        """``SELECT '#' ; DROP TABLE users`` — string is just ``#``."""
+        sql = "SELECT '#' ; DROP TABLE users"
+        assert 'DROP' in detect_mutating_keywords(sql)
+        assert check_sql_injection_risk(sql)
+
+    def test_hash_in_string_then_sleep_probe_is_detected(self):
+        """``WHERE c = '#x' OR SLEEP(5)`` — the SLEEP probe must survive."""
+        assert check_sql_injection_risk("SELECT id FROM t WHERE c = '#x' OR SLEEP(5)")
+
+    def test_hash_in_backtick_identifier_then_get_lock_is_detected(self):
+        """``SELECT `a#b`, GET_LOCK('x',1)`` — GET_LOCK after a #-identifier."""
+        assert check_sql_injection_risk("SELECT `a#b`, GET_LOCK('x', 1)")
+
+    def test_hash_in_string_then_union_select_is_detected(self):
+        """``SELECT '#a' UNION SELECT ...`` — UNION-injection must survive."""
+        assert check_sql_injection_risk("SELECT '#a' UNION SELECT password FROM users")
+
+    def test_backslash_escaped_quote_then_hash_then_drop_is_detected(self):
+        r"""``SELECT 'a\'#b'; DROP TABLE t`` — escaped quote keeps the string open."""
+        sql = "SELECT 'a\\'#b'; DROP TABLE t"
+        assert 'DROP' in detect_mutating_keywords(sql)
+
+    def test_doubled_quote_then_hash_then_drop_is_detected(self):
+        """``SELECT 'it''s a #test'; DROP TABLE t`` — doubled-quote escape."""
+        sql = "SELECT 'it''s a #test'; DROP TABLE t"
+        assert 'DROP' in detect_mutating_keywords(sql)
+
+    def test_double_quoted_string_with_hash_then_delete_is_detected(self):
+        """``SELECT "d#e"; DELETE FROM t`` — double-quoted string with a ``#``."""
+        assert 'DELETE' in detect_mutating_keywords('SELECT "d#e"; DELETE FROM t')
+
+    def test_multiple_hash_comment_lines_then_verb_is_detected(self):
+        r"""``#a\n#b\nDO GET_LOCK(...)`` — real comment lines before a verb."""
+        assert 'DO' in detect_mutating_keywords("#a\n#b\nDO GET_LOCK('x', 1)")
+
+    # ---- false positives: benign #-bearing data must stay allowed ----
+
+    def test_hashtag_string_is_allowed(self):
+        """``tag = '#sale'`` — a hashtag literal is benign."""
+        sql = "SELECT id FROM t WHERE tag = '#sale'"
+        assert detect_mutating_keywords(sql) == []
+        assert check_sql_injection_risk(sql) == []
+
+    def test_hex_color_string_is_allowed(self):
+        """``'#ffffff'`` — a hex colour literal is benign."""
+        sql = "SELECT '#ffffff' AS color FROM t"
+        assert detect_mutating_keywords(sql) == []
+        assert check_sql_injection_risk(sql) == []
+
+    def test_multiple_hash_strings_are_allowed(self):
+        """Several ``#``-bearing string literals in one read are benign."""
+        sql = "SELECT '#a', '#b' FROM t"
+        assert detect_mutating_keywords(sql) == []
+        assert check_sql_injection_risk(sql) == []
+
+    def test_backtick_hash_identifiers_are_allowed(self):
+        """Backtick identifiers containing ``#`` are benign."""
+        assert detect_mutating_keywords('SELECT `c#1`, `c#2` FROM t') == []
+
+    def test_doubled_quote_hash_string_is_allowed(self):
+        """``'it''s #1'`` — doubled-quote escape with a ``#`` is benign data."""
+        assert detect_mutating_keywords("SELECT 'it''s #1' AS n") == []
+        assert check_sql_injection_risk("SELECT 'it''s #1' AS n") == []
+
+    def test_trailing_hash_comment_after_read_is_allowed(self):
+        """A genuine trailing ``#`` comment on a read is stripped, not flagged."""
+        sql = 'SELECT id FROM users # trailing note\nWHERE active = 1'
+        assert detect_mutating_keywords(sql) == []
+        assert check_sql_injection_risk(sql) == []
+
+    def test_fully_commented_line_is_inert_but_next_line_is_not(self):
+        """A whole-line ``#`` comment is inert, but the next line is not.
+
+        A whole-line ``#`` comment executes nothing in MySQL, so a verb
+        entirely inside the comment is inert (allowed); the same verb on a
+        line AFTER the comment is a real statement and must be blocked. (The
+        pre-`#`-strip code false-positive-blocked the inert form because the
+        commented-out keyword text was still scanned.)
+        """
+        # entire line is a comment -> no statement executes -> allowed
+        assert detect_mutating_keywords('#x DROP TABLE t') == []
+        assert check_sql_injection_risk('#x DROP TABLE t') == []
+        # real statement on the next line -> blocked
+        assert 'DROP' in detect_mutating_keywords('#x\nDROP TABLE t')

@@ -50,7 +50,7 @@
 # ---------------------------------------------------------------------------
 
 # dependabot should continue to update this to the latest hash.
-FROM public.ecr.aws/amazonlinux/amazonlinux@sha256:a450a74bfebfa936e7106d79c8b4b4dd0ca891c790513f84624da02a0e5531db AS uv
+FROM public.ecr.aws/amazonlinux/amazonlinux@sha256:fb70bd54d4a849293bfef9785ce63aa1eac2557e0167af4f32f56286bd35d783 AS uv
 
 # Install build dependencies needed for compiling packages
 RUN dnf install -y shadow-utils python3 python3-devel gcc && \
@@ -93,7 +93,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # Make the directory just in case it doesn't exist
 RUN mkdir -p /root/.local
 
-FROM public.ecr.aws/amazonlinux/amazonlinux@sha256:a450a74bfebfa936e7106d79c8b4b4dd0ca891c790513f84624da02a0e5531db
+FROM public.ecr.aws/amazonlinux/amazonlinux@sha256:fb70bd54d4a849293bfef9785ce63aa1eac2557e0167af4f32f56286bd35d783
 
 # Place executables in the environment at the front of the path and include other binaries.
 # PYTHONPATH=/app makes the harness `integration` package importable alongside the

@@ -11,6 +11,103 @@ There are two scripts in this directory:
 |--------|--------------|
 | `e2e_integration_test.py` | Full lifecycle: creates clusters, runs the MCP tools (`connect_to_database`, `run_query`, `get_table_schema`, …), validates security/enforcement behavior, then deletes everything it created. |
 | `e2e_test_sql_injection.py` | Focused check that `get_table_schema` is parameterized and resists a SQL-injection-shaped table name. Connects to an **already-existing** cluster you specify. |
+| `ro_policy_differential.py` | Compares the read-only SQL policy guard against PostgreSQL's own `SET TRANSACTION READ ONLY` verdict for ~160 statements, and fails on any divergence that isn't justified in the script. Needs **only a plain PostgreSQL 13+ server** — no AWS, no Aurora. |
+
+### Known RDS Data API limitation: array slices with named parameters
+
+An array slice cannot be combined with `query_parameters` on the `RDS_API`
+connection method. This is a Data API limitation, not an MCP server one.
+
+Three layers independently decide which `:name` sequences are placeholders: the
+SQL guard's parse-only rewrite, the psycopg executor's `%(name)s` rewrite, and —
+on the `RDS_API` path only — the Data API's own server-side scanner. The first two
+share a single pattern (`named_params.NAMED_PARAM_PATTERN`) and correctly leave a
+slice colon alone, because the colon in `[1:2]` follows a word character. The Data
+API's scanner does not, and rejects the call before PostgreSQL sees it:
+
+```
+SELECT (ARRAY['a','b','c'])[1:2] AS slice, :n::int AS n
+  → ValidationException: Cannot find parameter: 2
+```
+
+It reads `:2` as a placeholder named `2`. Observed on Aurora PostgreSQL 17.5.
+
+The scanner *is* literal-aware and cast-aware — `'a:b'`, `:n::int`, and
+`IN (:a, :b)` all work — so the gap is specific to the slice. `PARAMETERIZED_SLICE_READS`
+therefore runs on the PG-Wire paths, where it also guards against a defect this
+server previously had (the executor once rewrote `tags[1:limit_idx]` into the
+unparseable `tags[1%(limit_idx)s]`), and is recorded **N/A** on `RDS_API` rather
+than asserted as a permanent AWS behavior. If AWS fixes the scanner, promote it
+back into `PARAMETERIZED_READ_QUERIES`.
+
+Workaround for callers on the Data API path: compute the bounds without a literal
+slice (`array_agg` over `unnest … WITH ORDINALITY`, or `(string_to_array(...))[…]`
+built from parameters), or use a PG-Wire connection method.
+
+### Cluster teardown is fire-and-forget by default
+
+Deleting an Aurora cluster is slow and strictly ordered: every member instance has
+to be gone before `delete_db_cluster` is accepted, so the delete polls for
+instance removal and then for cluster removal — up to roughly 20 minutes each in
+the worst case. All of that happens *after* the last assertion is recorded, so by
+default the harness hands teardown to a **detached background process** and exits
+immediately.
+
+It cannot simply be un-awaited. An asyncio task abandoned at interpreter exit is
+cancelled, and firing only the instance deletions would strand the cluster. So the
+work moves to a child process started with `start_new_session=True`, which keeps it
+out of the harness's process group — a Ctrl-C during teardown no longer abandons a
+half-deleted cluster. The child runs under `sys.executable` so it can import the
+package, and its output goes to a per-cluster log:
+
+```
+Teardown of mcp-e2e-express-... running detached as pid 12345,
+  log: e2e-cleanup-mcp-e2e-express-...-20260910-135114.log
+```
+
+The run prints a `tail -f` line per cluster plus an `aws rds describe-db-clusters`
+command to confirm the resources actually went away.
+
+Two consequences worth knowing:
+
+- **A killed teardown leaks the cluster.** If the child dies — machine sleep,
+  container teardown, a `SIGKILL` to the whole session — the cluster survives and
+  must be deleted by hand. Pass `--wait-for-cleanup` to block until deletion
+  finishes instead; that is the right choice in CI that tears the host down as
+  soon as the process exits.
+- **Security-group cleanup normally defers.** The SG cannot be deleted while the
+  cluster's ENIs still hold it, and with detached teardown the cluster is still
+  alive when the harness exits. That is logged at INFO rather than as a warning,
+  and `gc_e2e_test_security_groups` reaps it on the next run.
+
+If the detached spawn itself fails (no fork available, unwritable log directory),
+the harness falls back to a blocking delete rather than leaking silently.
+
+### Policy corpus size (`--full-policy-corpus`)
+
+`e2e_integration_test.py` drives a curated policy corpus by default so a routine
+run stays quick. Pass `--full-policy-corpus` to drive the **entire** unit-level
+matrix from `tests/test_policy_matrix.py` — 200 reads, 208 writes, 98 dangerous
+and 9 fail-closed statements, each in both modes — through the real `run_query`
+tool, which makes this suite a literal superset of the unit policy tests.
+
+Two things to know about what it asserts:
+
+- Each cell checks the **policy decision**, and tolerates a database error. It
+  does not check that a statement executes. The unit corpus was written for a
+  parser, so 51 of its 200 reads cannot execute anywhere: 23 carry `:name`
+  placeholders needing bound parameters, 4 are the locking clauses the read-only
+  transaction refuses on purpose, and 24 deliberately reference objects that do
+  not exist (`t`, `s`, `myschema`, large object 1) or extensions that are not
+  installed. `ALLOWED_READ_QUERIES` keeps the stronger "must return rows"
+  assertion on a curated set that really runs.
+- It adds roughly a thousand round trips per connection method, which is why it
+  is opt-in rather than the default.
+
+The same eight cells are checked in the ordinary unit suite against a mocked
+connection (`tests/test_run_query_policy_wiring.py`), so a disagreement shows up
+in seconds locally rather than only after a cluster spins up. Use the flag when
+changing the guard or its corpora.
 
 ---
 
@@ -66,6 +163,17 @@ provisioning adds roughly 7–8 minutes to the run.
      modes; mutating keywords blocked in read-only mode and allowed past the
      guard in write mode; dangerous functions and security-sensitive GUCs blocked
      in **both** modes.
+   - `tls_enforcement` — validates TLS on the psycopg (PG Wire) path by toggling
+     `server.configured_sslmode` / `server.configured_ca_bundle` in-process and
+     reconnecting. Asserts: `verify-full` (default, bundled combined AWS CA)
+     connects and the session is actually encrypted (`pg_stat_ssl.ssl` is true);
+     `require` connects and is encrypted; and `verify-full` against an
+     **unrelated CA** is rejected (proving certificate verification, not just
+     encryption). Skipped on the `RDS_API` cell (verified HTTPS, no sslmode). The
+     wrong-CA case needs `openssl` on the host to mint a throwaway CA (skipped
+     with a note if absent), and the `verify-full` positive case needs the
+     bundled AWS CA present — run `python hatch_build.py` first if running from a
+     source tree.
    - `privilege_enforcement` — drives the least-privilege guardrail
      (`--privilege_check`) by toggling `server.privilege_check_policy` and the
      resolved secret in-process. It asserts the **master user** (an
@@ -164,6 +272,69 @@ uv run python tests/e2e/e2e_test_sql_injection.py \
     --db-endpoint my-cluster-instance-1.xxxx.us-west-2.rds.amazonaws.com \
     --database postgres
 ```
+
+---
+
+## `ro_policy_differential.py`
+
+Answers "is the read-only guard blocking anything it shouldn't?" without relying
+on anyone's opinion about what counts as a read. Each of ~160 statements is run
+twice — once through `assert_executable(sql, allow_write_query=False)` and once
+inside `BEGIN; SET TRANSACTION READ ONLY` on a live server — and the two verdicts
+are compared. PostgreSQL is the oracle.
+
+Divergences come in two kinds:
+
+- **false-positive candidate** — PostgreSQL executed it, the guard rejected it.
+  Either over-blocking, or intentional strictness that has to be written down.
+- **backstop-reliant** — the guard allowed it and PostgreSQL's read-only
+  transaction refused it. Not an exposure, since the server always wraps
+  read-only queries in that transaction, but it marks where the guard defers to
+  the engine rather than deciding itself (currently only the `SELECT … FOR`
+  locking clauses).
+
+Every divergence must be justified in the script's `EXPECTED_DIVERGENCES` map.
+An unlabeled one fails the run, so this is a regression detector rather than a
+report: a denylist edit that starts blocking legitimate reads shows up here.
+
+Unlike the other two scripts this needs no AWS and nothing Aurora-specific — any
+PostgreSQL 13+ you can create a schema in will do, including a local build. It
+creates the schema `mcp_ro_diff`, uses it, and drops it again.
+
+```bash
+# local PostgreSQL over a unix socket
+uv run python tests/e2e/ro_policy_differential.py \
+    --dsn "host=/tmp port=5432 dbname=postgres"
+
+# an RDS/Aurora endpoint
+uv run python tests/e2e/ro_policy_differential.py \
+    --dsn "host=my-cluster.xxxx.us-west-2.rds.amazonaws.com port=5432 dbname=postgres \
+           user=me password=... sslmode=verify-full"
+
+# leave the probe schema behind for inspection
+uv run python tests/e2e/ro_policy_differential.py --dsn "..." --keep-schema
+```
+
+Exit status is 0 when every divergence is accounted for, 1 otherwise. Sample tail
+of a passing run against PostgreSQL 16.4:
+
+```
+guard read-only verdict vs PostgreSQL 16.4 read-only transaction
+  SELECT grammar            95/ 99 agree
+  real-world tooling        33/ 33 agree
+  statement types            3/ 29 agree
+OK: every divergence is accounted for (34 labeled).
+```
+
+The low agreement count for statement types is expected and is the point of the
+labels: PostgreSQL permits cursors, `PREPARE`, `LISTEN`, `SET`, `LOCK`,
+`CHECKPOINT`, `ANALYZE`, and the statistics/WAL mutating functions inside a
+read-only transaction, and the guard rejects all of them on purpose.
+
+The unit-test counterpart, which needs no database, is
+`tests/test_sql_guard_read_only_corpus.py`. It carries the same corpora plus an
+exhaustive classification of all 117 statement node types in the grammar, so a
+PostgreSQL upgrade that adds one fails the suite until it is classified.
 
 ---
 

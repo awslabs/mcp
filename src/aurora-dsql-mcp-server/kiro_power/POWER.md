@@ -71,8 +71,8 @@ This power includes the following steering files in [steering](./steering)
 - **mysql-full-example**
   - Load when migrating a complete MySQL table to DSQL
 - **pg-migrations-type-mapping**
-  - MUST load for PostgreSQL → DSQL type questions
-  - C collation rules, NUMERIC precision, JSON/JSONB, types mapped to TEXT by `dsql_lint`
+  - MUST load for DSQL NUMERIC or PostgreSQL → DSQL type questions
+  - C collation rules, NUMERIC(p,s), JSON/JSONB, types mapped to TEXT by `dsql_lint`
 - **pg-migrations-fk-replacement**
   - MUST load for foreign key creation or migration
   - Native FK syntax, actions, validation, tenant keys
@@ -83,7 +83,7 @@ This power includes the following steering files in [steering](./steering)
 - **pg-migrations-multi-region**
   - Load for multi-region, active-active, or HA questions — architecture, geographic partitioning
 - **orm-guides-overview**
-  - Load when migrating any ORM to DSQL — adapter names and gotchas for Django, Hibernate, Rails, SQLAlchemy
+  - Load when migrating an ORM or using ORM locking with DSQL — adapter names, locking, and gotchas for Django, Hibernate, Rails, SQLAlchemy
 - **data-loading**
   - Load when planning or running bulk loads with `aurora-dsql-loader` — fresh-vs-warm partitions, resume/retry, `--on-conflict`, throughput diagnostics
 - **query-plan-interpretation**
