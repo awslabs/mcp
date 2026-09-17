@@ -68,9 +68,7 @@ def _collapse_soft_breaks(segment: str) -> str:
 
 def _mark_breaks(cell: Tag) -> None:
     """Insert boundary markers at <br /> and block-element edges inside a cell."""
-    for tag in cell.find_all(_BREAK_TAGS):
-        if not isinstance(tag, Tag):
-            continue
+    for tag in (t for t in cell.find_all(_BREAK_TAGS) if isinstance(t, Tag)):
         marker = _SOFT_MARKER if _in_callout(tag) else _BREAK_MARKER
         if tag.name == 'br':
             tag.replace_with(NavigableString(marker))
@@ -81,9 +79,7 @@ def _mark_breaks(cell: Tag) -> None:
 
 def _mark_preformatted_lines(cell: Tag) -> None:
     """Treat newlines inside <pre> as value boundaries, where they are significant markup."""
-    for pre in cell.find_all('pre'):
-        if not isinstance(pre, Tag):
-            continue
+    for pre in (p for p in cell.find_all('pre') if isinstance(p, Tag)):
         for text in list(pre.find_all(string=True)):
             raw = str(text)
             if '\n' in raw:
@@ -92,9 +88,8 @@ def _mark_preformatted_lines(cell: Tag) -> None:
 
 def _strip_callout_titles(cell: Tag) -> None:
     """Remove 'Note' and 'Important' labels, which are chrome rather than cell content."""
-    for title in cell.find_all(class_=_CALLOUT_TITLE_CLASS):
-        if isinstance(title, Tag):
-            title.decompose()
+    for title in (t for t in cell.find_all(class_=_CALLOUT_TITLE_CLASS) if isinstance(t, Tag)):
+        title.decompose()
 
 
 def _cell_text(cell: Tag) -> str:
