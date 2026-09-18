@@ -34,6 +34,12 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     LogLevel,
     log_with_request_id,
 )
+from awslabs.aws_dataprocessing_mcp_server.utils.sensitive_data_filter import (
+    GLUE_JOB_RUN_FIELDS,
+    filter_record,
+    filter_records,
+    redaction_notice,
+)
 from botocore.exceptions import ClientError
 from mcp.server.mcpserver import Context
 from mcp.types import CallToolResult, TextContent
@@ -66,7 +72,7 @@ class GlueEtlJobsHandler:
         operation: Annotated[
             str,
             Field(
-                description='Operation to perform: create-job, delete-job, get-job, get-jobs, update-job, start-job-run, stop-job-run, get-job-run, get-job-runs, batch-stop-job-run, get-job-bookmark, reset-job-bookmark. Choose "get-job", "get-jobs", "get-job-run", "get-job-runs", or "get-job-bookmark" for read-only operations when write access is disabled.',
+                description='Operation to perform: create-job, delete-job, get-job, get-jobs, update-job, start-job-run, stop-job-run, get-job-run, get-job-runs, batch-stop-job-run, get-job-bookmark, reset-job-bookmark. Choose "get-job", "get-jobs", or "get-job-bookmark" for read-only operations when write access is disabled. (job arguments and error messages require --allow-sensitive-data-access)',
             ),
         ],
         job_name: Annotated[
@@ -167,6 +173,7 @@ class GlueEtlJobsHandler:
 
         ## Requirements
         - The server must be run with the `--allow-write` flag for create-job, delete-job, update-job, start-job-run, stop-job-run, and batch-stop-job-run operations
+        - The server must be run with the `--allow-sensitive-data-access` flag to receive job Arguments, ErrorMessage and StateDetail from get-job-run and get-job-runs. Without it these fields are omitted from the response and named in the response message
         - Appropriate AWS permissions for Glue ETL job operations
 
         ## Job Operations
@@ -179,8 +186,8 @@ class GlueEtlJobsHandler:
 
         ## Job Run Operations
         - **stop-job-run**: Stop a job run using a job name and run ID
-        - **get-job-run**: Retrieve detailed information about a specific job run
-        - **get-job-runs**: List all job runs for a specific job
+        - **get-job-run**: Retrieve detailed information about a specific job run (job arguments and error messages require --allow-sensitive-data-access)
+        - **get-job-runs**: List all job runs for a specific job (job arguments and error messages require --allow-sensitive-data-access)
         - **batch-stop-job-run**: Stop one or more running jobs
 
         ## Usage Tips
@@ -534,16 +541,6 @@ class GlueEtlJobsHandler:
                         'job_name and job_run_id are required for get-job-run operation'
                     )
 
-                # SECURITY: Job run details may contain sensitive data in error messages, arguments, and logs
-                # Require --allow-sensitive-data-access flag to prevent unauthorized data exposure
-                if not self.allow_sensitive_data_access:
-                    error_message = 'Operation get-job-run may contain sensitive data in error messages and job arguments, and requires --allow-sensitive-data-access flag'
-                    log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return CallToolResult(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                    )
-
                 # Prepare parameters
                 params = {'JobName': job_name, 'RunId': job_run_id}
                 if predecessors_included is not None:
@@ -552,11 +549,20 @@ class GlueEtlJobsHandler:
                 # Get the job run
                 response = self.glue_client.get_job_run(**params)
 
+                job_run_details = response.get('JobRun', {})
                 success_message = f'Successfully retrieved job run {job_run_id} for job {job_name}'
+
+                if not self.allow_sensitive_data_access:
+                    job_run_details, omitted = filter_record(job_run_details, GLUE_JOB_RUN_FIELDS)
+                    notice = redaction_notice('get-job-run', omitted)
+                    if notice:
+                        log_with_request_id(ctx, LogLevel.INFO, notice)
+                        success_message = f'{success_message}. {notice}'
+
                 data = GetJobRunData(
                     job_name=job_name,
                     job_run_id=job_run_id,
-                    job_run_details=response.get('JobRun', {}),
+                    job_run_details=job_run_details,
                     operation='get-job-run',
                 )
 
@@ -584,6 +590,15 @@ class GlueEtlJobsHandler:
 
                 job_runs = response.get('JobRuns', [])
                 success_message = f'Successfully retrieved job runs for job {job_name}'
+
+                # Same JobRun shape as get-job-run.
+                if not self.allow_sensitive_data_access:
+                    job_runs, omitted = filter_records(job_runs, GLUE_JOB_RUN_FIELDS)
+                    notice = redaction_notice('get-job-runs', omitted)
+                    if notice:
+                        log_with_request_id(ctx, LogLevel.INFO, notice)
+                        success_message = f'{success_message}. {notice}'
+
                 data = GetJobRunsData(
                     job_name=job_name,
                     job_runs=job_runs,
