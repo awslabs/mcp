@@ -24,18 +24,24 @@ the authoritative controls for function semantics that cannot be inferred from
 syntax, such as user-defined wrapper functions.
 """
 
-import re
 from loguru import logger
-from pglast import ast, parse_sql
+from pglast import ast, parse_sql, scan
 from pglast.enums import DiscardMode, VariableSetKind
 from typing import NoReturn
 
 
-MAX_SQL_LEN = 65_536
-
-READ_ONLY_ALLOWED_ROOT = frozenset({'SelectStmt', 'VariableShowStmt', 'ExplainStmt'})
+READ_ONLY_ALLOWED_ROOT = frozenset(
+    {'SelectStmt', 'VariableShowStmt', 'ExplainStmt', 'VariableSetStmt'}
+)
 READ_ONLY_ALLOWED_STMT_NODES = frozenset(
-    {'RawStmt', 'SelectStmt', 'VariableShowStmt', 'ExplainStmt'}
+    {
+        'RawStmt',
+        'SelectStmt',
+        'VariableShowStmt',
+        'ExplainStmt',
+        'ExecuteStmt',
+        'VariableSetStmt',
+    }
 )
 
 READ_ONLY_PROHIBITED_FUNCTIONS = frozenset({'set_config'})
@@ -185,7 +191,15 @@ DANGEROUS_QUALIFIED_FUNCTIONS = frozenset(
 
 SECURITY_SENSITIVE_GUCS = frozenset({'row_security', 'session_replication_role'})
 
-_DOLLAR_TAG_RE = re.compile(r'\$[A-Za-z_][A-Za-z_0-9]*\$|\$\$')
+_COMMENT_TOKENS = frozenset({'C_COMMENT', 'SQL_COMMENT'})
+_STRING_TOKENS = frozenset({'BCONST', 'SCONST', 'USCONST', 'XCONST'})
+_IAM_PRINCIPAL_TOKENS = frozenset({'SCONST', 'USCONST'})
+_DANGEROUS_QUALIFIED_BASENAMES = frozenset(
+    function for _, function in DANGEROUS_QUALIFIED_FUNCTIONS
+)
+_READ_ONLY_QUALIFIED_BASENAMES = frozenset(
+    function for _, function in READ_ONLY_PROHIBITED_QUALIFIED_FUNCTIONS
+)
 
 
 class SqlPolicyError(Exception):
@@ -200,174 +214,107 @@ def _reject(reason: str, cause: BaseException | None = None) -> NoReturn:
     raise SqlPolicyError(reason)
 
 
-def _end_single_quote(sql: str, start: int) -> int:
-    """Return the position after a PostgreSQL single-quoted string."""
-    escaped = (
-        start > 0
-        and sql[start - 1] in ('E', 'e')
-        and (start == 1 or not (sql[start - 2].isalnum() or sql[start - 2] == '_'))
-    )
-    i = start + 1
-    while i < len(sql):
-        if escaped and sql[i] == '\\' and i + 1 < len(sql):
-            i += 2
-        elif sql[i] == "'" and i + 1 < len(sql) and sql[i + 1] == "'":
-            i += 2
-        elif sql[i] == "'":
-            return i + 1
-        else:
-            i += 1
-    return len(sql)
+def _apply_replacements(sql: str, replacements: list[tuple[int, int, str]]) -> str:
+    """Apply inclusive source-span replacements from right to left."""
+    for start, end, replacement in reversed(replacements):
+        sql = sql[:start] + replacement + sql[end + 1 :]
+    return sql
 
 
-def _end_double_quote(sql: str, start: int) -> int:
-    """Return the position after a PostgreSQL quoted identifier."""
-    i = start + 1
-    while i < len(sql):
-        if sql[i] == '"' and i + 1 < len(sql) and sql[i + 1] == '"':
-            i += 2
-        elif sql[i] == '"':
-            return i + 1
-        else:
-            i += 1
-    return len(sql)
+def _normalize_placeholders(sql: str, parameters_bound: bool = False) -> str:
+    """Match psycopg placeholder handling in the parser-only SQL copy.
 
-
-def _end_dollar_quote(sql: str, start: int) -> int | None:
-    """Return the position after a dollar-quoted string, or None."""
-    match = _DOLLAR_TAG_RE.match(sql, start)
-    if not match:
-        return None
-    tag = match.group(0)
-    end = sql.find(tag, match.end())
-    return len(sql) if end == -1 else end + len(tag)
-
-
-def _normalize_placeholders(sql: str) -> str:
-    """Rewrite psycopg ``%s``/``%b``/``%t`` placeholders for parser input only.
-
-    The original SQL is always sent to psycopg. Replacements happen only in
-    executable SQL, not inside strings, quoted identifiers, dollar-quoted
-    bodies, or comments. ``%%`` is rewritten to the literal PostgreSQL modulo
-    operator that psycopg sends to the server.
+    Psycopg interprets ``%s``, ``%b``, ``%t``, and ``%%`` only when a parameters
+    object is supplied to ``execute``. PostgreSQL's scanner identifies percent
+    tokens outside strings, identifiers, dollar quotes, and comments, including
+    Unicode dollar-quote tags and carriage-return line endings.
     """
-    out: list[str] = []
+    if not parameters_bound:
+        return sql
+
+    replacements: list[tuple[int, int, str]] = []
+    consumed_through = -1
     parameter = 1
-    i = 0
-    while i < len(sql):
-        if sql[i] == "'":
-            end = _end_single_quote(sql, i)
-            out.append(sql[i:end])
-            i = end
+    for token in scan(sql):
+        source = _token_text(sql, token)
+        if (
+            token.name in _COMMENT_TOKENS
+            or token.name in _STRING_TOKENS
+            or token.name == 'UIDENT'
+            or source.startswith('"')
+        ):
             continue
-        if sql[i] == '"':
-            end = _end_double_quote(sql, i)
-            out.append(sql[i:end])
-            i = end
-            continue
-        if sql[i] == '$':
-            end = _end_dollar_quote(sql, i)
-            if end is not None:
-                out.append(sql[i:end])
-                i = end
+        for offset, character in enumerate(source):
+            position = token.start + offset
+            if character != '%' or position <= consumed_through:
                 continue
-        if sql.startswith('--', i):
-            end = sql.find('\n', i + 2)
-            end = len(sql) if end == -1 else end
-            out.append(sql[i:end])
-            i = end
-            continue
-        if sql.startswith('/*', i):
-            depth = 1
-            end = i + 2
-            while end < len(sql) and depth:
-                if sql.startswith('/*', end):
-                    depth += 1
-                    end += 2
-                elif sql.startswith('*/', end):
-                    depth -= 1
-                    end += 2
-                else:
-                    end += 1
-            out.append(sql[i:end])
-            i = end
-            continue
-        if sql.startswith('%%', i):
-            out.append('%')
-            i += 2
-            continue
-        if i + 1 < len(sql) and sql[i] == '%' and sql[i + 1] in ('s', 'b', 't'):
-            out.append(f'${parameter}')
-            parameter += 1
-            i += 2
-            continue
-        out.append(sql[i])
-        i += 1
-    return ''.join(out)
+            marker_position = position + 1
+            if marker_position >= len(sql):
+                _reject('Invalid psycopg placeholder syntax')
+            marker = sql[marker_position]
+            if marker in ('s', 'b', 't'):
+                replacements.append((position, marker_position, f'${parameter}'))
+                parameter += 1
+            elif marker == '%':
+                replacements.append((position, marker_position, '%'))
+            else:
+                _reject('Invalid psycopg placeholder syntax')
+            consumed_through = marker_position
+    return _apply_replacements(sql, replacements)
 
 
-def _normalize_dsql_syntax(sql: str) -> str:
-    """Remove DSQL's ``ASYNC`` extension from a parser-only copy of DDL.
+def _significant_tokens(sql: str) -> list:
+    """Return PostgreSQL tokens other than comments."""
+    return [token for token in scan(sql) if token.name not in _COMMENT_TOKENS]
 
-    Aurora DSQL requires ``CREATE [UNIQUE] INDEX ASYNC`` and
-    ``ALTER TABLE ASYNC ... VALIDATE CONSTRAINT``. PostgreSQL's parser
-    understands the corresponding statements without ``ASYNC``. This removes
-    only that leading keyword token, outside comments and quoted content. The
-    original DSQL statement is still what executes.
-    """
-    words: list[tuple[str, int, int]] = []
-    i = 0
-    while i < len(sql) and len(words) < 4:
-        if sql[i] == "'":
-            i = _end_single_quote(sql, i)
-            continue
-        if sql[i] == '"':
-            i = _end_double_quote(sql, i)
-            continue
-        if sql[i] == '$':
-            end = _end_dollar_quote(sql, i)
-            if end is not None:
-                i = end
-                continue
-        if sql.startswith('--', i):
-            end = sql.find('\n', i + 2)
-            i = len(sql) if end == -1 else end
-            continue
-        if sql.startswith('/*', i):
-            depth = 1
-            i += 2
-            while i < len(sql) and depth:
-                if sql.startswith('/*', i):
-                    depth += 1
-                    i += 2
-                elif sql.startswith('*/', i):
-                    depth -= 1
-                    i += 2
-                else:
-                    i += 1
-            continue
-        if sql[i].isalpha() or sql[i] == '_':
-            start = i
-            i += 1
-            while i < len(sql) and (sql[i].isalnum() or sql[i] in ('_', '$')):
-                i += 1
-            words.append((sql[start:i].upper(), start, i))
-            continue
-        i += 1
 
-    names = [word[0] for word in words]
+def _token_text(sql: str, token) -> str:
+    """Return the source text represented by a scanner token."""
+    return sql[token.start : token.end + 1]
+
+
+def _normalize_dsql_syntax(sql: str, postgres_parse_failed: bool = False) -> str:
+    """Normalize narrowly recognized Aurora DSQL syntax for parser input only."""
+    if not postgres_parse_failed:
+        try:
+            parse_sql(sql)
+            return sql
+        except Exception:
+            pass
+
+    tokens = _significant_tokens(sql)
+    core_tokens = tokens[:-1] if tokens and tokens[-1].name == 'ASCII_59' else tokens
+    words = [_token_text(sql, token).upper() for token in core_tokens]
+
+    # AWS IAM GRANT role TO 'principal' and AWS IAM REVOKE role FROM 'principal'
+    # are DSQL extensions. Convert only the exact six-token shape to an
+    # equivalent PostgreSQL role grant/revoke for policy classification.
+    if (
+        len(core_tokens) == 6
+        and words[:2] == ['AWS', 'IAM']
+        and words[2] in ('GRANT', 'REVOKE')
+        and words[4] == ('TO' if words[2] == 'GRANT' else 'FROM')
+        and core_tokens[5].name in _IAM_PRINCIPAL_TOKENS
+    ):
+        semicolon = ';' if len(tokens) != len(core_tokens) else ''
+        role = _token_text(sql, core_tokens[3])
+        return f'{words[2]} {role} {words[4]} CURRENT_USER{semicolon}'
+
     async_index: int | None = None
-    if names[:3] == ['CREATE', 'INDEX', 'ASYNC']:
+    if words[:3] == ['CREATE', 'INDEX', 'ASYNC'] and len(core_tokens) > 3:
         async_index = 2
-    elif names[:4] == ['CREATE', 'UNIQUE', 'INDEX', 'ASYNC']:
+    elif words[:4] == ['CREATE', 'UNIQUE', 'INDEX', 'ASYNC'] and len(core_tokens) > 4:
         async_index = 3
-    elif names[:3] == ['ALTER', 'TABLE', 'ASYNC']:
-        async_index = 2
+    elif words[:3] == ['ALTER', 'TABLE', 'ASYNC']:
+        for index in range(4, len(core_tokens) - 1):
+            if words[index : index + 2] == ['VALIDATE', 'CONSTRAINT']:
+                async_index = 2
+                break
 
     if async_index is None:
         return sql
-    _, start, end = words[async_index]
-    return sql[:start] + sql[end:]
+    token = core_tokens[async_index]
+    return _apply_replacements(sql, [(token.start, token.end, '')])
 
 
 def _collect_nodes(raw_stmt: ast.Node) -> list[ast.Node]:
@@ -386,9 +333,9 @@ def _collect_nodes(raw_stmt: ast.Node) -> list[ast.Node]:
 
 
 def _func_name_parts(node: ast.FuncCall) -> list[str]:
-    """Return lower-case components of a function name."""
+    """Return function-name components with PostgreSQL identifier semantics."""
     return [
-        value.lower()
+        value
         for element in node.funcname or ()
         if (value := getattr(element, 'sval', None)) is not None
     ]
@@ -404,7 +351,17 @@ def _first_arg_string(node: ast.FuncCall) -> str | None:
 
 def _check_dangerous(node: ast.Node) -> None:
     """Reject constructs prohibited in read-only and write modes."""
-    if isinstance(node, ast.CopyStmt):
+    if isinstance(node, ast.TransactionStmt):
+        _reject('Caller-supplied transaction control is not allowed')
+    elif isinstance(node, ast.LoadStmt):
+        _reject('LOAD can execute a native library and is not allowed')
+    elif isinstance(node, ast.DoStmt):
+        _reject('Opaque executable DO blocks are not allowed')
+    elif isinstance(node, ast.CreateFunctionStmt):
+        _reject('Function and procedure definitions are not allowed')
+    elif isinstance(node, ast.CallStmt):
+        _reject('Stored procedure calls are not allowed')
+    elif isinstance(node, ast.CopyStmt):
         if node.is_program:
             _reject('COPY ... TO/FROM PROGRAM executes a host command')
         if node.filename is not None:
@@ -413,13 +370,11 @@ def _check_dangerous(node: ast.Node) -> None:
         _reject('DISCARD ALL can reset security-sensitive session settings')
     elif isinstance(node, ast.FuncCall):
         parts = _func_name_parts(node)
-        if not parts:
+        if not parts:  # pragma: no cover - pglast FuncCall always has a name
             return
         function = parts[-1]
-        if function in DANGEROUS_FUNCTIONS:
+        if function in DANGEROUS_FUNCTIONS or function in _DANGEROUS_QUALIFIED_BASENAMES:
             _reject(f'Dangerous function call not allowed: {function}')
-        if len(parts) >= 2 and (parts[-2], function) in DANGEROUS_QUALIFIED_FUNCTIONS:
-            _reject(f'Dangerous function call not allowed: {parts[-2]}.{function}')
         if function == 'set_config':
             guc = _first_arg_string(node)
             if guc is None:
@@ -433,6 +388,39 @@ def _check_dangerous(node: ast.Node) -> None:
             _reject(f'Security-sensitive session setting not allowed: {node.name}')
 
 
+def _is_safe_transaction_setting(node: ast.VariableSetStmt) -> bool:
+    """Return whether SET TRANSACTION only tightens read behavior or isolation."""
+    if node.kind != VariableSetKind.VAR_SET_MULTI or (node.name or '').upper() != 'TRANSACTION':
+        return False
+    args = node.args or ()
+    if not args:  # pragma: no cover - PostgreSQL rejects an empty SET TRANSACTION
+        return False
+    for option in args:
+        argument = getattr(option, 'arg', None)
+        value = getattr(getattr(argument, 'val', None), 'ival', None)
+        if option.defname == 'transaction_read_only' and value == 1:
+            continue
+        isolation = getattr(getattr(argument, 'val', None), 'sval', None)
+        if option.defname == 'transaction_isolation' and isolation is not None:
+            continue
+        return False
+    return True
+
+
+def _explain_executes(root: ast.ExplainStmt) -> bool:
+    """Return whether EXPLAIN has ANALYZE enabled."""
+    for option in root.options or ():
+        if option.defname != 'analyze':
+            continue
+        if option.arg is None:
+            return True
+        string_value = getattr(option.arg, 'sval', None)
+        if string_value is not None:
+            return string_value.lower() in ('true', 'on', 'yes', '1')
+        return bool(getattr(option.arg, 'boolval', True))  # pragma: no cover
+    return False
+
+
 def _check_read_only(root: ast.Node, nodes: list[ast.Node]) -> None:
     """Reject syntax that is not read-only."""
     root_type = type(root).__name__
@@ -443,47 +431,72 @@ def _check_read_only(root: ast.Node, nodes: list[ast.Node]) -> None:
         node_type = type(node).__name__
         if node_type.endswith('Stmt') and node_type not in READ_ONLY_ALLOWED_STMT_NODES:
             _reject(f'Statement type not allowed in read-only mode: {node_type}')
+        if isinstance(node, ast.VariableSetStmt) and not _is_safe_transaction_setting(node):
+            _reject('Only read-only or isolation-only SET TRANSACTION is allowed')
+        if isinstance(node, ast.ExecuteStmt):
+            if (
+                not isinstance(root, ast.ExplainStmt)
+                or root.query is not node
+                or _explain_executes(root)
+            ):
+                _reject('EXECUTE is allowed only under EXPLAIN without ANALYZE')
         if isinstance(node, ast.SelectStmt) and node.intoClause is not None:
             _reject('SELECT ... INTO creates a table and is not allowed in read-only mode')
         if isinstance(node, ast.FuncCall):
             parts = _func_name_parts(node)
-            if not parts:
+            if not parts:  # pragma: no cover - pglast FuncCall always has a name
                 continue
             function = parts[-1]
             if function in READ_ONLY_PROHIBITED_FUNCTIONS:
                 _reject('set_config() mutates session state and is not allowed in read-only mode')
             if function in READ_ONLY_PROHIBITED_MUTATING_FUNCTIONS:
                 _reject(f'Function mutates state and is not allowed in read-only mode: {function}')
-            if (
-                len(parts) >= 2
-                and (parts[-2], function) in READ_ONLY_PROHIBITED_QUALIFIED_FUNCTIONS
-            ):
-                _reject(
-                    'Function mutates state and is not allowed in read-only mode: '
-                    f'{parts[-2]}.{function}'
-                )
+            if function in _READ_ONLY_QUALIFIED_BASENAMES:
+                _reject(f'Function mutates state and is not allowed in read-only mode: {function}')
 
 
-def assert_executable(sql: str, allow_write_query: bool = False) -> None:
-    """Require one parser-approved SQL statement."""
-    if len(sql) > MAX_SQL_LEN:
-        _reject('SQL exceeds the maximum allowed length')
+def assert_executable(
+    sql: str, allow_write_query: bool = False, parameters_bound: bool = False
+) -> None:
+    """Require one parser-approved SQL statement.
 
-    normalized = _normalize_placeholders(_normalize_dsql_syntax(sql))
+    ``parameters_bound`` must match whether the caller supplies a parameters
+    object to psycopg so percent placeholders are interpreted identically by
+    the policy layer and the database driver.
+    """
+    try:
+        normalized = _normalize_placeholders(sql, parameters_bound=parameters_bound)
+    except SqlPolicyError:
+        raise
+    except Exception as error:
+        _reject('SQL could not be scanned', cause=error)
     try:
         statements = parse_sql(normalized)
     except Exception as error:
-        logger.debug(
-            f'SQL policy guard could not parse query. original={sql!r} normalized={normalized!r}'
-        )
-        _reject('SQL could not be parsed', cause=error)
+        try:
+            dsql_normalized = _normalize_dsql_syntax(normalized, postgres_parse_failed=True)
+        except Exception as scan_error:
+            _reject('SQL could not be scanned', cause=scan_error)
+        if dsql_normalized == normalized:
+            logger.debug(
+                f'SQL policy guard could not parse query. original={sql!r} normalized={normalized!r}'
+            )
+            _reject('SQL could not be parsed', cause=error)
+        try:
+            statements = parse_sql(dsql_normalized)
+        except Exception as dsql_error:
+            logger.debug(
+                'SQL policy guard could not parse DSQL-normalized query. '
+                f'original={sql!r} normalized={dsql_normalized!r}'
+            )
+            _reject('SQL could not be parsed', cause=dsql_error)
 
     if len(statements) != 1:
         _reject('Exactly one SQL statement is allowed')
 
     raw_stmt = statements[0]
     root = raw_stmt.stmt
-    if root is None:
+    if root is None:  # pragma: no cover - empty input yields zero RawStmt objects
         _reject('Empty statement is not allowed')
 
     try:
