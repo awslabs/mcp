@@ -259,10 +259,7 @@ class TestDbClusterOperations:
                 vpc_security_group_ids=vpc_security_group_ids,
                 vpc_subnet_ids=vpc_subnet_ids,
             )
-        assert (
-            'CreateDbCluster is a write operation and is disabled'
-            in str(excinfo.value)
-        )
+        assert 'CreateDbCluster is a write operation and is disabled' in str(excinfo.value)
 
     @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_timestream_influxdb_client')
@@ -373,10 +370,7 @@ class TestDbClusterOperations:
             await delete_db_cluster(db_cluster_id='test-cluster-id')
 
         # Assert
-        assert (
-            'DeleteDbCluster is a write operation and is disabled'
-            in str(excinfo.value)
-        )
+        assert 'DeleteDbCluster is a write operation and is disabled' in str(excinfo.value)
 
     @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_timestream_influxdb_client')
@@ -508,10 +502,7 @@ class TestDbClusterOperations:
             )
 
         # Assert
-        assert (
-            'UpdateDbCluster is a write operation and is disabled'
-            in str(excinfo.value)
-        )
+        assert 'UpdateDbCluster is a write operation and is disabled' in str(excinfo.value)
 
     @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_timestream_influxdb_client')
@@ -780,10 +771,7 @@ class TestDbInstanceOperations:
                 vpc_security_group_ids=vpc_security_group_ids,
                 vpc_subnet_ids=vpc_subnet_ids,
             )
-        assert (
-            'CreateDbInstance is a write operation and is disabled'
-            in str(excinfo.value)
-        )
+        assert 'CreateDbInstance is a write operation and is disabled' in str(excinfo.value)
 
     @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.create_db_instance')
@@ -891,10 +879,7 @@ class TestDbInstanceOperations:
         with pytest.raises(Exception) as excinfo:
             await delete_db_instance(identifier='instance-in-use')
 
-        assert (
-            'DeleteDbInstance is a write operation and is disabled'
-            in str(excinfo.value)
-        )
+        assert 'DeleteDbInstance is a write operation and is disabled' in str(excinfo.value)
 
     @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_timestream_influxdb_client')
@@ -1064,14 +1049,9 @@ class TestDbInstanceOperations:
 
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
-            await update_db_instance(
-                identifier=identifier, db_instance_type=db_instance_type
-            )
+            await update_db_instance(identifier=identifier, db_instance_type=db_instance_type)
 
-        assert (
-            'UpdateDbInstance is a write operation and is disabled'
-            in str(excinfo.value)
-        )
+        assert 'UpdateDbInstance is a write operation and is disabled' in str(excinfo.value)
 
     @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_timestream_influxdb_client')
@@ -1095,9 +1075,7 @@ class TestDbInstanceOperations:
 
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
-            await update_db_instance(
-                identifier=identifier, db_instance_type=db_instance_type
-            )
+            await update_db_instance(identifier=identifier, db_instance_type=db_instance_type)
 
         assert 'InvalidDBInstanceState' in str(excinfo.value)
         mock_get_client.assert_called_once()
@@ -1329,14 +1307,9 @@ class TestParameterGroupOperations:
 
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
-            await create_db_parameter_group(
-                name=name, description=description
-            )
+            await create_db_parameter_group(name=name, description=description)
 
-        assert (
-            'CreateDbParamGroup is a write operation and is disabled'
-            in str(excinfo.value)
-        )
+        assert 'CreateDbParamGroup is a write operation and is disabled' in str(excinfo.value)
 
     @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.create_db_parameter_group')
@@ -1579,10 +1552,7 @@ class TestTagOperations:
         with pytest.raises(Exception) as excinfo:
             await tag_resource(resource_arn=resource_arn, tags=tags)
 
-        assert (
-            'TagResource is a write operation and is disabled'
-            in str(excinfo.value)
-        )
+        assert 'TagResource is a write operation and is disabled' in str(excinfo.value)
 
     @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_timestream_influxdb_client')
@@ -1620,9 +1590,7 @@ class TestTagOperations:
         tag_keys = ['Environment', 'Owner']
 
         # Act
-        result = await untag_resource(
-            resource_arn=resource_arn, tag_keys=tag_keys
-        )
+        result = await untag_resource(resource_arn=resource_arn, tag_keys=tag_keys)
 
         # Assert
         mock_get_client.assert_called_once()
@@ -1642,14 +1610,9 @@ class TestTagOperations:
 
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
-            await untag_resource(
-                resource_arn=resource_arn, tag_keys=tag_keys
-            )
+            await untag_resource(resource_arn=resource_arn, tag_keys=tag_keys)
 
-        assert (
-            'UntagResource is a write operation and is disabled'
-            in str(excinfo.value)
-        )
+        assert 'UntagResource is a write operation and is disabled' in str(excinfo.value)
 
     @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_timestream_influxdb_client')
@@ -1668,9 +1631,7 @@ class TestTagOperations:
 
         # Act & Assert
         with pytest.raises(Exception) as excinfo:
-            await untag_resource(
-                resource_arn=resource_arn, tag_keys=tag_keys
-            )
+            await untag_resource(resource_arn=resource_arn, tag_keys=tag_keys)
 
         assert 'ResourceNotFoundException' in str(excinfo.value)
         mock_get_client.assert_called_once()
@@ -1759,10 +1720,7 @@ class TestInfluxDBOperations:
             )
 
         # Assert
-        assert (
-            'InfluxDBWritePoints is a write operation and is disabled'
-            in str(excinfo.value)
-        )
+        assert 'InfluxDBWritePoints is a write operation and is disabled' in str(excinfo.value)
 
     @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
@@ -1864,9 +1822,8 @@ class TestInfluxDBOperations:
             )
 
         # Assert
-        assert (
-            'InfluxDBWriteLineProtocol is a write operation and is disabled'
-            in str(excinfo.value)
+        assert 'InfluxDBWriteLineProtocol is a write operation and is disabled' in str(
+            excinfo.value
         )
 
     @pytest.mark.asyncio
@@ -2106,10 +2063,7 @@ class TestInfluxDBOperations:
                 description=None,
             )
 
-        assert (
-            'InfluxDBCreateBucket is a write operation and is disabled'
-            in str(excinfo.value)
-        )
+        assert 'InfluxDBCreateBucket is a write operation and is disabled' in str(excinfo.value)
 
     @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
@@ -2246,10 +2200,7 @@ class TestInfluxDBOperations:
                 token='test-token',
             )
 
-        assert (
-            'InfluxDBCreateOrg is a write operation and is disabled'
-            in str(excinfo.value)
-        )
+        assert 'InfluxDBCreateOrg is a write operation and is disabled' in str(excinfo.value)
 
     @pytest.mark.asyncio
     @patch('awslabs.timestream_for_influxdb_mcp_server.server.get_influxdb_client')
