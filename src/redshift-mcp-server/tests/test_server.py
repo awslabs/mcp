@@ -15,6 +15,10 @@
 """Tests for the Redshift MCP Server tools."""
 
 import pytest
+from awslabs.redshift_mcp_server.consts import (
+    ACCESS_MODE_READ_ONLY,
+    ACCESS_MODE_READ_WRITE,
+)
 from awslabs.redshift_mcp_server.models import (
     QueryResult,
     RedshiftCluster,
@@ -29,6 +33,11 @@ from awslabs.redshift_mcp_server.review.models import (
     ReviewResult,
 )
 from awslabs.redshift_mcp_server.server import (
+    ConfirmWrite,
+    _current_settings,
+    _execute_query_annotations,
+    _tool_failed,
+    _write_confirmation,
     execute_query_tool,
     list_clusters_tool,
     list_columns_tool,
@@ -38,13 +47,236 @@ from awslabs.redshift_mcp_server.server import (
     mcp,
     review_cluster_tool,
 )
+from awslabs.redshift_mcp_server.settings import (
+    max_open_transactions_per_target,
+    session_keepalive,
+)
+from botocore.exceptions import ClientError, NoRegionError
 from datetime import datetime
-from mcp.server.mcpserver import Context
+from mcp.server.mcpserver import Context, Elicit, MCPServer
+from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
+
+
+class TestWriteConfirmation:
+    """The resolver asks the client only when a write needs confirming."""
+
+    def _configure(self, mocker, access_mode, skip):
+        """Pin the resolved access mode and confirmation opt-out."""
+        mocker.patch('awslabs.redshift_mcp_server.server.ACCESS_MODE', access_mode)
+        mocker.patch('awslabs.redshift_mcp_server.server.SKIP_WRITE_CONFIRMATION', skip)
+
+    def _ctx(self, mocker, *, can_elicit=True):
+        """Build a context whose session reports the client's elicitation support."""
+        ctx = mocker.Mock()
+        ctx.session.check_client_capability = mocker.Mock(return_value=can_elicit)
+        return ctx
+
+    def test_read_write_asks_the_client(self, mocker):
+        """Read-write mode returns a request to elicit, against the ConfirmWrite schema."""
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+
+        result = _write_confirmation(self._ctx(mocker), 'test-cluster', 'dev', 'DELETE FROM t')
+
+        assert isinstance(result, Elicit)
+        assert result.schema is ConfirmWrite
+
+    def test_a_write_the_fallback_will_refuse_raises_no_prompt(self, mocker):
+        """Asking about a statement certain to be refused spends the caller's attention.
+
+        While the batch action is denied the compatibility path serves reads only, so the write
+        is refused in the tool body a moment later whatever the caller answers.
+        """
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+        mocker.patch('awslabs.redshift_mcp_server.server.no_batch_latched', return_value=True)
+
+        result = _write_confirmation(self._ctx(mocker), 'test-cluster', 'dev', 'DELETE FROM t')
+
+        assert not isinstance(result, Elicit)
+        assert result.confirmed is True
+
+    def test_prompt_names_target_and_statement(self, mocker):
+        """The prompt tells the user which cluster and statement they are approving."""
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+
+        result = _write_confirmation(self._ctx(mocker), 'test-cluster', 'dev', 'DELETE FROM t')
+
+        assert isinstance(result, Elicit)
+        assert 'test-cluster:dev' in result.message
+        assert 'DELETE FROM t' in result.message
+        assert 'cannot be rolled back' in result.message
+
+    def test_a_write_inside_a_transaction_is_not_described_as_final(self, mocker):
+        """Inside a transaction the write is not final until it is committed."""
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+
+        result = _write_confirmation(
+            self._ctx(mocker), 'test-cluster', 'dev', 'DELETE FROM t', in_transaction='load'
+        )
+
+        assert isinstance(result, Elicit)
+        assert "transaction 'load'" in result.message
+        assert 'not final until you commit' in result.message
+        # Scoped the same way the rollback branch is: a rollback does not reach S3.
+        assert 'outside the database' in result.message
+        assert 'cannot be rolled back' not in result.message
+
+    def test_a_write_that_commits_in_the_same_call_is_described_as_final(self, mocker):
+        """The call being approved takes the commit decision, so it cannot be called pending."""
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+
+        result = _write_confirmation(
+            self._ctx(mocker), 'test-cluster', 'dev', 'DELETE FROM t', commit_transaction='load'
+        )
+
+        assert isinstance(result, Elicit)
+        assert "transaction 'load'" in result.message
+        assert 'commits it' in result.message
+        assert 'cannot be rolled back' in result.message
+        assert 'not final until you commit' not in result.message
+
+    def test_a_write_that_is_rolled_back_in_the_same_call_says_it_is_discarded(self, mocker):
+        """Promising a pending commit would overstate what approving it keeps."""
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+
+        result = _write_confirmation(
+            self._ctx(mocker), 'test-cluster', 'dev', 'DELETE FROM t', rollback_transaction='load'
+        )
+
+        assert isinstance(result, Elicit)
+        assert "transaction 'load'" in result.message
+        assert 'in the database is discarded' in result.message
+        # Scoped, because a rollback does not reach what UNLOAD already wrote to S3.
+        assert 'outside the database' in result.message
+        assert 'not final until you commit' not in result.message
+
+    def test_closing_a_transaction_asks_nothing(self, mocker):
+        """A bare commit or rollback runs no statement of the caller's."""
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+
+        result = _write_confirmation(
+            self._ctx(mocker), 'test-cluster', 'dev', None, commit_transaction='load'
+        )
+
+        assert result == ConfirmWrite(confirmed=True)
+
+    def test_read_in_read_write_mode_asks_nothing(self, mocker):
+        """A recognized read is not confirmed, even when writes are permitted."""
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+
+        result = _write_confirmation(self._ctx(mocker), 'test-cluster', 'dev', 'SELECT 1')
+
+        assert result == ConfirmWrite(confirmed=True)
+
+    def test_read_only_asks_nothing(self, mocker):
+        """Read-only mode approves without asking, since nothing can be persisted."""
+        self._configure(mocker, ACCESS_MODE_READ_ONLY, False)
+
+        result = _write_confirmation(self._ctx(mocker), 'test-cluster', 'dev', 'SELECT 1')
+
+        assert result == ConfirmWrite(confirmed=True)
+
+    def test_opt_out_asks_nothing(self, mocker):
+        """The opt-out approves without asking."""
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, True)
+
+        result = _write_confirmation(self._ctx(mocker), 'test-cluster', 'dev', 'DELETE FROM t')
+
+        assert result == ConfirmWrite(confirmed=True)
+
+    def test_rejected_sql_is_not_prompted_for(self, mocker):
+        """Stacked statements are rejected by the guard before anyone is asked."""
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+        ctx = self._ctx(mocker)
+
+        with pytest.raises(ToolError, match='single SQL statement is allowed'):
+            _write_confirmation(ctx, 'test-cluster', 'dev', 'SELECT 1; DROP TABLE t')
+
+        ctx.session.check_client_capability.assert_not_called()
+
+    def test_client_that_cannot_prompt_is_refused(self, mocker):
+        """A client without elicitation support is refused rather than run unconfirmed."""
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+
+        with pytest.raises(ToolError, match='cannot prompt for confirmation'):
+            _write_confirmation(
+                self._ctx(mocker, can_elicit=False), 'test-cluster', 'dev', 'DELETE FROM t'
+            )
+
+    def test_refusal_names_the_opt_out(self, mocker):
+        """The refusal tells the operator which setting lets them proceed."""
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+
+        with pytest.raises(ToolError, match='UNSAFE_SKIP_WRITE_CONFIRMATION'):
+            _write_confirmation(
+                self._ctx(mocker, can_elicit=False), 'test-cluster', 'dev', 'DELETE FROM t'
+            )
+
+
+class TestExecuteQueryAnnotations:
+    """The execute_query annotations describe the mode the server actually runs in."""
+
+    def test_read_only_mode_advertises_read_only(self):
+        """Read-only mode keeps the read-only hints and title."""
+        annotations = _execute_query_annotations(ACCESS_MODE_READ_ONLY)
+
+        assert annotations.title == 'Execute read-only Redshift query'
+        assert annotations.read_only_hint is True
+        assert annotations.destructive_hint is False
+        assert annotations.idempotent_hint is True
+        assert annotations.open_world_hint is True
+
+    def test_read_write_mode_advertises_destructive(self):
+        """Read-write mode drops the read-only claim and flags the tool as destructive."""
+        annotations = _execute_query_annotations(ACCESS_MODE_READ_WRITE)
+
+        assert annotations.title == 'Execute read-write Redshift query'
+        assert annotations.read_only_hint is False
+        assert annotations.destructive_hint is True
+        assert annotations.idempotent_hint is False
+        assert annotations.open_world_hint is True
+
+
+class TestCurrentSettings:
+    """The settings block reports resolved values the caller cannot read for itself."""
+
+    def test_lists_every_setting_with_its_value(self):
+        """Each setting the prose names appears with the value this server resolved."""
+        settings = _current_settings()
+
+        assert '## Current Settings' in settings
+        assert f'`ACCESS_MODE`: {ACCESS_MODE_READ_ONLY}' in settings
+        assert '`UNSAFE_SKIP_WRITE_CONFIRMATION`: false' in settings
+        assert f'`SESSION_KEEPALIVE`: {session_keepalive()} seconds' in settings
+        assert (
+            f'`MAX_OPEN_TRANSACTIONS_PER_TARGET`: {max_open_transactions_per_target()}' in settings
+        )
+
+    def test_confirmed_writes_hand_over_nothing(self):
+        """With the prompt on, the caller is asked to take on no duty of its own."""
+        assert 'get their agreement yourself' not in _current_settings()
+
+    def test_skipped_confirmation_states_it_and_delegates_the_check(self, mocker):
+        """With the prompt off, the block reports the mechanism and hands over the duty."""
+        mocker.patch('awslabs.redshift_mcp_server.server.SKIP_WRITE_CONFIRMATION', True)
+
+        settings = _current_settings()
+
+        assert '`UNSAFE_SKIP_WRITE_CONFIRMATION`: true' in settings
+        assert 'get their agreement yourself' in settings
+
+    def test_the_instructions_end_with_the_settings(self):
+        """The instructions are the one place the block appears, so the caller reads it once."""
+        assert mcp.instructions is not None
+        assert mcp.instructions.endswith(_current_settings())
 
 
 @pytest.mark.asyncio
 async def test_tool_annotations():
-    """Test that every tool advertises its read-only behavior to MCP clients."""
+    """Test that every tool advertises its read-only behavior to MCP clients.
+
+    The server under test is registered with the default (read-only) mode, since the
+    tests do not set ACCESS_MODE.
+    """
     expected_titles = {
         'list_clusters': 'List Redshift clusters and workgroups',
         'list_databases': 'List Redshift databases',
@@ -66,6 +298,24 @@ async def test_tool_annotations():
         assert annotations.destructive_hint is False
         assert annotations.idempotent_hint is True
         assert annotations.open_world_hint is True
+
+
+@pytest.mark.asyncio
+async def test_resolved_confirmation_is_not_a_tool_argument():
+    """The confirmation is resolved server-side, so the model cannot supply it."""
+    tools = {tool.name: tool for tool in await mcp.list_tools()}
+
+    properties = tools['execute_query'].input_schema['properties']
+
+    assert set(properties) == {
+        'cluster_identifier',
+        'database_name',
+        'sql',
+        'begin_transaction',
+        'in_transaction',
+        'commit_transaction',
+        'rollback_transaction',
+    }
 
 
 class TestListClustersTool:
@@ -147,10 +397,9 @@ class TestListClustersTool:
     @pytest.mark.asyncio
     async def test_list_clusters_tool_error(self, mocker):
         """Test list_clusters_tool error handling."""
-        from unittest.mock import AsyncMock, Mock
+        from unittest.mock import Mock
 
         mock_ctx = Mock()
-        mock_ctx.error = AsyncMock()
 
         mocker.patch(
             'awslabs.redshift_mcp_server.server.discover_clusters',
@@ -159,8 +408,6 @@ class TestListClustersTool:
 
         with pytest.raises(Exception, match='Test error'):
             await list_clusters_tool(mock_ctx)
-
-        mock_ctx.error.assert_called_once_with('Failed to list clusters: Test error')
 
 
 class TestListDatabasesTool:
@@ -222,10 +469,9 @@ class TestListDatabasesTool:
     @pytest.mark.asyncio
     async def test_list_databases_tool_error(self, mocker):
         """Test list_databases_tool error handling."""
-        from unittest.mock import AsyncMock, Mock
+        from unittest.mock import Mock
 
         mock_ctx = Mock()
-        mock_ctx.error = AsyncMock()
 
         mocker.patch(
             'awslabs.redshift_mcp_server.server.discover_databases',
@@ -234,10 +480,6 @@ class TestListDatabasesTool:
 
         with pytest.raises(Exception, match='DB error'):
             await list_databases_tool(mock_ctx, 'test-cluster')
-
-        mock_ctx.error.assert_called_once_with(
-            'Failed to list databases on cluster test-cluster: DB error'
-        )
 
 
 class TestListSchemasTool:
@@ -297,10 +539,9 @@ class TestListSchemasTool:
     @pytest.mark.asyncio
     async def test_list_schemas_tool_error(self, mocker):
         """Test list_schemas_tool error handling."""
-        from unittest.mock import AsyncMock, Mock
+        from unittest.mock import Mock
 
         mock_ctx = Mock()
-        mock_ctx.error = AsyncMock()
 
         mocker.patch(
             'awslabs.redshift_mcp_server.server.discover_schemas',
@@ -309,10 +550,6 @@ class TestListSchemasTool:
 
         with pytest.raises(Exception, match='Schema error'):
             await list_schemas_tool(mock_ctx, 'test-cluster', 'test-db')
-
-        mock_ctx.error.assert_called_once_with(
-            'Failed to list schemas in database test-db on cluster test-cluster: Schema error'
-        )
 
 
 class TestListTablesTool:
@@ -370,10 +607,9 @@ class TestListTablesTool:
     @pytest.mark.asyncio
     async def test_list_tables_tool_error(self, mocker):
         """Test list_tables_tool error handling."""
-        from unittest.mock import AsyncMock, Mock
+        from unittest.mock import Mock
 
         mock_ctx = Mock()
-        mock_ctx.error = AsyncMock()
 
         mocker.patch(
             'awslabs.redshift_mcp_server.server.discover_tables',
@@ -382,10 +618,6 @@ class TestListTablesTool:
 
         with pytest.raises(Exception, match='Table error'):
             await list_tables_tool(mock_ctx, 'test-cluster', 'test-db', 'test-schema')
-
-        mock_ctx.error.assert_called_once_with(
-            'Failed to list tables in schema test-schema in database test-db on cluster test-cluster: Table error'
-        )
 
 
 class TestListColumnsTool:
@@ -457,10 +689,9 @@ class TestListColumnsTool:
     @pytest.mark.asyncio
     async def test_list_columns_tool_error(self, mocker):
         """Test list_columns_tool error handling."""
-        from unittest.mock import AsyncMock, Mock
+        from unittest.mock import Mock
 
         mock_ctx = Mock()
-        mock_ctx.error = AsyncMock()
 
         mocker.patch(
             'awslabs.redshift_mcp_server.server.discover_columns',
@@ -471,10 +702,6 @@ class TestListColumnsTool:
             await list_columns_tool(
                 mock_ctx, 'test-cluster', 'test-db', 'test-schema', 'test-table'
             )
-
-        mock_ctx.error.assert_called_once_with(
-            'Failed to list columns in table test-table in schema test-schema in database test-db on cluster test-cluster: Column error'
-        )
 
 
 class TestExecuteQueryTool:
@@ -496,6 +723,7 @@ class TestExecuteQueryTool:
 
         result = await execute_query_tool(
             Context(),
+            ConfirmWrite(confirmed=True),
             cluster_identifier='test-cluster',
             database_name='dev',
             sql='SELECT id, name, age, active, score FROM users LIMIT 2',
@@ -512,6 +740,66 @@ class TestExecuteQueryTool:
         assert result.row_count == 2
         assert result.query_id == 'query-123'
 
+    @pytest.mark.parametrize(
+        ('access_mode', 'allow_writes'),
+        [(ACCESS_MODE_READ_ONLY, False), (ACCESS_MODE_READ_WRITE, True)],
+    )
+    @pytest.mark.asyncio
+    async def test_execute_query_tool_forwards_configured_mode(
+        self, mocker, access_mode, allow_writes
+    ):
+        """The tool translates the server's configured mode into the execute_query flag."""
+        mocker.patch('awslabs.redshift_mcp_server.server.ACCESS_MODE', access_mode)
+        mock_execute_query = mocker.patch('awslabs.redshift_mcp_server.server.execute_query')
+        mock_execute_query.return_value = {
+            'columns': ['id'],
+            'rows': [[1]],
+            'row_count': 1,
+            'query_id': 'query-123',
+        }
+
+        await execute_query_tool(
+            Context(),
+            ConfirmWrite(confirmed=True),
+            cluster_identifier='test-cluster',
+            database_name='dev',
+            sql='SELECT 1 AS id',
+        )
+
+        mock_execute_query.assert_called_once_with(
+            cluster_identifier='test-cluster',
+            database_name='dev',
+            sql='SELECT 1 AS id',
+            enforce_read_only=not allow_writes,
+            begin_transaction=None,
+            in_transaction=None,
+            commit_transaction=None,
+            rollback_transaction=None,
+        )
+
+    @pytest.mark.asyncio
+    async def test_accepted_but_unconfirmed_statement_is_not_executed(self, mocker):
+        """An accepted prompt answered `confirmed: false` stops the statement.
+
+        Decline and cancel never reach here: the framework aborts the call at the
+        resolver, so this covers only the accepted-but-refused path.
+        """
+        from unittest.mock import Mock
+
+        mock_execute_query = mocker.patch('awslabs.redshift_mcp_server.server.execute_query')
+        mock_ctx = Mock()
+
+        with pytest.raises(ToolError, match='not confirmed'):
+            await execute_query_tool(
+                mock_ctx,
+                ConfirmWrite(confirmed=False),
+                cluster_identifier='test-cluster',
+                database_name='dev',
+                sql='DELETE FROM t',
+            )
+
+        mock_execute_query.assert_not_called()
+
     @pytest.mark.asyncio
     async def test_execute_query_tool_empty_results(self, mocker):
         """Test query execution with no results."""
@@ -525,6 +813,7 @@ class TestExecuteQueryTool:
 
         result = await execute_query_tool(
             Context(),
+            ConfirmWrite(confirmed=True),
             cluster_identifier='test-workgroup',
             database_name='test_db',
             sql='SELECT COUNT(*) FROM empty_table',
@@ -542,10 +831,9 @@ class TestExecuteQueryTool:
     @pytest.mark.asyncio
     async def test_execute_query_tool_error(self, mocker):
         """Test execute_query_tool error handling."""
-        from unittest.mock import AsyncMock, Mock
+        from unittest.mock import Mock
 
         mock_ctx = Mock()
-        mock_ctx.error = AsyncMock()
 
         mocker.patch(
             'awslabs.redshift_mcp_server.server.execute_query',
@@ -553,11 +841,9 @@ class TestExecuteQueryTool:
         )
 
         with pytest.raises(Exception, match='Query error'):
-            await execute_query_tool(mock_ctx, 'test-cluster', 'test-db', 'SELECT 1')
-
-        mock_ctx.error.assert_called_once_with(
-            'Failed to execute query on cluster test-cluster in database test-db: Query error'
-        )
+            await execute_query_tool(
+                mock_ctx, ConfirmWrite(confirmed=True), 'test-cluster', 'test-db', 'SELECT 1'
+            )
 
 
 class TestReviewClusterTool:
@@ -583,7 +869,6 @@ class TestReviewClusterTool:
     def _make_mock_ctx(self, mocker):
         """Build a mock Context."""
         mock_ctx = mocker.Mock(spec=Context)
-        mock_ctx.error = mocker.AsyncMock()
         mock_ctx.request_context = mocker.Mock()
         return mock_ctx
 
@@ -664,6 +949,76 @@ class TestReviewClusterTool:
                 database_name='dev',
             )
 
-        mock_ctx.error.assert_called_once_with(
-            'Failed to review cluster test-cluster: Data API timeout'
+
+class TestAnticipatedFailuresReachTheModel:
+    """Regression cover for GH #4603: anticipated failures keep their text."""
+
+    @pytest.mark.asyncio
+    async def test_tool_error_keeps_its_message_and_bare_exception_does_not(self):
+        """Pin the SDK contract this server's exception choice depends on.
+
+        The SDK classifies a tool failure by its exception type: `ToolError` is
+        anticipated and its message reaches the model, anything else is a crash whose
+        text is withheld. Every failure the caller can act on is therefore raised as
+        `ToolError`. If a future SDK release changes that split, this test fails and
+        names the reason rather than leaving the server quietly opaque again.
+        """
+        message = 'Statement failed: ERROR: column "error" does not exist'
+        scratch = MCPServer('test-anticipated-failures')
+
+        @scratch.tool(name='anticipated')
+        async def anticipated() -> str:
+            """Fails the way this server's tools fail."""
+            raise ToolError(message)
+
+        @scratch.tool(name='crash')
+        async def crash() -> str:
+            """Fails with a bare exception, as this server used to."""
+            raise Exception(message)
+
+        with pytest.raises(ToolError) as anticipated_failure:
+            await scratch.call_tool('anticipated', {})
+        assert message in str(anticipated_failure.value)
+        assert not isinstance(anticipated_failure.value, UnexpectedToolError)
+
+        with pytest.raises(UnexpectedToolError) as crash_failure:
+            await scratch.call_tool('crash', {})
+        assert message not in str(crash_failure.value)
+
+    @pytest.mark.asyncio
+    async def test_aws_reported_failures_keep_their_message(self):
+        """An AWS error reaches the caller; a defect in this server does not.
+
+        Found end to end against a paused cluster: the Data API refused the submission with
+        `Redshift endpoint is not available`, the server logged exactly that, and the caller
+        got a bare "Error executing tool execute_query" with nothing to act on. Every
+        infrastructure condition failed the same way, because a `ClientError` was re-raised
+        as itself and the SDK withholds the text of anything that is not a `ToolError`.
+        """
+        denied = ClientError(
+            {
+                'Error': {
+                    'Code': 'ValidationException',
+                    'Message': 'Redshift endpoint is not available.',
+                }
+            },
+            'BatchExecuteStatement',
         )
+
+        with pytest.raises(ToolError) as reported:
+            _tool_failed('execute_query_tool', denied)
+        assert 'Redshift endpoint is not available.' in str(reported.value)
+        assert not isinstance(reported.value, UnexpectedToolError)
+
+        # The SDK refusing to make the call at all names something the operator must fix, and
+        # reaches them as a bare 'Error executing tool ...' unless it is wrapped.
+        misconfigured = NoRegionError()
+        with pytest.raises(ToolError) as reported:
+            _tool_failed('list_clusters_tool', misconfigured)
+        assert 'You must specify a region' in str(reported.value)
+        assert not isinstance(reported.value, UnexpectedToolError)
+
+        # A bug here tells the caller nothing, so it stays a crash rather than becoming advice.
+        defect = KeyError('Records')
+        with pytest.raises(KeyError):
+            _tool_failed('execute_query_tool', defect)

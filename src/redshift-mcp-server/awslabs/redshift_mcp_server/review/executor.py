@@ -25,6 +25,7 @@ from awslabs.redshift_mcp_server.review.models import (
     ReviewResult,
 )
 from loguru import logger
+from mcp.server.mcpserver.exceptions import ToolError
 from typing import Any, Callable
 
 
@@ -56,7 +57,7 @@ async def review_cluster(
             break
 
     if not cluster_info:
-        raise Exception(
+        raise ToolError(
             f'Cluster {cluster_identifier} not found. Please use list_clusters to get valid cluster identifiers.'
         )
 
@@ -74,14 +75,18 @@ async def review_cluster(
     ]
 
     total_queries = len(queries)
-    findings: list[ReviewFinding] = []
+    # Keyed by signal and section, so one triggered signal is one finding however many
+    # recommendations it maps to. Branches that share a recommendation under *different*
+    # labels stay distinct, each with its own affected_row_count, which is what the per-branch
+    # -- Signal: labels are for. Recommendation-level dedup happens in Stage 4.
+    findings_by_signal: dict[tuple[str, str], ReviewFinding] = {}
     queries_executed: list[str] = []
+    # A query holds several signals, one per UNION ALL branch, and each branch's count(*)
+    # returns exactly one row whether or not it triggered. So the rows are the signals that
+    # were evaluated, and the query count is not.
+    signals_evaluated = 0
 
-    # Stage 2 & 3: Execute each query and collect one finding per triggered branch.
-    # Findings are kept per branch (not collapsed): each branch carries its own
-    # -- Signal: label in signal_name, so branches that share a recommendation
-    # (for example, several QMR checks all mapping to REC_019) stay distinct with
-    # their own affected_row_count. Recommendation-level dedup happens in Stage 4.
+    # Stage 2 & 3: Execute each query and collect a finding per triggered signal.
     for idx, (query_name, sql) in enumerate(queries):
         logger.debug('Executing review query: {} ({}/{})', query_name, idx + 1, total_queries)
 
@@ -90,12 +95,12 @@ async def review_cluster(
                 cluster_identifier=cluster_identifier,
                 database_name=database_name,
                 sql=sql,
-                allow_read_write=True,
+                enforce_read_only=False,
             )
         except Exception as e:
             logger.error('Review query {} failed: {}', query_name, str(e))
             if 'permission denied' in str(e).lower():
-                raise Exception(
+                raise ToolError(
                     f'Review requires superuser or sys:monitor access. Request an administrator '
                     f'to run: '
                     f'GRANT ROLE sys:monitor TO "<database_user>"; where <database_user> is the '
@@ -109,6 +114,7 @@ async def review_cluster(
 
         rows = result.get('rows', [])
         unit = SIGNAL_UNITS.get(query_name, 'items')
+        signals_evaluated += len(rows)
         query_findings = 0
         for row in rows:
             count = row[0]
@@ -117,16 +123,20 @@ async def review_cluster(
             # query name if a query ever returns only (count, rec_id).
             signal_label = row[2] if len(row) > 2 else query_name
             if count > 0 and rec_id:
-                query_findings += 1
-                findings.append(
-                    ReviewFinding(
+                existing = findings_by_signal.get((signal_label, query_name))
+                if existing is None:
+                    query_findings += 1
+                    findings_by_signal[(signal_label, query_name)] = ReviewFinding(
                         signal_name=signal_label,
                         section=query_name,
                         affected_row_count=count,
                         unit=unit,
                         recommendation_ids=[rec_id],
                     )
-                )
+                elif rec_id not in existing.recommendation_ids:
+                    # The same signal again, carrying another recommendation. Its count comes
+                    # from the same predicate, so only the recommendation is new.
+                    existing.recommendation_ids.append(rec_id)
 
         logger.debug(
             'Query {} returned {} rows, {} findings',
@@ -137,6 +147,8 @@ async def review_cluster(
 
         if progress_reporter_func:
             await progress_reporter_func(idx + 1, total_queries)
+
+    findings = list(findings_by_signal.values())
 
     # Stage 4: Resolve recommendations (deduplicate, preserve first-occurrence order)
     seen: dict[str, list[str]] = {}
@@ -168,7 +180,7 @@ async def review_cluster(
     )
 
     return ReviewResult(
-        signals_evaluated=total_queries,
+        signals_evaluated=signals_evaluated,
         findings=findings,
         recommendations=recommendations,
         queries_executed=queries_executed,
