@@ -21,6 +21,7 @@ from awslabs.aws_healthomics_mcp_server.consts import (
     ERROR_CONFIGURATION_NAME_REQUIRES_VPC_MODE,
     ERROR_INVALID_CACHE_BEHAVIOR,
     ERROR_INVALID_NETWORKING_MODE,
+    ERROR_INVALID_RUN_LOG_LEVEL,
     ERROR_INVALID_RUN_STATUS,
     ERROR_INVALID_SCRATCH_STORAGE_MODE,
     ERROR_INVALID_STORAGE_TYPE,
@@ -29,6 +30,7 @@ from awslabs.aws_healthomics_mcp_server.consts import (
     NETWORKING_MODE_RESTRICTED,
     NETWORKING_MODE_VPC,
     NETWORKING_MODES,
+    RUN_LOG_LEVELS,
     RUN_STATUSES,
     SCRATCH_STORAGE_MODES,
     STORAGE_TYPE_STATIC,
@@ -190,6 +192,15 @@ async def start_run(
             'API default is SHARED).'
         ),
     ),
+    log_level: Optional[str] = Field(
+        None,
+        description=(
+            'Log level for the run. Allowed values: OFF, FATAL, ERROR, ALL. '
+            'Controls how much engine output (STDOUT/STDERR/Nextflow logs) is captured '
+            'to CloudWatch. When omitted, the HealthOmics API default applies. '
+            'Set to ALL to capture full engine logs for debugging.'
+        ),
+    ),
     aws_profile: Optional[str] = Field(
         None,
         description='AWS profile name for this operation. Overrides the default credential chain.',
@@ -222,6 +233,9 @@ async def start_run(
         networking_mode: Optional networking mode (RESTRICTED or VPC)
         configuration_name: Optional configuration name (required when networking_mode is VPC)
         scratch_storage_mode: Optional scratch storage mode (LOCAL or SHARED); defaults to LOCAL
+        log_level: Optional log level for the run (OFF, FATAL, ERROR, or ALL).
+            Controls engine log capture to CloudWatch. Defaults to the HealthOmics API
+            default when omitted.
         aws_profile: Optional AWS profile name override
         aws_region: Optional AWS region override
 
@@ -301,6 +315,18 @@ async def start_run(
             'Invalid scratch storage mode',
         )
 
+    # Normalize log_level: only treat a real string as provided (guards against an
+    # unresolved Field default leaking through when called outside the MCP framework)
+    effective_log_level = log_level if isinstance(log_level, str) else None
+
+    # Validate log level
+    if effective_log_level is not None and effective_log_level not in RUN_LOG_LEVELS:
+        return await handle_tool_error(
+            ctx,
+            ValueError(ERROR_INVALID_RUN_LOG_LEVEL.format(RUN_LOG_LEVELS)),
+            'Invalid log level',
+        )
+
     # Ensure output URI ends with a slash
     try:
         output_uri = ensure_s3_uri_ends_with_slash(output_uri)
@@ -338,6 +364,10 @@ async def start_run(
         params['networkingMode'] = networking_mode
         params['configurationName'] = configuration_name
 
+    # Only set logLevel when provided, to preserve the HealthOmics API default otherwise
+    if effective_log_level is not None:
+        params['logLevel'] = effective_log_level
+
     try:
         response = client.start_run(**params)
 
@@ -356,6 +386,7 @@ async def start_run(
             if networking_mode is not None
             else NETWORKING_MODE_RESTRICTED,
             'scratchStorageMode': effective_scratch_storage_mode,
+            'logLevel': effective_log_level,
         }
     except Exception as e:
         return await handle_tool_error(ctx, e, 'Error starting run')

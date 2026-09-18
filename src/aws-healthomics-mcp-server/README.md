@@ -25,6 +25,7 @@ This MCP server provides tools for:
 - **Performance analysis**: Analyze workflow execution performance and resource utilization
 - **Failure diagnosis**: Comprehensive troubleshooting tools for failed workflow runs
 - **Log access**: Retrieve detailed logs from runs, engines, tasks, and manifests
+- **Vended metrics**: Query the fine-grained CPU, memory, GPU, network, filesystem I/O, and scratch-storage metrics that HealthOmics delivers into your account as CloudWatch OpenTelemetry metrics — retrieve time series, compare runs, aggregate across a workflow's runs, and get right-sizing suggestions
 
 ### 🔍 File Discovery and Search
 - **Genomics file search**: Intelligent discovery of genomics files across S3 buckets, HealthOmics sequence stores, and reference stores
@@ -58,12 +59,27 @@ This MCP server provides tools for:
 
 ### Analysis and Troubleshooting Tools
 
-1. **AnalyzeAHORunPerformance** - Analyze workflow run performance and resource utilization
+1. **AnalyzeAHORunPerformance** - Analyze workflow run performance and resource utilization from manifest data, enriched with a vended-metrics pass: per-task resource signatures and bottleneck categories (CPU/memory/GPU/I/O), stuck-task verdicts for active runs, and observed-peak right-sizing suggestions
 2. **DiagnoseAHORunFailure** - Comprehensive diagnosis of failed workflow runs with remediation suggestions
 3. **GetAHORunLogs** - Access high-level workflow execution logs and events
 4. **GetAHORunEngineLogs** - Retrieve workflow engine logs (STDOUT/STDERR) for debugging
 5. **GetAHORunManifestLogs** - Access run manifest logs with runtime information and metrics
 6. **GetAHOTaskLogs** - Get task-specific logs for debugging individual workflow steps
+
+### Vended Metrics Tools
+
+HealthOmics can deliver fine-grained run/task metrics (CPU, memory, GPU, network, run-filesystem I/O, and scratch storage) into your account as CloudWatch OpenTelemetry metrics. These tools query them through the CloudWatch PromQL API with your credentials. Availability varies with the run's storage configuration — the tools report expected absences with reasons instead of failing. Known limitations the tools surface automatically:
+
+- Metrics exist only for runs started after the vended-metrics production launch (2026-09-09); older runs fall back to manifest-based analysis
+- Tasks shorter than ~60 seconds may produce no datapoints (~30s sampling cadence)
+- Scratch storage usage is sampled every ~20 minutes (measuring it walks the filesystem), so short-lived scratch peaks can be missed
+- DYNAMIC (EFS) run-filesystem usage lags ~35 minutes; ingestion adds ~2 minutes end to end
+- Delivery is at-least-once, not guaranteed, so isolated gaps are possible
+
+1. **ListAHORunMetrics** - List which vended metric series actually exist for a run (per task), including which metrics are expected to be absent for the run's storage/scratch/GPU configuration and why. Use this first to detect availability.
+2. **GetAHORunMetrics** - Retrieve normalized time series and summary statistics for a run's metrics, with task, direction (read/write, receive/transmit), and time-window filtering. Counters report window totals and average rates; gauges report min/max/average/last.
+3. **CompareAHORunMetrics** - Compare two runs aligned by task name: wall-clock and per-task duration deltas plus the metric signatures with the largest changes. Useful for "why was this run slower?" and Static-vs-Dynamic storage comparisons.
+4. **GetAHOWorkflowMetrics** - Aggregate metrics across a workflow's recent completed runs into per-task-name distributions (p50/p90/max of durations and resource peaks) for right-sizing and regression detection.
 
 ### File Discovery Tools
 
@@ -194,6 +210,12 @@ When workflows fail, follow this diagnostic approach:
    - Use `AnalyzeAHORunPerformance` to identify resource bottlenecks
    - Review task resource utilization patterns
    - Optimize workflow parameters based on analysis results
+
+4. **Vended Metrics Analysis** (when available):
+   - Use `ListAHORunMetrics` first to check which metric series exist for a run — absence is often expected (feature launch date, storage configuration) and the tool explains why
+   - Use `GetAHORunMetrics` for point queries, graphing, and per-task aggregation; note that I/O metrics are task-level only (there is no run-level I/O metric) and DYNAMIC (EFS) run-filesystem usage lags ~35 minutes
+   - Use `CompareAHORunMetrics` to explain duration differences between two runs of the same workflow
+   - Use `GetAHOWorkflowMetrics` for right-sizing questions ("what local disk should I set?") based on observed p90/max usage across runs
 
 ### Workflow Linting and Validation
 
@@ -397,6 +419,47 @@ When tools return errors:
 - Use diagnostic tools to understand failure root causes
 - Provide clear, actionable error messages to users
 
+### Pagination
+
+Most `List*` tools, plus `ListECRRepositories`, `ListPullThroughCacheRules`,
+and `SearchGenomicsFiles`, add a `pagination` block to their response, in
+addition to whatever continuation field they already return. This does not
+cover every tool with "List" in its name: `ListAHORunMetrics` and the
+CloudWatch-log tools (`GetAHORunLogs`, `GetAHORunManifestLogs`,
+`GetAHORunEngineLogs`, `GetAHOTaskLogs`) drain their own pagination internally
+before returning and never carry this block.
+
+```json
+"pagination": {
+  "isComplete": false,
+  "returnedCount": 25,
+  "nextToken": "<echoed token>",
+  "instruction": "PARTIAL RESULTS -- this is one page, not the full set. ..."
+}
+```
+
+- `isComplete` is `false` whenever more results exist and `true` once they
+  don't -- the block is always present, on every page, so an AI assistant
+  never has to guess whether a response is the full result set.
+- `nextToken` is only present when `isComplete` is `false`, and echoes the
+  same token already in the response (`nextToken` or `next_token` for most
+  tools, `continuation_token` for `SearchGenomicsFiles`).
+- `instruction` is an imperative, tool-specific sentence naming the real
+  registered tool and its actual continuation parameter -- call that tool
+  again with the echoed token and repeat until `isComplete` is `true` before
+  answering questions about totals or "all" results.
+
+**Known limitation:** `ListAHORuns` with `created_after`/`created_before` set
+applies its date filter client-side after fetching a page and, if that leaves
+more matching runs than `max_results`, truncates without a continuation
+token (a pre-existing limitation, independent of this pagination block).
+When that happens `pagination.isComplete` will read `true` even though
+more matching runs exist; use a narrower date range or omit the date filter
+if you need guaranteed completeness.
+
+This block is additive: it never renames, moves, or removes an existing
+field.
+
 ## Installation
 
 | Kiro | Cursor | VS Code |
@@ -539,7 +602,9 @@ The following IAM permissions are required:
                 "omics:DeleteConfiguration",
                 "logs:DescribeLogGroups",
                 "logs:DescribeLogStreams",
-                "logs:GetLogEvents"
+                "logs:GetLogEvents",
+                "cloudwatch:GetMetricData",
+                "cloudwatch:ListMetrics"
             ],
             "Resource": "*"
         },

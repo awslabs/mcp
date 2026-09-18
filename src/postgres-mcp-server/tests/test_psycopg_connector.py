@@ -19,6 +19,8 @@ import threading
 import time
 from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import PsycopgPoolConnection
 from datetime import datetime, timedelta
+from psycopg import OperationalError
+from psycopg_pool import PoolTimeout
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -1113,3 +1115,395 @@ class TestPsycopgConnector:
         await conn.initialize_pool()
 
         mock_to_thread.assert_awaited_once_with(conn.get_iam_auth_token)
+
+
+class TestPsycopgTLS:
+    """TLS enforcement in the psycopg conninfo (sslmode=verify-full default + CA)."""
+
+    def _make_conn(self, ca_bundle_path=None, sslmode='verify-full'):
+        """Build a connection object without opening a pool."""
+        return PsycopgPoolConnection(
+            host='db.example.com',
+            port=5432,
+            database='test_db',
+            readonly=True,
+            secret_arn='arn:aws:secretsmanager:us-west-2:1:secret:x',  # pragma: allowlist secret
+            db_user='u',
+            region='us-west-2',
+            is_iam_auth=False,
+            is_test=True,
+            ca_bundle_path=ca_bundle_path,
+            sslmode=sslmode,
+        )
+
+    def _to_dict(self, conninfo):
+        from psycopg.conninfo import conninfo_to_dict
+
+        return conninfo_to_dict(conninfo)
+
+    def test_conninfo_enforces_verify_full(self):
+        """Every connection uses sslmode=verify-full and never the insecure default."""
+        conn = self._make_conn(ca_bundle_path='/tmp/my-ca.pem')
+        info = self._to_dict(conn._build_conninfo('secret-pw'))
+        assert info['sslmode'] == 'verify-full'
+        # Never libpq's insecure default, which allows a silent plaintext downgrade.
+        assert info['sslmode'] != 'prefer'
+        assert info['password'] == 'secret-pw'  # pragma: allowlist secret
+        assert info['host'] == 'db.example.com'
+
+    def test_ca_bundle_override_used(self):
+        """An operator-supplied --ca_bundle path is used as sslrootcert."""
+        conn = self._make_conn(ca_bundle_path='/tmp/my-ca.pem')
+        info = self._to_dict(conn._build_conninfo('pw'))
+        assert info['sslrootcert'] == '/tmp/my-ca.pem'
+
+    def test_bundled_ca_used_when_no_override(self, monkeypatch):
+        """With no override, the bundled combined AWS CA bundle is used."""
+        monkeypatch.setattr(
+            'awslabs.postgres_mcp_server.connection.psycopg_pool_connection._bundled_ca_file',
+            lambda: '/pkg/aws_ca_bundle.pem',
+        )
+        conn = self._make_conn(ca_bundle_path=None)
+        info = self._to_dict(conn._build_conninfo('pw'))
+        assert info['sslrootcert'] == '/pkg/aws_ca_bundle.pem'
+
+    def test_missing_bundle_no_override_fails_fast(self, monkeypatch):
+        """With neither override nor bundle, fail fast (no silent system fallback).
+
+        The system trust store cannot verify the RDS private CAs that direct
+        Aurora/RDS endpoints present, so falling back would be a guaranteed
+        connection failure disguised as a soft degrade. Raise with remediation.
+        """
+        monkeypatch.setattr(
+            'awslabs.postgres_mcp_server.connection.psycopg_pool_connection._bundled_ca_file',
+            lambda: None,
+        )
+        conn = self._make_conn(ca_bundle_path=None)
+        with pytest.raises(ValueError, match='No CA bundle available'):
+            conn._build_conninfo('pw')
+
+    def test_system_sentinel_requires_libpq_16(self, monkeypatch):
+        """--ca_bundle system on libpq < 16 fails fast (no phantom 'system' file)."""
+        import psycopg
+
+        # The guard calls psycopg.pq.version(); simulate an older libpq.
+        monkeypatch.setattr(psycopg.pq, 'version', lambda: 150000)
+        conn = self._make_conn(ca_bundle_path='system', sslmode='verify-full')
+        with pytest.raises(ValueError, match='requires libpq 16'):
+            conn._build_conninfo('pw')
+
+    def test_system_sentinel_allowed_on_libpq_16(self, monkeypatch):
+        """--ca_bundle system is accepted on libpq >= 16."""
+        import psycopg
+
+        monkeypatch.setattr(psycopg.pq, 'version', lambda: 160000)
+        conn = self._make_conn(ca_bundle_path='system', sslmode='verify-full')
+        info = self._to_dict(conn._build_conninfo('pw'))
+        assert info['sslrootcert'] == 'system'
+
+    def test_password_with_special_chars_is_escaped(self):
+        """make_conninfo safely quotes passwords containing spaces/quotes."""
+        conn = self._make_conn(ca_bundle_path='/tmp/ca.pem')
+        # Round-trips cleanly (would break a naive f-string conninfo).
+        info = self._to_dict(conn._build_conninfo("p ass'w\\ord"))
+        assert info['password'] == "p ass'w\\ord"
+        assert info['sslmode'] == 'verify-full'
+
+    def test_default_sslmode_is_verify_full(self):
+        """The class default (no sslmode passed) is verify-full.
+
+        verify-full closes the reported cleartext-credential gap (always
+        encrypted) and verifies both the CA chain and the hostname. The bundled
+        combined AWS CA verifies both the RDS private-CA and public-CA (ACM)
+        certificate families, so verify-full connects out of the box.
+        """
+        # Construct directly, omitting sslmode, to exercise the real class default.
+        conn = PsycopgPoolConnection(
+            host='db.example.com',
+            port=5432,
+            database='test_db',
+            readonly=True,
+            secret_arn='arn:aws:secretsmanager:us-west-2:1:secret:x',  # pragma: allowlist secret
+            db_user='u',
+            region='us-west-2',
+            is_iam_auth=False,
+            is_test=True,
+            ca_bundle_path='/tmp/ca.pem',
+        )
+        assert conn.sslmode == 'verify-full'
+        info = self._to_dict(conn._build_conninfo('pw'))
+        assert info['sslmode'] == 'verify-full'
+        # verify-full is a verifying mode, so the CA is attached.
+        assert info['sslrootcert'] == '/tmp/ca.pem'
+
+    def test_bundled_ca_file_missing_returns_none(self, monkeypatch, tmp_path):
+        """_bundled_ca_file returns None (and logs) when the bundle is absent on disk.
+
+        Point the bundle path at a nonexistent file and let the real
+        os.path.isfile run, rather than monkeypatching os.path.isfile itself:
+        os.path is the shared stdlib module (there is no module-local copy), so
+        patching it would make isfile return False process-wide and could flake
+        unrelated machinery (assertion rewriting, coverage, loguru sinks).
+        """
+        from awslabs.postgres_mcp_server.connection import psycopg_pool_connection as ppc
+
+        missing = tmp_path / 'no_such_aws_ca_bundle.pem'
+        monkeypatch.setattr(ppc, '_AWS_CA_BUNDLE_PATH', str(missing))
+        assert ppc._bundled_ca_file() is None
+
+    def _posture_log(self, conn) -> str:
+        """Invoke _log_tls_posture and return the captured INFO message."""
+        from loguru import logger
+
+        captured: list = []
+        sink_id = logger.add(captured.append, level='INFO', format='{message}')
+        try:
+            conn._log_tls_posture()
+        finally:
+            logger.remove(sink_id)
+        return ' '.join(str(m) for m in captured)
+
+    def test_log_tls_posture_require(self):
+        """Require mode logs an unverified trust anchor and the auth mode."""
+        conn = self._make_conn(ca_bundle_path='/tmp/ca.pem', sslmode='require')
+        conn.conninfo = conn._build_conninfo('pw')
+        msg = self._posture_log(conn)
+        assert 'sslmode=require' in msg
+        assert 'trust_anchor=none' in msg
+        assert 'auth=secrets_manager' in msg
+        assert 'endpoint=db.example.com:5432' in msg
+
+    def test_log_tls_posture_system_trust(self):
+        """--ca_bundle system logs the system trust store as the anchor."""
+        conn = self._make_conn(ca_bundle_path='system', sslmode='verify-ca')
+        conn.conninfo = conn._build_conninfo('pw')
+        assert 'trust_anchor=system trust store' in self._posture_log(conn)
+
+    def test_log_tls_posture_bundled_ca(self, monkeypatch):
+        """The bundled AWS CA is identified as the trust anchor."""
+        from awslabs.postgres_mcp_server.connection import psycopg_pool_connection as ppc
+
+        monkeypatch.setattr(ppc, '_bundled_ca_file', lambda: ppc._AWS_CA_BUNDLE_PATH)
+        conn = self._make_conn(ca_bundle_path=None, sslmode='verify-full')
+        conn.conninfo = conn._build_conninfo('pw')
+        assert 'bundled AWS CA' in self._posture_log(conn)
+
+    def test_log_tls_posture_operator_ca(self):
+        """An operator-supplied CA path is surfaced verbatim."""
+        conn = self._make_conn(ca_bundle_path='/tmp/private-ca.pem', sslmode='verify-full')
+        conn.conninfo = conn._build_conninfo('pw')
+        assert 'operator-supplied CA: /tmp/private-ca.pem' in self._posture_log(conn)
+
+    def test_log_tls_posture_iam_and_unparseable_conninfo(self):
+        """Unparseable conninfo falls back to '(none)', and IAM auth is reported."""
+        conn = self._make_conn(ca_bundle_path='/tmp/ca.pem', sslmode='verify-full')
+        conn.is_iam_auth = True
+        # Not a valid libpq conninfo -> conninfo_to_dict raises -> info={} path.
+        conn.conninfo = 'this is not a valid conninfo string ==='
+        msg = self._posture_log(conn)
+        assert 'auth=iam' in msg
+        assert 'trust_anchor=(none)' in msg
+
+    def test_require_encrypts_without_certificate_verification(self):
+        """sslmode=require encrypts but attaches no CA (no verification)."""
+        conn = self._make_conn(ca_bundle_path='/tmp/ca.pem', sslmode='require')
+        info = self._to_dict(conn._build_conninfo('pw'))
+        assert info['sslmode'] == 'require'
+        # require does not verify the cert, so no sslrootcert even if a bundle
+        # path was supplied.
+        assert 'sslrootcert' not in info
+
+    def test_verify_ca_attaches_ca_bundle(self):
+        """sslmode=verify-ca verifies the chain using the supplied CA."""
+        conn = self._make_conn(ca_bundle_path='/tmp/private-ca.pem', sslmode='verify-ca')
+        info = self._to_dict(conn._build_conninfo('pw'))
+        assert info['sslmode'] == 'verify-ca'
+        assert info['sslrootcert'] == '/tmp/private-ca.pem'
+
+    def test_ca_bundle_system_sentinel(self):
+        """--ca_bundle system selects the OS trust store for a verify mode."""
+        conn = self._make_conn(ca_bundle_path='system', sslmode='verify-full')
+        info = self._to_dict(conn._build_conninfo('pw'))
+        assert info['sslrootcert'] == 'system'
+
+    def test_invalid_sslmode_rejected(self):
+        """An unsupported sslmode fails closed rather than degrading silently."""
+        conn = self._make_conn(sslmode='prefer')
+        with pytest.raises(ValueError):
+            conn._build_conninfo('pw')
+
+    def test_option_b_excludes_plaintext_modes(self):
+        """The allowed set never permits an unencrypted connection."""
+        from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import (
+            ALLOWED_SSLMODES,
+            DEFAULT_SSLMODE,
+        )
+
+        assert set(ALLOWED_SSLMODES) == {'require', 'verify-ca', 'verify-full'}
+        for insecure in ('disable', 'allow', 'prefer'):
+            assert insecure not in ALLOWED_SSLMODES
+        # The default is an encrypted, CA-verifying mode (never plaintext).
+        assert DEFAULT_SSLMODE == 'verify-full'
+        assert DEFAULT_SSLMODE in ALLOWED_SSLMODES
+
+
+class TestTLSRemediationHint:
+    """Operator remediation surfaced when a TLS verification failure blocks the pool.
+
+    ``sslmode=verify-full`` is the default, so deployments that previously
+    connected under libpq's unverified ``prefer`` can start failing on an IP,
+    tunnel, or CNAME endpoint. Those failures are fixable with a flag, so the
+    hint has to name the flag; unrelated failures must stay silent.
+    """
+
+    def _hint(self, exc, sslmode='verify-full'):
+        from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import (
+            _tls_remediation_hint,
+        )
+
+        return _tls_remediation_hint(exc, sslmode)
+
+    def test_hostname_mismatch_recommends_verify_ca(self):
+        """A hostname mismatch points at --sslmode=verify-ca, not at disabling TLS."""
+        exc = OperationalError(
+            'connection failed: server certificate for "db.example.com" does not match '
+            'host name "10.0.1.5"'
+        )
+        hint = self._hint(exc)
+        assert hint is not None
+        assert '--sslmode=verify-ca' in hint
+        # Must not advertise a plaintext downgrade; no such mode is offered.
+        assert '--sslmode=disable' not in hint
+        assert '--sslmode=prefer' not in hint
+
+    def test_untrusted_chain_recommends_ca_bundle(self):
+        """An untrusted chain points at --ca_bundle before the weaker require mode."""
+        exc = OperationalError('SSL error: certificate verify failed')
+        hint = self._hint(exc)
+        assert hint is not None
+        assert '--ca_bundle' in hint
+        assert hint.index('--ca_bundle') < hint.index('--sslmode=require')
+
+    def test_self_signed_certificate_recommends_ca_bundle(self):
+        """A self-signed server certificate is the private-CA case."""
+        exc = OperationalError('SSL error: self-signed certificate in certificate chain')
+        hint = self._hint(exc)
+        assert hint is not None
+        assert '--ca_bundle' in hint
+
+    def test_unreadable_ca_file_recommends_checking_path(self):
+        """A missing CA file is a configuration error, not a trust decision."""
+        exc = OperationalError('root certificate file "/nope/ca.pem" does not exist')
+        hint = self._hint(exc)
+        assert hint is not None
+        assert '--ca_bundle' in hint
+
+    def test_tls_detail_on_wrapped_cause_is_found(self):
+        """TLS detail often sits on a wrapped cause, so the chain is walked, not str(exc)."""
+        cause = OperationalError('server certificate for "db" does not match host name "1.2.3.4"')
+        outer = RuntimeError('pool initialization incomplete')
+        outer.__cause__ = cause
+        hint = self._hint(outer)
+        assert hint is not None
+        assert '--sslmode=verify-ca' in hint
+
+    def test_non_tls_failure_returns_no_hint(self):
+        """An unreachable host or bad password must not be answered with TLS advice."""
+        assert self._hint(OperationalError('could not translate host name to address')) is None
+        assert self._hint(OperationalError('password authentication failed for user "u"')) is None
+        assert self._hint(PoolTimeout('pool initialization incomplete after 30 sec')) is None
+
+    def test_require_mode_returns_no_hint(self):
+        """sslmode=require verifies nothing, so a cert error there is not actionable."""
+        exc = OperationalError('SSL error: certificate verify failed')
+        assert self._hint(exc, sslmode='require') is None
+
+    def test_cyclic_exception_chain_terminates(self):
+        """A __context__ cycle must not hang the chain walk."""
+        first = OperationalError('one')
+        second = OperationalError('two')
+        first.__context__ = second
+        second.__context__ = first
+        assert self._hint(first) is None
+
+    @pytest.mark.asyncio
+    async def test_initialize_pool_logs_hint_and_preserves_exception(self):
+        """The hint is logged; the original exception type still propagates."""
+        exc = OperationalError(
+            'connection failed: server certificate for "db.example.com" does not match '
+            'host name "10.0.1.5"'
+        )
+        logged: list = []
+
+        with (
+            patch(
+                'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.AsyncConnectionPool'
+            ) as mock_pool_class,
+            patch.object(PsycopgPoolConnection, '_get_credentials_from_secret') as mock_get_creds,
+            patch(
+                'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.logger.error',
+                side_effect=lambda msg, *a, **k: logged.append(str(msg)),
+            ),
+        ):
+            mock_pool = AsyncMock()
+            mock_pool.open.side_effect = exc
+            mock_pool_class.return_value = mock_pool
+            mock_get_creds.return_value = ('db_user', 'db_password')
+
+            conn = PsycopgPoolConnection(
+                host='10.0.1.5',
+                port=5432,
+                database='test_db',
+                readonly=True,
+                secret_arn='arn:secret',
+                db_user='',
+                is_iam_auth=False,
+                region='us-east-1',
+                is_test=True,
+                ca_bundle_path='/tmp/ca.pem',
+            )
+
+            # The original exception type is preserved, not replaced by a wrapper.
+            with pytest.raises(OperationalError):
+                await conn.initialize_pool()
+
+        assert conn.pool is None
+        assert any('--sslmode=verify-ca' in message for message in logged)
+
+    @pytest.mark.asyncio
+    async def test_initialize_pool_stays_quiet_for_non_tls_failure(self):
+        """A non-TLS pool failure logs no TLS remediation."""
+        logged: list = []
+
+        with (
+            patch(
+                'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.AsyncConnectionPool'
+            ) as mock_pool_class,
+            patch.object(PsycopgPoolConnection, '_get_credentials_from_secret') as mock_get_creds,
+            patch(
+                'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.logger.error',
+                side_effect=lambda msg, *a, **k: logged.append(str(msg)),
+            ),
+        ):
+            mock_pool = AsyncMock()
+            mock_pool.open.side_effect = PoolTimeout('pool initialization incomplete after 30 sec')
+            mock_pool_class.return_value = mock_pool
+            mock_get_creds.return_value = ('db_user', 'db_password')
+
+            conn = PsycopgPoolConnection(
+                host='localhost',
+                port=5432,
+                database='test_db',
+                readonly=True,
+                secret_arn='arn:secret',
+                db_user='',
+                is_iam_auth=False,
+                region='us-east-1',
+                is_test=True,
+                ca_bundle_path='/tmp/ca.pem',
+            )
+
+            with pytest.raises(PoolTimeout):
+                await conn.initialize_pool()
+
+        assert not any('--sslmode' in message for message in logged)

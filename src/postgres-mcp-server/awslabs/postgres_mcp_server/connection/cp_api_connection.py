@@ -294,6 +294,7 @@ def internal_create_serverless_cluster(
     enable_cloudwatch_logs: bool = True,
     publicly_accessible: bool = False,
     vpc_security_group_ids: Optional[List[str]] = None,
+    enable_iam_auth: bool = False,
 ) -> Dict[str, Any]:
     """Create an Aurora PostgreSQL cluster with a single writer instance.
 
@@ -315,6 +316,12 @@ def internal_create_serverless_cluster(
         vpc_security_group_ids: Optional list of pre-existing VPC SGs to
             attach to the cluster. Test-only path. Default None lets RDS
             apply the VPC's default SG.
+        enable_iam_auth: Enable IAM database authentication on the cluster
+            (``EnableIAMDatabaseAuthentication``). Default False. This only
+            *permits* IAM token auth in addition to password auth; it does not
+            disable password auth, and it is a capability toggle — a DB role
+            still needs ``GRANT rds_iam`` plus an ``rds-db:connect`` IAM policy
+            to actually connect via IAM.
 
     Returns:
         Dictionary containing cluster information and secret ARN
@@ -363,6 +370,9 @@ def internal_create_serverless_cluster(
 
         if vpc_security_group_ids:
             cluster_params['VpcSecurityGroupIds'] = list(vpc_security_group_ids)
+
+        if enable_iam_auth:
+            cluster_params['EnableIAMDatabaseAuthentication'] = True
 
         cluster_params['ServerlessV2ScalingConfiguration'] = {
             'MinCapacity': min_capacity,
