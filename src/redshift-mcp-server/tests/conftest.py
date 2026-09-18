@@ -12,20 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 """Fixtures every test module gets, whether or not it touches the state they reset."""
 
 import pytest
+from awslabs.redshift_mcp_server import clusters as clusters_module
 from awslabs.redshift_mcp_server import redshift as redshift_module
 
 
 @pytest.fixture(autouse=True)
 def _reset_module_state():
-    """Clear the batch-denied latch and any open transaction, both module state."""
-    redshift_module._no_batch_since.clear()
-    redshift_module.transaction_manager._transactions.clear()
-    redshift_module.transaction_manager._locks.clear()
+    """Clear the batch-denied latch, any open transaction, and the resolved-cluster cache."""
+
+    def clear():
+        redshift_module._no_batch_since.clear()
+        redshift_module.transaction_manager._transactions.clear()
+        redshift_module.transaction_manager._locks.clear()
+        clusters_module._resolved.clear()
+
+    clear()
     yield
-    redshift_module._no_batch_since.clear()
-    redshift_module.transaction_manager._transactions.clear()
-    redshift_module.transaction_manager._locks.clear()
+    clear()

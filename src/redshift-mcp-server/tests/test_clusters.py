@@ -16,6 +16,7 @@
 """Tests for cluster discovery."""
 
 import pytest
+from awslabs.redshift_mcp_server import clusters as clusters_module
 from awslabs.redshift_mcp_server.clusters import discover_clusters, resolve_cluster
 from botocore.exceptions import ClientError
 from mcp.server.mcpserver.exceptions import ToolError
@@ -550,3 +551,80 @@ class TestAClusterHiddenByIam:
 
         assert 'not found' in str(raised.value)
         assert 'denied' not in str(raised.value)
+
+
+class TestResolveIsCached:
+    """Every statement resolves, so an uncached resolve taxed each one with the control plane."""
+
+    def _discovery(self, mocker):
+        """Wire discovery with one workgroup, and count how often it is asked."""
+        redshift_client = mocker.Mock()
+        redshift_client.get_paginator.return_value.paginate.return_value = [{'Clusters': []}]
+
+        serverless_client = mocker.Mock()
+        serverless_client.get_paginator.return_value.paginate.return_value = [
+            {
+                'workgroups': [
+                    {
+                        'workgroupName': 'wg',
+                        'status': 'AVAILABLE',
+                        'creationDate': '2024-01-01T00:00:00Z',
+                    }
+                ]
+            }
+        ]
+        serverless_client.get_workgroup.return_value = {
+            'workgroup': {
+                'endpoint': {
+                    'address': 'wg.serverless.amazonaws.com',
+                    'port': 5439,
+                    'vpcEndpoints': [{'vpcId': 'vpc-1'}],
+                },
+                'publiclyAccessible': False,
+                'tags': [],
+            }
+        }
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_client',
+            return_value=redshift_client,
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_serverless_client',
+            return_value=serverless_client,
+        )
+        return serverless_client
+
+    @pytest.mark.asyncio
+    async def test_a_second_resolve_asks_nothing(self, mocker):
+        """The identifier and the type are what a resolve needs, and neither changes."""
+        serverless_client = self._discovery(mocker)
+
+        first = await resolve_cluster('wg')
+        second = await resolve_cluster('wg')
+
+        assert second is first
+        assert serverless_client.get_paginator.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_the_cache_expires(self, mocker):
+        """Bounded, so a cluster that changes kind is not believed forever."""
+        serverless_client = self._discovery(mocker)
+        await resolve_cluster('wg')
+
+        mocker.patch('awslabs.redshift_mcp_server.clusters.CLUSTER_RESOLVE_TTL', 0)
+        await resolve_cluster('wg')
+
+        assert serverless_client.get_paginator.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_a_miss_is_not_cached(self, mocker):
+        """Otherwise a cluster created after the first failed lookup stayed invisible."""
+        self._discovery(mocker)
+
+        with pytest.raises(ToolError, match='not found'):
+            await resolve_cluster('appears-later')
+
+        assert 'appears-later' not in clusters_module._resolved
+        # And the successful entries from that same sweep were kept.
+        assert 'wg' in clusters_module._resolved

@@ -15,11 +15,18 @@
 """Which warehouses exist, asked of the control plane rather than of a warehouse."""
 
 import asyncio
+import time
 from awslabs.redshift_mcp_server.clients import ACCESS_DENIED, client_manager
+from awslabs.redshift_mcp_server.consts import CLUSTER_RESOLVE_TTL
 from awslabs.redshift_mcp_server.models import RedshiftCluster
 from botocore.exceptions import ClientError
 from loguru import logger
 from mcp.server.mcpserver.exceptions import ToolError
+
+
+# Identifier to the moment it was resolved and what it resolved to. Bounded by the number of
+# clusters in the account, not by anything a caller chooses.
+_resolved: dict[str, tuple[float, RedshiftCluster]] = {}
 
 
 def _fetch_provisioned_clusters() -> list[dict]:
@@ -202,6 +209,11 @@ async def discover_clusters(denied_sink: set[str] | None = None) -> list[Redshif
 async def resolve_cluster(cluster_identifier: str) -> RedshiftCluster:
     """Resolve a cluster identifier to its discovered cluster.
 
+    Cached for CLUSTER_RESOLVE_TTL seconds. Every statement resolves, and discovery costs a
+    DescribeClusters, a ListWorkgroups and a GetWorkgroup per workgroup - eleven times over in
+    one review_cluster. Staleness is safe: a resolve needs the identifier and the type, which do
+    not change while a cluster lives.
+
     Args:
         cluster_identifier: The cluster identifier to resolve.
 
@@ -211,9 +223,21 @@ async def resolve_cluster(cluster_identifier: str) -> RedshiftCluster:
     Raises:
         ToolError: If no discovered cluster carries that identifier.
     """
-    denied: set[str] = set()
+    cached = _resolved.get(cluster_identifier)
+    if cached is not None and time.monotonic() - cached[0] < CLUSTER_RESOLVE_TTL:
+        return cached[1]
 
-    for cluster in await discover_clusters(denied_sink=denied):
+    denied: set[str] = set()
+    discovered = await discover_clusters(denied_sink=denied)
+
+    # Every entry is cached, not just the one asked for, since the call that found them has
+    # already been paid for. A miss caches nothing, so a cluster that appears later is found on
+    # the next resolve rather than after this expires.
+    now = time.monotonic()
+    for cluster in discovered:
+        _resolved[cluster.identifier] = (now, cluster)
+
+    for cluster in discovered:
         if cluster.identifier == cluster_identifier:
             return cluster
 

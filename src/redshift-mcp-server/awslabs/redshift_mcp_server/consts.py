@@ -47,3 +47,6 @@ FALLBACK_NO_BATCH_REPROBE = 300
 
 # Maximum SQL length accepted before parsing; longer input is rejected (fail closed).
 MAX_SQL_LEN = 65_536
+
+# How long a resolved cluster identifier stays usable without asking the control plane again.
+CLUSTER_RESOLVE_TTL = 300
