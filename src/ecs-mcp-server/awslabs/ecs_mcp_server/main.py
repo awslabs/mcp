@@ -234,6 +234,13 @@ def main() -> None:
         # Start the server
         logger = _setup_logging()
 
+        logger.warning(
+            "DEPRECATION: The local Amazon ECS MCP Server is deprecated and will be "
+            "archived; it no longer receives updates. Migrate to the Agent Toolkit for "
+            "AWS, which bundles the AWS MCP Server and the aws-containers skill. See "
+            "docs/migration-ecs.md for migration instructions."
+        )
+
         logger.info("Server started")
         logger.info(f"Write operations enabled: {_config.get('allow-write', False)}")
         logger.info(f"Sensitive data access enabled: {_config.get('allow-sensitive-data', False)}")
