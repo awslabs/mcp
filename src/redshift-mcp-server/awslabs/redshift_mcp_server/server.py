@@ -765,6 +765,8 @@ async def review_cluster_tool(
     triggered, with a recommendation for each. Provisioned-only diagnostics are skipped
     automatically for a serverless workgroup.
 
+    Can take minutes: the diagnostics run one at a time.
+
     ## Reading the result
 
     - signals_evaluated: how many signals ran.

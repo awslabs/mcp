@@ -129,6 +129,8 @@ or docker after a successful `docker build -t awslabs/redshift-mcp-server:latest
 - `SESSION_KEEPALIVE`: How long an open transaction may sit idle before Redshift ends it, in seconds (optional, defaults to `600`, maximum `86400`). Only transactions are affected; a statement outside one holds nothing open. See [Transactions](#transactions).
 - `MAX_OPEN_TRANSACTIONS_PER_TARGET`: How many transactions may be open at once against one cluster and database (optional, defaults to `10`).
 
+The log carries statement content: `DEBUG` writes every statement's full SQL, so a `CREATE USER ... PASSWORD` lands verbatim, and `ERROR` — included by the default `WARNING` — carries the engine's message, which quotes the offending value or relation. Treat `LOG_FILE` as holding the statements themselves.
+
 ## Prompt Examples
 
 ### Discovery Workflow
