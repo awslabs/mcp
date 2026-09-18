@@ -1910,3 +1910,56 @@ class TestTruncationHintNamesTheServedPage:
             patcher.stop()
         assert 'Table truncated' in result
         assert f'search_table(url="{served}"' in result
+
+
+class TestReadSectionsOutputShape:
+    """read_sections heads its output the same way whether or not a substitution occurred."""
+
+    def _response(self, landed):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = (
+            '<html><body><main><h2>Service endpoints</h2><p>Prose here.</p></main></body></html>'
+        )
+        mock_response.headers = {'content-type': 'text/html'}
+        mock_response.url = landed
+        return mock_response
+
+    def _client_for(self, mock_response):
+        patcher = patch('httpx.AsyncClient')
+        mock_client_class = patcher.start()
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client_class.return_value = mock_client
+        return patcher
+
+    @pytest.mark.asyncio
+    async def test_header_present_without_a_substitution(self):
+        """A direct read is still headed by the page it came from."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/sts.html'
+        patcher = self._client_for(self._response(url))
+        try:
+            result = await read_sections_impl(ctx, url, ['Service endpoints'], 'test-uuid')
+        finally:
+            patcher.stop()
+        assert result.startswith(f'AWS Documentation from {url}:')
+        assert '<e>' not in result
+
+    @pytest.mark.asyncio
+    async def test_header_present_with_a_substitution(self):
+        """A substitution adds the note above the same header, not instead of it."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        requested = 'https://docs.aws.amazon.com/general/latest/gr/old.html'
+        served = 'https://docs.aws.amazon.com/general/latest/gr/new.html'
+        patcher = self._client_for(self._response(served))
+        try:
+            result = await read_sections_impl(ctx, requested, ['Service endpoints'], 'test-uuid')
+        finally:
+            patcher.stop()
+        assert result.startswith(f'<e>Requested {requested}; served {served}.</e>')
+        assert f'AWS Documentation from {served}:' in result

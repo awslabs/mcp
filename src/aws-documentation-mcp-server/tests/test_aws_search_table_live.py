@@ -193,4 +193,7 @@ async def test_endpoint_rows_are_real_data():
         row = rows[0]
         assert row['Region'] == 'us-east-2'
         assert row['Region Name'] != 'Region Name'
-        assert 'sts.us-east-2.amazonaws.com' in row['Endpoint']
+        # fused values would be one element, so a split of 2+ is the delimiter working
+        endpoints = row['Endpoint'].split('; ')
+        assert len(endpoints) >= 2, f'endpoints did not split: {endpoints}'
+        assert all('us-east-2' in e for e in endpoints), endpoints

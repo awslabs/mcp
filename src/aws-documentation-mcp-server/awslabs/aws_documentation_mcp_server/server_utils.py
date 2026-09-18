@@ -312,8 +312,9 @@ async def read_sections_impl(
         await ctx.error(error_msg)
         raise
 
+    markdown = f'AWS Documentation from {page.served}:\n\n{markdown}'
     if note := page.message():
-        markdown = f'<e>{note}</e>\n\nAWS Documentation from {page.served}:\n\n{markdown}'
+        markdown = f'<e>{note}</e>\n\n{markdown}'
 
     return markdown
 

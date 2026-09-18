@@ -53,7 +53,7 @@ def has_readable_text(soup) -> bool:
     return any(
         text.strip()
         for text in body.find_all(string=True)
-        # a comment is markup, and prose can sit several levels inside a <noscript>
+        # comments are markup; <noscript> prose can be nested several levels down
         if not isinstance(text, Comment)
         and text.find_parent(['script', 'style', 'noscript']) is None
     )
@@ -127,7 +127,7 @@ def extract_content_from_html(html: str) -> str:
             for element in main_content.select(selector):
                 element.decompose()
 
-        # markdownify's strip= drops the tag but keeps its text, so these go outright
+        # strip= keeps a tag's text, so remove these outright
         for selector in ('script', 'style'):
             for element in main_content.select(selector):
                 element.decompose()
