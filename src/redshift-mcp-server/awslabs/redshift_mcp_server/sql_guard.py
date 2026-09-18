@@ -167,8 +167,9 @@ def _parse(sql: str) -> list[exp.Expression]:
         sql: The raw SQL submitted by the caller.
 
     Returns:
-        Parsed statements, excluding empty (``None``) fragments from stray
-        semicolons or comment/whitespace-only input.
+        Parsed statements, with the fragments that are nothing to run dropped. A stray
+        semicolon or comment-only input usually parses as ``None``, and a comment followed
+        by a semicolon as a `Semicolon` node; neither carries a statement.
 
     Raises:
         ToolError: via `_reject` on any sqlglot error (parse/tokenize, or
@@ -179,7 +180,11 @@ def _parse(sql: str) -> list[exp.Expression]:
         statements = sqlglot.parse(sql, read='redshift')
     except Exception as e:
         _reject('SQL could not be parsed', cause=e)
-    return [statement for statement in statements if statement is not None]
+    return [
+        statement
+        for statement in statements
+        if statement is not None and not isinstance(statement, exp.Semicolon)
+    ]
 
 
 # --- Read-only deny-list ---

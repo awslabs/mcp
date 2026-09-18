@@ -293,8 +293,30 @@ class TestMultiStatement:
 
     @pytest.mark.parametrize(
         'sql',
-        ['', '   ', '\n\t ', ';', '-- just a comment', '/* nothing here */'],
-        ids=['empty', 'spaces', 'whitespace', 'semicolon', 'line_comment', 'block_comment'],
+        [
+            '',
+            '   ',
+            '\n\t ',
+            ';',
+            ';;',
+            '-- just a comment',
+            '/* nothing here */',
+            # A comment before a semicolon parses as a Semicolon node rather than None, so it
+            # outlived a filter that only dropped None and was submitted as a no-op.
+            '-- nothing here\n;',
+            '/* nothing here */ ;',
+        ],
+        ids=[
+            'empty',
+            'spaces',
+            'whitespace',
+            'semicolon',
+            'two_semicolons',
+            'line_comment',
+            'block_comment',
+            'line_comment_then_semicolon',
+            'block_comment_then_semicolon',
+        ],
     )
     def test_a_statement_that_is_absent_is_refused_as_absent(self, sql):
         """Nothing to run is the opposite of too much to run, and must not read as it.
