@@ -278,9 +278,10 @@ def _normalize_dsql_syntax(sql: str, postgres_parse_failed: bool = False) -> str
     if not postgres_parse_failed:
         try:
             parse_sql(sql)
-            return sql
         except Exception:
-            pass
+            logger.debug('Checking PostgreSQL parse failure for recognized DSQL syntax')
+        else:
+            return sql
 
     tokens = _significant_tokens(sql)
     core_tokens = tokens[:-1] if tokens and tokens[-1].name == 'ASCII_59' else tokens
