@@ -184,7 +184,7 @@ def extract_content_from_html(html: str) -> str:
             strip=tags_to_strip,
         )
 
-        if not content:
+        if not content.strip():
             raise UnreadablePageError('Page failed to be simplified from HTML')
 
         return content
@@ -304,10 +304,10 @@ def extract_sections_from_html(html: str, section_titles: List[str]) -> str:
     found_sections = set()
 
     for h2 in h2_tags:
-        h2_text = h2.get_text(strip=True)
+        h2_text = ' '.join(h2.get_text().split())
         available_level2_sections.append(h2_text)
 
-        normalized_h2 = ' '.join(h2_text.lower().split())
+        normalized_h2 = h2_text.lower()
 
         if normalized_h2 in normalized_titles:
             section_content = [h2]

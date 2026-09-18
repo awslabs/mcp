@@ -202,7 +202,9 @@ class TestGetAvailableServices:
         assert 'Amazon Simple Storage Service' in result
         assert 'Amazon Elastic Compute Cloud' in result
         assert '## Services in Amazon Web Services China' in result
-        assert '<e>' in result
+        # the read failure is reported, not dropped, and not tagged as an error marker
+        assert 'Note: Page failed to be simplified from HTML' in result
+        assert '<e>' not in result
 
     @pytest.mark.asyncio
     async def test_get_available_services_error(self):

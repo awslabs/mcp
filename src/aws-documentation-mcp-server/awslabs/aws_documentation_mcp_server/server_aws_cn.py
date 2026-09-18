@@ -240,7 +240,7 @@ async def get_available_services(
         except UnreadablePageError as e:
             logger.error(f'Failed to read {url_str}: {e}')
             await ctx.error(f'Failed to read {url_str}: {e}')
-            content = f'<e>{e}</e>'
+            content = f'Note: {e}'
     else:
         content = page_raw
 

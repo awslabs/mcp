@@ -98,9 +98,17 @@ def _strip_callout_titles(cell: Tag) -> None:
         title.decompose()
 
 
+def _replace_images_with_alt(cell: Tag) -> None:
+    """Substitute an image's alt text, which is the only place its meaning is written down."""
+    for img in (i for i in cell.find_all('img') if isinstance(i, Tag)):
+        alt = str(img.get('alt', '')).strip()
+        img.replace_with(NavigableString(f' {alt} ' if alt else ''))
+
+
 def _cell_text(cell: Tag) -> str:
     """Extract cell text, joining multi-value cells with '; '."""
     _strip_callout_titles(cell)
+    _replace_images_with_alt(cell)
     _mark_preformatted_lines(cell)
     _mark_breaks(cell)
     return _join_values(cell.get_text())
@@ -354,10 +362,16 @@ def _extract_table_data(table: Tag) -> Optional[dict]:
 
     tbody_elements = [tb for tb in table.find_all('tbody') if isinstance(tb, Tag)]
     if not tbody_elements:
+        # AWS tables carry a <thead> and no <tbody>, so the whole table is the row source
+        # and the header row has to be excluded explicitly or it parses as data
         tbody_elements = [table]
     all_trs: list[Tag] = []
     for tbody in tbody_elements:
-        all_trs.extend(tr for tr in tbody.find_all('tr') if isinstance(tr, Tag))
+        all_trs.extend(
+            tr
+            for tr in tbody.find_all('tr')
+            if isinstance(tr, Tag) and tr.find_parent('thead') is None
+        )
 
     for tr in all_trs:
         cells = [c for c in tr.find_all(['td', 'th']) if isinstance(c, Tag)]
@@ -483,6 +497,7 @@ def _cell_to_text(cell: Tag) -> str:
 
     # Build text with markdown links
     _strip_callout_titles(cell)
+    _replace_images_with_alt(cell)
     _mark_preformatted_lines(cell)
     _mark_breaks(cell)
     parts: list[str] = []

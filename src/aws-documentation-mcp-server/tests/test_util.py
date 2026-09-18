@@ -1050,3 +1050,47 @@ class TestShellPagesDoNotSimplify:
         html = '<html><body><main><h1>Title</h1><p>Real prose here.</p></main></body></html>'
         result = extract_content_from_html(html)
         assert 'Real prose here.' in result
+
+
+class TestSectionTitleMatching:
+    """A caller passing a rendered heading finds the section, whatever markup it contains."""
+
+    HTML = (
+        '<html><body><main>'
+        '<h2>Using the <code>Switch Role</code> API</h2><p>First body.</p>'
+        '<h2>Plain Heading</h2><p>Second body.</p>'
+        '</main></body></html>'
+    )
+
+    def test_a_heading_with_inline_markup_is_matchable(self):
+        """The rendered text of the heading is what a caller can see and pass."""
+        result = extract_sections_from_html(self.HTML, ['Using the Switch Role API'])
+        assert 'First body.' in result
+        assert 'Second body.' not in result
+
+    def test_available_sections_are_reported_readably(self):
+        """A miss lists titles a caller can actually retry with."""
+        with pytest.raises(ValueError) as excinfo:
+            extract_sections_from_html(self.HTML, ['No Such Section'])
+        message = str(excinfo.value)
+        assert 'Using the Switch Role API' in message
+        assert 'UsingtheSwitchRoleAPI' not in message
+
+    def test_a_plain_heading_still_matches(self):
+        """The normalizer does not disturb headings without markup."""
+        result = extract_sections_from_html(self.HTML, ['Plain Heading'])
+        assert 'Second body.' in result
+
+
+class TestWhitespaceOnlyBody:
+    """Markup that converts to nothing but whitespace is not a successful read."""
+
+    def test_line_breaks_alone_are_not_content(self):
+        """A body of <br> converts to spaces and newlines, which is not prose."""
+        with pytest.raises(UnreadablePageError):
+            extract_content_from_html('<html><body><br><br></body></html>')
+
+    def test_empty_paragraphs_are_not_content(self):
+        """Paragraphs holding only whitespace are not prose either."""
+        with pytest.raises(UnreadablePageError):
+            extract_content_from_html('<html><body><p> </p><p>  </p></body></html>')

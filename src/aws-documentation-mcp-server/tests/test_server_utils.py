@@ -1848,3 +1848,65 @@ class TestResponseNamesThePageItRead:
             with pytest.raises(ValueError) as excinfo:
                 await search_table_impl(ctx, url, None, 'q', 20, 'test-uuid')
         assert excinfo.value.__cause__ is original
+
+
+class TestTruncationHintNamesTheServedPage:
+    """A truncated table suggests a follow-up call, which must land on the page read."""
+
+    def _response(self, text, landed):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = text
+        mock_response.headers = {'content-type': 'text/html'}
+        mock_response.url = landed
+        return mock_response
+
+    def _client_for(self, mock_response):
+        patcher = patch('httpx.AsyncClient')
+        mock_client_class = patcher.start()
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client_class.return_value = mock_client
+        return patcher
+
+    def _big_table_page(self):
+        rows = ''.join(f'<tr><td>row{i}</td><td>val{i}</td></tr>' for i in range(40))
+        return (
+            '<html><body><main><h2>Endpoints</h2><table><thead><tr><th>Name</th><th>Value</th>'
+            f'</tr></thead><tbody>{rows}</tbody></table></main></body></html>'
+        )
+
+    @pytest.mark.asyncio
+    async def test_read_documentation_hint_names_the_served_page(self):
+        """After a rename the suggested search_table call points at the new URL."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        requested = 'https://docs.aws.amazon.com/general/latest/gr/old-name.html'
+        served = 'https://docs.aws.amazon.com/general/latest/gr/new-name.html'
+        patcher = self._client_for(self._response(self._big_table_page(), served))
+        try:
+            result = await read_documentation_impl(ctx, requested, 50000, 0, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert 'Table truncated' in result, (
+            'the table must actually truncate for this to mean anything'
+        )
+        assert f'search_table(url="{served}"' in result
+        assert f'search_table(url="{requested}"' not in result
+
+    @pytest.mark.asyncio
+    async def test_read_sections_hint_names_the_served_page(self):
+        """read_sections carries the same suggestion and the same URL."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        requested = 'https://docs.aws.amazon.com/general/latest/gr/old-name.html'
+        served = 'https://docs.aws.amazon.com/general/latest/gr/new-name.html'
+        patcher = self._client_for(self._response(self._big_table_page(), served))
+        try:
+            result = await read_sections_impl(ctx, requested, ['Endpoints'], 'test-uuid')
+        finally:
+            patcher.stop()
+        assert 'Table truncated' in result
+        assert f'search_table(url="{served}"' in result

@@ -1791,3 +1791,111 @@ class TestLeadingCallout:
     def test_a_cell_that_is_only_a_callout(self):
         """With nothing to qualify, the prose is the value."""
         assert self._cell(self.NOTE) == 'caveat'
+
+
+class TestHeadWithoutBodyShape:
+    """AWS tables carry a <thead> and no <tbody>, so the header row must not parse as data."""
+
+    def _live_shape(self, rows):
+        """A table in the shape docs.aws.amazon.com actually serves: thead, no tbody."""
+        return (
+            '<html><body><h2>Service endpoints</h2><table>'
+            '<thead><tr><th>Region Name</th><th>Region</th><th>Endpoint</th></tr></thead>'
+            f'{rows}</table></body></html>'
+        )
+
+    def test_header_row_is_not_returned_as_data(self):
+        """The column names must not appear as a row."""
+        html = self._live_shape(
+            '<tr><td>US East (Ohio)</td><td>us-east-2</td><td>sts.us-east-2.amazonaws.com</td></tr>'
+        )
+        result = parse_html_tables(html, 'Service endpoints')
+        assert result is not None
+        assert len(result['rows']) == 1
+        assert result['rows'][0]['Region Name'] == 'US East (Ohio)'
+
+    def test_a_query_matching_column_names_finds_nothing(self):
+        """Searching for the header words must not surface a phantom row."""
+        html = self._live_shape(
+            '<tr><td>US East (Ohio)</td><td>us-east-2</td><td>sts.us-east-2.amazonaws.com</td></tr>'
+        )
+        result = parse_html_tables(html, 'Service endpoints')
+        assert result is not None
+        assert filter_table_rows(result['rows'], 'Region Name Endpoint') == []
+
+    def test_row_count_matches_the_data_rows(self):
+        """Every data row is kept and nothing extra is added."""
+        rows = ''.join(f'<tr><td>n{i}</td><td>r{i}</td><td>e{i}</td></tr>' for i in range(12))
+        result = parse_html_tables(self._live_shape(rows), 'Service endpoints')
+        assert result is not None
+        assert len(result['rows']) == 12
+
+    def test_multi_value_cells_still_delimit_without_a_tbody(self):
+        """The delimiter fix applies to the live shape too."""
+        html = self._live_shape(
+            '<tr><td>US East (Ohio)</td><td>us-east-2</td>'
+            '<td><p>sts.us-east-2.amazonaws.com</p><p>sts.us-east-2.api.aws</p></td></tr>'
+        )
+        result = parse_html_tables(html, 'Service endpoints')
+        assert result is not None
+        assert result['rows'][0]['Endpoint'] == (
+            'sts.us-east-2.amazonaws.com; sts.us-east-2.api.aws'
+        )
+
+    def test_rowspan_grouping_works_without_a_tbody(self):
+        """Nested output is built from the same row source."""
+        html = (
+            '<html><body><h2>Actions</h2><table>'
+            '<thead><tr><th>Action</th><th>Level</th><th>Resource</th></tr></thead>'
+            '<tr><td rowspan="2">RunInstances</td><td rowspan="2">Write</td><td>image*</td></tr>'
+            '<tr><td>instance*</td></tr>'
+            '</table></body></html>'
+        )
+        result = parse_html_tables(html, 'Actions')
+        assert result is not None
+        assert 'error' not in result
+        group = next(r for r in result['rows'] if r.get('Action') == 'RunInstances')
+        assert len(group['rows']) == 2
+
+    def test_an_explicit_tbody_is_still_honoured(self):
+        """Pages that do supply a tbody keep working."""
+        html = (
+            '<html><body><h2>S</h2><table>'
+            '<thead><tr><th>A</th></tr></thead><tbody><tr><td>1</td></tr></tbody>'
+            '</table></body></html>'
+        )
+        result = parse_html_tables(html, 'S')
+        assert result is not None
+        assert len(result['rows']) == 1
+        assert result['rows'][0]['A'] == '1'
+
+
+class TestImageAltText:
+    """An icon's meaning lives only in its alt text, so the cell has to carry it."""
+
+    def _cell(self, inner):
+        html = (
+            f'<html><body><h2>S</h2><table><thead><tr><th>Val</th></tr></thead>'
+            f'<tr><td>{inner}</td></tr></table></body></html>'
+        )
+        table = parse_html_tables(html, 'S')
+        assert table is not None
+        return table['rows'][0]['Val']
+
+    def test_unsupported_and_supported_icons_are_distinguishable(self):
+        """Two rows that differ only by icon must not read identically."""
+        no = self._cell('<img src="/icon-no.png" alt="icon meaning not supported"/> Audio')
+        yes = self._cell('<img src="/icon-yes.png" alt="icon meaning supported"/> Audio')
+        assert no != yes
+        assert no == 'icon meaning not supported Audio'
+        assert yes == 'icon meaning supported Audio'
+
+    def test_an_image_without_alt_contributes_nothing(self):
+        """A decorative image adds no text and introduces no delimiter."""
+        assert self._cell('<img src="/spacer.png"/> Audio') == 'Audio'
+
+    def test_alt_text_survives_the_link_path(self):
+        """A cell holding both an image and a link keeps both."""
+        assert self._cell('<img src="/i.png" alt="supported"/> <a href="m.html">Model</a>') == (
+            'supported [Model](m.html)'
+        )
