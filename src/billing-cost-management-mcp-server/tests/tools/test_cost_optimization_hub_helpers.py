@@ -1561,6 +1561,9 @@ def test_pareto_cap_hit_skips_cutoff_and_discloses_top_spenders():
     # No cutoff -> both scored groups kept, ranked by score desc (default direction).
     assert [g['group'] for g in material] == ['A', 'B']
     assert focus['material_groups'] == 2
+    assert focus['material_spend'] == 100000.0
+    # Capped -> total_spend covers only the fetched subset, so no org-wide share.
+    assert focus['material_spend_fraction'] is None
     # The partial view is signaled by structured flags, not a prose note.
     assert 'note' not in focus
 
@@ -1576,7 +1579,33 @@ def test_pareto_no_cap_hit_applies_cutoff():
     assert focus['pareto_applied'] is True
     assert focus['pareto_spend_fraction'] == 0.80
     assert focus['groups_fetched'] is None
+    assert focus['material_spend'] == 60000.0
+    # Only group kept, so its share of total spend is 100%.
+    assert focus['material_spend_fraction'] == 1.0
     assert 'note' not in focus
+
+
+def test_pareto_material_spend_fraction_is_actual_share_not_cutoff():
+    """material_spend_fraction is the kept groups' TRUE cumulative share of spend.
+
+    It can exceed the 0.80 selection cutoff -- a dominant account alone can be
+    ~90%. This is the real number the caller states instead of the
+    pareto_spend_fraction cutoff (the bug that reported a flat "~80%").
+    """
+    groups = [
+        _flat_group('main', 90000.0, 80.0),
+        _flat_group('small1', 6000.0, 99.0),
+        _flat_group('small2', 4000.0, 99.0),
+    ]
+    material, focus = _apply_pareto_materiality(groups, 0.80)
+    # One dominant account already clears the 80% cutoff, so only it is kept.
+    assert [g['group'] for g in material] == ['main']
+    assert focus['material_groups'] == 1
+    assert focus['total_spend'] == 100000.0
+    assert focus['material_spend'] == 90000.0
+    # ACTUAL share (0.90), not the 0.80 selection cutoff.
+    assert focus['material_spend_fraction'] == pytest.approx(0.90)
+    assert focus['pareto_spend_fraction'] == 0.80
 
 
 def test_pareto_direction_asc_ranks_worst_first():

@@ -506,7 +506,12 @@ def _apply_pareto_materiality(
 
     Returns ``(ranked_groups, ranking_focus)`` where ``ranking_focus`` is metadata
     describing what was kept vs. set aside (so the caller can explain it without
-    misreporting omitted/unfetched groups as "missing").
+    misreporting omitted/unfetched groups as "missing"). ``ranking_focus`` also
+    carries ``material_spend`` (the kept groups' combined latest spend) and
+    ``material_spend_fraction`` (their ACTUAL cumulative share of ``total_spend``,
+    a real number to state instead of the ``pareto_spend_fraction`` cutoff) -- the
+    fraction is ``None`` when capped, because ``total_spend`` then covers only the
+    fetched top-spenders, not the whole org.
     """
     scored = []  # (group, latest_spend, latest_score)
     for group in groups:
@@ -544,6 +549,13 @@ def _apply_pareto_materiality(
     ranked_groups = [group for group, _, _ in material]
 
     omitted = len(scored) - len(ranked_groups)
+    material_spend = sum(spend for _, spend, _ in material)
+    # Kept groups' true share of total_spend. Only meaningful when the cutoff was
+    # applied (total_spend is the full scored-set total); when capped it covers
+    # only fetched top spenders, so leave it None rather than read as ~100%.
+    material_spend_fraction = (
+        material_spend / total_spend if pareto_applied and total_spend > 0 else None
+    )
     ranking_focus = {
         'mode': EFFICIENCY_RANKING_MODE_PERFORMANCE,
         'direction': direction,
@@ -553,6 +565,8 @@ def _apply_pareto_materiality(
         'material_groups': len(ranked_groups),
         'omitted_groups': omitted,
         'total_spend': total_spend,
+        'material_spend': material_spend,
+        'material_spend_fraction': material_spend_fraction,
         'cap_hit': bool(cap_hit),
         'groups_fetched': groups_fetched,
     }
