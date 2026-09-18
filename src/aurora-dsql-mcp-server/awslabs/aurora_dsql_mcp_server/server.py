@@ -59,6 +59,7 @@ from awslabs.aurora_dsql_mcp_server.mutable_sql_detector import (
     detect_mutating_keywords,
     detect_transaction_bypass_attempt,
 )
+from awslabs.aurora_dsql_mcp_server.sql_guard import SqlPolicyError, assert_executable
 from botocore.config import Config
 from loguru import logger
 from mcp.server.mcpserver import Context, MCPServer
@@ -220,6 +221,16 @@ async def readonly_query(
         logger.warning(f'readonly_query rejected due to transaction bypass attempt, SQL: {sql}')
         await ctx.error(ERROR_TRANSACTION_BYPASS_ATTEMPT)
         raise Exception(ERROR_TRANSACTION_BYPASS_ATTEMPT)
+
+    # Parse with PostgreSQL's own grammar after the legacy heuristic checks.
+    # This closes lexical differentials such as U&-escaped identifiers while
+    # preserving the existing, more specific user-facing errors above.
+    try:
+        assert_executable(sql, allow_write_query=False)
+    except SqlPolicyError as error:
+        logger.warning(f'readonly_query rejected by SQL policy guard: {error}')
+        await ctx.error(f'{ERROR_QUERY_INJECTION_RISK}: {error}')
+        raise Exception(f'{ERROR_QUERY_INJECTION_RISK}: {error}') from error
 
     try:
         conn = await get_connection(ctx)
@@ -383,6 +394,13 @@ async def transact(
             logger.warning(f'transact rejected due to transaction bypass attempt, SQL: {sql}')
             await ctx.error(ERROR_TRANSACTION_BYPASS_ATTEMPT)
             raise Exception(ERROR_TRANSACTION_BYPASS_ATTEMPT)
+
+        try:
+            assert_executable(sql, allow_write_query=not read_only)
+        except SqlPolicyError as error:
+            logger.warning(f'transact rejected by SQL policy guard: {error}')
+            await ctx.error(f'{ERROR_QUERY_INJECTION_RISK}: {error}')
+            raise Exception(f'{ERROR_QUERY_INJECTION_RISK}: {error}') from error
 
     try:
         conn = await get_connection(ctx)
