@@ -11,6 +11,7 @@
 """Live test for the get_available_services tool in the AWS Documentation MCP server."""
 
 import pytest
+import re
 from awslabs.aws_documentation_mcp_server.server_aws_cn import get_available_services
 from mcp.server.mcpserver import Context
 from tests.constants import TEST_USER_AGENT
@@ -72,16 +73,18 @@ async def test_get_available_services_live():
             assert indicator not in result, f"Found error indicator '{indicator}' in the result"
 
         # Check for specific AWS services that should be available in China regions
-        common_services = [
-            'Amazon EC2',
-            'Simple Storage Service',
-            'Lambda',
-        ]
+        common_service_slugs = ['ec2', 's3', 'lambda']
 
-        for service in common_services:
-            assert service.lower() in result.lower(), (
-                f"Expected to find '{service}' in the available services"
+        for slug in common_service_slugs:
+            assert f'userguide/{slug}.html' in result, (
+                f"Expected to find a link to '{slug}' in the available services"
             )
+
+        # The list should be a substantial catalogue, not a stub or a partial render.
+        service_links = re.findall(r'\[[^\]]+\]\([^)]*userguide/[^)]+\)', result)
+        assert len(service_links) > 50, (
+            f'Expected a full service catalogue, found only {len(service_links)} links'
+        )
 
         # Print a sample of the result for debugging (will show in pytest output with -v flag)
         print('\nReceived AWS China available services content (first 300 chars):')

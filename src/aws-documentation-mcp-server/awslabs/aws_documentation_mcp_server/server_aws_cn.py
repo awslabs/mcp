@@ -22,6 +22,7 @@ from awslabs.aws_documentation_mcp_server.server_utils import (
 
 # Import utility functions
 from awslabs.aws_documentation_mcp_server.util import (
+    UnreadablePageError,
     enforce_redirect_allowlist,
     extract_content_from_html,
     format_documentation_result,
@@ -234,7 +235,12 @@ async def get_available_services(
         )
 
     if is_html_content(page_raw, content_type):
-        content = extract_content_from_html(page_raw)
+        try:
+            content = extract_content_from_html(page_raw)
+        except UnreadablePageError as e:
+            logger.error(f'Failed to read {url_str}: {e}')
+            await ctx.error(f'Failed to read {url_str}: {e}')
+            content = f'Note: {e}'
     else:
         content = page_raw
 
