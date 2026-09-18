@@ -440,6 +440,18 @@ class AthenaQueryHandler:
                         'query_execution_id is required for stop-query-execution operation'
                     )
 
+                # SECURITY: stop-query-execution is a mutating operation (it cancels a running
+                # query). Require --allow-write to prevent read-only-configured servers from
+                # cancelling queries even when the underlying IAM identity holds
+                # athena:StopQueryExecution.
+                if not self.allow_write:
+                    error_message = f'Operation {operation} is not allowed without write access'
+                    log_with_request_id(ctx, LogLevel.ERROR, error_message)
+                    return CallToolResult(
+                        isError=True,
+                        content=[TextContent(type='text', text=error_message)],
+                    )
+
                 # Stop query execution
                 self.athena_client.stop_query_execution(QueryExecutionId=query_execution_id)
 
