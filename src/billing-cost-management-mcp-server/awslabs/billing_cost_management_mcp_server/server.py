@@ -108,28 +108,28 @@ logger = get_logger(__name__)
 
 
 class _ErrorToolResult(ToolResult):
-    """A ToolResult that serializes to a CallToolResult with isError=True."""
+    """A ToolResult that serializes to a CallToolResult with is_error=True."""
 
     def to_mcp_result(self):
         return mcp_types.CallToolResult(
             content=self.content,
-            structuredContent=self.structured_content,
-            isError=True,
+            structured_content=self.structured_content,
+            is_error=True,
             _meta=self.meta,
         )
 
 
 class ErrorSignalingMiddleware(Middleware):
-    """Middleware that sets isError=True when a tool returns an error response.
+    """Middleware that sets is_error=True when a tool returns an error response.
 
-    Per the MCP spec, tools should signal errors via isError on CallToolResult.
+    Per the MCP spec, tools should signal errors via is_error on CallToolResult.
     This middleware intercepts tool results that contain status='error' in their
-    response body and returns a result with isError=True, preserving the original
-    content and structuredContent for backward compatibility.
+    response body and returns a result with is_error=True, preserving the original
+    content and structured_content for backward compatibility.
     """
 
     async def on_call_tool(self, context, call_next):
-        """Intercept tool results and set isError for error responses."""
+        """Intercept tool results and set is_error for error responses."""
         result = await call_next(context)
         if (
             isinstance(result, ToolResult)
