@@ -147,7 +147,8 @@ async def get_all_tgw_routes(
                         'Name': 'state',
                         'Values': ['available'],
                     },
-                ]
+                ],
+                NextToken=tg_rt_resp['NextToken'],
             )
             tg_rts += tg_rt_resp['TransitGatewayRouteTables']
 
