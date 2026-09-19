@@ -13,11 +13,15 @@
 # limitations under the License.
 """Tests for large table handling in the AWS Documentation MCP Server."""
 
+import pytest
 from awslabs.aws_documentation_mcp_server.table_utils import (
     filter_table_rows,
     parse_html_tables,
 )
-from awslabs.aws_documentation_mcp_server.util import truncate_large_tables
+from awslabs.aws_documentation_mcp_server.util import (
+    UnreadablePageError,
+    truncate_large_tables,
+)
 
 
 class TestTruncateLargeTables:
@@ -606,6 +610,158 @@ class TestCellToText:
         assert result is not None
         cell_val = result['rows'][0]['Name']
         assert cell_val == '[Link](/x)'
+
+
+class TestBreakDelimitedCells:
+    """Tests for multi-value cells separated by <br /> or block elements."""
+
+    def test_multi_value_cell_joined_with_delimiter(self):
+        """A cell with <br />-separated values joins them with '; '."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Endpoint</th></tr></thead>
+        <tbody><tr><td>s3.us-east-1.amazonaws.com <br /> s3.dualstack.us-east-1.amazonaws.com
+        <br /> s3-fips.us-east-1.amazonaws.com <br /> s3-fips.dualstack.us-east-1.amazonaws.com</td>
+        </tr></tbody></table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        assert result['rows'][0]['Endpoint'] == (
+            's3.us-east-1.amazonaws.com; '
+            's3.dualstack.us-east-1.amazonaws.com; '
+            's3-fips.us-east-1.amazonaws.com; '
+            's3-fips.dualstack.us-east-1.amazonaws.com'
+        )
+
+    def test_adjacent_columns_stay_positionally_aligned(self):
+        """Two multi-value columns split into the same number of aligned values."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Endpoint</th><th>Protocol</th></tr></thead>
+        <tbody><tr>
+            <td>a.example.com<br />b.example.com<br />c.example.com<br />d.example.com</td>
+            <td>HTTP and HTTPS<br />HTTP and HTTPS<br />HTTPS<br />HTTPS</td>
+        </tr></tbody></table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        row = result['rows'][0]
+        endpoints = row['Endpoint'].split('; ')
+        protocols = row['Protocol'].split('; ')
+        assert len(endpoints) == len(protocols) == 4
+        assert dict(zip(endpoints, protocols))['c.example.com'] == 'HTTPS'
+
+    def test_br_spelling_variants(self):
+        """<br />, <br/> and <br> are all treated as value boundaries."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Values</th></tr></thead>
+        <tbody><tr><td>one <br /> two <br/> three <br> four</td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        assert result['rows'][0]['Values'] == 'one; two; three; four'
+
+    def test_consecutive_and_trailing_breaks_produce_no_empty_segments(self):
+        """Doubled, leading and trailing <br /> never yield empty '; ' segments."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Signature</th></tr></thead>
+        <tbody><tr><td>2 &amp; 4<br /><br /><br /></td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        assert result['rows'][0]['Signature'] == '2 & 4'
+
+    def test_interior_consecutive_breaks_collapse(self):
+        """Consecutive <br /> between two values collapse to a single delimiter."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Values</th></tr></thead>
+        <tbody><tr><td><br />first<br /><br />second<br /></td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        assert result['rows'][0]['Values'] == 'first; second'
+
+    def test_single_value_cell_unchanged(self):
+        """A cell holding one value is byte-identical to the undelimited output."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Endpoint</th><th>Protocol</th></tr></thead>
+        <tbody><tr><td>s3-website.us-gov-east-1.amazonaws.com</td><td>HTTP</td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        row = result['rows'][0]
+        assert row['Endpoint'] == 's3-website.us-gov-east-1.amazonaws.com'
+        assert row['Protocol'] == 'HTTP'
+
+    def test_inline_markup_does_not_introduce_delimiters(self):
+        """Inline tags inside a single value are not treated as boundaries."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Note</th></tr></thead>
+        <tbody><tr><td>Use <code>foo</code> here</td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        # one value, so no delimiter — and the spaces around the inline tag survive
+        assert result['rows'][0]['Note'] == 'Use foo here'
+
+    def test_multi_value_cell_with_links(self):
+        """<br />-separated links each render as markdown and stay separated."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Docs</th></tr></thead>
+        <tbody><tr><td><a href="/a">Alpha</a><br /><a href="/b">Beta</a></td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        assert result['rows'][0]['Docs'] == '[Alpha](/a); [Beta](/b)'
+
+    def test_multi_value_cell_mixing_links_and_prose(self):
+        """A cell alternating prose and links keeps each value on its own segment."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Docs</th></tr></thead>
+        <tbody><tr><td>See <a href="/a">Alpha</a><br />plain value<br />
+        <a href="/b">Beta</a></td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        segments = result['rows'][0]['Docs'].split('; ')
+        assert segments == ['See [Alpha](/a)', 'plain value', '[Beta](/b)']
+
+    def test_break_inside_link_text_does_not_break_markdown(self):
+        """A <br /> inside link text stays inside the markdown label."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Docs</th></tr></thead>
+        <tbody><tr><td><a href="/a">Alpha<br />Beta</a></td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        assert result['rows'][0]['Docs'] == '[Alpha; Beta](/a)'
+
+    def test_no_marker_leaks_into_output(self):
+        """The internal boundary marker never appears in returned values."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>A</th><th>B</th></tr></thead>
+        <tbody><tr><td><p>one</p><p>two</p></td><td>x<br /><a href="/y">y</a></td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        for value in result['rows'][0].values():
+            assert '\x00' not in str(value)
+
+    def test_block_elements_are_value_boundaries(self):
+        """Sibling block elements in one cell are joined rather than fused."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Values</th></tr></thead>
+        <tbody><tr><td><p>first</p><p>second</p></td></tr></tbody>
+        </table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        assert result['rows'][0]['Values'] == 'first; second'
+
+    def test_multi_value_cell_is_searchable_by_filter(self):
+        """filter_table_rows still matches tokens inside a delimited cell."""
+        html = """<html><body><h2>Sec</h2><table>
+        <thead><tr><th>Endpoint</th></tr></thead>
+        <tbody><tr><td>s3.us-east-1.amazonaws.com<br />s3-fips.us-east-1.amazonaws.com</td></tr>
+        </tbody></table></body></html>"""
+        result = parse_html_tables(html, 'Sec')
+        assert result is not None
+        assert filter_table_rows(result['rows'], 's3-fips.us-east-1.amazonaws.com')
 
 
 class TestTwoTierHeaders:
@@ -1213,3 +1369,533 @@ class TestMaxRowsCapping:
         matches = filter_table_rows(rows, 'RunInstances')
         assert len(matches) == 1
         assert matches[0]['Action'] == 'RunInstances'
+
+
+class TestCalloutHeadingsSkipped:
+    """table_heading came from an adjacent callout."""
+
+    @pytest.mark.parametrize(
+        'callout_class',
+        [
+            'awsdocs-note',
+            'awsdocs-note awsdocs-tip',
+            'awsdocs-note awsdocs-warning',
+            'awsdocs-note awsdocs-important',
+            'awsdocs-tip',
+            'awsdocs-warning',
+            'awsdocs-important',
+        ],
+    )
+    def test_every_callout_variant_skipped(self, callout_class):
+        """Each callout flavour AWS docs emit is skipped, however its div is classed."""
+        html = f"""<html><body>
+        <h2>Real heading</h2>
+        <div class="{callout_class}">
+            <div class="awsdocs-note-title"><h6>Note</h6></div>
+            <p>Advice.</p>
+        </div>
+        <table><thead><tr><th>Name</th></tr></thead>
+        <tbody><tr><td>Quota</td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, None)
+        assert result is not None
+        assert result['tables'][0]['table_heading'] == 'Real heading'
+
+    def test_deeply_nested_callout_heading_skipped(self):
+        """A callout title several levels below the classed div is still recognised."""
+        html = """<html><body>
+        <h2>Real heading</h2>
+        <div class="awsdocs-note">
+            <div><section><div><h6>Note</h6></div></section></div>
+        </div>
+        <table><thead><tr><th>Name</th></tr></thead>
+        <tbody><tr><td>Quota</td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, None)
+        assert result is not None
+        assert result['tables'][0]['table_heading'] == 'Real heading'
+
+    def test_callout_title_not_used_as_table_heading(self):
+        """A <h6> inside a note/tip callout is skipped in favour of the real heading."""
+        html = """<html><body>
+        <h2>Amazon Bedrock service quotas</h2>
+        <div class="awsdocs-note awsdocs-tip">
+            <div class="awsdocs-note-title"><h6>Tip</h6></div>
+            <p>Some advice.</p>
+        </div>
+        <table><thead><tr><th>Name</th></tr></thead>
+        <tbody><tr><td>Quota</td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, None)
+        assert result is not None
+        assert result['tables'][0]['table_heading'] == 'Amazon Bedrock service quotas'
+
+    def test_legitimate_subheading_still_used(self):
+        """A normal h4 outside a callout remains the table_heading."""
+        html = """<html><body>
+        <h2>Section</h2>
+        <h4>Control plane APIs</h4>
+        <table><thead><tr><th>Name</th></tr></thead>
+        <tbody><tr><td>Quota</td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, None)
+        assert result is not None
+        assert result['tables'][0]['table_heading'] == 'Control plane APIs'
+
+    def test_all_headings_in_callouts_falls_back_to_none(self):
+        """When every preceding heading is a callout title, table_heading is None."""
+        html = """<html><body>
+        <div class="awsdocs-note"><div class="awsdocs-note-title"><h6>Note</h6></div></div>
+        <table><thead><tr><th>Name</th></tr></thead>
+        <tbody><tr><td>Quota</td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, None)
+        assert result is not None
+        assert result['tables'][0]['table_heading'] is None
+
+
+class TestSingleRowTheadMultiValueHeaders:
+    """Multi-value headers in the single-row <thead> path."""
+
+    def test_break_in_single_row_header_delimited(self):
+        """A <br /> inside a single-row <thead> cell is delimited, not fused."""
+        html = """<html><body>
+        <table><thead><tr><th>Endpoint<br />Protocol</th><th>Region</th></tr></thead>
+        <tbody><tr><td>a</td><td>b</td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, None)
+        assert result is not None
+        assert result['tables'][0]['columns'] == ['Endpoint; Protocol', 'Region']
+
+    def test_block_elements_in_single_row_header_delimited(self):
+        """Sibling <p> values in a single-row <thead> cell are delimited, not fused."""
+        html = """<html><body>
+        <table><thead><tr><th><p>Quota name</p><p>Adjustable</p></th></tr></thead>
+        <tbody><tr><td>a</td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, None)
+        assert result is not None
+        assert result['tables'][0]['columns'] == ['Quota name; Adjustable']
+
+    def test_colspan_suffixes_use_delimited_text(self):
+        """A colspan header carries the delimited text into its generated suffixes."""
+        html = """<html><body>
+        <table><thead><tr><th colspan="2">Endpoint<br />Protocol</th></tr></thead>
+        <tbody><tr><td>a</td><td>b</td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, None)
+        assert result is not None
+        assert result['tables'][0]['columns'] == ['Endpoint; Protocol', 'Endpoint; Protocol_2']
+
+    def test_header_link_text_delimited_without_markdown(self):
+        """Header cells take text only, so a link inside one contributes just its text."""
+        html = """<html><body>
+        <table><thead><tr><th><a href="./e.html">Endpoint</a><br />Protocol</th></tr></thead>
+        <tbody><tr><td>a</td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, None)
+        assert result is not None
+        assert result['tables'][0]['columns'] == ['Endpoint; Protocol']
+
+
+class TestBreakMarkersDoNotLeak:
+    """Cell processing mutates the shared tree, so markers must not surface in headings."""
+
+    # A heading inside an earlier table's cell is marked up when that cell is parsed.
+    _HEADING_IN_A_CELL = """<html><body>
+    <table><tbody><tr><td><h3><p>Alpha</p><p>Beta</p></h3></td></tr></tbody></table>
+    <table><thead><tr><th>Region</th></tr></thead>
+    <tbody><tr><td>us-east-1</td></tr></tbody></table>
+    </body></html>"""
+
+    def test_marker_absent_from_table_heading(self):
+        """table_heading is joined, so no marker reaches the caller."""
+        result = parse_html_tables(self._HEADING_IN_A_CELL, None)
+        assert result is not None
+        assert result['tables'][1]['table_heading'] == 'Alpha; Beta'
+
+    def test_marker_absent_from_detected_section(self):
+        """detected_section is read after cells are marked, so it is joined too."""
+        result = parse_html_tables(self._HEADING_IN_A_CELL, None)
+        assert result is not None
+        assert result['detected_section'] == 'Alpha; Beta'
+
+
+class TestCellLinkTargets:
+    """A cell link to an empty target must not be emitted as markdown."""
+
+    def test_broken_cell_link_renders_as_plain_text(self):
+        """An href with no filename keeps its text and drops the markdown link."""
+        html = """<html><body>
+        <table><thead><tr><th>Model</th></tr></thead>
+        <tbody><tr><td><a href="./.html#nova">Nova Pro</a></td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, None)
+        assert result is not None
+        assert result['tables'][0]['rows'][0]['Model'] == 'Nova Pro'
+
+    def test_valid_cell_link_still_markdown(self):
+        """A resolvable cell link is still emitted as [text](href)."""
+        html = """<html><body>
+        <table><thead><tr><th>Model</th></tr></thead>
+        <tbody><tr><td><a href="./nova.html">Nova Pro</a></td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, None)
+        assert result is not None
+        assert result['tables'][0]['rows'][0]['Model'] == '[Nova Pro](./nova.html)'
+
+    def test_broken_and_valid_links_in_one_cell(self):
+        """Only the unresolvable link loses its markdown; the other survives."""
+        html = """<html><body>
+        <table><thead><tr><th>Model</th></tr></thead>
+        <tbody><tr><td><a href="./.html">Nova Pro</a> and
+        <a href="./nova-lite.html">Nova Lite</a></td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, None)
+        assert result is not None
+        cell = result['tables'][0]['rows'][0]['Model']
+        assert '[Nova Lite](./nova-lite.html)' in cell
+        assert 'Nova Pro' in cell
+        assert './.html' not in cell
+
+
+class TestCalloutsInsideCells:
+    """A note inside a cell qualifies the cell's value; it is not another value."""
+
+    _QUOTA_WITH_NOTE = """<html><body>
+    <table><thead><tr><th>Resource</th><th>Quota</th></tr></thead>
+    <tbody><tr><td>File descriptors</td><td>
+        <p>1,024</p>
+        <div class="awsdocs-note">
+            <div class="awsdocs-note-title"><h6>Note</h6></div>
+            <div class="awsdocs-note-text"><p>Managed instances allow 4,096.</p></div>
+        </div>
+    </td></tr></tbody></table>
+    </body></html>"""
+
+    def test_callout_label_is_not_a_value(self):
+        """The word 'Note' is callout chrome and never appears as cell content."""
+        result = parse_html_tables(self._QUOTA_WITH_NOTE, None)
+        assert result is not None
+        assert result['tables'][0]['rows'][0]['Quota'] == '1,024 Managed instances allow 4,096.'
+
+    def test_callout_does_not_create_a_delimited_value(self):
+        """The quota reads as one value, so splitting on '; ' yields a single entry."""
+        result = parse_html_tables(self._QUOTA_WITH_NOTE, None)
+        assert result is not None
+        assert result['tables'][0]['rows'][0]['Quota'].split('; ') == [
+            '1,024 Managed instances allow 4,096.'
+        ]
+
+    def test_genuine_values_still_delimited_when_a_callout_follows(self):
+        """A callout does not suppress the boundaries between real values."""
+        html = """<html><body>
+        <table><thead><tr><th>Endpoint</th></tr></thead>
+        <tbody><tr><td>
+            <p>a.example.com</p><p>b.example.com</p>
+            <div class="awsdocs-note">
+                <div class="awsdocs-note-title"><h6>Note</h6></div>
+                <div class="awsdocs-note-text"><p>FIPS only.</p></div>
+            </div>
+        </td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, None)
+        assert result is not None
+        values = result['tables'][0]['rows'][0]['Endpoint'].split('; ')
+        assert values == ['a.example.com', 'b.example.com FIPS only.']
+
+    def test_callout_handled_on_the_link_preserving_path(self):
+        """A cell containing links takes a different extraction path with the same rules."""
+        html = """<html><body>
+        <table><thead><tr><th>Quota</th></tr></thead>
+        <tbody><tr><td>
+            <p>1,024</p>
+            <div class="awsdocs-note">
+                <div class="awsdocs-note-title"><h6>Note</h6></div>
+                <div class="awsdocs-note-text"><p>See <a href="./limits.html">limits</a>.</p></div>
+            </div>
+        </td></tr></tbody></table>
+        </body></html>"""
+        result = parse_html_tables(html, None)
+        assert result is not None
+        cell = result['tables'][0]['rows'][0]['Quota']
+        assert 'Note' not in cell
+        assert '[limits](./limits.html)' in cell
+        assert cell.split('; ') == [cell]
+
+    def test_soft_markers_never_reach_the_output(self):
+        """The internal soft boundary marker is replaced, never emitted."""
+        result = parse_html_tables(self._QUOTA_WITH_NOTE, None)
+        assert result is not None
+        for value in result['tables'][0]['rows'][0].values():
+            assert '\x01' not in value
+            assert '\x00' not in value
+
+
+class TestUnreadablePage:
+    """A page whose body carries no text is reported rather than read as "no tables"."""
+
+    def test_script_only_shell_raises(self):
+        """The guide-index shell has an empty body and must not look like a table-less page."""
+        shell = (
+            '<html><head><title>AWS General Reference</title>'
+            '<script>var myDefaultPage = "Welcome.html";</script></head><body></body></html>'
+        )
+        with pytest.raises(UnreadablePageError):
+            parse_html_tables(shell)
+
+    def test_page_with_prose_does_not_raise(self):
+        """A page with text is parsed normally, returning None when it has no tables."""
+        assert parse_html_tables('<html><body><p>Real prose.</p></body></html>') is None
+
+
+class TestCalloutBoundaryScope:
+    """A callout absorbs the boundary before it and leaves the one after it alone."""
+
+    NOTE = '<div class="awsdocs-note"><h6 class="awsdocs-note-title">Note</h6><p>caveat</p></div>'
+
+    def _cell(self, inner):
+        html = (
+            f'<html><body><h2>S</h2><table><thead><tr><th>Val</th></tr></thead>'
+            f'<tbody><tr><td>{inner}</td></tr></tbody></table></body></html>'
+        )
+        table = parse_html_tables(html, 'S')
+        assert table is not None
+        return table['rows'][0]['Val']
+
+    def test_values_after_a_callout_keep_their_delimiters(self):
+        """The value following a callout is its own value, not more of the qualified one."""
+        assert self._cell(f'<p>alpha</p>{self.NOTE}<p>beta</p><p>gamma</p>') == (
+            'alpha caveat; beta; gamma'
+        )
+
+    def test_callout_still_qualifies_the_value_before_it(self):
+        """The boundary preceding a callout is still absorbed."""
+        assert self._cell(f'<p>alpha</p>{self.NOTE}') == 'alpha caveat'
+
+    def test_plain_multi_value_cell_is_unaffected(self):
+        """Without a callout every block boundary is a value boundary."""
+        assert self._cell('<p>alpha</p><p>beta</p><p>gamma</p>') == 'alpha; beta; gamma'
+
+
+class TestPreformattedCells:
+    """Inside <pre> a newline is significant markup, so it separates values."""
+
+    def _cell(self, inner):
+        html = (
+            f'<html><body><h2>S</h2><table><thead><tr><th>Val</th></tr></thead>'
+            f'<tbody><tr><td>{inner}</td></tr></tbody></table></body></html>'
+        )
+        table = parse_html_tables(html, 'S')
+        assert table is not None
+        return table['rows'][0]['Val']
+
+    def test_newlines_in_pre_separate_values(self):
+        """Three key/value lines must not fuse into one string."""
+        assert self._cell('<pre>Key1 = a\nKey2 = b\nKey3 = c</pre>') == (
+            'Key1 = a; Key2 = b; Key3 = c'
+        )
+
+    def test_blank_lines_in_pre_do_not_produce_empty_values(self):
+        """A run of newlines is one boundary."""
+        assert self._cell('<pre>a\n\n\nb</pre>') == 'a; b'
+
+    def test_single_line_pre_gains_no_delimiter(self):
+        """A <pre> with no newline is one value, so nothing is inserted."""
+        assert self._cell('<pre>aws sts get-caller-identity</pre>') == (
+            'aws sts get-caller-identity'
+        )
+
+    def test_newlines_outside_pre_remain_whitespace(self):
+        """In normal flow a newline is whitespace, not a value boundary."""
+        assert self._cell('<code>alpha\nbeta</code>') == 'alpha beta'
+        assert self._cell('alpha\nbeta') == 'alpha beta'
+
+
+class TestInlineSpacing:
+    """Inline tags carry the spaces around them, so prose does not fuse mid-sentence."""
+
+    def _cell(self, inner):
+        html = (
+            f'<html><body><h2>S</h2><table><thead><tr><th>Val</th></tr></thead>'
+            f'<tbody><tr><td>{inner}</td></tr></tbody></table></body></html>'
+        )
+        table = parse_html_tables(html, 'S')
+        assert table is not None
+        return table['rows'][0]['Val']
+
+    def test_code_tag_keeps_surrounding_spaces(self):
+        """The words either side of an inline tag stay separate words."""
+        assert (
+            self._cell('use the <code>Switch Role</code> feature') == 'use the Switch Role feature'
+        )
+
+    def test_consecutive_inline_tags_stay_separate(self):
+        """Two adjacent inline tags do not run together."""
+        assert self._cell('combined <b>Path</b> and <b>RoleName</b> values') == (
+            'combined Path and RoleName values'
+        )
+
+    def test_a_cell_with_a_link_spaces_the_same_way(self):
+        """A cell is spaced identically whether or not it happens to contain a link."""
+        with_link = self._cell('use the <code>Role</code> and <a href="x.html">docs</a>')
+        assert with_link == 'use the Role and [docs](x.html)'
+
+    def test_inline_markup_inside_link_text_keeps_its_spaces(self):
+        """The link label is spaced too, not just the prose around it."""
+        assert self._cell('<a href="x.html"><code>Path</code> and <code>RoleName</code></a>') == (
+            '[Path and RoleName](x.html)'
+        )
+
+    def test_heading_with_inline_markup_is_not_fused(self):
+        """table_heading comes from the heading text, spaced."""
+        html = """<html><body><h2>Using the <code>Switch Role</code> API</h2>
+        <table><thead><tr><th>A</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table>
+        </body></html>"""
+        table = parse_html_tables(html, None)
+        assert table is not None
+        assert table['detected_section'] == 'Using the Switch Role API'
+
+    def test_section_title_matches_a_heading_with_inline_markup(self):
+        """A caller passing the rendered heading text finds the section."""
+        html = """<html><body><h2>Using the <code>Switch Role</code> API</h2>
+        <table><thead><tr><th>A</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table>
+        </body></html>"""
+        table = parse_html_tables(html, 'Using the Switch Role API')
+        assert table is not None
+        assert 'error' not in table
+
+
+class TestLeadingCallout:
+    """A callout with no value before it qualifies the value after it."""
+
+    NOTE = '<div class="awsdocs-note"><h6 class="awsdocs-note-title">Note</h6><p>caveat</p></div>'
+
+    def _cell(self, inner):
+        html = (
+            f'<html><body><h2>S</h2><table><thead><tr><th>Val</th></tr></thead>'
+            f'<tbody><tr><td>{inner}</td></tr></tbody></table></body></html>'
+        )
+        table = parse_html_tables(html, 'S')
+        assert table is not None
+        return table['rows'][0]['Val']
+
+    def test_leading_callout_is_not_its_own_value(self):
+        """A cell opening with a callout yields two values, not three."""
+        assert self._cell(f'{self.NOTE}<p>alpha</p><p>beta</p>') == 'caveat alpha; beta'
+
+    def test_callout_between_values_is_unchanged(self):
+        """The mid-cell case keeps absorbing the boundary before it."""
+        assert self._cell(f'<p>alpha</p>{self.NOTE}<p>beta</p>') == 'alpha caveat; beta'
+
+    def test_a_cell_that_is_only_a_callout(self):
+        """With nothing to qualify, the prose is the value."""
+        assert self._cell(self.NOTE) == 'caveat'
+
+
+class TestHeadWithoutBodyShape:
+    """AWS tables carry a <thead> and no <tbody>, so the header row must not parse as data."""
+
+    def _live_shape(self, rows):
+        """A table in the shape docs.aws.amazon.com actually serves: thead, no tbody."""
+        return (
+            '<html><body><h2>Service endpoints</h2><table>'
+            '<thead><tr><th>Region Name</th><th>Region</th><th>Endpoint</th></tr></thead>'
+            f'{rows}</table></body></html>'
+        )
+
+    def test_header_row_is_not_returned_as_data(self):
+        """The column names must not appear as a row."""
+        html = self._live_shape(
+            '<tr><td>US East (Ohio)</td><td>us-east-2</td><td>sts.us-east-2.amazonaws.com</td></tr>'
+        )
+        result = parse_html_tables(html, 'Service endpoints')
+        assert result is not None
+        assert len(result['rows']) == 1
+        assert result['rows'][0]['Region Name'] == 'US East (Ohio)'
+
+    def test_a_query_matching_column_names_finds_nothing(self):
+        """Searching for the header words must not surface a phantom row."""
+        html = self._live_shape(
+            '<tr><td>US East (Ohio)</td><td>us-east-2</td><td>sts.us-east-2.amazonaws.com</td></tr>'
+        )
+        result = parse_html_tables(html, 'Service endpoints')
+        assert result is not None
+        assert filter_table_rows(result['rows'], 'Region Name Endpoint') == []
+
+    def test_row_count_matches_the_data_rows(self):
+        """Every data row is kept and nothing extra is added."""
+        rows = ''.join(f'<tr><td>n{i}</td><td>r{i}</td><td>e{i}</td></tr>' for i in range(12))
+        result = parse_html_tables(self._live_shape(rows), 'Service endpoints')
+        assert result is not None
+        assert len(result['rows']) == 12
+
+    def test_multi_value_cells_still_delimit_without_a_tbody(self):
+        """The delimiter fix applies to the live shape too."""
+        html = self._live_shape(
+            '<tr><td>US East (Ohio)</td><td>us-east-2</td>'
+            '<td><p>sts.us-east-2.amazonaws.com</p><p>sts.us-east-2.api.aws</p></td></tr>'
+        )
+        result = parse_html_tables(html, 'Service endpoints')
+        assert result is not None
+        assert result['rows'][0]['Endpoint'] == (
+            'sts.us-east-2.amazonaws.com; sts.us-east-2.api.aws'
+        )
+
+    def test_rowspan_grouping_works_without_a_tbody(self):
+        """Nested output is built from the same row source."""
+        html = (
+            '<html><body><h2>Actions</h2><table>'
+            '<thead><tr><th>Action</th><th>Level</th><th>Resource</th></tr></thead>'
+            '<tr><td rowspan="2">RunInstances</td><td rowspan="2">Write</td><td>image*</td></tr>'
+            '<tr><td>instance*</td></tr>'
+            '</table></body></html>'
+        )
+        result = parse_html_tables(html, 'Actions')
+        assert result is not None
+        assert 'error' not in result
+        group = next(r for r in result['rows'] if r.get('Action') == 'RunInstances')
+        assert len(group['rows']) == 2
+
+    def test_an_explicit_tbody_is_still_honoured(self):
+        """Pages that do supply a tbody keep working."""
+        html = (
+            '<html><body><h2>S</h2><table>'
+            '<thead><tr><th>A</th></tr></thead><tbody><tr><td>1</td></tr></tbody>'
+            '</table></body></html>'
+        )
+        result = parse_html_tables(html, 'S')
+        assert result is not None
+        assert len(result['rows']) == 1
+        assert result['rows'][0]['A'] == '1'
+
+
+class TestImageAltText:
+    """An icon's meaning lives only in its alt text, so the cell has to carry it."""
+
+    def _cell(self, inner):
+        html = (
+            f'<html><body><h2>S</h2><table><thead><tr><th>Val</th></tr></thead>'
+            f'<tr><td>{inner}</td></tr></table></body></html>'
+        )
+        table = parse_html_tables(html, 'S')
+        assert table is not None
+        return table['rows'][0]['Val']
+
+    def test_unsupported_and_supported_icons_are_distinguishable(self):
+        """Two rows that differ only by icon must not read identically."""
+        no = self._cell('<img src="/icon-no.png" alt="icon meaning not supported"/> Audio')
+        yes = self._cell('<img src="/icon-yes.png" alt="icon meaning supported"/> Audio')
+        assert no != yes
+        assert no == 'icon meaning not supported Audio'
+        assert yes == 'icon meaning supported Audio'
+
+    def test_an_image_without_alt_contributes_nothing(self):
+        """A decorative image adds no text and introduces no delimiter."""
+        assert self._cell('<img src="/spacer.png"/> Audio') == 'Audio'
+
+    def test_alt_text_survives_the_link_path(self):
+        """A cell holding both an image and a link keeps both."""
+        assert self._cell('<img src="/i.png" alt="supported"/> <a href="m.html">Model</a>') == (
+            'supported [Model](m.html)'
+        )

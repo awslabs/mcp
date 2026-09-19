@@ -21,6 +21,44 @@ from typing import Any, Dict, List, Sequence
 from urllib.parse import quote_plus, urljoin
 
 
+# An unresolved cross-reference leaves an href with no filename, e.g. './.html#anchor'.
+_EMPTY_TARGET_FILENAMES = frozenset({'.html', '.htm'})
+
+
+def has_empty_link_target(href: str) -> bool:
+    """Report whether an href points at a path with no filename."""
+    path = href.split('#', 1)[0].split('?', 1)[0].strip()
+    if not path:
+        return False  # fragment-only link; resolves to the current page
+    return path.rsplit('/', 1)[-1].casefold() in _EMPTY_TARGET_FILENAMES
+
+
+def _unwrap_broken_links(root) -> None:
+    """Replace links whose target has no filename with their own text."""
+    for anchor in root.find_all('a'):
+        href = anchor.get('href')
+        if isinstance(href, str) and has_empty_link_target(href):
+            anchor.unwrap()
+
+
+class UnreadablePageError(ValueError):
+    """Raised when a page carries no extractable content, only markup."""
+
+
+def has_readable_text(soup) -> bool:
+    """Report whether a parsed document has body text outside scripts and styles."""
+    from bs4 import Comment
+
+    body = soup.body or soup
+    return any(
+        text.strip()
+        for text in body.find_all(string=True)
+        # comments are markup; <noscript> prose can be nested several levels down
+        if not isinstance(text, Comment)
+        and text.find_parent(['script', 'style', 'noscript']) is None
+    )
+
+
 def extract_content_from_html(html: str) -> str:
     """Extract and convert HTML content to Markdown format.
 
@@ -29,9 +67,12 @@ def extract_content_from_html(html: str) -> str:
 
     Returns:
         Simplified markdown version of the content
+
+    Raises:
+        UnreadablePageError: the page carries no extractable content
     """
     if not html:
-        return '<e>Empty HTML content</e>'
+        raise UnreadablePageError('Empty HTML content')
 
     try:
         # First use BeautifulSoup to clean up the HTML
@@ -86,6 +127,13 @@ def extract_content_from_html(html: str) -> str:
             for element in main_content.select(selector):
                 element.decompose()
 
+        # strip= keeps a tag's text, so remove these outright
+        for selector in ('script', 'style'):
+            for element in main_content.select(selector):
+                element.decompose()
+
+        _unwrap_broken_links(main_content)
+
         # Define tags to strip - these are elements we don't want in the output
         tags_to_strip = [
             'script',
@@ -128,20 +176,22 @@ def extract_content_from_html(html: str) -> str:
         content = markdownify.markdownify(
             str(main_content),
             heading_style=markdownify.ATX,
-            autolinks=True,
-            default_title=True,
+            autolinks=False,  # markdownify gates this on default_title; keep [url](url)
+            default_title=False,  # would repeat the href as the title: [text](url "url")
             escape_asterisks=True,
             escape_underscores=True,
             newline_style='SPACES',
             strip=tags_to_strip,
         )
 
-        if not content:
-            return '<e>Page failed to be simplified from HTML</e>'
+        if not content.strip():
+            raise UnreadablePageError('Page failed to be simplified from HTML')
 
         return content
+    except UnreadablePageError:
+        raise
     except Exception as e:
-        return f'<e>Error converting HTML to Markdown: {str(e)}</e>'
+        raise UnreadablePageError(f'Error converting HTML to Markdown: {str(e)}') from e
 
 
 def is_html_content(page_raw: str, content_type: str) -> bool:
@@ -240,6 +290,9 @@ def extract_sections_from_html(html: str, section_titles: List[str]) -> str:
 
     soup = BeautifulSoup(html, 'html.parser')
 
+    if not has_readable_text(soup):
+        raise UnreadablePageError('The page carries no readable content.')
+
     normalized_titles = {}
     for title in section_titles:
         normalized_key = ' '.join(title.strip().lower().split())
@@ -251,10 +304,10 @@ def extract_sections_from_html(html: str, section_titles: List[str]) -> str:
     found_sections = set()
 
     for h2 in h2_tags:
-        h2_text = h2.get_text(strip=True)
+        h2_text = ' '.join(h2.get_text().split())
         available_level2_sections.append(h2_text)
 
-        normalized_h2 = ' '.join(h2_text.lower().split())
+        normalized_h2 = h2_text.lower()
 
         if normalized_h2 in normalized_titles:
             section_content = [h2]
