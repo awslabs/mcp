@@ -811,6 +811,110 @@ async def test_list_runs_with_both_date_filters():
 
 
 @pytest.mark.asyncio
+async def test_list_runs_date_filter_truncation_emits_next_token():
+    """Test that truncating date-filtered results still signals continuation.
+
+    When client-side date filtering leaves more matching runs than max_results,
+    and the upstream API still has more pages available, the response must
+    include a nextToken so callers know the page is not the complete result set.
+    """
+    base_time = datetime(2023, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+
+    # 15 runs all created after the created_after filter, fetched in a single
+    # upstream batch that itself still has more pages (nextToken present).
+    items = []
+    for i in range(15):
+        items.append(
+            {
+                'id': f'run-{i}',
+                'name': f'run-{i}',
+                'status': 'COMPLETED',
+                'workflowId': f'wfl-{i}',
+                'workflowType': 'WDL',
+                'creationTime': base_time + timedelta(days=i),
+            }
+        )
+
+    mock_response = {
+        'items': items,
+        'nextToken': 'upstream-token-abc',
+    }
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.list_runs.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await list_runs(
+            ctx=mock_ctx,
+            max_results=10,
+            next_token=None,
+            status=None,
+            created_after='2023-06-10T00:00:00Z',
+            created_before=None,
+            run_group_id=None,
+        )
+
+    # Truncated to max_results, but more matching runs exist upstream.
+    assert len(result['runs']) == 10
+    assert 'nextToken' in result, (
+        'truncated date-filtered page must carry a continuation token so the '
+        'caller does not treat a partial result as complete'
+    )
+    assert result['nextToken'] == 'upstream-token-abc'
+
+
+@pytest.mark.asyncio
+async def test_list_runs_date_filter_truncation_no_upstream_token():
+    """Test truncated date-filtered results with no further upstream pages.
+
+    When the upstream API has no more pages (no nextToken), there is no valid
+    resume point to hand back even though the filtered set was truncated. The
+    response must omit nextToken rather than fabricate one.
+    """
+    base_time = datetime(2023, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+
+    items = [
+        {
+            'id': f'run-{i}',
+            'name': f'run-{i}',
+            'status': 'COMPLETED',
+            'workflowId': f'wfl-{i}',
+            'workflowType': 'WDL',
+            'creationTime': base_time + timedelta(days=i),
+        }
+        for i in range(15)
+    ]
+
+    # No nextToken: this is the final upstream page.
+    mock_response = {'items': items}
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.list_runs.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await list_runs(
+            ctx=mock_ctx,
+            max_results=10,
+            next_token=None,
+            status=None,
+            created_after='2023-06-10T00:00:00Z',
+            created_before=None,
+            run_group_id=None,
+        )
+
+    assert len(result['runs']) == 10
+    assert 'nextToken' not in result
+
+
+@pytest.mark.asyncio
 async def test_list_runs_invalid_created_after():
     """Test list_runs with invalid created_after datetime."""
     mock_ctx = AsyncMock()

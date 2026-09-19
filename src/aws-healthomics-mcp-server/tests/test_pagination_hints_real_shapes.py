@@ -41,8 +41,10 @@ file; all AWS-facing clients and the search orchestrator are mocked.
 import pytest
 from awslabs.aws_healthomics_mcp_server.tools.ecr_tools import list_ecr_repositories
 from awslabs.aws_healthomics_mcp_server.tools.genomics_file_search import search_genomics_files
+from awslabs.aws_healthomics_mcp_server.tools.workflow_execution import list_runs
 from awslabs.aws_healthomics_mcp_server.tools.workflow_management import list_workflows
 from awslabs.aws_healthomics_mcp_server.utils.pagination import paginating
+from datetime import datetime, timedelta, timezone
 
 # Reusing test_ecr_tools.py's private mock-building helpers deliberately, per
 # this task's brief, rather than duplicating a second copy of the ECR client
@@ -61,11 +63,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 # ---------------------------------------------------------------------------
 # Dict + nextToken idiom: ListAHOWorkflows.
 #
-# list_runs (workflow_execution.py) uses this idiom's response shape too, but
-# is deliberately NOT pinned here: it has a separate, already-tracked
-# false-completeness bug (client-side date filtering can truncate results
-# without ever setting nextToken), and a guard test would either bake that
-# bug in as "correct" or assert a fix that doesn't exist yet. list_workflows
+# list_runs (workflow_execution.py) uses this idiom's response shape too;
+# its own date-filter truncation cases are pinned separately below in
+# TestDictNextTokenIdiomAgainstRealListRunsDateFilterTruncation. list_workflows
 # builds its response the same way (a single transformed list plus a
 # conditionally-present nextToken key) without that complication, so it pins
 # the idiom's shape invariant on its own.
@@ -143,6 +143,160 @@ class TestDictNextTokenIdiomAgainstRealListWorkflows:
         pagination = result['pagination']
         assert pagination['isComplete'] is True
         assert pagination['returnedCount'] == len(result['workflows'])
+        assert 'nextToken' not in pagination
+        assert 'no further calls are needed' in pagination['instruction'].lower()
+
+
+class TestDictNextTokenIdiomAgainstRealListRunsDateFilterTruncation:
+    """Wraps the real ``list_runs`` with a mocked ``get_omics_client``.
+
+    Pins the two false-completeness cases in ListAHORuns' client-side
+    date-filter truncation path: the ``== max_results`` boundary, and the
+    falsy-token case where upstream is exhausted at the moment of
+    truncation.
+    """
+
+    def _run_items(self, count: int):
+        base_time = datetime(2023, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+        return [
+            {
+                'id': f'run-{i}',
+                'name': f'run-{i}',
+                'status': 'COMPLETED',
+                'workflowId': f'wfl-{i}',
+                'workflowType': 'WDL',
+                'creationTime': base_time + timedelta(days=i),
+            }
+            for i in range(count)
+        ]
+
+    @pytest.mark.asyncio
+    async def test_boundary_exact_max_results_with_upstream_token_is_incomplete(self):
+        """Filtered set == max_results and an upstream current_token exists.
+
+        Before the fix, the truncation check was strictly
+        ``len(filtered_runs) > max_results``, so an exact match emitted no
+        nextToken even though more matching runs might exist upstream, and
+        the wrapper reported this page as COMPLETE.
+        """
+        mock_response = {
+            'items': self._run_items(10),  # exactly max_results
+            'nextToken': 'upstream-token-boundary',
+        }
+
+        mock_ctx = AsyncMock()
+        mock_client = MagicMock()
+        mock_client.list_runs.return_value = mock_response
+
+        wrapped = paginating('ListAHORuns', list_runs)
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+            return_value=mock_client,
+        ):
+            result = await wrapped(
+                ctx=mock_ctx,
+                max_results=10,
+                next_token=None,
+                status=None,
+                created_after='2023-06-10T00:00:00Z',
+                created_before=None,
+                run_group_id=None,
+            )
+
+        assert len(result['runs']) == 10
+        assert result.get('nextToken') == 'upstream-token-boundary'
+
+        pagination = result['pagination']
+        assert pagination['isComplete'] is False
+        assert pagination['nextToken'] == 'upstream-token-boundary'
+        assert 'no further calls are needed' not in pagination['instruction'].lower()
+
+    @pytest.mark.asyncio
+    async def test_truncation_with_no_upstream_token_reports_partial_not_complete(self):
+        """Filtered set > max_results but upstream is exhausted (no current_token).
+
+        Matching runs were discarded by the max_results slice and there is no
+        token to hand back. Before the fix, list_runs emitted nothing extra,
+        so the wrapper's dict/nextToken branch saw no token key and reported
+        the page as COMPLETE -- fabricating certainty that no runs were
+        dropped. The fix raises the pagination.has_more flag pagination.py's
+        nested idiom already recognizes, routing into its honest
+        is_complete=False / token=None path instead.
+        """
+        # No nextToken: upstream is exhausted on this single batch.
+        mock_response = {'items': self._run_items(15)}
+
+        mock_ctx = AsyncMock()
+        mock_client = MagicMock()
+        mock_client.list_runs.return_value = mock_response
+
+        wrapped = paginating('ListAHORuns', list_runs)
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+            return_value=mock_client,
+        ):
+            result = await wrapped(
+                ctx=mock_ctx,
+                max_results=10,
+                next_token=None,
+                status=None,
+                created_after='2023-06-10T00:00:00Z',
+                created_before=None,
+                run_group_id=None,
+            )
+
+        assert len(result['runs']) == 10
+        assert 'nextToken' not in result
+
+        pagination = result['pagination']
+        assert pagination['isComplete'] is False
+        assert 'nextToken' not in pagination
+        instruction = pagination['instruction'].lower()
+        assert 'partial results' in instruction
+        assert 'no further calls are needed' not in instruction
+        # returnedCount must reflect the true number of runs actually
+        # returned (10, in result['runs']), not the 'results' key this
+        # idiom was originally written for -- list_runs' response uses
+        # 'runs', not 'results'.
+        assert pagination['returnedCount'] == 10
+
+    @pytest.mark.asyncio
+    async def test_boundary_exact_max_results_with_no_upstream_token_is_genuinely_complete(self):
+        """Filtered set == max_results and upstream is exhausted (no current_token).
+
+        No runs were discarded (the slice at max_results kept everything) and
+        there are no further upstream pages, so this page really is complete:
+        neither nextToken nor the pagination.has_more flag should be raised.
+        """
+        mock_response = {'items': self._run_items(10)}  # exactly max_results, no nextToken
+
+        mock_ctx = AsyncMock()
+        mock_client = MagicMock()
+        mock_client.list_runs.return_value = mock_response
+
+        wrapped = paginating('ListAHORuns', list_runs)
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+            return_value=mock_client,
+        ):
+            result = await wrapped(
+                ctx=mock_ctx,
+                max_results=10,
+                next_token=None,
+                status=None,
+                created_after='2023-06-10T00:00:00Z',
+                created_before=None,
+                run_group_id=None,
+            )
+
+        assert len(result['runs']) == 10
+        assert 'nextToken' not in result
+
+        pagination = result['pagination']
+        assert pagination['isComplete'] is True
         assert 'nextToken' not in pagination
         assert 'no further calls are needed' in pagination['instruction'].lower()
 

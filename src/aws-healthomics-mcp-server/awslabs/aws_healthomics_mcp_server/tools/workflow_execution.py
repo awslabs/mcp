@@ -548,14 +548,32 @@ async def list_runs(
 
             result = {'runs': result_runs}
 
-            # If we have more filtered results than max_results, we could implement
-            # a custom pagination token, but for simplicity we'll omit nextToken
-            # when client-side filtering is applied
-            if len(filtered_runs) > max_results:
-                logger.info(
-                    f'Client-side filtering returned {len(filtered_runs)} results, '
-                    f'truncated to {max_results}. Pagination not supported with date filters.'
-                )
+            # If the filtered set was truncated to max_results, signal that more
+            # matching runs may exist rather than silently returning a short page.
+            # The upstream token (if any) is a best-effort resume point, not a fully
+            # correct cursor: resuming with it fetches upstream pages after the
+            # batches already scanned, so it skips the excess matches that were
+            # already fetched into this batch but discarded here by truncation.
+            if len(filtered_runs) >= max_results:
+                if current_token:
+                    result['nextToken'] = current_token
+                    logger.info(
+                        f'Client-side filtering returned {len(filtered_runs)} results, '
+                        f'truncated to {max_results}. Returning upstream nextToken so '
+                        'the caller can continue pagination.'
+                    )
+                elif len(filtered_runs) > max_results:
+                    # Matching runs were discarded by the max_results slice above and
+                    # upstream is exhausted, so there is no token to hand back at all.
+                    # Raise the pagination.has_more flag the wrapper's nested-pagination
+                    # idiom already recognizes, so it reports this page as incomplete
+                    # instead of fabricating a COMPLETE result.
+                    result['pagination'] = {'has_more': True}
+                    logger.info(
+                        f'Client-side filtering returned {len(filtered_runs)} results, '
+                        f'truncated to {max_results}. No further upstream pages are '
+                        'available, so no nextToken can be issued for the remaining matches.'
+                    )
 
             return result
         else:
