@@ -334,7 +334,7 @@ async def search_cdk_documentation(query: str) -> str:
         - results: Array with single result containing:
             - rank: Search relevance ranking (1 = most relevant, higher is less relevant)
             - title: Document title or filename
-            - url: Source URL of the document
+            - url: Source URL of the document (may be null for non-document results)
             - context: Full or paginated document content
     - next_step_guidance: If present, suggested next actions to take for answering user query
 
@@ -391,7 +391,7 @@ async def search_cloudformation_documentation(query: str) -> str:
       - results: Array with single result containing:
         - rank: Search relevance ranking (1 = most relevant, higher is less relevant)
         - title: Document title or filename
-        - url: Source URL of the document
+        - url: Source URL of the document (may be null for non-document results)
         - context: Full or paginated document content
     - next_step_guidance: If present, suggested next actions to take for answering user query
 
@@ -459,7 +459,7 @@ async def search_cdk_samples_and_constructs(
       - results: Array with single result containing:
         - rank: Search relevance ranking (1 = most relevant, higher is less relevant)
         - title: Document title or filename
-        - url: Source URL of the document
+        - url: Source URL of the document (may be null for non-document results)
         - context: Full or paginated document content
     - next_step_guidance: If present, suggested next actions to take for answering user query
 
