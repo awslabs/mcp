@@ -422,8 +422,8 @@ class TestGetXrayTrace:
         }
 
         with patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.xray_client',
-            mock_xray,
+            'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.get_client',
+            return_value=mock_xray,
         ):
             result = await get_xray_trace(trace_ids='0xdeadbeefdeadbeefdeadbeefdeadbeef')
 
@@ -448,8 +448,8 @@ class TestGetXrayTrace:
             'UnprocessedTraceIds': ['1-deadbeef-deadbeefdeadbeefdeadbeef'],
         }
         with patch(
-            'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.xray_client',
-            mock_xray,
+            'awslabs.cloudwatch_applicationsignals_mcp_server.trace_tools.get_client',
+            return_value=mock_xray,
         ):
             result = await get_xray_trace(trace_ids='1-deadbeef-deadbeefdeadbeefdeadbeef')
 
