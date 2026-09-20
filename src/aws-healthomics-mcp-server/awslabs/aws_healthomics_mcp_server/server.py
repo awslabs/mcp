@@ -147,9 +147,10 @@ from awslabs.aws_healthomics_mcp_server.utils.aws_utils import (
     RequestScopedCredentialResolver,
     set_active_resolver,
 )
+from awslabs.aws_healthomics_mcp_server.utils.pagination import paginating
 from loguru import logger
 from mcp.server.mcpserver import MCPServer
-from typing import cast
+from typing import Any, Callable, cast
 
 
 mcp = MCPServer(
@@ -282,114 +283,127 @@ AWS HealthOmics is available in select AWS regions. Use the GetAHOSupportedRegio
     ],
 )
 
+
+def _register_tool(name: str, fn: Callable[..., Any]) -> None:
+    """Register *fn* as an MCP tool named *name*, applying pagination hints.
+
+    Every tool passes through :func:`paginating`, which only mutates the
+    return value of tools it recognizes as paginated; all others pass through
+    unchanged. Routing every registration through this one helper means a
+    future paginated tool inherits the behavior automatically by being
+    registered the same way.
+    """
+    mcp.tool(name=name)(paginating(name, fn))
+
+
 # Register workflow management tools
-mcp.tool(name='ListAHOWorkflows')(list_workflows)
-mcp.tool(name='CreateAHOWorkflow')(create_workflow)
-mcp.tool(name='GetAHOWorkflow')(get_workflow)
-mcp.tool(name='CreateAHOWorkflowVersion')(create_workflow_version)
-mcp.tool(name='ListAHOWorkflowVersions')(list_workflow_versions)
+_register_tool('ListAHOWorkflows', list_workflows)
+_register_tool('CreateAHOWorkflow', create_workflow)
+_register_tool('GetAHOWorkflow', get_workflow)
+_register_tool('CreateAHOWorkflowVersion', create_workflow_version)
+_register_tool('ListAHOWorkflowVersions', list_workflow_versions)
 
 # Register workflow execution tools
-mcp.tool(name='StartAHORun')(start_run)
-mcp.tool(name='ListAHORuns')(list_runs)
-mcp.tool(name='GetAHORun')(get_run)
-mcp.tool(name='ListAHORunTasks')(list_run_tasks)
-mcp.tool(name='GetAHORunTask')(get_run_task)
+_register_tool('StartAHORun', start_run)
+_register_tool('ListAHORuns', list_runs)
+_register_tool('GetAHORun', get_run)
+_register_tool('ListAHORunTasks', list_run_tasks)
+_register_tool('GetAHORunTask', get_run_task)
 
 # Register run group tools
-mcp.tool(name='CreateAHORunGroup')(create_run_group)
-mcp.tool(name='GetAHORunGroup')(get_run_group)
-mcp.tool(name='ListAHORunGroups')(list_run_groups)
-mcp.tool(name='UpdateAHORunGroup')(update_run_group)
+_register_tool('CreateAHORunGroup', create_run_group)
+_register_tool('GetAHORunGroup', get_run_group)
+_register_tool('ListAHORunGroups', list_run_groups)
+_register_tool('UpdateAHORunGroup', update_run_group)
 
 # Register run cache tools
-mcp.tool(name='CreateAHORunCache')(create_run_cache)
-mcp.tool(name='GetAHORunCache')(get_run_cache)
-mcp.tool(name='ListAHORunCaches')(list_run_caches)
-mcp.tool(name='UpdateAHORunCache')(update_run_cache)
+_register_tool('CreateAHORunCache', create_run_cache)
+_register_tool('GetAHORunCache', get_run_cache)
+_register_tool('ListAHORunCaches', list_run_caches)
+_register_tool('UpdateAHORunCache', update_run_cache)
 
 # Register run batch tools
-mcp.tool(name='StartAHORunBatch')(start_run_batch)
-mcp.tool(name='GetAHOBatch')(get_batch)
-mcp.tool(name='ListAHOBatches')(list_batches)
-mcp.tool(name='ListAHORunsInBatch')(list_runs_in_batch)
-mcp.tool(name='CancelAHORunBatch')(cancel_run_batch)
-mcp.tool(name='DeleteAHORunBatch')(delete_run_batch)
-mcp.tool(name='DeleteAHOBatch')(delete_batch)
+_register_tool('StartAHORunBatch', start_run_batch)
+_register_tool('GetAHOBatch', get_batch)
+_register_tool('ListAHOBatches', list_batches)
+_register_tool('ListAHORunsInBatch', list_runs_in_batch)
+_register_tool('CancelAHORunBatch', cancel_run_batch)
+_register_tool('DeleteAHORunBatch', delete_run_batch)
+_register_tool('DeleteAHOBatch', delete_batch)
 
 # Register workflow analysis tools
-mcp.tool(name='GetAHORunLogs')(get_run_logs)
-mcp.tool(name='GetAHORunManifestLogs')(get_run_manifest_logs)
-mcp.tool(name='GetAHORunEngineLogs')(get_run_engine_logs)
-mcp.tool(name='GetAHOTaskLogs')(get_task_logs)
-mcp.tool(name='AnalyzeAHORunPerformance')(analyze_run_performance)
-mcp.tool(name='GenerateAHORunTimeline')(generate_run_timeline)
+_register_tool('GetAHORunLogs', get_run_logs)
+_register_tool('GetAHORunManifestLogs', get_run_manifest_logs)
+_register_tool('GetAHORunEngineLogs', get_run_engine_logs)
+_register_tool('GetAHOTaskLogs', get_task_logs)
+_register_tool('AnalyzeAHORunPerformance', analyze_run_performance)
+_register_tool('GenerateAHORunTimeline', generate_run_timeline)
 
 # Register vended metrics tools
-mcp.tool(name='ListAHORunMetrics')(list_run_metrics)
-mcp.tool(name='GetAHORunMetrics')(get_run_metrics)
-mcp.tool(name='CompareAHORunMetrics')(compare_run_metrics)
-mcp.tool(name='GetAHOWorkflowMetrics')(get_workflow_metrics)
+_register_tool('ListAHORunMetrics', list_run_metrics)
+_register_tool('GetAHORunMetrics', get_run_metrics)
+_register_tool('CompareAHORunMetrics', compare_run_metrics)
+_register_tool('GetAHOWorkflowMetrics', get_workflow_metrics)
 
 # Register troubleshooting tools
-mcp.tool(name='DiagnoseAHORunFailure')(diagnose_run_failure)
+_register_tool('DiagnoseAHORunFailure', diagnose_run_failure)
 
 # Register workflow linting tools
-mcp.tool(name='LintAHOWorkflowDefinition')(lint_workflow_definition)
-mcp.tool(name='LintAHOWorkflowBundle')(lint_workflow_bundle)
+_register_tool('LintAHOWorkflowDefinition', lint_workflow_definition)
+_register_tool('LintAHOWorkflowBundle', lint_workflow_bundle)
 
 # Register genomics file search tools
-mcp.tool(name='SearchGenomicsFiles')(search_genomics_files)
-mcp.tool(name='GetSupportedFileTypes')(get_supported_file_types)
+_register_tool('SearchGenomicsFiles', search_genomics_files)
+_register_tool('GetSupportedFileTypes', get_supported_file_types)
 
 # Register helper tools
-mcp.tool(name='PackageAHOWorkflow')(package_workflow)
-mcp.tool(name='GetAHOSupportedRegions')(get_supported_regions)
+_register_tool('PackageAHOWorkflow', package_workflow)
+_register_tool('GetAHOSupportedRegions', get_supported_regions)
 
 # Register CodeConnections tools
-mcp.tool(name='ListCodeConnections')(list_codeconnections)
-mcp.tool(name='CreateCodeConnection')(create_codeconnection)
-mcp.tool(name='GetCodeConnection')(get_codeconnection)
+_register_tool('ListCodeConnections', list_codeconnections)
+_register_tool('CreateCodeConnection', create_codeconnection)
+_register_tool('GetCodeConnection', get_codeconnection)
 
 # Register ECR container tools
-mcp.tool(name='ListECRRepositories')(list_ecr_repositories)
-mcp.tool(name='CheckContainerAvailability')(check_container_availability)
-mcp.tool(name='CloneContainerToECR')(clone_container_to_ecr)
-mcp.tool(name='GrantHealthOmicsRepositoryAccess')(grant_healthomics_repository_access)
-mcp.tool(name='ListPullThroughCacheRules')(list_pull_through_cache_rules)
-mcp.tool(name='CreatePullThroughCacheForHealthOmics')(create_pull_through_cache_for_healthomics)
-mcp.tool(name='CreateContainerRegistryMap')(create_container_registry_map)
-mcp.tool(name='ValidateHealthOmicsECRConfig')(validate_healthomics_ecr_config)
+_register_tool('ListECRRepositories', list_ecr_repositories)
+_register_tool('CheckContainerAvailability', check_container_availability)
+_register_tool('CloneContainerToECR', clone_container_to_ecr)
+_register_tool('GrantHealthOmicsRepositoryAccess', grant_healthomics_repository_access)
+_register_tool('ListPullThroughCacheRules', list_pull_through_cache_rules)
+_register_tool('CreatePullThroughCacheForHealthOmics', create_pull_through_cache_for_healthomics)
+_register_tool('CreateContainerRegistryMap', create_container_registry_map)
+_register_tool('ValidateHealthOmicsECRConfig', validate_healthomics_ecr_config)
 
 # Register sequence store tools
-mcp.tool(name='CreateAHOSequenceStore')(create_sequence_store)
-mcp.tool(name='ListAHOSequenceStores')(list_sequence_stores)
-mcp.tool(name='GetAHOSequenceStore')(get_sequence_store)
-mcp.tool(name='UpdateAHOSequenceStore')(update_sequence_store)
-mcp.tool(name='ListAHOReadSets')(list_read_sets)
-mcp.tool(name='GetAHOReadSetMetadata')(get_read_set_metadata)
-mcp.tool(name='StartAHOReadSetImportJob')(start_read_set_import_job)
-mcp.tool(name='GetAHOReadSetImportJob')(get_read_set_import_job)
-mcp.tool(name='ListAHOReadSetImportJobs')(list_read_set_import_jobs)
-mcp.tool(name='StartAHOReadSetExportJob')(start_read_set_export_job)
-mcp.tool(name='GetAHOReadSetExportJob')(get_read_set_export_job)
-mcp.tool(name='ListAHOReadSetExportJobs')(list_read_set_export_jobs)
-mcp.tool(name='ActivateAHOReadSets')(activate_read_sets)
+_register_tool('CreateAHOSequenceStore', create_sequence_store)
+_register_tool('ListAHOSequenceStores', list_sequence_stores)
+_register_tool('GetAHOSequenceStore', get_sequence_store)
+_register_tool('UpdateAHOSequenceStore', update_sequence_store)
+_register_tool('ListAHOReadSets', list_read_sets)
+_register_tool('GetAHOReadSetMetadata', get_read_set_metadata)
+_register_tool('StartAHOReadSetImportJob', start_read_set_import_job)
+_register_tool('GetAHOReadSetImportJob', get_read_set_import_job)
+_register_tool('ListAHOReadSetImportJobs', list_read_set_import_jobs)
+_register_tool('StartAHOReadSetExportJob', start_read_set_export_job)
+_register_tool('GetAHOReadSetExportJob', get_read_set_export_job)
+_register_tool('ListAHOReadSetExportJobs', list_read_set_export_jobs)
+_register_tool('ActivateAHOReadSets', activate_read_sets)
 
 # Register reference store tools
-mcp.tool(name='ListAHOReferenceStores')(list_reference_stores)
-mcp.tool(name='GetAHOReferenceStore')(get_reference_store)
-mcp.tool(name='ListAHOReferences')(list_references)
-mcp.tool(name='GetAHOReferenceMetadata')(get_reference_metadata)
-mcp.tool(name='StartAHOReferenceImportJob')(start_reference_import_job)
-mcp.tool(name='GetAHOReferenceImportJob')(get_reference_import_job)
-mcp.tool(name='ListAHOReferenceImportJobs')(list_reference_import_jobs)
+_register_tool('ListAHOReferenceStores', list_reference_stores)
+_register_tool('GetAHOReferenceStore', get_reference_store)
+_register_tool('ListAHOReferences', list_references)
+_register_tool('GetAHOReferenceMetadata', get_reference_metadata)
+_register_tool('StartAHOReferenceImportJob', start_reference_import_job)
+_register_tool('GetAHOReferenceImportJob', get_reference_import_job)
+_register_tool('ListAHOReferenceImportJobs', list_reference_import_jobs)
 
 # Register configuration tools
-mcp.tool(name='CreateAHOConfiguration')(create_configuration)
-mcp.tool(name='GetAHOConfiguration')(get_configuration)
-mcp.tool(name='ListAHOConfigurations')(list_configurations)
-mcp.tool(name='DeleteAHOConfiguration')(delete_configuration)
+_register_tool('CreateAHOConfiguration', create_configuration)
+_register_tool('GetAHOConfiguration', get_configuration)
+_register_tool('ListAHOConfigurations', list_configurations)
+_register_tool('DeleteAHOConfiguration', delete_configuration)
 
 
 def _build_jwt_role_resolver(config: ServerConfig) -> RoleResolver:

@@ -18,6 +18,17 @@ This module centralizes constant definitions to ensure consistency
 and make maintenance easier across the codebase.
 """
 
+from typing import List, Tuple
+
+
+# ===== SQL Offload: Column Spec =====
+# Used by `sql_utils._create_and_insert` to drive CREATE/INSERT for any
+# helper-flattened record stream. Each spec is ``(column_name, sqlite_type)``;
+# the column type also drives value coercion at insert time (REAL is coerced
+# via ``float()`` to handle Decimal values that sqlite3 can't bind natively).
+ColumnSpec = Tuple[str, str]
+
+
 # ===== AWS Regions =====
 REGION_US_EAST_1 = 'us-east-1'
 
@@ -25,6 +36,7 @@ REGION_US_EAST_1 = 'us-east-1'
 OPERATION_LIST_RECOMMENDATION_SUMMARIES = 'list_recommendation_summaries'
 OPERATION_LIST_RECOMMENDATIONS = 'list_recommendations'
 OPERATION_GET_RECOMMENDATION = 'get_recommendation'
+OPERATION_LIST_EFFICIENCY_METRICS = 'list_efficiency_metrics'
 
 # ===== Cost Optimization Hub Group By Values =====
 GROUP_BY_ACCOUNT_ID = 'AccountId'
@@ -44,6 +56,110 @@ COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES = [
     GROUP_BY_ROLLBACK_POSSIBLE,
     GROUP_BY_IMPLEMENTATION_EFFORT,
 ]
+
+# ===== Cost Optimization Hub - ListEfficiencyMetrics =====
+# The efficiency-metrics API groups only by account ID or Region (no per-service
+# or per-resource-type efficiency score exists), so it accepts a narrower group_by
+# set than the recommendation APIs above.
+EFFICIENCY_METRICS_VALID_GROUP_BY_VALUES = [
+    GROUP_BY_ACCOUNT_ID,
+    GROUP_BY_REGION,
+]
+
+# Time granularity. Note the title-case values (Daily/Monthly) differ from Cost
+# Explorer's DAILY/MONTHLY.
+GRANULARITY_DAILY = 'Daily'
+GRANULARITY_MONTHLY = 'Monthly'
+EFFICIENCY_METRICS_VALID_GRANULARITY = [GRANULARITY_DAILY, GRANULARITY_MONTHLY]
+
+# Maximum look-back span the ListEfficiencyMetrics API serves per granularity:
+# 90 days of Daily detail, 3 months of Monthly. Requests exceeding these are
+# clamped (start moved forward) rather than rejected with a ValidationException.
+EFFICIENCY_METRICS_MAX_DAILY_SPAN_DAYS = 90
+EFFICIENCY_METRICS_MAX_MONTHLY_SPAN_MONTHS = 3
+
+# ===== Cost Optimization Hub - orderBy (shared by list_recommendations and
+# list_efficiency_metrics) =====
+ORDER_ASC = 'Asc'
+ORDER_DESC = 'Desc'
+ORDER_BY_VALID_ORDERS = [ORDER_ASC, ORDER_DESC]
+
+COST_OPTIMIZATION_HUB_LIST_EFFICIENCY_METRICS_VALID_ORDER_DIMENSIONS = [
+    'Score',
+    'Savings',
+    'Spend',
+]
+
+COST_OPTIMIZATION_HUB_LIST_RECOMMENDATIONS_VALID_ORDER_DIMENSIONS = [
+    'EstimatedMonthlySavings',
+    'EstimatedMonthlyCost',
+    'RestartNeeded',
+    'ImplementationEffort',
+    'AccountId',
+    'RollbackPossible',
+    'Region',
+    'ResourceType',
+    'ActionType',
+    'ResourceArn',
+    'ResourceId',
+    'EstimatedSavingsPercentage',
+]
+
+# Maps a list_recommendations ``orderBy`` dimension (CamelCase API name) to the
+# snake_case column it is stored under in the offloaded SQLite table
+# (COST_OPTIMIZATION_HUB_RECOMMENDATION_COLUMNS). Used to build a sample query
+# that mirrors the caller's requested ordering. Every orderBy dimension the API
+# accepts has a stored column; a dimension absent from this map (e.g. an
+# unexpected value) falls back to the default sample query.
+COST_OPTIMIZATION_HUB_ORDER_DIMENSION_TO_COLUMN = {
+    'EstimatedMonthlySavings': 'estimated_monthly_savings',
+    'EstimatedMonthlyCost': 'estimated_monthly_cost',
+    'ImplementationEffort': 'implementation_effort',
+    'AccountId': 'account_id',
+    'Region': 'region',
+    'ResourceType': 'current_resource_type',
+    'ActionType': 'action_type',
+    'ResourceArn': 'resource_arn',
+    'ResourceId': 'resource_id',
+    'EstimatedSavingsPercentage': 'estimated_savings_percentage',
+    'RestartNeeded': 'restart_needed',
+    'RollbackPossible': 'rollback_possible',
+}
+
+# Maps a list_efficiency_metrics ``orderBy`` dimension to the snake_case column
+# it is stored under in the offloaded SQLite table
+# (COST_OPTIMIZATION_HUB_EFFICIENCY_METRICS_COLUMNS). Used to build a
+# group-ranking sample query that mirrors the caller's requested ordering.
+COST_OPTIMIZATION_HUB_EFFICIENCY_ORDER_DIMENSION_TO_COLUMN = {
+    'Score': 'score',
+    'Savings': 'savings',
+    'Spend': 'spend',
+}
+
+# ===== Efficiency-metrics "performance" ranking (Pareto materiality) =====
+# For a "most efficient / top / worst performer" ranking of accounts or Regions,
+# ranking purely by score can surface the wrong groups: a low-spend group with
+# little savings opportunity scores near-100% and would rank as a top performer.
+# In ``performance`` ranking mode the tool
+# fetches highest-spend-first (orderBy Spend Desc) up to the page ceiling below, then:
+#   - if the FULL set was retrieved (no nextToken left), keep the groups whose
+#     cumulative spend makes up this fraction of total spend (the Pareto "vital
+#     few") and rank those by score in the requested direction; or
+#   - if the fetch hit the page cap (nextToken remains), skip the spend cutoff
+#     (total spend is unknown) and rank the fetched top-spenders by score, telling
+#     the customer only the top ~N spenders were analyzed (see console for the rest).
+# Groups with no usable score or non-positive spend are excluded first either way.
+EFFICIENCY_RANKING_MODE_PERFORMANCE = 'performance'
+EFFICIENCY_METRICS_VALID_RANKING_MODES = [EFFICIENCY_RANKING_MODE_PERFORMANCE]
+EFFICIENCY_PARETO_SPEND_FRACTION = 0.80
+# Performance mode force-paginates the highest-spend accounts first, up to this many
+# pages, when the caller did not already paginate.
+EFFICIENCY_PARETO_MAX_PAGES = 20
+# Per-page size forced in performance mode; kept small so each page returns quickly.
+# Pairs with EFFICIENCY_PARETO_MAX_PAGES for the effective fetch ceiling
+# (100 x 20 = 2000 highest-spend groups); beyond that the fetch caps and the ranking
+# is disclosed as top-spenders-only.
+EFFICIENCY_PARETO_PAGE_SIZE = 100
 
 # ===== Recommendation Details - Action Types =====
 ACTION_TYPE_PURCHASE_SAVINGS_PLAN = 'PurchaseSavingsPlans'
@@ -117,3 +233,44 @@ ENV_STORAGE_LENS_MANIFEST_LOCATION = (
 ENV_STORAGE_LENS_OUTPUT_LOCATION = (
     'STORAGE_LENS_OUTPUT_LOCATION'  # S3 location for Athena query results
 )
+
+
+# Schema used to offload ``list_recommendations`` responses to SQLite.
+COST_OPTIMIZATION_HUB_RECOMMENDATION_COLUMNS: List[ColumnSpec] = [
+    ('recommendation_id', 'TEXT'),
+    ('account_id', 'TEXT'),
+    ('region', 'TEXT'),
+    ('resource_id', 'TEXT'),
+    ('resource_arn', 'TEXT'),
+    ('action_type', 'TEXT'),
+    ('current_resource_type', 'TEXT'),
+    ('recommended_resource_type', 'TEXT'),
+    ('current_resource_summary', 'TEXT'),
+    ('recommended_resource_summary', 'TEXT'),
+    ('estimated_monthly_savings', 'REAL'),
+    ('estimated_savings_percentage', 'REAL'),
+    ('estimated_monthly_cost', 'REAL'),
+    ('currency_code', 'TEXT'),
+    ('implementation_effort', 'TEXT'),
+    ('last_refresh_timestamp', 'TEXT'),
+    ('lookback_period_in_days', 'INTEGER'),
+    ('restart_needed', 'BOOLEAN'),
+    ('rollback_possible', 'BOOLEAN'),
+]
+
+
+# Schema used to offload ``list_efficiency_metrics`` responses to SQLite. The
+# response nests a per-timestamp series under each group, so it is denormalized
+# to one row per (group, timestamp). A no-data group (empty ``metrics_by_time``)
+# is preserved as a single row with null metrics so the group and its
+# explanatory ``message`` survive offload rather than vanishing. The dimension
+# column is ``group_value`` (not ``group``) because ``group`` is a SQL reserved
+# word and ``_create_and_insert`` does not quote identifiers.
+COST_OPTIMIZATION_HUB_EFFICIENCY_METRICS_COLUMNS: List[ColumnSpec] = [
+    ('group_value', 'TEXT'),
+    ('message', 'TEXT'),
+    ('timestamp', 'TEXT'),
+    ('score', 'REAL'),
+    ('savings', 'REAL'),
+    ('spend', 'REAL'),
+]
