@@ -135,7 +135,8 @@ below `list_databases`, not only `list_schemas`.
 
 Without a transaction parameter, each statement runs on its own connection: statements
 against the same `cluster:database` run concurrently, including behind a long-running one,
-and no session state carries between calls.
+and no session state carries between calls: a temporary table or a `SET` is gone by the next,
+though the statement that made it reports success.
 
 To carry state across calls, name a transaction with `execute_query`'s `begin_transaction`,
 `in_transaction`, `commit_transaction` and `rollback_transaction` parameters. Its statements
@@ -675,6 +676,9 @@ async def execute_query_tool(
     Both modes accept a single statement only; multi-statement submissions are rejected.
 
     ## Transactions
+
+    Session state needs one: outside a transaction a temporary table or a `SET` is gone by the
+    next call, though the statement that made it reports success.
 
     Name a transaction to keep it open across calls:
 

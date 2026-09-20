@@ -654,7 +654,7 @@ If you select `read-write`:
 
 ## Transactions
 
-Without a transaction parameter, every `execute_query` call runs on its own connection. No session state carries over: a temporary table or a `SET` from one call is invisible to the next, and calls to the same cluster and database run concurrently rather than queueing.
+Without a transaction parameter, every `execute_query` call runs on its own connection. No session state carries over: a temporary table or a `SET` from one call is invisible to the next, though the statement that made it reports success. Calls to the same cluster and database run concurrently rather than queueing.
 
 To carry state across calls, name a transaction:
 
