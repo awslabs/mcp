@@ -55,28 +55,50 @@ def test_unparameterized_read_queries_are_allowed(sql):
 
 
 @pytest.mark.parametrize(
-    'sql',
+    ('sql', 'parameter_count'),
     [
-        'SELECT * FROM t WHERE tenant_id = %s',
-        'SELECT * FROM t WHERE a = %b AND b = %t',
-        'SELECT 10 %% 3',
+        ('SELECT * FROM t WHERE tenant_id = %s', 1),
+        ('SELECT * FROM t WHERE a = %b AND b = %t', 2),
+        ('SELECT 10 %% 3', 0),
     ],
 )
-def test_bound_psycopg_placeholders_are_allowed(sql):
+def test_bound_psycopg_placeholders_are_allowed(sql, parameter_count):
     """Psycopg placeholders are normalized only when parameters are supplied."""
-    assert_executable(sql, parameters_bound=True)
+    assert_executable(sql, parameter_count=parameter_count)
 
 
-def test_placeholder_normalization_uses_postgresql_scanner_boundaries():
-    """Strings, identifiers, Unicode dollar quotes, and CR comments stay opaque."""
+def test_placeholder_normalization_matches_psycopg_raw_query_scanning():
+    """Placeholders are converted across the raw text exactly as psycopg does."""
     sql = (
         """SELECT '%s', "%s", U&"%s", $tagé$%s$tagé$, value FROM t -- %s\r"""
         'WHERE id = %s AND payload = %b AND label = %t AND ratio = 10 %% 3'
     )
-    assert _normalize_placeholders(sql, parameters_bound=True) == (
-        """SELECT '%s', "%s", U&"%s", $tagé$%s$tagé$, value FROM t -- %s\r"""
-        'WHERE id = $1 AND payload = $2 AND label = $3 AND ratio = 10 % 3'
+    assert _normalize_placeholders(sql, parameter_count=8) == (
+        """SELECT '$1', "$2", U&"$3", $tagé$$4$tagé$, value FROM t -- $5\r"""
+        'WHERE id = $6 AND payload = $7 AND label = $8 AND ratio = 10 % 3'
     )
+
+
+def test_placeholder_normalization_matches_reported_driver_differential():
+    """Markers inside strings and comments contribute to psycopg numbering."""
+    sql = "SELECT '%s', id FROM t WHERE id = %s -- %s"
+    assert _normalize_placeholders(sql, parameter_count=3) == (
+        "SELECT '$1', id FROM t WHERE id = $2 -- $3"
+    )
+
+
+@pytest.mark.parametrize(
+    ('sql', 'parameter_count'),
+    [
+        ('SELECT %s', 0),
+        ('SELECT 1', 1),
+        ("SELECT '%s', id FROM t WHERE id = %s -- %s", 1),
+    ],
+)
+def test_placeholder_count_must_match_bound_parameters(sql, parameter_count):
+    """The policy rejects the same positional parameter-count mismatches as psycopg."""
+    with pytest.raises(SqlPolicyError, match='placeholders'):
+        assert_executable(sql, parameter_count=parameter_count)
 
 
 def test_unbound_percent_does_not_hide_mutating_function():
@@ -89,13 +111,13 @@ def test_unbound_percent_does_not_hide_mutating_function():
 def test_invalid_bound_placeholder_syntax_is_rejected(sql):
     """A parameters object makes unescaped percent operators invalid to psycopg."""
     with pytest.raises(SqlPolicyError, match='placeholder'):
-        assert_executable(sql, parameters_bound=True)
+        assert_executable(sql, parameter_count=0)
 
 
-def test_placeholder_scanner_failures_are_policy_errors():
-    """Malformed parameterized SQL fails closed through the policy exception."""
+def test_malformed_normalized_sql_is_rejected():
+    """Malformed parameterized SQL still fails closed after placeholder conversion."""
     with pytest.raises(SqlPolicyError, match='scanned'):
-        assert_executable("SELECT '%s", parameters_bound=True)
+        assert_executable("SELECT '%s", parameter_count=1)
 
 
 @pytest.mark.parametrize(
@@ -115,9 +137,7 @@ def test_read_only_policy_rejects_writes_and_multiple_statements(sql):
 
 def test_write_mode_allows_normal_parameterized_writes():
     """Write mode skips the read-only allowlist."""
-    assert_executable(
-        'INSERT INTO t VALUES (%s)', allow_write_query=True, parameters_bound=True
-    )
+    assert_executable('INSERT INTO t VALUES (%s)', allow_write_query=True, parameter_count=1)
     assert_executable('COPY t TO STDOUT', allow_write_query=True)
     assert_executable("SELECT set_config('work_mem', '64MB', false)", allow_write_query=True)
     assert_executable('RESET work_mem', allow_write_query=True)

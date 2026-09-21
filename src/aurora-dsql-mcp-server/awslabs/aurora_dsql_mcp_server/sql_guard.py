@@ -192,7 +192,6 @@ DANGEROUS_QUALIFIED_FUNCTIONS = frozenset(
 SECURITY_SENSITIVE_GUCS = frozenset({'row_security', 'session_replication_role'})
 
 _COMMENT_TOKENS = frozenset({'C_COMMENT', 'SQL_COMMENT'})
-_STRING_TOKENS = frozenset({'BCONST', 'SCONST', 'USCONST', 'XCONST'})
 _IAM_PRINCIPAL_TOKENS = frozenset({'SCONST', 'USCONST'})
 _DANGEROUS_QUALIFIED_BASENAMES = frozenset(
     function for _, function in DANGEROUS_QUALIFIED_FUNCTIONS
@@ -221,46 +220,46 @@ def _apply_replacements(sql: str, replacements: list[tuple[int, int, str]]) -> s
     return sql
 
 
-def _normalize_placeholders(sql: str, parameters_bound: bool = False) -> str:
+def _normalize_placeholders(sql: str, parameter_count: int | None = None) -> str:
     """Match psycopg placeholder handling in the parser-only SQL copy.
 
-    Psycopg interprets ``%s``, ``%b``, ``%t``, and ``%%`` only when a parameters
-    object is supplied to ``execute``. PostgreSQL's scanner identifies percent
-    tokens outside strings, identifiers, dollar quotes, and comments, including
-    Unicode dollar-quote tags and carriage-return line endings.
+    When a parameters object is supplied to ``execute``, psycopg scans the raw
+    query text rather than PostgreSQL tokens. It therefore interprets ``%s``,
+    ``%b``, ``%t``, and ``%%`` even inside strings, identifiers, dollar quotes,
+    and comments. The parser-only copy must do the same before applying policy.
     """
-    if not parameters_bound:
+    if parameter_count is None:
         return sql
 
-    replacements: list[tuple[int, int, str]] = []
-    consumed_through = -1
+    chunks: list[str] = []
     parameter = 1
-    for token in scan(sql):
-        source = _token_text(sql, token)
-        if (
-            token.name in _COMMENT_TOKENS
-            or token.name in _STRING_TOKENS
-            or token.name == 'UIDENT'
-            or source.startswith('"')
-        ):
+    position = 0
+    while position < len(sql):
+        character = sql[position]
+        if character != '%':
+            chunks.append(character)
+            position += 1
             continue
-        for offset, character in enumerate(source):
-            position = token.start + offset
-            if character != '%' or position <= consumed_through:
-                continue
-            marker_position = position + 1
-            if marker_position >= len(sql):
-                _reject('Invalid psycopg placeholder syntax')
-            marker = sql[marker_position]
-            if marker in ('s', 'b', 't'):
-                replacements.append((position, marker_position, f'${parameter}'))
-                parameter += 1
-            elif marker == '%':
-                replacements.append((position, marker_position, '%'))
-            else:
-                _reject('Invalid psycopg placeholder syntax')
-            consumed_through = marker_position
-    return _apply_replacements(sql, replacements)
+
+        marker_position = position + 1
+        if marker_position >= len(sql):
+            _reject('Invalid psycopg placeholder syntax')
+        marker = sql[marker_position]
+        if marker in ('s', 'b', 't'):
+            chunks.append(f'${parameter}')
+            parameter += 1
+        elif marker == '%':
+            chunks.append('%')
+        else:
+            _reject('Invalid psycopg placeholder syntax')
+        position += 2
+
+    placeholders = parameter - 1
+    if placeholders != parameter_count:
+        _reject(
+            f'Query has {placeholders} placeholders but {parameter_count} parameters were supplied'
+        )
+    return ''.join(chunks)
 
 
 def _significant_tokens(sql: str) -> list:
@@ -457,16 +456,15 @@ def _check_read_only(root: ast.Node, nodes: list[ast.Node]) -> None:
 
 
 def assert_executable(
-    sql: str, allow_write_query: bool = False, parameters_bound: bool = False
+    sql: str, allow_write_query: bool = False, parameter_count: int | None = None
 ) -> None:
     """Require one parser-approved SQL statement.
 
-    ``parameters_bound`` must match whether the caller supplies a parameters
-    object to psycopg so percent placeholders are interpreted identically by
-    the policy layer and the database driver.
+    ``parameter_count`` must be ``None`` when no parameters object is supplied,
+    or the number of values supplied to psycopg otherwise.
     """
     try:
-        normalized = _normalize_placeholders(sql, parameters_bound=parameters_bound)
+        normalized = _normalize_placeholders(sql, parameter_count=parameter_count)
     except SqlPolicyError:
         raise
     except Exception as error:

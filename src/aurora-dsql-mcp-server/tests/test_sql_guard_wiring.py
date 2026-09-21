@@ -110,3 +110,20 @@ async def test_readonly_query_passes_parameter_binding_context_to_guard():
 
     assert result == [{'value': 1}]
     assert execute_query.await_args_list[1].args[3] == [1]
+
+
+@pytest.mark.asyncio
+async def test_readonly_query_stops_raw_placeholder_count_mismatch_before_connection():
+    """Quoted and commented markers count as psycopg placeholders."""
+    ctx = AsyncMock()
+    sql = "SELECT '%s', id FROM t WHERE id = %s -- %s"
+    with (
+        patch('awslabs.aurora_dsql_mcp_server.server.cluster_endpoint', 'example.dsql'),
+        patch(
+            'awslabs.aurora_dsql_mcp_server.server.get_connection', new_callable=AsyncMock
+        ) as get_connection,
+    ):
+        with pytest.raises(Exception, match=ERROR_QUERY_INJECTION_RISK):
+            await readonly_query(sql, ctx, params=[1])
+
+    get_connection.assert_not_awaited()

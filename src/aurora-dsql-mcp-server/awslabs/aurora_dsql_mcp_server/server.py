@@ -226,7 +226,11 @@ async def readonly_query(
     # This closes lexical differentials such as U&-escaped identifiers while
     # preserving the existing, more specific user-facing errors above.
     try:
-        assert_executable(sql, allow_write_query=False, parameters_bound=params is not None)
+        assert_executable(
+            sql,
+            allow_write_query=False,
+            parameter_count=len(params) if params is not None else None,
+        )
     except SqlPolicyError as error:
         logger.warning(f'readonly_query rejected by SQL policy guard: {error}')
         await ctx.error(f'{ERROR_QUERY_INJECTION_RISK}: {error}')
@@ -400,7 +404,7 @@ async def transact(
             assert_executable(
                 sql,
                 allow_write_query=not read_only,
-                parameters_bound=parameters is not None,
+                parameter_count=len(parameters) if parameters is not None else None,
             )
         except SqlPolicyError as error:
             logger.warning(f'transact rejected by SQL policy guard: {error}')
