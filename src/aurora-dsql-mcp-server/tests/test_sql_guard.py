@@ -60,6 +60,8 @@ def test_unparameterized_read_queries_are_allowed(sql):
         ('SELECT * FROM t WHERE tenant_id = %s', 1),
         ('SELECT * FROM t WHERE a = %b AND b = %t', 2),
         ('SELECT 10 %% 3', 0),
+        ('SELECT %s -- progress 100%', 1),
+        ('SELECT %s -- progress 100%\n', 1),
     ],
 )
 def test_bound_psycopg_placeholders_are_allowed(sql, parameter_count):
@@ -88,6 +90,18 @@ def test_placeholder_normalization_matches_reported_driver_differential():
 
 
 @pytest.mark.parametrize(
+    'sql',
+    [
+        'SELECT %s -- progress 100%',
+        'SELECT %s -- progress 100%\n',
+    ],
+)
+def test_placeholder_normalization_preserves_psycopg_unmatched_percent(sql):
+    """Terminal percent and percent before a line feed remain unchanged."""
+    assert _normalize_placeholders(sql, parameter_count=1) == sql.replace('%s', '$1')
+
+
+@pytest.mark.parametrize(
     ('sql', 'parameter_count'),
     [
         ('SELECT %s', 0),
@@ -107,7 +121,7 @@ def test_unbound_percent_does_not_hide_mutating_function():
         assert_executable('SELECT 1%setseed(0.5)')
 
 
-@pytest.mark.parametrize('sql', ['SELECT 1 %', 'SELECT 1 % q'])
+@pytest.mark.parametrize('sql', ['SELECT 1 % q', 'SELECT %s -- progress 100%\r\n'])
 def test_invalid_bound_placeholder_syntax_is_rejected(sql):
     """A parameters object makes unescaped percent operators invalid to psycopg."""
     with pytest.raises(SqlPolicyError, match='placeholder'):

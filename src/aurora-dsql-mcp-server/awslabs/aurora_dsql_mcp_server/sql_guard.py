@@ -226,7 +226,8 @@ def _normalize_placeholders(sql: str, parameter_count: int | None = None) -> str
     When a parameters object is supplied to ``execute``, psycopg scans the raw
     query text rather than PostgreSQL tokens. It therefore interprets ``%s``,
     ``%b``, ``%t``, and ``%%`` even inside strings, identifiers, dollar quotes,
-    and comments. The parser-only copy must do the same before applying policy.
+    and comments. A terminal percent or percent immediately before a line feed
+    is not matched by psycopg and remains unchanged.
     """
     if parameter_count is None:
         return sql
@@ -242,8 +243,10 @@ def _normalize_placeholders(sql: str, parameter_count: int | None = None) -> str
             continue
 
         marker_position = position + 1
-        if marker_position >= len(sql):
-            _reject('Invalid psycopg placeholder syntax')
+        if marker_position >= len(sql) or sql[marker_position] == '\n':
+            chunks.append('%')
+            position += 1
+            continue
         marker = sql[marker_position]
         if marker in ('s', 'b', 't'):
             chunks.append(f'${parameter}')
