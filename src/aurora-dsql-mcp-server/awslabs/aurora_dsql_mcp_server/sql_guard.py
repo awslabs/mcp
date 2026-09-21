@@ -412,16 +412,23 @@ def _is_safe_transaction_setting(node: ast.VariableSetStmt) -> bool:
 
 def _explain_executes(root: ast.ExplainStmt) -> bool:
     """Return whether EXPLAIN has ANALYZE enabled."""
+    analyze = False
     for option in root.options or ():
         if option.defname != 'analyze':
             continue
         if option.arg is None:
-            return True
+            analyze = True
+            continue
+        integer_value = getattr(option.arg, 'ival', None)
+        if integer_value is not None:
+            analyze = integer_value != 0
+            continue
         string_value = getattr(option.arg, 'sval', None)
         if string_value is not None:
-            return string_value.lower() in ('true', 'on', 'yes', '1')
-        return bool(getattr(option.arg, 'boolval', True))  # pragma: no cover
-    return False
+            analyze = string_value.lower() in ('true', 'on', 'yes', '1')
+            continue
+        analyze = bool(getattr(option.arg, 'boolval', True))  # pragma: no cover
+    return analyze
 
 
 def _check_read_only(root: ast.Node, nodes: list[ast.Node]) -> None:

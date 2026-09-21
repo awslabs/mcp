@@ -287,13 +287,41 @@ def test_other_settings_are_rejected_in_read_only_mode(sql):
         assert_executable(sql)
 
 
-def test_explain_execute_is_allowed_only_when_it_does_not_execute():
+@pytest.mark.parametrize(
+    'sql',
+    [
+        'EXPLAIN EXECUTE prepared_read',
+        'EXPLAIN (BUFFERS) EXECUTE prepared_read',
+        'EXPLAIN (ANALYZE false) EXECUTE prepared_read',
+        'EXPLAIN (ANALYZE 0) EXECUTE prepared_read',
+        'EXPLAIN (ANALYZE true, ANALYZE false) EXECUTE prepared_read',
+        'EXPLAIN (ANALYZE 1, ANALYZE 0) EXECUTE prepared_read',
+        'EXPLAIN (ANALYZE, ANALYZE false) EXECUTE prepared_read',
+    ],
+)
+def test_explain_execute_is_allowed_when_final_analyze_option_is_disabled(sql):
     """EXPLAIN may inspect a prepared plan but ANALYZE may not execute it."""
-    assert_executable('EXPLAIN EXECUTE prepared_read')
-    assert_executable('EXPLAIN (BUFFERS) EXECUTE prepared_read')
-    assert_executable('EXPLAIN (ANALYZE false) EXECUTE prepared_read')
+    assert_executable(sql)
+
+
+@pytest.mark.parametrize(
+    'sql',
+    [
+        'EXPLAIN ANALYZE EXECUTE prepared_read',
+        'EXPLAIN (ANALYZE 1) EXECUTE prepared_read',
+        'EXPLAIN (ANALYZE false, ANALYZE true) EXECUTE prepared_read',
+        'EXPLAIN (ANALYZE 0, ANALYZE 1) EXECUTE prepared_read',
+        'EXPLAIN (ANALYZE false, ANALYZE) EXECUTE prepared_read',
+    ],
+)
+def test_explain_execute_is_rejected_when_final_analyze_option_is_enabled(sql):
+    """The last repeated ANALYZE option determines whether EXPLAIN executes."""
     with pytest.raises(SqlPolicyError, match='without ANALYZE'):
-        assert_executable('EXPLAIN ANALYZE EXECUTE prepared_read')
+        assert_executable(sql)
+
+
+def test_execute_without_explain_is_rejected():
+    """EXECUTE is permitted only as a non-executing EXPLAIN target."""
     with pytest.raises(SqlPolicyError):
         assert_executable('EXECUTE prepared_read')
 
