@@ -29,6 +29,12 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     LogLevel,
     log_with_request_id,
 )
+from awslabs.aws_dataprocessing_mcp_server.utils.sensitive_data_filter import (
+    EMR_SERVERLESS_JOB_RUN_FIELDS,
+    filter_record,
+    filter_records,
+    redaction_notice,
+)
 from mcp.server.mcpserver import Context
 from mcp.types import CallToolResult, TextContent
 from pydantic import Field
@@ -69,7 +75,7 @@ class EMRServerlessJobRunHandler:
         operation: Annotated[
             str,
             Field(
-                description='Operation to perform: start-job-run, get-job-run, cancel-job-run, list-job-runs, get-dashboard-for-job-run. Choose read-only operations when write access is disabled.',
+                description='Operation to perform: start-job-run, get-job-run, cancel-job-run, list-job-runs, get-dashboard-for-job-run. Choose read-only operations when write access is disabled. (job driver, overrides, tags and failure details require --allow-sensitive-data-access)',
             ),
         ],
         application_id: Annotated[
@@ -188,14 +194,15 @@ class EMRServerlessJobRunHandler:
 
         ## Requirements
         - The server must be run with the `--allow-write` flag for start-job-run and cancel-job-run operations
+        - The server must be run with the `--allow-sensitive-data-access` flag to receive jobDriver, configurationOverrides, tags and stateDetails from get-job-run and list-job-runs. Without it these fields are omitted from the response and named in the response message
         - Application must exist and be in appropriate state for job execution
         - Appropriate AWS permissions for EMR Serverless job run operations
 
         ## Operations
         - **start-job-run**: Start a new job run on an EMR Serverless application
-        - **get-job-run**: Get detailed information about a specific job run
+        - **get-job-run**: Get detailed information about a specific job run (job driver, overrides, tags and failure details require --allow-sensitive-data-access)
         - **cancel-job-run**: Cancel a running job run
-        - **list-job-runs**: List job runs for an application with optional filtering
+        - **list-job-runs**: List job runs for an application with optional filtering (job driver, overrides, tags and failure details require --allow-sensitive-data-access)
         - **get-dashboard-for-job-run**: Get the dashboard URL for monitoring a job run
 
         ## Example
@@ -339,22 +346,24 @@ class EMRServerlessJobRunHandler:
                     )
                     return self._create_error_response(operation, error_message)
 
-                # SECURITY: Job run details may contain sensitive data in arguments, error messages, and logs
-                # Require --allow-sensitive-data-access flag to prevent unauthorized data exposure
-                if not self.allow_sensitive_data_access:
-                    error_message = 'Operation get-job-run may contain sensitive data in job arguments and logs, and requires --allow-sensitive-data-access flag'
-                    log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return self._create_error_response(operation, error_message)
-
                 # Get job run
                 response = self.emr_serverless_client.get_job_run(
                     applicationId=application_id,
                     jobRunId=job_run_id,
                 )
 
+                job_run = response.get('jobRun', {})
                 success_message = f'Successfully retrieved job run {job_run_id} details'
+
+                if not self.allow_sensitive_data_access:
+                    job_run, omitted = filter_record(job_run, EMR_SERVERLESS_JOB_RUN_FIELDS)
+                    notice = redaction_notice('get-job-run', omitted)
+                    if notice:
+                        log_with_request_id(ctx, LogLevel.INFO, notice)
+                        success_message = f'{success_message}. {notice}'
+
                 data = GetJobRunData(
-                    job_run=response.get('jobRun', {}),
+                    job_run=job_run,
                     operation='get-job-run',
                 )
 
@@ -421,6 +430,15 @@ class EMRServerlessJobRunHandler:
 
                 job_runs = response.get('jobRuns', [])
                 success_message = 'Successfully listed EMR Serverless job runs'
+
+                # jobRunSummary carries the same fields as get-job-run's jobRun record.
+                if not self.allow_sensitive_data_access:
+                    job_runs, omitted = filter_records(job_runs, EMR_SERVERLESS_JOB_RUN_FIELDS)
+                    notice = redaction_notice('list-job-runs', omitted)
+                    if notice:
+                        log_with_request_id(ctx, LogLevel.INFO, notice)
+                        success_message = f'{success_message}. {notice}'
+
                 data = ListJobRunsData(
                     job_runs=job_runs,
                     count=len(job_runs),
