@@ -37,13 +37,13 @@ class TestTools:
         from awslabs.ccapi_mcp_server.server import get_resource_schema_information
 
         with pytest.raises(ClientError):
-            await get_resource_schema_information(resource_type=None)
+            await get_resource_schema_information(resource_type=None)  # pyright: ignore[reportArgumentType]
 
     @pytest.mark.asyncio
     async def test_list_resources_no_type(self):
         """Testing no type provided."""
         with pytest.raises(ClientError):
-            await list_resources(resource_type=None)
+            await list_resources(resource_type=None)  # pyright: ignore[reportArgumentType]
 
     @pytest.mark.asyncio
     async def test_get_resource_no_type(self):
@@ -51,7 +51,7 @@ class TestTools:
         from awslabs.ccapi_mcp_server.server import get_resource
 
         with pytest.raises(Exception):  # Pydantic validation error
-            await get_resource(resource_type=None, identifier='identifier')
+            await get_resource(resource_type=None, identifier='identifier')  # pyright: ignore[reportArgumentType]
 
     @pytest.mark.asyncio
     async def test_create_resource_no_type(self):
@@ -59,7 +59,7 @@ class TestTools:
         with pytest.raises(Exception):  # Pydantic validation error
             await create_resource(
                 region='us-east-1',
-                resource_type=None,
+                resource_type=None,  # pyright: ignore[reportArgumentType]
                 credentials_token='creds_token',
                 explained_token='explained_token',
             )
@@ -70,7 +70,7 @@ class TestTools:
         with pytest.raises(Exception):  # Pydantic validation error
             await update_resource(
                 region='us-east-1',
-                resource_type=None,
+                resource_type=None,  # pyright: ignore[reportArgumentType]
                 identifier='id',
                 patch_document=[],
                 credentials_token='creds_token',
@@ -85,7 +85,7 @@ class TestTools:
         with pytest.raises(Exception):  # Pydantic validation error
             await delete_resource(
                 region='us-east-1',
-                resource_type=None,
+                resource_type=None,  # pyright: ignore[reportArgumentType]
                 identifier='id',
                 credentials_token='creds_token',
                 explained_token='explained_token',
@@ -1075,7 +1075,7 @@ class TestTools:
 
         # Test line 97 - get_resource_schema_information with None resource_type
         try:
-            await get_resource_schema_information(resource_type=None)
+            await get_resource_schema_information(resource_type=None)  # pyright: ignore[reportArgumentType]
         except Exception:
             pass
 
@@ -1106,7 +1106,9 @@ class TestTools:
             with patch('awslabs.ccapi_mcp_server.server.get_resource') as mock_get:
                 mock_get.return_value = {'security_analysis': {'passed': True}}
                 result = await list_resources(
-                    'AWS::S3::Bucket', analyze_security=True, max_resources_to_analyze=None
+                    'AWS::S3::Bucket',
+                    analyze_security=True,
+                    max_resources_to_analyze=None,  # pyright: ignore[reportArgumentType]
                 )
                 assert 'security_analysis' in result
 

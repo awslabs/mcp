@@ -24,6 +24,7 @@ import base64
 import hashlib
 import httpx
 import os
+from awslabs.aws_transform_mcp_server.consts import ARTIFACT_UPLOAD_TIMEOUT
 from awslabs.aws_transform_mcp_server.file_validation import validate_read_path
 from awslabs.aws_transform_mcp_server.transform_api_client import call_transform_api
 from awslabs.aws_transform_mcp_server.transform_api_models import (
@@ -97,7 +98,7 @@ async def upload_json_artifact(
 
     put_headers = _flatten_request_headers(init_result.get('requestHeaders'))
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=ARTIFACT_UPLOAD_TIMEOUT) as client:
         s3_response = await client.put(
             init_result['s3PreSignedUrl'],
             content=content_bytes,
@@ -178,7 +179,7 @@ async def upload_file_artifact(
 
     put_headers = _flatten_request_headers(init_result.get('requestHeaders'))
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=ARTIFACT_UPLOAD_TIMEOUT) as client:
         s3_response = await client.put(
             init_result['s3PreSignedUrl'],
             content=content_bytes,

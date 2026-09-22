@@ -34,6 +34,7 @@ from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools im
     get_auto_scaling_group_recommendations,
     get_ebs_volume_recommendations,
     get_ec2_instance_recommendations,
+    get_idle_recommendations,
     get_lambda_function_recommendations,
     get_rds_recommendations,
 )
@@ -240,6 +241,46 @@ def mock_co_client():
             }
         ],
         'nextToken': 'next-token-rds',
+    }
+
+    mock_client.get_idle_recommendations.return_value = {
+        'idleRecommendations': [
+            {
+                'accountId': '123456789012',
+                'resourceArn': 'arn:aws:ec2:us-east-1:123456789012:volume/vol-0abcdef1234567890',
+                'resourceId': 'vol-0abcdef1234567890',
+                'resourceType': 'EBSVolume',
+                'finding': 'Unattached',
+                'findingDescription': 'EBS Volume is unattached.',
+                'lookBackPeriodInDays': 14.0,
+                'lastRefreshTimestamp': datetime(2023, 1, 1),
+                'savingsOpportunity': {
+                    'savingsOpportunityPercentage': 100.0,
+                    'estimatedMonthlySavings': {
+                        'currency': 'USD',
+                        'value': 12.50,
+                    },
+                },
+                'savingsOpportunityAfterDiscounts': {
+                    'savingsOpportunityPercentage': 90.0,
+                    'estimatedMonthlySavings': {
+                        'currency': 'USD',
+                        'value': 11.25,
+                    },
+                },
+                'utilizationMetrics': [
+                    {
+                        'name': 'VolumeReadOpsPerSecond',
+                        'statistic': 'Maximum',
+                        'value': 0.0,
+                        'dimensions': [{'key': 'GlobalSecondaryIndexName', 'values': ['gsi-1']}],
+                    }
+                ],
+                'tags': [{'key': 'env', 'value': 'test'}],
+            }
+        ],
+        'errors': [],
+        'nextToken': 'next-token-idle',
     }
 
     return mock_client
@@ -638,6 +679,91 @@ class TestGetRDSRecommendations:
             assert call_kwargs['nextToken'] == 'next-page-rds'
 
 
+@pytest.mark.asyncio
+class TestGetIdleRecommendations:
+    """Tests for get_idle_recommendations function."""
+
+    async def test_basic_call(self, mock_context, mock_co_client):
+        """Test basic call to get_idle_recommendations."""
+        result = await get_idle_recommendations(
+            mock_context,
+            mock_co_client,
+            max_results=10,
+            filters=None,
+            account_ids=None,
+            next_token=None,
+        )
+
+        # Verify the client was called correctly
+        mock_co_client.get_idle_recommendations.assert_called_once()
+        call_kwargs = mock_co_client.get_idle_recommendations.call_args[1]
+        assert call_kwargs['maxResults'] == 10
+
+        # Verify response format
+        assert result['status'] == 'success'
+        assert 'recommendations' in result['data']
+        assert result['data']['errors'] == []
+        assert result['data']['next_token'] == 'next-token-idle'
+
+        recommendations = result['data']['recommendations']
+        assert len(recommendations) == 1
+        recommendation = recommendations[0]
+
+        assert (
+            recommendation['resource_arn']
+            == 'arn:aws:ec2:us-east-1:123456789012:volume/vol-0abcdef1234567890'
+        )
+        assert recommendation['resource_id'] == 'vol-0abcdef1234567890'
+        assert recommendation['resource_type'] == 'EBSVolume'
+        assert recommendation['account_id'] == '123456789012'
+        assert recommendation['finding'] == 'Unattached'
+        assert recommendation['finding_description'] == 'EBS Volume is unattached.'
+        assert recommendation['lookback_period_in_days'] == 14.0
+        assert recommendation['tags'] == [{'key': 'env', 'value': 'test'}]
+
+        assert recommendation['savings_opportunity']['savings_percentage'] == 100.0
+        assert (
+            recommendation['savings_opportunity']['estimated_monthly_savings']['currency'] == 'USD'
+        )
+        assert recommendation['savings_opportunity']['estimated_monthly_savings']['value'] == 12.50
+        assert recommendation['savings_opportunity_after_discounts']['savings_percentage'] == 90.0
+
+        assert len(recommendation['utilization_metrics']) == 1
+        metric = recommendation['utilization_metrics'][0]
+        assert metric['name'] == 'VolumeReadOpsPerSecond'
+        assert metric['statistic'] == 'Maximum'
+        assert metric['value'] == 0.0
+        assert metric['dimensions'] == [{'key': 'GlobalSecondaryIndexName', 'values': ['gsi-1']}]
+
+    async def test_with_filters(self, mock_context, mock_co_client):
+        """Test get_idle_recommendations with filters, account IDs, and next token."""
+        filters = '[{"name":"Finding","values":["Unattached"]}]'
+        account_ids = '["123456789012"]'
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools.parse_json'
+        ) as mock_parse_json:
+            mock_parse_json.side_effect = [
+                [{'name': 'Finding', 'values': ['Unattached']}],  # filters
+                ['123456789012'],  # account_ids
+            ]
+
+            await get_idle_recommendations(
+                mock_context,
+                mock_co_client,
+                max_results=10,
+                filters=filters,
+                account_ids=account_ids,
+                next_token='next-page-idle',
+            )
+
+            mock_co_client.get_idle_recommendations.assert_called_once()
+            call_kwargs = mock_co_client.get_idle_recommendations.call_args[1]
+            assert call_kwargs['filters'] == [{'name': 'Finding', 'values': ['Unattached']}]
+            assert call_kwargs['accountIds'] == ['123456789012']
+            assert call_kwargs['nextToken'] == 'next-page-idle'
+
+
 class TestHelperFunctions:
     """Tests for helper functions."""
 
@@ -868,6 +994,30 @@ class TestComputeOptimizerFastMCP:
             mock_impl.return_value = {'status': 'success', 'data': {'recommendations': []}}
 
             res = await real_fn(mock_context, operation='get_rds_recommendations', max_results=50)
+            assert res['status'] == 'success'
+            mock_impl.assert_awaited_once()
+
+    async def test_co_real_get_idle_recommendations_reload_identity_decorator(self, mock_context):
+        """Test real compute_optimizer get_idle_recommendations dispatch."""
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        real_fn = co_mod.compute_optimizer
+
+        with (
+            patch.object(co_mod, 'create_aws_client') as mock_create_client,
+            patch.object(co_mod, 'get_context_logger') as mock_get_logger,
+            patch.object(co_mod, 'get_idle_recommendations', new_callable=AsyncMock) as mock_impl,
+        ):
+            mock_logger = AsyncMock()
+            mock_get_logger.return_value = mock_logger
+            mock_client = MagicMock()
+            mock_client.get_enrollment_status.return_value = {
+                'status': 'ACTIVE',
+                'resourceTypes': ['ebsVolume'],
+            }
+            mock_create_client.return_value = mock_client
+            mock_impl.return_value = {'status': 'success', 'data': {'recommendations': []}}
+
+            res = await real_fn(mock_context, operation='get_idle_recommendations', max_results=50)
             assert res['status'] == 'success'
             mock_impl.assert_awaited_once()
 

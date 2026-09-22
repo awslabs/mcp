@@ -61,15 +61,15 @@ Map MySQL data types to their DSQL equivalents.
 
 ### String Types
 
-| MySQL Type        | DSQL Equivalent                    | Notes                                                                                    |
-| ----------------- | ---------------------------------- | ---------------------------------------------------------------------------------------- |
-| CHAR(n)           | CHAR(n)                            | Direct equivalent                                                                        |
-| VARCHAR(n)        | VARCHAR(n)                         | Direct equivalent                                                                        |
-| TINYTEXT          | TEXT                               | DSQL uses TEXT for all unbounded strings                                                 |
-| TEXT              | TEXT                               | Direct equivalent                                                                        |
-| MEDIUMTEXT        | TEXT                               | DSQL uses TEXT for all unbounded strings                                                 |
-| LONGTEXT          | TEXT                               | DSQL uses TEXT for all unbounded strings                                                 |
-| ENUM('a','b','c') | VARCHAR(255) with CHECK constraint | See [ENUM Migration](ddl-type-alternatives.md#enum-type-migration)                              |
+| MySQL Type        | DSQL Equivalent                    | Notes                                                                                                           |
+| ----------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| CHAR(n)           | CHAR(n)                            | Direct equivalent                                                                                               |
+| VARCHAR(n)        | VARCHAR(n)                         | Direct equivalent                                                                                               |
+| TINYTEXT          | TEXT                               | DSQL uses TEXT for all unbounded strings                                                                        |
+| TEXT              | TEXT                               | Direct equivalent                                                                                               |
+| MEDIUMTEXT        | TEXT                               | DSQL uses TEXT for all unbounded strings                                                                        |
+| LONGTEXT          | TEXT                               | DSQL uses TEXT for all unbounded strings                                                                        |
+| ENUM('a','b','c') | VARCHAR(255) with CHECK constraint | See [ENUM Migration](ddl-type-alternatives.md#enum-type-migration)                                              |
 | SET('a','b','c')  | JSONB (PREFERRED) or TEXT          | PREFER JSONB; MAY use TEXT for opaque columns; see [SET Migration](ddl-type-alternatives.md#set-type-migration) |
 
 ### Date/Time Types
@@ -95,9 +95,9 @@ Map MySQL data types to their DSQL equivalents.
 
 ### Other Types
 
-| MySQL Type     | DSQL Equivalent                                           | Notes                                                                                            |
-| -------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| JSON           | JSON (default); MAY upgrade to JSONB                      | Keep as `JSON`; MAY upgrade to `JSONB` when querying with `@>`/`?`/indexed JSONB paths           |
+| MySQL Type     | DSQL Equivalent                                           | Notes                                                                                                |
+| -------------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| JSON           | JSON (default); MAY upgrade to JSONB                      | Keep as `JSON`; MAY upgrade to `JSONB` when querying with `@>`/`?`/indexed JSONB paths               |
 | AUTO_INCREMENT | UUID with gen_random_uuid(), IDENTITY column, or SEQUENCE | See [AUTO_INCREMENT Migration](ddl-auto-increment.md#auto_increment-migration) for all three options |
 
 ---
@@ -108,7 +108,6 @@ MUST use the following DSQL alternatives for these MySQL features:
 
 | MySQL Feature                      | DSQL Alternative                                    |
 | ---------------------------------- | --------------------------------------------------- |
-| FOREIGN KEY constraints            | Application-layer referential integrity             |
 | FULLTEXT indexes                   | Application-layer text search                       |
 | SPATIAL indexes                    | Application-layer spatial queries                   |
 | ENGINE=InnoDB/MyISAM               | MUST omit (DSQL manages storage automatically)      |
@@ -133,6 +132,9 @@ These MySQL operations have direct DSQL equivalents:
 | `ALTER TABLE ... ADD COLUMN col type`      | `ALTER TABLE ... ADD COLUMN col type`               |
 | `ALTER TABLE ... RENAME COLUMN old TO new` | `ALTER TABLE ... RENAME COLUMN old TO new`          |
 | `ALTER TABLE ... RENAME TO new_name`       | `ALTER TABLE ... RENAME TO new_name`                |
+| `CREATE TABLE ... FOREIGN KEY ...`         | Preserve the foreign key constraint                 |
+| `ALTER TABLE ... ADD FOREIGN KEY`          | Add `NOT VALID`, then validate asynchronously       |
+| `ALTER TABLE ... DROP FOREIGN KEY`         | `ALTER TABLE ... DROP CONSTRAINT`                   |
 | `CREATE INDEX idx ON t(col)`               | `CREATE INDEX ASYNC idx ON t(col)` (MUST use ASYNC) |
 | `DROP INDEX idx ON t`                      | `DROP INDEX idx` (MUST omit the ON clause)          |
 
@@ -140,32 +142,37 @@ These MySQL operations have direct DSQL equivalents:
 
 These MySQL operations MUST use the **Table Recreation Pattern** in DSQL:
 
-| MySQL DDL                                                      | DSQL Approach                                                 |
-| -------------------------------------------------------------- | ------------------------------------------------------------- |
-| `ALTER TABLE ... MODIFY COLUMN col new_type`                   | Table recreation with type cast                               |
-| `ALTER TABLE ... CHANGE COLUMN old new new_type`               | Table recreation (type change) or RENAME COLUMN (rename only) |
-| `ALTER TABLE ... ALTER COLUMN col datatype`                    | Table recreation with type cast                               |
-| `ALTER TABLE ... DROP COLUMN col`                              | Table recreation excluding the column                         |
-| `ALTER TABLE ... ALTER COLUMN col SET DEFAULT val`             | Table recreation with DEFAULT in new definition               |
-| `ALTER TABLE ... ALTER COLUMN col DROP DEFAULT`                | Table recreation without DEFAULT                              |
-| `ALTER TABLE ... ADD CONSTRAINT ... UNIQUE`                    | Table recreation with constraint                              |
-| `ALTER TABLE ... ADD CONSTRAINT ... CHECK`                     | Table recreation with constraint                              |
-| `ALTER TABLE ... DROP CONSTRAINT ...`                          | Table recreation without constraint                           |
-| `ALTER TABLE ... DROP PRIMARY KEY, ADD PRIMARY KEY (new_cols)` | Table recreation with new PK                                  |
+| MySQL DDL                                                      | DSQL Approach                                                    |
+| -------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `ALTER TABLE ... MODIFY COLUMN col new_type`                   | Table recreation with type cast                                  |
+| `ALTER TABLE ... CHANGE COLUMN old new new_type`               | Table recreation (type change) or RENAME COLUMN (rename only)    |
+| `ALTER TABLE ... ALTER COLUMN col datatype`                    | Table recreation with type cast                                  |
+| `ALTER TABLE ... DROP COLUMN col`                              | Table recreation excluding the column                            |
+| `ALTER TABLE ... ALTER COLUMN col SET DEFAULT val`             | Direct `ALTER COLUMN ... SET DEFAULT`                            |
+| `ALTER TABLE ... ALTER COLUMN col DROP DEFAULT`                | Direct `ALTER COLUMN ... DROP DEFAULT`                           |
+| `ALTER TABLE ... ADD CONSTRAINT ... UNIQUE`                    | Async unique index, then `ADD CONSTRAINT ... UNIQUE USING INDEX` |
+| `ALTER TABLE ... ADD CONSTRAINT ... CHECK`                     | `ADD CONSTRAINT ... CHECK ... NOT VALID`, then async validate    |
+| `ALTER TABLE ... DROP CONSTRAINT ...` (CHECK/UNIQUE/FK)        | Direct `DROP CONSTRAINT`                                         |
+| `ALTER TABLE ... DROP PRIMARY KEY, ADD PRIMARY KEY (new_cols)` | Table recreation with new PK                                     |
+
+### Foreign Key Migration
+
+Use the direct mappings above and follow
+[Foreign Key Constraints](../foreign-keys.md#dsql-specific-ddl) for post-creation adds and
+validation.
 
 ### Operations Requiring Application-Layer Implementation
 
 MUST implement these MySQL operations at the application layer:
 
-| MySQL DDL                              | DSQL Approach                                             |
-| -------------------------------------- | --------------------------------------------------------- |
-| `ALTER TABLE ... ADD FOREIGN KEY`      | MUST implement referential integrity in application layer |
-| `ALTER TABLE ... ADD FULLTEXT INDEX`   | MUST implement text search in application layer           |
-| `ALTER TABLE ... ADD SPATIAL INDEX`    | MUST implement spatial queries in application layer       |
-| `ALTER TABLE ... ENGINE=...`           | MUST omit                                                 |
-| `ALTER TABLE ... AUTO_INCREMENT=...`   | Use SEQUENCE with setval() or IDENTITY column             |
-| `CREATE TRIGGER`                       | MUST implement in application-layer logic                 |
-| `CREATE PROCEDURE` / `CREATE FUNCTION` | MUST implement in application-layer logic                 |
+| MySQL DDL                              | DSQL Approach                                       |
+| -------------------------------------- | --------------------------------------------------- |
+| `ALTER TABLE ... ADD FULLTEXT INDEX`   | MUST implement text search in application layer     |
+| `ALTER TABLE ... ADD SPATIAL INDEX`    | MUST implement spatial queries in application layer |
+| `ALTER TABLE ... ENGINE=...`           | MUST omit                                           |
+| `ALTER TABLE ... AUTO_INCREMENT=...`   | Use SEQUENCE with setval() or IDENTITY column       |
+| `CREATE TRIGGER`                       | MUST implement in application-layer logic           |
+| `CREATE PROCEDURE` / `CREATE FUNCTION` | MUST implement in application-layer logic           |
 
 ---
 

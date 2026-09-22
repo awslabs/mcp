@@ -36,6 +36,11 @@ from hypothesis import strategies as st
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
+# Manifest parsing computes per-task and storage cost, which would otherwise reach
+# the real AWS Pricing API once per task. See the fixture docstring in conftest.py.
+pytestmark = pytest.mark.usefixtures('stub_pricing_lookup')
+
+
 class TestNormalizeRunIds:
     """Test the _normalize_run_ids function."""
 
@@ -988,9 +993,15 @@ class TestAnalyzeRunPerformance:
     """Test the analyze_run_performance function."""
 
     @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_healthomics_mcp_server.tools.run_analysis.metrics_section_for_report',
+        return_value=[],
+    )
     @patch('awslabs.aws_healthomics_mcp_server.tools.run_analysis._get_run_analysis_data')
     @patch('awslabs.aws_healthomics_mcp_server.tools.run_analysis._generate_analysis_report')
-    async def test_analyze_run_performance_success(self, mock_generate_report, mock_get_data):
+    async def test_analyze_run_performance_success(
+        self, mock_generate_report, mock_get_data, mock_metrics_section
+    ):
         """Test analyze_run_performance with successful analysis."""
         # Arrange
         mock_ctx = AsyncMock()
@@ -1104,9 +1115,15 @@ class TestAnalyzeRunPerformance:
                 },
             }
 
-            with patch(
-                'awslabs.aws_healthomics_mcp_server.tools.run_analysis._generate_analysis_report'
-            ) as mock_generate_report:
+            with (
+                patch(
+                    'awslabs.aws_healthomics_mcp_server.tools.run_analysis._generate_analysis_report'
+                ) as mock_generate_report,
+                patch(
+                    'awslabs.aws_healthomics_mcp_server.tools.run_analysis.metrics_section_for_report',
+                    return_value=[],
+                ),
+            ):
                 mock_generate_report.return_value = 'Analysis report'
 
                 # Act

@@ -18,7 +18,7 @@ import pytest
 from awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.registration import (
     register_tools,
 )
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 
 DYNAMIC_INSTRUMENTATION_TOOLS = [
@@ -59,7 +59,7 @@ def _get_dynamic_mcp():
     """Build a local MCP registry for the dynamic instrumentation feature package."""
     global _DYNAMIC_MCP
     if _DYNAMIC_MCP is None:
-        mcp = FastMCP('DynamicInstrumentationTest')
+        mcp = MCPServer('DynamicInstrumentationTest')
         register_tools(mcp)
         _DYNAMIC_MCP = mcp
     return _DYNAMIC_MCP

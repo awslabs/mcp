@@ -19,7 +19,7 @@ import os
 import tempfile
 from awslabs.aws_serverless_mcp_server.utils.process import run_command
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Any, Dict, Optional
 
@@ -27,7 +27,7 @@ from typing import Any, Dict, Optional
 class SamLocalInvokeTool:
     """Tool to locally invoke AWS Lambda functions using the SAM CLI."""
 
-    def __init__(self, mcp: FastMCP):
+    def __init__(self, mcp: MCPServer):
         """Initialize the SAM local invoke tool."""
         mcp.tool(name='sam_local_invoke')(self.handle_sam_local_invoke)
 

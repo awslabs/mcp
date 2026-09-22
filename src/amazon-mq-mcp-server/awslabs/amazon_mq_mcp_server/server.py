@@ -18,12 +18,12 @@ from awslabs.amazon_mq_mcp_server.aws_service_mcp_generator import (
 )
 from awslabs.amazon_mq_mcp_server.consts import MCP_SERVER_VERSION
 from awslabs.amazon_mq_mcp_server.rabbitmq.module import RabbitMQModule
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from typing import Any, Dict, Optional
 
 
 # override create_broker tool to tag resources
-def create_broker_override(mcp: FastMCP, mq_client_getter: BOTO3_CLIENT_GETTER, _: str):
+def create_broker_override(mcp: MCPServer, mq_client_getter: BOTO3_CLIENT_GETTER, _: str):
     """Override broker creation behaviour."""
 
     @mcp.tool()
@@ -84,7 +84,7 @@ def create_broker_override(mcp: FastMCP, mq_client_getter: BOTO3_CLIENT_GETTER, 
 
 
 # override create_configuration tool to tag resources
-def create_configuration_override(mcp: FastMCP, mq_client_getter: BOTO3_CLIENT_GETTER, _: str):
+def create_configuration_override(mcp: MCPServer, mq_client_getter: BOTO3_CLIENT_GETTER, _: str):
     """Create configuration for AmazonMQ broker."""
 
     @mcp.tool()
@@ -108,7 +108,7 @@ def create_configuration_override(mcp: FastMCP, mq_client_getter: BOTO3_CLIENT_G
 
 # Define validator such that only resource tagged with mcp_server_version can be mutated
 def allow_mutative_action_only_on_tagged_resource(
-    mcp: FastMCP, mq_client: Any, kwargs: Dict[str, Any]
+    mcp: MCPServer, mq_client: Any, kwargs: Dict[str, Any]
 ) -> tuple[bool, str]:
     """Check if the resource being mutated is tagged with mcp_server_version."""
     broker_id = kwargs.get('BrokerId')
@@ -125,7 +125,7 @@ def allow_mutative_action_only_on_tagged_resource(
 
 
 # instantiate base server
-mcp = FastMCP(
+mcp = MCPServer(
     'awslabs.amazon-mq-mcp-server',
     instructions="""Manage RabbitMQ and ActiveMQ message brokers on AmazonMQ.""",
     dependencies=['pydantic', 'boto3'],

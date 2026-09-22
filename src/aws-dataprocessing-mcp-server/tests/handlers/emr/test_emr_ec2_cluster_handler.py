@@ -21,7 +21,7 @@ import pytest
 from awslabs.aws_dataprocessing_mcp_server.handlers.emr.emr_ec2_cluster_handler import (
     EMREc2ClusterHandler,
 )
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from mcp.types import CallToolResult
 from unittest.mock import MagicMock, patch
 
@@ -90,7 +90,7 @@ async def test_create_cluster_success(handler, mock_context):
         job_flow_role='EMR_EC2_DefaultRole',
     )
 
-    assert not response.isError
+    assert not response.is_error
     # Parse JSON data from the second content item
     data = json.loads(response.content[1].text)
     assert data['cluster_id'] == 'j-1234567890ABCDEF0'
@@ -117,7 +117,7 @@ async def test_create_cluster_missing_name(handler, mock_context):
         },
     )
 
-    assert response.isError is True
+    assert response.is_error is True
     assert (
         'name, release_label, and instances are required for create-cluster operation'
         in response.content[0].text
@@ -144,7 +144,7 @@ async def test_create_cluster_missing_release_label(handler, mock_context):
         },
     )
 
-    assert response.isError is True
+    assert response.is_error is True
     assert (
         'name, release_label, and instances are required for create-cluster operation'
         in response.content[0].text
@@ -162,7 +162,7 @@ async def test_create_cluster_missing_instances(handler, mock_context):
         release_label='emr-7.9.0',
     )
 
-    assert response.isError is True
+    assert response.is_error is True
     assert (
         'name, release_label, and instances are required for create-cluster operation'
         in response.content[0].text
@@ -192,7 +192,7 @@ async def test_create_cluster_error(handler, mock_context):
         },
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'Error in manage_aws_emr_clusters: Test exception' in response.content[0].text
 
 
@@ -212,7 +212,7 @@ async def test_describe_cluster_success(handler, mock_context):
         mock_context, operation='describe-cluster', cluster_id='j-1234567890ABCDEF0'
     )
 
-    assert not response.isError
+    assert not response.is_error
     # Parse JSON data from the second content item
     data = json.loads(response.content[1].text)
     assert data['cluster']['Id'] == 'j-1234567890ABCDEF0'
@@ -227,7 +227,7 @@ async def test_describe_cluster_missing_id(handler, mock_context):
         mock_context, cluster_id=None, operation='describe-cluster'
     )
 
-    assert response.isError is True
+    assert response.is_error is True
     assert 'cluster_id is required for describe-cluster operation' in response.content[0].text
 
 
@@ -247,7 +247,7 @@ async def test_create_cluster_no_write_access(mock_aws_helper, mock_context):
         instances={'InstanceGroups': []},
     )
 
-    assert response.isError
+    assert response.is_error
     assert (
         'Operation create-cluster is not allowed without write access' in response.content[0].text
     )
@@ -264,7 +264,7 @@ async def test_terminate_clusters_no_write_access(mock_aws_helper, mock_context)
         mock_context, operation='terminate-clusters', cluster_ids=['j-1234567890ABCDEF0']
     )
 
-    assert response.isError
+    assert response.is_error
     assert (
         'Operation terminate-clusters is not allowed without write access'
         in response.content[0].text
@@ -286,7 +286,7 @@ async def test_describe_cluster_aws_error(handler, mock_context):
         mock_context, operation='describe-cluster', cluster_id='j-nonexistent'
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'Error in manage_aws_emr_clusters:' in response.content[0].text
 
 
@@ -308,7 +308,7 @@ async def test_create_cluster_access_denied(handler, mock_context):
         instances={'InstanceGroups': []},
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'Error in manage_aws_emr_clusters:' in response.content[0].text
 
 
@@ -330,7 +330,7 @@ async def test_list_clusters_success(handler, mock_context):
     )
 
     assert isinstance(response, CallToolResult)
-    assert not response.isError
+    assert not response.is_error
     # Parse JSON data from the second content item
     data = json.loads(response.content[1].text)
     assert data['count'] == 2
@@ -361,7 +361,7 @@ async def test_terminate_clusters_success(handler, mock_context):
     )
 
     assert isinstance(response, CallToolResult)
-    assert not response.isError
+    assert not response.is_error
     # Parse JSON data from the second content item
     import json
 
@@ -385,7 +385,7 @@ async def test_terminate_clusters_unmanaged(handler, mock_aws_helper, mock_conte
         mock_context, operation='terminate-clusters', cluster_ids=['j-1234567890ABCDEF0']
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'Cannot terminate clusters' in response.content[0].text
     assert 'not managed by MCP' in response.content[0].text
 
@@ -397,7 +397,7 @@ async def test_terminate_clusters_missing_ids(handler, mock_context):
         mock_context, operation='terminate-clusters', cluster_ids=None
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'cluster_ids is required for terminate-clusters operation' in response.content[0].text
 
 
@@ -416,7 +416,7 @@ async def test_modify_cluster_success(handler, mock_context):
     )
 
     assert isinstance(response, CallToolResult)
-    assert not response.isError
+    assert not response.is_error
     # Parse JSON data from the second content item
     import json
 
@@ -442,7 +442,7 @@ async def test_modify_cluster_unmanaged(handler, mock_aws_helper, mock_context):
     )
 
     assert isinstance(response, CallToolResult)
-    assert response.isError
+    assert response.is_error
     assert 'need to be mcp managed tag' in response.content[0].text
 
 
@@ -453,7 +453,7 @@ async def test_modify_cluster_missing_params(handler, mock_context):
         mock_context, operation='modify-cluster', cluster_id=None
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'cluster_id is required for modify-cluster operation' in response.content[0].text
 
 
@@ -472,7 +472,7 @@ async def test_modify_cluster_attributes_success(handler, mock_context):
     )
 
     assert isinstance(response, CallToolResult)
-    assert not response.isError
+    assert not response.is_error
     # Parse JSON data from the second content item
     import json
 
@@ -495,7 +495,7 @@ async def test_modify_cluster_attributes_unmanaged(handler, mock_aws_helper, moc
     )
 
     assert isinstance(response, CallToolResult)
-    assert response.isError
+    assert response.is_error
     assert 'need to be mcp managed tag' in response.content[0].text
 
 
@@ -510,7 +510,7 @@ async def test_modify_cluster_attributes_missing_params(handler, mock_context):
         termination_protected=None,
     )
 
-    assert response.isError
+    assert response.is_error
     assert (
         'At least one of auto_terminate or termination_protected must be provided'
         in response.content[0].text
@@ -535,7 +535,7 @@ async def test_create_security_configuration_success(handler, mock_context):
     )
 
     assert isinstance(response, CallToolResult)
-    assert not response.isError
+    assert not response.is_error
     # Parse JSON data from the second content item
     import json
 
@@ -550,7 +550,7 @@ async def test_create_security_configuration_missing_params(handler, mock_contex
         mock_context, operation='create-security-configuration', security_configuration_name=None
     )
 
-    assert response.isError
+    assert response.is_error
     assert (
         'security_configuration_name and security_configuration_json are required'
         in response.content[0].text
@@ -563,7 +563,7 @@ async def test_invalid_operation(handler, mock_context):
     """Test handling of invalid operation."""
     response = await handler.manage_aws_emr_clusters(mock_context, operation='invalid-operation')
 
-    assert response.isError
+    assert response.is_error
     assert 'Invalid operation: invalid-operation' in response.content[0].text
 
 
@@ -588,7 +588,7 @@ async def test_create_cluster_with_optional_params(handler, mock_context):
         ],
     )
 
-    assert not response.isError
+    assert not response.is_error
     # Verify that optional parameters were passed to the AWS call
     call_args = handler.emr_client.run_job_flow.call_args[1]
     assert call_args['Applications'] == [{'Name': 'Spark'}, {'Name': 'Hadoop'}]
@@ -607,7 +607,7 @@ async def test_create_error_response_coverage(handler, mock_context):
     response = await handler.manage_aws_emr_clusters(
         mock_context, operation='modify-cluster-attributes', cluster_id=None
     )
-    assert response.isError
+    assert response.is_error
     assert 'cluster_id is required' in response.content[0].text
 
 
@@ -622,7 +622,7 @@ async def test_modify_cluster_missing_step_concurrency(handler, mock_context):
         step_concurrency_level=None,
     )
 
-    assert response.isError
+    assert response.is_error
     assert (
         'step_concurrency_level is required for modify-cluster operation'
         in response.content[0].text
@@ -644,7 +644,7 @@ async def test_modify_cluster_attributes_both_params(handler, mock_context):
         termination_protected=False,
     )
 
-    assert not response.isError
+    assert not response.is_error
     # Should be called twice - once for auto_terminate, once for termination_protected
     assert handler.emr_client.set_termination_protection.call_count == 2
 
@@ -662,7 +662,7 @@ async def test_terminate_clusters_describe_exception(handler, mock_aws_helper, m
         mock_context, operation='terminate-clusters', cluster_ids=['j-nonexistent']
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'Cannot terminate clusters' in response.content[0].text
 
 
@@ -682,7 +682,7 @@ async def test_list_clusters_with_all_params(handler, mock_context):
         marker='test-marker',
     )
 
-    assert not response.isError
+    assert not response.is_error
     call_args = handler.emr_client.list_clusters.call_args[1]
     assert call_args['ClusterStates'] == ['RUNNING']
     assert call_args['CreatedAfter'] == '2023-01-01'
@@ -704,7 +704,7 @@ async def test_delete_security_configuration_success(handler, mock_context):
     )
 
     assert isinstance(response, CallToolResult)
-    assert not response.isError
+    assert not response.is_error
     # Parse JSON data from the second content item
     import json
 
@@ -719,7 +719,7 @@ async def test_delete_security_configuration_missing_name(handler, mock_context)
         mock_context, operation='delete-security-configuration', security_configuration_name=None
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'security_configuration_name is required' in response.content[0].text
 
 
@@ -741,7 +741,7 @@ async def test_describe_security_configuration_success(handler, mock_context):
     )
 
     assert isinstance(response, CallToolResult)
-    assert not response.isError
+    assert not response.is_error
     # Parse JSON data from the second content item
     import json
 
@@ -757,7 +757,7 @@ async def test_describe_security_configuration_missing_name(handler, mock_contex
         mock_context, operation='describe-security-configuration', security_configuration_name=None
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'security_configuration_name is required' in response.content[0].text
 
 
@@ -779,7 +779,7 @@ async def test_list_security_configurations_success(handler, mock_context):
     )
 
     assert isinstance(response, CallToolResult)
-    assert not response.isError
+    assert not response.is_error
     # Parse JSON data from the second content item
     import json
 
@@ -820,7 +820,7 @@ async def test_create_cluster_all_optional_params(handler, mock_context):
         placement_groups=[{'InstanceRole': 'MASTER', 'PlacementStrategy': 'SPREAD'}],
     )
 
-    assert not response.isError
+    assert not response.is_error
     call_args = handler.emr_client.run_job_flow.call_args[1]
     assert (
         call_args['LogEncryptionKmsKeyId']
@@ -863,7 +863,7 @@ async def test_create_security_configuration_string_datetime(handler, mock_conte
         security_configuration_json={'EncryptionConfiguration': {}},
     )
 
-    assert not response.isError
+    assert not response.is_error
     # Parse JSON data from the second content item
     import json
 
@@ -888,7 +888,7 @@ async def test_describe_security_configuration_string_datetime(handler, mock_con
         security_configuration_name='test-config',
     )
 
-    assert not response.isError
+    assert not response.is_error
     # Parse JSON data from the second content item
     import json
 
@@ -911,7 +911,7 @@ async def test_modify_cluster_no_write_access(mock_aws_helper, mock_context):
         step_concurrency_level=5,
     )
 
-    assert response.isError
+    assert response.is_error
     assert (
         'Operation modify-cluster is not allowed without write access' in response.content[0].text
     )
@@ -931,7 +931,7 @@ async def test_modify_cluster_attributes_no_write_access(mock_aws_helper, mock_c
         termination_protected=True,
     )
 
-    assert response.isError
+    assert response.is_error
     assert (
         'Operation modify-cluster-attributes is not allowed without write access'
         in response.content[0].text
@@ -952,7 +952,7 @@ async def test_create_security_configuration_no_write_access(mock_aws_helper, mo
         security_configuration_json={},
     )
 
-    assert response.isError
+    assert response.is_error
     assert (
         'Operation create-security-configuration is not allowed without write access'
         in response.content[0].text
@@ -972,7 +972,7 @@ async def test_delete_security_configuration_no_write_access(mock_aws_helper, mo
         security_configuration_name='test-config',
     )
 
-    assert response.isError
+    assert response.is_error
     assert (
         'Operation delete-security-configuration is not allowed without write access'
         in response.content[0].text

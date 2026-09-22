@@ -33,11 +33,11 @@ from awslabs.aws_appsync_mcp_server.tools.create_graphql_api import (
 from awslabs.aws_appsync_mcp_server.tools.create_resolver import register_create_resolver_tool
 from awslabs.aws_appsync_mcp_server.tools.create_schema import register_create_schema_tool
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 
-# Initialize FastMCP app
-mcp = FastMCP(
+# Initialize MCPServer app
+mcp = MCPServer(
     'awslabs.aws-appsync-mcp-server',
     instructions="""
     AWS AppSync MCP Server provides tools to interact with AWS AppSync API services.

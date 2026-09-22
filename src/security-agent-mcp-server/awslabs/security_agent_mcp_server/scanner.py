@@ -68,6 +68,22 @@ class Scanner:
         """Stable short identifier for a workspace path, used as the S3 key prefix."""
         return hashlib.md5(abs_path.encode(), usedforsecurity=False).hexdigest()[:12]
 
+    @staticmethod
+    def _validate_git_ref(base_ref: str) -> None:
+        """Validate base_ref before it is used on a git command line.
+
+        ``base_ref`` is placed on git command lines (``git diff <base_ref> --`` and
+        ``git archive ... -- <base_ref>``). A value that is empty or begins with ``-`` is
+        rejected: git would otherwise treat a leading-dash value as an option rather than a
+        revision, which is never intended here. Well-formed refs are left for git to resolve.
+        """
+        if not base_ref or not base_ref.strip():
+            raise ValueError('base_ref must not be empty.')
+        if base_ref.strip().startswith('-'):
+            raise ValueError(
+                f'Invalid base_ref "{base_ref}": must be a git ref, not start with "-".'
+            )
+
     def _zip_and_upload_source(self, path: str, abs_path: str, s3_bucket: str) -> tuple[str, int]:
         """Zip the workspace and upload to a stable per-workspace S3 key, overwriting any prior upload.
 
@@ -233,6 +249,12 @@ class Scanner:
             return {'error': 'Not configured. Run setup_check and setup first.'}
         if not s3_bucket:
             return {'error': 'No S3 bucket configured. Run setup first.'}
+
+        # Validate base_ref before it reaches the git commands below.
+        try:
+            self._validate_git_ref(base_ref)
+        except ValueError as e:
+            return {'error': str(e)}
 
         # Verify agent space still exists
         space = self._client.get_agent_space(agent_space_id)

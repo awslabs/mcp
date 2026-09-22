@@ -16,7 +16,7 @@
 
 from awslabs.amazon_sns_sqs_mcp_server.sns import register_sns_tools
 from awslabs.amazon_sns_sqs_mcp_server.sqs import register_sqs_tools
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 
 async def print_tool_info(mcp):
@@ -31,11 +31,11 @@ async def print_tool_info(mcp):
         print(f'  Description: {tool.description}')
 
         # Print input schema if available
-        if tool.inputSchema:
+        if tool.input_schema:
             print('  Input Schema:')
-            for prop_name, prop_info in tool.inputSchema.get('properties', {}).items():
+            for prop_name, prop_info in tool.input_schema.get('properties', {}).items():
                 prop_type = prop_info.get('type', 'any')
-                required = prop_name in tool.inputSchema.get('required', [])
+                required = prop_name in tool.input_schema.get('required', [])
                 req_str = ' (required)' if required else ''
                 print(f'    - {prop_name}: {prop_type}{req_str}')
                 if 'description' in prop_info:
@@ -46,8 +46,8 @@ async def print_tool_info(mcp):
 
 async def main():
     """Register tools and print their information."""
-    # Create a FastMCP instance
-    mcp = FastMCP()
+    # Create a MCPServer instance
+    mcp = MCPServer()
 
     # Register tools
     print('Registering SNS tools...')

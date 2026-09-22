@@ -536,13 +536,15 @@ async def test_get_user_not_found():
         operation_name='GetUser',
     )
 
+    mock_ctx = AsyncMock()
+
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
         mock_client.get_user.side_effect = error
         mock_get_client.return_value = mock_client
 
-        with pytest.raises(Exception):
-            await get_user(user_name='nonexistent-user')
+        with pytest.raises(IamResourceNotFoundError, match='User not found'):
+            await get_user(mock_ctx, user_name='nonexistent-user')
 
 
 @pytest.mark.asyncio
@@ -558,13 +560,15 @@ async def test_list_users_with_exception():
     """Test list_users function with generic exception."""
     from awslabs.iam_mcp_server.server import list_users
 
+    mock_ctx = AsyncMock()
+
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
         mock_client.list_users.side_effect = Exception('Generic error')
         mock_get_client.return_value = mock_client
 
-        with pytest.raises(Exception):
-            await list_users()
+        with pytest.raises(IamMcpError, match='Unexpected error: Generic error'):
+            await list_users(mock_ctx)
 
 
 @pytest.mark.asyncio
@@ -572,13 +576,15 @@ async def test_get_user_with_exception():
     """Test get_user function with generic exception."""
     from awslabs.iam_mcp_server.server import get_user
 
+    mock_ctx = AsyncMock()
+
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
         mock_client.get_user.side_effect = Exception('Generic error')
         mock_get_client.return_value = mock_client
 
-        with pytest.raises(Exception):
-            await get_user(user_name='test-user')
+        with pytest.raises(IamMcpError, match='Unexpected error: Generic error'):
+            await get_user(mock_ctx, user_name='test-user')
 
 
 @pytest.mark.asyncio
@@ -586,13 +592,18 @@ async def test_create_user_with_exception():
     """Test create_user function with generic exception."""
     from awslabs.iam_mcp_server.server import create_user
 
+    # create_user is a write operation: without this it short-circuits on the readonly or
+    # confirmation guard and never reaches the mocked client.
+    Context.initialize(readonly=False, require_confirmation=False)
+    mock_ctx = AsyncMock()
+
     with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
         mock_client = Mock()
         mock_client.create_user.side_effect = Exception('Generic error')
         mock_get_client.return_value = mock_client
 
-        with pytest.raises(Exception):
-            await create_user(user_name='test-user')
+        with pytest.raises(IamMcpError, match='Unexpected error: Generic error'):
+            await create_user(mock_ctx, user_name='test-user')
 
 
 @pytest.mark.asyncio

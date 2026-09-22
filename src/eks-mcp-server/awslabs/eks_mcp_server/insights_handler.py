@@ -23,7 +23,7 @@ from awslabs.eks_mcp_server.models import (
     EksInsightStatus,
 )
 from datetime import datetime
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from mcp.types import CallToolResult, TextContent
 from pydantic import Field
 from typing import Any, Optional
@@ -154,7 +154,7 @@ class InsightsHandler:
             error_message = f'Error processing EKS insights request: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -220,7 +220,7 @@ class InsightsHandler:
                 )
 
                 return CallToolResult(
-                    isError=False,
+                    is_error=False,
                     content=[
                         TextContent(type='text', text=success_message),
                         TextContent(type='text', text=json.dumps(data.model_dump())),
@@ -230,7 +230,7 @@ class InsightsHandler:
                 error_message = f'No insight details found for ID {insight_id}'
                 log_with_request_id(ctx, LogLevel.WARNING, error_message)
                 return CallToolResult(
-                    isError=True,
+                    is_error=True,
                     content=[TextContent(type='text', text=error_message)],
                 )
 
@@ -238,7 +238,7 @@ class InsightsHandler:
             error_message = f'Error retrieving insight details: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[TextContent(type='text', text=error_message)],
             )
 
@@ -324,7 +324,7 @@ class InsightsHandler:
             )
 
             return CallToolResult(
-                isError=False,
+                is_error=False,
                 content=[
                     TextContent(type='text', text=success_message),
                     TextContent(type='text', text=json.dumps(data.model_dump())),
@@ -335,6 +335,6 @@ class InsightsHandler:
             error_message = f'Error listing insights: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[TextContent(type='text', text=error_message)],
             )

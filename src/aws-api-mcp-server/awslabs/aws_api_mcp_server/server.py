@@ -26,6 +26,8 @@ from .core.aws.service import (
     validate,
 )
 from .core.common.config import (
+    ALLOWED_HOSTS,
+    ALLOWED_ORIGINS,
     DEFAULT_REGION,
     ENABLE_AGENT_SCRIPTS,
     ENDPOINT_SUGGEST_AWS_COMMANDS,
@@ -463,6 +465,8 @@ def main():
             host=HOST,
             port=PORT,
             stateless_http=STATELESS_HTTP,
+            allowed_hosts=ALLOWED_HOSTS.split(','),
+            allowed_origins=ALLOWED_ORIGINS.split(','),
         )
 
 

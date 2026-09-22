@@ -13,19 +13,23 @@
 # limitations under the License.
 """Tests for graceful startup without cluster configuration."""
 
+from mcp.server.mcpserver import Context
+from typing import Any, List, Optional
 import pytest
 from awslabs.aurora_dsql_mcp_server import server
 from awslabs.aurora_dsql_mcp_server.server import get_schema, readonly_query, transact
 
 
-class MockContext:
+class MockContext(Context):
     """Mock MCP context for testing."""
 
-    def __init__(self):
-        self.errors = []
+    errors: List[Any] = []
 
-    async def error(self, message):
-        self.errors.append(message)
+    def __init__(self) -> None:
+        """Initialize with no request context; nothing here needs one."""
+        super().__init__()
+    async def error(self, data: Any, *, logger_name: Optional[str] = None):
+        self.errors.append(data)
 
 
 @pytest.mark.asyncio

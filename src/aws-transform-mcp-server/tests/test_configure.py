@@ -217,6 +217,13 @@ class TestConfigureSSO:
                 '_region': 'us-west-2',
             },
         ]
+        # Declare a client that does not support elicitation, which is what reaching the
+        # PROFILE_SELECTION_REQUIRED fallback asserted below actually requires -- same setup
+        # as TestSelectProfileFallback. A bare AsyncMock returns a truthy coroutine from
+        # check_client_capability, so without this the elicitation branch is taken and the
+        # result is CANCELLED instead.
+        mock_context.session = MagicMock()
+        mock_context.session.check_client_capability = MagicMock(return_value=False)
 
         result = await handler.configure(
             mock_context,

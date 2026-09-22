@@ -36,7 +36,7 @@ from awslabs.eks_mcp_server.insights_handler import InsightsHandler
 from awslabs.eks_mcp_server.k8s_handler import K8sHandler
 from awslabs.eks_mcp_server.vpc_config_handler import VpcConfigHandler
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 
 # Define server instructions and dependencies
@@ -117,7 +117,7 @@ def create_server(auth_mode: str = 'iam'):
     if auth_mode == 'kubeconfig':
         instructions += _KUBECONFIG_ADDENDUM
 
-    return FastMCP(
+    return MCPServer(
         'awslabs.eks-mcp-server',
         instructions=instructions,
         dependencies=SERVER_DEPENDENCIES,

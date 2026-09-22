@@ -33,7 +33,10 @@ def register_create_function_tool(mcp):
         in your GraphQL schema.
         """,
         annotations=ToolAnnotations(
-            title='Create Function', readOnlyHint=False, destructiveHint=False, openWorldHint=False
+            title='Create Function',
+            read_only_hint=False,
+            destructive_hint=False,
+            open_world_hint=False,
         ),
     )
     @write_operation

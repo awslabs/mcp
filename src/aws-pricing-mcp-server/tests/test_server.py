@@ -30,6 +30,7 @@ from awslabs.aws_pricing_mcp_server.server import (
     get_pricing_service_codes,
 )
 from pydantic import ValidationError
+from typing import Any, Dict
 from unittest.mock import patch
 
 
@@ -552,7 +553,11 @@ class TestGetPricing:
         pricing_client = mock_boto3.Session().client('pricing')
         pricing_client.get_products.return_value = {'PriceList': ['{"sku":"ABC123"}']}
 
-        kwargs = {'service_code': 'AmazonEC2', 'region': 'us-east-1'}
+        # Annotated: without it the literal infers as dict[str, str], so every splatted
+        # argument below is seen as `str` and the int/None parameters of `get_pricing` all
+        # report a type error. v2 exposes this because it preserves decorated tool
+        # signatures; under v1 the decorator erased them to (...) -> Any.
+        kwargs: Dict[str, Any] = {'service_code': 'AmazonEC2', 'region': 'us-east-1'}
         if max_results is not None:
             kwargs['max_results'] = max_results
         if next_token is not None:

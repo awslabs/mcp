@@ -477,4 +477,39 @@ def format_utilization_metrics(utilization_data: Dict) -> Dict:
             'UtilizationPercentageInUnits'
         ]
 
+    if 'OnDemandCostOfRIHoursUsed' in utilization_data:
+        formatted_utilization['on_demand_cost_of_ri_hours_used'] = utilization_data[
+            'OnDemandCostOfRIHoursUsed'
+        ]
+
+    if 'NetRISavings' in utilization_data:
+        formatted_utilization['net_ri_savings'] = utilization_data['NetRISavings']
+
+    if 'TotalPotentialRISavings' in utilization_data:
+        formatted_utilization['total_potential_ri_savings'] = utilization_data[
+            'TotalPotentialRISavings'
+        ]
+
+    if 'AmortizedUpfrontFee' in utilization_data:
+        formatted_utilization['amortized_upfront_fee'] = utilization_data['AmortizedUpfrontFee']
+
+    if 'AmortizedRecurringFee' in utilization_data:
+        formatted_utilization['amortized_recurring_fee'] = utilization_data[
+            'AmortizedRecurringFee'
+        ]
+
+    if 'TotalAmortizedFee' in utilization_data:
+        formatted_utilization['total_amortized_fee'] = utilization_data['TotalAmortizedFee']
+
+    if 'RICostForUnusedHours' in utilization_data:
+        formatted_utilization['ri_cost_for_unused_hours'] = utilization_data[
+            'RICostForUnusedHours'
+        ]
+
+    if 'RealizedSavings' in utilization_data:
+        formatted_utilization['realized_savings'] = utilization_data['RealizedSavings']
+
+    if 'UnrealizedSavings' in utilization_data:
+        formatted_utilization['unrealized_savings'] = utilization_data['UnrealizedSavings']
+
     return formatted_utilization

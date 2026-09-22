@@ -34,7 +34,10 @@ def register_create_resolver_tool(mcp):
         pipeline resolvers (composed of multiple functions).
         """,
         annotations=ToolAnnotations(
-            title='Create Resolver', readOnlyHint=False, destructiveHint=False, openWorldHint=False
+            title='Create Resolver',
+            read_only_hint=False,
+            destructive_hint=False,
+            open_world_hint=False,
         ),
     )
     @write_operation

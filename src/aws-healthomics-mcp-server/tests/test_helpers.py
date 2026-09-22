@@ -15,7 +15,7 @@
 """Test helper utilities for MCP tool testing."""
 
 import inspect
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from typing import Any, Dict
 
 

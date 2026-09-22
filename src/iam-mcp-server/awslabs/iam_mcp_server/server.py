@@ -38,7 +38,7 @@ from awslabs.iam_mcp_server.models import (
     UsersListResponse,
 )
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from mcp.types import CallToolResult
 from pydantic import Field
 from typing import Any, Dict, List, Optional, Union
@@ -150,7 +150,7 @@ def _require_confirmation(operation: str, details: str) -> None:
         )
 
 
-mcp = FastMCP(
+mcp = MCPServer(
     'awslabs.iam-mcp-server',
     instructions="""
     # AWS IAM MCP Server

@@ -984,6 +984,7 @@ async def test_ce_real_get_dimension_values_passes_args_reload_identity_decorato
             'abc',
             2,
             None,
+            None,
         )
 
 
@@ -1406,6 +1407,7 @@ async def test_ce_real_get_dimension_values_with_billing_view_arn(
             None,
             None,
             sample_billing_view_arn,
+            None,
         )
 
 

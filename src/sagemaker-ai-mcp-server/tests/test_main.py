@@ -208,7 +208,7 @@ class TestMain:
 
     def test_create_server(self):
         """Test the create_server function."""
-        with patch('awslabs.sagemaker_ai_mcp_server.server.FastMCP') as mock_fastmcp:
+        with patch('awslabs.sagemaker_ai_mcp_server.server.MCPServer') as mock_fastmcp:
             # Call the create_server function
             create_server()
 

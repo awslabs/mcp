@@ -32,8 +32,10 @@ class PricingCache:
         FAMILY_MEMORY_RATIO: Mapping of instance family to GiB per vCPU
     """
 
+    # Public price values are cached per (resource_type, region); this is not
+    # credential material and is safe to share across tenants. The pricing client is
+    # deliberately built per request (see _get_pricing_client) and never cached.
     _cache: dict[str, float] = {}
-    _pricing_client = None
 
     # Instance type specifications
     SIZE_TO_CPUS: dict[str, int] = {
@@ -136,18 +138,25 @@ class PricingCache:
 
     @classmethod
     def _get_pricing_client(cls):
-        """Get or create the AWS Pricing API client.
+        """Build a fresh AWS Pricing API client for the current request.
 
         The Pricing API is only available in us-east-1 and ap-south-1.
+
+        A new client is built on every call and is intentionally **not** cached on
+        the class: in multi-tenant mode ``get_aws_session()`` returns the *current
+        request's* credentials, so caching the client would reuse the first caller's
+        credentials for every subsequent caller and break per-request credential
+        isolation. The client is only built on a price cache miss, and the (public,
+        non-tenant-specific) price *values* are still cached in ``cls._cache``, so
+        this adds negligible overhead while keeping each request's AWS calls scoped
+        to that request's identity.
 
         Returns:
             boto3 pricing client
         """
-        if cls._pricing_client is None:
-            session = get_aws_session()
-            # Pricing API is only available in us-east-1
-            cls._pricing_client = session.client('pricing', region_name='us-east-1')
-        return cls._pricing_client
+        session = get_aws_session()
+        # Pricing API is only available in us-east-1.
+        return session.client('pricing', region_name='us-east-1')
 
     @classmethod
     def _fetch_price_from_api(cls, resource_type: str, region: str) -> Optional[float]:

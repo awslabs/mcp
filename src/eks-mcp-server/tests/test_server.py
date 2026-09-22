@@ -19,7 +19,7 @@ import pytest
 from awslabs.eks_mcp_server.cloudwatch_handler import CloudWatchHandler
 from awslabs.eks_mcp_server.eks_kb_handler import EKSKnowledgeBaseHandler
 from awslabs.eks_mcp_server.k8s_handler import K8sHandler
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from unittest.mock import MagicMock, mock_open, patch
 
 
@@ -441,7 +441,7 @@ async def test_apply_yaml():
         )
 
         # Verify the result
-        assert not result.isError
+        assert not result.is_error
         assert len(result.content) == 2
         assert result.content[0].type == 'text'
         assert 'Successfully applied all resources' in result.content[0].text
@@ -501,7 +501,7 @@ data:
                 )
 
                 # Verify the result is an error
-                assert result.isError
+                assert result.is_error
                 assert len(result.content) == 1
                 assert result.content[0].type == 'text'
                 assert (
@@ -534,7 +534,7 @@ async def test_manage_k8s_resource_secret_blocked():
     )
 
     # Verify the result is an error
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert (
@@ -568,7 +568,7 @@ async def test_get_pod_logs_blocked():
     )
 
     # Verify the result is an error
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert (
@@ -598,7 +598,7 @@ async def test_get_k8s_events_blocked():
     )
 
     # Verify the result is an error
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert (
@@ -629,7 +629,7 @@ async def test_get_cloudwatch_logs_blocked():
     )
 
     # Verify the result is an error
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert (

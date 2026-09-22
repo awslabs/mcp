@@ -69,7 +69,7 @@ def extract_result_data(result: CallToolResult) -> Dict[str, Any]:
     Raises:
         AssertionError: If the result format is not as expected
     """
-    if result.isError:
+    if result.is_error:
         # Error responses don't have structured data
         return {}
 
@@ -227,7 +227,7 @@ class CallToolResultWrapper:
         ]
         if name in name_fields:
             # For error cases, try to extract the name from the error message or return empty string
-            if self._result.isError and name in name_fields:
+            if self._result.is_error and name in name_fields:
                 # Check if we can extract the name from error message
                 if len(self._result.content) > 0:
                     content_item = self._result.content[0]
@@ -294,7 +294,7 @@ class CallToolResultWrapper:
     @property
     def isError(self) -> bool:
         """Return the error status."""
-        return self._result.isError
+        return self._result.is_error
 
     @property
     def content(self):

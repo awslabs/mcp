@@ -22,6 +22,11 @@ from awslabs.aws_healthomics_mcp_server.tools.run_timeline import (
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
+# Timeline generation computes per-task cost, which would otherwise reach the real
+# AWS Pricing API. See the fixture docstring in conftest.py.
+pytestmark = pytest.mark.usefixtures('stub_pricing_lookup')
+
+
 class TestExtractTaskForTimeline:
     """Test the _extract_task_for_timeline function."""
 

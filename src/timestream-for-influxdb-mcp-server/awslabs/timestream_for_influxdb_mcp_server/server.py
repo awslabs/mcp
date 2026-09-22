@@ -17,6 +17,7 @@
 
 import boto3
 import os
+import re
 from awslabs.timestream_for_influxdb_mcp_server import __version__
 from botocore.config import Config
 from influxdb_client.client.influxdb_client import InfluxDBClient
@@ -25,7 +26,7 @@ from influxdb_client.client.write_api import ASYNCHRONOUS, SYNCHRONOUS
 from influxdb_client.domain.bucket_retention_rules import BucketRetentionRules
 from influxdb_client.domain.write_precision import WritePrecision
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
@@ -40,6 +41,14 @@ INFLUXDB_TOKEN = os.environ.get('INFLUXDB_TOKEN')
 INFLUXDB_URL = os.environ.get('INFLUXDB_URL')
 INFLUXDB_ORG = os.environ.get('INFLUXDB_ORG')
 INFLUXDB_ALLOWED_URLS = os.environ.get('INFLUXDB_ALLOWED_URLS', '')
+INFLUXDB_WRITE_MODE = os.environ.get('INFLUXDB_WRITE_MODE', 'false').lower() == 'true'
+
+# Operator-controlled write gate. Mutating tools (create/update/delete and
+# data-plane writes) are refused unless the server operator starts the process
+# with ALLOW_WRITE enabled. This is deliberately NOT a caller-supplied tool
+# parameter: a caller (or a prompt-injected agent) must not be able to
+# self-authorize destructive operations. Read-only is the default.
+ALLOW_WRITE = os.environ.get('ALLOW_WRITE', '').lower() in ('true', '1', 'yes')
 
 # Define Field parameters as global variables to avoid duplication
 # Common fields
@@ -87,12 +96,6 @@ REQUIRED_FIELD_VPC_SUBNET_IDS = Field(
 OPTIONAL_FIELD_PUBLICLY_ACCESSIBLE = Field(
     True,
     description='Configures the DB with a public IP to facilitate access from outside the VPC.',
-)
-
-OPTIONAL_FIELD_TOOL_WRITE_MODE = Field(
-    False,
-    description='Tool is run in write mode and will be able to perform any create/update/delete operations. '
-    'Default is read-only mode (False)',
 )
 
 OPTIONAL_FIELD_USERNAME = Field(
@@ -240,7 +243,7 @@ REQUIRED_FIELD_CLUSTER_NAME = Field(
     'This name will also be a prefix included in the endpoint.',
 )
 
-mcp = FastMCP(
+mcp = MCPServer(
     'awslabs.timestream-for-influxdb-mcp-server',
     instructions="""
     This MCP server provides tools to interact with AWS Timestream for InfluxDB APIs.
@@ -437,6 +440,133 @@ def get_influxdb_client(url, token, org=None, timeout=10000, verify_ssl: bool = 
     )
 
 
+# Names of Flux functions capable of writing data back to a bucket.
+FLUX_WRITE_FUNCTION_NAMES = ('to', 'wideTo')
+
+# A write function referenced as a whole identifier, in any position and with or
+# without a package qualifier: `to(...)`, `result = to(...)`, `writer = to`,
+# `experimental.to(...)`, `influxdb.wideTo(...)`. Word boundaries keep
+# identifiers that merely contain the name, such as `toString`, from matching.
+_WRITE_REFERENCE_RE = re.compile(r'\b(?:' + '|'.join(FLUX_WRITE_FUNCTION_NAMES) + r')\b')
+
+_WRITE_BLOCKED_MESSAGE = (
+    'Query contains a write-producing Flux operation (to(), experimental.to(), '
+    'or wideTo()) which is not allowed when INFLUXDB_WRITE_MODE is not enabled. '
+    'Set the INFLUXDB_WRITE_MODE=true environment variable to allow write '
+    'operations through Flux queries.'
+)
+
+
+def mask_flux_comments_and_strings(query: str) -> str:
+    r"""Blank out comment and string-literal content in a Flux query.
+
+    Replaces the contents of `// ...` comments and `"..."` string literals with
+    spaces, leaving all other characters in place. Offsets and newlines are
+    preserved so that reported positions and multi-line patterns still line up
+    with the original query.
+
+    Scanning left to right is what distinguishes code from data. A plain regex
+    substitution cannot: `re.sub(r'//[^\n]*', '', query)` treats the `//` in
+    `"http://example"` as the start of a comment and deletes the remainder of
+    the line, which can hide a trailing write call. Conversely, a string literal
+    such as `"experimental.to("` is data and must not be scanned as code.
+
+    Args:
+        query: The Flux query string to mask.
+
+    Returns:
+        A string of the same length as the input, with comment and string
+        contents replaced by spaces (newlines preserved).
+    """
+    masked: list[str] = []
+    index = 0
+    length = len(query)
+    while index < length:
+        char = query[index]
+        # Line comment: blank to end of line, leaving the newline itself.
+        if char == '/' and index + 1 < length and query[index + 1] == '/':
+            while index < length and query[index] != '\n':
+                masked.append(' ')
+                index += 1
+            continue
+        # String literal: blank the quotes and everything between them.
+        if char == '"':
+            masked.append(' ')
+            index += 1
+            while index < length:
+                # Escape sequence: consume both characters so that an escaped
+                # quote does not terminate the literal early.
+                if query[index] == '\\' and index + 1 < length:
+                    masked.append('  ')
+                    index += 2
+                    continue
+                if query[index] == '"':
+                    masked.append(' ')
+                    index += 1
+                    break
+                masked.append('\n' if query[index] == '\n' else ' ')
+                index += 1
+            continue
+        masked.append(char)
+        index += 1
+    return ''.join(masked)
+
+
+def validate_flux_query(query: str) -> None:
+    """Validate that a Flux query does not contain write-producing operations.
+
+    When INFLUXDB_WRITE_MODE is disabled (default), this function rejects Flux
+    queries that contain functions capable of writing data to InfluxDB.
+
+    The following write-producing Flux functions are blocked:
+    - to() — standard write function (influxdata/influxdb/to)
+    - experimental.to() — experimental write function
+    - wideTo() / influxdb.wideTo() — writes wide/pivoted data
+
+    Detection operates on the query with comments and string literals masked,
+    and matches write functions as whole identifiers in any position rather than
+    only in specific call syntax. Matching the identifier rather than the call
+    form is what rejects indirection such as `writer = to` followed by
+    `|> writer(...)`, and matching regardless of qualifier is what rejects
+    aliased package imports such as `import e "experimental"` then `e.to(...)`.
+
+    The check is deliberately biased towards rejection: record field access on a
+    column literally named `to` (`r.to`) is refused, because a qualifier cannot
+    be distinguished from a package alias without resolving the whole query.
+    Operators who need such a query can set INFLUXDB_WRITE_MODE=true.
+
+    This is a defense-in-depth control, not a complete one. Flux has
+    first-class functions, so no static inspection of query text can be
+    exhaustive. The authoritative control is a read-scoped InfluxDB token, so
+    that a write is refused by InfluxDB even if it reaches the server.
+
+    Args:
+        query: The Flux query string to validate.
+
+    Raises:
+        ValueError: If the query contains write-producing operations and
+            INFLUXDB_WRITE_MODE is not enabled.
+    """
+    if INFLUXDB_WRITE_MODE:
+        return
+
+    # Interpolation is checked on the raw query, because masking blanks the
+    # string contents in which `${...}` appears. Nested quotes inside an
+    # interpolated expression can desynchronize masking, so interpolation is
+    # refused rather than analyzed. It is rare in a read query.
+    if '${' in query:
+        raise ValueError(
+            'Flux string interpolation is not permitted when INFLUXDB_WRITE_MODE '
+            'is not enabled, because the query cannot be reliably inspected for '
+            'write operations. Set INFLUXDB_WRITE_MODE=true to allow it.'
+        )
+
+    code = mask_flux_comments_and_strings(query)
+
+    if _WRITE_REFERENCE_RE.search(code):
+        raise ValueError(_WRITE_BLOCKED_MESSAGE)
+
+
 @mcp.tool(
     name='CreateDbCluster', description='Create a new Timestream for InfluxDB database cluster.'
 )
@@ -461,7 +591,6 @@ async def create_db_cluster(
     log_delivery_configuration: Optional[
         Dict[str, Any]
     ] = OPTIONAL_FIELD_LOG_DELIVERY_CONFIGURATION,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Create a new Timestream for InfluxDB database cluster.
 
@@ -470,9 +599,10 @@ async def create_db_cluster(
     Returns:
         Details of the created DB cluster.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'CreateDbCluster tool invocation not allowed when tool-write-mode is set to False'
+            'CreateDbCluster is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -542,7 +672,6 @@ async def create_db_instance(
     port: Optional[int] = OPTIONAL_FIELD_PORT,
     db_parameter_group_id: Optional[str] = OPTIONAL_FIELD_DB_PARAMETER_GROUP_ID,
     tags: Optional[Dict[str, str]] = OPTIONAL_FIELD_TAGS,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Create a new Timestream for InfluxDB database instance.
 
@@ -551,9 +680,10 @@ async def create_db_instance(
     Returns:
         Details of the created DB instance.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'CreateDbInstance tool invocation not allowed when tool-write-mode is set to False'
+            'CreateDbInstance is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -768,7 +898,6 @@ async def get_db_cluster(
 )
 async def delete_db_instance(
     identifier: str = REQUIRED_FIELD_DB_INSTANCE_IDENTIFIER,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Deletes a Timestream for InfluxDB DB instance.
 
@@ -777,9 +906,10 @@ async def delete_db_instance(
     Returns:
         Details of the deleted DB instance.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'DeleteDbInstance tool invocation not allowed when tool-write-mode is set to False'
+            'DeleteDbInstance is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -798,7 +928,6 @@ async def delete_db_instance(
 )
 async def delete_db_cluster(
     db_cluster_id: str = REQUIRED_FIELD_DB_CLUSTER_ID,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Deletes a Timestream for InfluxDB cluster.
 
@@ -807,9 +936,10 @@ async def delete_db_cluster(
     Returns:
         Details of the deleted DB cluster.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'DeleteDbCluster tool invocation not allowed when tool-write-mode is set to False'
+            'DeleteDbCluster is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -880,7 +1010,6 @@ async def list_tags_for_resource(
 async def tag_resource(
     resource_arn: str = REQUIRED_FIELD_RESOURCE_ARN,
     tags: Dict[str, str] = REQUIRED_FIELD_TAGS_RESOURCE,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Tags are composed of a Key/Value pairs. You can use tags to categorize and track your Timestream for InfluxDB resources.
 
@@ -889,9 +1018,10 @@ async def tag_resource(
     Returns:
         Status of the tag operation.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'TagResource tool invocation not allowed when tool-write-mode is set to False'
+            'TagResource is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -914,7 +1044,6 @@ async def tag_resource(
 async def untag_resource(
     resource_arn: str = REQUIRED_FIELD_RESOURCE_ARN,
     tag_keys: List[str] = REQUIRED_FIELD_TAG_KEYS,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Removes the tag from the specified resource.
 
@@ -923,9 +1052,10 @@ async def untag_resource(
     Returns:
         Status of the untag operation.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'UntagResource tool invocation not allowed when tool-write-mode is set to False'
+            'UntagResource is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -950,7 +1080,6 @@ async def update_db_cluster(
     log_delivery_configuration: Optional[
         Dict[str, Any]
     ] = OPTIONAL_FIELD_LOG_DELIVERY_CONFIGURATION_UPDATE,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Updates a Timestream for InfluxDB cluster.
 
@@ -959,9 +1088,10 @@ async def update_db_cluster(
     Returns:
         Details of the updated DB cluster.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'UpdateDbCluster tool invocation not allowed when tool-write-mode is set to False'
+            'UpdateDbCluster is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -1001,7 +1131,6 @@ async def update_db_instance(
     log_delivery_configuration: Optional[
         Dict[str, Any]
     ] = OPTIONAL_FIELD_LOG_DELIVERY_CONFIGURATION,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Updates a Timestream for InfluxDB DB instance.
 
@@ -1010,9 +1139,10 @@ async def update_db_instance(
     Returns:
         Details of the updated DB instance.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'UpdateDbInstance tool invocation not allowed when tool-write-mode is set to False'
+            'UpdateDbInstance is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -1172,7 +1302,6 @@ async def list_db_clusters_by_status(
 )
 async def create_db_parameter_group(
     name: str = REQUIRED_FIELD_PARAM_GROUP_NAME,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
     description: Optional[str] = OPTIONAL_FIELD_PARAM_GROUP_DESCRIPTION,
     parameters: Optional[Dict[str, Any]] = OPTIONAL_FIELD_PARAMETERS,
     tags: Optional[Dict[str, str]] = OPTIONAL_FIELD_TAGS,
@@ -1184,9 +1313,10 @@ async def create_db_parameter_group(
     Returns:
         Details of the created DB parameter group.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'CreateDbParamGroup tool invocation not allowed when tool-write-mode is set to False'
+            'CreateDbParamGroup is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     ts_influx_client = get_timestream_influxdb_client()
@@ -1221,7 +1351,6 @@ async def influxdb_write_points(
     time_precision: str = OPTIONAL_FIELD_WRITE_PRECISION,
     sync_mode: Optional[str] = OPTIONAL_FIELD_SYNC_MODE,
     verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Write data points to InfluxDB.
 
@@ -1238,9 +1367,10 @@ async def influxdb_write_points(
     Returns:
         Status of the write operation.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'InfluxDBWritePoints tool invocation not allowed when tool-write-mode is set to False'
+            'InfluxDBWritePoints is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     resolved_url, resolved_token, resolved_org = resolve_influxdb_config(url, token, org)
@@ -1306,16 +1436,16 @@ async def influxdb_write_line_protocol(
     time_precision: str = OPTIONAL_FIELD_WRITE_PRECISION,
     sync_mode: str = OPTIONAL_FIELD_SYNC_MODE,
     verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Write data in Line Protocol format to InfluxDB.
 
     Returns:
         Status of the write operation.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'InfluxDBWriteLineProtocol tool invocation not allowed when tool-write-mode is set to False'
+            'InfluxDBWriteLineProtocol is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     resolved_url, resolved_token, resolved_org = resolve_influxdb_config(url, token, org)
@@ -1365,6 +1495,9 @@ async def influxdb_query(
     Returns:
         Query results in the specified format.
     """
+    # Validate query does not contain write-producing operations in read-only mode
+    validate_flux_query(query)
+
     resolved_url, resolved_token, resolved_org = resolve_influxdb_config(url, token, org)
 
     try:
@@ -1472,16 +1605,16 @@ async def influxdb_create_bucket(
     ),
     description: Optional[str] = Field(None, description='Description of the bucket.'),
     verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Create a new bucket in InfluxDB.
 
     Returns:
         Details of the created bucket.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'InfluxDBCreateBucket tool invocation not allowed when tool-write-mode is set to False'
+            'InfluxDBCreateBucket is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     resolved_url, resolved_token, resolved_org = resolve_influxdb_config(url, token, org)
@@ -1577,16 +1710,16 @@ async def influxdb_create_org(
     url: Optional[str] = OPTIONAL_FIELD_URL,
     token: Optional[str] = OPTIONAL_FIELD_TOKEN,
     verify_ssl: bool = OPTIONAL_FIELD_VERIFY_SSL,
-    tool_write_mode: bool = OPTIONAL_FIELD_TOOL_WRITE_MODE,
 ) -> Dict[str, Any]:
     """Create a new organization in InfluxDB.
 
     Returns:
         Details of the created organization.
     """
-    if not tool_write_mode:
+    if not ALLOW_WRITE:
         raise Exception(
-            'InfluxDBCreateOrg tool invocation not allowed when tool-write-mode is set to False'
+            'InfluxDBCreateOrg is a write operation and is disabled. '
+            'The server operator must set ALLOW_WRITE=true to enable mutating tools.'
         )
 
     resolved_url, resolved_token, _ = resolve_influxdb_config(

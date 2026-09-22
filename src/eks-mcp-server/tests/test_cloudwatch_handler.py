@@ -18,7 +18,7 @@ import datetime
 import json
 import pytest
 from awslabs.eks_mcp_server.cloudwatch_handler import CloudWatchHandler
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from mcp.types import TextContent
 from unittest.mock import MagicMock, patch
 
@@ -207,7 +207,7 @@ class TestCloudWatchHandler:
                 mock_logs_client.get_query_results.assert_called_with(queryId='test-query-id')
 
                 # Verify the result
-                assert not result.isError
+                assert not result.is_error
                 assert isinstance(result.content[0], TextContent)
                 assert 'Successfully retrieved' in result.content[0].text
 
@@ -275,7 +275,7 @@ class TestCloudWatchHandler:
                 assert 'limit 50' in kwargs['queryString']
 
                 # Verify the result
-                assert not result.isError
+                assert not result.is_error
 
                 # Parse JSON data from content
                 data = json.loads(result.content[1].text)
@@ -324,7 +324,7 @@ class TestCloudWatchHandler:
                 assert kwargs['logGroupName'] == '/aws/eks/test-cluster/cluster'
 
                 # Verify the result
-                assert not result.isError
+                assert not result.is_error
 
                 # Parse JSON data from content
                 data = json.loads(result.content[1].text)
@@ -378,7 +378,7 @@ class TestCloudWatchHandler:
                 assert "@message like 'test-cluster'" not in kwargs['queryString']
 
                 # Verify the result
-                assert not result.isError
+                assert not result.is_error
 
                 # Parse JSON data from content
                 data = json.loads(result.content[1].text)
@@ -426,7 +426,7 @@ class TestCloudWatchHandler:
                 assert kwargs['logGroupName'] == '/custom/log/group'
 
                 # Verify the result
-                assert not result.isError
+                assert not result.is_error
 
                 # Parse JSON data from content
                 data = json.loads(result.content[1].text)
@@ -482,7 +482,7 @@ class TestCloudWatchHandler:
                 assert '@message like' not in kwargs['queryString']
 
                 # Verify the result
-                assert not result.isError
+                assert not result.is_error
 
                 # Parse JSON data from content
                 data = json.loads(result.content[1].text)
@@ -514,7 +514,7 @@ class TestCloudWatchHandler:
         )
 
         # Verify the result
-        assert result.isError
+        assert result.is_error
         assert isinstance(result.content[0], TextContent)
         assert (
             'Access to CloudWatch logs requires --allow-sensitive-data-access flag'
@@ -550,7 +550,7 @@ class TestCloudWatchHandler:
                 )
 
                 # Verify the result
-                assert result.isError
+                assert result.is_error
                 assert isinstance(result.content[0], TextContent)
                 assert 'Failed to get logs' in result.content[0].text
                 assert 'Test error' in result.content[0].text
@@ -638,7 +638,7 @@ class TestCloudWatchHandler:
                 assert kwargs['MetricDataQueries'][0]['MetricStat']['Stat'] == 'Average'
 
                 # Verify the result
-                assert not result.isError
+                assert not result.is_error
                 assert isinstance(result.content[0], TextContent)
                 assert 'Successfully retrieved' in result.content[0].text
 
@@ -719,7 +719,7 @@ class TestCloudWatchHandler:
                 assert pod_name_dim in dimensions
 
                 # Verify the result
-                assert not result.isError
+                assert not result.is_error
 
                 # Parse JSON data from content
                 data = json.loads(result.content[1].text)
@@ -764,7 +764,7 @@ class TestCloudWatchHandler:
                 mock_cloudwatch_client.get_metric_data.assert_not_called()
 
                 # Verify the error result
-                assert result.isError
+                assert result.is_error
                 assert isinstance(result.content[0], TextContent)
                 assert 'does not match ClusterName dimension' in result.content[0].text
                 assert 'test-cluster' in result.content[0].text
@@ -809,7 +809,7 @@ class TestCloudWatchHandler:
                 )
 
                 # Verify the result
-                assert not result.isError
+                assert not result.is_error
                 assert isinstance(result.content[0], TextContent)
                 assert 'Successfully retrieved 0 metric data points' in result.content[0].text
 
@@ -849,7 +849,7 @@ class TestCloudWatchHandler:
                 )
 
                 # Verify the result
-                assert result.isError
+                assert result.is_error
                 assert isinstance(result.content[0], TextContent)
                 assert 'Failed to get metrics' in result.content[0].text
                 assert 'Test error' in result.content[0].text
@@ -907,7 +907,7 @@ class TestCloudWatchHandler:
                 assert kwargs['MetricDataQueries'][0]['MetricStat']['Stat'] == 'Sum'
 
                 # Verify the result
-                assert not result.isError
+                assert not result.is_error
 
                 # Parse JSON data from content
                 data = json.loads(result.content[1].text)
@@ -957,7 +957,7 @@ class TestCloudWatchHandler:
                 )
 
                 # Verify the result
-                assert not result.isError
+                assert not result.is_error
 
                 # Parse JSON data from content
                 data = json.loads(result.content[1].text)
@@ -1010,7 +1010,7 @@ class TestCloudWatchHandler:
                 )
 
                 # Verify the result
-                assert not result.isError
+                assert not result.is_error
 
                 # Parse JSON data from content
                 data = json.loads(result.content[1].text)

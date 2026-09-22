@@ -139,7 +139,7 @@ class TestEMRServerlessJobRunHandler:
             )
 
         # Verify result
-        assert not result.isError
+        assert not result.is_error
         assert len(result.content) == 2
         assert (
             'Successfully started job run job-12345abcdefghijkl on application app-12345abcdef with MCP management tags'
@@ -175,7 +175,7 @@ class TestEMRServerlessJobRunHandler:
             # Missing application_id, execution_role_arn, and job_driver
         )
 
-        assert result.isError
+        assert result.is_error
         assert (
             'application_id, execution_role_arn, and job_driver are required'
             in result.content[0].text
@@ -192,7 +192,7 @@ class TestEMRServerlessJobRunHandler:
             job_driver={'sparkSubmit': {'entryPoint': 's3://bucket/job.py'}},
         )
 
-        assert result.isError
+        assert result.is_error
         assert 'not allowed without write access' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -217,7 +217,7 @@ class TestEMRServerlessJobRunHandler:
                 job_driver={'sparkSubmit': {'entryPoint': 's3://bucket/job.py'}},
             )
 
-        assert result.isError
+        assert result.is_error
         assert 'Application not found' in result.content[0].text
 
     # Get Job Run Tests
@@ -274,7 +274,7 @@ class TestEMRServerlessJobRunHandler:
             job_run_id='job-12345abcdefghijkl',
         )
 
-        assert not result.isError
+        assert not result.is_error
         assert (
             'Successfully retrieved job run job-12345abcdefghijkl details'
             in result.content[0].text
@@ -296,7 +296,7 @@ class TestEMRServerlessJobRunHandler:
             # Missing application_id and job_run_id
         )
 
-        assert result.isError
+        assert result.is_error
         assert 'application_id and job_run_id are required' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -314,7 +314,7 @@ class TestEMRServerlessJobRunHandler:
             job_run_id='job-nonexistent',
         )
 
-        assert result.isError
+        assert result.is_error
         assert 'Job run not found' in result.content[0].text
 
     # Cancel Job Run Tests
@@ -331,7 +331,7 @@ class TestEMRServerlessJobRunHandler:
             job_run_id='job-12345abcdefghijkl',
         )
 
-        assert not result.isError
+        assert not result.is_error
         assert (
             'Successfully cancelled job run job-12345abcdefghijkl on application app-12345abcdef'
             in result.content[0].text
@@ -362,7 +362,7 @@ class TestEMRServerlessJobRunHandler:
             job_run_id='job-12345abcdefghijkl',
         )
 
-        assert result.isError
+        assert result.is_error
         assert 'Job run is already in terminal state' in result.content[0].text
 
     # List Job Runs Tests
@@ -408,7 +408,7 @@ class TestEMRServerlessJobRunHandler:
             states=['RUNNING', 'SUCCESS'],
         )
 
-        assert not result.isError
+        assert not result.is_error
         assert 'Successfully listed EMR Serverless job runs' in result.content[0].text
 
         data = self.extract_data_from_result(result)
@@ -443,7 +443,7 @@ class TestEMRServerlessJobRunHandler:
             max_results=10,
         )
 
-        assert not result.isError
+        assert not result.is_error
         data = self.extract_data_from_result(result)
         assert len(data['job_runs']) == 1
         assert data['job_runs'][0]['name'] == 'next-page-job'
@@ -461,7 +461,7 @@ class TestEMRServerlessJobRunHandler:
             operation='list-job-runs',
         )
 
-        assert result.isError
+        assert result.is_error
         assert 'application_id is required' in result.content[0].text
 
     # Get Dashboard for Job Run Tests
@@ -483,7 +483,7 @@ class TestEMRServerlessJobRunHandler:
             job_run_id='job-12345abcdefghijkl',
         )
 
-        assert not result.isError
+        assert not result.is_error
         assert (
             'Successfully retrieved dashboard URL for job run job-12345abcdefghijkl'
             in result.content[0].text
@@ -502,7 +502,7 @@ class TestEMRServerlessJobRunHandler:
             operation='get-dashboard-for-job-run',
         )
 
-        assert result.isError
+        assert result.is_error
         assert 'application_id and job_run_id are required' in result.content[0].text
 
     # Comprehensive Job Driver Types Tests
@@ -534,7 +534,7 @@ class TestEMRServerlessJobRunHandler:
                 name='spark-sql-job',
             )
 
-        assert not result.isError
+        assert not result.is_error
         data = self.extract_data_from_result(result)
         assert data['job_run_id'] == 'job-sql123456789abc'
 
@@ -572,7 +572,7 @@ class TestEMRServerlessJobRunHandler:
                 name='hive-job',
             )
 
-        assert not result.isError
+        assert not result.is_error
         data = self.extract_data_from_result(result)
         assert data['job_run_id'] == 'job-hive123456789abc'
 
@@ -667,7 +667,7 @@ class TestEMRServerlessJobRunHandler:
                 },
             )
 
-        assert not result.isError
+        assert not result.is_error
         data = self.extract_data_from_result(result)
         assert data['job_run_id'] == 'job-comprehensive123'
 
@@ -695,7 +695,7 @@ class TestEMRServerlessJobRunHandler:
             operation='invalid-operation',
         )
 
-        assert result.isError
+        assert result.is_error
         assert 'Invalid operation' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -718,7 +718,7 @@ class TestEMRServerlessJobRunHandler:
             job_run_id='job-12345abcdefghijkl',
         )
 
-        assert result.isError
+        assert result.is_error
         assert 'Job run is being cancelled by another process' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -734,7 +734,7 @@ class TestEMRServerlessJobRunHandler:
             application_id='app-12345abcdef',
         )
 
-        assert result.isError
+        assert result.is_error
         assert 'Rate exceeded' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -751,7 +751,7 @@ class TestEMRServerlessJobRunHandler:
             job_run_id='job-12345abcdefghijkl',
         )
 
-        assert result.isError
+        assert result.is_error
         assert 'Error in manage_aws_emr_serverless_job_runs' in result.content[0].text
         assert 'Unexpected error occurred' in result.content[0].text
 
@@ -791,7 +791,7 @@ class TestEMRServerlessJobRunHandler:
             job_run_id='job-resource-utilization',
         )
 
-        assert not result.isError
+        assert not result.is_error
         data = self.extract_data_from_result(result)
         assert data['job_run']['totalResourceUtilization']['vCPUHour'] == 45.75
         assert data['job_run']['billedResourceUtilization']['vCPUHour'] == 48.0
@@ -828,7 +828,7 @@ class TestEMRServerlessJobRunHandler:
             created_at_before=created_before,
         )
 
-        assert not result.isError
+        assert not result.is_error
         data = self.extract_data_from_result(result)
         assert len(data['job_runs']) == 1
         assert data['job_runs'][0]['name'] == 'recent-job'

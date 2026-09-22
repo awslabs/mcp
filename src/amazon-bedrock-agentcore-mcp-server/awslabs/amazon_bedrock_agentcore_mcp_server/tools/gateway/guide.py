@@ -15,7 +15,7 @@
 """Static guide tool for AgentCore Gateway."""
 
 from .models import GatewayGuideResponse
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 
 
 GATEWAY_GUIDE = """

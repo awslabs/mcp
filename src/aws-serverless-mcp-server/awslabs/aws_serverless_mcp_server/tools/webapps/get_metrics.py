@@ -18,7 +18,7 @@ import datetime
 from awslabs.aws_serverless_mcp_server.tools.common.base_tool import BaseTool
 from awslabs.aws_serverless_mcp_server.utils.aws_client_helper import get_aws_client
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Any, Dict, List, Literal, Optional
 
@@ -26,8 +26,8 @@ from typing import Any, Dict, List, Literal, Optional
 class GetMetricsTool(BaseTool):
     """GetMetricsTool for retrieving metrics from a deployed web application."""
 
-    def __init__(self, mcp: FastMCP):
-        """Initialize the GetMetricsTool with a FastMCP instance."""
+    def __init__(self, mcp: MCPServer):
+        """Initialize the GetMetricsTool with a MCPServer instance."""
         mcp.tool(name='get_metrics')(self.get_metrics)
 
     async def get_metrics(

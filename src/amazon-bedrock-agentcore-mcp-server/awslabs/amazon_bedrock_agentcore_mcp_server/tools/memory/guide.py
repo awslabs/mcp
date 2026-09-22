@@ -15,7 +15,7 @@
 """Static guide tool for AgentCore Memory."""
 
 from .models import MemoryGuideResponse
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 
 
 MEMORY_GUIDE = """

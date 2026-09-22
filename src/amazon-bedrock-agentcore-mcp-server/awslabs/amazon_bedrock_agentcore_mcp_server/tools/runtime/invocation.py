@@ -17,7 +17,7 @@
 import asyncio
 from .error_handler import handle_runtime_error
 from .models import ErrorResponse, InvokeRuntimeResponse, StopSessionResponse
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from pydantic import Field
 from typing import Annotated, Callable, Optional, Union
 

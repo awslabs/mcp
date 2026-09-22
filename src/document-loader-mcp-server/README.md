@@ -71,7 +71,7 @@ For global configuration, edit `~/.kiro/settings/mcp.json`. For project-specific
 
 - `FASTMCP_LOG_LEVEL`: Set logging level (ERROR, INFO, DEBUG)
 - `MAX_FILE_SIZE_MB`: Maximum allowed file size in megabytes (default: 50). Must be a positive integer.
-- `DOCUMENT_BASE_DIR`: Base directory for file access security. Restricts document loading to files within this directory. Defaults to the current working directory.
+- `DOCUMENT_BASE_DIR`: Base directory that constrains all file access (`read_document`, `read_image`, and both the input and output paths of `extract_slides_as_images`). Every resolved path must be inside this directory or the request is denied. Defaults to the current working directory. Set it explicitly (e.g. `/var/app/documents`) to define your sandbox. The sandbox is always enforced — there is no automatic bypass, including under CI (`CI`, `GITHUB_ACTIONS`) or test (`PYTEST_CURRENT_TEST`) environments.
 
 ## Development
 

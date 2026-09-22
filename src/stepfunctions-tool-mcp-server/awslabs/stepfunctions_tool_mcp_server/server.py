@@ -23,7 +23,7 @@ import logging
 import os
 import re
 from awslabs.stepfunctions_tool_mcp_server.aws_helper import AwsHelper
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from typing import Optional
 
 
@@ -57,7 +57,7 @@ logger.info(f'STATE_MACHINE_INPUT_SCHEMA_ARN_TAG_KEY: {STATE_MACHINE_INPUT_SCHEM
 sfn_client = AwsHelper.create_boto3_client('stepfunctions')
 schemas_client = AwsHelper.create_boto3_client('schemas')
 
-mcp = FastMCP(
+mcp = MCPServer(
     'awslabs.stepfunctions-tool-mcp-server',
     instructions="""Use AWS Step Functions state machines to improve your answers.
     These state machines give you additional capabilities and access to AWS services and resources in an AWS account.""",

@@ -33,7 +33,10 @@ def register_create_schema_tool(mcp):
         structure of your GraphQL API, including types, queries, mutations, and subscriptions.
         """,
         annotations=ToolAnnotations(
-            title='Create Schema', readOnlyHint=False, destructiveHint=False, openWorldHint=False
+            title='Create Schema',
+            read_only_hint=False,
+            destructive_hint=False,
+            open_world_hint=False,
         ),
     )
     @write_operation

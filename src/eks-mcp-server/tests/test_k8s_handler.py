@@ -19,7 +19,7 @@ import os
 import pytest
 from awslabs.eks_mcp_server.k8s_apis import K8sApis
 from awslabs.eks_mcp_server.k8s_handler import K8sHandler
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from mcp.types import TextContent
 from unittest.mock import MagicMock, mock_open, patch
 
@@ -223,7 +223,7 @@ metadata:
         )
 
         # Verify the result is an error
-        assert result.isError
+        assert result.is_error
         assert isinstance(result.content[0], TextContent)
         assert 'Operation apply_yaml is not allowed without write access' in result.content[0].text
 
@@ -249,7 +249,7 @@ metadata:
         )
 
         # Verify the result
-        assert result.isError
+        assert result.is_error
         assert isinstance(result.content[0], TextContent)
         assert 'Path must be absolute' in result.content[0].text
         assert 'relative/path/to/manifest.yaml' in result.content[0].text
@@ -302,7 +302,7 @@ metadata:
                     assert kwargs['force'] is True
 
                     # Verify the result
-                    assert not result.isError
+                    assert not result.is_error
                     assert isinstance(result.content[0], TextContent)
                     assert (
                         'Successfully applied all resources from YAML file'
@@ -338,7 +338,7 @@ metadata:
                     mock_client.assert_called_once_with('test-cluster')
 
                     # Verify the result
-                    assert result.isError
+                    assert result.is_error
                     assert isinstance(result.content[0], TextContent)
                     assert 'YAML file not found' in result.content[0].text
 
@@ -371,7 +371,7 @@ metadata:
                     mock_client.assert_called_once_with('test-cluster')
 
                     # Verify the result
-                    assert result.isError
+                    assert result.is_error
                     assert isinstance(result.content[0], TextContent)
                     assert 'Error reading YAML file' in result.content[0].text
                     assert 'Permission denied' in result.content[0].text
@@ -412,7 +412,7 @@ metadata:
                     )
 
                     # Verify the result
-                    assert result.isError
+                    assert result.is_error
                     assert isinstance(result.content[0], TextContent)
                     assert 'Failed to apply YAML from file' in result.content[0].text
                     assert 'Failed to create resource' in result.content[0].text
@@ -438,7 +438,7 @@ metadata:
             )
 
             # Verify the result
-            assert result.isError
+            assert result.is_error
             assert isinstance(result.content[0], TextContent)
             assert 'Error applying YAML from file' in result.content[0].text
             assert 'Connection error' in result.content[0].text
@@ -489,7 +489,7 @@ metadata:
             mock_k8s_apis.manage_resource.assert_called_once()
 
             # Verify the result
-            assert not result.isError
+            assert not result.is_error
             assert isinstance(result.content[0], TextContent)
             assert 'Successfully created Pod test-namespace/test-pod' in result.content[0].text
 
@@ -532,7 +532,7 @@ metadata:
             )
 
             # Verify the result
-            assert not result.isError
+            assert not result.is_error
             assert isinstance(result.content[0], TextContent)
             assert 'Successfully retrieved Pod test-namespace/test-pod' in result.content[0].text
 
@@ -568,7 +568,7 @@ metadata:
         )
 
         # Verify the result
-        assert result.isError
+        assert result.is_error
         assert isinstance(result.content[0], TextContent)
         assert 'Invalid operation: invalid' in result.content[0].text
 
@@ -603,7 +603,7 @@ metadata:
             mock_k8s_apis.manage_resource.assert_called_once()
 
             # Verify the result
-            assert result.isError
+            assert result.is_error
             assert isinstance(result.content[0], TextContent)
             assert (
                 'Failed to read Pod test-namespace/test-pod: Resource not found'
@@ -633,7 +633,7 @@ metadata:
         )
 
         # Verify the result
-        assert result.isError
+        assert result.is_error
         assert isinstance(result.content[0], TextContent)
         assert (
             'Access to Kubernetes Secrets requires --allow-sensitive-data-access flag'
@@ -653,7 +653,7 @@ metadata:
         )
 
         # Verify the result
-        assert not result.isError
+        assert not result.is_error
         assert isinstance(result.content[0], TextContent)
 
     @pytest.mark.asyncio
@@ -680,7 +680,7 @@ metadata:
         )
 
         # Verify the result
-        assert result.isError
+        assert result.is_error
         assert isinstance(result.content[0], TextContent)
         assert 'Operation create is not allowed without write access' in result.content[0].text
 
@@ -697,7 +697,7 @@ metadata:
         )
 
         # Verify the result
-        assert result.isError
+        assert result.is_error
         assert isinstance(result.content[0], TextContent)
         assert 'Operation replace is not allowed without write access' in result.content[0].text
 
@@ -714,7 +714,7 @@ metadata:
         )
 
         # Verify the result
-        assert result.isError
+        assert result.is_error
         assert isinstance(result.content[0], TextContent)
         assert 'Operation patch is not allowed without write access' in result.content[0].text
 
@@ -730,7 +730,7 @@ metadata:
         )
 
         # Verify the result
-        assert result.isError
+        assert result.is_error
         assert isinstance(result.content[0], TextContent)
         assert 'Operation delete is not allowed without write access' in result.content[0].text
 
@@ -762,7 +762,7 @@ metadata:
             mock_k8s_apis.manage_resource.assert_called_once()
 
             # Verify the result
-            assert not result.isError
+            assert not result.is_error
             assert isinstance(result.content[0], TextContent)
             assert 'Successfully retrieved Pod test-namespace/test-pod' in result.content[0].text
 
@@ -840,7 +840,7 @@ metadata:
             assert kwargs['label_selector'] == 'app=test'
 
             # Verify the result
-            assert not result.isError
+            assert not result.is_error
             assert isinstance(result.content[0], TextContent)
             assert (
                 'Successfully listed 2 Pod resources in test-namespace/' in result.content[0].text
@@ -887,7 +887,7 @@ metadata:
             )
 
             # Verify the result
-            assert not result.isError
+            assert not result.is_error
             assert isinstance(result.content[0], TextContent)
             assert (
                 'Successfully listed 0 Pod resources in test-namespace/' in result.content[0].text
@@ -922,7 +922,7 @@ metadata:
             )
 
             # Verify the result
-            assert result.isError
+            assert result.is_error
             assert isinstance(result.content[0], TextContent)
             assert (
                 'Failed to list Pod resources: Failed to list resources' in result.content[0].text
@@ -948,7 +948,7 @@ metadata:
         )
 
         # Verify the result
-        assert result.isError
+        assert result.is_error
         assert isinstance(result.content[0], TextContent)
         assert (
             'Operation generate_app_manifest is not allowed without write access'
@@ -975,7 +975,7 @@ metadata:
         )
 
         # Verify the result
-        assert result.isError
+        assert result.is_error
         assert isinstance(result.content[0], TextContent)
         assert 'Path must be absolute' in result.content[0].text
         assert 'relative/path/to/output' in result.content[0].text
@@ -999,7 +999,7 @@ metadata:
                     output_dir='/safe/output/dir',
                 )
 
-        assert result.isError
+        assert result.is_error
         assert isinstance(result.content[0], TextContent)
         assert 'Invalid app_name' in result.content[0].text
 
@@ -1022,7 +1022,7 @@ metadata:
                     output_dir='/safe/output/dir',
                 )
 
-        assert result.isError
+        assert result.is_error
         assert isinstance(result.content[0], TextContent)
         assert 'at most 63 characters' in result.content[0].text
 
@@ -1076,7 +1076,7 @@ metadata:
                             )
 
                             # Verify the result
-                            assert not result.isError
+                            assert not result.is_error
                             assert isinstance(result.content[0], TextContent)
                             assert (
                                 'Successfully generated YAML for test-app'
@@ -1118,7 +1118,7 @@ metadata:
                 )
 
                 # Verify the result
-                assert result.isError
+                assert result.is_error
                 assert isinstance(result.content[0], TextContent)
                 assert 'Failed to generate YAML' in result.content[0].text
                 assert 'File error' in result.content[0].text
@@ -1201,7 +1201,7 @@ metadata:
                             )
 
                             # Verify the result is successful
-                            assert not result.isError
+                            assert not result.is_error
 
                             # Parse JSON data from content
                             data = json.loads(result.content[1].text)
@@ -1264,7 +1264,7 @@ metadata:
                             )
 
                             # Verify the result is successful
-                            assert not result.isError
+                            assert not result.is_error
 
                             # Parse JSON data from content
                             data = json.loads(result.content[1].text)
@@ -1366,7 +1366,7 @@ metadata:
             )
 
             # Verify the result
-            assert not result.isError
+            assert not result.is_error
             assert isinstance(result.content[0], TextContent)
             assert (
                 'Successfully retrieved 3 log lines from pod test-namespace/test-pod (container: test-container)'
@@ -1422,7 +1422,7 @@ metadata:
             assert kwargs['container_name'] is None
 
             # Verify the result
-            assert not result.isError
+            assert not result.is_error
             assert isinstance(result.content[0], TextContent)
             assert (
                 'Successfully retrieved 3 log lines from pod test-namespace/test-pod'
@@ -1457,7 +1457,7 @@ metadata:
         )
 
         # Verify the result
-        assert result.isError
+        assert result.is_error
         assert isinstance(result.content[0], TextContent)
         assert (
             'Access to pod logs requires --allow-sensitive-data-access flag'
@@ -1502,7 +1502,7 @@ metadata:
             assert kwargs['container_name'] == 'test-container'
 
             # Verify the result
-            assert result.isError
+            assert result.is_error
             assert isinstance(result.content[0], TextContent)
             assert (
                 'Failed to get logs from pod test-namespace/test-pod (container: test-container): Pod not found'
@@ -1562,7 +1562,7 @@ metadata:
             )
 
             # Verify the result
-            assert not result.isError
+            assert not result.is_error
             # Check content
             assert isinstance(result.content[0], TextContent)
             assert (
@@ -1642,7 +1642,7 @@ metadata:
             )
 
             # The tool must succeed rather than raising KeyError on the dropped keys
-            assert not result.isError
+            assert not result.is_error
 
             data = json.loads(result.content[1].text)
             assert data['count'] == 2
@@ -1698,7 +1698,7 @@ metadata:
             mock_k8s_apis.get_events.assert_called_once()
 
             # Verify the result
-            assert not result.isError
+            assert not result.is_error
             assert isinstance(result.content[0], TextContent)
             assert (
                 'Successfully retrieved 0 events for Pod test-namespace/test-pod'
@@ -1734,7 +1734,7 @@ metadata:
         )
 
         # Verify the result
-        assert result.isError
+        assert result.is_error
         assert isinstance(result.content[0], TextContent)
         assert (
             'Access to Kubernetes events requires --allow-sensitive-data-access flag'
@@ -1771,7 +1771,7 @@ metadata:
             mock_k8s_apis.get_events.assert_called_once()
 
             # Verify the result
-            assert result.isError
+            assert result.is_error
             assert isinstance(result.content[0], TextContent)
             assert (
                 'Failed to get events for Pod test-namespace/test-pod: Failed to get events'
@@ -2113,7 +2113,7 @@ class TestK8sHandlerPathValidation:
             )
 
             mock_validate.assert_called_once_with('/some/path')
-            assert result.isError
+            assert result.is_error
 
     @pytest.mark.asyncio
     async def test_apply_yaml_calls_validate_file_path(
@@ -2135,4 +2135,4 @@ class TestK8sHandlerPathValidation:
             )
 
             mock_validate.assert_called_once_with('/some/file.yaml')
-            assert result.isError
+            assert result.is_error

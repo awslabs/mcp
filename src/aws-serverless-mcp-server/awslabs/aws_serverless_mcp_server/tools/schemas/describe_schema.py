@@ -16,7 +16,7 @@
 
 from botocore.client import BaseClient
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Dict, Optional
 
@@ -24,8 +24,8 @@ from typing import Dict, Optional
 class DescribeSchemaTool:
     """DescribeSchemaTool class for describing schemas."""
 
-    def __init__(self, mcp: FastMCP, schemas_client: BaseClient):
-        """Initialize the DescribeSchemaTool with a FastMCP instance."""
+    def __init__(self, mcp: MCPServer, schemas_client: BaseClient):
+        """Initialize the DescribeSchemaTool with a MCPServer instance."""
         mcp.tool(name='describe_schema')(self.describe_schema_impl)
         self.schemas_client = schemas_client
 

@@ -103,7 +103,7 @@ class TestDataCatalogManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is False
+            assert result.is_error is False
             assert len(result.content) == 2
             assert hasattr(result.content[0], 'text')
             assert f'Successfully created connection: {connection_name}' in result.content[0].text
@@ -142,7 +142,7 @@ class TestDataCatalogManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is True
+            assert result.is_error is True
             assert len(result.content) == 1
             assert hasattr(result.content[0], 'text')
             assert 'Failed to create connection' in result.content[0].text
@@ -186,7 +186,7 @@ class TestDataCatalogManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is False
+            assert result.is_error is False
             assert len(result.content) >= 1
             assert hasattr(result.content[0], 'text')
             assert f'Successfully deleted connection: {connection_name}' in result.content[0].text
@@ -225,7 +225,7 @@ class TestDataCatalogManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is True
+            assert result.is_error is True
             assert len(result.content) >= 1
             assert hasattr(result.content[0], 'text')
             assert 'not managed by the MCP server' in result.content[0].text
@@ -270,7 +270,7 @@ class TestDataCatalogManager:
 
         # Verify the response
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
         assert len(result.content) >= 1
         assert hasattr(result.content[0], 'text')
         assert f'Successfully retrieved connection: {connection_name}' in result.content[0].text
@@ -333,7 +333,7 @@ class TestDataCatalogManager:
 
         # Verify the response
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
         assert len(result.content) >= 1
         assert hasattr(result.content[0], 'text')
         assert 'Successfully listed 2 connections' in result.content[0].text
@@ -385,7 +385,7 @@ class TestDataCatalogManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is False
+            assert result.is_error is False
             assert len(result.content) >= 1
             assert hasattr(result.content[0], 'text')
             assert (
@@ -438,7 +438,7 @@ class TestDataCatalogManager:
 
         # Verify the response
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
         assert len(result.content) >= 1
         assert hasattr(result.content[0], 'text')
         assert (
@@ -508,7 +508,7 @@ class TestDataCatalogManager:
 
         # Verify the response
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
         assert len(result.content) >= 1
         assert hasattr(result.content[0], 'text')
         assert (
@@ -551,7 +551,7 @@ class TestDataCatalogManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is False
+            assert result.is_error is False
             assert len(result.content) >= 1
             assert hasattr(result.content[0], 'text')
             assert f'Successfully created catalog: {catalog_name}' in result.content[0].text
@@ -585,7 +585,7 @@ class TestDataCatalogManager:
 
         # Verify the response
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
         assert len(result.content) >= 1
         # Just verify we have content, don't access .text attribute directly
         assert result.content[0] is not None
@@ -628,7 +628,7 @@ class TestDataCatalogManager:
         )
 
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
         assert len(result.content) >= 1
         assert hasattr(result.content[0], 'text')
         assert 'Successfully listed 2 catalogs' in result.content[0].text
@@ -644,7 +644,7 @@ class TestDataCatalogManager:
         result = await manager.list_catalogs(mock_ctx)
 
         assert isinstance(result, CallToolResult)
-        assert result.isError is True
+        assert result.is_error is True
         assert len(result.content) >= 1
         assert hasattr(result.content[0], 'text')
         assert 'Failed to list catalogs' in result.content[0].text
@@ -657,7 +657,7 @@ class TestDataCatalogManager:
         result = await manager.list_catalogs(mock_ctx)
 
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
         assert len(result.content) >= 1
         assert hasattr(result.content[0], 'text')
         assert 'Successfully listed 0 catalogs' in result.content[0].text
@@ -730,7 +730,7 @@ class TestDataCatalogManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is False
+            assert result.is_error is False
             assert len(result.content) >= 1
             assert hasattr(result.content[0], 'text')
             assert f'Successfully updated connection: {connection_name}' in result.content[0].text
@@ -779,7 +779,7 @@ class TestDataCatalogManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is True
+            assert result.is_error is True
             assert len(result.content) >= 1
             assert hasattr(result.content[0], 'text')
             assert 'not managed by the MCP server' in result.content[0].text
@@ -837,7 +837,7 @@ class TestDataCatalogManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is False
+            assert result.is_error is False
             assert len(result.content) >= 1
             assert hasattr(result.content[0], 'text')
             assert (
@@ -913,7 +913,7 @@ class TestDataCatalogManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is False
+            assert result.is_error is False
             assert len(result.content) >= 1
             assert hasattr(result.content[0], 'text')
             assert (
@@ -958,7 +958,7 @@ class TestDataCatalogManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is False
+            assert result.is_error is False
             assert len(result.content) >= 1
             assert hasattr(result.content[0], 'text')
             assert f'Successfully deleted catalog: {catalog_id}' in result.content[0].text
@@ -997,7 +997,7 @@ class TestDataCatalogManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is True
+            assert result.is_error is True
             assert len(result.content) >= 1
             assert hasattr(result.content[0], 'text')
             assert 'not managed by the MCP server' in result.content[0].text
@@ -1022,7 +1022,7 @@ class TestDataCatalogManager:
 
         # Verify the response
         assert isinstance(result, CallToolResult)
-        assert result.isError is True
+        assert result.is_error is True
         assert len(result.content) >= 1
         assert hasattr(result.content[0], 'text')
         assert 'Catalog test-catalog not found' in result.content[0].text
@@ -1069,7 +1069,7 @@ class TestDataCatalogManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is True
+            assert result.is_error is True
             assert len(result.content) >= 1
             assert hasattr(result.content[0], 'text')
             assert 'Failed to delete catalog' in result.content[0].text
@@ -1099,7 +1099,7 @@ class TestDataCatalogManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is False
+            assert result.is_error is False
             assert len(result.content) >= 1
             assert hasattr(result.content[0], 'text')
             assert 'Successfully initiated catalog import' in result.content[0].text
@@ -1131,7 +1131,7 @@ class TestDataCatalogManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is True
+            assert result.is_error is True
             assert len(result.content) >= 1
             assert hasattr(result.content[0], 'text')
             assert 'Failed to import' in result.content[0].text
@@ -1189,7 +1189,7 @@ class TestDataCatalogManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is True
+            assert result.is_error is True
             assert len(result.content) >= 1
             assert hasattr(result.content[0], 'text')
             assert 'not managed by the MCP server' in result.content[0].text
@@ -1227,7 +1227,7 @@ class TestDataCatalogManager:
 
         # Verify the response
         assert isinstance(result, CallToolResult)
-        assert result.isError is True
+        assert result.is_error is True
         assert len(result.content) >= 1
         assert hasattr(result.content[0], 'text')
         assert (
@@ -1293,7 +1293,7 @@ class TestDataCatalogManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is True
+            assert result.is_error is True
             assert len(result.content) >= 1
             assert hasattr(result.content[0], 'text')
             assert 'Failed to update partition' in result.content[0].text
@@ -1345,7 +1345,7 @@ class TestDataCatalogManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is True
+            assert result.is_error is True
             assert len(result.content) >= 1
             assert hasattr(result.content[0], 'text')
             assert 'not managed by the MCP server' in result.content[0].text
@@ -1377,7 +1377,7 @@ class TestDataCatalogManager:
 
         # Verify the response
         assert isinstance(result, CallToolResult)
-        assert result.isError is True
+        assert result.is_error is True
         assert len(result.content) >= 1
         assert hasattr(result.content[0], 'text')
         assert (
@@ -1437,7 +1437,7 @@ class TestDataCatalogManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is True
+            assert result.is_error is True
             assert len(result.content) >= 1
             assert hasattr(result.content[0], 'text')
             assert 'Failed to delete partition' in result.content[0].text
@@ -1463,7 +1463,7 @@ class TestDataCatalogManager:
 
         # Verify the response
         assert isinstance(result, CallToolResult)
-        assert result.isError is True
+        assert result.is_error is True
         assert len(result.content) >= 1
         assert hasattr(result.content[0], 'text')
         assert 'Failed to get connection' in result.content[0].text
@@ -1508,7 +1508,7 @@ class TestDataCatalogManager:
 
         # Verify the response
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
         assert len(result.content) >= 1
         assert hasattr(result.content[0], 'text')
 
@@ -1531,7 +1531,7 @@ class TestDataCatalogManager:
 
         # Verify the response
         assert isinstance(result, CallToolResult)
-        assert result.isError is True
+        assert result.is_error is True
         assert len(result.content) >= 1
         assert hasattr(result.content[0], 'text')
         assert 'Failed to list connections' in result.content[0].text
@@ -1551,7 +1551,7 @@ class TestDataCatalogManager:
 
         # Verify the response
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
         assert len(result.content) >= 1
         assert hasattr(result.content[0], 'text')
         assert 'Successfully listed 0 connections' in result.content[0].text
@@ -1593,7 +1593,7 @@ class TestDataCatalogManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is True
+            assert result.is_error is True
             assert len(result.content) >= 1
             assert hasattr(result.content[0], 'text')
             assert 'Failed to create partition' in result.content[0].text
@@ -1625,7 +1625,7 @@ class TestDataCatalogManager:
 
         # Verify the response
         assert isinstance(result, CallToolResult)
-        assert result.isError is True
+        assert result.is_error is True
         assert len(result.content) >= 1
         assert hasattr(result.content[0], 'text')
         assert 'Failed to get partition' in result.content[0].text
@@ -1651,7 +1651,7 @@ class TestDataCatalogManager:
 
         # Verify the response
         assert isinstance(result, CallToolResult)
-        assert result.isError is True
+        assert result.is_error is True
         assert len(result.content) >= 1
         assert hasattr(result.content[0], 'text')
         assert 'Failed to list partitions' in result.content[0].text
@@ -1674,7 +1674,7 @@ class TestDataCatalogManager:
 
         # Verify the response
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
         assert len(result.content) >= 1
         assert hasattr(result.content[0], 'text')
         assert (
@@ -1728,7 +1728,7 @@ class TestDataCatalogManager:
 
         # Verify the response
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
         assert len(result.content) >= 1
         assert hasattr(result.content[0], 'text')
 
@@ -1759,7 +1759,7 @@ class TestDataCatalogManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is True
+            assert result.is_error is True
             assert len(result.content) >= 1
             assert hasattr(result.content[0], 'text')
             assert 'Failed to create catalog' in result.content[0].text
@@ -1782,7 +1782,7 @@ class TestDataCatalogManager:
 
         # Verify the response
         assert isinstance(result, CallToolResult)
-        assert result.isError is True
+        assert result.is_error is True
         assert len(result.content) >= 1
         assert hasattr(result.content[0], 'text')
         assert 'Failed to get catalog' in result.content[0].text
@@ -1825,7 +1825,7 @@ class TestDataCatalogManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is False
+            assert result.is_error is False
             assert len(result.content) >= 1
             assert hasattr(result.content[0], 'text')
 
@@ -1884,7 +1884,7 @@ class TestDataCatalogManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is False
+            assert result.is_error is False
             assert len(result.content) >= 1
             assert hasattr(result.content[0], 'text')
 
@@ -1943,7 +1943,7 @@ class TestDataCatalogManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is False
+            assert result.is_error is False
             assert len(result.content) >= 1
             assert hasattr(result.content[0], 'text')
 
@@ -2014,7 +2014,7 @@ class TestDataCatalogManager:
 
             # Verify the response
             assert isinstance(result, CallToolResult)
-            assert result.isError is False
+            assert result.is_error is False
             assert len(result.content) >= 1
             assert hasattr(result.content[0], 'text')
 
@@ -2036,7 +2036,7 @@ class TestDataCatalogManager:
             CatalogId='123456789012',
         )
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
         assert 'Successfully tested connection' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -2059,7 +2059,7 @@ class TestDataCatalogManager:
             TestConnectionInput=test_input,
         )
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
 
     @pytest.mark.asyncio
     async def test_test_connection_error(self, manager, mock_ctx, mock_glue_client):
@@ -2075,7 +2075,7 @@ class TestDataCatalogManager:
         )
 
         assert isinstance(result, CallToolResult)
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Failed to test connection' in result.content[0].text
 
     # ==================== BatchDeleteConnection Tests ====================
@@ -2115,7 +2115,7 @@ class TestDataCatalogManager:
             ConnectionNameList=['conn-1', 'conn-2'],
         )
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
         assert '2 succeeded' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -2147,7 +2147,7 @@ class TestDataCatalogManager:
             )
 
         assert isinstance(result, CallToolResult)
-        assert result.isError is True
+        assert result.is_error is True
         assert 'not managed by the MCP server' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -2181,7 +2181,7 @@ class TestDataCatalogManager:
             )
 
         assert isinstance(result, CallToolResult)
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Failed to batch delete connections' in result.content[0].text
 
     # ==================== DescribeConnectionType Tests ====================
@@ -2206,7 +2206,7 @@ class TestDataCatalogManager:
             ConnectionType='JDBC',
         )
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
         assert 'Successfully described connection type: JDBC' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -2223,7 +2223,7 @@ class TestDataCatalogManager:
         )
 
         assert isinstance(result, CallToolResult)
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Failed to describe connection type' in result.content[0].text
 
     # ==================== ListConnectionTypes Tests ====================
@@ -2253,7 +2253,7 @@ class TestDataCatalogManager:
 
         mock_glue_client.list_connection_types.assert_called_once_with()
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
         assert 'Successfully listed 2 connection types' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -2277,7 +2277,7 @@ class TestDataCatalogManager:
             NextToken='prev-token',
         )
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
 
     @pytest.mark.asyncio
     async def test_list_connection_types_error(self, manager, mock_ctx, mock_glue_client):
@@ -2290,7 +2290,7 @@ class TestDataCatalogManager:
         result = await manager.list_connection_types(mock_ctx)
 
         assert isinstance(result, CallToolResult)
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Failed to list connection types' in result.content[0].text
 
     # ==================== ListEntities Tests ====================
@@ -2327,7 +2327,7 @@ class TestDataCatalogManager:
             ConnectionName='my-salesforce-conn',
         )
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
         assert 'Successfully listed 2 entities' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -2355,7 +2355,7 @@ class TestDataCatalogManager:
             DataStoreApiVersion='v1',
         )
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
 
     @pytest.mark.asyncio
     async def test_list_entities_error(self, manager, mock_ctx, mock_glue_client):
@@ -2371,7 +2371,7 @@ class TestDataCatalogManager:
         )
 
         assert isinstance(result, CallToolResult)
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Failed to list entities' in result.content[0].text
 
     # ==================== DescribeEntity Tests ====================
@@ -2414,7 +2414,7 @@ class TestDataCatalogManager:
             EntityName='Account',
         )
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
         assert '2 fields' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -2442,7 +2442,7 @@ class TestDataCatalogManager:
             DataStoreApiVersion='v1',
         )
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
 
     @pytest.mark.asyncio
     async def test_describe_entity_error(self, manager, mock_ctx, mock_glue_client):
@@ -2459,7 +2459,7 @@ class TestDataCatalogManager:
         )
 
         assert isinstance(result, CallToolResult)
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Failed to describe entity' in result.content[0].text
 
     # ==================== GetEntityRecords Tests ====================
@@ -2488,7 +2488,7 @@ class TestDataCatalogManager:
             Limit=10,
         )
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
         assert 'Successfully retrieved 2 records' in result.content[0].text
 
     @pytest.mark.asyncio
@@ -2526,7 +2526,7 @@ class TestDataCatalogManager:
             SelectedFields=['Id', 'Name'],
         )
         assert isinstance(result, CallToolResult)
-        assert result.isError is False
+        assert result.is_error is False
 
     @pytest.mark.asyncio
     async def test_get_entity_records_error(self, manager, mock_ctx, mock_glue_client):
@@ -2544,5 +2544,5 @@ class TestDataCatalogManager:
         )
 
         assert isinstance(result, CallToolResult)
-        assert result.isError is True
+        assert result.is_error is True
         assert 'Failed to get entity records' in result.content[0].text

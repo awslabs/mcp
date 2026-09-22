@@ -38,19 +38,23 @@ from awslabs.oracle_mcp_server.server import (
     server_config,
 )
 from botocore.exceptions import ClientError
+from mcp.server.mcpserver import Context
+from typing import Any, List, Optional
 from unittest.mock import AsyncMock, MagicMock
 
 
-class DummyCtx:
+class DummyCtx(Context):
     """Minimal context stub used to capture error messages."""
 
-    def __init__(self):
-        """Record messages emitted via ctx.error for assertions."""
-        self.errors = []
+    errors: List[Any] = []
 
-    async def error(self, message):
+    def __init__(self) -> None:
+        """Initialize with no request context; nothing here needs one."""
+        super().__init__()
+
+    async def error(self, data: Any, *, logger_name: Optional[str] = None):
         """Capture the error message."""
-        self.errors.append(message)
+        self.errors.append(data)
 
 
 @pytest.fixture(autouse=True)
@@ -76,14 +80,14 @@ def _reset_server_config():
 async def test_run_query_injection_risk_returns_error(mocker):
     """Injection-risk pattern is rejected before the query reaches the DB."""
     from awslabs.oracle_mcp_server.server import run_query
-    from mcp.shared.exceptions import McpError
+    from mcp.shared.exceptions import MCPError
 
     mock_conn = MagicMock()
     mock_conn.readonly_query = False  # skip the readonly branch
     mocker.patch.object(db_connection_map, 'get', return_value=mock_conn)
     ctx = DummyCtx()
 
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await run_query(
             sql="EXECUTE IMMEDIATE 'DROP TABLE t'",
             ctx=ctx,
@@ -154,12 +158,12 @@ async def test_run_query_generic_exception_returns_error(mocker):
 
 @pytest.mark.asyncio
 async def test_get_table_schema_invalid_name_raises_mcp_error():
-    """An invalid table name triggers an McpError before any DB call."""
+    """An invalid table name triggers an MCPError before any DB call."""
     from awslabs.oracle_mcp_server.server import get_table_schema
-    from mcp.shared.exceptions import McpError
+    from mcp.shared.exceptions import MCPError
 
     ctx = DummyCtx()
-    with pytest.raises(McpError):
+    with pytest.raises(MCPError):
         await get_table_schema(
             connection_method=ConnectionMethod.ORACLE_PASSWORD,
             db_endpoint='ep1',

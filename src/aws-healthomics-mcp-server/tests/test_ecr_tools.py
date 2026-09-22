@@ -2291,16 +2291,23 @@ class TestCheckContainerAvailabilityUnit:
     @pytest.mark.asyncio
     async def test_invalid_digest_format_no_sha256_prefix(self):
         """Test that digest without sha256: prefix returns validation error."""
-        # Arrange
+        # Arrange. The ECR client is mocked so the test never resolves real
+        # credentials or makes a network call, even though the digest is rejected
+        # before any API call would be made.
         mock_ctx = AsyncMock()
+        mock_client = _create_mock_ecr_client()
 
         # Act
-        result = await check_container_availability(
-            ctx=mock_ctx,
-            repository_name='my-repo',
-            image_tag='latest',
-            image_digest='abc123def456',  # pragma: allowlist secret
-        )
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.ecr_tools.get_ecr_client',
+            return_value=mock_client,
+        ):
+            result = await check_container_availability(
+                ctx=mock_ctx,
+                repository_name='my-repo',
+                image_tag='latest',
+                image_digest='abc123def456',  # pragma: allowlist secret
+            )
 
         # Assert
         assert result['available'] is False
@@ -2309,16 +2316,22 @@ class TestCheckContainerAvailabilityUnit:
     @pytest.mark.asyncio
     async def test_invalid_digest_format_wrong_prefix(self):
         """Test that digest with wrong prefix returns validation error."""
-        # Arrange
+        # Arrange. The ECR client is mocked so no real credentials or network are
+        # used while validating the (rejected) digest format.
         mock_ctx = AsyncMock()
+        mock_client = _create_mock_ecr_client()
 
         # Act
-        result = await check_container_availability(
-            ctx=mock_ctx,
-            repository_name='my-repo',
-            image_tag='latest',
-            image_digest='md5:abc123def456',  # Wrong prefix
-        )
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.ecr_tools.get_ecr_client',
+            return_value=mock_client,
+        ):
+            result = await check_container_availability(
+                ctx=mock_ctx,
+                repository_name='my-repo',
+                image_tag='latest',
+                image_digest='md5:abc123def456',  # Wrong prefix
+            )
 
         # Assert
         assert result['available'] is False

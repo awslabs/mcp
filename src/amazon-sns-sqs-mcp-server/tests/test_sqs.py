@@ -307,3 +307,265 @@ class TestSQSTools:
         )
         assert result is False
         assert message == 'Test exception'
+
+    @patch('boto3.client')
+    @patch('awslabs.amazon_sns_sqs_mcp_server.sqs.AWSToolGenerator')
+    def test_add_permission_has_validator(self, mock_aws_tool_generator, mock_boto3_client):
+        """Test that add_permission tool has tag validation to prevent mutations on untagged resources.
+
+        This is a security-critical test: without the validator, add_sqs_permission can
+        grant cross-account access to any SQS queue regardless of whether it was created
+        by the MCP server (i.e., tagged with mcp_server_version).
+        """
+        mock_mcp = MagicMock()
+        tool_config_capture = {}
+
+        def mock_generator(
+            service_name,
+            service_display_name,
+            mcp,
+            tool_configuration,
+            skip_param_documentation,
+            mcp_server_version=MCP_SERVER_VERSION,
+        ):
+            nonlocal tool_config_capture
+            tool_config_capture = tool_configuration
+            return MagicMock()
+
+        mock_aws_tool_generator.side_effect = mock_generator
+        register_sqs_tools(mock_mcp)
+
+        # Verify add_permission has a validator
+        assert 'add_permission' in tool_config_capture
+        assert 'validator' in tool_config_capture['add_permission'], (
+            'add_permission must have a validator to prevent mutations on untagged resources'
+        )
+        assert tool_config_capture['add_permission']['validator'] == is_mutative_action_allowed
+
+    @patch('boto3.client')
+    @patch('awslabs.amazon_sns_sqs_mcp_server.sqs.AWSToolGenerator')
+    def test_remove_permission_has_validator(self, mock_aws_tool_generator, mock_boto3_client):
+        """Test that remove_permission tool has tag validation to prevent mutations on untagged resources.
+
+        This is a security-critical test: without the validator, remove_sqs_permission can
+        remove permissions from any SQS queue regardless of whether it was created
+        by the MCP server (i.e., tagged with mcp_server_version).
+        """
+        mock_mcp = MagicMock()
+        tool_config_capture = {}
+
+        def mock_generator(
+            service_name,
+            service_display_name,
+            mcp,
+            tool_configuration,
+            skip_param_documentation,
+            mcp_server_version=MCP_SERVER_VERSION,
+        ):
+            nonlocal tool_config_capture
+            tool_config_capture = tool_configuration
+            return MagicMock()
+
+        mock_aws_tool_generator.side_effect = mock_generator
+        register_sqs_tools(mock_mcp)
+
+        # Verify remove_permission has a validator
+        assert 'remove_permission' in tool_config_capture
+        assert 'validator' in tool_config_capture['remove_permission'], (
+            'remove_permission must have a validator to prevent mutations on untagged resources'
+        )
+        assert tool_config_capture['remove_permission']['validator'] == is_mutative_action_allowed
+
+    @patch('boto3.client')
+    @patch('awslabs.amazon_sns_sqs_mcp_server.sqs.AWSToolGenerator')
+    def test_purge_queue_has_validator(self, mock_aws_tool_generator, mock_boto3_client):
+        """Test that purge_queue tool has tag validation.
+
+        purge_queue is an irreversible destructive operation that deletes all messages
+        in a queue. It must not be allowed on untagged resources.
+        """
+        mock_mcp = MagicMock()
+        tool_config_capture = {}
+
+        def mock_generator(
+            service_name,
+            service_display_name,
+            mcp,
+            tool_configuration,
+            skip_param_documentation,
+            mcp_server_version=MCP_SERVER_VERSION,
+        ):
+            nonlocal tool_config_capture
+            tool_config_capture = tool_configuration
+            return MagicMock()
+
+        mock_aws_tool_generator.side_effect = mock_generator
+        register_sqs_tools(mock_mcp)
+
+        assert 'purge_queue' in tool_config_capture
+        assert 'validator' in tool_config_capture['purge_queue'], (
+            'purge_queue must have a validator - it irreversibly deletes all messages'
+        )
+        assert tool_config_capture['purge_queue']['validator'] == is_mutative_action_allowed
+
+    @patch('boto3.client')
+    @patch('awslabs.amazon_sns_sqs_mcp_server.sqs.AWSToolGenerator')
+    def test_delete_message_batch_has_validator(self, mock_aws_tool_generator, mock_boto3_client):
+        """Test that delete_message_batch tool has tag validation."""
+        mock_mcp = MagicMock()
+        tool_config_capture = {}
+
+        def mock_generator(
+            service_name,
+            service_display_name,
+            mcp,
+            tool_configuration,
+            skip_param_documentation,
+            mcp_server_version=MCP_SERVER_VERSION,
+        ):
+            nonlocal tool_config_capture
+            tool_config_capture = tool_configuration
+            return MagicMock()
+
+        mock_aws_tool_generator.side_effect = mock_generator
+        register_sqs_tools(mock_mcp)
+
+        assert 'delete_message_batch' in tool_config_capture
+        assert 'validator' in tool_config_capture['delete_message_batch'], (
+            'delete_message_batch must have a validator to prevent mutations on untagged resources'
+        )
+        assert (
+            tool_config_capture['delete_message_batch']['validator'] == is_mutative_action_allowed
+        )
+
+    @patch('boto3.client')
+    @patch('awslabs.amazon_sns_sqs_mcp_server.sqs.AWSToolGenerator')
+    def test_change_message_visibility_has_validator(
+        self, mock_aws_tool_generator, mock_boto3_client
+    ):
+        """Test that change_message_visibility tool has tag validation."""
+        mock_mcp = MagicMock()
+        tool_config_capture = {}
+
+        def mock_generator(
+            service_name,
+            service_display_name,
+            mcp,
+            tool_configuration,
+            skip_param_documentation,
+            mcp_server_version=MCP_SERVER_VERSION,
+        ):
+            nonlocal tool_config_capture
+            tool_config_capture = tool_configuration
+            return MagicMock()
+
+        mock_aws_tool_generator.side_effect = mock_generator
+        register_sqs_tools(mock_mcp)
+
+        assert 'change_message_visibility' in tool_config_capture
+        assert 'validator' in tool_config_capture['change_message_visibility'], (
+            'change_message_visibility must have a validator to prevent mutations on untagged resources'
+        )
+        assert (
+            tool_config_capture['change_message_visibility']['validator']
+            == is_mutative_action_allowed
+        )
+
+    @patch('boto3.client')
+    @patch('awslabs.amazon_sns_sqs_mcp_server.sqs.AWSToolGenerator')
+    def test_change_message_visibility_batch_has_validator(
+        self, mock_aws_tool_generator, mock_boto3_client
+    ):
+        """Test that change_message_visibility_batch tool has tag validation."""
+        mock_mcp = MagicMock()
+        tool_config_capture = {}
+
+        def mock_generator(
+            service_name,
+            service_display_name,
+            mcp,
+            tool_configuration,
+            skip_param_documentation,
+            mcp_server_version=MCP_SERVER_VERSION,
+        ):
+            nonlocal tool_config_capture
+            tool_config_capture = tool_configuration
+            return MagicMock()
+
+        mock_aws_tool_generator.side_effect = mock_generator
+        register_sqs_tools(mock_mcp)
+
+        assert 'change_message_visibility_batch' in tool_config_capture
+        assert 'validator' in tool_config_capture['change_message_visibility_batch'], (
+            'change_message_visibility_batch must have a validator to prevent mutations on untagged resources'
+        )
+        assert (
+            tool_config_capture['change_message_visibility_batch']['validator']
+            == is_mutative_action_allowed
+        )
+
+    @patch('boto3.client')
+    @patch('awslabs.amazon_sns_sqs_mcp_server.sqs.AWSToolGenerator')
+    def test_start_message_move_task_has_validator(
+        self, mock_aws_tool_generator, mock_boto3_client
+    ):
+        """Test that start_message_move_task tool has tag validation."""
+        mock_mcp = MagicMock()
+        tool_config_capture = {}
+
+        def mock_generator(
+            service_name,
+            service_display_name,
+            mcp,
+            tool_configuration,
+            skip_param_documentation,
+            mcp_server_version=MCP_SERVER_VERSION,
+        ):
+            nonlocal tool_config_capture
+            tool_config_capture = tool_configuration
+            return MagicMock()
+
+        mock_aws_tool_generator.side_effect = mock_generator
+        register_sqs_tools(mock_mcp)
+
+        assert 'start_message_move_task' in tool_config_capture
+        assert 'validator' in tool_config_capture['start_message_move_task'], (
+            'start_message_move_task must have a validator to prevent mutations on untagged resources'
+        )
+        assert (
+            tool_config_capture['start_message_move_task']['validator']
+            == is_mutative_action_allowed
+        )
+
+    @patch('boto3.client')
+    @patch('awslabs.amazon_sns_sqs_mcp_server.sqs.AWSToolGenerator')
+    def test_cancel_message_move_task_has_validator(
+        self, mock_aws_tool_generator, mock_boto3_client
+    ):
+        """Test that cancel_message_move_task tool has tag validation."""
+        mock_mcp = MagicMock()
+        tool_config_capture = {}
+
+        def mock_generator(
+            service_name,
+            service_display_name,
+            mcp,
+            tool_configuration,
+            skip_param_documentation,
+            mcp_server_version=MCP_SERVER_VERSION,
+        ):
+            nonlocal tool_config_capture
+            tool_config_capture = tool_configuration
+            return MagicMock()
+
+        mock_aws_tool_generator.side_effect = mock_generator
+        register_sqs_tools(mock_mcp)
+
+        assert 'cancel_message_move_task' in tool_config_capture
+        assert 'validator' in tool_config_capture['cancel_message_move_task'], (
+            'cancel_message_move_task must have a validator to prevent mutations on untagged resources'
+        )
+        assert (
+            tool_config_capture['cancel_message_move_task']['validator']
+            == is_mutative_action_allowed
+        )

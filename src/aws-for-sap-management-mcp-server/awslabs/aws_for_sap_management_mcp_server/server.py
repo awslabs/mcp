@@ -27,10 +27,10 @@ from awslabs.aws_for_sap_management_mcp_server.ssm_sap_scheduling.tools import (
     SSMSAPSchedulingTools,
 )
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 
-mcp = FastMCP(
+mcp = MCPServer(
     'awslabs.aws-for-sap-management-mcp-server',
     instructions="""Use this MCP server to manage SAP applications registered with
 AWS Systems Manager for SAP. Supports listing and inspecting SAP applications,

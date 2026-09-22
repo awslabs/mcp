@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Any, Dict, List, Literal, Optional
 
@@ -120,7 +120,7 @@ class ToolSpecificGuidance:
 class GetIaCGuidanceTool:
     """Tool to provide guidance on selecting an Infrastructure as Code (IaC) platform for AWS Serverless applications."""
 
-    def __init__(self, mcp: FastMCP):
+    def __init__(self, mcp: MCPServer):
         """Initialize the IaC guidance tool."""
         mcp.tool(name='get_iac_guidance')(self.get_iac_guidance_tool)
 

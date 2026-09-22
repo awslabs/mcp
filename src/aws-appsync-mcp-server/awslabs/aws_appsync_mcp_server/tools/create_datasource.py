@@ -34,9 +34,9 @@ def register_create_datasource_tool(mcp):
         """,
         annotations=ToolAnnotations(
             title='Create Data Source',
-            readOnlyHint=False,
-            destructiveHint=False,
-            openWorldHint=False,
+            read_only_hint=False,
+            destructive_hint=False,
+            open_world_hint=False,
         ),
     )
     @write_operation

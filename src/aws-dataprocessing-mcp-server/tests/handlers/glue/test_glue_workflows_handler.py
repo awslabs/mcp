@@ -16,7 +16,7 @@ from awslabs.aws_dataprocessing_mcp_server.handlers.glue.worklows_handler import
     GlueWorkflowAndTriggerHandler,
 )
 from botocore.exceptions import ClientError
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from tests.test_utils import CallToolResultWrapper
 from unittest.mock import MagicMock, patch
 
@@ -100,7 +100,7 @@ async def test_create_workflow_success(
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully created workflow test-workflow' in result.content[0].text
@@ -161,7 +161,7 @@ async def test_create_workflow_with_user_tags(mock_prepare_tags, mock_create_cli
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert result.workflow_name == 'test-workflow'
 
     # Verify that create_workflow was called with merged tags
@@ -209,7 +209,7 @@ async def test_create_workflow_with_only_description(mock_prepare_tags, mock_cre
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert result.workflow_name == 'test-workflow'
 
     # Verify that create_workflow was called with the correct parameters
@@ -297,7 +297,7 @@ async def test_get_workflow_with_include_graph_false(mock_create_client):
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert result.workflow_name == 'test-workflow'
     assert result.workflow_details == mock_workflow_details
 
@@ -334,7 +334,7 @@ async def test_create_workflow_no_write_access(mock_create_client):
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result indicates an error due to no write access
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert (
@@ -390,7 +390,7 @@ async def test_delete_workflow_success(
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2  # Message + JSON data
     assert result.content[0].type == 'text'
     assert 'Successfully deleted workflow test-workflow' in result.content[0].text
@@ -445,7 +445,7 @@ async def test_delete_workflow_not_mcp_managed(
     )
 
     # Verify the result indicates an error because the workflow is not MCP managed
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert (
@@ -488,7 +488,7 @@ async def test_get_workflow_success(mock_create_client):
     )
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved workflow test-workflow' in result.content[0].text
@@ -538,7 +538,7 @@ async def test_get_workflow_with_include_graph(mock_create_client):
     )
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved workflow test-workflow' in result.content[0].text
@@ -582,7 +582,7 @@ async def test_list_workflows_success(mock_create_client):
     )
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved workflows' in result.content[0].text
@@ -647,7 +647,7 @@ async def test_start_workflow_run_success(
     )
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully started workflow run for test-workflow' in result.content[0].text
@@ -709,7 +709,7 @@ async def test_start_workflow_run_not_mcp_managed(
     )
 
     # Verify the result indicates an error because the workflow is not MCP managed
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert (
@@ -747,7 +747,7 @@ async def test_start_workflow_run_no_write_access(mock_create_client):
     )
 
     # Verify the result indicates an error due to no write access
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert (
@@ -803,7 +803,7 @@ async def test_start_workflow_run_not_found(
     )
 
     # Verify the result indicates an error because the workflow was not found
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert 'Workflow test-workflow not found' in result.content[0].text
@@ -861,7 +861,7 @@ async def test_start_workflow_run_without_run_properties(
     )
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2
     # Parse JSON from second content item
     import json
@@ -899,7 +899,7 @@ async def test_manage_aws_glue_workflows_general_exception(mock_create_client):
     )
 
     # Verify the result indicates an error
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert 'Error in manage_aws_glue_workflows: Test exception' in result.content[0].text
@@ -928,7 +928,7 @@ async def test_invalid_operation(mock_create_client):
     )
 
     # Verify the result indicates an error due to invalid operation
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert (
@@ -966,7 +966,7 @@ async def test_workflow_not_found(mock_create_client):
     )
 
     # Verify the result indicates an error because the workflow was not found
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert 'Workflow test-workflow not found' in result.content[0].text
@@ -1020,7 +1020,7 @@ async def test_create_trigger_success(mock_prepare_tags, mock_create_client):
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully created trigger test-trigger' in result.content[0].text
@@ -1079,7 +1079,7 @@ async def test_create_trigger_with_user_tags(mock_prepare_tags, mock_create_clie
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2
     assert result.trigger_name == 'test-trigger'
 
@@ -1127,7 +1127,7 @@ async def test_create_trigger_with_workflow_name(mock_prepare_tags, mock_create_
     )
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully created trigger test-trigger' in result.content[0].text
@@ -1195,7 +1195,7 @@ async def test_create_trigger_with_predicate(mock_prepare_tags, mock_create_clie
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert result.trigger_name == 'test-trigger'
 
     # Verify that create_trigger was called with predicate
@@ -1247,7 +1247,7 @@ async def test_create_trigger_with_event_batching_condition(mock_prepare_tags, m
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert result.trigger_name == 'test-trigger'
 
     # Verify that create_trigger was called with event_batching_condition
@@ -1325,7 +1325,7 @@ async def test_create_trigger_no_write_access(mock_create_client):
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result indicates an error due to no write access
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert 'Operation create-trigger is not allowed without write access' in result.content[0].text
@@ -1379,7 +1379,7 @@ async def test_delete_trigger_success(
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2  # Message + JSON data
     assert result.content[0].type == 'text'
     assert 'Successfully deleted trigger test-trigger' in result.content[0].text
@@ -1437,7 +1437,7 @@ async def test_delete_trigger_not_mcp_managed(
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result indicates an error because the trigger is not MCP managed
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert (
@@ -1486,7 +1486,7 @@ async def test_get_trigger_success(mock_create_client):
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved trigger test-trigger' in result.content[0].text
@@ -1532,7 +1532,7 @@ async def test_get_triggers_success(mock_create_client):
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved triggers' in result.content[0].text
@@ -1590,7 +1590,7 @@ async def test_start_trigger_success(
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2  # Message + JSON data
     assert result.content[0].type == 'text'
     assert 'Successfully started trigger test-trigger' in result.content[0].text
@@ -1645,7 +1645,7 @@ async def test_stop_trigger_success(
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2  # Message + JSON data
     assert result.content[0].type == 'text'
     assert 'Successfully stopped trigger test-trigger' in result.content[0].text
@@ -1681,7 +1681,7 @@ async def test_trigger_invalid_operation(mock_create_client):
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result indicates an error due to invalid operation
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert 'Invalid operation: invalid-operation' in result.content[0].text
@@ -1722,7 +1722,7 @@ async def test_trigger_not_found(mock_create_client):
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result indicates an error because the trigger was not found
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert 'Trigger test-trigger not found' in result.content[0].text
@@ -1754,7 +1754,7 @@ async def test_create_workflow_without_description(mock_prepare_tags, mock_creat
         workflow_definition={},
     )
 
-    assert not result.isError
+    assert not result.is_error
     args, kwargs = mock_glue_client.create_workflow.call_args
     assert 'Description' not in kwargs
 
@@ -1783,7 +1783,7 @@ async def test_create_workflow_without_default_run_properties(
         workflow_definition={'Description': 'Test'},
     )
 
-    assert not result.isError
+    assert not result.is_error
     args, kwargs = mock_glue_client.create_workflow.call_args
     assert 'DefaultRunProperties' not in kwargs
 
@@ -1810,7 +1810,7 @@ async def test_create_workflow_without_max_concurrent_runs(mock_prepare_tags, mo
         workflow_definition={'Description': 'Test'},
     )
 
-    assert not result.isError
+    assert not result.is_error
     args, kwargs = mock_glue_client.create_workflow.call_args
     assert 'MaxConcurrentRuns' not in kwargs
 
@@ -1842,7 +1842,7 @@ async def test_delete_workflow_client_error(
         mock_ctx, operation='delete-workflow', workflow_name='test-workflow'
     )
 
-    assert result.isError
+    assert result.is_error
     assert 'Error in manage_aws_glue_workflows' in result.content[0].text
 
 
@@ -1866,7 +1866,7 @@ async def test_get_workflow_without_include_graph(mock_create_client):
         workflow_definition={},
     )
 
-    assert not result.isError
+    assert not result.is_error
     args, kwargs = mock_glue_client.get_workflow.call_args
     assert 'IncludeGraph' not in kwargs
 
@@ -1886,7 +1886,7 @@ async def test_list_workflows_without_pagination(mock_create_client):
 
     result = await handler.manage_aws_glue_workflows(mock_ctx, operation='list-workflows')
 
-    assert not result.isError
+    assert not result.is_error
 
 
 @pytest.mark.asyncio
@@ -1916,7 +1916,7 @@ async def test_start_workflow_run_client_error(
         mock_ctx, operation='start-workflow-run', workflow_name='test-workflow'
     )
 
-    assert result.isError
+    assert result.is_error
     assert 'Error in manage_aws_glue_workflows' in result.content[0].text
 
 
@@ -1953,7 +1953,7 @@ async def test_start_workflow_run_without_run_properties_mcp_managed(
         workflow_definition={},
     )
 
-    assert not result.isError
+    assert not result.is_error
     args, kwargs = mock_glue_client.start_workflow_run.call_args
     assert 'RunProperties' not in kwargs
 
@@ -2073,7 +2073,7 @@ async def test_create_trigger_without_user_tags(mock_prepare_tags, mock_create_c
         },
     )
 
-    assert not result.isError
+    assert not result.is_error
     args, kwargs = mock_glue_client.create_trigger.call_args
     assert kwargs['Tags'] == {'ManagedBy': 'MCP'}
 
@@ -2105,7 +2105,7 @@ async def test_delete_trigger_client_error(
         mock_ctx, operation='delete-trigger', trigger_name='test-trigger'
     )
 
-    assert result.isError
+    assert result.is_error
     assert 'Error in manage_aws_glue_triggers' in result.content[0].text
 
 
@@ -2124,7 +2124,7 @@ async def test_get_triggers_without_pagination(mock_create_client):
 
     result = await handler.manage_aws_glue_triggers(mock_ctx, operation='get-triggers')
 
-    assert not result.isError
+    assert not result.is_error
 
 
 @pytest.mark.asyncio
@@ -2154,7 +2154,7 @@ async def test_start_trigger_client_error(
         mock_ctx, operation='start-trigger', trigger_name='test-trigger'
     )
 
-    assert result.isError
+    assert result.is_error
     assert 'Error in manage_aws_glue_triggers' in result.content[0].text
 
 
@@ -2183,7 +2183,7 @@ async def test_stop_trigger_client_error(mock_get_account_id, mock_get_region, m
         mock_ctx, operation='stop-trigger', trigger_name='test-trigger'
     )
 
-    assert result.isError
+    assert result.is_error
     assert 'Error in manage_aws_glue_triggers' in result.content[0].text
 
 
@@ -2202,7 +2202,7 @@ async def test_triggers_no_write_access_fallback(mock_create_client):
         mock_ctx, operation='unknown-operation', trigger_name='test-trigger'
     )
 
-    assert result.isError
+    assert result.is_error
     assert (
         'Operation unknown-operation is not allowed without write access' in result.content[0].text
     )
@@ -2224,7 +2224,7 @@ async def test_triggers_general_exception(mock_create_client):
         mock_ctx, operation='get-trigger', trigger_name='test-trigger'
     )
 
-    assert result.isError
+    assert result.is_error
     assert 'Error in manage_aws_glue_triggers: Test exception' in result.content[0].text
 
 
@@ -2250,7 +2250,7 @@ async def test_create_workflow_with_description_only(mock_prepare_tags, mock_cre
         workflow_definition={'Description': 'Test workflow'},
     )
 
-    assert not result.isError
+    assert not result.is_error
     args, kwargs = mock_glue_client.create_workflow.call_args
     assert kwargs['Description'] == 'Test workflow'
     assert 'DefaultRunProperties' not in kwargs
@@ -2280,7 +2280,7 @@ async def test_create_workflow_with_default_run_properties_only(
         workflow_definition={'DefaultRunProperties': {'ENV': 'test'}},
     )
 
-    assert not result.isError
+    assert not result.is_error
     args, kwargs = mock_glue_client.create_workflow.call_args
     assert kwargs['DefaultRunProperties'] == {'ENV': 'test'}
     assert 'Description' not in kwargs
@@ -2310,7 +2310,7 @@ async def test_create_workflow_with_max_concurrent_runs_only(
         workflow_definition={'MaxConcurrentRuns': 2},
     )
 
-    assert not result.isError
+    assert not result.is_error
     args, kwargs = mock_glue_client.create_workflow.call_args
     assert kwargs['MaxConcurrentRuns'] == 2
 
@@ -2343,7 +2343,7 @@ async def test_delete_workflow_entity_not_found(
         mock_ctx, operation='delete-workflow', workflow_name='test-workflow'
     )
 
-    assert result.isError
+    assert result.is_error
     assert 'Workflow test-workflow not found' in result.content[0].text
 
 
@@ -2367,7 +2367,7 @@ async def test_get_workflow_with_include_graph_true(mock_create_client):
         workflow_definition={'include_graph': True},
     )
 
-    assert not result.isError
+    assert not result.is_error
     args, kwargs = mock_glue_client.get_workflow.call_args
     assert kwargs['IncludeGraph']
 
@@ -2389,7 +2389,7 @@ async def test_list_workflows_with_max_results(mock_create_client):
         mock_ctx, operation='list-workflows', max_results=10
     )
 
-    assert not result.isError
+    assert not result.is_error
     args, kwargs = mock_glue_client.list_workflows.call_args
     assert kwargs['MaxResults'] == 10
 
@@ -2411,7 +2411,7 @@ async def test_list_workflows_with_next_token(mock_create_client):
         mock_ctx, operation='list-workflows', next_token='token123'
     )
 
-    assert not result.isError
+    assert not result.is_error
     args, kwargs = mock_glue_client.list_workflows.call_args
     assert kwargs['NextToken'] == 'token123'
 
@@ -2444,7 +2444,7 @@ async def test_start_workflow_run_entity_not_found(
         mock_ctx, operation='start-workflow-run', workflow_name='test-workflow'
     )
 
-    assert result.isError
+    assert result.is_error
     assert 'Workflow test-workflow not found' in result.content[0].text
 
 
@@ -2481,7 +2481,7 @@ async def test_start_workflow_run_with_run_properties(
         workflow_definition={'run_properties': {'ENV': 'test'}},
     )
 
-    assert not result.isError
+    assert not result.is_error
     args, kwargs = mock_glue_client.start_workflow_run.call_args
     assert kwargs['RunProperties'] == {'ENV': 'test'}
 
@@ -2514,7 +2514,7 @@ async def test_delete_trigger_entity_not_found(
         mock_ctx, operation='delete-trigger', trigger_name='test-trigger'
     )
 
-    assert result.isError
+    assert result.is_error
     assert 'Trigger test-trigger not found' in result.content[0].text
 
 
@@ -2535,7 +2535,7 @@ async def test_get_triggers_with_max_results(mock_create_client):
         mock_ctx, operation='get-triggers', max_results=10
     )
 
-    assert not result.isError
+    assert not result.is_error
     args, kwargs = mock_glue_client.get_triggers.call_args
     assert kwargs['MaxResults'] == 10
 
@@ -2557,7 +2557,7 @@ async def test_get_triggers_with_next_token(mock_create_client):
         mock_ctx, operation='get-triggers', next_token='token123'
     )
 
-    assert not result.isError
+    assert not result.is_error
     args, kwargs = mock_glue_client.get_triggers.call_args
     assert kwargs['NextToken'] == 'token123'
 
@@ -2590,7 +2590,7 @@ async def test_start_trigger_entity_not_found(
         mock_ctx, operation='start-trigger', trigger_name='test-trigger'
     )
 
-    assert result.isError
+    assert result.is_error
     assert 'Trigger test-trigger not found' in result.content[0].text
 
 
@@ -2622,7 +2622,7 @@ async def test_stop_trigger_entity_not_found(
         mock_ctx, operation='stop-trigger', trigger_name='test-trigger'
     )
 
-    assert result.isError
+    assert result.is_error
     assert 'Trigger test-trigger not found' in result.content[0].text
 
 
@@ -2648,7 +2648,7 @@ async def test_create_workflow_empty_definition(mock_prepare_tags, mock_create_c
         workflow_definition={},
     )
 
-    assert result.isError is False
+    assert result.is_error is False
     args, kwargs = mock_glue_client.create_workflow.call_args
     assert 'Description' not in kwargs
     assert 'DefaultRunProperties' not in kwargs
@@ -2681,7 +2681,7 @@ async def test_create_trigger_minimal_params(mock_prepare_tags, mock_create_clie
         },
     )
 
-    assert result.isError is False
+    assert result.is_error is False
     args, kwargs = mock_glue_client.create_trigger.call_args
     assert kwargs['Type'] == 'SCHEDULED'
     assert kwargs['Actions'] == [{'JobName': 'test-job'}]
@@ -2782,7 +2782,7 @@ async def test_workflow_general_exception(mock_create_client):
         mock_ctx, operation='get-workflow', workflow_name='test-workflow'
     )
 
-    assert result.isError is True
+    assert result.is_error is True
     assert 'Error in manage_aws_glue_workflows: Test exception' in result.content[0].text
 
 
@@ -2802,7 +2802,7 @@ async def test_trigger_general_exception(mock_create_client):
         mock_ctx, operation='get-trigger', trigger_name='test-trigger'
     )
 
-    assert result.isError is True
+    assert result.is_error is True
     assert 'Error in manage_aws_glue_triggers: Test exception' in result.content[0].text
 
 
@@ -2821,7 +2821,7 @@ async def test_workflow_no_write_access_fallback(mock_create_client):
         mock_ctx, operation='unknown-operation', workflow_name='test-workflow'
     )
 
-    assert result.isError is True
+    assert result.is_error is True
     assert (
         'Operation unknown-operation is not allowed without write access' in result.content[0].text
     )
@@ -2842,5 +2842,5 @@ async def test_trigger_no_write_access_fallback(mock_create_client):
         mock_ctx, operation='create-trigger', trigger_name='test-trigger'
     )
 
-    assert result.isError is True
+    assert result.is_error is True
     assert 'Operation create-trigger is not allowed without write access' in result.content[0].text

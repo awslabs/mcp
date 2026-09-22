@@ -1,6 +1,7 @@
 import pytest
 from botocore.exceptions import ClientError
 from enum import Enum
+from mcp.server.mcpserver import Context
 from typing import Any, Dict, List, Optional
 
 
@@ -246,14 +247,19 @@ class Mock_DBConnection:
             return self.data_client.execute_statement(sql=sql, parameters=parameters)
 
 
-class DummyCtx:
+class DummyCtx(Context):
     """Mock implementation of MCP context for testing purposes."""
 
-    async def error(self, message):
+    def __init__(self) -> None:
+        """Initialize with no request context; nothing here needs one."""
+        super().__init__()
+
+    async def error(self, data: Any, *, logger_name: Optional[str] = None):
         """Mock MCP ctx.error with the given message.
 
         Args:
-            message: The error message
+            data: The error message
+            logger_name: Accepted for signature compatibility with Context.error; unused
         """
         # Do nothing because MCP ctx.error doesn't throw exception
         pass

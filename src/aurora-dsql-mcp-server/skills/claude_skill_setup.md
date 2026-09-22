@@ -1,93 +1,28 @@
-# DSQL Skill Setup for Claude Code
+# Migrate the DSQL Skill in Claude Code
 
-This guide explains how to add the DSQL skill to Claude Code in your project
-from the GitHub repository.
+The standalone DSQL skill from `awslabs/mcp` is deprecated. DSQL guidance now
+ships in the `databases-on-aws` plugin from
+[`awslabs/agent-plugins`](https://github.com/awslabs/agent-plugins).
 
-## Prerequisites
+## Install the Canonical Plugin
 
-- Git installed
+Run these commands in Claude Code:
 
-## Setup Steps
-
-### 1. Create a base repos directory
-
-```bash
-mkdir -p .dsql_skill_repos
+```text
+/plugin marketplace add awslabs/agent-plugins
+/plugin install databases-on-aws@agent-plugins-for-aws
 ```
 
-### 2. Sparse clone the skill from the mcp repository
+Restart Claude Code if the newly installed plugin is not detected immediately.
 
-Clone only the `dsql-skill` folder (no other files):
+## Remove a Legacy Installation
 
-```bash
-cd .dsql_skill_repos
-git clone --filter=blob:none --no-checkout https://github.com/awslabs/mcp.git
-cd mcp
-git sparse-checkout init --cone
-git sparse-checkout set src/aurora-dsql-mcp-server/skills/dsql-skill
-git checkout
-cd ../..
-```
+An older setup may have a `dsql-skill` symlink in `~/.claude/skills/` or
+`.claude/skills/` and a sparse checkout such as `.dsql_skill_repos/mcp`.
 
-### 3. Symlink the skill into the Skills Directory
+Inspect those paths first. Get explicit user approval before removing an
+existing symlink, checkout, or any other user configuration. The canonical
+plugin installation does not require the old checkout.
 
-#### Adding the Skills Directory
-```bash
-mkdir -p ~/.claude/skills
-```
-
-***NOTE: If you want to make this a project-scoped skill, use your project root's `.claude/skills/` directory instead. .***
-
-
-#### Add symlink:
-```bash
-ln -s "$(pwd)/.dsql_skill_repos/mcp/src/aurora-dsql-mcp-server/skills/dsql-skill" ~/.claude/skills/dsql-skill
-```
-
-
-### 4. Verify the setup
-
-```bash
-# Should show SKILL.md and other skill files
-ls -la ~/.claude/skills/dsql-skill/
-```
-
-### 5. Verify Skill Use
-
-Once the skill is configured, you should have a new skill command for the named skill: `/dsql`.
-You may have to restart Claude Code after adding the skill for it to be detected. You should be able
-to use this command from the Claude Code CLI or panel as desired.
-
-
-## Updating the Skill
-
-To pull the latest changes from the repository:
-
-```bash
-cd .dsql_skill_repos/mcp
-git pull
-```
-
-## Directory Structure
-
-After setup, your project will look like:
-
-```
-.dsql_skill_repos/
-└── mcp/                              # Sparse git checkout
-    └── src/
-        └── aurora-dsql-mcp-server/
-            └── skills/
-                └── dsql-skill/
-                    ├── SKILL.md
-                    └── ...
-
-~/.claude/
-└── skills/
-    └── dsql-skill -> /path/to/.dsql_skill_repos/mcp/src/aurora-dsql-mcp-server/skills/dsql-skill
-```
-
-## Notes
-
-- Add `.repos/` to your `.gitignore` if you don't want to track it
-- The sparse checkout keeps only the skill folder, minimizing disk usage
+For other supported clients, follow the
+[current canonical installation instructions](https://github.com/awslabs/agent-plugins#installation).

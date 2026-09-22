@@ -35,7 +35,7 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     log_with_request_id,
 )
 from awslabs.aws_dataprocessing_mcp_server.utils.sql_analyzer import SqlAnalyzer
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from mcp.types import CallToolResult, TextContent
 from pydantic import Field
 from typing import Annotated, Any, Dict, List, Optional
@@ -438,6 +438,18 @@ class AthenaQueryHandler:
                 if query_execution_id is None:
                     raise ValueError(
                         'query_execution_id is required for stop-query-execution operation'
+                    )
+
+                # SECURITY: stop-query-execution is a mutating operation (it cancels a running
+                # query). Require --allow-write to prevent read-only-configured servers from
+                # cancelling queries even when the underlying IAM identity holds
+                # athena:StopQueryExecution.
+                if not self.allow_write:
+                    error_message = f'Operation {operation} is not allowed without write access'
+                    log_with_request_id(ctx, LogLevel.ERROR, error_message)
+                    return CallToolResult(
+                        isError=True,
+                        content=[TextContent(type='text', text=error_message)],
                     )
 
                 # Stop query execution

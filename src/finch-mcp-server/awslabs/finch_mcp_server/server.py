@@ -45,7 +45,7 @@ from awslabs.finch_mcp_server.utils.vm import (
     stop_vm,
 )
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from pathlib import Path
 from pydantic import Field
 from typing import Any, Dict, List, Optional
@@ -225,7 +225,7 @@ logger.add(sys.stderr, level='INFO', filter=sensitive_data_filter)
 logger = logger.bind(name=SERVER_NAME)
 
 # Initialize the MCP server
-mcp = FastMCP(SERVER_NAME)
+mcp = MCPServer(SERVER_NAME)
 enable_aws_resource_write = False
 
 

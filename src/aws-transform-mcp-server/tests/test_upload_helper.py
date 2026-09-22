@@ -61,6 +61,7 @@ class TestUploadJsonArtifact:
         result = await upload_json_artifact('ws-1', 'job-1', content)
 
         assert result == 'art-123'
+        assert mock_httpx_cls.call_args.kwargs['timeout'].write == 900.0
 
         # Verify CreateArtifactUploadUrl was called with correct params
         create_call = mock_fes.call_args_list[0]
@@ -212,6 +213,7 @@ class TestUploadFileArtifact:
         result = await upload_file_artifact('ws-1', 'job-1', str(test_file))
 
         assert result == 'art-file-1'
+        assert mock_httpx_cls.call_args.kwargs['timeout'].write == 900.0
 
         # Verify CreateArtifactUploadUrl was called with fileMetadata
         create_call = mock_fes.call_args_list[0]

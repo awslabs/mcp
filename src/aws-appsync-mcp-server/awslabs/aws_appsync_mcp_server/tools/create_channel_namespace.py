@@ -36,9 +36,9 @@ def register_create_channel_namespace_tool(mcp):
         """,
         annotations=ToolAnnotations(
             title='Create Channel Namespace',
-            readOnlyHint=False,
-            destructiveHint=False,
-            openWorldHint=False,
+            read_only_hint=False,
+            destructive_hint=False,
+            open_world_hint=False,
         ),
     )
     @write_operation

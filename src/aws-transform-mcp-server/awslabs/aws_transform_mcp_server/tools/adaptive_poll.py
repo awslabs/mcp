@@ -17,7 +17,7 @@
 import asyncio
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.tool_utils import READ_ONLY, success_result
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from pydantic import Field
 from typing import Annotated, Any, Dict
 

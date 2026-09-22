@@ -223,6 +223,72 @@ async def test_validate_prerequisites_with_custom_roles(
 # ============================================================================
 
 
+EXPRESS_SERVICE_RESPONSE = {
+    "serviceArn": "arn:aws:ecs:us-west-2:123456789012:service/prod/my-svc",
+    "status": "DRAINING",
+    "activeConfigurations": [
+        {
+            "serviceRevisionArn": (
+                "arn:aws:ecs:us-west-2:123456789012:service-revision/prod/my-svc/1"
+            ),
+            "primaryContainer": {
+                "image": "123456789012.dkr.ecr.us-west-2.amazonaws.com/my-svc:1",
+                "environment": [{"name": "DB_PASSWORD", "value": "super-secret-password"}],
+                "secrets": [
+                    {
+                        "name": "API_KEY",
+                        "valueFrom": "arn:aws:secretsmanager:us-west-2:123456789012:secret:api",
+                    }
+                ],
+                "repositoryCredentials": {
+                    "credentialsParameter": (
+                        "arn:aws:secretsmanager:us-west-2:123456789012:secret:registry"
+                    )
+                },
+            },
+        }
+    ],
+}
+
+
+@pytest.mark.anyio
+@patch("awslabs.ecs_mcp_server.api.express.get_aws_client")
+async def test_delete_express_gateway_service_redacts_details_by_default(
+    mock_get_client, monkeypatch
+):
+    """With ALLOW_SENSITIVE_DATA unset, the echoed service carries no values or references."""
+    monkeypatch.delenv("ALLOW_SENSITIVE_DATA", raising=False)
+    mock_client = MagicMock()
+    mock_client.delete_express_gateway_service.return_value = {"service": EXPRESS_SERVICE_RESPONSE}
+    mock_get_client.return_value = mock_client
+
+    result = await delete_express_gateway_service(EXPRESS_SERVICE_RESPONSE["serviceArn"])
+
+    assert result["status"] == "deleted"
+    container = result["details"]["activeConfigurations"][0]["primaryContainer"]
+    assert container["environment"] == [{"name": "DB_PASSWORD", "value": "[REDACTED]"}]
+    assert container["secrets"] == [{"name": "API_KEY", "valueFrom": "[REDACTED]"}]
+    assert container["repositoryCredentials"] == {"credentialsParameter": "[REDACTED]"}
+    assert container["image"] == "123456789012.dkr.ecr.us-west-2.amazonaws.com/my-svc:1"
+    assert result["details"]["status"] == "DRAINING"
+
+
+@pytest.mark.anyio
+@patch("awslabs.ecs_mcp_server.api.express.get_aws_client")
+async def test_delete_express_gateway_service_returns_details_when_allowed(
+    mock_get_client, monkeypatch
+):
+    """With ALLOW_SENSITIVE_DATA=true the echoed service is returned in full."""
+    monkeypatch.setenv("ALLOW_SENSITIVE_DATA", "true")
+    mock_client = MagicMock()
+    mock_client.delete_express_gateway_service.return_value = {"service": EXPRESS_SERVICE_RESPONSE}
+    mock_get_client.return_value = mock_client
+
+    result = await delete_express_gateway_service(EXPRESS_SERVICE_RESPONSE["serviceArn"])
+
+    assert result["details"] == EXPRESS_SERVICE_RESPONSE
+
+
 @pytest.mark.anyio
 @patch("awslabs.ecs_mcp_server.api.express.get_aws_client")
 async def test_delete_express_gateway_service_success(mock_get_client):

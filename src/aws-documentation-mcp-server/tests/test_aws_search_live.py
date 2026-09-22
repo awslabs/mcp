@@ -16,16 +16,22 @@
 import asyncio
 import pytest
 from awslabs.aws_documentation_mcp_server.server_aws import search_documentation
+from mcp.server.mcpserver import Context
 from tests.constants import TEST_USER_AGENT
+from typing import Any, Optional
 from unittest.mock import patch
 
 
-class MockContext:
+class MockContext(Context):
     """Mock context for testing."""
 
-    async def error(self, message):
+    def __init__(self) -> None:
+        """Initialize with no request context; nothing here needs one."""
+        super().__init__()
+
+    async def error(self, data: Any, *, logger_name: Optional[str] = None):
         """Mock error method."""
-        print(f'Error: {message}')
+        print(f'Error: {data}')
 
 
 @pytest.mark.asyncio
@@ -179,6 +185,7 @@ async def test_search_documentation_with_product_type():
         assert second_response is not None
         assert second_results is not None
         assert len(second_results) > 0
+        assert second_response.facets is not None
         assert len(second_response.facets['product_types']) == 1
         assert first_product_type == second_response.facets['product_types'][0]
 
@@ -225,6 +232,7 @@ async def test_search_documentation_with_guide_type():
         assert second_response is not None
         assert second_results is not None
         assert len(second_results) > 0
+        assert second_response.facets is not None
         assert len(second_response.facets['guide_types']) == 1
         assert first_guide_type == second_response.facets['guide_types'][0]
 

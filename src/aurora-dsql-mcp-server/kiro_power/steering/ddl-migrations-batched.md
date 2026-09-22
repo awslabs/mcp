@@ -9,7 +9,7 @@ For the full Table Recreation Pattern and verify & swap steps, see [overview.md]
 ## Batch Size Rules
 
 - **PREFER batches of 500-1,000 rows** for optimal performance
-- Smaller batches reduce lock contention and enable better concurrency
+- Smaller batches reduce OCC conflict surface and enable better concurrency
 
 ---
 

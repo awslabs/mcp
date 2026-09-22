@@ -35,7 +35,7 @@ Resources:
       Memory: 512
       ContainerDefinitions:
         - Name: scenario-01-container
-          # Invalid image name will cause failure
+          # Placeholder image; the stack fails below before any pull is attempted
           Image: "scenario-01-image:latest"
           Essential: true
 

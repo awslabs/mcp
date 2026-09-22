@@ -270,10 +270,13 @@ def test_format_coverage_metrics():
     assert result['coverage_normalized_units']['coverage_normalized_units_percentage'] == '80.0'
 
 
-def test_format_utilization_metrics():
-    """Test format_utilization_metrics function."""
-    # Setup
-    utilization_data = {
+def _full_utilization_data():
+    """Return every field ReservationAggregates carries, as the API returns them.
+
+    All seventeen are decimal strings. The nine monetary ones were previously
+    dropped by the formatter, which left RI cost and savings invisible.
+    """
+    return {
         'UtilizationPercentage': '85.0',
         'PurchasedHours': '500.0',
         'TotalActualHours': '425.0',
@@ -282,7 +285,22 @@ def test_format_utilization_metrics():
         'TotalActualUnits': '850.0',
         'UnusedUnits': '150.0',
         'UtilizationPercentageInUnits': '85.0',
+        'AmortizedUpfrontFee': '0.0',
+        'AmortizedRecurringFee': '0.580902',
+        'TotalAmortizedFee': '0.580902',
+        'NetRISavings': '0.194098',
+        'TotalPotentialRISavings': '0.912345',
+        'RealizedSavings': '0.194098',
+        'UnrealizedSavings': '0.100000',
+        'OnDemandCostOfRIHoursUsed': '0.775000',
+        'RICostForUnusedHours': '0.087135',
     }
+
+
+def test_format_utilization_metrics():
+    """Test format_utilization_metrics function."""
+    # Setup
+    utilization_data = _full_utilization_data()
 
     # Execute
     result = format_utilization_metrics(utilization_data)
@@ -297,6 +315,54 @@ def test_format_utilization_metrics():
     assert result['total_actual_units'] == '850.0'
     assert result['unused_units'] == '150.0'
     assert result['utilization_percentage_in_units'] == '85.0'
+
+
+def test_format_utilization_metrics_surfaces_every_monetary_field():
+    """No metric the API returns is discarded.
+
+    Dropping these made RI cost invisible: the response reported how many
+    reservation hours went unused without ever reporting what they cost.
+    """
+    result = format_utilization_metrics(_full_utilization_data())
+
+    assert result['on_demand_cost_of_ri_hours_used'] == '0.775000'
+    assert result['net_ri_savings'] == '0.194098'
+    assert result['total_potential_ri_savings'] == '0.912345'
+    assert result['amortized_upfront_fee'] == '0.0'
+    assert result['amortized_recurring_fee'] == '0.580902'
+    assert result['total_amortized_fee'] == '0.580902'
+    assert result['ri_cost_for_unused_hours'] == '0.087135'
+    assert result['realized_savings'] == '0.194098'
+    assert result['unrealized_savings'] == '0.100000'
+
+
+def test_format_utilization_metrics_preserves_decimal_strings():
+    """Values are passed through unconverted so no precision is lost."""
+    result = format_utilization_metrics(_full_utilization_data())
+
+    assert isinstance(result['amortized_recurring_fee'], str)
+    assert result['amortized_recurring_fee'] == '0.580902'
+
+
+def test_format_utilization_metrics_omits_absent_metrics():
+    """A metric the API did not return is omitted, never defaulted to zero.
+
+    Reporting an absent fee as 0.0 would be indistinguishable from a real zero,
+    letting "no data" be summarized as "no cost".
+    """
+    result = format_utilization_metrics(
+        {
+            'UtilizationPercentage': '100.0',
+            'PurchasedHours': '24.0',
+            'NetRISavings': '1.23',
+        }
+    )
+
+    assert result == {
+        'utilization_percentage': '100.0',
+        'purchased_hours': '24.0',
+        'net_ri_savings': '1.23',
+    }
 
 
 @pytest.mark.asyncio

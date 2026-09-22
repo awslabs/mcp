@@ -43,7 +43,7 @@ from botocore.config import Config
 from botocore.exceptions import ClientError, NoCredentialsError
 from dotenv import load_dotenv
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Any, Dict, Optional
 
@@ -393,7 +393,7 @@ class PrometheusConnection:
 
 
 # Initialize MCP
-mcp = FastMCP(
+mcp = MCPServer(
     name='awslabs-prometheus-mcp-server',
     instructions=SERVER_INSTRUCTIONS,
     dependencies=[
