@@ -250,6 +250,10 @@ class TestGetAllTransitGatewayRoutes:
         assert 'tgw-rtb-1' in result['routes']
         assert 'tgw-rtb-2' in result['routes']
 
+        # without the token the second call repeats page one, so the loop never ends
+        second_call = mock_ec2_client.describe_transit_gateway_route_tables.call_args_list[1]
+        assert second_call.kwargs['NextToken'] == 'token123'
+
     @patch(
         'awslabs.aws_network_mcp_server.tools.transit_gateway.get_all_transit_gateway_routes.get_aws_client'
     )
