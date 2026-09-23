@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+- **#4589** — `connect_to_database` for `database_type=mysql` / `mariadb`
+  could not resolve a target from `cluster_identifier` alone when
+  `db_endpoint` was omitted: the only non-Aurora lookup
+  (`internal_get_instance_properties`) requires an endpoint to scan for.
+  RDS MySQL / MariaDB now try a new
+  `internal_get_instance_properties_by_identifier` (looks up a standalone
+  instance directly by identifier via `describe_db_instances`) when only
+  `cluster_identifier` is given, falling back to the existing cluster
+  lookup for `database_type=mysql` when no matching instance is found
+  (RDS Multi-AZ DB cluster case — Multi-AZ DB clusters support MySQL and
+  PostgreSQL, not MariaDB). Aurora MySQL is unaffected and continues to
+  resolve via `describe_db_clusters` directly.
+
 ## 1.0.22
 
 ### Security
