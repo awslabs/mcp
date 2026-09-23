@@ -14,9 +14,14 @@
 
 """Redshift MCP Server Pydantic models."""
 
+from awslabs.redshift_mcp_server.consts import (
+    VERBOSITY_LEVEL_LOW,
+    VERBOSITY_LEVEL_STANDARD,
+    VERBOSITY_LEVELS,
+)
 from datetime import datetime
-from pydantic import BaseModel, Field
-from typing import Any, Dict, Optional, TypeVar
+from pydantic import BaseModel, Field, SerializerFunctionWrapHandler, model_serializer
+from typing import Annotated, Any, Dict, Optional, TypeVar
 
 
 RedshiftDataModelT = TypeVar('RedshiftDataModelT', bound='RedshiftDataModel')
@@ -28,7 +33,53 @@ class RedshiftDataModel(BaseModel):
     Subclasses declare their fields named to match the SHOW result columns.
     `from_redshift_response` maps result columns to those fields by name, so
     parsing is independent of column order; unknown columns are ignored.
+
+    Each field also carries the verbosity level it first appears at, as
+    `Annotated` metadata on the field itself rather than in a list kept
+    elsewhere, so the two cannot drift apart. A field marked `low` is one an
+    agent needs to find an object and write a well-typed predicate against it:
+    the identifying names and the object's own type. An unmarked field counts
+    as `standard`, so nothing reaches `low` by accident.
+
+    `at_verbosity_level` blanks the fields above the level asked for, and
+    serialization drops every None, so a response carries that level's fields
+    and no others while the tools keep returning these models.
     """
+
+    @model_serializer(mode='wrap')
+    def _drop_none(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        """Serialize as usual, then drop the keys that came out None.
+
+        This turns the fields `at_verbosity_level` blanked into absent keys, and drops
+        genuinely NULL fields too, since both arrive here as None.
+
+        `handler` is Pydantic's own serializer, so `mode`, `by_alias` and `exclude`
+        still apply.
+        """
+        return {name: value for name, value in handler(self).items() if value is not None}
+
+    @classmethod
+    def field_verbosity_level(cls, name: str) -> str:
+        """The level a field first appears at, defaulting to standard when unmarked."""
+        for marker in cls.model_fields[name].metadata:
+            if isinstance(marker, str) and marker in VERBOSITY_LEVELS:
+                return marker
+        return VERBOSITY_LEVEL_STANDARD
+
+    @classmethod
+    def fields_at_verbosity_level(cls, level: str) -> tuple[str, ...]:
+        """The fields the given level returns, in the order they were declared."""
+        ceiling = VERBOSITY_LEVELS.index(level)
+        return tuple(
+            name
+            for name in cls.model_fields
+            if VERBOSITY_LEVELS.index(cls.field_verbosity_level(name)) <= ceiling
+        )
+
+    def at_verbosity_level(self: RedshiftDataModelT, level: str) -> RedshiftDataModelT:
+        """A copy of this item with every field above the given level set to None."""
+        above = set(self.model_fields) - set(self.fields_at_verbosity_level(level))
+        return self.model_copy(update=dict.fromkeys(above))
 
     @staticmethod
     def cell_value(cell: dict) -> Any:
@@ -76,10 +127,12 @@ class RedshiftCluster(BaseModel):
 class RedshiftDatabase(RedshiftDataModel):
     """Information about a database in a Redshift cluster."""
 
-    database_name: str = Field(..., description='The name of the database')
+    database_name: Annotated[str, VERBOSITY_LEVEL_LOW] = Field(
+        ..., description='The name of the database'
+    )
     database_owner: Optional[int] = Field(None, description='The database owner user ID')
-    database_type: Optional[str] = Field(
-        None, description='The type of database (local or shared)'
+    database_type: Annotated[Optional[str], VERBOSITY_LEVEL_LOW] = Field(
+        None, description='The type of database, such as local, shared, or auto mounted catalog'
     )
     database_acl: Optional[str] = Field(
         None, description='Access control information (for internal use)'
@@ -94,10 +147,14 @@ class RedshiftDatabase(RedshiftDataModel):
 class RedshiftSchema(RedshiftDataModel):
     """Information about a schema in a Redshift database."""
 
-    database_name: str = Field(..., description='The name of the database where the schema exists')
-    schema_name: str = Field(..., description='The name of the schema')
+    database_name: Annotated[str, VERBOSITY_LEVEL_LOW] = Field(
+        ..., description='The name of the database where the schema exists'
+    )
+    schema_name: Annotated[str, VERBOSITY_LEVEL_LOW] = Field(
+        ..., description='The name of the schema'
+    )
     schema_owner: Optional[int] = Field(None, description='The user ID of the schema owner')
-    schema_type: Optional[str] = Field(
+    schema_type: Annotated[Optional[str], VERBOSITY_LEVEL_LOW] = Field(
         None, description='The type of the schema (external, local, or shared)'
     )
     schema_acl: Optional[str] = Field(
@@ -114,13 +171,19 @@ class RedshiftSchema(RedshiftDataModel):
 class RedshiftTable(RedshiftDataModel):
     """Information about a table in a Redshift database."""
 
-    database_name: str = Field(..., description='The name of the database where the table exists')
-    schema_name: str = Field(..., description='The schema name for the table')
-    table_name: str = Field(..., description='The name of the table')
+    database_name: Annotated[str, VERBOSITY_LEVEL_LOW] = Field(
+        ..., description='The name of the database where the table exists'
+    )
+    schema_name: Annotated[str, VERBOSITY_LEVEL_LOW] = Field(
+        ..., description='The schema name for the table'
+    )
+    table_name: Annotated[str, VERBOSITY_LEVEL_LOW] = Field(
+        ..., description='The name of the table'
+    )
     table_acl: Optional[str] = Field(
         None, description='The permissions for the specified user or user group for the table'
     )
-    table_type: Optional[str] = Field(
+    table_type: Annotated[Optional[str], VERBOSITY_LEVEL_LOW] = Field(
         None,
         description='The type of the table (views, base tables, external tables, shared tables)',
     )
@@ -130,10 +193,18 @@ class RedshiftTable(RedshiftDataModel):
 class RedshiftColumn(RedshiftDataModel):
     """Information about a column in a Redshift table."""
 
-    database_name: str = Field(..., description='The name of the database')
-    schema_name: str = Field(..., description='The name of the schema')
-    table_name: str = Field(..., description='The name of the table')
-    column_name: str = Field(..., description='The name of the column')
+    database_name: Annotated[str, VERBOSITY_LEVEL_LOW] = Field(
+        ..., description='The name of the database'
+    )
+    schema_name: Annotated[str, VERBOSITY_LEVEL_LOW] = Field(
+        ..., description='The name of the schema'
+    )
+    table_name: Annotated[str, VERBOSITY_LEVEL_LOW] = Field(
+        ..., description='The name of the table'
+    )
+    column_name: Annotated[str, VERBOSITY_LEVEL_LOW] = Field(
+        ..., description='The name of the column'
+    )
     ordinal_position: Optional[int] = Field(
         None, description='The position of the column in the table'
     )
@@ -141,7 +212,9 @@ class RedshiftColumn(RedshiftDataModel):
     is_nullable: Optional[str] = Field(
         None, description='Whether the column is nullable (yes or no)'
     )
-    data_type: Optional[str] = Field(None, description='The data type of the column')
+    data_type: Annotated[Optional[str], VERBOSITY_LEVEL_LOW] = Field(
+        None, description='The data type of the column'
+    )
     character_maximum_length: Optional[int] = Field(
         None, description='The maximum number of characters in the column'
     )

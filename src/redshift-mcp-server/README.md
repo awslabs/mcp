@@ -110,6 +110,11 @@ or docker after a successful `docker build -t awslabs/redshift-mcp-server:latest
 - `AWS_PROFILE`: AWS profile to use (optional, uses default if not specified)
 - `FASTMCP_LOG_LEVEL`: Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`)
 - `LOG_FILE`: Path to log file (optional, logs to stdout if not specified)
+- `REDSHIFT_MAX_RESULT_ROWS`: Maximum rows any one statement may return (default: `1000`). Only a
+  whole number above zero is accepted; anything else, including `0`, is logged as unusable and the
+  default of `1000` applies instead, so the cap cannot be switched off. Read once at startup, so a
+  change takes a server restart. A statement returning more rows than this fails rather than
+  returning a short answer — see [Result size](#result-size).
 
 ## Prompt Examples
 
@@ -117,7 +122,7 @@ or docker after a successful `docker build -t awslabs/redshift-mcp-server:latest
 
 1. **Discover Clusters and Workgroups**: Call `list_clusters` to find all provisioned clusters and serverless workgroups, noting their identifiers, types, and status
 2. **Select Target Environment**: Choose a specific cluster or workgroup based on your query needs
-3. **List Databases**: Use `list_databases` to explore databases in the selected cluster/workgroup, returning database names, owners, types (local/shared), and access control info
+3. **List Databases**: Use `list_databases` to explore databases in the selected cluster/workgroup, returning database names, owners, types (such as local, shared, or auto mounted catalog), and access control info
 4. **Explore Schemas**: For a given database, call `list_schemas` to find available schemas and their owners
 5. **Inspect Tables**: Use `list_tables` to browse tables, views, and external tables within a schema, including table types and owners
 6. **Examine Columns**: Call `list_columns` to get column metadata — names, data types, nullability, default values, and constraints
@@ -330,18 +335,23 @@ list_clusters() -> list[RedshiftCluster]
 Lists all databases in a specified Redshift cluster.
 
 ```python
-list_databases(cluster_identifier: str, database_name: str = "dev") -> list[RedshiftDatabase]
+list_databases(
+    cluster_identifier: str,
+    database_name: str = "dev",
+    verbosity_level: Literal["low", "standard"] | None = "standard",
+) -> list[RedshiftDatabase]
 ```
 
 **Parameters**:
 
 - `cluster_identifier`: The cluster identifier from `list_clusters`
 - `database_name`: Database to connect to for querying (default: "dev")
+- `verbosity_level`: How much detail to return per database, `"low"` or `"standard"` (see [Response shaping](#response-shaping))
 
-**Returns**: List of database information including:
+**Returns**: A list of databases, each including:
 
 - Database name and owner
-- Database type (local/shared)
+- Database type (such as local, shared, or auto mounted catalog)
 - Access control information
 - Isolation level
 
@@ -350,15 +360,20 @@ list_databases(cluster_identifier: str, database_name: str = "dev") -> list[Reds
 Lists all schemas in a specified database.
 
 ```python
-list_schemas(cluster_identifier: str, schema_database_name: str) -> list[RedshiftSchema]
+list_schemas(
+    cluster_identifier: str,
+    schema_database_name: str,
+    verbosity_level: Literal["low", "standard"] | None = "standard",
+) -> list[RedshiftSchema]
 ```
 
 **Parameters**:
 
 - `cluster_identifier`: The cluster identifier from `list_clusters`
 - `schema_database_name`: Database name to list schemas for
+- `verbosity_level`: How much detail to return per schema, `"low"` or `"standard"` (see [Response shaping](#response-shaping))
 
-**Returns**: List of schema information including:
+**Returns**: A list of schemas, each including:
 
 - Schema name and owner
 - Schema type (local/external/shared)
@@ -370,7 +385,12 @@ list_schemas(cluster_identifier: str, schema_database_name: str) -> list[Redshif
 Lists all tables in a specified schema.
 
 ```python
-list_tables(cluster_identifier: str, table_database_name: str, table_schema_name: str) -> list[RedshiftTable]
+list_tables(
+    cluster_identifier: str,
+    table_database_name: str,
+    table_schema_name: str,
+    verbosity_level: Literal["low", "standard"] | None = "standard",
+) -> list[RedshiftTable]
 ```
 
 **Parameters**:
@@ -378,8 +398,9 @@ list_tables(cluster_identifier: str, table_database_name: str, table_schema_name
 - `cluster_identifier`: The cluster identifier from `list_clusters`
 - `table_database_name`: Database name containing the schema
 - `table_schema_name`: Schema name to list tables for
+- `verbosity_level`: How much detail to return per table, `"low"` or `"standard"` (see [Response shaping](#response-shaping))
 
-**Returns**: List of table information including:
+**Returns**: A list of tables, each including:
 
 - Table name and type (TABLE/VIEW/EXTERNAL TABLE)
 - Access permissions
@@ -394,7 +415,8 @@ list_columns(
     cluster_identifier: str,
     column_database_name: str,
     column_schema_name: str,
-    column_table_name: str
+    column_table_name: str,
+    verbosity_level: Literal["low", "standard"] | None = "standard",
 ) -> list[RedshiftColumn]
 ```
 
@@ -404,14 +426,98 @@ list_columns(
 - `column_database_name`: Database name containing the table
 - `column_schema_name`: Schema name containing the table
 - `column_table_name`: Table name to list columns for
+- `verbosity_level`: How much detail to return per column, `"low"` or `"standard"` (see [Response shaping](#response-shaping))
 
-**Returns**: List of column information including:
+**Returns**: A list of columns, each including:
 
 - Column name and data type
 - Nullable status and default values
 - Numeric precision and scale
 - Character length limits
 - Ordinal position and remarks
+
+### Response shaping
+
+The four discovery tools above (`list_databases`, `list_schemas`, `list_tables`, `list_columns`)
+each return a plain list and share one `verbosity_level` parameter. What bounds a response is the
+row cap described under [Result size](#result-size).
+
+**Verbosity levels.** `verbosity_level` selects the fields returned on each item.
+
+| Level | Returns | Use it when |
+|---|---|---|
+| `low` | The names identifying an object, plus its own type | Navigating to an object, or writing a query against one. No ownership, permissions or physical design, so responses stay small |
+| `standard` (default) | Every field the tool has always returned | You need sizing detail, ownership or permissions |
+
+The rule is the same for all four tools, so `low` returns:
+
+| Tool | `low` fields |
+|---|---|
+| `list_databases` | `database_name`, `database_type` |
+| `list_schemas` | `database_name`, `schema_name`, `schema_type` |
+| `list_tables` | `database_name`, `schema_name`, `table_name`, `table_type` |
+| `list_columns` | `database_name`, `schema_name`, `table_name`, `column_name`, `data_type` |
+
+The type is included because a name alone is not enough to act on: an agent needs `data_type` to
+write a well-typed predicate, and `table_type` to know whether it is querying a table or a view.
+Sizing detail such as `character_maximum_length`, `numeric_precision` and `numeric_scale` stays in
+`standard`, so `low` is enough to write a correct query, not to reproduce a column definition.
+
+`low` is always a subset of `standard`, so asking for more detail never drops a field.
+
+### Result size
+
+Every tool returns a whole result set in one response. Retrieval follows every page of the
+Redshift Data API internally, so a large result set is never silently cut short at the first page.
+
+What bounds a response instead is `REDSHIFT_MAX_RESULT_ROWS`, a cap on the rows any one statement
+may return, shipping as `1000`. **A statement returning more rows than the cap fails rather than
+returning a short answer**, so a caller can never mistake a partial result for a complete one.
+Retrieval stops as soon as the cap is known to be exceeded, so an oversized statement is refused
+without reading its whole result set into memory.
+
+The cap cannot be turned off. Only a whole number above zero is accepted, and anything else is
+logged as unusable with the default applied in its place, so a misconfiguration lowers the cap to a
+safe value rather than removing it. An operator who needs more rows raises the number.
+
+The cap applies to every tool that reaches the Data API, including `execute_query`. How to stay
+under it differs by tool, because only `execute_query` runs SQL that a caller wrote.
+
+With `execute_query`, shape the statement:
+
+- Prefer aggregation, a selective `WHERE` predicate, or a `LIMIT` clause over retrieving many rows
+  and reducing them afterwards.
+- Page through a large table yourself with `LIMIT` and `OFFSET`, or by filtering on a sort key.
+
+The discovery tools take no query of their own, so there is no clause to add and no ordering to
+exploit. Narrowing means choosing a smaller target:
+
+- List one database or schema at a time, and use `low` verbosity while navigating.
+- A column listing has no target narrower than its table, so a table wider than the cap needs an
+  operator to raise it.
+
+Whether the cap is reachable at all differs by object type, because of the
+[Amazon Redshift quotas](https://docs.aws.amazon.com/redshift/latest/mgmt/amazon-redshift-limits.html)
+on each:
+
+| Tool | Redshift quota | Effect at the default cap of 1000 |
+|---|---|---|
+| `list_databases` | 60 per provisioned cluster, 100 per serverless namespace, excluding datashare databases | Never reached |
+| `list_schemas` | 9,900 per database | Reachable on a large database |
+| `list_tables` | up to 200,000 per cluster on the larger node types | Reachable on a large schema |
+| `list_columns` | 1,600 per table | Reachable on a very wide table |
+
+**Compatibility note.** The discovery tools still return a list of the same models, and at the
+default `standard` verbosity each item still carries the same *values* as before. Three behaviours
+change:
+
+- A field with no value is now absent from a response rather than present as `null`. Verbosity is
+  applied by blanking the fields above the level asked for, and serialization drops every `None`,
+  so a field that is genuinely NULL in Redshift disappears alongside them. Read a missing key as
+  "no value", exactly as `null` read before.
+- A result set larger than one Data API page is retrieved in full instead of being silently
+  truncated.
+- A result set larger than the cap fails instead of returning part of the data.
 
 ### execute_query
 
