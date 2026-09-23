@@ -359,6 +359,7 @@ AWS Billing:
 - billing:GetEnterpriseSupportChargeSummary
 - billing:GetEnterpriseSupportContractDetails
 - billing:ListEnterpriseSupportLinkedAccountCharges
+- billing:ListBillingViewSegments
 
 #### Configuration
 
@@ -483,3 +484,6 @@ The server currently supports the following AWS services
     - get-billing-preferences
 14. **AWS Enterprise Support**
     - `enterprise_support` tool: get_charge_summary, get_contract_details, list_linked_account_charges
+
+15. **AWS Billing View Segments**
+    - `list-billing-view-segments`: list billing view segments over a time period to determine billing domain (BILLABLE vs PRO_FORMA) and account relationships
