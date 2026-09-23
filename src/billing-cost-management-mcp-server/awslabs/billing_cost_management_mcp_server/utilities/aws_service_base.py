@@ -76,7 +76,7 @@ _HINT_AWS_CONFIGURATION = (
 try:
     __version__ = importlib_version('awslabs.billing-cost-management-mcp-server')
 except Exception:  # pragma: no cover
-    __version__ = '0.0.37'
+    __version__ = 'unknown'
 
 
 def create_aws_client(service_name: str, region_name: Optional[str] = None) -> Any:

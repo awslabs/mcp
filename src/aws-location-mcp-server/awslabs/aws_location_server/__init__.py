@@ -20,4 +20,4 @@ from importlib.metadata import version
 try:
     __version__ = version('awslabs.aws-location-mcp-server')
 except Exception:  # pragma: no cover
-    __version__ = '2.1.1'
+    __version__ = 'unknown'
