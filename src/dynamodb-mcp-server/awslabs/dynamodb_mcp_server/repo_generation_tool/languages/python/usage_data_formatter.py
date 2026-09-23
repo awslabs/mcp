@@ -49,8 +49,19 @@ class PythonUsageDataFormatter(UsageDataFormatterInterface):
             return self._format_string_value(value)
 
     def _escape_string(self, value: str) -> str:
-        """Escape backslashes and quotes in string."""
-        return value.replace('\\', '\\\\').replace('"', '\\"')
+        """Escape a value for embedding in a double-quoted Python string literal.
+
+        Backslashes and double quotes are escaped so the value cannot terminate the literal.
+        Newlines and carriage returns are escaped too: a raw newline inside a single-line
+        literal is a syntax error, so leaving it unescaped turned a usage_data value into
+        broken generated code.
+        """
+        return (
+            value.replace('\\', '\\\\')
+            .replace('"', '\\"')
+            .replace('\r', '\\r')
+            .replace('\n', '\\n')
+        )
 
     def _format_string_value(self, value: Any) -> str:
         """Format value as Python string literal."""
