@@ -1127,6 +1127,16 @@ class TestLegitimateReadQueriesAllowed:
         'SELECT EXTRACT(YEAR FROM created_at) FROM orders',
         # Plain EXPLAIN (without ANALYZE) is a read-only planner inspection
         'EXPLAIN SELECT * FROM t',
+        # EXPLAIN ANALYZE actually runs the query, but the ANALYZE option
+        # word must not be mistaken for the standalone ANALYZE statement.
+        'EXPLAIN ANALYZE SELECT * FROM t',
+        'EXPLAIN ANALYZE VERBOSE SELECT * FROM t',
+        'explain analyze select * from t',
+        'EXPLAIN (ANALYZE) SELECT * FROM t',
+        'EXPLAIN(ANALYZE)SELECT * FROM t',
+        'EXPLAIN ( ANALYZE , BUFFERS ) SELECT * FROM t',
+        'EXPLAIN (ANALYZE TRUE, BUFFERS TRUE, FORMAT JSON) SELECT * FROM t',
+        'EXPLAIN (ANALYZE, FORMAT JSON) SELECT * FROM t',
         # Benign comments must not cause over-blocking.
         'SELECT 1 /* inline note */ FROM t',
         'SELECT id FROM users -- trailing note\nWHERE id = 1',
@@ -1155,15 +1165,6 @@ class TestKnownFalsePositives:
     documented as best-effort defence-in-depth, so over-blocking these
     edge cases is an accepted trade-off.
     """
-
-    def test_explain_analyze_blocked_in_readonly(self):
-        """EXPLAIN ANALYZE trips the ANALYZE keyword in readonly mode.
-
-        ANALYZE-the-statistics-command and ANALYZE-the-EXPLAIN-option
-        share a keyword. Plain EXPLAIN (tested in the allow list) is
-        fine; EXPLAIN ANALYZE is over-blocked in readonly mode.
-        """
-        assert 'ANALYZE' in detect_mutating_keywords('EXPLAIN ANALYZE SELECT * FROM t')
 
     def test_double_dash_inside_string_literal_flagged(self):
         """A literal containing '--' trips the comment-injection pattern.
@@ -1216,3 +1217,37 @@ class TestKnownFalsePositives:
         """
         issues = check_sql_injection_risk("SELECT q FROM t WHERE q = 'SELECT pg_sleep(1)'")
         assert len(issues) >= 1
+
+
+class TestExplainAnalyzePreambleStripping:
+    """EXPLAIN's ANALYZE option must not trip the standalone ANALYZE keyword.
+
+    detect_mutating_keywords strips a recognized leading EXPLAIN preamble
+    before scanning, so the wrapped statement's own keywords are still
+    fully checked. A standalone ANALYZE statement (not wrapped in EXPLAIN)
+    remains blocked, as does any real mutation the wrapped statement
+    performs -- the latter is additionally caught by the enforced
+    'SET TRANSACTION READ ONLY' at execution time regardless of this
+    detector.
+    """
+
+    def test_standalone_analyze_statement_still_blocked(self):
+        """Bare ANALYZE (no EXPLAIN wrapper) is still a mutating statement."""
+        assert 'ANALYZE' in detect_mutating_keywords('ANALYZE my_table')
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            'EXPLAIN ANALYZE INSERT INTO t VALUES (1)',
+            'EXPLAIN (ANALYZE) UPDATE t SET x = 1',
+            'EXPLAIN ANALYZE DELETE FROM t',
+            'EXPLAIN ANALYZE WITH x AS (DELETE FROM t RETURNING *) SELECT * FROM x',
+        ],
+    )
+    def test_mutation_wrapped_in_explain_analyze_still_blocked(self, sql):
+        """Stripping the EXPLAIN preamble must not hide the wrapped statement's own keywords."""
+        assert detect_mutating_keywords(sql) != []
+
+    def test_malformed_explain_preamble_falls_back_to_whole_string_scan(self):
+        """An unrecognized/malformed preamble is not stripped -- fails closed."""
+        assert 'ANALYZE' in detect_mutating_keywords('EXPLAIN (ANALYZE SELECT * FROM t')

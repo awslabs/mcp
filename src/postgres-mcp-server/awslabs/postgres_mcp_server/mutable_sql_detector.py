@@ -450,14 +450,51 @@ def normalize_for_detection(sql: str) -> str:
     return strip_quoted_identifiers(strip_sql_comments(sql))
 
 
+# EXPLAIN's ANALYZE option shares a keyword with the standalone ANALYZE
+# statement (see MUTATING_KEYWORDS above), so MUTATING_PATTERN cannot tell
+# "EXPLAIN ANALYZE SELECT ..." (runs the query — no schema/data mutation)
+# apart from "ANALYZE my_table" (collects statistics — genuinely blocked in
+# read-only mode). This pattern recognizes a leading EXPLAIN preamble in
+# either option syntax:
+#   - Parenthesized:    EXPLAIN (ANALYZE, BUFFERS TRUE, FORMAT JSON) SELECT ...
+#   - Legacy bare form: EXPLAIN ANALYZE VERBOSE SELECT ...
+# so detect_mutating_keywords can strip just the preamble before scanning,
+# leaving the wrapped statement's own keywords (INSERT, DROP, ANALYZE as a
+# nested statement, etc.) fully exposed to the same check. An option value
+# is restricted to [^\s,()]+ (no comma/paren) so a malformed or unexpected
+# value can never make the match cross the option list's true closing
+# paren. If the preamble doesn't match this shape — e.g. unbalanced
+# parens, unrecognized syntax — nothing is stripped and the query falls
+# through to the existing (safe, if over-broad) whole-string keyword scan.
+_EXPLAIN_OPTION = r'\w+(?:\s+[^\s,()]+)?'
+EXPLAIN_PREFIX_PATTERN = re.compile(
+    r'(?i)^\s*explain\b\s*'
+    r'(?:\(\s*' + _EXPLAIN_OPTION + r'(?:\s*,\s*' + _EXPLAIN_OPTION + r')*\s*\)'
+    r'|(?:\s*\b(?:analyze|verbose)\b)*)\s*'
+)
+
+
 def detect_mutating_keywords(sql_text: str) -> list[str]:
     """Return a list of mutating keywords found in the SQL.
 
     The SQL is comment-normalized first so a comment wedged between the
     words of a multi-word keyword (IMPORT/**/FOREIGN/**/SCHEMA) or before
     a function paren cannot hide the keyword from the read-only gate.
+
+    A leading EXPLAIN preamble (including its ANALYZE option) is stripped
+    before scanning — see EXPLAIN_PREFIX_PATTERN — so EXPLAIN ANALYZE isn't
+    mistaken for the standalone ANALYZE statement. This only affects the
+    preamble itself: keywords in the wrapped statement are still scanned
+    normally, and this is not a substitute for the enforced
+    'SET TRANSACTION READ ONLY' safeguard, which independently rejects any
+    actual write the wrapped statement performs (e.g. a data-modifying CTE
+    that EXPLAIN ANALYZE executes for real).
     """
-    matches = MUTATING_PATTERN.findall(normalize_for_detection(sql_text))
+    normalized = normalize_for_detection(sql_text)
+    explain_match = EXPLAIN_PREFIX_PATTERN.match(normalized)
+    if explain_match:
+        normalized = normalized[explain_match.end() :]
+    matches = MUTATING_PATTERN.findall(normalized)
     return list({m.upper() for m in matches})  # Deduplicated and normalized to uppercase
 
 
