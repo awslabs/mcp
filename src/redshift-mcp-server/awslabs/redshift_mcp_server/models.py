@@ -79,7 +79,9 @@ class RedshiftDatabase(RedshiftDataModel):
     database_name: str = Field(..., description='The name of the database')
     database_owner: Optional[int] = Field(None, description='The database owner user ID')
     database_type: Optional[str] = Field(
-        None, description='The type of database (local or shared)'
+        None,
+        description="The type of database: 'local' on the cluster itself, 'shared' from a "
+        "datashare, or 'auto mounted catalog' mounted from an external catalog such as AWS Glue",
     )
     database_acl: Optional[str] = Field(
         None, description='Access control information (for internal use)'

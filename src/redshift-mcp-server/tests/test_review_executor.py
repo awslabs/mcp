@@ -17,6 +17,7 @@
 import pytest
 from awslabs.redshift_mcp_server.models import RedshiftCluster
 from awslabs.redshift_mcp_server.review.executor import review_cluster
+from mcp.server.mcpserver.exceptions import ToolError
 from unittest.mock import AsyncMock
 
 
@@ -69,7 +70,7 @@ def _make_sql_recorder():
     """
     recorded: dict[str, str] = {}
 
-    async def _execute(cluster_identifier, database_name, sql, allow_read_write=False):
+    async def _execute(cluster_identifier, database_name, sql, enforce_read_only=True):
         recorded[sql.splitlines()[0].removeprefix('--').strip()] = sql
         return _make_empty_response()
 
@@ -237,7 +238,7 @@ class TestErrorPropagation:
             ]
         )
 
-        with pytest.raises(Exception, match='Cluster missing-cluster not found'):
+        with pytest.raises(ToolError, match='Cluster missing-cluster not found'):
             await review_cluster(
                 cluster_identifier='missing-cluster',
                 execute_query_func=execute_query_func,
@@ -273,7 +274,7 @@ class TestErrorPropagation:
             side_effect=RuntimeError('permission denied for relation sys_auto_table_optimization')
         )
 
-        with pytest.raises(Exception, match='Review requires superuser or sys:monitor access'):
+        with pytest.raises(ToolError, match='Review requires superuser or sys:monitor access'):
             await review_cluster(
                 cluster_identifier='test-cluster',
                 execute_query_func=execute_query_func,
@@ -305,6 +306,41 @@ class TestRecommendationDeduplication:
         rec_ids = [r.id for r in result.recommendations]
         assert rec_ids.count('REC_003') == 1
 
+    @pytest.mark.asyncio
+    async def test_one_signal_with_two_recommendations_is_one_finding(self):
+        """Several branches share a signal label, so len(findings) would overcount problems.
+
+        `definitions.py` emits one row per recommendation, and a signal that maps to two of
+        them appears twice under the same label with the same count. The caller is told to
+        count problems as len(findings), so those two rows have to become one finding.
+        """
+        rows = [
+            (4, 'REC_009', 'long running queries using Nested Loop Joins'),
+            (4, 'REC_019', 'long running queries using Nested Loop Joins'),
+        ]
+        first = True
+
+        async def execute_query_func(*_args, **_kwargs):
+            nonlocal first
+            if first:
+                first = False
+                return _make_response(rows)
+            return _make_empty_response()
+
+        result = await review_cluster(
+            cluster_identifier='test-cluster',
+            execute_query_func=execute_query_func,
+            discover_clusters_func=_make_discover_clusters(),
+        )
+
+        assert len(result.findings) == 1
+        finding = result.findings[0]
+        assert finding.signal_name == 'long running queries using Nested Loop Joins'
+        # Both recommendations are carried, and the count is not doubled by merging them.
+        assert finding.recommendation_ids == ['REC_009', 'REC_019']
+        assert finding.affected_row_count == 4
+        assert sorted(r.id for r in result.recommendations) == ['REC_009', 'REC_019']
+
 
 # ---------------------------------------------------------------------------
 # Progress reporting
@@ -330,7 +366,9 @@ class TestProgressReporting:
             progress_reporter_func=mock_progress,
         )
 
-        total = result.signals_evaluated
+        # Progress is per query, and a query carries several signals, so the tick count is the
+        # number of queries and not signals_evaluated.
+        total = len(result.queries_executed)
         assert len(progress_calls) == total
         assert progress_calls[-1] == (total, total)
 

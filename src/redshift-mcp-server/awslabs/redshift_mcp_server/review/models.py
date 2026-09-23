@@ -22,6 +22,8 @@ class ReviewFinding(BaseModel):
 
     signal_name: str = Field(..., description='Name of the signal that was triggered')
     section: str = Field(..., description='The diagnostic query section this finding belongs to')
+    # One finding per triggered signal, so a signal mapping to several recommendations carries
+    # them all here rather than appearing several times over.
     affected_row_count: int = Field(..., description='Number of rows matching the signal criteria')
     unit: str = Field(
         ...,
@@ -46,12 +48,18 @@ class ReviewRecommendation(BaseModel):
 class ReviewResult(BaseModel):
     """Complete result of a review_cluster tool call."""
 
-    signals_evaluated: int = Field(..., description='Total number of signals evaluated')
+    signals_evaluated: int = Field(
+        ...,
+        description='Total number of signals evaluated. A diagnostic query carries several '
+        'signals, so this exceeds the length of queries_executed.',
+    )
     findings: list[ReviewFinding] = Field(
         ..., description='List of triggered findings from signal evaluation'
     )
     recommendations: list[ReviewRecommendation] = Field(
-        ..., description='Deduplicated recommendations ordered by effort'
+        ...,
+        description='Deduplicated recommendations, in the order their signals were first '
+        'triggered. Nothing orders them by effort or by impact.',
     )
     queries_executed: list[str] = Field(
         ..., description='Names of diagnostic queries that were executed'
