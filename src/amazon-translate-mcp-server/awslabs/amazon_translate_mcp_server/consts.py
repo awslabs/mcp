@@ -18,4 +18,4 @@ from importlib.metadata import version
 try:
     MCP_SERVER_VERSION = version('awslabs.amazon-translate-mcp-server')
 except Exception:  # pragma: no cover
-    MCP_SERVER_VERSION = '1.0.7'
+    MCP_SERVER_VERSION = 'unknown'
