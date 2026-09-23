@@ -135,7 +135,12 @@ class LLMJudgeValidator(Validator):
             response = self.llm_provider.converse(
                 messages=[{MESSAGE_ROLE: ROLE_USER, MESSAGE_CONTENT: [{CONTENT_TEXT: prompt}]}]
             )
-            response_text = response['output']['message'][MESSAGE_CONTENT][0][CONTENT_TEXT]
+            # Reasoning models can return a reasoningContent block before the text block
+            content = response['output']['message'][MESSAGE_CONTENT]
+            texts = [block[CONTENT_TEXT] for block in content if CONTENT_TEXT in block]
+            if not texts:
+                raise ValueError('LLM judge response has no text block')
+            response_text = texts[0]
             elapsed = time.time() - start
             logger.debug(f'LLM validation took {elapsed:.2f}s')
 
