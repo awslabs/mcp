@@ -15,6 +15,7 @@
 """Validators for evaluating agent outputs."""
 
 import asyncio
+import re
 import time
 from .captor import (
     CONTENT_TEXT,
@@ -200,6 +201,8 @@ class LLMJudgeValidator(Validator):
             if not line:
                 continue
 
+            # Some models drop the brackets around the verdict: "1. PASS reasoning"
+            line = re.sub(r'^(\d+\.\s*)(PASS|FAIL)\b', r'\1[\2]', line)
             line_upper = line.upper()
             if '[PASS]' in line_upper:
                 status = 'PASS'

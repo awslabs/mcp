@@ -73,6 +73,19 @@ class TestLLMJudgeValidator:
         assert result.get('criteria_results', [])[0]['status'] == 'PASS'
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'reply, status',
+        [
+            ('1. PASS Both services are listed.', 'PASS'),
+            ('1. Pass rate is shown [FAIL] No rate in the answer.', 'FAIL'),
+        ],
+    )
+    async def test_verdict_without_brackets(self, reply, status):
+        """'1. PASS reasoning' is read as a verdict; bracketed verdicts are parsed as before."""
+        result = await self._validate([{'text': reply}])
+        assert result.get('criteria_results', [])[0]['status'] == status
+
+    @pytest.mark.asyncio
     async def test_reply_without_text_block_fails(self):
         """A reply with only a reasoning block is still a validation error."""
         result = await self._validate([{'reasoningContent': {'redactedContent': b'rsn_example'}}])
