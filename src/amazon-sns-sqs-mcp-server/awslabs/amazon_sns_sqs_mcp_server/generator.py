@@ -19,6 +19,7 @@ import botocore.session
 import inspect
 import os
 import sys
+from botocore import xform_name
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from mcp.server.mcpserver import MCPServer
@@ -240,7 +241,9 @@ class AWSToolGenerator:
         """Return a list of input parameter names for a given operation."""
         session = botocore.session.get_session()
         service_model = session.get_service_model(self.service_name)
-        op_model = service_model.operation_model(self.__snake_to_camel(operation_name))
+        op_model = service_model.operation_model(
+            self.__get_api_operation_name(service_model, operation_name)
+        )
         input_shape = op_model.input_shape
         if not input_shape:
             return []
@@ -255,6 +258,18 @@ class AWSToolGenerator:
             is_required = param_name in input_shape.required_members
             res.append((param_name, param_shape.type_name, is_required, param_documentation))
         return res
+
+    def __get_api_operation_name(self, service_model: Any, method_name: str) -> str:
+        """Resolve a boto3 client method name to its API operation name.
+
+        Operation names containing acronyms (e.g. ``GetSMSAttributes``) cannot be rebuilt by
+        simply capitalizing each snake_case word, so look the name up in the service model
+        first and only fall back to the naive conversion if no match is found.
+        """
+        for api_name in service_model.operation_names:
+            if xform_name(api_name) == method_name:
+                return api_name
+        return self.__snake_to_camel(method_name)
 
     def __snake_to_camel(self, snake_str: str) -> str:
         return ''.join(word.capitalize() for word in snake_str.split('_'))
