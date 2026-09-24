@@ -113,6 +113,7 @@ def register_sns_tools(mcp: MCPServer, disallow_resource_creation: bool = False)
         'delete_sms_sandbox_phone_number',
         'get_waiter',
         'set_sms_attributes',
+        'verify_sms_sandbox_phone_number',
         'create_platform_application',
         'create_platform_endpoint',
         'delete_endpoint',

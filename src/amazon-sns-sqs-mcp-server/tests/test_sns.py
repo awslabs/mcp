@@ -220,6 +220,20 @@ class TestSNSTools:
         assert 'create_topic' in tool_config_capture
         assert tool_config_capture['create_topic'] == {'ignore': True}
 
+    @patch('awslabs.amazon_sns_sqs_mcp_server.sns.AWSToolGenerator')
+    def test_register_sns_tools_ignores_mutative_sms_operations(self, mock_aws_tool_generator):
+        """Test that SMS sandbox operations which change state are not exposed as tools."""
+        register_sns_tools(MagicMock())
+
+        tool_configuration = mock_aws_tool_generator.call_args.kwargs['tool_configuration']
+        for operation in [
+            'create_sms_sandbox_phone_number',
+            'delete_sms_sandbox_phone_number',
+            'set_sms_attributes',
+            'verify_sms_sandbox_phone_number',
+        ]:
+            assert tool_configuration[operation] == {'ignore': True}
+
     def test_validator_with_different_operations(self):
         """Test validator with different SNS operations."""
         # Mock FastMCP
