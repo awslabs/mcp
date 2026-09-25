@@ -42,15 +42,7 @@ The `agentcore` CLI is a separate tool for project scaffolding, deployment,
 and management. Install it before using any `agentcore` commands:
 
 ```bash
-<<<<<<< HEAD
-<<<<<<< HEAD
 npm install -g @aws/agentcore-cli
-=======
-npm install -g @anthropic-ai/agentcore-cli
->>>>>>> 66f98ac2 (feat: add User agent file to track usage metrics)
-=======
-npm install -g @aws/agentcore-cli
->>>>>>> 45897c56 (fix: update cli install command)
 ```
 
 For installation details, supported platforms, and authentication setup,

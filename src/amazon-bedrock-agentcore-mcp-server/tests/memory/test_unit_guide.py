@@ -85,3 +85,10 @@ class TestGetMemoryGuide:
         assert 'Prerequisites' in MEMORY_GUIDE
         assert 'agentcore-cli' in MEMORY_GUIDE or 'agentcore' in MEMORY_GUIDE
         assert 'do NOT need the CLI' in MEMORY_GUIDE
+
+    def test_guide_contains_resolved_cli_install_command(self):
+        """Guide exposes one resolved AWS CLI installation command."""
+        assert '<<<<<<<' not in MEMORY_GUIDE
+        assert '=======' not in MEMORY_GUIDE
+        assert '>>>>>>>' not in MEMORY_GUIDE
+        assert MEMORY_GUIDE.count('npm install -g @aws/agentcore-cli') == 1
