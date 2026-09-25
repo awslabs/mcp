@@ -21,6 +21,7 @@ from ..utilities.aws_service_base import format_response, handle_aws_error
 
 # Import operation handlers from local module
 from .aws_pricing_operations import (
+    AWS_PRICING_SERVICE_NAME,
     get_attribute_values,
     get_pricing_from_api,
     get_service_attributes,
@@ -134,4 +135,4 @@ async def aws_pricing(
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, operation, 'AWS Pricing')
+        return await handle_aws_error(ctx, e, operation, AWS_PRICING_SERVICE_NAME)

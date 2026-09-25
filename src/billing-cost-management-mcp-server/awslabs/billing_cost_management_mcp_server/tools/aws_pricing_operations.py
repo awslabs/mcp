@@ -23,6 +23,7 @@ import os
 from ..utilities.aws_service_base import (
     create_aws_client,
     format_response,
+    handle_aws_error,
     parse_json,
 )
 from ..utilities.logging_utils import get_context_logger
@@ -30,6 +31,8 @@ from ..utilities.sql_utils import convert_response_if_needed
 from fastmcp import Context
 from typing import Any, Dict, Optional
 
+
+AWS_PRICING_SERVICE_NAME = 'AWS Pricing'
 
 PRICING_API_REGIONS = {
     'classic': ['us-east-1', 'eu-central-1', 'ap-south-1'],
@@ -140,8 +143,12 @@ async def get_service_codes(ctx: Context, max_results: Optional[int] = None) -> 
         )
 
     except Exception as e:
-        # Use standard error format
-        return format_response('error', {'message': f'Error retrieving service codes: {str(e)}'})
+        # Route through the shared handler so the response carries a top-level
+        # error_type + operation (consistent structured error shape), while
+        # keeping the legacy `data.message` payload for backward compatibility.
+        classified = await handle_aws_error(ctx, e, 'get_service_codes', AWS_PRICING_SERVICE_NAME)
+        classified['data'] = {'message': f'Error retrieving service codes: {str(e)}'}
+        return classified
 
 
 async def get_service_attributes(ctx: Context, service_code: str) -> Dict[str, Any]:
@@ -165,9 +172,17 @@ async def get_service_attributes(ctx: Context, service_code: str) -> Dict[str, A
 
         # Check if service exists
         if not response.get('Services'):
-            return format_response(
-                'error', {'message': f'No service found with code: {service_code}'}
-            )
+            # Not an exception, but still an error response. Emit a top-level
+            # error_type + operation (consistent structured error shape) while
+            # keeping the legacy `data.message` payload for compatibility.
+            message = f'No service found with code: {service_code}'
+            return {
+                **format_response('error', {'message': message}),
+                'service': AWS_PRICING_SERVICE_NAME,
+                'operation': 'get_service_attributes',
+                'error_type': 'no_results',
+                'message': message,
+            }
 
         # Extract attributes
         attributes = []
@@ -189,11 +204,16 @@ async def get_service_attributes(ctx: Context, service_code: str) -> Dict[str, A
         )
 
     except Exception as e:
-        # Use standard error format
-        return format_response(
-            'error',
-            {'message': f'Failed to retrieve attributes for service {service_code}: {str(e)}'},
+        # Route through the shared handler so the response carries a top-level
+        # error_type + operation (consistent structured error shape), while
+        # keeping the legacy `data.message` payload for backward compatibility.
+        classified = await handle_aws_error(
+            ctx, e, 'get_service_attributes', AWS_PRICING_SERVICE_NAME
         )
+        classified['data'] = {
+            'message': f'Failed to retrieve attributes for service {service_code}: {str(e)}'
+        }
+        return classified
 
 
 async def get_attribute_values(
@@ -272,13 +292,16 @@ async def get_attribute_values(
         )
 
     except Exception as e:
-        # Use standard error format
-        return format_response(
-            'error',
-            {
-                'message': f'Failed to retrieve values for attribute {attribute_name} of service {service_code}: {str(e)}'
-            },
+        # Route through the shared handler so the response carries a top-level
+        # error_type + operation (consistent structured error shape), while
+        # keeping the legacy `data.message` payload for backward compatibility.
+        classified = await handle_aws_error(
+            ctx, e, 'get_attribute_values', AWS_PRICING_SERVICE_NAME
         )
+        classified['data'] = {
+            'message': f'Failed to retrieve values for attribute {attribute_name} of service {service_code}: {str(e)}'
+        }
+        return classified
 
 
 async def get_pricing_from_api(
@@ -354,20 +377,26 @@ async def get_pricing_from_api(
                 await ctx.info(f'Reached maximum results limit: {max_results}')
                 break
 
-        # Handle no results
+        # Handle no results. This is a genuine "no data" case rather than an
+        # exception, but it is still an error response: emit a top-level
+        # error_type + operation (consistent structured error shape) while
+        # keeping the legacy `data` payload (message + examples) for
+        # backward compatibility.
         if not all_price_list:
-            return format_response(
-                'error',
-                {
-                    'message': f'The service code "{service_code}" did not return any pricing data. AWS service codes typically follow patterns like "AmazonS3", "AmazonEC2", "AmazonES", etc. Please check the exact service code and try again.',
-                    'examples': {
-                        'OpenSearch': 'AmazonES',
-                        'Lambda': 'AWSLambda',
-                        'DynamoDB': 'AmazonDynamoDB',
-                        'Bedrock': 'AmazonBedrock',
-                    },
-                },
-            )
+            message = f'The service code "{service_code}" did not return any pricing data. AWS service codes typically follow patterns like "AmazonS3", "AmazonEC2", "AmazonES", etc. Please check the exact service code and try again.'
+            examples = {
+                'OpenSearch': 'AmazonES',
+                'Lambda': 'AWSLambda',
+                'DynamoDB': 'AmazonDynamoDB',
+                'Bedrock': 'AmazonBedrock',
+            }
+            return {
+                **format_response('error', {'message': message, 'examples': examples}),
+                'service': AWS_PRICING_SERVICE_NAME,
+                'operation': 'get_pricing_from_api',
+                'error_type': 'no_results',
+                'message': message,
+            }
 
         # Create response with raw data
         raw_response = {
@@ -497,12 +526,15 @@ async def get_pricing_from_api(
         return format_response('success', result)
 
     except Exception as e:
-        # Use standard error format
-        return format_response(
-            'error',
-            {
-                'message': f'Pricing API request failed: {str(e)}',
-                'service_code': service_code,
-                'note': 'AWS service codes typically follow patterns like "AmazonS3", "AmazonEC2", "AmazonES" (for OpenSearch), etc.',
-            },
+        # Route through the shared handler so the response carries a top-level
+        # error_type + operation (consistent structured error shape), while
+        # keeping the legacy `data` payload for backward compatibility.
+        classified = await handle_aws_error(
+            ctx, e, 'get_pricing_from_api', AWS_PRICING_SERVICE_NAME
         )
+        classified['data'] = {
+            'message': f'Pricing API request failed: {str(e)}',
+            'service_code': service_code,
+            'note': 'AWS service codes typically follow patterns like "AmazonS3", "AmazonEC2", "AmazonES" (for OpenSearch), etc.',
+        }
+        return classified
