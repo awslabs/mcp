@@ -353,12 +353,17 @@ AWS Invoicing:
 - invoicing:GetProcurementPortalPreference
 
 AWS Billing:
+- billing:GetBillingView
+- billing:ListBillingViews
+- billing:ListSourceViewsForBillingView
+- billing:GetResourcePolicy
 - billing:GetCredits
 - billing:GetCreditAllocationHistory
 - billing:GetBillingPreferences
 - billing:GetEnterpriseSupportChargeSummary
 - billing:GetEnterpriseSupportContractDetails
 - billing:ListEnterpriseSupportLinkedAccountCharges
+- billing:ListBillingViewSegments
 
 #### Configuration
 
@@ -471,15 +476,23 @@ The server currently supports the following AWS services
     - describe_cost_category_definition
     - list_cost_category_definitions
 
-12. **AWS Invoicing**
+13. **AWS Invoicing**
     - `invoicing` tool: list_invoice_summaries
     - `invoice-units` tool: list_invoice_units, get_invoice_unit, batch_get_invoice_profile
     - `procurement-preferences` tool: list_procurement_portal_preferences, get_procurement_portal_preference
 
-13. **AWS Credits**
+14. **AWS Credits**
     - `credits` tool: get_credits, get_credit_allocation_history
 
-14. **AWS Billing Preferences**
+15. **AWS Billing Preferences**
     - get-billing-preferences
-14. **AWS Enterprise Support**
+
+16. **AWS Enterprise Support**
     - `enterprise_support` tool: get_charge_summary, get_contract_details, list_linked_account_charges
+
+17. **AWS Billing Views**
+    - `get-billing-view`: retrieve metadata for a specific billing view
+    - `list-billing-views`: list billing views available for a given time period
+    - `list-source-views-for-billing-view`: list source views that a custom billing view is built from
+    - `get-resource-policy`: retrieve the resource-based policy attached to a billing view
+    - `list-billing-view-segments`: list billing view segments over a time period to determine billing domain (BILLABLE vs PRO_FORMA) and account relationships

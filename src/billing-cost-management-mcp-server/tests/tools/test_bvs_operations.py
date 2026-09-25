@@ -18,6 +18,7 @@ import json
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.bvs_operations import (
     _format_billing_view_common,
+    _format_billing_view_segment,
     _format_cost_category_values,
     _format_dimension_values,
     _format_expression,
@@ -28,6 +29,7 @@ from awslabs.billing_cost_management_mcp_server.tools.bvs_operations import (
     _format_time_range,
     get_billing_view,
     get_resource_policy,
+    list_billing_view_segments,
     list_billing_views,
     list_source_views_for_billing_view,
 )
@@ -1018,3 +1020,407 @@ class TestGetResourcePolicy:
 
         assert result['status'] == STATUS_ERROR
         assert result['error_type'] == ERROR_RESOURCE_NOT_FOUND
+
+
+class TestFormatBillingViewSegment:
+    """Tests for the _format_billing_view_segment function."""
+
+    def test_format_billable_segment(self):
+        """Test formatting a BILLABLE segment with management account."""
+        result = _format_billing_view_segment(
+            {
+                'domain': 'BILLABLE',
+                'managementAccountId': '123456789012',
+                'timeRange': {
+                    'beginDateInclusive': 1725148800,
+                    'endDateExclusive': 1727740800,
+                },
+            }
+        )
+        assert result['domain'] == 'BILLABLE'
+        assert result['management_account_id'] == '123456789012'
+        assert 'begin_date_inclusive' in result['time_range']
+        assert 'end_date_exclusive' in result['time_range']
+        assert 'billing_group_primary_account_id' not in result
+        assert 'billing_transfer_account_id' not in result
+
+    def test_format_pro_forma_segment(self):
+        """Test formatting a PRO_FORMA segment with billing group primary account."""
+        result = _format_billing_view_segment(
+            {
+                'domain': 'PRO_FORMA',
+                'managementAccountId': '123456789012',
+                'billingGroupPrimaryAccountId': '987654321098',
+                'timeRange': {
+                    'beginDateInclusive': 1725148800,
+                    'endDateExclusive': 1727740800,
+                },
+            }
+        )
+        assert result['domain'] == 'PRO_FORMA'
+        assert result['management_account_id'] == '123456789012'
+        assert result['billing_group_primary_account_id'] == '987654321098'
+
+    def test_format_segment_with_billing_transfer(self):
+        """Test formatting a segment with billing transfer account."""
+        result = _format_billing_view_segment(
+            {
+                'domain': 'BILLABLE',
+                'billingTransferAccountId': '111111111111',
+                'timeRange': {
+                    'beginDateInclusive': 1725148800,
+                    'endDateExclusive': 1727740800,
+                },
+            }
+        )
+        assert result['domain'] == 'BILLABLE'
+        assert result['billing_transfer_account_id'] == '111111111111'
+
+    def test_format_empty_segment(self):
+        """Test formatting a segment with no optional fields."""
+        result = _format_billing_view_segment({})
+        assert result['domain'] is None
+        assert 'management_account_id' not in result
+        assert 'billing_group_primary_account_id' not in result
+        assert 'billing_transfer_account_id' not in result
+        assert 'time_range' not in result
+
+    def test_format_segment_datetime_timestamps(self):
+        """Test that datetime objects are handled correctly as timestamps."""
+        dt_begin = datetime(2024, 9, 1, 0, 0, 0, tzinfo=timezone.utc)
+        dt_end = datetime(2024, 10, 1, 0, 0, 0, tzinfo=timezone.utc)
+        result = _format_billing_view_segment(
+            {
+                'domain': 'BILLABLE',
+                'timeRange': {
+                    'beginDateInclusive': dt_begin,
+                    'endDateExclusive': dt_end,
+                },
+            }
+        )
+        assert result['time_range']['begin_date_inclusive'] == '2024-09-01T00:00:00'
+        assert result['time_range']['end_date_exclusive'] == '2024-10-01T00:00:00'
+
+
+@pytest.mark.asyncio
+class TestListBillingViewSegments:
+    """Tests for the list_billing_view_segments operation function."""
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_segments_success_no_params(self, mock_create_client, mock_ctx):
+        """Test successful listing of segments with no parameters (defaults to PRIMARY)."""
+        mock_client = MagicMock()
+        mock_client.list_billing_view_segments.return_value = {
+            'items': [
+                {
+                    'domain': 'BILLABLE',
+                    'managementAccountId': ACCOUNT_ID_PRIMARY,
+                    'timeRange': {
+                        'beginDateInclusive': 1725148800,
+                        'endDateExclusive': 1727740800,
+                    },
+                },
+            ],
+        }
+        mock_create_client.return_value = mock_client
+
+        result = await list_billing_view_segments(mock_ctx)
+
+        assert result['status'] == STATUS_SUCCESS
+        assert result['data']['pagination']['total_results'] == 1
+        assert result['data']['segments'][0]['domain'] == 'BILLABLE'
+        assert result['data']['pagination']['has_more'] is False
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_segments_with_arn(self, mock_create_client, mock_ctx):
+        """Test listing segments with a specific billing view ARN."""
+        mock_client = MagicMock()
+        mock_client.list_billing_view_segments.return_value = {
+            'items': [
+                {
+                    'domain': 'BILLABLE',
+                    'managementAccountId': ACCOUNT_ID_PRIMARY,
+                    'timeRange': {
+                        'beginDateInclusive': 1725148800,
+                        'endDateExclusive': 1727740800,
+                    },
+                },
+            ],
+        }
+        mock_create_client.return_value = mock_client
+
+        result = await list_billing_view_segments(mock_ctx, arn=BILLING_VIEW_ARN_PRIMARY)
+
+        assert result['status'] == STATUS_SUCCESS
+        call_kwargs = mock_client.list_billing_view_segments.call_args[1]
+        assert call_kwargs['arn'] == BILLING_VIEW_ARN_PRIMARY
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_segments_with_time_range(self, mock_create_client, mock_ctx):
+        """Test listing segments with a specific time range."""
+        mock_client = MagicMock()
+        mock_client.list_billing_view_segments.return_value = {
+            'items': [
+                {
+                    'domain': 'BILLABLE',
+                    'timeRange': {
+                        'beginDateInclusive': 1725148800,
+                        'endDateExclusive': 1727740800,
+                    },
+                },
+            ],
+        }
+        mock_create_client.return_value = mock_client
+
+        result = await list_billing_view_segments(
+            mock_ctx,
+            begin_date_inclusive='2024-09-01',
+            end_date_exclusive='2024-10-01',
+        )
+
+        assert result['status'] == STATUS_SUCCESS
+        call_kwargs = mock_client.list_billing_view_segments.call_args[1]
+        assert 'timeRange' in call_kwargs
+        assert call_kwargs['timeRange']['beginDateInclusive'] == 1725148800
+        assert call_kwargs['timeRange']['endDateExclusive'] == 1727740800
+
+    async def test_list_segments_time_range_only_begin(self, mock_ctx):
+        """Test that providing only begin_date_inclusive raises an error."""
+        result = await list_billing_view_segments(mock_ctx, begin_date_inclusive='2024-09-01')
+        assert result['status'] == STATUS_ERROR
+
+    async def test_list_segments_time_range_only_end(self, mock_ctx):
+        """Test that providing only end_date_exclusive raises an error."""
+        result = await list_billing_view_segments(mock_ctx, end_date_exclusive='2024-10-01')
+        assert result['status'] == STATUS_ERROR
+
+    async def test_list_segments_invalid_date_format(self, mock_ctx):
+        """Test listing segments with invalid date format."""
+        result = await list_billing_view_segments(
+            mock_ctx,
+            begin_date_inclusive='not-a-date',
+            end_date_exclusive='2024-10-01',
+        )
+        assert result['status'] == STATUS_ERROR
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_segments_with_max_results(self, mock_create_client, mock_ctx):
+        """Test listing segments with max_results parameter."""
+        mock_client = MagicMock()
+        mock_client.list_billing_view_segments.return_value = {
+            'items': [
+                {
+                    'domain': 'BILLABLE',
+                    'timeRange': {
+                        'beginDateInclusive': 1725148800,
+                        'endDateExclusive': 1727740800,
+                    },
+                },
+            ],
+        }
+        mock_create_client.return_value = mock_client
+
+        await list_billing_view_segments(mock_ctx, max_results=50)
+
+        call_kwargs = mock_client.list_billing_view_segments.call_args[1]
+        assert call_kwargs['maxResults'] == 50
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_segments_pagination(self, mock_create_client, mock_ctx):
+        """Test listing segments with pagination across multiple pages."""
+        mock_client = MagicMock()
+        mock_client.list_billing_view_segments.side_effect = [
+            {
+                'items': [
+                    {
+                        'domain': 'BILLABLE',
+                        'timeRange': {
+                            'beginDateInclusive': 1725148800,
+                            'endDateExclusive': 1726358400,
+                        },
+                    },
+                ],
+                'nextToken': NEXT_TOKEN_PAGE2,
+            },
+            {
+                'items': [
+                    {
+                        'domain': 'PRO_FORMA',
+                        'billingGroupPrimaryAccountId': ACCOUNT_ID_PRIMARY_2,
+                        'timeRange': {
+                            'beginDateInclusive': 1726358400,
+                            'endDateExclusive': 1727740800,
+                        },
+                    },
+                ],
+            },
+        ]
+        mock_create_client.return_value = mock_client
+
+        result = await list_billing_view_segments(mock_ctx)
+
+        assert result['status'] == STATUS_SUCCESS
+        assert result['data']['pagination']['total_results'] == 2
+        assert mock_client.list_billing_view_segments.call_count == 2
+        assert result['data']['segments'][0]['domain'] == 'BILLABLE'
+        assert result['data']['segments'][1]['domain'] == 'PRO_FORMA'
+        assert result['data']['pagination']['has_more'] is False
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_segments_max_pages_stops_pagination(self, mock_create_client, mock_ctx):
+        """Test that max_pages limits the number of API calls and returns next_token."""
+        mock_client = MagicMock()
+        mock_client.list_billing_view_segments.return_value = {
+            'items': [
+                {
+                    'domain': 'BILLABLE',
+                    'timeRange': {
+                        'beginDateInclusive': 1725148800,
+                        'endDateExclusive': 1727740800,
+                    },
+                },
+            ],
+            'nextToken': NEXT_TOKEN_MORE,
+        }
+        mock_create_client.return_value = mock_client
+
+        result = await list_billing_view_segments(mock_ctx, max_pages=1)
+
+        assert result['status'] == STATUS_SUCCESS
+        assert result['data']['pagination']['total_results'] == 1
+        assert result['data']['pagination']['has_more'] is True
+        assert result['data']['pagination']['next_token'] == NEXT_TOKEN_MORE
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_segments_empty_result(self, mock_create_client, mock_ctx):
+        """Test listing segments when none are returned."""
+        mock_client = MagicMock()
+        mock_client.list_billing_view_segments.return_value = {'items': []}
+        mock_create_client.return_value = mock_client
+
+        result = await list_billing_view_segments(mock_ctx)
+
+        assert result['status'] == STATUS_SUCCESS
+        assert result['data']['pagination']['total_results'] == 0
+        assert result['data']['segments'] == []
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_segments_access_denied(self, mock_create_client, mock_ctx):
+        """Test handling of AccessDeniedException."""
+        mock_client = MagicMock()
+        mock_client.list_billing_view_segments.side_effect = ClientError(
+            make_client_error_response(),
+            'ListBillingViewSegments',
+        )
+        mock_create_client.return_value = mock_client
+
+        result = await list_billing_view_segments(mock_ctx)
+
+        assert result['status'] == STATUS_ERROR
+        assert result['error_type'] == ERROR_ACCESS_DENIED
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_segments_resource_not_found(self, mock_create_client, mock_ctx):
+        """Test handling of ResourceNotFoundException."""
+        mock_client = MagicMock()
+        mock_client.list_billing_view_segments.side_effect = ClientError(
+            make_client_error_response(
+                code=ERROR_RESOURCE_NOT_FOUND,
+                message=ERROR_RESOURCE_NOT_FOUND_MSG,
+                http_status=HTTP_STATUS_NOT_FOUND,
+            ),
+            'ListBillingViewSegments',
+        )
+        mock_create_client.return_value = mock_client
+
+        result = await list_billing_view_segments(mock_ctx, arn=BILLING_VIEW_ARN_CUSTOM)
+
+        assert result['status'] == STATUS_ERROR
+        assert result['error_type'] == ERROR_RESOURCE_NOT_FOUND
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_segments_multiple_segments_mid_period_change(
+        self, mock_create_client, mock_ctx
+    ):
+        """Test listing segments with mid-period changes producing multiple segments."""
+        mock_client = MagicMock()
+        mock_client.list_billing_view_segments.return_value = {
+            'items': [
+                {
+                    'domain': 'BILLABLE',
+                    'managementAccountId': ACCOUNT_ID_PRIMARY,
+                    'timeRange': {
+                        'beginDateInclusive': 1725148800,
+                        'endDateExclusive': 1726358400,
+                    },
+                },
+                {
+                    'domain': 'PRO_FORMA',
+                    'managementAccountId': ACCOUNT_ID_PRIMARY,
+                    'billingGroupPrimaryAccountId': ACCOUNT_ID_PRIMARY_2,
+                    'timeRange': {
+                        'beginDateInclusive': 1726358400,
+                        'endDateExclusive': 1727740800,
+                    },
+                },
+            ],
+        }
+        mock_create_client.return_value = mock_client
+
+        result = await list_billing_view_segments(mock_ctx)
+
+        assert result['status'] == STATUS_SUCCESS
+        assert result['data']['pagination']['total_results'] == 2
+        assert result['data']['segments'][0]['domain'] == 'BILLABLE'
+        assert result['data']['segments'][1]['domain'] == 'PRO_FORMA'
+        assert 'billing_group_primary_account_id' not in result['data']['segments'][0]
+        assert (
+            result['data']['segments'][1]['billing_group_primary_account_id']
+            == ACCOUNT_ID_PRIMARY_2
+        )
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_segments_with_all_params(self, mock_create_client, mock_ctx):
+        """Test listing segments with all parameters provided."""
+        mock_client = MagicMock()
+        mock_client.list_billing_view_segments.return_value = {
+            'items': [
+                {
+                    'domain': 'BILLABLE',
+                    'timeRange': {
+                        'beginDateInclusive': 1725148800,
+                        'endDateExclusive': 1727740800,
+                    },
+                },
+            ],
+        }
+        mock_create_client.return_value = mock_client
+
+        result = await list_billing_view_segments(
+            mock_ctx,
+            arn=BILLING_VIEW_ARN_PRIMARY,
+            max_results=50,
+            begin_date_inclusive='2024-09-01',
+            end_date_exclusive='2024-10-01',
+            max_pages=5,
+            next_token='tok123',
+        )
+
+        assert result['status'] == STATUS_SUCCESS
+        call_kwargs = mock_client.list_billing_view_segments.call_args[1]
+        assert call_kwargs['arn'] == BILLING_VIEW_ARN_PRIMARY
+        assert call_kwargs['maxResults'] == 50
+        assert 'timeRange' in call_kwargs
+        assert call_kwargs['nextToken'] == 'tok123'
+
+    @patch(PATCH_BVS_CLIENT)
+    async def test_list_segments_no_arn_omits_param(self, mock_create_client, mock_ctx):
+        """Test that when arn is None, it is not included in the request."""
+        mock_client = MagicMock()
+        mock_client.list_billing_view_segments.return_value = {'items': []}
+        mock_create_client.return_value = mock_client
+
+        await list_billing_view_segments(mock_ctx)
+
+        call_kwargs = mock_client.list_billing_view_segments.call_args[1]
+        assert 'arn' not in call_kwargs

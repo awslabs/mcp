@@ -426,6 +426,12 @@ def _get_specialized_converter(operation_name: str) -> Optional[str]:
     if operation_name.startswith('billing_preferences_'):
         return 'records'
 
+    # BVS segment operations return {segments: [...]}.
+    # One row per segment keeps an offloaded result filterable by domain
+    # and account.
+    if operation_name.startswith('bvs_list_billing_view_segments'):
+        return 'records'
+
     return None
 
 
