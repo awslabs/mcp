@@ -524,14 +524,17 @@ class TestListBillingViewSegmentsTool:
                             },
                         },
                     ],
-                    'total_count': 1,
+                    'pagination': {
+                        'total_results': 1,
+                        'has_more': False,
+                    },
                 },
             }
 
             result = await real_fn(mock_ctx)  # type: ignore
 
             assert result['status'] == STATUS_SUCCESS
-            assert result['data']['total_count'] == 1
+            assert result['data']['pagination']['total_results'] == 1
             mock_op.assert_awaited_once_with(
                 mock_ctx,
                 arn=None,
@@ -552,7 +555,7 @@ class TestListBillingViewSegmentsTool:
         ) as mock_op:
             mock_op.return_value = {
                 'status': STATUS_SUCCESS,
-                'data': {'segments': [], 'total_count': 0},
+                'data': {'segments': [], 'pagination': {'total_results': 0, 'has_more': False}},
             }
 
             result = await real_fn(  # type: ignore
@@ -623,7 +626,7 @@ class TestListBillingViewSegmentsTool:
         ) as mock_op:
             mock_op.return_value = {
                 'status': STATUS_SUCCESS,
-                'data': {'segments': [], 'total_count': 0},
+                'data': {'segments': [], 'pagination': {'total_results': 0, 'has_more': False}},
             }
 
             result = await real_fn(  # type: ignore

@@ -22,9 +22,11 @@ from ..utilities.aws_service_base import (
     create_aws_client,
     format_response,
     handle_aws_error,
+    paginate_aws_response,
     parse_json,
 )
 from ..utilities.constants import REGION_US_EAST_1
+from ..utilities.sql_utils import convert_response_if_needed
 from ..utilities.time_utils import (
     timestamp_to_utc_iso_string,
     utc_datetime_string_to_epoch_seconds,
@@ -385,42 +387,34 @@ async def list_billing_view_segments(
                 'endDateExclusive': utc_datetime_string_to_epoch_seconds(end_date_exclusive),
             }
 
+        if next_token:
+            request_params['nextToken'] = next_token
+
         bvs_client = _create_bvs_client()
 
-        all_segments: List[Dict[str, Any]] = []
-        current_token = next_token
-        page_count = 0
+        segments, pagination = await paginate_aws_response(
+            ctx,
+            'ListBillingViewSegments',
+            bvs_client.list_billing_view_segments,
+            request_params,
+            'items',
+            token_param='nextToken',
+            token_key='nextToken',
+            max_pages=max_pages,
+        )
 
-        while page_count < max_pages:
-            page_count += 1
+        await ctx.info(f'Successfully retrieved {len(segments)} billing view segments')
 
-            if current_token:
-                request_params['nextToken'] = current_token
+        formatted_segments = [_format_billing_view_segment(segment) for segment in segments]
 
-            await ctx.info(f'Fetching billing view segments (page {page_count})')
-            response = bvs_client.list_billing_view_segments(**request_params)
-
-            page_segments = response.get('items', [])
-            all_segments.extend(page_segments)
-
-            await ctx.info(f'Retrieved {len(page_segments)} segments (total: {len(all_segments)})')
-
-            current_token = response.get('nextToken')
-            if not current_token:
-                break
-
-        formatted_segments = [_format_billing_view_segment(segment) for segment in all_segments]
-
-        await ctx.info('Successfully listed billing view segments')
-
-        response_data: Dict[str, Any] = {
-            'segments': formatted_segments,
-            'total_count': len(formatted_segments),
-        }
-        if current_token:
-            response_data['next_token'] = current_token
-
-        return format_response('success', response_data)
+        converted = await convert_response_if_needed(
+            ctx,
+            {'segments': formatted_segments, 'pagination': pagination},
+            'bvs_list_billing_view_segments',
+            pagination_token_key='nextToken',
+            pagination=pagination,
+        )
+        return format_response('success', converted)
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'listBillingViewSegments', 'Billing')

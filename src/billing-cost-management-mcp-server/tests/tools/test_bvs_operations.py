@@ -1127,9 +1127,9 @@ class TestListBillingViewSegments:
         result = await list_billing_view_segments(mock_ctx)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 1
+        assert result['data']['pagination']['total_results'] == 1
         assert result['data']['segments'][0]['domain'] == 'BILLABLE'
-        assert 'next_token' not in result['data']
+        assert result['data']['pagination']['has_more'] is False
 
     @patch(PATCH_BVS_CLIENT)
     async def test_list_segments_with_arn(self, mock_create_client, mock_ctx):
@@ -1260,11 +1260,11 @@ class TestListBillingViewSegments:
         result = await list_billing_view_segments(mock_ctx)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 2
+        assert result['data']['pagination']['total_results'] == 2
         assert mock_client.list_billing_view_segments.call_count == 2
         assert result['data']['segments'][0]['domain'] == 'BILLABLE'
         assert result['data']['segments'][1]['domain'] == 'PRO_FORMA'
-        assert 'next_token' not in result['data']
+        assert result['data']['pagination']['has_more'] is False
 
     @patch(PATCH_BVS_CLIENT)
     async def test_list_segments_max_pages_stops_pagination(self, mock_create_client, mock_ctx):
@@ -1287,8 +1287,9 @@ class TestListBillingViewSegments:
         result = await list_billing_view_segments(mock_ctx, max_pages=1)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 1
-        assert result['data']['next_token'] == NEXT_TOKEN_MORE
+        assert result['data']['pagination']['total_results'] == 1
+        assert result['data']['pagination']['has_more'] is True
+        assert result['data']['pagination']['next_token'] == NEXT_TOKEN_MORE
 
     @patch(PATCH_BVS_CLIENT)
     async def test_list_segments_empty_result(self, mock_create_client, mock_ctx):
@@ -1300,7 +1301,7 @@ class TestListBillingViewSegments:
         result = await list_billing_view_segments(mock_ctx)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 0
+        assert result['data']['pagination']['total_results'] == 0
         assert result['data']['segments'] == []
 
     @patch(PATCH_BVS_CLIENT)
@@ -1369,7 +1370,7 @@ class TestListBillingViewSegments:
         result = await list_billing_view_segments(mock_ctx)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 2
+        assert result['data']['pagination']['total_results'] == 2
         assert result['data']['segments'][0]['domain'] == 'BILLABLE'
         assert result['data']['segments'][1]['domain'] == 'PRO_FORMA'
         assert 'billing_group_primary_account_id' not in result['data']['segments'][0]
