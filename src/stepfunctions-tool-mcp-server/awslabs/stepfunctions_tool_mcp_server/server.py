@@ -14,9 +14,6 @@
 
 """awslabs Step Functions Tool MCP Server implementation."""
 
-# This version should match the version in pyproject.toml
-__version__ = '0.1.5'
-
 import asyncio
 import json
 import logging
