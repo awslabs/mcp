@@ -14,6 +14,7 @@
 
 """Tests for AsyncmyPoolConnection with mocked asyncmy."""
 
+import asyncio
 import pytest
 from awslabs.mysql_mcp_server.connection.asyncmy_pool_connection import AsyncmyPoolConnection
 from datetime import datetime, timedelta
@@ -1116,3 +1117,86 @@ class TestCheckConnectionHealth:
             new=AsyncMock(side_effect=RuntimeError('socket reset')),
         ):
             assert await conn.check_connection_health() is False
+
+
+class TestRwLockFollowsEventLoop:
+    """The reader/writer lock must not outlive the event loop that first used it."""
+
+    def _connection(self):
+        return AsyncmyPoolConnection(
+            host='localhost',
+            port=3306,
+            database='testdb',
+            readonly=True,
+            secret_arn='arn:secret',
+            db_user='',
+            region='us-east-1',
+            is_iam_auth=False,
+            is_test=True,
+        )
+
+    def test_lock_is_recreated_for_a_new_event_loop(self):
+        """A lock bound under one asyncio.run() is replaced for the next loop.
+
+        server.py validates under asyncio.run() and then mcp.run() starts a new
+        loop: the lock bound during validation raised "is bound to a different
+        event loop" on the first real query.
+        """
+        conn = self._connection()
+
+        async def use_lock():
+            async with conn.rw_lock.writer_lock:
+                return conn.rw_lock
+
+        first = asyncio.run(use_lock())
+        second = asyncio.run(use_lock())
+
+        assert first is not second
+
+    def test_lock_is_shared_within_one_event_loop(self):
+        """Within one loop every acquisition sees the same lock object."""
+        conn = self._connection()
+
+        async def use_lock_twice():
+            async with conn.rw_lock.writer_lock:
+                first = conn.rw_lock
+            async with conn.rw_lock.reader_lock:
+                second = conn.rw_lock
+            return first is second
+
+        assert asyncio.run(use_lock_twice()) is True
+
+    @patch(
+        'awslabs.mysql_mcp_server.connection.asyncmy_pool_connection.asyncmy.create_pool',
+        new_callable=AsyncMock,
+    )
+    def test_pool_closed_in_one_loop_is_reinitialized_in_the_next(self, mock_create_pool):
+        """A pool released in the validation loop is re-created in the server loop.
+
+        The startup validation closes its pool before asyncio.run() returns; the
+        server loop then opens a fresh one instead of reusing a dead pool.
+        """
+
+        def make_pool():
+            pool = MagicMock()
+            pool.wait_closed = AsyncMock()
+            return pool
+
+        mock_create_pool.side_effect = lambda **kwargs: make_pool()
+        conn = self._connection()
+
+        async def validate_and_release():
+            await conn.initialize_pool()
+            await conn.close()
+
+        async def first_real_query():
+            await conn.check_expiry()
+            return conn.pool
+
+        asyncio.run(validate_and_release())
+        assert conn.pool is None
+
+        pool = asyncio.run(first_real_query())
+
+        assert pool is not None
+        assert mock_create_pool.call_count == 2
