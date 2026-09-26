@@ -90,6 +90,13 @@ Validates against the server's bundled cfn-guard security rules.
 #### troubleshoot_cloudformation_deployment
 Analyzes failed CloudFormation stacks and provides resolution guidance.
 
+When recent operation metadata is available, failed events are retrieved for the
+most recent non-rollback operation, so a successful rollback does not hide the
+deployment failure. Failed rollbacks retain the latest operation so their own
+failures remain visible. Rollback-only metadata uses that rollback operation; stacks
+without operation IDs use the existing stack-name lookup. All event pages are
+included in the analysis.
+
 **Use this tool to:**
 - Diagnose deployment failures with pattern matching against 30+ known cases
 - Get CloudTrail deep links and specific resolution steps
