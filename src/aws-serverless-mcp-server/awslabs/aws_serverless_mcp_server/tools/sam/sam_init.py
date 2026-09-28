@@ -86,7 +86,8 @@ class SamInitTool:
             default=None,
             description="""Template or application location (Git, HTTP/HTTPS, zip file path).
                 This GitHub repo https://github.com/aws/aws-sam-cli-app-templates contains a collection of templates.
-                This parameter is required if app_template is not specified.""",
+                This parameter is required if app_template is not specified.
+                Fetches and later builds/deploys code from this source. Only use locations you trust.""",
         ),
         save_params: Optional[bool] = Field(
             default=False, description='Save parameters to the SAM configuration file'
