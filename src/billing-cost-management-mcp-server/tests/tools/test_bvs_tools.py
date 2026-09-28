@@ -107,6 +107,13 @@ def test_get_resource_policy_tool_registered():
     assert tool.name == 'get-resource-policy'
 
 
+def test_list_billing_view_segments_tool_registered():
+    """Test that the list_billing_view_segments tool is registered with proper name."""
+    tool = asyncio.run(bvs_server.get_tool('list-billing-view-segments'))
+    assert tool is not None
+    assert tool.name == 'list-billing-view-segments'
+
+
 @pytest.mark.asyncio
 class TestGetBillingViewTool:
     """Tests for the get_billing_view MCP tool wrapper."""
@@ -490,3 +497,151 @@ class TestGetResourcePolicyTool:
 
             assert result['status'] == STATUS_ERROR
             mock_handle.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+class TestListBillingViewSegmentsTool:
+    """Tests for the list_billing_view_segments MCP tool wrapper."""
+
+    async def test_delegates_to_operation(self, mock_ctx):
+        """Test that the tool delegates to the operation function."""
+        bvs_mod = _reload_bvs_with_identity_decorator()
+        real_fn = bvs_mod.list_billing_view_segments  # type: ignore
+
+        with patch.object(
+            bvs_mod, '_list_billing_view_segments', new_callable=AsyncMock
+        ) as mock_op:
+            mock_op.return_value = {
+                'status': STATUS_SUCCESS,
+                'data': {
+                    'segments': [
+                        {
+                            'domain': 'BILLABLE',
+                            'management_account_id': ACCOUNT_ID_PRIMARY,
+                            'time_range': {
+                                'begin_date_inclusive': '2024-09-01T00:00:00',
+                                'end_date_exclusive': '2024-10-01T00:00:00',
+                            },
+                        },
+                    ],
+                    'pagination': {
+                        'total_results': 1,
+                        'has_more': False,
+                    },
+                },
+            }
+
+            result = await real_fn(mock_ctx)  # type: ignore
+
+            assert result['status'] == STATUS_SUCCESS
+            assert result['data']['pagination']['total_results'] == 1
+            mock_op.assert_awaited_once_with(
+                mock_ctx,
+                arn=None,
+                max_results=None,
+                begin_date_inclusive=None,
+                end_date_exclusive=None,
+                max_pages=10,
+                next_token=None,
+            )
+
+    async def test_passes_all_params(self, mock_ctx):
+        """Test that all parameters are passed through to the operation function."""
+        bvs_mod = _reload_bvs_with_identity_decorator()
+        real_fn = bvs_mod.list_billing_view_segments  # type: ignore
+
+        with patch.object(
+            bvs_mod, '_list_billing_view_segments', new_callable=AsyncMock
+        ) as mock_op:
+            mock_op.return_value = {
+                'status': STATUS_SUCCESS,
+                'data': {'segments': [], 'pagination': {'total_results': 0, 'has_more': False}},
+            }
+
+            result = await real_fn(  # type: ignore
+                mock_ctx,
+                arn=BILLING_VIEW_ARN_PRIMARY,
+                max_results=50,
+                begin_date_inclusive='2024-09-01',
+                end_date_exclusive='2024-10-01',
+                max_pages=5,
+                next_token='tok123',
+            )
+
+            assert result['status'] == STATUS_SUCCESS
+            mock_op.assert_awaited_once_with(
+                mock_ctx,
+                arn=BILLING_VIEW_ARN_PRIMARY,
+                max_results=50,
+                begin_date_inclusive='2024-09-01',
+                end_date_exclusive='2024-10-01',
+                max_pages=5,
+                next_token='tok123',
+            )
+
+    async def test_handles_operation_error(self, mock_ctx):
+        """Test that errors from the operation are returned properly."""
+        bvs_mod = _reload_bvs_with_identity_decorator()
+        real_fn = bvs_mod.list_billing_view_segments  # type: ignore
+
+        with patch.object(
+            bvs_mod, '_list_billing_view_segments', new_callable=AsyncMock
+        ) as mock_op:
+            mock_op.return_value = {
+                'status': STATUS_ERROR,
+                'error_type': 'AccessDeniedException',
+                'message': 'You do not have sufficient access',
+            }
+
+            result = await real_fn(mock_ctx)  # type: ignore
+
+            assert result['status'] == STATUS_ERROR
+
+    async def test_handles_unexpected_exception(self, mock_ctx):
+        """Test that unexpected exceptions are caught by the tool wrapper."""
+        bvs_mod = _reload_bvs_with_identity_decorator()
+        real_fn = bvs_mod.list_billing_view_segments  # type: ignore
+
+        with (
+            patch.object(
+                bvs_mod, '_list_billing_view_segments', new_callable=AsyncMock
+            ) as mock_op,
+            patch.object(bvs_mod, 'handle_aws_error', new_callable=AsyncMock) as mock_handle,
+        ):
+            mock_op.side_effect = RuntimeError('Unexpected error')
+            mock_handle.return_value = {'status': STATUS_ERROR, 'message': 'Unexpected error'}
+
+            result = await real_fn(mock_ctx)  # type: ignore
+
+            assert result['status'] == STATUS_ERROR
+            mock_handle.assert_awaited_once()
+
+    async def test_with_time_range_params(self, mock_ctx):
+        """Test calling with begin_date_inclusive and end_date_exclusive parameters."""
+        bvs_mod = _reload_bvs_with_identity_decorator()
+        real_fn = bvs_mod.list_billing_view_segments  # type: ignore
+
+        with patch.object(
+            bvs_mod, '_list_billing_view_segments', new_callable=AsyncMock
+        ) as mock_op:
+            mock_op.return_value = {
+                'status': STATUS_SUCCESS,
+                'data': {'segments': [], 'pagination': {'total_results': 0, 'has_more': False}},
+            }
+
+            result = await real_fn(  # type: ignore
+                mock_ctx,
+                begin_date_inclusive='2024-09-01T00:00:00',
+                end_date_exclusive='2024-10-01T00:00:00',
+            )
+
+            assert result['status'] == STATUS_SUCCESS
+            mock_op.assert_awaited_once_with(
+                mock_ctx,
+                arn=None,
+                max_results=None,
+                begin_date_inclusive='2024-09-01T00:00:00',
+                end_date_exclusive='2024-10-01T00:00:00',
+                max_pages=10,
+                next_token=None,
+            )
