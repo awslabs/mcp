@@ -325,3 +325,73 @@ class TestRunQuerySuccess:
             'SELECT * FROM users WHERE id = :id', params
         )
         assert result[0]['id'] == 42
+
+
+class TestRunQueryStatementLeadingVerbsReadonly:
+    """Server-level proof that statement-leading mutating verbs are gated.
+
+    Exercises run_query end-to-end (not just detect_mutating_keywords) to
+    prove the read-only gate rejects the new verbs before the query reaches
+    the backend, and that execute_query is never invoked.
+    """
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            "DO GET_LOCK('x', 60)",
+            'SHUTDOWN',
+            'RESTART',
+            'COMMIT',
+            'START TRANSACTION',
+            'BEGIN',
+            'ROLLBACK',
+            "PURGE BINARY LOGS TO 'mysql-bin.000001'",
+            'STOP REPLICA',
+            "CHANGE REPLICATION SOURCE TO SOURCE_HOST='h'",
+            'REPLACE t SET id = 1',
+            # #-line-comment (no space) must not hide the verb end-to-end
+            "#x\nDO GET_LOCK('x', 60)",
+            '#c\nSHUTDOWN',
+        ],
+    )
+    @patch('awslabs.mysql_mcp_server.server.db_connection_map')
+    async def test_rejects_statement_leading_verb_in_readonly(self, mock_map, sql, mock_ctx):
+        """Each verb is rejected in read-only mode and never reaches the DB."""
+        mock_conn = MagicMock()
+        mock_conn.readonly_query = True
+        mock_conn.execute_query = AsyncMock()
+        mock_map.get.return_value = mock_conn
+
+        result = await run_query(
+            sql=sql,
+            ctx=mock_ctx,
+            connection_method=ConnectionMethod.RDS_API,
+            cluster_identifier='cluster-1',
+            db_endpoint='ep',
+            database='testdb',
+        )
+
+        assert result[0]['error'] == write_query_prohibited_key
+        mock_conn.execute_query.assert_not_called()
+
+    @patch('awslabs.mysql_mcp_server.server.db_connection_map')
+    async def test_allows_keyword_as_data_in_readonly(self, mock_map, mock_ctx):
+        """A benign read that only mentions the verbs as data is allowed through."""
+        mock_conn = MagicMock()
+        mock_conn.readonly_query = True
+        mock_conn.execute_query = AsyncMock(
+            return_value={'columnMetadata': [{'name': 'start'}], 'records': [[{'longValue': 1}]]}
+        )
+        mock_map.get.return_value = mock_conn
+
+        result = await run_query(
+            sql='SELECT start, stop FROM (SELECT 1 AS start, 2 AS stop) x',
+            ctx=mock_ctx,
+            connection_method=ConnectionMethod.RDS_API,
+            cluster_identifier='cluster-1',
+            db_endpoint='ep',
+            database='testdb',
+        )
+
+        assert 'error' not in result[0]
+        mock_conn.execute_query.assert_called_once()

@@ -150,3 +150,50 @@ async def test_search_table_multi_table_section():
         assert result.tables_with_matches >= 1
         # ImportImage is in the VM Import/Export table, not the main EC2 table
         assert any('ImportImage' in str(r.rows) for r in result.results)
+
+
+@pytest.mark.asyncio
+@pytest.mark.live
+async def test_no_header_row_is_returned_as_data():
+    """Live AWS tables carry a <thead> and no <tbody>, so the header must not parse as a row."""
+    url = 'https://docs.aws.amazon.com/general/latest/gr/sts.html'
+    ctx = MockContext()
+
+    with patch(
+        'awslabs.aws_documentation_mcp_server.server_aws.DEFAULT_USER_AGENT',
+        TEST_USER_AGENT,
+    ):
+        # every word here is a column name, so a match can only be the header row
+        result = await search_table_global(
+            ctx, url=url, section_title=None, query='Region Name Endpoint Protocol', max_rows=20
+        )
+
+        assert result.tables_searched >= 1, 'the endpoint table should have been read'
+        assert result.tables_with_matches == 0, f'header row leaked as data: {result.results}'
+
+
+@pytest.mark.asyncio
+@pytest.mark.live
+async def test_endpoint_rows_are_real_data():
+    """A real query returns a data row, and the multi-value delimiter is applied."""
+    url = 'https://docs.aws.amazon.com/general/latest/gr/sts.html'
+    ctx = MockContext()
+
+    with patch(
+        'awslabs.aws_documentation_mcp_server.server_aws.DEFAULT_USER_AGENT',
+        TEST_USER_AGENT,
+    ):
+        result = await search_table_global(
+            ctx, url=url, section_title=None, query='us-east-2', max_rows=5
+        )
+
+        assert result.tables_with_matches == 1
+        rows = result.results[0].rows
+        assert rows, 'us-east-2 should be present in the STS endpoint table'
+        row = rows[0]
+        assert row['Region'] == 'us-east-2'
+        assert row['Region Name'] != 'Region Name'
+        # fused values would be one element, so a split of 2+ is the delimiter working
+        endpoints = row['Endpoint'].split('; ')
+        assert len(endpoints) >= 2, f'endpoints did not split: {endpoints}'
+        assert all('us-east-2' in e for e in endpoints), endpoints

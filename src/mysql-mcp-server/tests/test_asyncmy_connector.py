@@ -150,7 +150,9 @@ class TestAsyncmyPoolConnectionInitializePool:
         assert call_kwargs['db'] == 'testdb'
         assert call_kwargs['user'] == 'test_user'
         assert call_kwargs['password'] == 'test_password'
-        assert call_kwargs['ssl'] is None
+        assert (
+            call_kwargs['ssl'] is not None
+        )  # TLS required when a Secrets Manager password is on the wire
         assert conn.pool is mock_pool
 
     @patch(

@@ -96,6 +96,11 @@ class TestUploadArtifactFromFile:
 
             assert parsed['success'] is True
             assert parsed['data']['artifactId'] == 'art-file-1'
+            timeout = mock_httpx_cls.call_args.kwargs['timeout']
+            assert timeout.connect == 10.0
+            assert timeout.read == 60.0
+            assert timeout.write == 900.0
+            assert timeout.pool == 10.0
 
             # Verify fileMetadata was sent
             create_call = mock_fes.call_args_list[0]

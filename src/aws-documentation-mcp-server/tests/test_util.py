@@ -17,11 +17,14 @@ import httpx
 import os
 import pytest
 from awslabs.aws_documentation_mcp_server.util import (
+    UnreadablePageError,
     add_search_intent_to_search_request,
     enforce_redirect_allowlist,
     extract_content_from_html,
     extract_sections_from_html,
     format_documentation_result,
+    has_empty_link_target,
+    has_readable_text,
     is_html_content,
     parse_recommendation_results,
     url_matches_allowlist,
@@ -215,6 +218,30 @@ class TestFormatDocumentationResult:
         assert 'Content truncated' not in result
 
 
+class TestMarkdownifyOptions:
+    """The markdownify options this package pins, and what breaks if they move."""
+
+    def test_link_titles_are_not_repeated_from_the_href(self):
+        """default_title=True would render [text](url "url"), doubling every href."""
+        html = (
+            '<html><body><main><p><a href="https://x.example/a">Text</a></p></main></body></html>'
+        )
+        out = extract_content_from_html(html)
+        assert '[Text](https://x.example/a)' in out
+        assert '"https://x.example/a")' not in out
+
+    def test_bare_urls_keep_the_bracket_form(self):
+        """autolinks=True would emit <url> instead of [url](url), changing every bare link."""
+        html = (
+            '<html><body><main><p>'
+            '<a href="https://x.example/a">https://x.example/a</a>'
+            '</p></main></body></html>'
+        )
+        out = extract_content_from_html(html)
+        assert '[https://x.example/a](https://x.example/a)' in out
+        assert '<https://x.example/a>' not in out
+
+
 class TestExtractContentFromHtml:
     """Tests for extract_content_from_html function."""
 
@@ -240,10 +267,9 @@ class TestExtractContentFromHtml:
     def test_empty_content(self, mock_soup):
         """Test extraction with empty content."""
         # Call function with empty content
-        result = extract_content_from_html('')
+        with pytest.raises(UnreadablePageError, match='Empty HTML content'):
+            extract_content_from_html('')
 
-        # Assertions
-        assert result == '<e>Empty HTML content</e>'
         mock_soup.assert_not_called()
 
     def test_extract_content_with_programlisting(self):
@@ -331,16 +357,18 @@ class TestExtractContentFromHtml:
             mock_soup = MagicMock()
             mock_bs.return_value = mock_soup
             mock_soup.body = None
-            result = extract_content_from_html(html)
-            assert '<e>' in result
+            with pytest.raises(UnreadablePageError):
+                extract_content_from_html(html)
             mock_bs.assert_called_once()
 
     def test_extract_content_exception_during_conversion(self):
         """Test that exceptions during markdownify are caught and returned as error."""
         html = '<html><body><p>Test</p></body></html>'
         with patch('markdownify.markdownify', side_effect=Exception('conversion failed')):
-            result = extract_content_from_html(html)
-            assert '<e>Error converting HTML to Markdown: conversion failed</e>' == result
+            with pytest.raises(
+                UnreadablePageError, match='Error converting HTML to Markdown: conversion failed'
+            ):
+                extract_content_from_html(html)
 
 
 class TestFormatDocumentationResultEdgeCases:
@@ -867,3 +895,202 @@ class TestExtractSectionsFromHtml:
         assert '<h2>Main Section</h2>' in result
         assert 'First main content' in result
         assert 'Second main content' in result  # Should include both matching sections
+
+
+class TestEmptyLinkTargets:
+    """An unresolved cross-reference became a link to nowhere."""
+
+    @pytest.mark.parametrize(
+        'href',
+        [
+            './.html#cross-region-ip-apac.amazon.nova-pro-v1:0',
+            './.html',
+            '.html',
+            '/bedrock/latest/userguide/.html',
+            '.htm',
+            './.HTML',
+            './.html?highlight=x',
+            '//docs.aws.amazon.com/.html',
+            '  ./.html  ',
+        ],
+    )
+    def test_empty_targets_detected(self, href):
+        """An href whose filename portion is empty is reported as broken."""
+        assert has_empty_link_target(href) is True
+
+    @pytest.mark.parametrize(
+        'href',
+        [
+            './models-region-compatibility.html',
+            'https://docs.aws.amazon.com/bedrock/latest/userguide/quotas.html',
+            '#in-page-anchor',
+            '',
+            '/bedrock/latest/userguide/',
+            'endpoints.html#section',
+            'foo/.',  # a directory reference, not a missing filename
+            '..',
+            './',
+            'mailto:someone@example.com',
+            'javascript:void(0)',
+        ],
+    )
+    def test_valid_targets_untouched(self, href):
+        """Ordinary hrefs, directory links and fragment-only links are left alone."""
+        assert has_empty_link_target(href) is False
+
+    def test_broken_link_becomes_plain_text(self):
+        """The link is dropped and its text kept, rather than emitting './.html'."""
+        html = """<html><body><main>
+        <p>Use the <a href="./.html#cross-region-ip-apac">APAC Nova Pro inference profile</a>.</p>
+        </main></body></html>"""
+        result = extract_content_from_html(html)
+        assert 'APAC Nova Pro inference profile' in result
+        assert '.html' not in result
+        assert '](' not in result
+
+    def test_valid_link_still_rendered(self):
+        """A resolvable link in the same paragraph is still emitted as markdown."""
+        html = """<html><body><main>
+        <p>See <a href="./quotas.html">Quotas</a> and <a href="./.html">Nothing</a>.</p>
+        </main></body></html>"""
+        result = extract_content_from_html(html)
+        assert '](./quotas.html' in result
+        assert 'Nothing' in result
+        assert './.html' not in result
+
+
+class TestLinkTitlesNotDuplicated:
+    """A link title that merely repeats the href spends the read budget for nothing."""
+
+    def test_href_not_repeated_as_title(self):
+        """Links render as [text](url), not [text](url "url")."""
+        html = """<html><body><main>
+        <p>See <a href="./quotas.html">Quotas</a>.</p>
+        </main></body></html>"""
+        result = extract_content_from_html(html)
+        assert '[Quotas](./quotas.html)' in result
+
+    def test_authored_title_preserved(self):
+        """A title the page actually authored is still emitted."""
+        html = """<html><body><main>
+        <p>See <a href="./quotas.html" title="Service quotas">Quotas</a>.</p>
+        </main></body></html>"""
+        result = extract_content_from_html(html)
+        assert '[Quotas](./quotas.html "Service quotas")' in result
+
+
+class TestReadableTextPredicate:
+    """A page carries prose only if text survives outside markup."""
+
+    def _soup(self, html):
+        from bs4 import BeautifulSoup
+
+        return BeautifulSoup(html, 'html.parser')
+
+    def test_prose_nested_inside_noscript_is_not_readable(self):
+        """The JS-disabled banner sits several levels down, so the parent alone is not enough."""
+        html = (
+            '<html><body><noscript><div><div><p><strong>Javascript is disabled'
+            '</strong></p></div></div></noscript></body></html>'
+        )
+        assert has_readable_text(self._soup(html)) is False
+
+    def test_a_comment_is_not_readable_text(self):
+        """A comment is markup, not prose."""
+        html = '<html><body><!-- generated by the doc build --></body></html>'
+        assert has_readable_text(self._soup(html)) is False
+
+    def test_a_script_and_style_shell_is_not_readable(self):
+        """A bootstrap shell carries code, not content."""
+        html = (
+            '<html><body><script>window.awsdocs={guide:"x"};</script>'
+            '<style>.awsdocs-body{margin:0}</style></body></html>'
+        )
+        assert has_readable_text(self._soup(html)) is False
+
+    def test_a_banner_alongside_real_prose_is_readable(self):
+        """An ordinary page carries the banner and content, and must stay readable."""
+        html = (
+            '<html><body><noscript><div><p>Javascript is disabled</p></div></noscript>'
+            '<main><p>Real prose.</p></main></body></html>'
+        )
+        assert has_readable_text(self._soup(html)) is True
+
+
+class TestShellPagesDoNotSimplify:
+    """A page whose body is only markup raises rather than returning the markup as prose."""
+
+    def test_inline_script_is_not_returned_as_documentation(self):
+        """A tag stripped by markdownify keeps its text, so script bodies are removed outright."""
+        html = (
+            '<html><body><script>window.awsdocs={guide:"reference"};boot();</script>'
+            '<style>.awsdocs-body{margin:0}</style></body></html>'
+        )
+        with pytest.raises(UnreadablePageError):
+            extract_content_from_html(html)
+
+    def test_nested_noscript_banner_alone_raises(self):
+        """A shell carrying only the JS-disabled banner has no content."""
+        html = (
+            '<html><body><noscript><div><p><strong>Javascript is disabled'
+            '</strong></p></div></noscript></body></html>'
+        )
+        with pytest.raises(UnreadablePageError):
+            extract_content_from_html(html)
+
+    def test_comment_only_body_raises(self):
+        """A build comment is not content."""
+        with pytest.raises(UnreadablePageError):
+            extract_content_from_html(
+                '<html><body><!-- built by the doc pipeline --></body></html>'
+            )
+
+    def test_a_real_page_still_extracts(self):
+        """The guard does not fire on a page that has prose."""
+        html = '<html><body><main><h1>Title</h1><p>Real prose here.</p></main></body></html>'
+        result = extract_content_from_html(html)
+        assert 'Real prose here.' in result
+
+
+class TestSectionTitleMatching:
+    """A caller passing a rendered heading finds the section, whatever markup it contains."""
+
+    HTML = (
+        '<html><body><main>'
+        '<h2>Using the <code>Switch Role</code> API</h2><p>First body.</p>'
+        '<h2>Plain Heading</h2><p>Second body.</p>'
+        '</main></body></html>'
+    )
+
+    def test_a_heading_with_inline_markup_is_matchable(self):
+        """The rendered text of the heading is what a caller can see and pass."""
+        result = extract_sections_from_html(self.HTML, ['Using the Switch Role API'])
+        assert 'First body.' in result
+        assert 'Second body.' not in result
+
+    def test_available_sections_are_reported_readably(self):
+        """A miss lists titles a caller can actually retry with."""
+        with pytest.raises(ValueError) as excinfo:
+            extract_sections_from_html(self.HTML, ['No Such Section'])
+        message = str(excinfo.value)
+        assert 'Using the Switch Role API' in message
+        assert 'UsingtheSwitchRoleAPI' not in message
+
+    def test_a_plain_heading_still_matches(self):
+        """The normalizer does not disturb headings without markup."""
+        result = extract_sections_from_html(self.HTML, ['Plain Heading'])
+        assert 'Second body.' in result
+
+
+class TestWhitespaceOnlyBody:
+    """Markup that converts to nothing but whitespace is not a successful read."""
+
+    def test_line_breaks_alone_are_not_content(self):
+        """A body of <br> converts to spaces and newlines, which is not prose."""
+        with pytest.raises(UnreadablePageError):
+            extract_content_from_html('<html><body><br><br></body></html>')
+
+    def test_empty_paragraphs_are_not_content(self):
+        """Paragraphs holding only whitespace are not prose either."""
+        with pytest.raises(UnreadablePageError):
+            extract_content_from_html('<html><body><p> </p><p>  </p></body></html>')

@@ -19,6 +19,7 @@ from awslabs.aws_healthomics_mcp_server.analysis.cost_analyzer import CostAnalyz
 from awslabs.aws_healthomics_mcp_server.analysis.instance_recommender import InstanceRecommender
 from awslabs.aws_healthomics_mcp_server.analysis.pricing_cache import PricingCache
 from awslabs.aws_healthomics_mcp_server.analysis.task_aggregator import TaskAggregator
+from awslabs.aws_healthomics_mcp_server.metrics.analysis import metrics_section_for_report
 from awslabs.aws_healthomics_mcp_server.tools.workflow_analysis import (
     get_run_manifest_logs_internal,
 )
@@ -186,6 +187,20 @@ Please verify the run IDs and ensure the runs have completed successfully.
 
         # Generate the comprehensive analysis report
         report = await _generate_analysis_report(analysis_data, detailed=detailed)
+
+        # Enrich with the vended-metrics (CloudWatch OTel) pass: fine-grained
+        # CPU/memory/GPU/filesystem/network/scratch signatures, stuck-run
+        # verdicts for active runs, and observed-peak right-sizing. This pass
+        # never raises; on any failure it appends an explanatory note instead.
+        metrics_sections: List[str] = []
+        for run_id in normalized_run_ids:
+            metrics_sections.extend(
+                metrics_section_for_report(
+                    run_id, region=aws_region, profile=aws_profile, headroom=headroom
+                )
+            )
+        if metrics_sections:
+            report = report + '\n' + '\n'.join(metrics_sections)
 
         logger.info(f'Generated analysis report for {len(analysis_data["runs"])} runs')
         return report

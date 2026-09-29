@@ -313,42 +313,12 @@ To test the MCP server locally using Docker:
 
 ## AI Rules
 
-This repository also contains AI Rules (Steering). These markdown files serve as simple
-context and guidance for best practices and patterns that AI assistants automatically apply
-when generating code to improve the quality of agentic development.
+The standalone DSQL Agent Skill in this repository is deprecated. Its
+directories now provide compatibility redirects only. Use the canonical
+[`dsql` skill in the `databases-on-aws` plugin](https://github.com/awslabs/agent-plugins/tree/main/plugins/databases-on-aws/skills/dsql)
+for current DSQL guidance.
 
-Recommended paths:
-* [Skills CLI for Agent-Agnostic Installation](#skills-cli)
-* [Kiro Power](#kiro-power) - button-click installation
-* [Claude Skill](#claude-skill) - installation instructions in [claude_skill_setup.md](https://github.com/awslabs/mcp/blob/main/src/aurora-dsql-mcp-server/skills/claude_skill_setup.md)
-* [Gemini Skill](#gemini-skill) - use Gemini's github subrepo skill installation with `--path`
-* [Codex Skill](#codex-skill) - use Codex's `$skill-installer` skill.
-
-Alternative:
-The [dsql-skill](https://github.com/awslabs/mcp/tree/main/src/aurora-dsql-mcp-server/skills/dsql-skill) can also be cloned into your tool's respective `rules` directory
-for use with other coding assistants.
-
-### Skills CLI
-The [DSQL skill](https://skills.sh/awslabs/mcp/dsql) can also be installed using the [Skills CLI](https://skills.sh/docs/cli).
-
-```bash
-npx skills add awslabs/mcp --skill dsql
-```
-
-The CLI will guide you through:
-* Selecting the agents you'd like to install to (Kiro, Claude Code, Cursor, Copilot, Gemini, Codex, Roo, Cline, OpenCode, Windsurf, etc.)
-* Installation scope
-  - Project: Install in current directory (committed with your project)
-  - Global: Install in home directory (available across all projects)
-*  Installation method
-   - Symlink (Recommended): Single source of truth, easy updates
-   - Copy to all agents: Independent copies for each agent
-
-Check and update skills at any time using:
-```bash
-npx skills check
-npx skills update
-```
+The Kiro Power remains available as described below.
 
 ### Kiro Power
 
@@ -364,39 +334,16 @@ To setup the Kiro power:
       - The Kiro agent will automatically activate the power if it identifies the power as valuable for completing
         the user's task.
 
-### Claude Skill
-**Simple Setup with the Skills CLI**:
-As outlined, the skill can be installed to Claude Code with the [Skills CLI](#skills-cli). To specify
-only Claude Code as the agent to install to, use:
+### Canonical DSQL Agent Skill
 
-```bash
-npx skills add awslabs/mcp --skill dsql --agent claude-code
+For Claude Code, use the verified plugin commands:
+
+```text
+/plugin marketplace add awslabs/agent-plugins
+/plugin install databases-on-aws@agent-plugins-for-aws
 ```
 
-**Direct Setup using a Git Clone**:
-The alternative setup is outlined in [claude_skill_setup.md](https://github.com/awslabs/mcp/blob/main/src/aurora-dsql-mcp-server/skills/claude_skill_setup.md).
-
-The method outlines taking a sparse clone of the dsql-skill directory and symlinking this clone
-into the `.claude/skills/` folder. This allows changes to the skill to be pulled whenever the skill
-needs to be updated.
-
-### Gemini Skill
-
-To add the skill directly in Gemini, decide on a scope `workspace` (contained to project) or `user` (default, global)\
-and use the `skills` installer.
-
-```bash
-gemini skills install https://github.com/awslabs/mcp.git --path src/aurora-dsql-mcp-server/skills/dsql-skill --scope $SCOPE
-```
-
-You can then use the `/dsql` skill command with Gemini, and Gemini will automatically detect when the skill should be used.
-
-### Codex Skill
-
-Use the skill installer from the Codex CLI or TUI using the `$skill-installer` skill.
-
-```bash
-$skill-installer install dsql skill: https://github.com/awslabs/mcp/tree/main/src/aurora-dsql-mcp-server/skills/dsql-skill
-```
-
-Restart codex to pick up the skill. The skill can then be activated using `$dsql`.
+For Codex, Cursor, and other supported clients, follow the
+[current `awslabs/agent-plugins` installation instructions](https://github.com/awslabs/agent-plugins#installation).
+Do not remove an existing standalone skill checkout or symlink without the
+user's explicit approval.

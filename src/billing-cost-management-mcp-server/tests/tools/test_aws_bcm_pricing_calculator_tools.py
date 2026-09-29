@@ -1893,3 +1893,29 @@ class TestBcmPricingCalcCoreFunction:
             'Failed to process AWS Billing and Cost Management Pricing Calculator request'
             in result['message']
         )
+
+
+class TestBcmPricingCalcToolSchema:
+    """Tests that the registered bcm-pricing-calc tool exposes per-argument descriptions.
+
+    Regression guard for the defect where the decorated wrapper carried only a one-line
+    docstring while the ``Args:`` block lived on the undecorated ``bcm_pricing_calc_core``
+    delegate, so FastMCP surfaced no per-parameter descriptions to the model.
+    """
+
+    @pytest.mark.asyncio
+    async def test_every_tool_param_has_schema_description(self):
+        """Every bcm-pricing-calc parameter (excluding ctx) must resolve a description."""
+        tool = await bcm_pricing_calculator_server.get_tool('bcm-pricing-calc')
+        assert tool is not None, 'bcm-pricing-calc tool should be registered'
+        properties = tool.parameters.get('properties', {})
+
+        # ctx is injected by FastMCP and is not part of the exposed input schema.
+        assert 'ctx' not in properties
+
+        assert properties, 'Expected the tool to expose input parameters'
+
+        missing = [
+            name for name, spec in properties.items() if not spec.get('description', '').strip()
+        ]
+        assert not missing, f'Tool params missing schema descriptions: {missing}'

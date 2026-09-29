@@ -7,9 +7,10 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 """Tests for CA bundle loading and --ca_bundle override.
 
-These tests guard the IAM-auth trust resolution path: which CA file ends
-up trusted by the SSL context depending on whether the bundled PEM is
-present and whether the operator passed --ca_bundle <path>.
+These tests guard the trust resolution path for credentialed connections
+(IAM auth and Secrets Manager): which CA file ends up trusted by the SSL
+context depending on whether the bundled PEM is present and whether the
+operator passed --ca_bundle <path>.
 """
 
 import os
@@ -220,12 +221,12 @@ class TestCaBundleSslContextWiring:
             'called with no cafile so the system trust store is used (warned).'
         )
 
-    async def test_no_ssl_context_for_non_iam(self, monkeypatch):
-        """Non-IAM connections must not configure an SSL context.
+    async def test_ssl_context_for_secret_arn_path(self, monkeypatch):
+        """The Secrets Manager credential path must configure an SSL context.
 
-        Setting an SSL context on `mysqlwire` (no IAM) connections would
-        force-upgrade them to TLS, which can break installations relying on
-        plaintext or server-certificate-managed TLS.
+        When secret_arn is set, a password is transmitted on the wire, so TLS
+        is required to prevent credential interception by an attacker-controlled
+        endpoint or a network observer (CWE-319).
         """
         from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -250,8 +251,79 @@ class TestCaBundleSslContextWiring:
             )
             await conn.initialize_pool()
 
-        assert captured['ssl_calls'] == 0, (
-            'create_default_context was called for a non-IAM connection. '
-            'mysqlwire must remain plaintext-capable.'
+        assert captured['ssl_calls'] == 1, (
+            'create_default_context must be called for the Secrets Manager path. '
+            'TLS is required when a password is on the wire.'
         )
+        assert mock_pool.call_args.kwargs['ssl'] is not None
+
+    async def test_no_ssl_when_no_secret_arn_and_no_iam(self, monkeypatch):
+        """With neither a secret nor IAM auth, no SSL context is configured.
+
+        Covers the false branch of the credentials-on-the-wire gate: when the
+        connection carries no secret_arn and is not IAM auth, no SSL context is
+        built (ssl stays None).
+        """
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        captured = {'ssl_calls': 0}
+
+        def fake_create_default_context(cafile=None):
+            captured['ssl_calls'] += 1
+            return MagicMock()
+
+        monkeypatch.setattr(mod.ssl_module, 'create_default_context', fake_create_default_context)
+        with patch.object(mod.asyncmy, 'create_pool', new_callable=AsyncMock) as mock_pool:
+            conn = AsyncmyPoolConnection(
+                host='localhost',
+                port=3306,
+                database='testdb',
+                readonly=True,
+                secret_arn='',  # no secret
+                db_user='testuser',
+                region='us-east-1',
+                is_iam_auth=False,  # no IAM auth
+                is_test=True,
+            )
+            await conn.initialize_pool()
+
+        assert captured['ssl_calls'] == 0
         assert mock_pool.call_args.kwargs['ssl'] is None
+
+    async def test_secret_path_uses_ca_bundle_override_when_set(self, monkeypatch):
+        """The Secrets Manager SSL path uses ca_bundle_path when the connection has one.
+
+        Unit-level check of the connection class: given a ca_bundle_path, the
+        Secrets Manager path builds its SSL context from that file rather than
+        the bundled fallback. (The server.py wiring that supplies this value
+        through the real entry point is guarded separately in test_server.py's
+        test_mysql_wire_protocol_builds_secret_pool.)
+        """
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        captured: dict = {'cafile': 'UNSET'}
+
+        def fake_create_default_context(cafile=None):
+            captured['cafile'] = cafile
+            return MagicMock()
+
+        monkeypatch.setattr(mod.ssl_module, 'create_default_context', fake_create_default_context)
+        with patch.object(mod.asyncmy, 'create_pool', new_callable=AsyncMock):
+            conn = AsyncmyPoolConnection(
+                host='localhost',
+                port=3306,
+                database='testdb',
+                readonly=True,
+                secret_arn='arn:secret',
+                db_user='',
+                region='us-east-1',
+                is_iam_auth=False,
+                ca_bundle_path='/tmp/operator-supplied.pem',
+                is_test=True,
+            )
+            await conn.initialize_pool()
+
+        assert captured['cafile'] == '/tmp/operator-supplied.pem', (
+            'The operator-supplied --ca_bundle must be used for the Secrets '
+            'Manager TLS path, not the bundled fallback.'
+        )

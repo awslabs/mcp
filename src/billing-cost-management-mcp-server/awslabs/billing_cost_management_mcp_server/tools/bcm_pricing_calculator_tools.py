@@ -227,7 +227,40 @@ async def bcm_pricing_calc(
     max_results: Optional[int] = None,
     max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """FastMCP tool wrapper for BCM Pricing Calculator operations."""
+    """FastMCP tool wrapper for BCM Pricing Calculator operations.
+
+    Args:
+        ctx: The MCP context object.
+        operation: The operation to perform. One of: get_workload_estimate,
+            list_workload_estimates, list_workload_estimate_usage, get_preferences.
+        identifier: The workload estimate identifier. Required for get_workload_estimate
+            and list_workload_estimate_usage.
+        created_after: Filter estimates created after this timestamp
+            (ISO format: YYYY-MM-DDTHH:MM:SS).
+        created_before: Filter estimates created before this timestamp
+            (ISO format: YYYY-MM-DDTHH:MM:SS).
+        expires_after: Filter estimates expiring after this timestamp
+            (ISO format: YYYY-MM-DDTHH:MM:SS).
+        expires_before: Filter estimates expiring before this timestamp
+            (ISO format: YYYY-MM-DDTHH:MM:SS).
+        status_filter: Filter by status (UPDATING, VALID, INVALID, ACTION_NEEDED).
+        name_filter: Filter by name (supports partial matching).
+        name_match_option: Match option for the name filter
+            (EQUALS, STARTS_WITH, CONTAINS). Defaults to CONTAINS.
+        usage_account_id_filter: Filter usage lines by AWS account ID.
+        service_code_filter: Filter usage lines by AWS service code
+            (e.g. AmazonEC2, AmazonS3).
+        usage_type_filter: Filter usage lines by usage type.
+        operation_filter: Filter usage lines by operation name.
+        location_filter: Filter usage lines by location/region.
+        usage_group_filter: Filter usage lines by usage group.
+        next_token: Token for pagination.
+        max_results: Maximum number of results to return.
+        max_pages: Maximum number of API calls (pages) to make.
+
+    Returns:
+        Dict containing the response data.
+    """
     # need this wrapper to improve code coverage as FastMCP decorated methods cannot be tested directly.
     return await bcm_pricing_calc_core(
         ctx,

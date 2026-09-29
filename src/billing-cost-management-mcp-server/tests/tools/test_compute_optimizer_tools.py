@@ -34,6 +34,7 @@ from awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools im
     get_auto_scaling_group_recommendations,
     get_ebs_volume_recommendations,
     get_ec2_instance_recommendations,
+    get_idle_recommendations,
     get_lambda_function_recommendations,
     get_rds_recommendations,
 )
@@ -240,6 +241,46 @@ def mock_co_client():
             }
         ],
         'nextToken': 'next-token-rds',
+    }
+
+    mock_client.get_idle_recommendations.return_value = {
+        'idleRecommendations': [
+            {
+                'accountId': '123456789012',
+                'resourceArn': 'arn:aws:ec2:us-east-1:123456789012:volume/vol-0abcdef1234567890',
+                'resourceId': 'vol-0abcdef1234567890',
+                'resourceType': 'EBSVolume',
+                'finding': 'Unattached',
+                'findingDescription': 'EBS Volume is unattached.',
+                'lookBackPeriodInDays': 14.0,
+                'lastRefreshTimestamp': datetime(2023, 1, 1),
+                'savingsOpportunity': {
+                    'savingsOpportunityPercentage': 100.0,
+                    'estimatedMonthlySavings': {
+                        'currency': 'USD',
+                        'value': 12.50,
+                    },
+                },
+                'savingsOpportunityAfterDiscounts': {
+                    'savingsOpportunityPercentage': 90.0,
+                    'estimatedMonthlySavings': {
+                        'currency': 'USD',
+                        'value': 11.25,
+                    },
+                },
+                'utilizationMetrics': [
+                    {
+                        'name': 'VolumeReadOpsPerSecond',
+                        'statistic': 'Maximum',
+                        'value': 0.0,
+                        'dimensions': [{'key': 'GlobalSecondaryIndexName', 'values': ['gsi-1']}],
+                    }
+                ],
+                'tags': [{'key': 'env', 'value': 'test'}],
+            }
+        ],
+        'errors': [],
+        'nextToken': 'next-token-idle',
     }
 
     return mock_client
@@ -638,6 +679,250 @@ class TestGetRDSRecommendations:
             assert call_kwargs['nextToken'] == 'next-page-rds'
 
 
+@pytest.mark.asyncio
+class TestGetIdleRecommendations:
+    """Tests for get_idle_recommendations function."""
+
+    async def test_basic_call(self, mock_context, mock_co_client):
+        """Test basic call to get_idle_recommendations."""
+        result = await get_idle_recommendations(
+            mock_context,
+            mock_co_client,
+            max_results=10,
+            filters=None,
+            account_ids=None,
+            next_token=None,
+        )
+
+        # Verify the client was called correctly
+        mock_co_client.get_idle_recommendations.assert_called_once()
+        call_kwargs = mock_co_client.get_idle_recommendations.call_args[1]
+        assert call_kwargs['maxResults'] == 10
+
+        # Verify response format
+        assert result['status'] == 'success'
+        assert 'recommendations' in result['data']
+        assert result['data']['errors'] == []
+        assert result['data']['next_token'] == 'next-token-idle'
+
+        recommendations = result['data']['recommendations']
+        assert len(recommendations) == 1
+        recommendation = recommendations[0]
+
+        assert (
+            recommendation['resource_arn']
+            == 'arn:aws:ec2:us-east-1:123456789012:volume/vol-0abcdef1234567890'
+        )
+        assert recommendation['resource_id'] == 'vol-0abcdef1234567890'
+        assert recommendation['resource_type'] == 'EBSVolume'
+        assert recommendation['account_id'] == '123456789012'
+        assert recommendation['finding'] == 'Unattached'
+        assert recommendation['finding_description'] == 'EBS Volume is unattached.'
+        assert recommendation['lookback_period_in_days'] == 14.0
+        assert recommendation['tags'] == [{'key': 'env', 'value': 'test'}]
+
+        assert recommendation['savings_opportunity']['savings_percentage'] == 100.0
+        assert (
+            recommendation['savings_opportunity']['estimated_monthly_savings']['currency'] == 'USD'
+        )
+        assert recommendation['savings_opportunity']['estimated_monthly_savings']['value'] == 12.50
+        assert recommendation['savings_opportunity_after_discounts']['savings_percentage'] == 90.0
+
+        assert len(recommendation['utilization_metrics']) == 1
+        metric = recommendation['utilization_metrics'][0]
+        assert metric['name'] == 'VolumeReadOpsPerSecond'
+        assert metric['statistic'] == 'Maximum'
+        assert metric['value'] == 0.0
+        assert metric['dimensions'] == [{'key': 'GlobalSecondaryIndexName', 'values': ['gsi-1']}]
+
+    async def test_with_filters(self, mock_context, mock_co_client):
+        """Test get_idle_recommendations with filters, account IDs, and next token."""
+        filters = '[{"name":"Finding","values":["Unattached"]}]'
+        account_ids = '["123456789012"]'
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools.parse_json'
+        ) as mock_parse_json:
+            mock_parse_json.side_effect = [
+                [{'name': 'Finding', 'values': ['Unattached']}],  # filters
+                ['123456789012'],  # account_ids
+            ]
+
+            await get_idle_recommendations(
+                mock_context,
+                mock_co_client,
+                max_results=10,
+                filters=filters,
+                account_ids=account_ids,
+                next_token='next-page-idle',
+            )
+
+            mock_co_client.get_idle_recommendations.assert_called_once()
+            call_kwargs = mock_co_client.get_idle_recommendations.call_args[1]
+            assert call_kwargs['filters'] == [{'name': 'Finding', 'values': ['Unattached']}]
+            assert call_kwargs['accountIds'] == ['123456789012']
+            assert call_kwargs['nextToken'] == 'next-page-idle'
+
+    async def test_resource_type_filter_normalized_to_idle_casing(
+        self, mock_context, mock_co_client
+    ):
+        """Passed ResourceType and Finding values are normalized to the idle enum spelling."""
+        filters = json.dumps(
+            [
+                {'name': 'ResourceType', 'values': ['EbsVolume', 'ec2instance', 'NatGateway']},
+                {'name': 'Finding', 'values': ['unattached', 'IDLE', 'Unused']},
+            ]
+        )
+
+        result = await get_idle_recommendations(
+            mock_context,
+            mock_co_client,
+            max_results=None,
+            filters=filters,
+            account_ids=None,
+            next_token=None,
+        )
+
+        expected = [
+            {'name': 'ResourceType', 'values': ['EBSVolume', 'EC2Instance', 'NatGateway']},
+            {'name': 'Finding', 'values': ['Unattached', 'Idle', 'Unused']},
+        ]
+        call_kwargs = mock_co_client.get_idle_recommendations.call_args[1]
+        assert call_kwargs['filters'] == expected
+        assert result['status'] == 'success'
+        assert result['data']['applied_filters'] == expected
+
+    async def test_unknown_resource_type_passed_through(self, mock_context, mock_co_client):
+        """Values the installed model doesn't know (or non-strings) are forwarded unchanged."""
+        filters = json.dumps([{'name': 'ResourceType', 'values': ['SomeFutureType', 42]}])
+
+        await get_idle_recommendations(mock_context, mock_co_client, None, filters, None, None)
+
+        call_kwargs = mock_co_client.get_idle_recommendations.call_args[1]
+        assert call_kwargs['filters'] == [
+            {'name': 'ResourceType', 'values': ['SomeFutureType', 42]}
+        ]
+
+    async def test_unrelated_filter_names_passed_through(self, mock_context, mock_co_client):
+        """Filters without a known enum (other names, non-dict entries) are left untouched."""
+        filters = json.dumps([{'name': 'SomethingElse', 'values': ['ebsvolume']}, 'raw'])
+
+        await get_idle_recommendations(mock_context, mock_co_client, None, filters, None, None)
+
+        call_kwargs = mock_co_client.get_idle_recommendations.call_args[1]
+        assert call_kwargs['filters'] == [
+            {'name': 'SomethingElse', 'values': ['ebsvolume']},
+            'raw',
+        ]
+
+    async def test_invalid_parameter_value_returns_valid_enum(self, mock_context, mock_co_client):
+        """InvalidParameterValueException is returned with the valid ResourceType/Finding sets."""
+        from botocore.exceptions import ClientError
+
+        mock_co_client.get_idle_recommendations.side_effect = ClientError(
+            {
+                'Error': {
+                    'Code': 'InvalidParameterValueException',
+                    'Message': 'Invalid filter value',
+                }
+            },
+            'GetIdleRecommendations',
+        )
+        filters = json.dumps([{'name': 'ResourceType', 'values': ['LambdaFunction']}])
+
+        result = await get_idle_recommendations(
+            mock_context, mock_co_client, None, filters, None, None
+        )
+
+        assert result['status'] == 'error'
+        assert result['data']['error_type'] == 'invalid_parameter_value'
+        assert result['data']['filters'] == [
+            {'name': 'ResourceType', 'values': ['LambdaFunction']}
+        ]
+        valid = result['data']['valid_resource_type_values']
+        assert 'EBSVolume' in valid
+        assert 'LambdaFunction' not in valid
+        assert result['data']['valid_finding_values'] == ['Idle', 'Unattached', 'Unused']
+
+    async def test_other_client_errors_propagate(self, mock_context, mock_co_client):
+        """Non-InvalidParameterValue errors still reach the dispatcher's error ladder."""
+        from botocore.exceptions import ClientError
+
+        mock_co_client.get_idle_recommendations.side_effect = ClientError(
+            {'Error': {'Code': 'ThrottlingException', 'Message': 'slow down'}},
+            'GetIdleRecommendations',
+        )
+
+        with pytest.raises(ClientError):
+            await get_idle_recommendations(mock_context, mock_co_client, None, None, None, None)
+
+
+class TestIdleEnumCanonicalMap:
+    """Tests for the model-driven idle ResourceType/Finding normalization maps."""
+
+    def test_values_come_from_service_model(self):
+        """Canonical values are read from the installed botocore model, not a literal."""
+        import botocore.session
+
+        mod = importlib.import_module(
+            'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools'
+        )
+        model_enum = (
+            botocore.session.get_session()
+            .get_service_model('compute-optimizer')
+            .shape_for('IdleRecommendationResourceType')
+            .enum
+        )
+
+        mod._idle_enum_canonical_map.cache_clear()
+        mapping = mod._idle_enum_canonical_map('IdleRecommendationResourceType')
+
+        assert sorted(mapping.values()) == sorted(model_enum)
+        assert mapping['ebsvolume'] == 'EBSVolume'
+        assert mapping['rdsdbinstance'] == 'RDSDBInstance'
+        # Case-folding must be collision-free for the fold to be deterministic.
+        assert len(mapping) == len(model_enum)
+        mod._idle_enum_canonical_map.cache_clear()
+
+    def test_finding_values_come_from_service_model(self):
+        """The Finding map is read from the model's IdleFinding enum."""
+        mod = importlib.import_module(
+            'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools'
+        )
+
+        mod._idle_enum_canonical_map.cache_clear()
+        mapping = mod._idle_enum_canonical_map(mod._IDLE_FILTER_ENUM_SHAPES['Finding'])
+
+        assert mapping == {'idle': 'Idle', 'unattached': 'Unattached', 'unused': 'Unused'}
+        mod._idle_enum_canonical_map.cache_clear()
+
+    def test_model_load_failure_skips_normalization(self):
+        """A model load failure yields an empty map and filters pass through untouched."""
+        mod = importlib.import_module(
+            'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools'
+        )
+        filters = [{'name': 'ResourceType', 'values': ['EbsVolume']}]
+
+        mod._idle_enum_canonical_map.cache_clear()
+        with patch('botocore.session.Session.get_service_model', side_effect=RuntimeError('boom')):
+            assert mod._idle_enum_canonical_map('IdleRecommendationResourceType') == {}
+            assert mod._normalize_idle_filters(filters) == filters
+        mod._idle_enum_canonical_map.cache_clear()
+
+    def test_model_without_enum_skips_normalization(self):
+        """A shape with no enum yields an empty map rather than raising."""
+        mod = importlib.import_module(
+            'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools'
+        )
+        service_model = MagicMock()
+        service_model.shape_for.return_value.enum = None
+
+        mod._idle_enum_canonical_map.cache_clear()
+        with patch('botocore.session.Session.get_service_model', return_value=service_model):
+            assert mod._idle_enum_canonical_map('IdleFinding') == {}
+        mod._idle_enum_canonical_map.cache_clear()
+
+
 class TestHelperFunctions:
     """Tests for helper functions."""
 
@@ -868,6 +1153,30 @@ class TestComputeOptimizerFastMCP:
             mock_impl.return_value = {'status': 'success', 'data': {'recommendations': []}}
 
             res = await real_fn(mock_context, operation='get_rds_recommendations', max_results=50)
+            assert res['status'] == 'success'
+            mock_impl.assert_awaited_once()
+
+    async def test_co_real_get_idle_recommendations_reload_identity_decorator(self, mock_context):
+        """Test real compute_optimizer get_idle_recommendations dispatch."""
+        co_mod = _reload_compute_optimizer_with_identity_decorator()
+        real_fn = co_mod.compute_optimizer
+
+        with (
+            patch.object(co_mod, 'create_aws_client') as mock_create_client,
+            patch.object(co_mod, 'get_context_logger') as mock_get_logger,
+            patch.object(co_mod, 'get_idle_recommendations', new_callable=AsyncMock) as mock_impl,
+        ):
+            mock_logger = AsyncMock()
+            mock_get_logger.return_value = mock_logger
+            mock_client = MagicMock()
+            mock_client.get_enrollment_status.return_value = {
+                'status': 'ACTIVE',
+                'resourceTypes': ['ebsVolume'],
+            }
+            mock_create_client.return_value = mock_client
+            mock_impl.return_value = {'status': 'success', 'data': {'recommendations': []}}
+
+            res = await real_fn(mock_context, operation='get_idle_recommendations', max_results=50)
             assert res['status'] == 'success'
             mock_impl.assert_awaited_once()
 

@@ -17,6 +17,7 @@
 import httpx
 import json
 import os
+from awslabs.aws_transform_mcp_server.consts import ARTIFACT_DOWNLOAD_TIMEOUT
 from typing import Any, Dict, Optional
 
 
@@ -257,7 +258,7 @@ async def download_s3_content(
     """
     from awslabs.aws_transform_mcp_server.file_validation import validate_write_path
 
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=ARTIFACT_DOWNLOAD_TIMEOUT) as client:
         response = await client.get(s3_url, follow_redirects=True)
         response.raise_for_status()
 

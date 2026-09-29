@@ -475,6 +475,7 @@ class TestDownloadAgentArtifact:
 
             result = await download_agent_artifact('ws-1', 'job-1', 'art-1')
 
+        assert mock_client.call_args.kwargs['timeout'].read == 60.0
         assert result['content'] == {'key': 'value'}
         assert result['rawText'] == '{"key": "value"}'
         assert 'warning' not in result

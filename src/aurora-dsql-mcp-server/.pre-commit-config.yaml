@@ -28,3 +28,30 @@ repos:
             exit $c'
         files: src/aurora-dsql-mcp-server/skills/dsql-skill/SKILL\.md$
         pass_filenames: false
+    -   id: check-dsql-skill-redirect-shape
+        name: check deprecated dsql skill redirect shape
+        language: system
+        entry: |-
+            bash -c '
+            base=src/aurora-dsql-mcp-server/skills
+            for name in \
+              dsql-skill \
+              aurora-dsql-skill \
+              amazon-aurora-dsql-skill \
+              aws-dsql-skill \
+              distributed-sql-skill \
+              distributed-postgres-skill
+            do
+              dir="$base/$name"
+              if [ ! -f "$dir/SKILL.md" ]; then
+                echo "$dir must contain SKILL.md" >&2
+                exit 1
+              fi
+              extra=$(find "$dir" -mindepth 1 -maxdepth 1 ! -name SKILL.md -print -quit)
+              if [ -n "$extra" ]; then
+                echo "$dir must contain only SKILL.md; found $extra" >&2
+                exit 1
+              fi
+            done'
+        files: ^src/aurora-dsql-mcp-server/skills/
+        pass_filenames: false

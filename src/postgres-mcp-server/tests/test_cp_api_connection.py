@@ -489,6 +489,30 @@ class TestInternalCreateServerlessCluster:
         cluster_call_kwargs = mock_rds_client.create_db_cluster.call_args[1]
         assert cluster_call_kwargs['EnableCloudwatchLogsExports'] == []
 
+    def test_iam_auth_disabled_by_default(self, mock_boto3_client, mock_rds_client, mock_print):
+        """By default IAM DB auth is NOT enabled on the created cluster."""
+        internal_create_serverless_cluster(
+            region='us-east-1',
+            cluster_identifier='test-cluster',
+            engine_version='15.3',
+            database_name='testdb',
+        )
+        cluster_call_kwargs = mock_rds_client.create_db_cluster.call_args[1]
+        # Absent (not False) -- we only add the key when explicitly enabling it.
+        assert 'EnableIAMDatabaseAuthentication' not in cluster_call_kwargs
+
+    def test_iam_auth_enabled_when_requested(self, mock_boto3_client, mock_rds_client, mock_print):
+        """enable_iam_auth=True sets EnableIAMDatabaseAuthentication on the cluster."""
+        internal_create_serverless_cluster(
+            region='us-east-1',
+            cluster_identifier='test-cluster',
+            engine_version='15.3',
+            database_name='testdb',
+            enable_iam_auth=True,
+        )
+        cluster_call_kwargs = mock_rds_client.create_db_cluster.call_args[1]
+        assert cluster_call_kwargs['EnableIAMDatabaseAuthentication'] is True
+
     def test_cluster_creation_fails(self, mock_boto3_client, mock_rds_client, mock_print):
         """Test handling of cluster creation failure."""
         # Setup mock to raise error

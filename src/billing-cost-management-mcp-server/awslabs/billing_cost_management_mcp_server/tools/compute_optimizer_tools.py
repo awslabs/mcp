@@ -17,6 +17,7 @@
 Updated to use shared utility functions.
 """
 
+import botocore.session
 import os
 from ..utilities.aws_service_base import (
     create_aws_client,
@@ -28,7 +29,8 @@ from ..utilities.logging_utils import get_context_logger
 from ..utilities.time_utils import timestamp_to_utc_iso_string
 from botocore.exceptions import ClientError
 from fastmcp import Context, FastMCP
-from typing import Any, Dict, Optional
+from functools import lru_cache
+from typing import Any, Dict, List, Optional
 
 
 compute_optimizer_server = FastMCP(
@@ -47,8 +49,9 @@ IMPORTANT USAGE GUIDELINES:
 USE THIS TOOL FOR:
 - **Performance optimization** (CPU, memory, network utilization analysis)
 - **Performance-based rightsizing** (not cost-based)
-
-DO NOT USE FOR: Cost optimization or idle detection (use cost-optimization-hub)
+- **Idle resource detection only when filtering by a specific Finding** — Idle, Unattached,
+  or Unused (use get_idle_recommendations). For general idle detection or cost-savings
+  recommendations, use cost-optimization instead.
 
 **Note:** Compute Optimizer is a regional service. Specify a `region` to get recommendations for resources in that region. If omitted, defaults to AWS_REGION env var or us-east-1.
 
@@ -59,6 +62,7 @@ This tool supports the following operations:
 4. get_lambda_function_recommendations: Get recommendations for Lambda functions
 5. get_rds_recommendations: Get recommendations for RDS instances
 6. get_ecs_service_recommendations: Get recommendations for ECS services
+7. get_idle_recommendations: Get idle resource recommendations across supported resource types
 
 Each operation can be filtered by AWS account IDs, regions, finding types, and more.
 
@@ -66,7 +70,15 @@ Common finding types include:
 - UNDERPROVISIONED: The resource doesn't have enough capacity
 - OVERPROVISIONED: The resource has excess capacity and could be downsized
 - OPTIMIZED: The resource is already optimized
-- NOT_OPTIMIZED: The resource can be optimized but specific finding type isn't available""",
+- NOT_OPTIMIZED: The resource can be optimized but specific finding type isn't available
+
+For get_idle_recommendations, the `finding` field uses a distinct enum:
+- Idle: Provisioned and running, but utilization is so low it is effectively doing nothing
+- Unattached: Resource exists but isn't connected to anything
+- Unused: Resource is provisioned but sees no meaningful activity
+Its `filters` accept the filter names `Finding` (values: Idle, Unattached, Unused) and
+`ResourceType`. Finding and ResourceType values are matched case-insensitively and
+normalized to the idle enum spelling (e.g. ebsvolume is sent as EBSVolume, idle as Idle).""",
 )
 async def compute_optimizer(
     ctx: Context,
@@ -114,6 +126,9 @@ async def compute_optimizer(
                 'get_lambda_function_recommendations': 'lambdaFunction',
                 'get_rds_recommendations': 'rdsDBInstance',
                 'get_ecs_service_recommendations': 'ecsService',
+                # Idle recommendations span multiple resource types; a non-empty
+                # value simply triggers the shared enrollment ACTIVE check below.
+                'get_idle_recommendations': 'idle',
             }
 
             # Get required resource type for current operation
@@ -172,6 +187,10 @@ async def compute_optimizer(
             return await get_ecs_service_recommendations(
                 ctx, co_client, max_results, filters, account_ids, next_token
             )
+        elif operation == 'get_idle_recommendations':
+            return await get_idle_recommendations(
+                ctx, co_client, max_results, filters, account_ids, next_token
+            )
         else:
             return format_response(
                 'error',
@@ -185,9 +204,10 @@ async def compute_optimizer(
                         'get_lambda_function_recommendations',
                         'get_rds_recommendations',
                         'get_ecs_service_recommendations',
+                        'get_idle_recommendations',
                     ],
                 },
-                f"Unsupported operation: {operation}. Use 'get_ec2_instance_recommendations', 'get_auto_scaling_group_recommendations', 'get_ebs_volume_recommendations', 'get_lambda_function_recommendations', 'get_rds_recommendations' or 'get_ecs_service_recommendations'.",
+                f"Unsupported operation: {operation}. Use 'get_ec2_instance_recommendations', 'get_auto_scaling_group_recommendations', 'get_ebs_volume_recommendations', 'get_lambda_function_recommendations', 'get_rds_recommendations', 'get_ecs_service_recommendations' or 'get_idle_recommendations'.",
             )
 
     except ClientError as e:
@@ -783,6 +803,164 @@ async def get_ecs_service_recommendations(
             'lookback_period_in_days': recommendation.get('lookbackPeriodInDays'),
             'launch_type': recommendation.get('launchType'),
             'recommendation_options': recommended_options,
+            'last_refresh_timestamp': format_timestamp(recommendation.get('lastRefreshTimestamp')),
+            'tags': recommendation.get('tags', []),
+        }
+
+        formatted_response['recommendations'].append(formatted_recommendation)
+
+    return format_response('success', formatted_response)
+
+
+# Idle filter name -> botocore enum shape that holds its valid values.
+_IDLE_FILTER_ENUM_SHAPES = {
+    'ResourceType': 'IdleRecommendationResourceType',
+    'Finding': 'IdleFinding',
+}
+
+
+@lru_cache(maxsize=None)
+def _idle_enum_canonical_map(shape_name: str) -> Dict[str, str]:
+    """Build a casefolded -> canonical map of an idle filter enum from the boto model.
+
+    Used to normalize passed `ResourceType` and `Finding` values onto the exact spelling
+    the idle API expects (e.g. `EbsVolume` -> `EBSVolume`, `idle` -> `Idle`); every valid
+    value is recoverable by case-folding alone. The enum is read from the installed
+    botocore service model rather than hardcoded, so new values are supported
+    automatically whenever boto3 is upgraded. The model is loaded offline (no AWS call).
+
+    Returns:
+        Mapping of casefolded value to canonical value. Returns an empty map if the
+        service model or shape cannot be loaded (normalization is then skipped).
+    """
+    try:
+        service_model: Any = botocore.session.get_session().get_service_model('compute-optimizer')
+        enum_values = service_model.shape_for(shape_name).enum
+    except Exception:
+        # Older boto3 without this shape, or model load failure: skip normalization.
+        return {}
+    return {value.casefold(): value for value in enum_values or []}
+
+
+def _normalize_idle_filters(filters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Fold `ResourceType` and `Finding` filter values onto the canonical idle enum spelling.
+
+    Unrecognized values are passed through unchanged: the installed botocore model is a
+    floor, so the service stays the authority on which values are valid.
+    """
+    normalized = []
+    for f in filters:
+        name = f.get('name') if isinstance(f, dict) else None
+        shape_name = _IDLE_FILTER_ENUM_SHAPES.get(name) if isinstance(name, str) else None
+        canonical = _idle_enum_canonical_map(shape_name) if shape_name else {}
+        if canonical:
+            values = f.get('values') or []
+            f = {
+                **f,
+                'values': [
+                    canonical.get(v.casefold(), v) if isinstance(v, str) else v for v in values
+                ],
+            }
+        normalized.append(f)
+    return normalized
+
+
+async def get_idle_recommendations(ctx, co_client, max_results, filters, account_ids, next_token):
+    """Get idle resource recommendations.
+
+    Idle recommendations cover multiple resource types, and the `finding` field uses
+    the IdleFinding enum. For the authoritative list of supported resource types and
+    finding values, see the IdleRecommendation API reference:
+    https://docs.aws.amazon.com/compute-optimizer/latest/APIReference/API_IdleRecommendation.html
+    """
+    # Get context logger for consistent logging
+    ctx_logger = get_context_logger(ctx, __name__)
+
+    # Prepare the request parameters
+    request_params = {}
+
+    if max_results:
+        request_params['maxResults'] = int(max_results)
+
+    # Parse the filters if provided
+    if filters:
+        request_params['filters'] = _normalize_idle_filters(parse_json(filters, 'filters'))
+
+    # Parse the account IDs if provided
+    if account_ids:
+        request_params['accountIds'] = parse_json(account_ids, 'account_ids')
+
+    # Add the next token if provided
+    if next_token:
+        request_params['nextToken'] = next_token
+
+    # Make the API call
+    await ctx_logger.info(f'Calling get_idle_recommendations with parameters: {request_params}')
+    try:
+        response = co_client.get_idle_recommendations(**request_params)
+    except ClientError as e:
+        # The service's "Invalid filter value" names neither the rejected value nor the
+        # valid set, so surface the model's enum to let the caller self-correct instead
+        # of retrying the same call. Values that case-folding can't rescue (e.g. a resource
+        # type idle recommendations don't support) end up here.
+        if e.response.get('Error', {}).get('Code') != 'InvalidParameterValueException':
+            raise
+        return format_response(
+            'error',
+            {
+                'error_type': 'invalid_parameter_value',
+                'operation': 'get_idle_recommendations',
+                'aws_error_code': 'InvalidParameterValueException',
+                'aws_error_message': e.response.get('Error', {}).get('Message'),
+                'filters': request_params.get('filters'),
+                'valid_resource_type_values': sorted(
+                    _idle_enum_canonical_map(_IDLE_FILTER_ENUM_SHAPES['ResourceType']).values()
+                ),
+                'valid_finding_values': sorted(
+                    _idle_enum_canonical_map(_IDLE_FILTER_ENUM_SHAPES['Finding']).values()
+                ),
+            },
+            'Invalid filter value for get_idle_recommendations. ResourceType must be one of '
+            'valid_resource_type_values; resource types outside this list are not supported '
+            'by idle recommendations. Finding must be one of valid_finding_values.',
+        )
+
+    formatted_response: Dict[str, Any] = {
+        'recommendations': [],
+        'errors': response.get('errors', []),
+        'next_token': response.get('nextToken'),
+    }
+    if 'filters' in request_params:
+        # Echo what was actually queried (post-normalization), not what was typed.
+        formatted_response['applied_filters'] = request_params['filters']
+
+    for recommendation in response.get('idleRecommendations', []):
+        utilization_metrics = []
+        for metric in recommendation.get('utilizationMetrics', []):
+            utilization_metrics.append(
+                {
+                    'name': metric.get('name'),
+                    'statistic': metric.get('statistic'),
+                    'value': metric.get('value'),
+                    'dimensions': metric.get('dimensions', []),
+                }
+            )
+
+        formatted_recommendation = {
+            'resource_arn': recommendation.get('resourceArn'),
+            'resource_id': recommendation.get('resourceId'),
+            'resource_type': recommendation.get('resourceType'),
+            'account_id': recommendation.get('accountId'),
+            'finding': recommendation.get('finding'),
+            'finding_description': recommendation.get('findingDescription'),
+            'savings_opportunity': format_savings_opportunity(
+                recommendation.get('savingsOpportunity', {})
+            ),
+            'savings_opportunity_after_discounts': format_savings_opportunity(
+                recommendation.get('savingsOpportunityAfterDiscounts', {})
+            ),
+            'utilization_metrics': utilization_metrics,
+            'lookback_period_in_days': recommendation.get('lookBackPeriodInDays'),
             'last_refresh_timestamp': format_timestamp(recommendation.get('lastRefreshTimestamp')),
             'tags': recommendation.get('tags', []),
         }

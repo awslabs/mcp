@@ -21,7 +21,7 @@ from awslabs.mysql_mcp_server import __user_agent__
 from botocore.config import Config
 from botocore.exceptions import ClientError
 from loguru import logger
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 
 def internal_create_rds_client(region: str):
@@ -29,16 +29,155 @@ def internal_create_rds_client(region: str):
     return boto3.client('rds', region_name=region, config=Config(user_agent_extra=__user_agent__))
 
 
+def _normalize_host(host: Optional[str]) -> str:
+    """Normalize a hostname for case-insensitive comparison.
+
+    DNS is case-insensitive, so endpoint matching must be too. Centralizing
+    normalization here keeps the invariant with the resolver rather than
+    relying on every caller to remember to lowercase.
+    """
+    return host.strip().lower() if host else ''
+
+
+def internal_require_aws_port(raw: Any, context: str) -> int:
+    """Coerce an AWS-reported port to a positive int, or fail closed.
+
+    A missing or malformed port from AWS is treated as an error rather than
+    defaulting to 3306. For a security-sensitive endpoint check we must never
+    guess the port a connection will actually be made on.
+    """
+    if raw is None or raw == '':
+        raise ValueError(f'AWS returned no port for {context}; refusing to guess a default.')
+    try:
+        port = int(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            f'AWS returned a malformed port {raw!r} for {context}; refusing to guess a default.'
+        ) from exc
+    if port <= 0:
+        raise ValueError(
+            f'AWS returned a non-positive port {port} for {context}; refusing to guess a default.'
+        )
+    return port
+
+
+def internal_resolve_cluster_endpoint(
+    cluster_properties: Dict[str, Any], region: str, requested_host: str
+) -> Optional[Tuple[str, int]]:
+    """Resolve a caller-supplied host to a valid (host, port) cluster endpoint.
+
+    Compares requested_host against the cluster's AWS-advertised endpoints and,
+    on a match, returns the AWS-sourced (host, port) so the connection string is
+    never built from caller input. This prevents directing DB credentials or
+    IAM auth tokens at an attacker-controlled host. Comparison is
+    case-insensitive; this helper owns that invariant so callers cannot
+    accidentally perform a case-sensitive match.
+
+    Cluster-level endpoints — writer (Endpoint), reader (ReaderEndpoint) and
+    custom (CustomEndpoints) — are checked first with no additional API calls.
+    Member-instance endpoints are enumerated (one describe_db_instances call per
+    member) only if none of those match, so the common writer/reader/custom case
+    makes zero describe_db_instances calls. A connection that targets a member
+    instance endpoint still costs one call per member until it matches.
+
+    Ports are AWS-sourced. A missing or malformed port on the matching endpoint
+    is an error (raise), never guessed.
+
+    Args:
+        cluster_properties: Cluster properties from internal_get_cluster_properties.
+        region: AWS region (used to fetch member instance endpoints).
+        requested_host: The caller-supplied db_endpoint host to validate.
+
+    Returns:
+        The matched (host, port) with AWS-sourced values, or None if the host
+        matches no endpoint of the cluster.
+
+    Raises:
+        ValueError: The matching endpoint has no usable AWS port.
+        ClientError: describe_db_instances failed for a reason other than
+            DBInstanceNotFound (e.g. AccessDenied, throttling) — surfaced so the
+            caller sees the real cause instead of a misleading rejection.
+    """
+    target = _normalize_host(requested_host)
+
+    # Cluster-level endpoints first — no API calls.
+    cluster_hosts = [
+        cluster_properties.get('Endpoint'),
+        cluster_properties.get('ReaderEndpoint'),
+        *(cluster_properties.get('CustomEndpoints', []) or []),
+    ]
+    for host in cluster_hosts:
+        if host and _normalize_host(host) == target:
+            return (
+                host,
+                internal_require_aws_port(cluster_properties.get('Port'), f"endpoint '{host}'"),
+            )
+
+    # No cluster-level match — only now pay for member enumeration.
+    members = cluster_properties.get('DBClusterMembers', []) or []
+    instance_ids = [
+        m.get('DBInstanceIdentifier') for m in members if m.get('DBInstanceIdentifier')
+    ]
+    if instance_ids:
+        rds_client = internal_create_rds_client(region=region)
+        for instance_id in instance_ids:
+            try:
+                response = rds_client.describe_db_instances(DBInstanceIdentifier=instance_id)
+            except ClientError as e:
+                error_code = e.response['Error']['Code']
+                # A genuinely missing instance is safe to skip: the caller may
+                # still match another member. But access-denied / throttling
+                # means we could NOT enumerate the cluster's real endpoints —
+                # continuing would degrade into a misleading "does not match"
+                # rejection, so surface the real cause instead.
+                if error_code in ('DBInstanceNotFound', 'DBInstanceNotFoundFault'):
+                    logger.warning(
+                        "Member instance '{}' not found while resolving cluster "
+                        'endpoints; skipping: {}',
+                        instance_id,
+                        e.response['Error']['Message'],
+                    )
+                    continue
+                logger.error(
+                    "Could not resolve endpoint for member instance '{}' ({}); "
+                    'aborting endpoint validation to avoid a misleading rejection: {}',
+                    instance_id,
+                    error_code,
+                    e.response['Error']['Message'],
+                )
+                raise
+            for instance in response.get('DBInstances', []):
+                instance_endpoint = instance.get('Endpoint', {}) or {}
+                host = instance_endpoint.get('Address')
+                if host and _normalize_host(host) == target:
+                    return (
+                        host,
+                        internal_require_aws_port(
+                            instance_endpoint.get('Port'), f"endpoint '{host}'"
+                        ),
+                    )
+
+    logger.info(
+        "Requested host '{}' matched no endpoint of the cluster (writer/reader/custom/members).",
+        requested_host,
+    )
+    return None
+
+
 def internal_get_instance_properties(target_endpoint: str, region: str) -> Dict[str, Any]:
     """Retrieve RDS instance properties from AWS."""
     rds_client = internal_create_rds_client(region=region)
     paginator = rds_client.get_paginator('describe_db_instances')
 
+    # Case-insensitive comparison (DNS is case-insensitive), matching the
+    # cluster resolver's behaviour so a legitimate endpoint supplied in a
+    # different case is not wrongly reported as "not found".
+    target = _normalize_host(target_endpoint)
     try:
         for page in paginator.paginate():
             for instance in page['DBInstances']:
                 endpoint = instance.get('Endpoint', {}).get('Address')
-                if endpoint == target_endpoint:
+                if endpoint and _normalize_host(endpoint) == target:
                     return instance
     except ClientError as e:
         error_code = e.response['Error']['Code']

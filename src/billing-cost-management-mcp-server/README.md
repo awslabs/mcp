@@ -72,6 +72,17 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 - **Invoice units**: List and retrieve invoice unit definitions (groups of accounts that receive a separate invoice, with their receiver account and linked-account rules), filtered by name, receiver, or member account; and fetch invoice receiver profiles (legal name, address, tax registration number) for a set of accounts
 - **Procurement portal preferences**: List and retrieve procurement portal connections (SAP Business Network, Coupa) and e-invoice delivery / purchase-order retrieval settings
 
+### AWS Billing Preferences
+
+- **Discount sharing configuration**: Retrieve which member accounts participate in the Reserved Instance / Savings Plans discount pool and in credit sharing, whether newly created accounts join automatically, and whether sharing is open — the authoritative answer to "is this account excluded from commitment sharing", which cannot be inferred from RI/SP coverage data
+- **Sharing history**: The per-billing-period record of those settings, for reconciling a closed billing period against the sharing state that was actually in force at the time
+- **Billing alerts**: Whether billing alerts are enabled
+### AWS Enterprise Support
+
+- **Enterprise Support charge summary**: Retrieve a billing period's Enterprise Support charge with the Support-eligible spend it was calculated from, the effective pricing plan, and any applied discounts
+- **Support contract details**: Review the contract terms that govern how a billing period's charge is allocated, including the allocation method, Reserved Instance and Savings Plan treatment, and the payer accounts covered
+- **Per-account charge breakdown**: Break a billing period's charge down by linked account with prorated Support-eligible spend, subscription periods, and per-service spend
+
 ### Specialized Cost Optimization Prompts
 
 - **Graviton migration analysis**: Guided analysis to identify EC2 instances suitable for AWS Graviton migration
@@ -250,6 +261,7 @@ Cost Optimization Hub:
 - cost-optimization-hub:GetRecommendation
 - cost-optimization-hub:ListRecommendations
 - cost-optimization-hub:ListRecommendationSummaries
+- cost-optimization-hub:ListEfficiencyMetrics
 
 Compute Optimizer:
 - compute-optimizer:GetAutoScalingGroupRecommendations
@@ -341,8 +353,17 @@ AWS Invoicing:
 - invoicing:GetProcurementPortalPreference
 
 AWS Billing:
+- billing:GetBillingView
+- billing:ListBillingViews
+- billing:ListSourceViewsForBillingView
+- billing:GetResourcePolicy
 - billing:GetCredits
 - billing:GetCreditAllocationHistory
+- billing:GetBillingPreferences
+- billing:GetEnterpriseSupportChargeSummary
+- billing:GetEnterpriseSupportContractDetails
+- billing:ListEnterpriseSupportLinkedAccountCharges
+- billing:ListBillingViewSegments
 
 #### Configuration
 
@@ -399,6 +420,7 @@ The server currently supports the following AWS services
    - get_recommendation
    - list_recommendations
    - list_recommendation_summaries
+   - list_efficiency_metrics
 
 6. **Compute Optimizer**
    - get_auto_scaling_group_recommendations
@@ -408,7 +430,6 @@ The server currently supports the following AWS services
    - get_rds_database_recommendations
    - get_lambda_function_recommendations
    - get_idle_recommendations
-   - get_enrollment_status
 
 7. **Compute Optimizer Automation**
    - get_automation_event
@@ -455,10 +476,23 @@ The server currently supports the following AWS services
     - describe_cost_category_definition
     - list_cost_category_definitions
 
-12. **AWS Invoicing**
+13. **AWS Invoicing**
     - `invoicing` tool: list_invoice_summaries
     - `invoice-units` tool: list_invoice_units, get_invoice_unit, batch_get_invoice_profile
     - `procurement-preferences` tool: list_procurement_portal_preferences, get_procurement_portal_preference
 
-13. **AWS Credits**
+14. **AWS Credits**
     - `credits` tool: get_credits, get_credit_allocation_history
+
+15. **AWS Billing Preferences**
+    - get-billing-preferences
+
+16. **AWS Enterprise Support**
+    - `enterprise_support` tool: get_charge_summary, get_contract_details, list_linked_account_charges
+
+17. **AWS Billing Views**
+    - `get-billing-view`: retrieve metadata for a specific billing view
+    - `list-billing-views`: list billing views available for a given time period
+    - `list-source-views-for-billing-view`: list source views that a custom billing view is built from
+    - `get-resource-policy`: retrieve the resource-based policy attached to a billing view
+    - `list-billing-view-segments`: list billing view segments over a time period to determine billing domain (BILLABLE vs PRO_FORMA) and account relationships

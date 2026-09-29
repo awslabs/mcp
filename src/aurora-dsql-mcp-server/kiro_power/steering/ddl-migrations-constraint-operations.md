@@ -2,7 +2,9 @@
 
 Step-by-step migration patterns for constraint changes, primary key modifications, and column transformations.
 
-**MUST read [overview.md](overview.md) first** for destructive operation warnings and the common verify & swap pattern.
+For table-recreation sections, **MUST** read
+[overview.md](overview.md#table-recreation) first. The examples abbreviate unchanged schema; the
+generated replacement **MUST** preserve every unchanged column, key, constraint, and default.
 
 ---
 
@@ -12,7 +14,8 @@ Step-by-step migration patterns for constraint changes, primary key modification
 
 This is the **preferred** approach for CHECK constraints. It avoids full table recreation by adding the constraint as NOT VALID (applies to new rows immediately) and then validating existing rows asynchronously in the background.
 
-> **Note:** This pattern applies to CHECK constraints only. UNIQUE and PRIMARY KEY constraints still require the [Table Recreation Pattern](#add-unique-constraint-migration) below.
+> **Note:** This pattern applies to CHECK constraints only. Add UNIQUE through a completed async
+> unique index; PRIMARY KEY changes still require the Table Recreation Pattern.
 
 ### Migration Steps
 
@@ -37,28 +40,32 @@ transact([
 
 #### Step 3: Monitor validation
 
-```sql
--- Option A: Poll job status
-readonly_query(
-  "SELECT * FROM sys.jobs WHERE job_id = '<job_id>'"
-)
+**MUST** poll the returned `job_id` to a terminal state and inspect `details` on failure. Use the
+terminal-state loop in [Foreign Key Constraints](../foreign-keys.md#dsql-specific-ddl).
 
--- Option B: Block until complete
-readonly_query(
-  "SELECT sys.wait_for_job('<job_id>')"
-)
-```
+`sys.wait_for_job` is a procedure, not a function. **MAY** call
+`CALL sys.wait_for_job('<job_id>')` only through an autocommit database client outside the MCP
+tools' explicit transactions.
 
 ### Outcomes
 
 - **Success:** DSQL marks the constraint as VALID. The query planner enforces it for all queries.
-- **Failure:** The constraint remains NOT VALID. Existing rows violate the constraint. Fix the data and re-run VALIDATE CONSTRAINT.
+- **Failure:** The constraint remains NOT VALID. Inspect `sys.jobs.details`; repair rows only when
+  it identifies a constraint violation, then re-run `VALIDATE CONSTRAINT`.
 
 ---
 
-## ADD UNIQUE CONSTRAINT Migration
+## FOREIGN KEY CONSTRAINTS
 
-**Goal:** Add a UNIQUE constraint to an existing table (requires table recreation).
+Foreign keys do not use table recreation. Follow
+[Foreign Key Constraints](../foreign-keys.md#dsql-specific-ddl) to add a constraint with `NOT VALID`,
+validate it asynchronously, or drop it directly.
+
+---
+
+## ADD UNIQUE CONSTRAINT
+
+**Goal:** Add a UNIQUE constraint to an existing table without table recreation.
 
 ### Pre-Migration Validation
 
@@ -75,73 +82,54 @@ readonly_query(
 
 ### Migration Steps
 
-#### Step 1: Create new table with the constraint
+1. Create the backing index and capture its `job_id`:
 
-```sql
-transact([
-  "CREATE TABLE target_table_new (
-     id UUID PRIMARY KEY,
-     email VARCHAR(255) UNIQUE,  -- Added UNIQUE constraint
-     other_column TEXT
-   )"
-])
-```
+   ```python
+   index_result = transact([
+       "CREATE UNIQUE INDEX ASYNC users_email_unique_idx ON users (email)"
+   ])
+   ```
 
-#### Step 2: Copy data
+2. Poll `sys.jobs` to `completed` or `failed`, inspect `details` on failure, and verify
+   `pg_index.indisvalid = true`.
+3. Promote the valid index:
 
-```sql
-transact([
-  "INSERT INTO target_table_new (id, email, other_column)
-   SELECT id, email, other_column
-   FROM target_table"
-])
-```
+   ```python
+   transact([
+       "ALTER TABLE users ADD CONSTRAINT users_email_key "
+       "UNIQUE USING INDEX users_email_unique_idx"
+   ])
+   ```
 
-**Step 3: Verify and swap** (see [Common Pattern](overview.md#common-verify--swap-pattern))
+Aurora DSQL documents `ADD table_constraint_using_index` for this operation. The constraint takes
+ownership of the index and may rename it to match the constraint.
 
 ---
 
-## DROP CONSTRAINT Migration
+## DROP CONSTRAINT
 
-**Goal:** Remove a constraint (UNIQUE, CHECK) from a table.
+**Goal:** Remove a CHECK, UNIQUE, or foreign-key constraint without table recreation.
 
-### Pre-Migration Validation
+1. Confirm the named constraint and its type:
 
-```sql
--- Identify existing constraints
-readonly_query(
-  "SELECT constraint_name, constraint_type
-   FROM information_schema.table_constraints
-   WHERE table_name = 'target_table'
-   AND constraint_type IN ('UNIQUE', 'CHECK')"
-)
-```
+   ```python
+   readonly_query(
+       "SELECT conname, contype FROM pg_constraint "
+       "WHERE conrelid = 'target_table'::regclass "
+       "AND conname = 'target_constraint'"
+   )
+   ```
 
-### Migration Steps
+2. Explain the removed invariant and obtain confirmation.
+3. Drop the named constraint directly:
 
-#### Step 1: Create new table without the constraint
+   ```python
+   transact(["ALTER TABLE target_table DROP CONSTRAINT target_constraint"])
+   ```
 
-```sql
-transact([
-  "CREATE TABLE target_table_new (
-     id UUID PRIMARY KEY,
-     email VARCHAR(255),  -- Removed UNIQUE constraint
-     other_column TEXT
-   )"
-])
-```
-
-#### Step 2: Copy data
-
-```sql
-transact([
-  "INSERT INTO target_table_new (id, email, other_column)
-   SELECT id, email, other_column
-   FROM target_table"
-])
-```
-
-**Step 3: Verify and swap** (see [Common Pattern](overview.md#common-verify--swap-pattern))
+Dropping a UNIQUE or PRIMARY KEY constraint also removes its owned index. Before dropping a
+referenced UNIQUE constraint, verify that every retained foreign key still has a valid referenced
+key or obtain approval to remove those relationships.
 
 ---
 
@@ -169,6 +157,12 @@ readonly_query(
 -- MUST ABORT if null_count > 0
 ```
 
+Review dependencies before starting
+[Table Recreation](overview.md#table-recreation).
+For every retained FK that references the current primary-key columns, the replacement **MUST**
+keep those columns covered by a `PRIMARY KEY` or `UNIQUE` constraint. Obtain explicit approval
+before removing a relationship; **MUST** abort when a retained FK cannot be restored.
+
 ### Migration Steps
 
 #### Step 1: Create new table with new primary key
@@ -177,7 +171,7 @@ readonly_query(
 transact([
   "CREATE TABLE target_table_new (
      new_pk_column UUID PRIMARY KEY,  -- New PK
-     old_pk_column VARCHAR(255),      -- Demoted to regular column
+     old_pk_column VARCHAR(255) UNIQUE, -- Retain when inbound FKs reference the old key
      other_column TEXT
    )"
 ])

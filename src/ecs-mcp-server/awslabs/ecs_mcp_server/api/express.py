@@ -32,7 +32,10 @@ from awslabs.ecs_mcp_server.utils.aws import (
     get_aws_client,
 )
 from awslabs.ecs_mcp_server.utils.docker import build_and_push_image
-from awslabs.ecs_mcp_server.utils.security import validate_app_name
+from awslabs.ecs_mcp_server.utils.security import (
+    redact_unless_sensitive_data_allowed,
+    validate_app_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -224,7 +227,7 @@ async def delete_express_gateway_service(service_arn: str) -> Dict[str, Any]:
             "status": "deleted",
             "service_arn": service_arn,
             "message": "Express Gateway Service deleted successfully",
-            "details": response.get("service", {}),
+            "details": redact_unless_sensitive_data_allowed(response.get("service", {})),
         }
 
     except Exception as e:

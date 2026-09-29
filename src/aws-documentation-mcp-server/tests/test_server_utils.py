@@ -20,6 +20,7 @@ from awslabs.aws_documentation_mcp_server.server_utils import (
     COMMERCIAL_ALLOWED_DOMAIN_REGEXES,
     DEFAULT_USER_AGENT,
     SEARCH_RESULT_CACHE,
+    Page,
     _docs_client,
     add_search_result_cache_item,
     get_query_id_from_cache,
@@ -27,6 +28,7 @@ from awslabs.aws_documentation_mcp_server.server_utils import (
     read_sections_impl,
     search_table_impl,
 )
+from awslabs.aws_documentation_mcp_server.util import UnreadablePageError
 from mcp.server.mcpserver import Context
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -47,6 +49,7 @@ class TestReadDocumentationImpl:
         # Create a proper mock response
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = '<html><body><h1>Test</h1><p>Content</p></body></html>'
         mock_response.headers = {'content-type': 'text/html'}
 
@@ -103,6 +106,7 @@ class TestReadDocumentationImpl:
         # Create a proper mock response
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = 'Plain text content'
         mock_response.headers = {'content-type': 'text/plain'}
 
@@ -132,6 +136,42 @@ class TestReadDocumentationImpl:
                 assert result == 'AWS Documentation from URL: Plain text content'
 
     @pytest.mark.asyncio
+    async def test_unreadable_page_raises(self):
+        """Extraction failure raises instead of returning a tagged string."""
+        url = 'https://docs.aws.amazon.com/test.html'
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.url = url
+        mock_response.text = '<html><body></body></html>'
+        mock_response.headers = {'content-type': 'text/html'}
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client_class.return_value = mock_client
+
+            with (
+                patch(
+                    'awslabs.aws_documentation_mcp_server.server_utils.is_html_content',
+                    return_value=True,
+                ),
+                patch(
+                    'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html',
+                    side_effect=UnreadablePageError('Page failed to be simplified from HTML'),
+                ),
+                pytest.raises(ValueError, match='could not be read'),
+            ):
+                await read_documentation_impl(ctx, url, 1000, 0, 'test-uuid')
+
+        ctx.error.assert_awaited()
+        assert '<e>' not in ctx.error.call_args[0][0]
+
+    @pytest.mark.asyncio
     async def test_http_error(self):
         """Test handling of HTTP errors."""
         url = 'https://docs.aws.amazon.com/test.html'
@@ -149,11 +189,8 @@ class TestReadDocumentationImpl:
             mock_client.get = AsyncMock(side_effect=httpx.HTTPError('Connection error'))
             mock_client_class.return_value = mock_client
 
-            result = await read_documentation_impl(ctx, url, max_length, start_index, 'test-uuid')
-
-            # Verify the result contains the error message
-            assert 'Failed to fetch' in result
-            assert 'Connection error' in result
+            with pytest.raises(ValueError, match='Connection error'):
+                await read_documentation_impl(ctx, url, max_length, start_index, 'test-uuid')
 
             # Verify the error was logged to the context
             ctx.error.assert_called_once()
@@ -183,11 +220,8 @@ class TestReadDocumentationImpl:
             mock_client.get = AsyncMock(return_value=mock_response)
             mock_client_class.return_value = mock_client
 
-            result = await read_documentation_impl(ctx, url, max_length, start_index, 'test-uuid')
-
-            # Verify the result contains the error message
-            assert 'Failed to fetch' in result
-            assert 'status code 404' in result
+            with pytest.raises(ValueError, match='status code 404'):
+                await read_documentation_impl(ctx, url, max_length, start_index, 'test-uuid')
 
             # Verify the error was logged to the context
             ctx.error.assert_called_once()
@@ -207,6 +241,7 @@ class TestReadDocumentationImpl:
         # Create a proper mock response
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = (
             '<html><body><h1>Test</h1><p>Long content that exceeds max length</p></body></html>'
         )
@@ -266,6 +301,7 @@ class TestReadDocumentationImpl:
         # Create a proper mock response
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = '<html><body><h1>Test</h1><p>Content</p></body></html>'
         mock_response.headers = {'content-type': 'text/html'}
 
@@ -338,6 +374,7 @@ class TestReadDocumentationImpl:
         # Create a proper mock response
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = '<html><body><h1>Test</h1><p>Content</p></body></html>'
         mock_response.headers = {'content-type': 'text/html'}
 
@@ -398,6 +435,7 @@ class TestReadDocumentationImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = html
         mock_response.headers = {'content-type': 'text/html'}
 
@@ -486,11 +524,11 @@ class TestRedirectAllowlistEnforcement:
             _imds_redirect_routes('docs.aws.amazon.com'),
             'awslabs.aws_documentation_mcp_server.server_utils',
         )
-        result = await read_documentation_impl(
-            ctx, 'https://docs.aws.amazon.com/test.html', 1000, 0, 'uuid'
-        )
-        assert 'SENSITIVE-IMDS-DATA' not in result
-        assert 'Failed to fetch' in result
+        with pytest.raises(ValueError, match='Failed to fetch') as excinfo:
+            await read_documentation_impl(
+                ctx, 'https://docs.aws.amazon.com/test.html', 1000, 0, 'uuid'
+            )
+        assert 'SENSITIVE-IMDS-DATA' not in str(excinfo.value)
 
     @pytest.mark.asyncio
     async def test_read_documentation_onsite_redirect_followed(self, monkeypatch):
@@ -517,11 +555,11 @@ class TestRedirectAllowlistEnforcement:
             _imds_redirect_routes('docs.aws.amazon.com'),
             'awslabs.aws_documentation_mcp_server.server_utils',
         )
-        result = await read_sections_impl(
-            ctx, 'https://docs.aws.amazon.com/test.html', ['Intro'], 'uuid'
-        )
-        assert 'SENSITIVE-IMDS-DATA' not in result
-        assert 'Failed to fetch' in result
+        with pytest.raises(ValueError, match='Failed to fetch') as excinfo:
+            await read_sections_impl(
+                ctx, 'https://docs.aws.amazon.com/test.html', ['Intro'], 'uuid'
+            )
+        assert 'SENSITIVE-IMDS-DATA' not in str(excinfo.value)
 
     @pytest.mark.asyncio
     async def test_search_table_offsite_redirect_blocked(self, monkeypatch):
@@ -533,11 +571,11 @@ class TestRedirectAllowlistEnforcement:
             _imds_redirect_routes('docs.aws.amazon.com'),
             'awslabs.aws_documentation_mcp_server.server_utils',
         )
-        result = await search_table_impl(
-            ctx, 'https://docs.aws.amazon.com/test.html', None, 'query', 20, 'uuid'
-        )
-        assert 'SENSITIVE-IMDS-DATA' not in (result.error or '')
-        assert result.error and 'Failed to fetch' in result.error
+        with pytest.raises(ValueError, match='Failed to fetch') as excinfo:
+            await search_table_impl(
+                ctx, 'https://docs.aws.amazon.com/test.html', None, 'query', 20, 'uuid'
+            )
+        assert 'SENSITIVE-IMDS-DATA' not in str(excinfo.value)
 
 
 class TestUserAgentCustomization:
@@ -717,6 +755,7 @@ class TestSearchTableImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = '<html><body><h2>Test Section</h2><table><thead><tr><th>Name</th><th>Value</th></tr></thead><tbody><tr><td>foo</td><td>bar</td></tr></tbody></table></body></html>'
 
         with patch('httpx.AsyncClient') as mock_client_class:
@@ -745,6 +784,7 @@ class TestSearchTableImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = '<html><body><table><thead><tr><th>Name</th></tr></thead><tbody><tr><td>foo</td></tr></tbody></table></body></html>'
 
         with patch('httpx.AsyncClient') as mock_client_class:
@@ -777,12 +817,8 @@ class TestSearchTableImpl:
             mock_client.get = AsyncMock(side_effect=httpx.HTTPError('Connection error'))
             mock_client_class.return_value = mock_client
 
-            result = await search_table_impl(ctx, url, 'Sec', 'query', 20, 'test-uuid')
-
-            assert result.error is not None
-            assert 'Failed to fetch' in result.error
-            assert 'Connection error' in result.error
-            assert result.results == []
+            with pytest.raises(ValueError, match='Connection error'):
+                await search_table_impl(ctx, url, 'Sec', 'query', 20, 'test-uuid')
             ctx.error.assert_called_once()
 
     @pytest.mark.asyncio
@@ -804,12 +840,8 @@ class TestSearchTableImpl:
             mock_client.get = AsyncMock(return_value=mock_response)
             mock_client_class.return_value = mock_client
 
-            result = await search_table_impl(ctx, url, 'Sec', 'query', 20, 'test-uuid')
-
-            assert result.error is not None
-            assert 'Failed to fetch' in result.error
-            assert 'status code 404' in result.error
-            assert result.results == []
+            with pytest.raises(ValueError, match='status code 404'):
+                await search_table_impl(ctx, url, 'Sec', 'query', 20, 'test-uuid')
 
     @pytest.mark.asyncio
     async def test_no_tables_on_page(self):
@@ -822,6 +854,7 @@ class TestSearchTableImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = '<html><body><h2>Section</h2><p>No tables here</p></body></html>'
 
         with patch('httpx.AsyncClient') as mock_client_class:
@@ -848,6 +881,7 @@ class TestSearchTableImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = '<html><body><h2>Real Section</h2><table><thead><tr><th>A</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table></body></html>'
 
         with patch('httpx.AsyncClient') as mock_client_class:
@@ -877,6 +911,7 @@ class TestSearchTableImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = """<html><body><h2>Quotas</h2><table>
         <thead><tr><th>Name</th><th>Value</th></tr></thead>
         <tbody>
@@ -911,6 +946,7 @@ class TestSearchTableImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = """<html><body><h2>Quotas</h2><table>
         <thead><tr><th>Name</th><th>Value</th></tr></thead>
         <tbody><tr><td>foo</td><td>bar</td></tr></tbody></table></body></html>"""
@@ -940,6 +976,7 @@ class TestSearchTableImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = """<html><body>
         <h2>Service quotas</h2>
         <h3>EC2</h3>
@@ -985,6 +1022,7 @@ class TestSearchTableImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = '<html><body><h2>Sec</h2><table><thead><tr><th>A</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table></body></html>'
 
         with patch('httpx.AsyncClient') as mock_client_class:
@@ -1010,6 +1048,7 @@ class TestSearchTableImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = """<html><body>
         <h2>Sec</h2>
         <table><thead><tr><th>Name</th></tr></thead>
@@ -1029,8 +1068,8 @@ class TestSearchTableImpl:
             assert result.tables_with_matches == 1
 
     @pytest.mark.asyncio
-    async def test_non_html_content_returns_hint(self):
-        """Test search_table_impl returns hint when content is not HTML."""
+    async def test_non_html_content_raises(self):
+        """Test search_table_impl refuses non-HTML content by raising."""
         from awslabs.aws_documentation_mcp_server.server_utils import search_table_impl
 
         url = 'https://docs.aws.amazon.com/test.html'
@@ -1039,6 +1078,7 @@ class TestSearchTableImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = '{"key": "value"}'
         mock_response.headers = {'content-type': 'application/json'}
 
@@ -1049,11 +1089,8 @@ class TestSearchTableImpl:
             mock_client.get = AsyncMock(return_value=mock_response)
             mock_client_class.return_value = mock_client
 
-            result = await search_table_impl(ctx, url, '', 'query', 20, 'test-uuid')
-
-            assert result.tables_searched == 0
-            assert result.hint is not None
-            assert 'not HTML' in result.hint
+            with pytest.raises(ValueError, match='not HTML'):
+                await search_table_impl(ctx, url, '', 'query', 20, 'test-uuid')
 
     @pytest.mark.asyncio
     async def test_max_rows_caps_results(self):
@@ -1068,6 +1105,7 @@ class TestSearchTableImpl:
         rows_html = ''.join(f'<tr><td>Quota {i}</td><td>active</td></tr>' for i in range(25))
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = f"""<html><body><h2>Quotas</h2><table>
         <thead><tr><th>Name</th><th>Status</th></tr></thead>
         <tbody>{rows_html}</tbody></table></body></html>"""
@@ -1098,6 +1136,7 @@ class TestSearchTableImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = """<html><body><h2>Actions</h2><table>
         <thead><tr><th>Action</th><th>Level</th><th>Resource</th></tr></thead>
         <tbody>
@@ -1135,6 +1174,7 @@ class TestSearchTableImpl:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = """<html><body>
         <h2>Section A</h2>
         <table><thead><tr><th>Name</th></tr></thead>
@@ -1158,3 +1198,768 @@ class TestSearchTableImpl:
             assert result.tables_with_matches == 1
             assert result.results[0].matched_rows == 1
             assert result.section_title != ''
+
+
+class TestRedirectSignal:
+    """A renamed page returned a soft error that read as "not documented"."""
+
+    def _redirected_response(self, text, landed='https://docs.aws.amazon.com/general/latest/gr/'):
+        """Build a 200 response that arrived via a redirect to another page."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = text
+        mock_response.headers = {'content-type': 'text/html'}
+        mock_response.url = landed
+        return mock_response
+
+    def _client_for(self, mock_response):
+        """Patch httpx.AsyncClient so a fetch returns the given response."""
+        patcher = patch('httpx.AsyncClient')
+        mock_client_class = patcher.start()
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client_class.return_value = mock_client
+        return patcher
+
+    @pytest.mark.asyncio
+    async def test_read_sections_unreadable_page_does_not_suggest_read_documentation(self):
+        """A page with no prose must not be sent to read_documentation, which also fails."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+        patcher = self._client_for(self._redirected_response('<html><body></body></html>'))
+        try:
+            with pytest.raises(ValueError, match='could not be read') as excinfo:
+                await read_sections_impl(ctx, url, ['Overview'], 'test-uuid')
+        finally:
+            patcher.stop()
+        assert 'read_documentation' not in str(excinfo.value)
+
+    @pytest.mark.asyncio
+    async def test_read_sections_readable_page_still_suggests_read_documentation(self):
+        """A page with prose but no matching section keeps the read_documentation pointer."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+        page = '<html><body><h2>Quotas</h2><p>Some real prose here.</p></body></html>'
+        patcher = self._client_for(self._redirected_response(page))
+        try:
+            with pytest.raises(ValueError, match='read_documentation') as excinfo:
+                await read_sections_impl(ctx, url, ['Overview'], 'test-uuid')
+        finally:
+            patcher.stop()
+        assert 'no readable content' not in str(excinfo.value)
+        assert '; served ' in str(excinfo.value)
+
+    @pytest.mark.asyncio
+    async def test_search_table_unreadable_page_says_so(self):
+        """search_table reports no readable content rather than a false "no tables"."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+        patcher = self._client_for(self._redirected_response('<html><body></body></html>'))
+        try:
+            with pytest.raises(ValueError, match='could not be read') as excinfo:
+                await search_table_impl(ctx, url, None, 'a', 10, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert 'No tables found' not in str(excinfo.value)
+        assert '; served ' in str(excinfo.value)
+
+    @pytest.mark.asyncio
+    async def test_read_sections_unexpected_error_is_surfaced(self):
+        """A failure other than an unreadable page is logged and re-raised unchanged."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/ddb.html'
+        response = self._redirected_response(
+            '<html><body><h2>Quotas</h2><p>Real prose.</p></body></html>', landed=url
+        )
+        patcher = self._client_for(response)
+        try:
+            with (
+                patch(
+                    'awslabs.aws_documentation_mcp_server.server_utils.truncate_large_tables',
+                    side_effect=RuntimeError('truncation blew up'),
+                ),
+                pytest.raises(RuntimeError, match='truncation blew up'),
+            ):
+                await read_sections_impl(ctx, url, ['Quotas'], 'test-uuid')
+        finally:
+            patcher.stop()
+        ctx.error.assert_awaited_with('truncation blew up')
+
+    @pytest.mark.asyncio
+    async def test_header_names_the_page_that_answered(self):
+        """The content header names the served page, not the caller's spelling of the URL."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        requested = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+        served = 'https://docs.aws.amazon.com/general/latest/gr/ddb.html'
+        patcher = self._client_for(
+            self._redirected_response(
+                '<html><body><h1>DDB</h1><p>Real prose.</p></body></html>', landed=served
+            )
+        )
+        try:
+            result = await read_documentation_impl(ctx, requested, 5000, 0, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert f'AWS Documentation from {served}:' in result
+        assert f'AWS Documentation from {requested}:' not in result
+
+    @pytest.mark.asyncio
+    async def test_header_canonicalizes_a_cosmetic_rewrite(self):
+        """A doubled slash is not echoed back to the caller in the header."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        requested = 'https://docs.aws.amazon.com/lambda/latest/dg//welcome.html'
+        canonical = 'https://docs.aws.amazon.com/lambda/latest/dg/welcome.html'
+        patcher = self._client_for(
+            self._redirected_response(
+                '<html><body><h1>Lambda</h1><p>Prose.</p></body></html>', landed=canonical
+            )
+        )
+        try:
+            result = await read_documentation_impl(ctx, requested, 5000, 0, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert f'AWS Documentation from {canonical}:' in result
+        assert '//welcome.html' not in result
+        assert '<e>' not in result  # a cosmetic rewrite is not a substitution
+
+    def test_a_leading_doubled_slash_is_not_a_substitution(self):
+        """A root-relative doubled slash is a spelling difference, not another page."""
+        response = MagicMock()
+        response.url = 'https://docs.aws.amazon.com/a/b.html'
+        page = Page.of('https://docs.aws.amazon.com//a/b.html', response)
+        assert page.message() == ''
+
+    def test_a_different_host_is_a_substitution(self):
+        """Positive counterpart to the cosmetic cases: another host is another page."""
+        requested = 'https://docs.aws.amazon.com/latest/gr/ddb.html'
+        served = 'https://awsdocs-neuron.readthedocs-hosted.com/latest/gr/ddb.html'
+        response = MagicMock()
+        response.url = served
+        page = Page.of(requested, response)
+        assert page.message() == f'Requested {requested}; served {served}.'
+
+    @pytest.mark.asyncio
+    async def test_error_message_names_the_served_page_throughout(self):
+        """The whole message names the served page, not just the substitution note."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        requested = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+        served = 'https://docs.aws.amazon.com/general/latest/gr/'
+        patcher = self._client_for(
+            self._redirected_response('<html><body></body></html>', landed=served)
+        )
+        try:
+            with pytest.raises(ValueError) as excinfo:
+                await read_documentation_impl(ctx, requested, 5000, 0, 'test-uuid')
+        finally:
+            patcher.stop()
+        message = str(excinfo.value)
+        note, _, reason = message.partition('. ')
+        # the note names both; the reason clause names only the page that actually failed
+        assert note == f'Requested {requested}; served {served}'
+        assert reason.startswith(f'{served} could not be read:'), reason
+        assert 'dynamodb.html' not in reason, reason
+
+    def test_no_redirect_produces_no_note(self):
+        """A direct 200 produces no substitution note."""
+        response = MagicMock()
+        response.url = 'https://docs.aws.amazon.com/general/latest/gr/ddb.html'
+        page = Page.of('https://docs.aws.amazon.com/general/latest/gr/ddb.html', response)
+        assert page.message() == ''
+        assert page.served == 'https://docs.aws.amazon.com/general/latest/gr/ddb.html'
+
+    def test_query_parameters_are_stripped_from_both_urls(self):
+        """The session parameters the server appends are not a page change."""
+        response = MagicMock()
+        response.url = 'https://docs.aws.amazon.com/general/latest/gr/ddb.html?session=abc'
+        page = Page.of('https://docs.aws.amazon.com/general/latest/gr/ddb.html', response)
+        assert page.message() == ''
+        assert page.served == 'https://docs.aws.amazon.com/general/latest/gr/ddb.html'
+
+    def test_different_page_names_both_urls(self):
+        """Landing on another page names what was requested and what was served."""
+        response = MagicMock()
+        response.url = 'https://docs.aws.amazon.com/general/latest/gr/'
+        page = Page.of(
+            'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html?session=abc', response
+        )
+        assert page.served == 'https://docs.aws.amazon.com/general/latest/gr/'
+        assert page.message() == (
+            'Requested https://docs.aws.amazon.com/general/latest/gr/dynamodb.html; '
+            'served https://docs.aws.amazon.com/general/latest/gr/.'
+        )
+        assert page.message('Extra.') == f'{page.message()} Extra.'
+
+    @pytest.mark.asyncio
+    async def test_read_documentation_raises_on_unreadable_redirect(self):
+        """An unreadable redirected page raises rather than returning a tagged string."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+        patcher = self._client_for(self._redirected_response('<html><body></body></html>'))
+        try:
+            with pytest.raises(ValueError, match='; served ') as excinfo:
+                await read_documentation_impl(ctx, url, 1000, 0, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert '<e>' not in str(excinfo.value)
+        assert 'general/latest/gr/' in str(excinfo.value)
+        ctx.error.assert_awaited()
+
+    @pytest.mark.asyncio
+    async def test_search_table_hint_names_the_redirect(self):
+        """A false "no tables" on a redirected page says the page moved."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+        patcher = self._client_for(
+            self._redirected_response('<html><body><p>hi</p></body></html>')
+        )
+        try:
+            result = await search_table_impl(ctx, url, None, 'ap-southeast-4', 50, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert result.hint is not None
+        assert '; served ' in result.hint
+
+    @pytest.mark.asyncio
+    async def test_read_sections_error_names_the_redirect(self):
+        """A section-less redirected page fails with the redirect named in the message."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+        patcher = self._client_for(
+            self._redirected_response('<html><body><p>hi</p></body></html>')
+        )
+        try:
+            with pytest.raises(ValueError, match='; served '):
+                await read_sections_impl(ctx, url, ['Service endpoints'], 'test-uuid')
+        finally:
+            patcher.stop()
+
+    @pytest.mark.parametrize(
+        'requested,landed',
+        [
+            (
+                'https://docs.aws.amazon.com/general/latest/gr/ddb.html',
+                'http://docs.aws.amazon.com/general/latest/gr/ddb.html',
+            ),
+            (
+                'https://docs.aws.amazon.com/general/latest/gr/ddb.html',
+                'https://docs.aws.amazon.com/general/latest/gr/ddb.html#anchor',
+            ),
+            (
+                'https://docs.aws.amazon.com/general/latest/gr/',
+                'https://docs.aws.amazon.com/general/latest/gr',
+            ),
+            (
+                'https://DOCS.aws.amazon.com/general/latest/gr/ddb.html',
+                'https://docs.aws.amazon.com/general/latest/gr/ddb.html',
+            ),
+            (
+                'https://docs.aws.amazon.com/general/latest/gr//ddb.html',
+                'https://docs.aws.amazon.com/general/latest/gr/ddb.html',
+            ),
+            (
+                'https://docs.aws.amazon.com/general/latest/gr/./ddb.html',
+                'https://docs.aws.amazon.com/general/latest/gr/ddb.html',
+            ),
+            (
+                'https://docs.aws.amazon.com/general/latest/gr/index.html',
+                'https://docs.aws.amazon.com/general/latest/gr/',
+            ),
+        ],
+    )
+    def test_cosmetic_url_differences_are_not_a_redirect(self, requested, landed):
+        """Scheme, fragment, host case and path spelling do not make it another page."""
+        response = MagicMock()
+        response.url = landed
+        assert Page.of(requested, response).message() == ''
+
+    @pytest.mark.asyncio
+    async def test_cosmetic_path_rewrite_returns_the_content(self):
+        """A slash-normalizing redirect must not turn a good page into a failure."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr//ddb.html'
+        patcher = self._client_for(
+            self._redirected_response(
+                '<html><body><main><p>DynamoDB endpoints and quotas.</p></main></body></html>',
+                landed='https://docs.aws.amazon.com/general/latest/gr/ddb.html',
+            )
+        )
+        try:
+            result = await read_documentation_impl(ctx, url, 5000, 0, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert '; served ' not in result
+        assert 'DynamoDB endpoints and quotas.' in result
+
+    @pytest.mark.asyncio
+    async def test_read_documentation_flags_redirect_that_carried_content(self):
+        """Content from another page is labelled, not silently returned as the requested page."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+        patcher = self._client_for(
+            self._redirected_response(
+                '<html><body><main><h1>General Reference</h1>'
+                '<p>Plenty of readable prose about something else entirely.</p>'
+                '</main></body></html>'
+            )
+        )
+        try:
+            result = await read_documentation_impl(ctx, url, 5000, 0, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert '; served ' in result
+        assert 'General Reference' in result
+
+    @pytest.mark.asyncio
+    async def test_search_table_rows_from_redirected_page_are_flagged(self):
+        """Matching rows found on the wrong page still carry the redirect warning."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+        patcher = self._client_for(
+            self._redirected_response(
+                '<html><body><h2>Service endpoints</h2>'
+                '<table><thead><tr><th>Region</th></tr></thead>'
+                '<tbody><tr><td>ap-southeast-4</td></tr></tbody></table>'
+                '</body></html>'
+            )
+        )
+        try:
+            result = await search_table_impl(ctx, url, None, 'ap-southeast-4', 50, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert result.tables_with_matches == 1
+        assert result.hint is not None
+        assert '; served ' in result.hint
+
+    @pytest.mark.asyncio
+    async def test_read_sections_flags_redirect_when_heading_matches(self):
+        """A heading that happens to match on the wrong page does not hide the redirect."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+        patcher = self._client_for(
+            self._redirected_response(
+                '<html><body><h2>Service endpoints</h2>'
+                '<p>Endpoints for a different service.</p></body></html>'
+            )
+        )
+        try:
+            result = await read_sections_impl(ctx, url, ['Service endpoints'], 'test-uuid')
+        finally:
+            patcher.stop()
+        assert '; served ' in result
+        assert 'different service' in result
+
+    @pytest.mark.asyncio
+    async def test_search_table_section_not_found_names_the_redirect(self):
+        """A missing section on a redirected page says the page moved, not that it lacks the section."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+        patcher = self._client_for(
+            self._redirected_response(
+                '<html><body><h2>Something else</h2>'
+                '<table><thead><tr><th>Region</th></tr></thead>'
+                '<tbody><tr><td>us-east-1</td></tr></tbody></table>'
+                '</body></html>'
+            )
+        )
+        try:
+            result = await search_table_impl(
+                ctx, url, 'Service endpoints', 'us-east-1', 50, 'test-uuid'
+            )
+        finally:
+            patcher.stop()
+        assert result.hint is not None
+        assert '; served ' in result.hint
+
+    @pytest.mark.asyncio
+    async def test_direct_fetch_adds_no_redirect_noise(self):
+        """A page reached without a redirect is returned unannotated."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+        response = self._redirected_response(
+            '<html><body><main><p>Real content.</p></main></body></html>'
+        )
+        response.url = url
+        patcher = self._client_for(response)
+        try:
+            result = await read_documentation_impl(ctx, url, 5000, 0, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert '; served ' not in result
+        assert 'Real content.' in result
+
+    @pytest.mark.asyncio
+    async def test_read_sections_unreadable_section_names_the_redirect(self):
+        """A section that matches but converts to nothing still reports the redirect."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+        patcher = self._client_for(
+            self._redirected_response('<html><body><h2>Service endpoints</h2></body></html>')
+        )
+        try:
+            with (
+                patch(
+                    'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html',
+                    side_effect=UnreadablePageError('Page failed to be simplified from HTML'),
+                ),
+                pytest.raises(ValueError, match='; served '),
+            ):
+                await read_sections_impl(ctx, url, ['Service endpoints'], 'test-uuid')
+        finally:
+            patcher.stop()
+
+
+class TestRedirectToDeadPage:
+    """A page that moved and whose target now fails is the case the signal exists for."""
+
+    def _dead_redirect_response(self):
+        """Build a 404 that arrived via a redirect to another page."""
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+        mock_response.text = 'Not found'
+        mock_response.headers = {'content-type': 'text/html'}
+        mock_response.url = 'https://docs.aws.amazon.com/general/latest/gr/'
+        return mock_response
+
+    def _client_for(self, mock_response):
+        """Patch httpx.AsyncClient so a fetch returns the given response."""
+        patcher = patch('httpx.AsyncClient')
+        mock_client_class = patcher.start()
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client_class.return_value = mock_client
+        return patcher
+
+    URL = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+
+    @pytest.mark.asyncio
+    async def test_read_documentation_status_error_names_the_redirect(self):
+        """A 404 reached by redirect says where the request landed, not just the status."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        patcher = self._client_for(self._dead_redirect_response())
+        try:
+            with pytest.raises(ValueError, match='status code 404') as excinfo:
+                await read_documentation_impl(ctx, self.URL, 5000, 0, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert '; served ' in str(excinfo.value)
+        assert 'general/latest/gr/' in str(excinfo.value)
+
+    @pytest.mark.asyncio
+    async def test_read_sections_status_error_names_the_redirect(self):
+        """read_sections reports the redirect on a failing status too."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        patcher = self._client_for(self._dead_redirect_response())
+        try:
+            with pytest.raises(ValueError, match='status code 404') as excinfo:
+                await read_sections_impl(ctx, self.URL, ['Service endpoints'], 'test-uuid')
+        finally:
+            patcher.stop()
+        assert '; served ' in str(excinfo.value)
+
+    @pytest.mark.asyncio
+    async def test_search_table_status_error_names_the_redirect(self):
+        """search_table reports the redirect on a failing status too."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        patcher = self._client_for(self._dead_redirect_response())
+        try:
+            with pytest.raises(ValueError, match='status code 404') as excinfo:
+                await search_table_impl(ctx, self.URL, None, 'us-east-1', 50, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert '; served ' in str(excinfo.value)
+
+    @pytest.mark.asyncio
+    async def test_status_error_without_redirect_is_unchanged(self):
+        """A plain 404 keeps its original message."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        response = self._dead_redirect_response()
+        response.url = self.URL
+        patcher = self._client_for(response)
+        try:
+            with pytest.raises(ValueError) as excinfo:
+                await read_documentation_impl(ctx, self.URL, 5000, 0, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert str(excinfo.value) == f'Failed to fetch {self.URL} - status code 404'
+
+
+class TestRedirectOnNonHtmlContent:
+    """Non-HTML bodies take their own early return, which must carry the redirect too."""
+
+    def _redirected_non_html(self):
+        """Build a 200 plain-text response that arrived via a redirect to another page."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = 'plain text, not a document'
+        mock_response.headers = {'content-type': 'text/plain'}
+        mock_response.url = 'https://docs.aws.amazon.com/general/latest/gr/'
+        return mock_response
+
+    def _client_for(self, mock_response):
+        """Patch httpx.AsyncClient so a fetch returns the given response."""
+        patcher = patch('httpx.AsyncClient')
+        mock_client_class = patcher.start()
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client_class.return_value = mock_client
+        return patcher
+
+    URL = 'https://docs.aws.amazon.com/general/latest/gr/dynamodb.html'
+
+    @pytest.mark.asyncio
+    async def test_read_sections_non_html_names_the_redirect(self):
+        """The non-HTML message does not hide that the page moved."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        patcher = self._client_for(self._redirected_non_html())
+        try:
+            with pytest.raises(ValueError, match='non-HTML content') as excinfo:
+                await read_sections_impl(ctx, self.URL, ['Service endpoints'], 'test-uuid')
+        finally:
+            patcher.stop()
+        assert '; served ' in str(excinfo.value)
+
+    @pytest.mark.asyncio
+    async def test_search_table_non_html_names_the_redirect(self):
+        """The non-HTML hint does not hide that the page moved."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        patcher = self._client_for(self._redirected_non_html())
+        try:
+            with pytest.raises(ValueError, match='not HTML') as excinfo:
+                await search_table_impl(ctx, self.URL, None, 'us-east-1', 50, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert '; served ' in str(excinfo.value)
+
+    @pytest.mark.asyncio
+    async def test_non_html_without_redirect_is_unchanged(self):
+        """A directly fetched non-HTML page keeps its original hint."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        response = self._redirected_non_html()
+        response.url = self.URL
+        patcher = self._client_for(response)
+        try:
+            with pytest.raises(ValueError) as excinfo:
+                await search_table_impl(ctx, self.URL, None, 'us-east-1', 50, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert (
+            str(excinfo.value)
+            == 'Page content is not HTML. Use read_documentation to view this page.'
+        )
+
+
+class TestResponseNamesThePageItRead:
+    """The structured url field reports the page the rows came from, not the one asked for."""
+
+    def _response(self, text, landed):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = text
+        mock_response.headers = {'content-type': 'text/html'}
+        mock_response.url = landed
+        return mock_response
+
+    def _client_for(self, mock_response):
+        patcher = patch('httpx.AsyncClient')
+        mock_client_class = patcher.start()
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client_class.return_value = mock_client
+        return patcher
+
+    TABLE = (
+        '<html><body><h2>Endpoints</h2><table><thead><tr><th>Region</th></tr></thead>'
+        '<tbody><tr><td>us-east-1</td></tr></tbody></table></body></html>'
+    )
+
+    @pytest.mark.asyncio
+    async def test_search_table_url_is_the_served_page(self):
+        """On a rename the rows come from the served page, so url names it."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        requested = 'https://docs.aws.amazon.com/general/latest/gr/old-name.html'
+        served = 'https://docs.aws.amazon.com/general/latest/gr/new-name.html'
+        patcher = self._client_for(self._response(self.TABLE, served))
+        try:
+            result = await search_table_impl(ctx, requested, None, 'us-east-1', 20, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert result.url == served
+        assert result.results, 'the rows should still be found'
+
+    @pytest.mark.asyncio
+    async def test_search_table_url_unchanged_without_a_redirect(self):
+        """With no substitution the served page is the requested page."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/endpoints.html'
+        patcher = self._client_for(self._response(self.TABLE, url))
+        try:
+            result = await search_table_impl(ctx, url, None, 'us-east-1', 20, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert result.url == url
+
+    @pytest.mark.asyncio
+    async def test_search_table_transport_failure_chains_the_cause(self):
+        """The original transport error stays reachable as __cause__."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/endpoints.html'
+        original = httpx.HTTPError('connection reset')
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=None)
+            mock_client.get = AsyncMock(side_effect=original)
+            mock_client_class.return_value = mock_client
+            with pytest.raises(ValueError) as excinfo:
+                await search_table_impl(ctx, url, None, 'q', 20, 'test-uuid')
+        assert excinfo.value.__cause__ is original
+
+
+class TestTruncationHintNamesTheServedPage:
+    """A truncated table suggests a follow-up call, which must land on the page read."""
+
+    def _response(self, text, landed):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = text
+        mock_response.headers = {'content-type': 'text/html'}
+        mock_response.url = landed
+        return mock_response
+
+    def _client_for(self, mock_response):
+        patcher = patch('httpx.AsyncClient')
+        mock_client_class = patcher.start()
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client_class.return_value = mock_client
+        return patcher
+
+    def _big_table_page(self):
+        rows = ''.join(f'<tr><td>row{i}</td><td>val{i}</td></tr>' for i in range(40))
+        return (
+            '<html><body><main><h2>Endpoints</h2><table><thead><tr><th>Name</th><th>Value</th>'
+            f'</tr></thead><tbody>{rows}</tbody></table></main></body></html>'
+        )
+
+    @pytest.mark.asyncio
+    async def test_read_documentation_hint_names_the_served_page(self):
+        """After a rename the suggested search_table call points at the new URL."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        requested = 'https://docs.aws.amazon.com/general/latest/gr/old-name.html'
+        served = 'https://docs.aws.amazon.com/general/latest/gr/new-name.html'
+        patcher = self._client_for(self._response(self._big_table_page(), served))
+        try:
+            result = await read_documentation_impl(ctx, requested, 50000, 0, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert 'Table truncated' in result, (
+            'the table must actually truncate for this to mean anything'
+        )
+        assert f'search_table(url="{served}"' in result
+        assert f'search_table(url="{requested}"' not in result
+
+    @pytest.mark.asyncio
+    async def test_read_sections_hint_names_the_served_page(self):
+        """read_sections carries the same suggestion and the same URL."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        requested = 'https://docs.aws.amazon.com/general/latest/gr/old-name.html'
+        served = 'https://docs.aws.amazon.com/general/latest/gr/new-name.html'
+        patcher = self._client_for(self._response(self._big_table_page(), served))
+        try:
+            result = await read_sections_impl(ctx, requested, ['Endpoints'], 'test-uuid')
+        finally:
+            patcher.stop()
+        assert 'Table truncated' in result
+        assert f'search_table(url="{served}"' in result
+
+
+class TestReadSectionsOutputShape:
+    """read_sections heads its output the same way whether or not a substitution occurred."""
+
+    def _response(self, landed):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = (
+            '<html><body><main><h2>Service endpoints</h2><p>Prose here.</p></main></body></html>'
+        )
+        mock_response.headers = {'content-type': 'text/html'}
+        mock_response.url = landed
+        return mock_response
+
+    def _client_for(self, mock_response):
+        patcher = patch('httpx.AsyncClient')
+        mock_client_class = patcher.start()
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.get = AsyncMock(return_value=mock_response)
+        mock_client_class.return_value = mock_client
+        return patcher
+
+    @pytest.mark.asyncio
+    async def test_header_present_without_a_substitution(self):
+        """A direct read is still headed by the page it came from."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/general/latest/gr/sts.html'
+        patcher = self._client_for(self._response(url))
+        try:
+            result = await read_sections_impl(ctx, url, ['Service endpoints'], 'test-uuid')
+        finally:
+            patcher.stop()
+        assert result.startswith(f'AWS Documentation from {url}:')
+        assert '<e>' not in result
+
+    @pytest.mark.asyncio
+    async def test_header_present_with_a_substitution(self):
+        """A substitution adds the note above the same header, not instead of it."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        requested = 'https://docs.aws.amazon.com/general/latest/gr/old.html'
+        served = 'https://docs.aws.amazon.com/general/latest/gr/new.html'
+        patcher = self._client_for(self._response(served))
+        try:
+            result = await read_sections_impl(ctx, requested, ['Service endpoints'], 'test-uuid')
+        finally:
+            patcher.stop()
+        assert result.startswith(f'<e>Requested {requested}; served {served}.</e>')
+        assert f'AWS Documentation from {served}:' in result

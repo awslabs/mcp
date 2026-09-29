@@ -811,6 +811,110 @@ async def test_list_runs_with_both_date_filters():
 
 
 @pytest.mark.asyncio
+async def test_list_runs_date_filter_truncation_emits_next_token():
+    """Test that truncating date-filtered results still signals continuation.
+
+    When client-side date filtering leaves more matching runs than max_results,
+    and the upstream API still has more pages available, the response must
+    include a nextToken so callers know the page is not the complete result set.
+    """
+    base_time = datetime(2023, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+
+    # 15 runs all created after the created_after filter, fetched in a single
+    # upstream batch that itself still has more pages (nextToken present).
+    items = []
+    for i in range(15):
+        items.append(
+            {
+                'id': f'run-{i}',
+                'name': f'run-{i}',
+                'status': 'COMPLETED',
+                'workflowId': f'wfl-{i}',
+                'workflowType': 'WDL',
+                'creationTime': base_time + timedelta(days=i),
+            }
+        )
+
+    mock_response = {
+        'items': items,
+        'nextToken': 'upstream-token-abc',
+    }
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.list_runs.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await list_runs(
+            ctx=mock_ctx,
+            max_results=10,
+            next_token=None,
+            status=None,
+            created_after='2023-06-10T00:00:00Z',
+            created_before=None,
+            run_group_id=None,
+        )
+
+    # Truncated to max_results, but more matching runs exist upstream.
+    assert len(result['runs']) == 10
+    assert 'nextToken' in result, (
+        'truncated date-filtered page must carry a continuation token so the '
+        'caller does not treat a partial result as complete'
+    )
+    assert result['nextToken'] == 'upstream-token-abc'
+
+
+@pytest.mark.asyncio
+async def test_list_runs_date_filter_truncation_no_upstream_token():
+    """Test truncated date-filtered results with no further upstream pages.
+
+    When the upstream API has no more pages (no nextToken), there is no valid
+    resume point to hand back even though the filtered set was truncated. The
+    response must omit nextToken rather than fabricate one.
+    """
+    base_time = datetime(2023, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+
+    items = [
+        {
+            'id': f'run-{i}',
+            'name': f'run-{i}',
+            'status': 'COMPLETED',
+            'workflowId': f'wfl-{i}',
+            'workflowType': 'WDL',
+            'creationTime': base_time + timedelta(days=i),
+        }
+        for i in range(15)
+    ]
+
+    # No nextToken: this is the final upstream page.
+    mock_response = {'items': items}
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.list_runs.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await list_runs(
+            ctx=mock_ctx,
+            max_results=10,
+            next_token=None,
+            status=None,
+            created_after='2023-06-10T00:00:00Z',
+            created_before=None,
+            run_group_id=None,
+        )
+
+    assert len(result['runs']) == 10
+    assert 'nextToken' not in result
+
+
+@pytest.mark.asyncio
 async def test_list_runs_invalid_created_after():
     """Test list_runs with invalid created_after datetime."""
     mock_ctx = AsyncMock()
@@ -2613,3 +2717,108 @@ class TestGetRunPassesScratchStorageModeThrough:
         else:
             # When the API response omits scratchStorageMode, the result omits it entirely.
             assert 'scratchStorageMode' not in result
+
+
+# Feature: run-log-level, Property: start_run forwards logLevel only when provided
+class TestStartRunLogLevel:
+    """start_run handling of the optional log_level parameter.
+
+    - When log_level is None (default), no logLevel key is forwarded to the HealthOmics
+      start_run API, preserving backward-compatible behavior and the API default.
+    - When log_level is a valid enum value (OFF, FATAL, ERROR, ALL), it is forwarded to
+      the API and reflected in the response.
+    - When log_level is invalid, a validation error is returned and the API is not called.
+    """
+
+    _base_params = {
+        'workflow_id': 'wfl-12345',
+        'role_arn': 'arn:aws:iam::123456789012:role/HealthOmicsRole',
+        'name': 'test-run',
+        'output_uri': 's3://my-bucket/outputs/',
+        'parameters': {'param1': 'value1'},
+    }
+
+    _api_response = {
+        'id': 'run-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:run/run-12345',
+        'status': 'PENDING',
+        'name': 'test-run',
+        'workflowId': 'wfl-12345',
+        'uuid': 'uuid-abc-123',
+        'tags': {},
+    }
+
+    @pytest.mark.asyncio
+    async def test_start_run_omits_log_level_when_none(self):
+        """log_level=None => no logLevel key in the params passed to the API."""
+        mock_ctx = AsyncMock()
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        wrapper = MCPToolTestWrapper(start_run)
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+            return_value=mock_client,
+        ):
+            result = await wrapper.call(
+                ctx=mock_ctx,
+                **self._base_params,
+                log_level=None,
+            )
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        mock_client.start_run.assert_called_once()
+        call_kwargs = mock_client.start_run.call_args.kwargs
+        assert 'logLevel' not in call_kwargs, (
+            'logLevel must not be forwarded when the caller omits it'
+        )
+        # Response still surfaces the (None) effective value for observability.
+        assert result['logLevel'] is None
+
+    @pytest.mark.parametrize('log_level', ['OFF', 'FATAL', 'ERROR', 'ALL'])
+    @pytest.mark.asyncio
+    async def test_start_run_forwards_valid_log_level(self, log_level):
+        """Each valid enum value is forwarded to the API and reflected in the response."""
+        mock_ctx = AsyncMock()
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        wrapper = MCPToolTestWrapper(start_run)
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+            return_value=mock_client,
+        ):
+            result = await wrapper.call(
+                ctx=mock_ctx,
+                **self._base_params,
+                log_level=log_level,
+            )
+
+        assert 'error' not in result, f'Unexpected error for log_level={log_level!r}: {result}'
+        mock_client.start_run.assert_called_once()
+        call_kwargs = mock_client.start_run.call_args.kwargs
+        assert call_kwargs['logLevel'] == log_level
+        assert result['logLevel'] == log_level
+
+    @pytest.mark.asyncio
+    async def test_start_run_invalid_log_level_returns_error(self):
+        """An invalid log_level returns a validation error and never calls the API."""
+        mock_ctx = AsyncMock()
+        mock_client = MagicMock()
+
+        wrapper = MCPToolTestWrapper(start_run)
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+            return_value=mock_client,
+        ):
+            result = await wrapper.call(
+                ctx=mock_ctx,
+                **self._base_params,
+                log_level='INVALID',
+            )
+
+        assert 'error' in result
+        mock_client.start_run.assert_not_called()

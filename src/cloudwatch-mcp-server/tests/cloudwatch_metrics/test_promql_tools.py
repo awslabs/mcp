@@ -337,3 +337,25 @@ class TestGetPromQLLabels:
 
         with pytest.raises(ValueError, match='AWS credentials not found'):
             await tools.get_promql_labels(ctx, region='us-east-1')
+
+
+@pytest.mark.asyncio
+class TestPromQLToolsRegionGuard:
+    """A malicious region on a PromQL tool never triggers a signed request (SOCCRE-24621)."""
+
+    @patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.promql_client.SigV4Auth')
+    @patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.promql_client.requests.Session')
+    @patch('awslabs.cloudwatch_mcp_server.cloudwatch_metrics.promql_client.Session')
+    async def test_malicious_region_rejected_before_signing(
+        self, mock_boto_session, mock_req_session, mock_sigv4, ctx, tools
+    ):
+        """execute_promql_query with a host-breakout region raises without signing/sending."""
+        with pytest.raises(ValueError):
+            await tools.execute_promql_query(ctx, query='up', region='evil.com/')
+
+        # Fails closed before boto Session, SigV4 signing, or HTTP send.
+        mock_boto_session.assert_not_called()
+        mock_sigv4.assert_not_called()
+        mock_req_session.assert_not_called()
+        # Error is surfaced to the MCP context.
+        ctx.error.assert_awaited()

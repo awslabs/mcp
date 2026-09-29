@@ -874,6 +874,8 @@ def test_main_success_with_read_only_mode(
 @patch('awslabs.aws_api_mcp_server.server.HOST', '0.0.0.0')
 @patch('awslabs.aws_api_mcp_server.server.PORT', 8080)
 @patch('awslabs.aws_api_mcp_server.server.STATELESS_HTTP', True)
+@patch('awslabs.aws_api_mcp_server.server.ALLOWED_HOSTS', 'my-mcp-server.example.com,localhost')
+@patch('awslabs.aws_api_mcp_server.server.ALLOWED_ORIGINS', 'https://my-mcp-server.example.com')
 def test_main_success_with_http_transport(
     mock_get_read_only_operations,
     mock_server,
@@ -893,7 +895,72 @@ def test_main_success_with_http_transport(
         host='0.0.0.0',
         port=8080,
         stateless_http=True,
+        allowed_hosts=['my-mcp-server.example.com', 'localhost'],
+        allowed_origins=['https://my-mcp-server.example.com'],
     )
+
+
+@patch('awslabs.aws_api_mcp_server.server.os.chdir')
+@patch('awslabs.aws_api_mcp_server.server.get_read_only_operations')
+@patch('awslabs.aws_api_mcp_server.server.READ_OPERATIONS_ONLY_MODE', True)
+@patch('awslabs.aws_api_mcp_server.server.DEFAULT_REGION', 'us-east-1')
+@patch('awslabs.aws_api_mcp_server.server.WORKING_DIRECTORY', '/tmp')
+@patch('awslabs.aws_api_mcp_server.server.TRANSPORT', 'streamable-http')
+@patch('awslabs.aws_api_mcp_server.server.HOST', '0.0.0.0')
+@patch('awslabs.aws_api_mcp_server.server.PORT', 8080)
+@patch('awslabs.aws_api_mcp_server.server.STATELESS_HTTP', True)
+@patch('awslabs.aws_api_mcp_server.server.ALLOWED_HOSTS', '*')
+@patch('awslabs.aws_api_mcp_server.server.ALLOWED_ORIGINS', '*')
+def test_main_http_transport_allowed_hosts_reach_fastmcp_guard(
+    mock_get_read_only_operations,
+    mock_chdir,
+):
+    """Test AWS_API_MCP_ALLOWED_HOSTS is honoured by FastMCP's own Host header guard (#4507).
+
+    FastMCP 3.x only accepts loopback Host headers unless ``allowed_hosts`` is passed to
+    ``run()``. Build the HTTP app with exactly the keyword arguments ``main()`` hands to
+    ``server.run()`` and check that a request carrying a real DNS name is not rejected
+    with ``421 Misdirected Request`` when the server is bound to ``0.0.0.0``. Each request
+    also carries a cross origin ``Origin`` header so the ``allowed_origins`` side of the
+    guard is exercised too; FastMCP falls back to loopback only origins when that
+    argument is missing, which would reject the request.
+    """
+    mock_get_read_only_operations.return_value = MagicMock()
+    initialize_request = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'initialize',
+        'params': {
+            'protocolVersion': '2025-06-18',
+            'capabilities': {},
+            'clientInfo': {'name': 'test', 'version': '0.0.1'},
+        },
+    }
+    status_by_host = {}
+
+    def run_against_test_client(transport, host, port, stateless_http, **run_kwargs):
+        from starlette.testclient import TestClient
+
+        app = server_module.server.http_app(
+            transport=transport, stateless_http=stateless_http, **run_kwargs
+        )
+        with TestClient(app, base_url=f'http://{host}:{port}') as client:
+            for host_header in ('localhost', 'my-mcp-server.example.com'):
+                response = client.post(
+                    '/mcp',
+                    json=initialize_request,
+                    headers={
+                        'Host': host_header,
+                        'Origin': 'https://console.example.net',
+                        'Accept': 'application/json, text/event-stream',
+                    },
+                )
+                status_by_host[host_header] = response.status_code
+
+    with patch.object(server_module.server, 'run', side_effect=run_against_test_client):
+        main()
+
+    assert status_by_host == {'localhost': 200, 'my-mcp-server.example.com': 200}
 
 
 @patch('awslabs.aws_api_mcp_server.core.common.config.ENABLE_AGENT_SCRIPTS', True)
