@@ -55,6 +55,7 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 - **Detailed cost breakdowns**: Get billing group cost reports broken down by service name or billing period
 - **Pricing rules and plans**: List pricing rules (MARKUP, DISCOUNT, TIERING) and pricing plans with their associations
 - **Custom line items**: List custom cost allocations including support fees, shared service costs, taxes, credits, and RI/SP distribution
+- **Billing transfer preferences**: Check whether billing groups are created automatically for new end customers in a two-level billing transfer, and which pricing plan they use
 
 ### Cost Allocation Tags
 
@@ -343,6 +344,7 @@ AWS Billing Conductor:
 - billingconductor:ListCustomLineItems
 - billingconductor:ListCustomLineItemVersions
 - billingconductor:ListResourcesAssociatedToCustomLineItem
+- billingconductor:GetBillingTransferPreference
 
 AWS Invoicing:
 - invoicing:ListInvoiceSummaries
@@ -467,6 +469,7 @@ The server currently supports the following AWS services
    - list_custom_line_items
    - list_custom_line_item_versions
    - list_resources_associated_to_custom_line_item
+   - get_billing_transfer_preference
 
 11. **Cost Allocation Tags**
     - list_cost_allocation_tags
