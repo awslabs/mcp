@@ -41,6 +41,41 @@ bcm_pricing_calculator_server = FastMCP(
 )
 
 
+def _build_preferences_error_response(preferences_result: Dict[str, Any]) -> Dict[str, Any]:
+    """Build a structured error response from a failed get_preferences result.
+
+    A failed preferences check short-circuits every operation, so its error must
+    stay classifiable. This preserves the legacy status/data/message payload for
+    backward compatibility while surfacing top-level error_type, operation, and
+    service (e.g. error_type='AccessDenied', operation='get_preferences') that a
+    bare re-wrap would otherwise drop.
+
+    Args:
+        preferences_result: The dict returned by get_preferences on failure. Must
+            contain an 'error' key; error_type/error_code/operation/service are
+            optional.
+
+    Returns:
+        Dict containing a standardized error response with structured fields.
+    """
+    error_type = preferences_result.get('error_type', 'preferences_not_configured')
+    # data.error_code keeps its legacy value; it mirrors error_type for AWS codes.
+    error_code = preferences_result.get('error_code', error_type)
+    operation = preferences_result.get('operation', 'get_preferences')
+    service = preferences_result.get('service', BCM_PRICING_CALCULATOR_SERVICE_NAME)
+    error_msg = preferences_result['error']
+
+    response = format_response(
+        'error',
+        {'error': error_msg, 'error_code': error_code},
+        error_msg,
+    )
+    response['error_type'] = error_type
+    response['operation'] = operation
+    response['service'] = service
+    return response
+
+
 async def bcm_pricing_calc_core(
     ctx: Context,
     operation: str,
@@ -139,11 +174,7 @@ async def bcm_pricing_calc_core(
         elif operation == 'get_preferences':
             preferences_result = await get_preferences(ctx)
             if 'error' in preferences_result:
-                return format_response(
-                    'error',
-                    {'error': preferences_result['error']},
-                    preferences_result['error'],
-                )
+                return _build_preferences_error_response(preferences_result)
             else:
                 return format_response(
                     'success',
@@ -160,14 +191,19 @@ async def bcm_pricing_calc_core(
         error_response = await handle_aws_error(
             ctx, e, operation, 'AWS Billing and Cost Management Pricing Calculator'
         )
-        await ctx.error(
-            f'Failed to process AWS Billing and Cost Management Pricing Calculator request: {error_response.get("data", {}).get("error", str(e))}'
+        error_msg = error_response.get('message', str(e))
+        full_message = (
+            f'Failed to process AWS Billing and Cost Management Pricing Calculator '
+            f'request: {error_msg}'
         )
-        return format_response(
-            'error',
-            {'error': error_response.get('data', {}).get('error', str(e))},
-            f'Failed to process AWS Billing and Cost Management Pricing Calculator request: {error_response.get("data", {}).get("error", str(e))}',
+        await ctx.error(full_message)
+        response = format_response('error', {'error': error_msg}, full_message)
+        response['error_type'] = error_response.get('error_type', 'unknown_error')
+        response['operation'] = error_response.get('operation', operation)
+        response['service'] = error_response.get(
+            'service', 'AWS Billing and Cost Management Pricing Calculator'
         )
+        return response
 
 
 @bcm_pricing_calculator_server.tool(
@@ -324,16 +360,30 @@ async def get_preferences(ctx: Context) -> dict:
         else:
             error_msg = 'BCM Pricing Calculator preferences are not configured - no rate type selections found'
             await ctx.error(error_msg)
-            return {'error': error_msg}  # the `error` moniker here is used in referenced method.
+            # the `error` moniker here is used in referenced method.
+            return {
+                'error': error_msg,
+                'error_type': 'preferences_not_configured',
+                'error_code': 'PREFERENCES_NOT_CONFIGURED',
+                'operation': 'get_preferences',
+                'service': BCM_PRICING_CALCULATOR_SERVICE_NAME,
+            }
 
     except Exception as e:
         # Use shared error handler for consistent error handling
         error_response = await handle_aws_error(
             ctx, e, 'get_preferences', BCM_PRICING_CALCULATOR_SERVICE_NAME
         )
-        error_msg = f'Failed to check BCM Pricing Calculator preferences: {error_response.get("data", {}).get("error", str(e))}'
+        error_msg = f'Failed to check BCM Pricing Calculator preferences: {error_response.get("message", str(e))}'
         await ctx.error(error_msg)
-        return {'error': error_msg}
+        aws_error_type = error_response.get('error_type', 'unknown_error')
+        return {
+            'error': error_msg,
+            'error_type': aws_error_type,
+            'error_code': aws_error_type,
+            'operation': error_response.get('operation', 'get_preferences'),
+            'service': error_response.get('service', BCM_PRICING_CALCULATOR_SERVICE_NAME),
+        }
 
 
 async def list_workload_estimates(
@@ -383,13 +433,7 @@ async def list_workload_estimates(
         # Check preferences before proceeding
         preferences_result = await get_preferences(ctx)
         if 'error' in preferences_result:
-            return format_response(
-                'error',
-                {
-                    'error': preferences_result['error'],
-                    'error_code': 'PREFERENCES_NOT_CONFIGURED',
-                },
-            )
+            return _build_preferences_error_response(preferences_result)
 
         request_params: Dict[str, Any] = {}
         # Build request parameters
@@ -553,13 +597,7 @@ async def get_workload_estimate(
         # Check preferences before proceeding
         preferences_result = await get_preferences(ctx)
         if 'error' in preferences_result:
-            return format_response(
-                'error',
-                {
-                    'error': preferences_result['error'],
-                    'error_code': 'PREFERENCES_NOT_CONFIGURED',
-                },
-            )
+            return _build_preferences_error_response(preferences_result)
 
         # Build request parameters
         request_params: Dict[str, Any] = {'identifier': identifier}
@@ -653,13 +691,7 @@ async def list_workload_estimate_usage(
         # Check preferences before proceeding
         preferences_result = await get_preferences(ctx)
         if 'error' in preferences_result:
-            return format_response(
-                'error',
-                {
-                    'error': preferences_result['error'],
-                    'error_code': 'PREFERENCES_NOT_CONFIGURED',
-                },
-            )
+            return _build_preferences_error_response(preferences_result)
 
         request_params: Dict[str, Any] = {}
         # Build request parameters

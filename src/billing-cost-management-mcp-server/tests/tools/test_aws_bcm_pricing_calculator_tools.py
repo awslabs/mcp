@@ -222,7 +222,14 @@ class TestGetPreferences:
             {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}, 'GetPreferences'
         )
         mock_create_client.side_effect = error
-        mock_handle_error.return_value = {'data': {'error': 'Access denied'}}
+        # handle_aws_error puts structured fields at the top level (not under 'data').
+        mock_handle_error.return_value = {
+            'status': 'error',
+            'service': 'BCM Pricing Calculator',
+            'operation': 'get_preferences',
+            'error_type': 'AccessDenied',
+            'message': 'Access denied',
+        }
 
         # Execute
         result = await get_preferences(mock_context)
@@ -235,6 +242,10 @@ class TestGetPreferences:
         assert (
             'Failed to check BCM Pricing Calculator preferences: Access denied' in result['error']
         )
+        # Structured fields are preserved so callers can classify the failure.
+        assert result['error_type'] == 'AccessDenied'
+        assert result['operation'] == 'get_preferences'
+        assert result['service'] == 'BCM Pricing Calculator'
         mock_context.error.assert_called()
 
 
@@ -329,17 +340,54 @@ class TestListWorkloadEstimates:
         self, mock_get_preferences, mock_context
     ):
         """Test list_workload_estimates when preferences are not configured."""
-        # Setup
+        # Setup: mirror the real get_preferences not-configured shape.
         mock_get_preferences.return_value = {
-            'error': 'BCM Pricing Calculator preferences are not configured'
+            'error': 'BCM Pricing Calculator preferences are not configured',
+            'error_type': 'preferences_not_configured',
+            'error_code': 'PREFERENCES_NOT_CONFIGURED',
+            'operation': 'get_preferences',
+            'service': 'BCM Pricing Calculator',
         }
 
         # Execute
         result = await list_workload_estimates(mock_context)
 
         # Assert
-        assert result['status'] == 'error'
+        # Legacy data.error_code preserved (SCREAMING_CASE); top-level error_type
+        # follows the package's lowercase convention.
         assert result['data']['error_code'] == 'PREFERENCES_NOT_CONFIGURED'
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'preferences_not_configured'
+        assert result['operation'] == 'get_preferences'
+        assert result['service'] == 'BCM Pricing Calculator'
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
+    )
+    async def test_list_workload_estimates_preferences_access_denied(
+        self, mock_get_preferences, mock_context
+    ):
+        """Access-denied on the preferences check surfaces error_type/operation."""
+        # Setup: get_preferences failed with a ClientError classified by handle_aws_error.
+        mock_get_preferences.return_value = {
+            'error': 'Failed to check BCM Pricing Calculator preferences: '
+            'User is not authorized to perform bcm-pricing-calculator:GetPreferences',
+            'error_type': 'AccessDenied',
+            'operation': 'get_preferences',
+            'service': 'BCM Pricing Calculator',
+        }
+
+        # Execute
+        result = await list_workload_estimates(mock_context)
+
+        # Assert: the access-denied classification is no longer flattened away.
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'AccessDenied'
+        assert result['operation'] == 'get_preferences'
+        assert result['service'] == 'BCM Pricing Calculator'
+        assert result['data']['error_code'] == 'AccessDenied'
+        assert 'not authorized' in result['data']['error']
+        assert 'not authorized' in result['message']
 
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
@@ -431,9 +479,13 @@ class TestGetWorkloadEstimate:
         self, mock_get_preferences, mock_context
     ):
         """Test get_workload_estimate when preferences are not configured."""
-        # Setup
+        # Setup: mirror the real get_preferences not-configured shape.
         mock_get_preferences.return_value = {
-            'error': 'BCM Pricing Calculator preferences are not configured'
+            'error': 'BCM Pricing Calculator preferences are not configured',
+            'error_type': 'preferences_not_configured',
+            'error_code': 'PREFERENCES_NOT_CONFIGURED',
+            'operation': 'get_preferences',
+            'service': 'BCM Pricing Calculator',
         }
 
         # Execute
@@ -442,6 +494,7 @@ class TestGetWorkloadEstimate:
         # Assert
         assert result['status'] == 'error'
         assert result['data']['error_code'] == 'PREFERENCES_NOT_CONFIGURED'
+        assert result['error_type'] == 'preferences_not_configured'
 
 
 @pytest.mark.asyncio
@@ -1317,9 +1370,13 @@ class TestListWorkloadEstimateUsagePreferencesNotConfigured:
         self, mock_get_preferences, mock_context
     ):
         """Test list_workload_estimate_usage when preferences are not configured (line 476)."""
-        # Setup
+        # Setup: mirror the real get_preferences not-configured shape.
         mock_get_preferences.return_value = {
-            'error': 'BCM Pricing Calculator preferences are not configured - no rate type selections found'
+            'error': 'BCM Pricing Calculator preferences are not configured - no rate type selections found',
+            'error_type': 'preferences_not_configured',
+            'error_code': 'PREFERENCES_NOT_CONFIGURED',
+            'operation': 'get_preferences',
+            'service': 'BCM Pricing Calculator',
         }
 
         # Execute
@@ -1819,9 +1876,13 @@ class TestBcmPricingCalcCoreFunction:
         # Setup
         test_error = Exception('Test error')
         mock_get_workload_estimate.side_effect = test_error
+        # handle_aws_error returns structured fields at the top level.
         mock_handle_error.return_value = {
-            'data': {'error': 'Test error message'},
             'status': 'error',
+            'service': 'AWS Billing and Cost Management Pricing Calculator',
+            'operation': 'get_workload_estimate',
+            'error_type': 'unknown_exception',
+            'message': 'Test error message',
         }
 
         # Execute - call the core function directly
@@ -1850,6 +1911,10 @@ class TestBcmPricingCalcCoreFunction:
             'Failed to process AWS Billing and Cost Management Pricing Calculator request'
             in result['message']
         )
+        # Structured fields are propagated from handle_aws_error.
+        assert result['error_type'] == 'unknown_exception'
+        assert result['operation'] == 'get_workload_estimate'
+        assert result['service'] == 'AWS Billing and Cost Management Pricing Calculator'
 
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.list_workload_estimates'

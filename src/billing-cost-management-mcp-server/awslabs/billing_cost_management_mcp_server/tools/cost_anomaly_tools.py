@@ -35,6 +35,39 @@ cost_anomaly_server = FastMCP(
 )
 
 
+def _cost_anomaly_error_response(
+    data: Dict[str, Any],
+    message: str,
+    error_type: str,
+    operation: str = 'cost_anomaly',
+    service: str = 'Cost Explorer',
+) -> Dict[str, Any]:
+    """Build a cost-anomaly error response with structured top-level fields.
+
+    Local input validation (bad date format, future end_date, invalid range,
+    unknown feedback/operator, etc.) never reaches handle_aws_error, so these
+    responses previously carried no error_type or operation and surfaced as
+    unclassifiable failures. This preserves the legacy status/data/message
+    payload for backward compatibility while surfacing top-level error_type,
+    operation, and service.
+
+    Args:
+        data: The legacy data payload for the error response.
+        message: Human-readable error message.
+        error_type: Classifiable error type (e.g. 'validation_error').
+        operation: The operation that failed. Defaults to 'cost_anomaly'.
+        service: The AWS service name. Defaults to 'Cost Explorer'.
+
+    Returns:
+        Dict containing a standardized error response with structured fields.
+    """
+    response = format_response('error', data, message)
+    response['error_type'] = error_type
+    response['operation'] = operation
+    response['service'] = service
+    return response
+
+
 @cost_anomaly_server.tool(
     name='cost-anomaly',
     description="""Retrieves AWS cost anomalies using the Cost Explorer GetAnomalies API.
@@ -88,17 +121,17 @@ async def cost_anomaly(
     try:
         # Validate date formats first
         if not validate_date_format(start_date):
-            return format_response(
-                'error',
+            return _cost_anomaly_error_response(
                 {'invalid_parameter': 'start_date'},
                 f'Invalid start_date format: {start_date}. Date must be in YYYY-MM-DD format.',
+                'validation_error',
             )
 
         if not validate_date_format(end_date):
-            return format_response(
-                'error',
+            return _cost_anomaly_error_response(
                 {'invalid_parameter': 'end_date'},
                 f'Invalid end_date format: {end_date}. Date must be in YYYY-MM-DD format.',
+                'validation_error',
             )
 
         # Parse dates for validation
@@ -111,18 +144,18 @@ async def cost_anomaly(
 
         # Check if date range is valid
         if start_date_obj > end_date_obj:
-            return format_response(
-                'error',
+            return _cost_anomaly_error_response(
                 {'start_date': start_date, 'end_date': end_date},
                 'Invalid date range: start_date must be before or equal to end_date.',
+                'validation_error',
             )
 
         # Check if dates are in the future
         if end_date_obj > today:
-            return format_response(
-                'error',
+            return _cost_anomaly_error_response(
                 {'end_date': end_date},
                 'Invalid end_date: Cannot request anomalies for future dates.',
+                'validation_error',
             )
 
         # Check if dates are beyond the 90-day lookback period
@@ -145,10 +178,10 @@ async def cost_anomaly(
 
         # Validate feedback parameter if provided
         if feedback and feedback not in ['YES', 'NO', 'PLANNED_ACTIVITY']:
-            return format_response(
-                'error',
+            return _cost_anomaly_error_response(
                 {'invalid_parameter': 'feedback', 'value': feedback},
                 f'Invalid feedback value: {feedback}. Must be one of: YES, NO, PLANNED_ACTIVITY.',
+                'validation_error',
             )
 
         # Validate total impact operator if provided
@@ -161,18 +194,18 @@ async def cost_anomaly(
             'BETWEEN',
         ]
         if total_impact_operator and total_impact_operator not in valid_operators:
-            return format_response(
-                'error',
+            return _cost_anomaly_error_response(
                 {'invalid_parameter': 'total_impact_operator', 'value': total_impact_operator},
                 f'Invalid total_impact_operator: {total_impact_operator}. Must be one of: {", ".join(valid_operators)}',
+                'validation_error',
             )
 
         # Validate total_impact_end is provided when using BETWEEN operator
         if total_impact_operator == 'BETWEEN' and total_impact_end is None:
-            return format_response(
-                'error',
+            return _cost_anomaly_error_response(
                 {'missing_parameter': 'total_impact_end'},
                 'When using BETWEEN operator for total_impact, both total_impact_start and total_impact_end must be provided.',
+                'validation_error',
             )
 
         await ctx_logger.info(f'Retrieving cost anomalies from {start_date} to {end_date}')
@@ -195,8 +228,10 @@ async def cost_anomaly(
 
     except ValueError as e:
         # Handle date parsing errors
-        return format_response(
-            'error', {'error_type': 'validation_error'}, f'Date validation error: {str(e)}'
+        return _cost_anomaly_error_response(
+            {'error_type': 'validation_error'},
+            f'Date validation error: {str(e)}',
+            'validation_error',
         )
     except ClientError as e:
         # Handle AWS service-specific errors
@@ -205,18 +240,18 @@ async def cost_anomaly(
 
         if error_code == 'ValidationException' and '2024' in error_message:
             # Special handling for 2024 data issues
-            return format_response(
-                'error',
+            return _cost_anomaly_error_response(
                 {'error_code': error_code},
                 f'Cost Anomaly Detection validation error for 2024 data: {error_message}. '
                 f'Note that cost anomalies may not be available yet for very recent data. '
                 f'Try querying a date range that ends at least 24-48 hours in the past.',
+                error_code,
             )
         elif error_code == 'ValidationException':
-            return format_response(
-                'error',
+            return _cost_anomaly_error_response(
                 {'error_code': error_code},
                 f'Cost Anomaly Detection validation error: {error_message}',
+                error_code,
             )
         else:
             # Use shared error handler for other AWS errors
