@@ -7,27 +7,25 @@ from awslabs.amazon_sns_sqs_mcp_server.sqs import (
     is_mutative_action_allowed,
     register_sqs_tools,
 )
+from mcp.server.mcpserver import MCPServer
 from unittest.mock import MagicMock, patch
 
 
 class TestSQSTools:
     """Test SQS tools."""
 
-    def test_create_queue_override(self):
-        """Test create_queue_override function."""
-        # Mock FastMCP
-        mock_mcp = MagicMock()
-        mock_mcp.tool = MagicMock(return_value=lambda x: x)
+    async def test_create_queue_override(self):
+        """Test that create_queue exposes its description through MCP."""
+        mcp = MCPServer()
+        mock_sqs_client_getter = MagicMock()
 
-        # Mock SQS client getter
-        mock_sqs_client = MagicMock()
-        mock_sqs_client_getter = MagicMock(return_value=mock_sqs_client)
+        create_queue_override(mcp, mock_sqs_client_getter, '')
 
-        # Call the function
-        create_queue_override(mock_mcp, mock_sqs_client_getter, '')
-
-        # Assert tool was registered
-        assert mock_mcp.tool.called
+        tools = {tool.name: tool for tool in await mcp.list_tools()}
+        assert (
+            tools['create_queue'].description == 'Create an SQS queue with MCP server version tag.'
+        )
+        mock_sqs_client_getter.assert_not_called()
 
     def test_allow_mutative_action_only_on_tagged_sqs_resource(self):
         """Test allow_mutative_action_only_on_tagged_sqs_resource function."""
