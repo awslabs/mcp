@@ -381,20 +381,45 @@ async def paginate_aws_response(
     return all_results, pagination_metadata
 
 
-def format_response(status: str, data: Any, message: Optional[str] = None) -> Dict[str, Any]:
+def format_response(
+    status: str,
+    data: Any,
+    message: Optional[str] = None,
+    *,
+    error_type: Optional[str] = None,
+    operation: Optional[str] = None,
+    service: Optional[str] = None,
+) -> Dict[str, Any]:
     """Format a standard API response.
 
     Args:
         status: Response status ("success" or "error")
         data: Response data payload
         message: Optional message to include
+        error_type: Optional classifiable error type for error responses (e.g.
+            'validation_error', 'invalid_operation', or an AWS error code). Set
+            at the top level so callers can categorize failures, mirroring
+            handle_aws_error's shape.
+        operation: Optional name of the operation that produced the response.
+        service: Optional AWS service name.
 
     Returns:
-        Dict containing a standardized response format
+        Dict containing a standardized response format. When provided, the
+        keyword-only error_type/operation/service are added at the top level;
+        omitting them keeps the legacy status/data/message shape unchanged.
     """
     response = {'status': status, 'data': data}
 
     if message:
         response['message'] = message
+
+    # Keyword-only classification fields are added only when supplied, so
+    # existing status/data/message callers are unaffected.
+    if error_type is not None:
+        response['error_type'] = error_type
+    if operation is not None:
+        response['operation'] = operation
+    if service is not None:
+        response['service'] = service
 
     return response

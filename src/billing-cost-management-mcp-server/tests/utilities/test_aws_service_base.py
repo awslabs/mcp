@@ -376,3 +376,37 @@ class TestFormatResponse:
         assert result['data'] == data
         assert result['message'] == message
         assert len(result.keys()) == 3  # status, data, and message keys should be present
+
+    def test_format_error_response_with_classification_fields(self):
+        """Top-level error_type/operation/service are added when supplied."""
+        result = format_response(
+            'error',
+            {'error': 'boom'},
+            'Operation failed',
+            error_type='validation_error',
+            operation='cost_anomaly',
+            service='Cost Explorer',
+        )
+        assert result['status'] == 'error'
+        assert result['data'] == {'error': 'boom'}
+        assert result['message'] == 'Operation failed'
+        assert result['error_type'] == 'validation_error'
+        assert result['operation'] == 'cost_anomaly'
+        assert result['service'] == 'Cost Explorer'
+
+    def test_format_response_omits_classification_fields_when_absent(self):
+        """Legacy shape is unchanged when the keyword-only fields are not passed."""
+        result = format_response('error', {'error': 'boom'}, 'failed')
+        assert set(result.keys()) == {'status', 'data', 'message'}
+        assert 'error_type' not in result
+        assert 'operation' not in result
+        assert 'service' not in result
+
+    def test_format_response_partial_classification_fields(self):
+        """Only the supplied classification fields appear; None ones are skipped."""
+        result = format_response(
+            'error', {'msg': 'x'}, 'failed', error_type='invalid_operation'
+        )
+        assert result['error_type'] == 'invalid_operation'
+        assert 'operation' not in result
+        assert 'service' not in result

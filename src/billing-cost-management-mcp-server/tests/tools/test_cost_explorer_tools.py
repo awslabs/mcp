@@ -1008,6 +1008,10 @@ async def test_ce_real_get_dimension_values_missing_dimension_error_reload_ident
             'dimension is required' in res.get('message', '')
             or 'dimension is required' in str(res.get('data', {})).lower()
         )
+        # Structured fields let callers classify this local validation failure.
+        assert res['error_type'] == 'validation_error'
+        assert res['operation'] == 'getDimensionValues'
+        assert res['service'] == 'Cost Explorer'
 
 
 @pytest.mark.asyncio
@@ -1070,6 +1074,31 @@ async def test_ce_real_get_cost_forecast_missing_metric_error_reload_identity_de
             'metric is required' in res.get('message', '')
             or 'metric is required' in str(res.get('data', {})).lower()
         )
+        assert res['error_type'] == 'validation_error'
+        assert res['operation'] == 'getCostForecast'
+        assert res['service'] == 'Cost Explorer'
+
+
+@pytest.mark.asyncio
+async def test_ce_real_get_usage_forecast_missing_metric_error_reload_identity_decorator(
+    mock_context,
+):
+    """Real cost_explorer getUsageForecast without metric returns a classified error."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with patch.object(ce_mod, 'create_aws_client') as mock_create_client:
+        mock_create_client.return_value = MagicMock()
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getUsageForecast',
+            # metric intentionally omitted
+        )
+        assert res['status'] == 'error'
+        assert 'metric is required' in res.get('message', '')
+        assert res['error_type'] == 'validation_error'
+        assert res['operation'] == 'getUsageForecast'
+        assert res['service'] == 'Cost Explorer'
 
 
 @pytest.mark.asyncio
@@ -1566,6 +1595,10 @@ async def test_ce_real_unknown_operation_error_reload_identity_decorator(mock_co
         res = await real_fn(mock_context, operation='definitely_not_supported')  # type: ignore
         assert res['status'] == 'error'
         assert 'Unknown operation' in res.get('data', {}).get('message', '')
+        # Unknown-operation routing is classified with the provided operation.
+        assert res['error_type'] == 'invalid_operation'
+        assert res['operation'] == 'definitely_not_supported'
+        assert res['service'] == 'Cost Explorer'
 
 
 @pytest.mark.asyncio

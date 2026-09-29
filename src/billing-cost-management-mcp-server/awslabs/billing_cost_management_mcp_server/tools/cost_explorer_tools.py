@@ -255,7 +255,12 @@ async def cost_explorer(
         elif operation == 'getDimensionValues':
             if not dimension:
                 return format_response(
-                    'error', {'message': 'dimension is required for getDimensionValues operation'}
+                    'error',
+                    {'message': 'dimension is required for getDimensionValues operation'},
+                    'dimension is required for getDimensionValues operation',
+                    error_type='validation_error',
+                    operation='getDimensionValues',
+                    service='Cost Explorer',
                 )
 
             return await get_dimension_values(
@@ -276,7 +281,12 @@ async def cost_explorer(
         elif operation == 'getCostForecast':
             if not metric:
                 return format_response(
-                    'error', {'message': 'metric is required for getCostForecast operation'}
+                    'error',
+                    {'message': 'metric is required for getCostForecast operation'},
+                    'metric is required for getCostForecast operation',
+                    error_type='validation_error',
+                    operation='getCostForecast',
+                    service='Cost Explorer',
                 )
 
             return await get_cost_forecast(
@@ -294,7 +304,12 @@ async def cost_explorer(
         elif operation == 'getUsageForecast':
             if not metric:
                 return format_response(
-                    'error', {'message': 'metric is required for getUsageForecast operation'}
+                    'error',
+                    {'message': 'metric is required for getUsageForecast operation'},
+                    'metric is required for getUsageForecast operation',
+                    error_type='validation_error',
+                    operation='getUsageForecast',
+                    service='Cost Explorer',
                 )
 
             return await get_usage_forecast(
@@ -344,7 +359,14 @@ async def cost_explorer(
             )
 
         else:
-            return format_response('error', {'message': f'Unknown operation: {operation}'})
+            return format_response(
+                'error',
+                {'message': f'Unknown operation: {operation}'},
+                f'Unknown operation: {operation}',
+                error_type='invalid_operation',
+                operation=operation,
+                service='Cost Explorer',
+            )
 
     except ClientError as e:
         # Let the shared handler take care of this

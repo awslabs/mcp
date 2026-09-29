@@ -467,6 +467,10 @@ class TestCostAnomalyFastMCP:
             res = await real_fn(mock_context, start_date='2023-01-01', end_date=future_date)  # type: ignore[reportCallIssue]
             assert res['status'] == 'error'
             assert 'Cannot request anomalies for future dates' in res['message']
+            # Structured fields let callers classify this local validation failure.
+            assert res['error_type'] == 'validation_error'
+            assert res['operation'] == 'cost_anomaly'
+            assert res['service'] == 'Cost Explorer'
 
     async def test_ca_real_old_start_date_warning(self, mock_context):
         """Test cost_anomaly with start_date more than 90 days old triggers warning."""
@@ -674,6 +678,9 @@ class TestCostAnomalyFastMCP:
             res = await real_fn(mock_context, start_date='2023-01-01', end_date='2023-01-31')  # type: ignore[reportCallIssue]
             assert res['status'] == 'error'
             assert 'validation error' in res['message']
+            # AWS error code is surfaced as the top-level error_type.
+            assert res['error_type'] == 'ValidationException'
+            assert res['operation'] == 'cost_anomaly'
 
     async def test_ca_real_successful_call(self, mock_context):
         """Test cost_anomaly successful call."""
