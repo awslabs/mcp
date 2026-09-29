@@ -35,6 +35,7 @@ def create_topic_override(mcp: MCPServer, sns_client_getter: BOTO3_CLIENT_GETTER
         tags: List[Dict[str, str]] = [],
         region: str = 'us-east-1',
     ):
+        """Create an SNS topic with MCP server version tag."""
         create_params = {
             'Name': name,
             'Attributes': attributes.copy(),  # Create a copy to avoid modifying the original
