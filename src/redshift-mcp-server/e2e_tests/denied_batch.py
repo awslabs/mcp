@@ -52,8 +52,11 @@ def environment(sts, role_arn: str, region: str) -> dict[str, str]:
     """Return environment variables that authenticate without the batch action.
 
     Handed to the generated agent as one MCP server's `env`, so the agent can reach the
-    fallback through an ordinary tool call rather than a shell wrapper. `AWS_PROFILE` must be
-    absent from that environment, or it wins over these.
+    fallback through an ordinary tool call rather than a shell wrapper.
+
+    A server started with these needs `AWS_PROFILE` removed: a profile outranks explicit keys, so
+    an inherited one would authenticate the server as the profile and it would never meet the
+    denial. `agent._server` removes it from the child's environment.
 
     Args:
         sts: An STS client authenticated normally.
@@ -79,10 +82,14 @@ def environment(sts, role_arn: str, region: str) -> dict[str, str]:
 
 
 def client(env: dict[str, str]):
-    """Return a redshift-data client authenticating the way the denied server does.
+    """Return a redshift-data client authenticating the way the denied server will.
 
-    The harness needs one to ask the warehouse what identity these credentials arrive as, which
-    is what the grants have to name.
+    Used to ask the warehouse what identity these credentials arrive as, which is what the grants
+    have to name, and to confirm the denial before a run.
+
+    Authenticates from the keys, as the server does once its inherited `AWS_PROFILE` is removed.
+    That removal is what `test_denied_servers_run_without_a_profile` pins, because a profile left
+    in place would have this client confirm a denial the server never ran under.
 
     Args:
         env: The environment from `environment`.

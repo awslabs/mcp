@@ -14,13 +14,23 @@
 
 """Every AWS resource the harness owns, and its lifecycle.
 
-Two IAM roles, one provisioned cluster, one Serverless namespace and workgroup. Nothing is
-looked up from an existing deployment: `up` creates whatever is missing, resumes a paused
-cluster, seeds whichever warehouse is unseeded, and grants the server's own identity what it
-needs. Every operation is idempotent, so a second run costs a few describe calls.
+Two IAM roles, one provisioned cluster, one Serverless namespace and workgroup. `up` creates
+whatever is missing, resumes a paused cluster, seeds whichever warehouse is unseeded, and grants
+the server's own identity what it needs.
+
+Resources are addressed by the names in the config, so a name that collides with something real
+would have this harness adopt it. Each is created carrying a purpose tag, and every path that
+adopts, rewrites or deletes one checks for that tag first and refuses without it. A resource the
+harness did not create is therefore never touched, in either direction.
+
+Re-running `up` is safe: it creates nothing twice and costs a few describe calls. It is not a
+no-op, though - it rewrites both role policies, re-grants, and counts the seeded rows - and
+seeding interrupted partway is the one step a retry does not repair, since the tables exist and
+`COPY` appends to them.
 
 `pause` stops compute billing on the cluster. Serverless exposes no Pause, Resume, Suspend or
-Stop operation and bills nothing while idle, so it is left alone. `down` deletes the lot.
+Stop operation, so it is left running; its compute scales to zero when idle, while the namespace
+keeps billing storage by the GB-month. `down` deletes the lot.
 """
 
 import json
@@ -44,6 +54,11 @@ _POLL_SECONDS = 5.0
 _PROPAGATION_SECONDS = 12
 
 _PURPOSE = 'redshift-mcp-server-e2e-harness'
+
+# The tag every resource is created with, and the proof of ownership every adopt and delete path
+# checks. Names come from the config, so one that collides with something real would otherwise
+# have this harness resume, seed, grant on, rewrite or delete a warehouse it never created.
+_PURPOSE_KEY = 'purpose'
 
 # redshift takes Key/Value, redshift-serverless takes key/value.
 _TAGS = [{'Key': 'purpose', 'Value': _PURPOSE}]
@@ -138,6 +153,43 @@ class Warehouse:
 # --- IAM ---
 
 
+def _assert_ours(kind: str, name: str, tags: list[dict]) -> None:
+    """Refuse a resource carrying the configured name that this harness did not create.
+
+    Args:
+        kind: What it is, for the message.
+        name: Its name, for the message.
+        tags: Its tags, in either the Key/Value or the key/value spelling.
+
+    Raises:
+        DeployError: If the purpose tag is absent.
+    """
+    if any(
+        (tag.get('Key') or tag.get('key')) == _PURPOSE_KEY
+        and (tag.get('Value') or tag.get('value')) == _PURPOSE
+        for tag in tags
+    ):
+        return
+
+    raise DeployError(
+        f'{kind} {name} exists but carries no {_PURPOSE_KEY}={_PURPOSE} tag, so this harness did '
+        f'not create it. Refusing to touch it. Point the config at a name nothing else uses.'
+    )
+
+
+def _serverless_tags(serverless, arn: str) -> list[dict]:
+    """Read a serverless resource's tags, which its get_* response does not carry.
+
+    Args:
+        serverless: A redshift-serverless client.
+        arn: The resource ARN.
+
+    Returns:
+        Its tags.
+    """
+    return serverless.list_tags_for_resource(resourceArn=arn)['tags']
+
+
 def _ensure_role(iam, name: str, trust: dict, perms: dict, description: str) -> str:
     """Create or update one role and its inline policy.
 
@@ -162,7 +214,9 @@ def _ensure_role(iam, name: str, trust: dict, perms: dict, description: str) -> 
     except ClientError as e:
         if e.response['Error']['Code'] != 'EntityAlreadyExists':
             raise
-        arn = iam.get_role(RoleName=name)['Role']['Arn']
+        role = iam.get_role(RoleName=name)['Role']
+        _assert_ours('role', name, role.get('Tags', []))
+        arn = role['Arn']
         created = False
 
     iam.put_role_policy(RoleName=name, PolicyName='harness', PolicyDocument=json.dumps(perms))
@@ -234,20 +288,26 @@ def delete_role(iam, name: str) -> bool:
 
     Returns:
         True if the role existed and was deleted.
+
+    Raises:
+        DeployError: If a role of that name exists and this harness did not create it.
     """
+    try:
+        role = iam.get_role(RoleName=name)['Role']
+    except ClientError as e:
+        if e.response['Error']['Code'] != 'NoSuchEntity':
+            raise
+        return False
+
+    _assert_ours('role', name, role.get('Tags', []))
+
     try:
         iam.delete_role_policy(RoleName=name, PolicyName='harness')
     except ClientError as e:
         if e.response['Error']['Code'] != 'NoSuchEntity':
             raise
 
-    try:
-        iam.delete_role(RoleName=name)
-    except ClientError as e:
-        if e.response['Error']['Code'] != 'NoSuchEntity':
-            raise
-        return False
-
+    iam.delete_role(RoleName=name)
     return True
 
 
@@ -370,8 +430,10 @@ def ensure_cluster(redshift, config: Config, s3_read_role_arn: str) -> dict:
             Encrypted=True,
             Tags=_TAGS,
         )
-    elif cluster['ClusterStatus'] == 'paused':
-        redshift.resume_cluster(ClusterIdentifier=config.cluster_identifier)
+    else:
+        _assert_ours('cluster', config.cluster_identifier, cluster.get('Tags', []))
+        if cluster['ClusterStatus'] == 'paused':
+            redshift.resume_cluster(ClusterIdentifier=config.cluster_identifier)
 
     cluster = _wait_for_cluster(redshift, config.cluster_identifier, 'available')
 
@@ -436,8 +498,11 @@ def destroy_cluster(redshift, identifier: str) -> bool:
     Returns:
         True if the cluster existed and deletion was requested.
     """
-    if describe_cluster(redshift, identifier) is None:
+    cluster = describe_cluster(redshift, identifier)
+    if cluster is None:
         return False
+
+    _assert_ours('cluster', identifier, cluster.get('Tags', []))
 
     # A paused cluster can be deleted directly. Skipping the final snapshot makes it
     # unrestorable, which is what we want for data reloadable from S3.
@@ -531,7 +596,14 @@ def ensure_workgroup(serverless, config: Config, s3_read_role_arn: str) -> dict:
     Raises:
         DeployError: If it cannot be brought up.
     """
-    if describe_namespace(serverless, config.namespace_name) is None:
+    namespace = describe_namespace(serverless, config.namespace_name)
+    if namespace is not None:
+        _assert_ours(
+            'namespace',
+            config.namespace_name,
+            _serverless_tags(serverless, namespace['namespaceArn']),
+        )
+    else:
         serverless.create_namespace(
             namespaceName=config.namespace_name,
             dbName=config.database,
@@ -541,7 +613,14 @@ def ensure_workgroup(serverless, config: Config, s3_read_role_arn: str) -> dict:
             tags=_TAGS_LOWER,
         )
 
-    if describe_workgroup(serverless, config.workgroup_name) is None:
+    workgroup = describe_workgroup(serverless, config.workgroup_name)
+    if workgroup is not None:
+        _assert_ours(
+            'workgroup',
+            config.workgroup_name,
+            _serverless_tags(serverless, workgroup['workgroupArn']),
+        )
+    else:
         serverless.create_workgroup(
             workgroupName=config.workgroup_name,
             namespaceName=config.namespace_name,
@@ -570,7 +649,13 @@ def destroy_workgroup(serverless, config: Config) -> bool:
     """
     deleted = False
 
-    if describe_workgroup(serverless, config.workgroup_name) is not None:
+    workgroup = describe_workgroup(serverless, config.workgroup_name)
+    if workgroup is not None:
+        _assert_ours(
+            'workgroup',
+            config.workgroup_name,
+            _serverless_tags(serverless, workgroup['workgroupArn']),
+        )
         serverless.delete_workgroup(workgroupName=config.workgroup_name)
         deadline = time.monotonic() + _TRANSITION_TIMEOUT
         while describe_workgroup(serverless, config.workgroup_name) is not None:
@@ -579,7 +664,13 @@ def destroy_workgroup(serverless, config: Config) -> bool:
             time.sleep(_POLL_SECONDS)
         deleted = True
 
-    if describe_namespace(serverless, config.namespace_name) is not None:
+    namespace = describe_namespace(serverless, config.namespace_name)
+    if namespace is not None:
+        _assert_ours(
+            'namespace',
+            config.namespace_name,
+            _serverless_tags(serverless, namespace['namespaceArn']),
+        )
         # Naming no final snapshot skips it, which is what we want for data reloadable from S3.
         serverless.delete_namespace(namespaceName=config.namespace_name)
         deleted = True

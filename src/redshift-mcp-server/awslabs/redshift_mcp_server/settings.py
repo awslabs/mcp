@@ -21,6 +21,7 @@ from awslabs.redshift_mcp_server.consts import (
     ACCESS_MODE_READ_WRITE,
     ACCESS_MODES,
     MAX_OPEN_TRANSACTIONS_PER_TARGET_DEFAULT,
+    MAX_RESULT_ROWS_DEFAULT,
     SESSION_KEEPALIVE_DEFAULT,
     SESSION_KEEPALIVE_MAX,
     UNSAFE_SKIP_WRITE_CONFIRMATION_DEFAULT,
@@ -91,7 +92,20 @@ def max_open_transactions_per_target() -> int:
     )
 
 
-# Not cached, unlike the two above: the server calls each of these once and binds the result
+@functools.cache
+def max_result_rows() -> int:
+    """The most rows one statement may return.
+
+    Only a whole number above zero is accepted, so the cap cannot be switched off; anything else
+    falls back on the default.
+
+    Returns:
+        The configured cap.
+    """
+    return _resolve_int_env('MAX_RESULT_ROWS', MAX_RESULT_ROWS_DEFAULT)
+
+
+# Not cached, unlike those above: the server calls each of these once and binds the result
 # to a module constant, and it does so after pointing the logger at LOG_FILE, so the warnings
 # raised here reach the file the operator is watching.
 def resolve_access_mode() -> str:

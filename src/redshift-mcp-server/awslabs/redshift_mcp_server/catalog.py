@@ -28,7 +28,8 @@ from sqlglot import exp
 # The SHOW statements discovery runs. Templated rather than parameterised, because the Data
 # API's placeholders bind values and these positions are identifiers, which is why every one
 # goes through _sql_identifier first. Their results are read by column name, so a column
-# SHOW adds or reorders changes nothing and one it renames fails loudly.
+# SHOW adds or reorders changes nothing, and one it renames fails loudly if the field is required
+# and reads as null if it is optional.
 _DATABASES_SQL = 'SHOW DATABASES;'
 _SCHEMAS_SQL = 'SHOW SCHEMAS FROM DATABASE {database};'
 _TABLES_SQL = 'SHOW TABLES FROM SCHEMA {database}.{schema};'
@@ -41,13 +42,14 @@ def _sql_identifier(value: str) -> str:
 
 
 async def discover_databases(
-    cluster_identifier: str, database_name: str = 'dev'
+    cluster_identifier: str, database_name: str = 'dev', cluster_type: str | None = None
 ) -> list[RedshiftDatabase]:
-    """Discover databases in a Redshift cluster using the Data API.
+    """Discover the databases in a Redshift cluster.
 
     Args:
         cluster_identifier: The cluster identifier to query.
-        database_name: The database to connect to for querying system views.
+        database_name: The database to connect to.
+        cluster_type: `provisioned` or `serverless`, needed only when the identifier names both.
 
     Returns:
         List of RedshiftDatabase models.
@@ -61,6 +63,7 @@ async def discover_databases(
             sql=_DATABASES_SQL,
             # This server's own SQL, so it does not police itself.
             enforce_read_only=False,
+            cluster_type=cluster_type,
         )
 
         databases = RedshiftDatabase.from_redshift_response(results_response)
@@ -73,13 +76,14 @@ async def discover_databases(
 
 
 async def discover_schemas(
-    cluster_identifier: str, schema_database_name: str
+    cluster_identifier: str, schema_database_name: str, cluster_type: str | None = None
 ) -> list[RedshiftSchema]:
-    """Discover schemas in a Redshift database using the Data API.
+    """Discover the schemas in a Redshift database.
 
     Args:
         cluster_identifier: The cluster identifier to query.
-        schema_database_name: The database name to filter schemas for. Also used to connect to.
+        schema_database_name: The database name to filter schemas for. Also the database connected to.
+        cluster_type: `provisioned` or `serverless`, needed only when the identifier names both.
 
     Returns:
         List of RedshiftSchema models.
@@ -94,6 +98,7 @@ async def discover_schemas(
             database_name=schema_database_name,
             sql=_SCHEMAS_SQL.format(database=_sql_identifier(schema_database_name)),
             enforce_read_only=False,
+            cluster_type=cluster_type,
         )
 
         schemas = RedshiftSchema.from_redshift_response(results_response)
@@ -110,14 +115,18 @@ async def discover_schemas(
 
 
 async def discover_tables(
-    cluster_identifier: str, table_database_name: str, table_schema_name: str
+    cluster_identifier: str,
+    table_database_name: str,
+    table_schema_name: str,
+    cluster_type: str | None = None,
 ) -> list[RedshiftTable]:
-    """Discover tables in a Redshift schema using the Data API.
+    """Discover the tables in a Redshift schema.
 
     Args:
         cluster_identifier: The cluster identifier to query.
-        table_database_name: The database name to filter tables for. Also used to connect to.
+        table_database_name: The database name to filter tables for. Also the database connected to.
         table_schema_name: The schema name to filter tables for.
+        cluster_type: `provisioned` or `serverless`, needed only when the identifier names both.
 
     Returns:
         List of RedshiftTable models.
@@ -135,6 +144,7 @@ async def discover_tables(
                 schema=_sql_identifier(table_schema_name),
             ),
             enforce_read_only=False,
+            cluster_type=cluster_type,
         )
 
         tables = RedshiftTable.from_redshift_response(results_response)
@@ -155,14 +165,16 @@ async def discover_columns(
     column_database_name: str,
     column_schema_name: str,
     column_table_name: str,
+    cluster_type: str | None = None,
 ) -> list[RedshiftColumn]:
-    """Discover columns in a Redshift table using the Data API.
+    """Discover the columns in a Redshift table.
 
     Args:
         cluster_identifier: The cluster identifier to query.
-        column_database_name: The database name to filter columns for. Also used to connect to.
+        column_database_name: The database name to filter columns for. Also the database connected to.
         column_schema_name: The schema name to filter columns for.
         column_table_name: The table name to filter columns for.
+        cluster_type: `provisioned` or `serverless`, needed only when the identifier names both.
 
     Returns:
         List of RedshiftColumn models.
@@ -181,6 +193,7 @@ async def discover_columns(
                 table=_sql_identifier(column_table_name),
             ),
             enforce_read_only=False,
+            cluster_type=cluster_type,
         )
 
         columns = RedshiftColumn.from_redshift_response(results_response)

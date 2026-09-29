@@ -16,6 +16,7 @@
 
 import boto3
 import os
+import threading
 from awslabs.redshift_mcp_server import __version__
 from awslabs.redshift_mcp_server.consts import (
     CLIENT_CONNECT_TIMEOUT,
@@ -37,16 +38,21 @@ BATCH_OPERATION = 'BatchExecuteStatement'
 # alone does not say which action was refused.
 BATCH_ACTION = 'redshift-data:BatchExecuteStatement'
 
+# Held while the environment is scrubbed of empty AWS_* variables. The discovery clients are built
+# on worker threads and the Data API client on the event loop, and two scrubs at once raised
+# KeyError from the second one's delete.
+_ENVIRONMENT_LOCK = threading.Lock()
+
 
 class RedshiftClientManager:
     """Manages AWS clients for Redshift operations."""
 
-    def __init__(
-        self, config: Config, aws_region: str | None = None, aws_profile: str | None = None
-    ):
-        """Initialize the client manager."""
-        self.aws_region = aws_region
-        self.aws_profile = aws_profile
+    def __init__(self, config: Config):
+        """Initialize the client manager.
+
+        Args:
+            config: The botocore configuration every client is built with.
+        """
         self._redshift_client = None
         self._redshift_serverless_client = None
         self._redshift_data_client = None
@@ -55,56 +61,69 @@ class RedshiftClientManager:
     def redshift_client(self):
         """Get or create the Redshift client for provisioned clusters."""
         if self._redshift_client is None:
-            try:
-                # Session works with None values - uses default credentials/region chain
-                session = boto3.Session(profile_name=self.aws_profile, region_name=self.aws_region)
-                self._redshift_client = session.client('redshift', config=self._config)
-                logger.info(
-                    f'Created Redshift client with profile: {self.aws_profile or "default"}, region: {self.aws_region or "default"}'
-                )
-            except Exception as e:
-                logger.error(f'Error creating Redshift client: {str(e)}')
-                raise
-
+            self._redshift_client = self._client('redshift')
         return self._redshift_client
 
     def redshift_serverless_client(self):
         """Get or create the Redshift Serverless client."""
         if self._redshift_serverless_client is None:
-            try:
-                # Session works with None values - uses default credentials/region chain
-                session = boto3.Session(profile_name=self.aws_profile, region_name=self.aws_region)
-                self._redshift_serverless_client = session.client(
-                    'redshift-serverless', config=self._config
-                )
-                logger.info(
-                    f'Created Redshift Serverless client with profile: {self.aws_profile or "default"}, region: {self.aws_region or "default"}'
-                )
-            except Exception as e:
-                logger.error(f'Error creating Redshift Serverless client: {str(e)}')
-                raise
-
+            self._redshift_serverless_client = self._client('redshift-serverless')
         return self._redshift_serverless_client
 
     def redshift_data_client(self):
         """Get or create the Redshift Data API client."""
         if self._redshift_data_client is None:
-            try:
-                # Session works with None values - uses default credentials/region chain
-                session = boto3.Session(profile_name=self.aws_profile, region_name=self.aws_region)
-                self._redshift_data_client = session.client('redshift-data', config=self._config)
-                logger.info(
-                    f'Created Redshift Data API client with profile: {self.aws_profile or "default"}, region: {self.aws_region or "default"}'
-                )
-            except Exception as e:
-                logger.error(f'Error creating Redshift Data API client: {str(e)}')
-                raise
-
+            self._redshift_data_client = self._client('redshift-data')
         return self._redshift_data_client
+
+    def _client(self, service: str):
+        """Build one client, reading the environment as it stands.
+
+        An empty AWS_* variable is removed first. Botocore reads most of these itself and takes an
+        empty one as a value, so each fails every client and with it every tool: AWS_PROFILE or
+        AWS_DEFAULT_PROFILE (`The config profile () could not be found`), AWS_DEFAULT_REGION
+        (`Invalid endpoint: https://redshift..amazonaws.com`), AWS_CA_BUNDLE. Passing None instead
+        would not help, since botocore would still read the empty value. An empty value is what
+        an MCP config template leaves behind, and unset is what it means - so an empty variable
+        naming a file, such as AWS_CONFIG_FILE, selects the default file.
+
+        AWS_PROFILE and AWS_REGION are passed in rather than left to botocore. A profile botocore
+        finds for itself ranks below AWS_DEFAULT_PROFILE, keys in the environment and web
+        identity; passed in, it ranks above them, which is what naming a profile means. Botocore
+        reads only AWS_DEFAULT_REGION, where the README gives AWS_REGION precedence.
+
+        Args:
+            service: The botocore service name.
+
+        Returns:
+            The client.
+        """
+        with _ENVIRONMENT_LOCK:
+            empty = [name for name, value in os.environ.items() if not value]
+            for name in empty:
+                if name.startswith('AWS_'):
+                    del os.environ[name]
+
+        try:
+            session = boto3.Session(
+                profile_name=os.environ.get('AWS_PROFILE'),
+                region_name=os.environ.get('AWS_REGION'),
+            )
+            client = session.client(service, config=self._config)
+        except Exception as e:
+            logger.error(f'Error creating {service} client: {e}')
+            raise
+
+        logger.info(
+            f'Created {service} client with profile: {session.profile_name}, '
+            f'region: {client.meta.region_name}'
+        )
+        return client
 
 
 # One per process. Each client is built on first use and then held, so sharing the manager is
-# what keeps a second caller from building its own.
+# what keeps a second caller from building its own. Each reads its region and profile from the
+# environment when it is built, after the scrub in `_client`.
 client_manager = RedshiftClientManager(
     config=Config(
         connect_timeout=CLIENT_CONNECT_TIMEOUT,
@@ -112,6 +131,4 @@ client_manager = RedshiftClientManager(
         retries=CLIENT_RETRIES,
         user_agent_extra=f'md/awslabs#mcp#redshift-mcp-server#{__version__}',
     ),
-    aws_region=os.environ.get('AWS_REGION'),
-    aws_profile=os.environ.get('AWS_PROFILE'),
 )

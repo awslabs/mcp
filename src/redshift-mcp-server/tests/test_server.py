@@ -15,9 +15,15 @@
 """Tests for the Redshift MCP Server tools."""
 
 import pytest
+import sys
+import time
+from awslabs.redshift_mcp_server import clusters as clusters_module
+from awslabs.redshift_mcp_server import redshift as redshift_module
+from awslabs.redshift_mcp_server.clusters import resolve_cluster
 from awslabs.redshift_mcp_server.consts import (
     ACCESS_MODE_READ_ONLY,
     ACCESS_MODE_READ_WRITE,
+    LOG_LEVEL_DEFAULT,
 )
 from awslabs.redshift_mcp_server.models import (
     QueryResult,
@@ -36,6 +42,8 @@ from awslabs.redshift_mcp_server.server import (
     ConfirmWrite,
     _current_settings,
     _execute_query_annotations,
+    _resolve_log_file,
+    _resolve_log_level,
     _tool_failed,
     _write_confirmation,
     execute_query_tool,
@@ -49,10 +57,12 @@ from awslabs.redshift_mcp_server.server import (
 )
 from awslabs.redshift_mcp_server.settings import (
     max_open_transactions_per_target,
+    max_result_rows,
     session_keepalive,
 )
 from botocore.exceptions import ClientError, NoRegionError
 from datetime import datetime
+from helpers import _fake_cluster
 from mcp.server.mcpserver import Context, Elicit, MCPServer
 from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
 
@@ -71,6 +81,31 @@ class TestWriteConfirmation:
         ctx.session.check_client_capability = mocker.Mock(return_value=can_elicit)
         return ctx
 
+    @pytest.mark.parametrize(
+        'sql', ['SELECT pg_terminate_backend(123)', 'SELECT pg_cancel_backend(123)']
+    )
+    def test_read_write_asks_before_ending_or_cancelling_a_session(self, mocker, sql):
+        """Read as a SELECT, either ran unasked and could end another caller's work."""
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+
+        result = _write_confirmation(self._ctx(mocker), 'test-cluster', 'dev', sql)
+
+        assert isinstance(result, Elicit)
+        assert sql in result.message
+
+    def test_read_write_asks_about_a_statement_only_read_only_mode_denies(self, mocker):
+        """Guarded with the read-only list, a GRANT in read-write mode was refused.
+
+        And the refusal named the wrong mode: `not allowed in read-only mode`.
+        """
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+
+        result = _write_confirmation(
+            self._ctx(mocker), 'test-cluster', 'dev', 'GRANT SELECT ON t TO u'
+        )
+
+        assert isinstance(result, Elicit)
+
     def test_read_write_asks_the_client(self, mocker):
         """Read-write mode returns a request to elicit, against the ConfirmWrite schema."""
         self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
@@ -80,19 +115,27 @@ class TestWriteConfirmation:
         assert isinstance(result, Elicit)
         assert result.schema is ConfirmWrite
 
-    def test_a_write_the_fallback_will_refuse_raises_no_prompt(self, mocker):
-        """Asking about a statement certain to be refused spends the caller's attention.
+    @pytest.mark.parametrize('reprobe', [300, 0], ids=['latched', 'reprobe_due'])
+    def test_a_write_is_asked_about_whatever_the_batch_latch_says(self, mocker, reprobe):
+        """No state of the latch may decide this, because the tool body reads it again later.
 
-        While the batch action is denied the compatibility path serves reads only, so the write
-        is refused in the tool body a moment later whatever the caller answers.
+        Skipping the prompt while the batch action is denied saved the caller a question about a
+        write the compatibility path refuses anyway. But the re-probe window could fall between
+        the two reads - latched here, spent by the time the body probed - and that write ran
+        unasked. One prompt in a configuration where every write is refused is the cheaper side.
         """
         self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
-        mocker.patch('awslabs.redshift_mcp_server.server.no_batch_latched', return_value=True)
+        # Under both keys a check could consult: the canonical one the latch is written under, and
+        # the caller's raw string, which is all this synchronous resolver has. Seeded under one,
+        # a check keyed on the other would miss it and pass whatever the code did.
+        now = time.monotonic()
+        redshift_module._no_batch_since['test-cluster (provisioned)'] = now
+        redshift_module._no_batch_since['test-cluster'] = now
+        mocker.patch('awslabs.redshift_mcp_server.redshift.FALLBACK_NO_BATCH_REPROBE', reprobe)
 
         result = _write_confirmation(self._ctx(mocker), 'test-cluster', 'dev', 'DELETE FROM t')
 
-        assert not isinstance(result, Elicit)
-        assert result.confirmed is True
+        assert isinstance(result, Elicit)
 
     def test_prompt_names_target_and_statement(self, mocker):
         """The prompt tells the user which cluster and statement they are approving."""
@@ -104,6 +147,17 @@ class TestWriteConfirmation:
         assert 'test-cluster:dev' in result.message
         assert 'DELETE FROM t' in result.message
         assert 'cannot be rolled back' in result.message
+
+    def test_the_prompt_names_the_cluster_type_when_one_was_given(self, mocker):
+        """Given, it is because the identifier names two warehouses; the user must see which."""
+        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+
+        result = _write_confirmation(
+            self._ctx(mocker), 'shared', 'dev', 'DELETE FROM t', cluster_type='serverless'
+        )
+
+        assert isinstance(result, Elicit)
+        assert 'against shared (serverless):dev?' in result.message
 
     def test_a_write_inside_a_transaction_is_not_described_as_final(self, mocker):
         """Inside a transaction the write is not final until it is committed."""
@@ -250,6 +304,8 @@ class TestCurrentSettings:
         assert (
             f'`MAX_OPEN_TRANSACTIONS_PER_TARGET`: {max_open_transactions_per_target()}' in settings
         )
+        # So an agent can plan a query to fit before it is refused.
+        assert f'`MAX_RESULT_ROWS`: {max_result_rows()}' in settings
 
     def test_confirmed_writes_hand_over_nothing(self):
         """With the prompt on, the caller is asked to take on no duty of its own."""
@@ -315,6 +371,7 @@ async def test_resolved_confirmation_is_not_a_tool_argument():
         'in_transaction',
         'commit_transaction',
         'rollback_transaction',
+        'cluster_type',
     }
 
 
@@ -395,6 +452,86 @@ class TestListClustersTool:
         assert len(result) == 0
 
     @pytest.mark.asyncio
+    async def test_an_empty_list_is_refused_when_a_half_could_not_be_listed(self, mocker):
+        """Nothing in the returned list says a half was skipped, so `[]` read as none exist.
+
+        A caller denied one listing with nothing on the other half was told the account holds no
+        Redshift clusters, and went on to report that.
+        """
+
+        async def deny_one_half(denied_sink=None, **_kwargs):
+            if denied_sink is not None:
+                denied_sink.add('serverless')
+            return []
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.server.discover_clusters', side_effect=deny_one_half
+        )
+
+        with pytest.raises(ToolError) as raised:
+            await list_clusters_tool(Context())
+
+        assert 'Listing serverless clusters was denied' in str(raised.value)
+        # Names the ambiguity rather than asserting the account holds clusters, which this cannot
+        # know: the granted half may be genuinely empty.
+        assert (
+            'cannot tell an account with no clusters from one whose clusters it may not list'
+            in (str(raised.value))
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_partial_list_with_something_in_it_is_returned(self, mocker):
+        """Only an empty list reads as a complete answer, so only an empty one is refused.
+
+        Refused whenever a half was denied, every account with one listing denied lost
+        list_clusters entirely - and this tool's contract says a partial list is normal.
+        """
+
+        async def deny_one_half(denied_sink=None, **_kwargs):
+            if denied_sink is not None:
+                denied_sink.add('serverless')
+            return [_fake_cluster()]
+
+        mocker.patch(
+            'awslabs.redshift_mcp_server.server.discover_clusters', side_effect=deny_one_half
+        )
+
+        result = await list_clusters_tool(Context())
+
+        assert [cluster.identifier for cluster in result] == ['test-cluster']
+
+    @pytest.mark.asyncio
+    async def test_what_it_lists_is_what_the_next_statement_resolves_against(self, mocker):
+        """A refusal from the stored discovery tells the caller to run list_clusters.
+
+        So list_clusters has to replace what is stored: left as it was, a cluster it had just
+        shown was refused again with the same advice.
+        """
+        redshift_client = mocker.Mock()
+        redshift_client.get_paginator.return_value.paginate.return_value = [
+            {'Clusters': [{'ClusterIdentifier': 'new-cluster', 'ClusterStatus': 'available'}]}
+        ]
+        serverless_client = mocker.Mock()
+        serverless_client.get_paginator.return_value.paginate.return_value = [{'workgroups': []}]
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_client',
+            return_value=redshift_client,
+        )
+        mocker.patch(
+            'awslabs.redshift_mcp_server.redshift.client_manager.redshift_serverless_client',
+            return_value=serverless_client,
+        )
+        # Stored before the cluster existed.
+        clusters_module._discovered = (time.monotonic(), [])
+
+        await list_clusters_tool(Context())
+        discovered = redshift_client.get_paginator.return_value.paginate.call_count
+
+        assert (await resolve_cluster('new-cluster')).identifier == 'new-cluster'
+        # Answered from what list_clusters stored, not from a discovery of its own.
+        assert redshift_client.get_paginator.return_value.paginate.call_count == discovered
+
+    @pytest.mark.asyncio
     async def test_list_clusters_tool_error(self, mocker):
         """Test list_clusters_tool error handling."""
         from unittest.mock import Mock
@@ -408,6 +545,53 @@ class TestListClustersTool:
 
         with pytest.raises(Exception, match='Test error'):
             await list_clusters_tool(mock_ctx)
+
+
+class TestListToolsForwardTheirArguments:
+    """Every other list-tool test mocks discover_* and reads only what came back."""
+
+    @pytest.mark.asyncio
+    async def test_each_list_tool_forwards_the_names_it_was_given(self, mocker):
+        """Swapped or dropped, a listing answered for another database, schema or table."""
+        databases = mocker.patch(
+            'awslabs.redshift_mcp_server.server.discover_databases', return_value=[]
+        )
+        schemas = mocker.patch(
+            'awslabs.redshift_mcp_server.server.discover_schemas', return_value=[]
+        )
+        tables = mocker.patch(
+            'awslabs.redshift_mcp_server.server.discover_tables', return_value=[]
+        )
+        columns = mocker.patch(
+            'awslabs.redshift_mcp_server.server.discover_columns', return_value=[]
+        )
+
+        await list_databases_tool(Context(), 'c1', 'analytics', cluster_type='serverless')
+        await list_schemas_tool(Context(), 'c1', 'analytics', cluster_type='serverless')
+        await list_tables_tool(Context(), 'c1', 'analytics', 'sales', cluster_type='serverless')
+        await list_columns_tool(
+            Context(), 'c1', 'analytics', 'sales', 'orders', cluster_type='serverless'
+        )
+
+        databases.assert_called_once_with(
+            cluster_identifier='c1', database_name='analytics', cluster_type='serverless'
+        )
+        schemas.assert_called_once_with(
+            cluster_identifier='c1', schema_database_name='analytics', cluster_type='serverless'
+        )
+        tables.assert_called_once_with(
+            cluster_identifier='c1',
+            table_database_name='analytics',
+            table_schema_name='sales',
+            cluster_type='serverless',
+        )
+        columns.assert_called_once_with(
+            cluster_identifier='c1',
+            column_database_name='analytics',
+            column_schema_name='sales',
+            column_table_name='orders',
+            cluster_type='serverless',
+        )
 
 
 class TestListDatabasesTool:
@@ -708,6 +892,33 @@ class TestExecuteQueryTool:
     """Tests for the execute_query MCP tool."""
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize('parameter', ['commit_transaction', 'rollback_transaction'])
+    async def test_the_closer_asked_for_is_the_one_forwarded(self, mocker, parameter):
+        """Swapped, a commit rolled back and reported success, and a rollback committed.
+
+        Every other forwarding test passes both as None, which cannot tell them apart.
+        """
+        mocker.patch('awslabs.redshift_mcp_server.server.ACCESS_MODE', ACCESS_MODE_READ_WRITE)
+        forwarded = mocker.patch(
+            'awslabs.redshift_mcp_server.server.execute_query',
+            return_value={'columns': [], 'rows': [], 'row_count': 0, 'query_id': 'q'},
+        )
+
+        await execute_query_tool(
+            Context(),
+            ConfirmWrite(confirmed=True),
+            cluster_identifier='test-cluster',
+            database_name='dev',
+            sql=None,
+            commit_transaction='load' if parameter == 'commit_transaction' else None,
+            rollback_transaction='load' if parameter == 'rollback_transaction' else None,
+        )
+
+        assert forwarded.call_args.kwargs[parameter] == 'load'
+        other = ({'commit_transaction', 'rollback_transaction'} - {parameter}).pop()
+        assert forwarded.call_args.kwargs[other] is None
+
+    @pytest.mark.asyncio
     async def test_execute_query_tool_success(self, mocker):
         """Test successful query execution."""
         mock_execute_query = mocker.patch('awslabs.redshift_mcp_server.server.execute_query')
@@ -764,6 +975,7 @@ class TestExecuteQueryTool:
             cluster_identifier='test-cluster',
             database_name='dev',
             sql='SELECT 1 AS id',
+            cluster_type='provisioned',
         )
 
         mock_execute_query.assert_called_once_with(
@@ -775,6 +987,7 @@ class TestExecuteQueryTool:
             in_transaction=None,
             commit_transaction=None,
             rollback_transaction=None,
+            cluster_type='provisioned',
         )
 
     @pytest.mark.asyncio
@@ -896,6 +1109,7 @@ class TestReviewClusterTool:
             ctx=mock_ctx,
             cluster_identifier='test-cluster',
             database_name='dev',
+            cluster_type='serverless',
         )
 
         assert isinstance(result, ReviewResult)
@@ -910,6 +1124,7 @@ class TestReviewClusterTool:
         call_kwargs = mock_pipeline.call_args.kwargs
         assert call_kwargs['cluster_identifier'] == 'test-cluster'
         assert call_kwargs['database_name'] == 'dev'
+        assert call_kwargs['cluster_type'] == 'serverless'
 
     @pytest.mark.asyncio
     async def test_review_cluster_empty_results(self, mocker):
@@ -1022,3 +1237,66 @@ class TestAnticipatedFailuresReachTheModel:
         defect = KeyError('Records')
         with pytest.raises(KeyError):
             _tool_failed('execute_query_tool', defect)
+
+
+class TestLogLevelNeverStopsTheServerStarting:
+    """It is read at import, so anything loguru refuses takes the server down with it."""
+
+    @pytest.mark.parametrize('raw', ['', 'verbose', 'TRACE_ALL', '7'], ids=lambda v: repr(v))
+    def test_a_level_loguru_refuses_falls_back(self, raw, monkeypatch):
+        """The empty string an MCP config template leaves behind is the likely one.
+
+        Loguru answers `ValueError: Level '' does not exist`, and this is read at import, so
+        without the fallback the operator gets a traceback and no tools.
+        """
+        monkeypatch.setenv('LOG_LEVEL', raw)
+
+        assert _resolve_log_level() == LOG_LEVEL_DEFAULT
+
+    @pytest.mark.parametrize('raw', ['DEBUG', 'debug', ' info ', 'Error'])
+    def test_a_level_loguru_knows_is_honoured_whatever_its_casing(self, raw, monkeypatch):
+        """Stripped and upper-cased, so the operator's intent is not lost to formatting."""
+        monkeypatch.setenv('LOG_LEVEL', raw)
+
+        assert _resolve_log_level() == raw.strip().upper()
+
+    def test_the_undocumented_variable_still_works(self, monkeypatch):
+        """Kept so configurations written against the earlier name keep their level."""
+        monkeypatch.delenv('LOG_LEVEL', raising=False)
+        monkeypatch.setenv('FASTMCP_LOG_LEVEL', 'ERROR')
+
+        assert _resolve_log_level() == 'ERROR'
+
+    def test_neither_set_uses_the_default(self, monkeypatch):
+        """The common case: an operator who never named a level."""
+        monkeypatch.delenv('LOG_LEVEL', raising=False)
+        monkeypatch.delenv('FASTMCP_LOG_LEVEL', raising=False)
+
+        assert _resolve_log_level() == LOG_LEVEL_DEFAULT
+
+
+class TestLogFileNeverStopsTheServerStarting:
+    """Read at import too, and a path loguru cannot open takes the server down with it."""
+
+    def test_empty_reads_as_unset(self, monkeypatch):
+        """Loguru resolves `''` to the working directory and answers IsADirectoryError.
+
+        Read at import, so the operator got a traceback, no tools, and an error naming a directory
+        they never configured. An empty value is what an MCP config template leaves behind, and the
+        README documents this variable as logging to stderr when not specified.
+        """
+        monkeypatch.setenv('LOG_FILE', '')
+
+        assert _resolve_log_file() is sys.stderr
+
+    def test_a_named_file_is_honoured(self, monkeypatch):
+        """Which is the point of the variable."""
+        monkeypatch.setenv('LOG_FILE', '/tmp/redshift-mcp.log')
+
+        assert _resolve_log_file() == '/tmp/redshift-mcp.log'
+
+    def test_unset_logs_to_stderr(self, monkeypatch):
+        """The documented default."""
+        monkeypatch.delenv('LOG_FILE', raising=False)
+
+        assert _resolve_log_file() is sys.stderr

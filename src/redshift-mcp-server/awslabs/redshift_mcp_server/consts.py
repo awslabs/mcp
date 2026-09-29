@@ -43,10 +43,22 @@ MAX_OPEN_TRANSACTIONS_PER_TARGET_DEFAULT = 10
 # redshift-data:BatchExecuteStatement was denied, before trying the batch path again.
 FALLBACK_NO_BATCH_REPROBE = 300
 
+# The most rows one statement may return, unless MAX_RESULT_ROWS sets another. A larger result is
+# refused rather than returned whole, which is more than an agent can read, or cut short, which
+# reads as the whole.
+MAX_RESULT_ROWS_DEFAULT = 1000
+
+# How many pages of one result set to read before giving up on the paging ending. Not a limit on
+# the result, which MAX_RESULT_ROWS is. This bounds the loop, which a service handing back a fresh
+# token forever would otherwise never leave, and pages without rows never reach the row cap. Far
+# above any real result, since reaching it discards everything read.
+MAX_RESULT_PAGES = 10_000
+
 # SQL guardrails
 
 # Maximum SQL length accepted before parsing; longer input is rejected (fail closed).
 MAX_SQL_LEN = 65_536
 
-# How long a resolved cluster identifier stays usable without asking the control plane again.
+# How long the stored discovery answers every lookup, a cluster's absence included, before the
+# control plane is asked again.
 CLUSTER_RESOLVE_TTL = 300

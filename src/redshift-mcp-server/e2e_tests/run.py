@@ -162,6 +162,25 @@ def _invoke(config: Config, prompt: str) -> tuple[int, str, float]:
     return status, _ANSI.sub('', output), time.monotonic() - started
 
 
+def _redact(text: str, secret_values: set[str]) -> str:
+    """Replace the generated config's credential values wherever they appear.
+
+    The agent can read its own config, which carries an assumed role's session keys, and the
+    transcript it produces is committed. Scrubbed here rather than trusted not to be echoed,
+    because one shell command is enough and the report is the artifact that outlives the run.
+
+    Args:
+        text: The transcript.
+        secret_values: The credential values the generated config carries.
+
+    Returns:
+        The transcript with each of them replaced.
+    """
+    for value in sorted(secret_values, key=len, reverse=True):
+        text = text.replace(value, '[redacted]')
+    return text
+
+
 def _as_paragraphs(text: str) -> str:
     """Separate lines so that markdown keeps them apart.
 
@@ -209,19 +228,22 @@ def _split_summary(transcript: str) -> tuple[str | None, str]:
     )
 
 
-def _failed_scenarios(summary: str | None) -> list[str] | None:
+def _failed_scenarios(summary: str | None, min_rows: int) -> list[str] | None:
     """Read the agent's verdict out of the table it was asked to end with.
 
     The exit status says only that the agent finished, so without reading the table a run whose
-    every row says FAIL still passes. A missing or unreadable table is not a pass either: it
-    means nothing graded the run.
+    every row says FAIL still passes. Three things are not a pass either, and all read as no
+    verdict at all: no table, a table shorter than `min_rows`, and a row whose result is neither
+    PASS nor FAIL. A cell saying ERROR, SKIP or anything else means that case was not graded, and
+    counting it as a pass is how an ungraded run reports success.
 
     Args:
         summary: The agent's summary section, or None when it produced none.
+        min_rows: Fewest rows a table has to carry to count as having graded the run.
 
     Returns:
         The Scenario cells of the rows marked FAIL, empty when every row passed, or None when
-        there was no table to read.
+        there was no verdict to read.
     """
     if summary is None:
         return None
@@ -239,15 +261,19 @@ def _failed_scenarios(summary: str | None) -> list[str] | None:
             continue
 
         result = cells[1].upper()
-        # The header and the dashes under it are not rows.
-        if result == 'RESULT' or set(result) <= set('-: '):
+        # The header and the dashes under it are not rows. An empty cell is, though: it is a case
+        # the agent listed and did not grade, and skipping it here dropped it from the count
+        # altogether rather than failing the run.
+        if result == 'RESULT' or (result and set(result) <= set('-: ')):
             continue
 
         rows += 1
-        if 'FAIL' in result:
+        if result not in ('PASS', 'FAIL'):
+            return None
+        if result == 'FAIL':
             failed.append(cells[0] or '(unnamed)')
 
-    return failed if rows else None
+    return failed if rows >= min_rows else None
 
 
 def _report(
@@ -258,6 +284,7 @@ def _report(
     transcript: str,
     seconds: float,
     seeded_rows: int,
+    secret_values: set[str],
 ) -> tuple[Path, list[str] | None]:
     """Write the run down, in the form it will be read in a pull request.
 
@@ -273,6 +300,7 @@ def _report(
         transcript: What the agent said, control sequences already stripped.
         seconds: How long it took.
         seeded_rows: Rows in the sample schema, so a reader can tell the data was really there.
+        secret_values: Credential values to keep out of the report.
 
     Returns:
         Path to the written report.
@@ -294,8 +322,8 @@ def _report(
         'Sample data': f'`{config.schema}` in `{config.database}`, {seeded_rows:,} rows each',
     }
 
-    summary, remainder = _split_summary(transcript)
-    failed = _failed_scenarios(summary)
+    summary, remainder = _split_summary(_redact(transcript, secret_values))
+    failed = _failed_scenarios(summary, scenario.min_rows)
     if summary is None:
         summary = (
             'The agent ended without one, so nothing here has been summarised. Read the '
@@ -328,8 +356,8 @@ def test(config: Config, keys: list[str], keep_up: bool) -> int:
         keep_up: Skip teardown, leaving the warehouses running for the next run.
 
     Returns:
-        A process exit status: zero only when every scenario finished cleanly and its summary
-        table marked every row PASS.
+        A process exit status: zero only when every scenario finished cleanly, its summary table
+        graded every row PASS, and teardown left nothing running.
     """
     session = _session(config)
     failures = 0
@@ -340,7 +368,7 @@ def test(config: Config, keys: list[str], keep_up: bool) -> int:
     try:
         deploy.up(session, config)
 
-        agent_path = agent.write(config, session.client('sts'))
+        agent_path, secret_values = agent.write(config, session.client('sts'))
         print(f'agent      {agent_path}')
 
         seeded_rows = sum(tickit.EXPECTED_ROWS.values())
@@ -352,27 +380,33 @@ def test(config: Config, keys: list[str], keep_up: bool) -> int:
 
             status, transcript, seconds = _invoke(config, prompt)
             path, failed = _report(
-                config, scenario, prompt, status, transcript, seconds, seeded_rows
+                config, scenario, prompt, status, transcript, seconds, seeded_rows, secret_values
             )
             print(f'scenario   {key} exit {status} in {seconds / 60:.1f} min -> {path}')
 
             # The exit status only says the agent finished. Its own table is the verdict, and a
-            # run with no table graded nothing, so neither counts as a pass on its own.
+            # table too short or carrying a result that is neither PASS nor FAIL graded nothing,
+            # so neither counts as a pass on its own.
             if status != 0:
                 failures += 1
             elif failed is None:
                 failures += 1
-                print(f'scenario   {key} FAILED: no summary table, so nothing graded the run')
+                print(
+                    f'scenario   {key} FAILED: no usable verdict table, so nothing graded the run'
+                )
             elif failed:
                 failures += 1
                 print(f'scenario   {key} FAILED: {", ".join(failed)}')
     finally:
-        _teardown(session, config, keep_up)
+        # Counted, not just printed. Resources left running are a failure of the run whatever the
+        # scenarios said, and a green exit is how they go unnoticed.
+        if not _teardown(session, config, keep_up):
+            failures += 1
 
     return 1 if failures else 0
 
 
-def _teardown(session, config: Config, keep_up: bool) -> None:
+def _teardown(session, config: Config, keep_up: bool) -> bool:
     """Apply the configured teardown, reporting rather than raising if it fails.
 
     Called from a `finally`, so raising here would replace whatever went wrong in the run with
@@ -383,13 +417,18 @@ def _teardown(session, config: Config, keep_up: bool) -> None:
         session: A boto3 session for the configured profile and region.
         config: The harness config.
         keep_up: Skip teardown, leaving the warehouses running for the next run.
+
+    Returns:
+        False when teardown was asked for and failed. Leaving resources up on purpose is not a
+        failure, so `--keep-up` returns True.
     """
     if keep_up:
         print('lifecycle  left running, --keep-up was given')
-        return
+        return True
 
     try:
         deploy.teardown(session, config)
+        return True
     except Exception as e:
         print(
             f'lifecycle  TEARDOWN FAILED: {e}\n'
@@ -397,6 +436,7 @@ def _teardown(session, config: Config, keep_up: bool) -> None:
             f'"python -m e2e_tests.run pause" or "down" by hand.',
             file=sys.stderr,
         )
+        return False
 
 
 def main(argv: list[str] | None = None) -> int:

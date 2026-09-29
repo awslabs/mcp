@@ -32,12 +32,28 @@ class RedshiftDataModel(BaseModel):
 
     @staticmethod
     def cell_value(cell: dict) -> Any:
-        """Unwrap a single Redshift Data API result cell to a Python scalar."""
+        """Unwrap a single Redshift Data API result cell to a Python scalar.
+
+        Every member is read to a scalar, because a value that is not one does not survive the
+        trip out: this server's models declare scalar fields, and the MCP layer serializes
+        `bytes` by decoding it as UTF-8 - which silently turns a blob into a string that cannot
+        be told from a real one, and raises UnicodeDecodeError past this server's error handling
+        when it is not decodable.
+        """
         if cell.get('isNull'):
             return None
+        blob = cell.get('blobValue')
+        if blob is not None:
+            # Hex, to keep it a scalar. A member the API defines, though Redshift sends VARBYTE,
+            # GEOMETRY and GEOGRAPHY as base64 in `stringValue`, which arrives unchanged.
+            return blob.hex()
         for key in ('stringValue', 'longValue', 'doubleValue', 'booleanValue'):
             if key in cell:
                 return cell[key]
+        # A member this does not know, which botocore hands over as
+        # `{'SDK_UNKNOWN_MEMBER': {'name': ...}}` and whose value it has already discarded. The
+        # name of it is all there is to report, and it is reported as the string every other
+        # unrecognized value is.
         return str(cell)
 
     @classmethod

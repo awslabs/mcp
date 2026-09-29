@@ -47,8 +47,9 @@ timeout_seconds = 5400
 
 [lifecycle]
 # Pause the provisioned cluster after a run rather than deleting it: a paused cluster bills
-# storage only, and resuming is faster than creating. Serverless has no pause operation and
-# bills nothing while idle, so it is left alone.
+# storage only, and resuming is faster than creating. Serverless has no pause operation, so it is
+# left running; its compute scales to zero when idle, while the namespace keeps billing storage
+# by the GB-month until it is deleted.
 pause_after_run = true
 # Deletes both warehouses instead, ending storage charges. The next run pays full creation.
 destroy_after_run = false

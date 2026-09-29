@@ -17,6 +17,7 @@
 
 import pytest
 import sqlglot
+from awslabs.redshift_mcp_server import catalog
 from awslabs.redshift_mcp_server.catalog import (
     _sql_identifier,
     discover_columns,
@@ -25,6 +26,42 @@ from awslabs.redshift_mcp_server.catalog import (
     discover_tables,
 )
 from sqlglot import exp
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ('function', 'kwargs'),
+    [
+        ('discover_databases', {'database_name': 'analytics'}),
+        ('discover_schemas', {'schema_database_name': 'analytics'}),
+        ('discover_tables', {'table_database_name': 'analytics', 'table_schema_name': 'public'}),
+        (
+            'discover_columns',
+            {
+                'column_database_name': 'analytics',
+                'column_schema_name': 'public',
+                'column_table_name': 't',
+            },
+        ),
+    ],
+)
+async def test_a_listing_runs_on_the_cluster_and_database_it_names(mocker, function, kwargs):
+    """The tools document the named database as the one connected to.
+
+    Connected to 'dev' instead, a listing answered for whatever 'dev' could see, and run on
+    another cluster, for a warehouse the caller did not name. The type goes too, since without it
+    a name shared by a cluster and a workgroup is refused.
+    """
+    run = mocker.patch(
+        'awslabs.redshift_mcp_server.catalog.redshift.execute_standalone_statement',
+        return_value=({'ColumnMetadata': [], 'Records': []}, 'q'),
+    )
+
+    await getattr(catalog, function)(cluster_identifier='c1', cluster_type='serverless', **kwargs)
+
+    assert run.call_args.kwargs['cluster_identifier'] == 'c1'
+    assert run.call_args.kwargs['cluster_type'] == 'serverless'
+    assert run.call_args.kwargs['database_name'] == 'analytics'
 
 
 class TestDiscoverCatalog:

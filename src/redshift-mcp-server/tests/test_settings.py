@@ -20,12 +20,55 @@ from awslabs.redshift_mcp_server.consts import (
     ACCESS_MODE_READ_ONLY,
     ACCESS_MODE_READ_WRITE,
     ACCESS_MODES,
+    MAX_RESULT_ROWS_DEFAULT,
+    SESSION_KEEPALIVE_DEFAULT,
 )
 from awslabs.redshift_mcp_server.settings import (
     _resolve_int_env,
+    max_result_rows,
     resolve_access_mode,
     resolve_skip_write_confirmation,
+    session_keepalive,
 )
+
+
+class TestMaxResultRows:
+    """The row cap as the server reads it, which cannot be switched off."""
+
+    @pytest.mark.parametrize(
+        ('raw', 'expected'),
+        [
+            (None, MAX_RESULT_ROWS_DEFAULT),
+            ('5000', 5000),
+            ('0', MAX_RESULT_ROWS_DEFAULT),
+            ('-1', MAX_RESULT_ROWS_DEFAULT),
+            ('lots', MAX_RESULT_ROWS_DEFAULT),
+        ],
+    )
+    def test_only_a_whole_number_above_zero_is_used(self, monkeypatch, raw, expected):
+        """Zero or a negative would refuse every result, so each falls back to the default."""
+        if raw is None:
+            monkeypatch.delenv('MAX_RESULT_ROWS', raising=False)
+        else:
+            monkeypatch.setenv('MAX_RESULT_ROWS', raw)
+        max_result_rows.cache_clear()
+        try:
+            assert max_result_rows() == expected
+        finally:
+            max_result_rows.cache_clear()
+
+
+class TestSessionKeepalive:
+    """The setting as the server reads it, with the Data API's own ceiling applied."""
+
+    def test_a_keepalive_past_the_data_api_ceiling_falls_back(self, monkeypatch):
+        """Sent as asked, a value above 86400 would be refused on every transaction's open."""
+        monkeypatch.setenv('SESSION_KEEPALIVE', '86401')
+        session_keepalive.cache_clear()
+        try:
+            assert session_keepalive() == SESSION_KEEPALIVE_DEFAULT
+        finally:
+            session_keepalive.cache_clear()
 
 
 class TestResolveIntEnv:

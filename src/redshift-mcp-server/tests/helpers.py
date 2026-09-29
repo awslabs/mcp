@@ -56,17 +56,26 @@ def _fake_batch(subs, status=None, error=None, session_id=None):
     return batch
 
 
-def _batch_denied_error(action='redshift-data:BatchExecuteStatement'):
-    """Build the AccessDeniedException the Data API raises for a denied action."""
+def _client_error(code, message, *, status=400, operation='BatchExecuteStatement'):
+    """Build a ClientError shaped as botocore builds one from a parsed error response.
+
+    The HTTP status is part of that shape, so it is set to keep the fixture one the service can
+    send. No outcome is decided on it: a status is only the last retry attempt's.
+    """
     return ClientError(
         {
-            'Error': {
-                'Code': 'AccessDeniedException',
-                'Message': (
-                    'User: arn:aws:sts::1:assumed-role/r/s is not authorized to perform: '
-                    f'{action} on resource: arn:aws:redshift:us-east-1:1:cluster:c'
-                ),
-            }
+            'Error': {'Code': code, 'Message': message},
+            'ResponseMetadata': {'HTTPStatusCode': status},
         },
-        'BatchExecuteStatement',
+        operation,
+    )
+
+
+def _batch_denied_error(action='redshift-data:BatchExecuteStatement'):
+    """Build the AccessDeniedException the Data API raises for a denied action."""
+    return _client_error(
+        'AccessDeniedException',
+        'User: arn:aws:sts::1:assumed-role/r/s is not authorized to perform: '
+        f'{action} on resource: arn:aws:redshift:us-east-1:1:cluster:c',
+        status=403,
     )

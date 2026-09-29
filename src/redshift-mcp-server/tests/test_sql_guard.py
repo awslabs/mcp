@@ -392,6 +392,39 @@ class TestSessionSettings:
     @pytest.mark.parametrize(
         'sql',
         [
+            'SELECT pg_terminate_backend(123)',
+            'SELECT pg_cancel_backend(123)',
+            'SELECT PG_TERMINATE_BACKEND(123)',
+            'SELECT pg_catalog.pg_terminate_backend(123)',
+            'SELECT * FROM pg_terminate_backend(123)',
+            "SELECT pg_terminate_backend(pid) FROM stv_sessions WHERE user_name = 'etl'",
+            'WITH k AS (SELECT pg_cancel_backend(123) AS r) SELECT * FROM k',
+            'SELECT 1 UNION SELECT pg_cancel_backend(123)',
+        ],
+    )
+    def test_ending_or_cancelling_a_session_is_rejected(self, sql):
+        """BEGIN READ ONLY stops neither, so read-only mode ran them against other sessions."""
+        with pytest.raises(ToolError, match='Statement type not allowed in read-only mode'):
+            assert_executable(sql)
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            "SELECT change_query_priority(1076, 'critical')",
+            "SELECT change_session_priority(30311, 'lowest')",
+            "SELECT change_user_priority('etl', 'low')",
+            "SELECT pg_catalog.change_user_priority('etl', 'high')",
+            "SELECT change_query_priority(query, 'lowest') FROM stv_wlm_query_state",
+        ],
+    )
+    def test_changing_workload_priority_is_rejected(self, sql):
+        """Each reprioritises other work on the cluster, which a read-only caller must not do."""
+        with pytest.raises(ToolError, match='Statement type not allowed in read-only mode'):
+            assert_executable(sql)
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
             "PREPARE p AS SELECT set_config('transaction_read_only', 'off', false)",
             'EXECUTE p',
             "DECLARE c CURSOR FOR SELECT set_config('transaction_read_only', 'off', false)",
@@ -686,6 +719,48 @@ class TestMightWriteRecognizesWrites:
     def test_set_config_as_a_string_literal_is_still_a_read(self):
         """Matching is structural, so the name in quotes is data rather than a call."""
         assert might_write("SELECT 'set_config' AS name") is False
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            'SELECT pg_terminate_backend(123)',
+            'SELECT pg_cancel_backend(123)',
+            'SELECT pg_catalog.pg_cancel_backend(123)',
+            'SELECT * FROM pg_cancel_backend(123)',
+            "SELECT pg_terminate_backend(pid) FROM stv_sessions WHERE user_name = 'etl'",
+        ],
+    )
+    def test_ending_or_cancelling_a_session_is_a_write(self, sql):
+        """Classed as reads, both ran unconfirmed in read-write mode and on the fallback.
+
+        Either can end another caller's work: a terminated session's open transaction rolls back
+        and its locks are released.
+        """
+        assert might_write(sql) is True
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            "SELECT change_query_priority(1076, 'critical')",
+            "SELECT change_session_priority(30311, 'lowest')",
+            "SELECT change_user_priority('etl', 'low')",
+            "SELECT change_query_priority(query, 'lowest') FROM stv_wlm_query_state",
+        ],
+    )
+    def test_changing_workload_priority_is_a_write(self, sql):
+        """Classed as reads, each ran unconfirmed in read-write mode and on the fallback."""
+        assert might_write(sql) is True
+
+    @pytest.mark.parametrize(
+        'sql',
+        [
+            "SELECT 'pg_terminate_backend' AS name",
+            'SELECT pg_terminate_backend FROM t',
+        ],
+    )
+    def test_the_backend_function_names_as_data_are_still_reads(self, sql):
+        """A string or a column named after one is not a call."""
+        assert might_write(sql) is False
 
     @pytest.mark.parametrize(
         'sql',

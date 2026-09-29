@@ -50,8 +50,8 @@ class ReviewResult(BaseModel):
 
     signals_evaluated: int = Field(
         ...,
-        description='Total number of signals evaluated. A diagnostic query carries several '
-        'signals, so this exceeds the length of queries_executed.',
+        description='How many distinct signals ran. A diagnostic query carries several, so this '
+        'exceeds the length of queries_executed, and findings is the subset that triggered.',
     )
     findings: list[ReviewFinding] = Field(
         ..., description='List of triggered findings from signal evaluation'

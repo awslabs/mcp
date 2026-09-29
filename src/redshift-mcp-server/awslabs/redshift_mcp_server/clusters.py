@@ -24,9 +24,11 @@ from loguru import logger
 from mcp.server.mcpserver.exceptions import ToolError
 
 
-# Identifier to the moment it was resolved and what it resolved to. Bounded by the number of
-# clusters in the account, not by anything a caller chooses.
-_resolved: dict[str, tuple[float, RedshiftCluster]] = {}
+# The last discovery that answered for both types: when it ran, and every cluster and workgroup it
+# found. `resolve_cluster` answers from it until it is CLUSTER_RESOLVE_TTL old, and each such
+# discovery replaces it, `list_clusters`' included. Every type found under a name is in it, which
+# is what lets an ambiguous name be refused rather than answered.
+_discovered: tuple[float, list[RedshiftCluster]] | None = None
 
 
 def _fetch_provisioned_clusters() -> list[dict]:
@@ -42,25 +44,56 @@ def _fetch_provisioned_clusters() -> list[dict]:
     return [cluster for page in paginator.paginate() for cluster in page.get('Clusters', [])]
 
 
-def _fetch_serverless_workgroups() -> list[tuple[dict, dict]]:
-    """Page through every serverless workgroup and fetch each one's detail.
+def _fetch_serverless_workgroups() -> list[tuple[dict, list[dict]]]:
+    """Page through every serverless workgroup and fetch each one's tags.
 
     Synchronous, and called through asyncio.to_thread, for the same reason as its provisioned
-    counterpart. The detail call is per workgroup, so this blocks for longer still.
+    counterpart. One further call per workgroup, so this blocks for longer still.
+
+    ListWorkgroups answers with the same Workgroup shape GetWorkgroup does, every member
+    included, so the detail call this used to make per workgroup added nothing. It also could not
+    fail safely: a workgroup deleted between the two answers ResourceNotFoundException, which is
+    not a denial, so it failed all of discovery - and with it every statement on every healthy
+    provisioned cluster, once the stored discovery had expired.
 
     Returns:
-        Pairs of the ListWorkgroups entry and its GetWorkgroup detail.
+        Pairs of the ListWorkgroups entry and its tags.
     """
     serverless_client = client_manager.redshift_serverless_client()
     paginator = serverless_client.get_paginator('list_workgroups')
-    return [
-        (
-            workgroup,
-            serverless_client.get_workgroup(workgroupName=workgroup['workgroupName'])['workgroup'],
-        )
-        for page in paginator.paginate()
-        for workgroup in page.get('workgroups', [])
-    ]
+
+    # Tags are asked for by themselves because the Workgroup shape has no member for them, where
+    # DescribeClusters carries a provisioned cluster's inline.
+    tags_warned = False
+    workgroups: list[tuple[dict, list[dict]]] = []
+
+    for page in paginator.paginate():
+        for workgroup in page.get('workgroups', []):
+            arn = workgroup.get('workgroupArn')
+            tags: list[dict] = []
+            # Tags are keyed by ARN, so there is nothing to ask for without one.
+            if arn is not None:
+                try:
+                    tags = serverless_client.list_tags_for_resource(resourceArn=arn).get(
+                        'tags', []
+                    )
+                except Exception as e:  # noqa: BLE001 - see below
+                    # Best effort against every failure, not a denial alone: tags are the one field
+                    # this carries, and raising costs the whole cluster list.
+                    if not tags_warned:
+                        # What is suppressed after the first failure is the warning, not the call.
+                        # Suppressing the call instead let a denial scoped to one ARN - an
+                        # ordinary least-privilege policy - report every workgroup the principal
+                        # can read as untagged.
+                        tags_warned = True
+                        logger.warning(
+                            'Reporting a serverless workgroup as untagged; '
+                            f'redshift-serverless:ListTagsForResource failed: {e}'
+                        )
+
+            workgroups.append((workgroup, tags))
+
+    return workgroups
 
 
 def _provisioned_cluster(cluster: dict) -> RedshiftCluster:
@@ -78,7 +111,7 @@ def _provisioned_cluster(cluster: dict) -> RedshiftCluster:
         # Lowercased here and in the serverless mapper. The two APIs disagree on case -
         # 'available' against 'AVAILABLE' - and a caller told that only an available cluster can
         # be queried would compare against one of them and silently drop every cluster of the
-        # other kind.
+        # other type.
         status=cluster['ClusterStatus'].lower(),
         database_name=cluster.get('DBName', 'dev'),
         endpoint=cluster.get('Endpoint', {}).get('Address'),
@@ -94,17 +127,17 @@ def _provisioned_cluster(cluster: dict) -> RedshiftCluster:
     )
 
 
-def _serverless_cluster(workgroup: dict, detail: dict) -> RedshiftCluster:
-    """Map one ListWorkgroups entry and its GetWorkgroup detail onto the model.
+def _serverless_cluster(workgroup: dict, tags: list[dict]) -> RedshiftCluster:
+    """Map one ListWorkgroups entry and its tags onto the model.
 
     Args:
-        workgroup: One entry from ListWorkgroups.
-        detail: The GetWorkgroup response for that workgroup.
+        workgroup: One entry from ListWorkgroups, which carries the whole Workgroup shape.
+        tags: The ListTagsForResource tags for that workgroup, empty if the call failed.
 
     Returns:
         The workgroup as this server reports it, in the same shape as a provisioned cluster.
     """
-    endpoint = detail.get('endpoint', {})
+    endpoint = workgroup.get('endpoint', {})
 
     return RedshiftCluster(
         identifier=workgroup['workgroupName'],
@@ -115,7 +148,10 @@ def _serverless_cluster(workgroup: dict, detail: dict) -> RedshiftCluster:
         # explicit database_name to the other tools instead.
         database_name='dev',
         endpoint=endpoint.get('address'),
-        port=endpoint.get('port'),
+        # The workgroup carries its own port too, which is the one a workgroup still creating its
+        # endpoint has. Read from the endpoint alone, the port was reported absent while the
+        # service was stating it.
+        port=endpoint.get('port', workgroup.get('port')),
         # The workgroup's VPC endpoints carry the real VPC. Reported from subnetIds[0] before,
         # this field answered with a subnet id under the name vpc_id, and disagreed with the
         # provisioned mapper about what it holds.
@@ -127,9 +163,9 @@ def _serverless_cluster(workgroup: dict, detail: dict) -> RedshiftCluster:
         number_of_nodes=None,  # Not applicable for serverless
         creation_time=workgroup.get('creationDate'),
         master_username=None,  # Serverless uses IAM
-        publicly_accessible=detail.get('publiclyAccessible'),
+        publicly_accessible=workgroup.get('publiclyAccessible'),
         encrypted=True,  # Serverless is always encrypted
-        tags={tag['key']: tag['value'] for tag in detail.get('tags', [])},
+        tags={tag['key']: tag['value'] for tag in tags},
     )
 
 
@@ -151,6 +187,8 @@ async def discover_clusters(denied_sink: set[str] | None = None) -> list[Redshif
     Raises:
         ToolError: If IAM denied both provisioned and serverless discovery.
     """
+    global _discovered
+
     clusters = []
     provisioned_error = None
     serverless_error = None
@@ -179,8 +217,8 @@ async def discover_clusters(denied_sink: set[str] | None = None) -> list[Redshif
         logger.debug('Discovering Redshift Serverless workgroups')
 
         serverless_count = 0
-        for workgroup, detail in await asyncio.to_thread(_fetch_serverless_workgroups):
-            clusters.append(_serverless_cluster(workgroup, detail))
+        for workgroup, tags in await asyncio.to_thread(_fetch_serverless_workgroups):
+            clusters.append(_serverless_cluster(workgroup, tags))
             serverless_count += 1
 
         logger.info(f'Found {serverless_count} serverless workgroups')
@@ -193,6 +231,17 @@ async def discover_clusters(denied_sink: set[str] | None = None) -> list[Redshif
             denied_sink.add('serverless')
         logger.warning(f'Skipping serverless; IAM lacks permission: {e}')
 
+    # Two discoveries that overlap can finish out of order and leave the older one stored, which
+    # the TTL bounds; serialized instead, one stalled control-plane call held every other resolve
+    # behind it.
+    #
+    # A discovery a denial cut short is not stored, because its clusters are the evidence `_pick`
+    # refuses an ambiguous name on, and a missing half makes a name that is both types look like
+    # one. It clears the stored one instead, both halves denied included, so a resolve sees what
+    # list_clusters sees: kept, the older one answered for the rest of its TTL, and refused a
+    # cluster list_clusters had just shown.
+    _discovered = None if provisioned_error or serverless_error else (time.monotonic(), clusters)
+
     if provisioned_error and serverless_error:
         msg = (
             'Unable to discover any Redshift clusters: IAM lacks both redshift and '
@@ -203,55 +252,115 @@ async def discover_clusters(denied_sink: set[str] | None = None) -> list[Redshif
         raise ToolError(msg)
 
     logger.info(f'Total clusters discovered: {len(clusters)}')
+
     return clusters
 
 
-async def resolve_cluster(cluster_identifier: str) -> RedshiftCluster:
+def _pick(
+    candidates: list[RedshiftCluster], cluster_type: str | None, note: str
+) -> RedshiftCluster:
+    """Choose which of the clusters found under one identifier the caller meant.
+
+    Args:
+        candidates: Everything discovery found under that identifier, in discovery order; at
+            least one.
+        cluster_type: The type the caller named, or None.
+        note: Appended to every refusal, to say why `candidates` may be incomplete or out of
+            date rather than assert what nothing checked.
+
+    Returns:
+        The single cluster the caller addressed.
+
+    Raises:
+        ToolError: If none of the type the caller named is found, or a name given without a type
+            matches both types.
+    """
+    identifier = candidates[0].identifier
+
+    if cluster_type is not None:
+        for candidate in candidates:
+            if candidate.type == cluster_type:
+                return candidate
+        # Without `note`, a denial or an old lookup read as the cluster not existing, and named the
+        # other type as what to use instead - a different warehouse holding its own data.
+        raise ToolError(
+            f'No {cluster_type} cluster named {identifier} was found. Found instead: a '
+            f'{" and a ".join(sorted(one.type for one in candidates))} one.{note}'
+        )
+
+    if len(candidates) == 1:
+        return candidates[0]
+
+    # Refused rather than guessed. Both are real warehouses holding their own data, so picking
+    # either sends the caller's statements, writes included, somewhere they did not name.
+    raise ToolError(
+        f'{identifier} names both a provisioned cluster and a serverless workgroup, which are '
+        f"separate resources. Pass cluster_type='provisioned' or cluster_type='serverless' to "
+        f'say which. Every tool taking a cluster identifier accepts it.{note}'
+    )
+
+
+async def resolve_cluster(
+    cluster_identifier: str, cluster_type: str | None = None, fresh: bool = False
+) -> RedshiftCluster:
     """Resolve a cluster identifier to its discovered cluster.
 
-    Cached for CLUSTER_RESOLVE_TTL seconds. Every statement resolves, and discovery costs a
-    DescribeClusters, a ListWorkgroups and a GetWorkgroup per workgroup - eleven times over in
-    one review_cluster. Staleness is safe: a resolve needs the identifier and the type, which do
-    not change while a cluster lives.
+    The type is needed only when a provisioned cluster and a serverless workgroup share the
+    identifier; without it that name is refused rather than resolved to either.
+
+    Answered from the last complete discovery until it is CLUSTER_RESOLVE_TTL old, because every
+    statement resolves and a discovery costs a DescribeClusters, a ListWorkgroups and a
+    ListTagsForResource per workgroup. Until then a cluster created, deleted or recreated as the
+    other type goes unnoticed, and a refusal says how old the lookup is; `list_clusters`
+    discovers every time and replaces it. Fields other than the identifier and the type, node
+    type and status among them, are as old, so a caller that reads them passes `fresh`.
+
+    A discovery a denial cut short is answered from, since a principal permanently denied one half
+    has to keep working, but not stored: it clears the stored one, so every resolve discovers
+    while the denial lasts.
 
     Args:
         cluster_identifier: The cluster identifier to resolve.
+        cluster_type: `provisioned` or `serverless`, or None for whichever the identifier names.
+        fresh: Discover even when the stored discovery would answer.
 
     Returns:
         The matching RedshiftCluster model.
 
     Raises:
-        ToolError: If no discovered cluster carries that identifier.
+        ToolError: If no discovered cluster of that type carries that identifier, or it names
+            both types and no type was given.
     """
-    cached = _resolved.get(cluster_identifier)
-    if cached is not None and time.monotonic() - cached[0] < CLUSTER_RESOLVE_TTL:
-        return cached[1]
+    stored = _discovered
+    if not fresh and stored is not None and time.monotonic() - stored[0] < CLUSTER_RESOLVE_TTL:
+        clusters = stored[1]
+        # A refusal from the stored discovery can be out of date: a cluster created since is not
+        # in it. Said so, the caller looks again rather than taking the cluster for missing, or
+        # moving to the other type a refusal names, which is a different warehouse.
+        note = (
+            f' Clusters were last looked up {int(time.monotonic() - stored[0])} seconds ago; '
+            f'list_clusters looks again.'
+        )
+    else:
+        denied: set[str] = set()
+        clusters = await discover_clusters(denied_sink=denied)
+        # A half of discovery IAM refused leaves its clusters out of this list and out of
+        # list_clusters alike, so "not found" would name the wrong cause and send the caller to a
+        # tool that omits it too. Only for a type the caller could have meant: said of a
+        # provisioned cluster with the serverless listing denied, it sent the caller to grant a
+        # permission that could not help.
+        note = (
+            f' Listing {" and ".join(sorted(denied))} clusters was denied, so any of that type is '
+            f'absent here and from list_clusters; grant the listing permission to address it.'
+            if denied and (cluster_type is None or cluster_type in denied)
+            else ''
+        )
 
-    denied: set[str] = set()
-    discovered = await discover_clusters(denied_sink=denied)
-
-    # Every entry is cached, not just the one asked for, since the call that found them has
-    # already been paid for. A miss caches nothing, so a cluster that appears later is found on
-    # the next resolve rather than after this expires.
-    now = time.monotonic()
-    for cluster in discovered:
-        _resolved[cluster.identifier] = (now, cluster)
-
-    for cluster in discovered:
-        if cluster.identifier == cluster_identifier:
-            return cluster
-
-    # A half of discovery IAM refused leaves its clusters out of this list and out of
-    # list_clusters alike, so "not found" would name the wrong cause and send the caller to a
-    # tool that omits it too.
-    hidden = (
-        f' Listing {" and ".join(sorted(denied))} clusters was denied, so one of that kind is '
-        f'absent here and from list_clusters; grant the listing permission to address it.'
-        if denied
-        else ''
-    )
+    found = [cluster for cluster in clusters if cluster.identifier == cluster_identifier]
+    if found:
+        return _pick(found, cluster_type, note)
 
     raise ToolError(
         f'Cluster {cluster_identifier} not found. Please use list_clusters to get valid cluster '
-        f'identifiers.{hidden}'
+        f'identifiers.{note}'
     )

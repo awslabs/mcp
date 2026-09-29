@@ -22,7 +22,7 @@ from awslabs.redshift_mcp_server.catalog import (
     discover_schemas,
     discover_tables,
 )
-from awslabs.redshift_mcp_server.clusters import discover_clusters
+from awslabs.redshift_mcp_server.clusters import discover_clusters, resolve_cluster
 from awslabs.redshift_mcp_server.consts import (
     ACCESS_MODE_READ_WRITE,
     LOG_LEVEL_DEFAULT,
@@ -37,12 +37,12 @@ from awslabs.redshift_mcp_server.models import (
 )
 from awslabs.redshift_mcp_server.redshift import (
     execute_query,
-    no_batch_latched,
 )
 from awslabs.redshift_mcp_server.review.executor import review_cluster
 from awslabs.redshift_mcp_server.review.models import ReviewResult
 from awslabs.redshift_mcp_server.settings import (
     max_open_transactions_per_target,
+    max_result_rows,
     resolve_access_mode,
     resolve_skip_write_confirmation,
     session_keepalive,
@@ -54,17 +54,55 @@ from mcp.server.mcpserver import Context, Elicit, MCPServer, Resolve
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ClientCapabilities, ElicitationCapability, ToolAnnotations
 from pydantic import BaseModel, Field
-from typing import Annotated, NoReturn
+from typing import Annotated, Literal, NoReturn, TextIO
 
 
 # Remove default handler and add custom configuration
 logger.remove()
-logger.add(
-    os.environ.get('LOG_FILE', sys.stderr),
-    # LOG_LEVEL is the documented variable; FASTMCP_LOG_LEVEL is an undocumented
-    # fallback kept so existing configurations keep working.
-    level=os.environ.get('LOG_LEVEL', os.environ.get('FASTMCP_LOG_LEVEL', LOG_LEVEL_DEFAULT)),
-)
+
+
+def _resolve_log_level() -> str:
+    """Resolve the log level, falling back rather than refusing to start.
+
+    Loguru rejects a level it does not know, and this runs at import, so a lowercase level or the
+    empty string an MCP config template leaves behind otherwise takes the server down with a
+    traceback and no tools. Every other setting falls back with a warning; so does this one,
+    printed rather than logged, since it is configuring the logger it would warn through.
+
+    Returns:
+        A level loguru accepts.
+    """
+    # LOG_LEVEL is the documented variable; FASTMCP_LOG_LEVEL is an undocumented fallback kept so
+    # existing configurations keep working.
+    raw = os.environ.get('LOG_LEVEL') or os.environ.get('FASTMCP_LOG_LEVEL') or LOG_LEVEL_DEFAULT
+    level = raw.strip().upper()
+
+    try:
+        logger.level(level)
+    except ValueError:
+        print(
+            f'LOG_LEVEL={raw!r} is not a level loguru knows, using {LOG_LEVEL_DEFAULT}.',
+            file=sys.stderr,
+        )
+        return LOG_LEVEL_DEFAULT
+
+    return level
+
+
+def _resolve_log_file() -> str | TextIO:
+    """Resolve where to log, treating an empty value as unset.
+
+    Read with a default instead, the empty string an MCP config template leaves behind reached
+    loguru as a path, resolved to the working directory, and the IsADirectoryError took the whole
+    server down at import - no tools, and an error naming a directory nobody had configured.
+
+    Returns:
+        The configured path, or stderr.
+    """
+    return os.environ.get('LOG_FILE') or sys.stderr
+
+
+logger.add(_resolve_log_file(), level=_resolve_log_level())
 
 
 # Resolved here, rather than on first use like the settings that carry their own accessor,
@@ -89,6 +127,7 @@ def _current_settings() -> str:
         f'- `UNSAFE_SKIP_WRITE_CONFIRMATION`: {str(SKIP_WRITE_CONFIRMATION).lower()}\n'
         f'- `SESSION_KEEPALIVE`: {session_keepalive()} seconds\n'
         f'- `MAX_OPEN_TRANSACTIONS_PER_TARGET`: {max_open_transactions_per_target()}\n'
+        f'- `MAX_RESULT_ROWS`: {max_result_rows()}\n'
     )
 
     if SKIP_WRITE_CONFIRMATION:
@@ -111,9 +150,8 @@ Redshift, Redshift Serverless and Redshift Data APIs.
 
 ## Tools
 
-- `list_clusters` — provisioned clusters and serverless workgroups in the account.
-- `list_databases`, `list_schemas`, `list_tables`, `list_columns` — metadata discovery, via
-  `SHOW DATABASES`, `SHOW SCHEMAS`, `SHOW TABLES` and `SHOW COLUMNS`.
+- `list_clusters` — provisioned clusters and serverless workgroups.
+- `list_databases`, `list_schemas`, `list_tables`, `list_columns` — metadata discovery.
 - `execute_query` — run one SQL statement. Read-only by default; read-write is opt-in via
   `ACCESS_MODE`. Supports named transactions across calls.
 - `review_cluster` — diagnostic review of a cluster or workgroup. Needs the `sys:monitor`
@@ -126,17 +164,28 @@ cluster, then `list_schemas`, `list_tables` and `list_columns`. Every tool takes
 identifier as its first argument, and only a cluster whose status is `available` can be
 queried.
 
+A provisioned cluster and a serverless workgroup can share an identifier. When `list_clusters`
+shows one twice, also pass `cluster_type` as `provisioned` or `serverless`: without it the
+identifier is refused as ambiguous, or, for a few minutes after the second appeared, can still
+reach the first.
+
 A database is connected to, while a schema and a table are filtered for. So an unknown schema
 or table comes back as an empty list, but a database that does not exist or cannot be connected
 to is an error, and it is the same error on every tool that names one — including the three
 below `list_databases`, not only `list_schemas`.
 
+## Result size
+
+Every tool but `list_clusters` refuses a result of more than `MAX_RESULT_ROWS` rows, listed
+below, rather than returning part of it. With `execute_query`, a `LIMIT`, a narrower predicate or
+an aggregate keeps a result within it.
+
 ## Concurrency
 
 Without a transaction parameter, each statement runs on its own connection: statements
 against the same `cluster:database` run concurrently, including behind a long-running one,
-and no session state carries between calls: a temporary table or a `SET` is gone by the next,
-though the statement that made it reports success.
+and no session state carries between calls: in read-write mode a temporary table or a `SET` is
+gone by the next, though the statement that made it reports success.
 
 To carry state across calls, name a transaction with `execute_query`'s `begin_transaction`,
 `in_transaction`, `commit_transaction` and `rollback_transaction` parameters. Its statements
@@ -144,7 +193,8 @@ share one connection and are serialized against each other, but not against anyt
 
 ## Credentials and region
 
-The default AWS credentials chain, with `AWS_PROFILE` if set. Region precedence is
+The default AWS credentials chain, or the `AWS_PROFILE` profile when set, which then takes
+precedence over keys in the environment. Region precedence is
 `AWS_REGION`, then `AWS_DEFAULT_REGION`, then the profile's own region.
 
 Report AWS client errors in full — they name the misconfiguration. For a region error point
@@ -163,6 +213,19 @@ credentials setup and its permissions.
     + _current_settings(),
     dependencies=['boto3', 'loguru', 'pydantic', 'sqlglot'],
 )
+
+
+# One declaration for every tool that takes a cluster, so they cannot drift apart.
+_ClusterType = Annotated[
+    Literal['provisioned', 'serverless'] | None,
+    Field(
+        description=(
+            'The type list_clusters reports for the cluster: provisioned or serverless. Needed '
+            'only when list_clusters shows a provisioned cluster and a serverless workgroup '
+            'under one identifier.'
+        )
+    ),
+]
 
 
 def _read_only_annotations(title: str) -> ToolAnnotations:
@@ -193,6 +256,7 @@ def _write_confirmation(
     in_transaction: str | None = None,
     commit_transaction: str | None = None,
     rollback_transaction: str | None = None,
+    cluster_type: str | None = None,
 ) -> ConfirmWrite | Elicit[ConfirmWrite]:
     """Resolve the caller's approval for one statement.
 
@@ -211,6 +275,7 @@ def _write_confirmation(
         in_transaction: Name of a transaction being added to, if any.
         commit_transaction: Name of a transaction being committed, if any.
         rollback_transaction: Name of a transaction being rolled back, if any.
+        cluster_type: The target cluster's type, named in the prompt when the caller gave it.
 
     A decline or cancel is not observable here: the framework aborts the call after this
     returns, so only the request to ask is logged, not its answer.
@@ -239,37 +304,37 @@ def _write_confirmation(
         ),
     )
 
-    # The guard is not the only thing that refuses a write. While the batch action is denied on
-    # this cluster the compatibility path serves reads only, so asking would have put a prompt
-    # in front of a statement certain to be refused a moment later. Peeked rather than probed,
-    # because deciding a statement's path consumes the re-probe and that decision is the tool
-    # body's to make.
-    if no_batch_latched(cluster_identifier) and might_write(sql):
-        return ConfirmWrite(confirmed=True)
-
+    # Every write is asked about, including one the batch-denied compatibility path is about to
+    # refuse anyway. Skipping the prompt for those read the denial here and acted on it in the
+    # tool body, and the re-probe window can fall between the two: latched when this ran, spent
+    # by the time the body probed, and the write went through unasked. One pointless prompt in a
+    # configuration where every write is refused is the cheaper side of that trade.
     if not might_write(sql):
         return ConfirmWrite(confirmed=True)
+
+    # With its type when the caller gave one, which is when the identifier alone names two
+    # warehouses: the user approving the write needs to know which one it reaches. Written as the
+    # transaction errors write a cluster.
+    cluster = f'{cluster_identifier} ({cluster_type})' if cluster_type else cluster_identifier
+    target = f'{cluster}:{database_name}'
 
     # Checked here, rather than leaving it to the framework, so the error names the
     # setting that lets the operator proceed.
     if not ctx.session.check_client_capability(
         ClientCapabilities(elicitation=ElicitationCapability())
     ):
-        logger.warning(
-            f'Refused a write on {cluster_identifier}:{database_name}: the client cannot '
-            'be asked to confirm it.'
-        )
+        logger.warning(f'Refused a write on {target}: the client cannot be asked to confirm it.')
         raise ToolError(
             'This MCP client cannot prompt for confirmation, so the statement was not '
             'run. Use a client that supports elicitation, or set '
             'UNSAFE_SKIP_WRITE_CONFIRMATION=true to execute writes unconfirmed.'
         )
 
-    # Logged twice per call, which is worth keeping: the SDK resolves this dependency once to
-    # raise the prompt and once after the answer, so the pair brackets the round trip and the gap
-    # between the two is how long the caller took to decide. Worded as a requirement rather than
-    # an act, since only the first one asks.
-    logger.info(f'Write on {cluster_identifier}:{database_name} requires confirmation')
+    # Logged each time this runs, which depends on the protocol. Before the 2026-07-28 revision the
+    # SDK elicits inside the call and runs this once. From it on, the SDK runs this again after the
+    # answer, so the pair brackets the round trip and the gap is how long the caller took to
+    # decide. Worded as a requirement rather than an act, since only the first of a pair asks.
+    logger.info(f'Write on {target} requires confirmation')
 
     # What the caller is agreeing to differs by action, and the difference is what they are
     # deciding. A statement submitted with commit_transaction is committed by the same call,
@@ -299,10 +364,7 @@ def _write_confirmation(
         consequence = 'It runs with autocommit and cannot be rolled back.'
 
     return Elicit(
-        message=(
-            f'Execute this statement against {cluster_identifier}:{database_name}? '
-            f'{consequence}\n\n{sql}'
-        ),
+        message=(f'Execute this statement against {target}? {consequence}\n\n{sql}'),
         schema=ConfirmWrite,
     )
 
@@ -337,17 +399,16 @@ def _tool_failed(tool: str, error: Exception) -> NoReturn:
     The SDK withholds the text of anything that is not a `ToolError`, so an AWS error would
     otherwise reach the caller as a bare "Error executing tool ..." with nothing to act on.
 
-    Every tool routes its failures here, which makes this the one place a failure is logged at
-    ERROR; the paths below log the same fact at DEBUG, beside the SQL that caused it. Note for
-    whoever ships this log elsewhere: an engine error carries the offending value, column or
-    relation from the statement, so the line below can quote statement content that `LOG_LEVEL`
-    otherwise keeps at DEBUG.
+    Every tool routes its failures here, and this logs each at ERROR; some layers below log their
+    own at ERROR too. Note for whoever ships this log elsewhere: an engine error carries the
+    offending value, column or relation from the statement, so an ERROR line can quote statement
+    content that `LOG_LEVEL` otherwise keeps at DEBUG.
 
     A `ClientError` is AWS reporting a condition the caller can usually resolve: a paused or
     resuming cluster, an endpoint not yet available, throttling, expired credentials, a missing
-    grant. Its message is theirs to read. A `BotoCoreError` is the SDK reporting that it cannot
-    make the call at all - no region, no credentials, an unknown profile, an unreachable
-    endpoint - which names something the operator has to fix and is useless withheld. Anything
+    grant. Its message is theirs to read. A `BotoCoreError` is the SDK's own failure - no region,
+    no credentials, an unknown profile, a connection that could not be made or timed out - and
+    its text is what the operator needs to act on, so it is useless withheld. Anything
     else is a defect in this server, whose text would tell them nothing useful, so it stays
     withheld.
 
@@ -372,7 +433,7 @@ def _tool_failed(tool: str, error: Exception) -> NoReturn:
     annotations=_read_only_annotations('List Redshift clusters and workgroups'),
 )
 async def list_clusters_tool(ctx: Context) -> list[RedshiftCluster]:
-    """List Redshift clusters and serverless workgroups in the account.
+    """List Redshift clusters and serverless workgroups.
 
     Returns one entry per cluster: identifier, type (provisioned or serverless), status,
     database_name, endpoint, port, vpc_id, node_type, number_of_nodes, creation_time,
@@ -381,13 +442,30 @@ async def list_clusters_tool(ctx: Context) -> list[RedshiftCluster]:
     Only a cluster whose status is 'available' can be queried, and its identifier is what
     every other tool takes as its first argument.
 
-    Requires redshift:DescribeClusters, redshift-serverless:ListWorkgroups and
-    redshift-serverless:GetWorkgroup. Whichever of provisioned or serverless discovery is
-    denied is skipped, so a partial list is normal; both denied is an error.
+    Requires redshift:DescribeClusters and redshift-serverless:ListWorkgroups. Whichever of
+    provisioned or serverless discovery is denied is skipped, so a partial list is normal; both
+    denied is an error, and so is one denied with nothing found of the other type, since an empty
+    list would otherwise read as an account with no clusters at all.
+
+    A serverless workgroup's tags additionally need redshift-serverless:ListTagsForResource, which
+    is optional: without it a workgroup is reported untagged.
     """
     try:
         logger.info('Discovering Redshift clusters and serverless workgroups')
-        clusters = await discover_clusters()
+        denied: set[str] = set()
+        clusters = await discover_clusters(denied_sink=denied)
+
+        # An empty list is the one partial answer that reads as a complete one: nothing here says
+        # a half was skipped, so a caller who got `[]` while a listing was denied was told the
+        # account holds no Redshift clusters. A list with something in it carries no such claim,
+        # and this tool's contract already says it may be partial.
+        if denied and not clusters:
+            raise ToolError(
+                f'Listing {" and ".join(sorted(denied))} clusters was denied and nothing was '
+                f'found of the type that could be listed, so this cannot tell an account with no '
+                f'clusters from one whose clusters it may not list. Grant the listing permission '
+                f'to settle which it is.'
+            )
 
         logger.info(f'Successfully retrieved {len(clusters)} clusters')
         return clusters
@@ -410,8 +488,9 @@ async def list_databases_tool(
         'dev',
         description='The database to connect to for metadata discovery. Defaults to "dev".',
     ),
+    cluster_type: _ClusterType = None,
 ) -> list[RedshiftDatabase]:
-    """List the databases in a cluster, via SHOW DATABASES.
+    """List the databases in a cluster.
 
     Returns database_name, database_owner, database_type, database_acl, parameters and
     database_isolation_level.
@@ -426,12 +505,16 @@ async def list_databases_tool(
     <db> TO <principal>) — so a datashare can exist without being listed here.
 
     Requires redshift-data:BatchExecuteStatement, redshift-data:DescribeStatement and
-    redshift-data:GetStatementResult.
+    redshift-data:GetStatementResult, plus the discovery actions list_clusters names: the
+    cluster identifier is resolved through the same discovery, so a policy with only the
+    redshift-data actions fails this call before it reaches the cluster.
     """
     try:
         logger.info(f'Discovering databases on cluster: {cluster_identifier}')
         databases = await discover_databases(
-            cluster_identifier=cluster_identifier, database_name=database_name
+            cluster_identifier=cluster_identifier,
+            database_name=database_name,
+            cluster_type=cluster_type,
         )
 
         logger.info(
@@ -455,10 +538,11 @@ async def list_schemas_tool(
     ),
     schema_database_name: str = Field(
         ...,
-        description='The database name to list schemas for. Also used to connect to. Must be a valid database name from the list_databases tool.',
+        description='The database name to list schemas for. Also the database connected to. Must be a valid database name from the list_databases tool.',
     ),
+    cluster_type: _ClusterType = None,
 ) -> list[RedshiftSchema]:
-    """List the schemas in a database, via SHOW SCHEMAS.
+    """List the schemas in a database.
 
     Returns database_name, schema_name, schema_owner, schema_type (local, external or
     shared), schema_acl, source_database and schema_option.
@@ -469,14 +553,18 @@ async def list_schemas_tool(
     refuses to connect to it, so this tool fails on one even though list_databases lists it.
 
     Requires redshift-data:BatchExecuteStatement, redshift-data:DescribeStatement and
-    redshift-data:GetStatementResult.
+    redshift-data:GetStatementResult, plus the discovery actions list_clusters names: the
+    cluster identifier is resolved through the same discovery, so a policy with only the
+    redshift-data actions fails this call before it reaches the cluster.
     """
     try:
         logger.info(
             f'Discovering schemas in database {schema_database_name} on cluster {cluster_identifier}'
         )
         schemas = await discover_schemas(
-            cluster_identifier=cluster_identifier, schema_database_name=schema_database_name
+            cluster_identifier=cluster_identifier,
+            schema_database_name=schema_database_name,
+            cluster_type=cluster_type,
         )
 
         logger.info(
@@ -500,14 +588,15 @@ async def list_tables_tool(
     ),
     table_database_name: str = Field(
         ...,
-        description='The database name to list tables for. Must be a valid database name from the list_databases tool.',
+        description='The database name to list tables for. Also the database connected to. Must be a valid database name from the list_databases tool.',
     ),
     table_schema_name: str = Field(
         ...,
-        description='The schema name to list tables for. Also used to connect to. Must be a valid schema name from the list_schemas tool.',
+        description='The schema name to list tables for. Must be a valid schema name from the list_schemas tool.',
     ),
+    cluster_type: _ClusterType = None,
 ) -> list[RedshiftTable]:
-    """List the tables in a schema, via SHOW TABLES.
+    """List the tables in a schema.
 
     Returns database_name, schema_name, table_name, table_acl, table_type and remarks,
     where table_type is TABLE, VIEW, EXTERNAL TABLE or SHARED TABLE.
@@ -515,7 +604,9 @@ async def list_tables_tool(
     An unknown schema returns an empty list rather than an error.
 
     Requires redshift-data:BatchExecuteStatement, redshift-data:DescribeStatement and
-    redshift-data:GetStatementResult.
+    redshift-data:GetStatementResult, plus the discovery actions list_clusters names: the
+    cluster identifier is resolved through the same discovery, so a policy with only the
+    redshift-data actions fails this call before it reaches the cluster.
     """
     try:
         logger.info(
@@ -525,6 +616,7 @@ async def list_tables_tool(
             cluster_identifier=cluster_identifier,
             table_database_name=table_database_name,
             table_schema_name=table_schema_name,
+            cluster_type=cluster_type,
         )
 
         logger.info(
@@ -548,7 +640,7 @@ async def list_columns_tool(
     ),
     column_database_name: str = Field(
         ...,
-        description='The database name to list columns for. Must be a valid database name from the list_databases tool.',
+        description='The database name to list columns for. Also the database connected to. Must be a valid database name from the list_databases tool.',
     ),
     column_schema_name: str = Field(
         ...,
@@ -558,8 +650,9 @@ async def list_columns_tool(
         ...,
         description='The table name to list columns for. Must be a valid table name from the list_tables tool.',
     ),
+    cluster_type: _ClusterType = None,
 ) -> list[RedshiftColumn]:
-    """List the columns in a table, via SHOW COLUMNS.
+    """List the columns in a table.
 
     Returns database_name, schema_name, table_name, column_name, ordinal_position,
     column_default, is_nullable, data_type, character_maximum_length, numeric_precision,
@@ -568,7 +661,9 @@ async def list_columns_tool(
     An unknown table returns an empty list rather than an error.
 
     Requires redshift-data:BatchExecuteStatement, redshift-data:DescribeStatement and
-    redshift-data:GetStatementResult.
+    redshift-data:GetStatementResult, plus the discovery actions list_clusters names: the
+    cluster identifier is resolved through the same discovery, so a policy with only the
+    redshift-data actions fails this call before it reaches the cluster.
     """
     try:
         logger.info(
@@ -579,6 +674,7 @@ async def list_columns_tool(
             column_database_name=column_database_name,
             column_schema_name=column_schema_name,
             column_table_name=column_table_name,
+            cluster_type=cluster_type,
         )
 
         logger.info(
@@ -611,7 +707,7 @@ async def execute_query_tool(
             description=(
                 'The SQL statement to execute. Must be a single SQL statement. Whether writes '
                 'are permitted is fixed by the server configuration, not by this call. '
-                'Required unless a transaction is only being committed or rolled back.'
+                'Required on its own and with in_transaction; optional with the other three.'
             )
         ),
     ] = None,
@@ -638,13 +734,19 @@ async def execute_query_tool(
             description='Run sql, if given, then roll back the transaction open under this name.'
         ),
     ] = None,
+    cluster_type: _ClusterType = None,
 ) -> QueryResult:
     """Execute one SQL statement against a Redshift cluster or serverless workgroup.
 
     Returns columns (names), rows, row_count and query_id. Values are typed as the Data API
-    returns them: INTEGER and BIGINT as integers, REAL and DOUBLE PRECISION as floats,
-    booleans as booleans, NULL as null, and everything else as a string, including VARCHAR,
-    DECIMAL, dates, times, timestamps and SUPER.
+    returns them: SMALLINT, INTEGER and BIGINT as integers, REAL and DOUBLE PRECISION as floats,
+    booleans as booleans, NULL as null, VARBYTE, GEOMETRY and GEOGRAPHY as base64 text, and
+    everything else as a string, including VARCHAR, DECIMAL, dates, times, timestamps and SUPER.
+
+    A result set is read to its end however many pages the service splits it into, so `row_count`
+    is the whole result and there is no second call that continues one. A result of more than
+    MAX_RESULT_ROWS rows, listed at the end of the instructions, is refused rather than cut
+    short, so add a LIMIT or an aggregate to a query that may match more.
 
     ## Execution Mode
 
@@ -654,8 +756,9 @@ async def execute_query_tool(
     - Read-only (default): the statement runs inside `BEGIN READ ONLY ... ROLLBACK`, so
       nothing is persisted, and statement types the transaction cannot neutralize
       (`UNLOAD`, `GRANT`, `REVOKE`, `TRUNCATE`, `VACUUM`, `ANALYZE`, `COMMENT`, `CALL`,
-      `CANCEL`, `SET`, `RESET`, `PREPARE`, `EXECUTE`, `DECLARE`, `FETCH`) are rejected
-      before execution.
+      `CANCEL`, `SET`, `RESET`, `PREPARE`, `EXECUTE`, `DECLARE`, `FETCH`, and calls to
+      `set_config`, `pg_cancel_backend`, `pg_terminate_backend`, `change_query_priority`,
+      `change_session_priority` and `change_user_priority`) are rejected before execution.
     - Read-write (`ACCESS_MODE=read-write`): the statement runs directly with autocommit
       and can create, modify and delete data and objects. Outside a transaction there is
       no rollback and nothing to undo.
@@ -663,9 +766,9 @@ async def execute_query_tool(
     Transaction control is refused in both modes: `BEGIN`, `START`, `COMMIT`, `END`,
     `ROLLBACK` and `ABORT` belong to the transaction parameters below, not to `sql`. A
     statement that moved a boundary itself would leave this server and the engine
-    disagreeing about what is open. `TRUNCATE` is refused inside a named transaction for the
-    same reason, since it commits and cannot be rolled back; outside one it runs normally in
-    read-write mode.
+    disagreeing about what is open. `TRUNCATE` and `CALL` are refused inside a named
+    transaction for the same reason, since each can commit and cannot then be rolled back;
+    outside one, both run normally in read-write mode.
 
     In read-write mode a statement that may write is confirmed by the caller before it runs,
     while a recognized read runs unconfirmed. Confirmation is skipped entirely when the
@@ -677,8 +780,9 @@ async def execute_query_tool(
 
     ## Transactions
 
-    Session state needs one: outside a transaction a temporary table or a `SET` is gone by the
-    next call, though the statement that made it reports success.
+    Session state needs one: in read-write mode, a temporary table or a `SET` made outside a
+    transaction is gone by the next call, though the statement that made it reports success.
+    Read-only mode refuses `SET` in or out of a transaction.
 
     Name a transaction to keep it open across calls:
 
@@ -686,7 +790,8 @@ async def execute_query_tool(
         in_transaction='load' for each statement after that
         commit_transaction='load' or rollback_transaction='load' to end it
 
-    At most one of the four per call. `sql` is optional on commit and rollback.
+    At most one of the four per call. `sql` is required standalone and with `in_transaction`,
+    and optional with the other three.
 
     Both modes support this. A read-only transaction gives several statements one
     consistent snapshot; a read-write one makes them succeed or fail together. Writes
@@ -695,11 +800,15 @@ async def execute_query_tool(
     A transaction is bound to this server process and to the cluster and database it was
     opened against, so the same name against a different pair is a different transaction and
     each call has to carry the pair its own transaction was opened on. A statement that fails
-    inside one aborts it: it is rolled back and its
-    name dropped, so the next call reports it as unknown rather than letting you commit
-    nothing and call it done. Redshift ends one left idle for SESSION_KEEPALIVE seconds, and
-    MAX_OPEN_TRANSACTIONS_PER_TARGET caps how many may be open at once against one cluster
-    and database.
+    inside one aborts it: it is rolled back and its name dropped, so the next call reports it as
+    unknown rather than letting you commit nothing and call it done. A statement refused before
+    it is sent - by the SQL guard, the confirmation step, a malformed call, or a cluster that does
+    not resolve - leaves the transaction as it was. One sent with in_transaction that ran and
+    whose result could not be read leaves it open and yours to commit or roll back, and the error
+    says so. A commit_transaction that fails once sent always ends the transaction, and its error
+    says whether the COMMIT stands, may have applied, or was discarded. Redshift ends one left
+    idle for SESSION_KEEPALIVE seconds, and MAX_OPEN_TRANSACTIONS_PER_TARGET caps how many may be
+    open at once against one cluster and database.
 
     Open and close a transaction in the same stretch of work, because while open it holds a
     Redshift connection and can block other writers on the tables it touched. Decide the
@@ -714,7 +823,9 @@ async def execute_query_tool(
     boundary, so grant only what the workload needs.
 
     Requires redshift-data:BatchExecuteStatement, redshift-data:DescribeStatement and
-    redshift-data:GetStatementResult.
+    redshift-data:GetStatementResult, plus the discovery actions list_clusters names: the
+    cluster identifier is resolved through the same discovery, so a policy with only the
+    redshift-data actions fails this call before it reaches the cluster.
     """
     try:
         logger.info(
@@ -734,6 +845,7 @@ async def execute_query_tool(
             in_transaction=in_transaction,
             commit_transaction=commit_transaction,
             rollback_transaction=rollback_transaction,
+            cluster_type=cluster_type,
         )
 
         # Convert to QueryResult model
@@ -762,6 +874,7 @@ async def review_cluster_tool(
         'dev',
         description='The database to connect to for querying system views. Defaults to "dev".',
     ),
+    cluster_type: _ClusterType = None,
 ) -> ReviewResult:
     """Run a diagnostic review of a Redshift cluster or serverless workgroup.
 
@@ -773,7 +886,8 @@ async def review_cluster_tool(
 
     ## Reading the result
 
-    - signals_evaluated: how many signals ran.
+    - signals_evaluated: how many distinct signals ran, of which findings is the subset that
+      triggered.
     - findings: one entry per triggered signal, carrying signal_name, section,
       affected_row_count, unit, and recommendation_ids.
     - recommendations: deduplicated, each with id, text (markdown, including
@@ -783,10 +897,12 @@ async def review_cluster_tool(
       signals, so this is shorter than signals_evaluated.
 
     Count findings as len(findings), never from affected_row_count: that field counts
-    affected objects in its own `unit` (7 tables, 3 nodes), so two findings each affecting
-    7 tables is "2 findings across 7 tables", not 14. Each signal is an independent
-    count(*) and one object can match several, so affected_row_count is NOT additive
-    across findings or recommendations, and values in different units are NOT comparable.
+    affected objects in its own `unit` (7 tables, 3 nodes), so two findings each reporting 7
+    tables is "2 findings, each affecting 7 tables", not 14, and not 7 either - only counts
+    come back, not identities, so how many distinct tables the two cover is unknown. Each
+    signal is an independent count(*) and one object can match several, so affected_row_count
+    is NOT additive across findings or recommendations, and values in different units are NOT
+    comparable.
 
     Zero findings means the cluster is healthy across every signal evaluated. Follow the
     documentation links in each recommendation. When there are findings, offer to act on
@@ -804,7 +920,9 @@ async def review_cluster_tool(
     fast rather than returning partial results.
 
     Requires redshift-data:BatchExecuteStatement, redshift-data:DescribeStatement and
-    redshift-data:GetStatementResult.
+    redshift-data:GetStatementResult, plus the discovery actions list_clusters names: the
+    cluster identifier is resolved through the same discovery, so a policy with only the
+    redshift-data actions fails this call before it reaches the cluster.
     """
     try:
         logger.info(f'Running review on cluster {cluster_identifier}, database {database_name}')
@@ -812,9 +930,10 @@ async def review_cluster_tool(
         result = await review_cluster(
             cluster_identifier=cluster_identifier,
             execute_query_func=execute_query,
-            discover_clusters_func=discover_clusters,
+            resolve_cluster_func=resolve_cluster,
             database_name=database_name,
             progress_reporter_func=ctx.report_progress,
+            cluster_type=cluster_type,
         )
 
         return result

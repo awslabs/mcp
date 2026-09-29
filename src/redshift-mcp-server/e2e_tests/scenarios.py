@@ -41,6 +41,7 @@ class Scenario:
     key: str
     title: str
     row_unit: str
+    min_rows: int
     template: str
 
     def prompt(self, config: Config) -> str:
@@ -93,6 +94,10 @@ BRANCH = Scenario(
     key='branch',
     title='Changes on this branch',
     row_unit='scenario',
+    # A floor, not an expectation: the case list is the agent's to derive, so a number it has to
+    # match would go stale with the next change. This only rejects a table too short to have
+    # covered the surface at all. Runs so far produce 26 rows here and 7 on `tools`.
+    min_rows=8,
     template=_ENVIRONMENT
     + """
 Run an end-to-end test covering the scenarios for the changes introduced in the current branch \
@@ -113,6 +118,8 @@ TOOLS = Scenario(
     key='tools',
     title='Every tool, both warehouse types',
     row_unit='tool',
+    # Per BRANCH. One row per tool, and there are seven.
+    min_rows=7,
     template=_ENVIRONMENT
     + """
 Run a complete set of end-to-end tests covering all of the server's tools. Check both the \

@@ -58,15 +58,31 @@ _TRANSACTION_CONTROL_KEYWORD_LIST = frozenset(
 # transaction is in play.
 _IMPLICIT_COMMIT_KEYWORD_LIST = frozenset({'TRUNCATE', 'CALL'})
 
-# The function form of SET, named here because it is matched as a function call rather than as
-# a statement type or a command name.
-_SET_CONFIG = 'SET_CONFIG'
+# Functions that act on a session or on other work on the cluster, matched as calls rather than
+# as statement types or command names, since each is called from an ordinary projection with no
+# write node in the tree: `set_config` (the function form of SET), `pg_cancel_backend` (the
+# function form of CANCEL), `pg_terminate_backend` (which ends a session) and the three
+# `change_*_priority` functions (which change the WLM priority of a query, a session or every
+# query of a user). Measured inside BEGIN READ ONLY: both backend functions ran, and
+# `pg_cancel_backend` on its own session cancelled its own query. The priority functions were
+# not measured.
+_SESSION_CONTROL_FUNCTIONS = frozenset(
+    {
+        'SET_CONFIG',
+        'PG_CANCEL_BACKEND',
+        'PG_TERMINATE_BACKEND',
+        'CHANGE_QUERY_PRIORITY',
+        'CHANGE_SESSION_PRIORITY',
+        'CHANGE_USER_PRIORITY',
+    }
+)
 
 # Operations denied in read-only mode: the ones a read-only transaction cannot
 # neutralize. Each keyword maps to a sqlglot node type, or to a bare-command name.
 _READ_ONLY_DENY_KEYWORD_LIST = (
     _TRANSACTION_CONTROL_KEYWORD_LIST
     | _IMPLICIT_COMMIT_KEYWORD_LIST
+    | _SESSION_CONTROL_FUNCTIONS
     | frozenset(
         {
             'UNLOAD',
@@ -88,9 +104,6 @@ _READ_ONLY_DENY_KEYWORD_LIST = (
             # future to apply to.
             'SET',
             'RESET',
-            # The function form of SET, which reaches the same settings from inside an
-            # ordinary projection.
-            _SET_CONFIG,
             # Statements that carry SQL this guard never sees: sqlglot parses each as a bare
             # command whose body stays text, so nothing in the tree says what will run and
             # every check above is blind to it. One of these can therefore run anything the
@@ -106,7 +119,8 @@ _READ_ONLY_DENY_KEYWORD_LIST = (
 
 # Bare commands treated as reads, matched by name because sqlglot has no node class
 # for them. Anything not listed might write. `DESC` and `DESCRIBE` are deliberately absent:
-# Redshift has neither, so allow-listing them would only widen the surface.
+# Redshift's forms of them, such as `DESC DATASHARE`, do not parse here and are refused as
+# unparseable, so allow-listing the words would only widen the surface.
 _READ_COMMAND_ALLOW_KEYWORD_LIST = frozenset(
     {
         'SHOW',
@@ -231,13 +245,15 @@ def _denied_keyword(node: exp.Expression) -> str | None:
     # SET has its own node; RESET and `SET SESSION CHARACTERISTICS` fall through to Command.
     if isinstance(node, exp.Set):
         return 'SET'
-    # `set_config('transaction_read_only', 'off', false)` clears the property BEGIN READ ONLY
-    # established, exactly as the SET statement would, while parsing as a projection with no
-    # write node anywhere in it. Measured: after it, a CREATE TABLE inside the read-only
-    # transaction succeeds and a commit persists it. Schema qualification does not hide it,
-    # since pg_catalog.set_config parses to this same node.
-    if isinstance(node, exp.Anonymous) and (node.name or '').upper() == _SET_CONFIG:
-        return _SET_CONFIG
+    # A call to one of `_SESSION_CONTROL_FUNCTIONS`, anywhere a function can go, a FROM clause
+    # included. `set_config('transaction_read_only', 'off', false)` clears the property BEGIN
+    # READ ONLY established, exactly as the SET statement would. Measured: after it, a CREATE
+    # TABLE inside the read-only transaction succeeds and a commit persists it. Schema
+    # qualification does not hide one, since `pg_catalog.<name>` parses to this same node.
+    if isinstance(node, exp.Anonymous):
+        name = (node.name or '').upper()
+        if name in _SESSION_CONTROL_FUNCTIONS:
+            return name
     # Generic/bare commands sqlglot has no dedicated class for: UNLOAD, CALL, VACUUM,
     # and any other deny-listed word surfaced as a command (matched by name).
     if isinstance(node, exp.Command):
@@ -345,8 +361,8 @@ def assert_executable(
         if keyword is not None:
             _reject(
                 f'{keyword} can commit the transaction it runs in, and what it commits cannot '
-                f'be rolled back, so it is not available inside a named transaction. Close the '
-                f'transaction first, then run it on its own.'
+                f'be rolled back, so it is not available inside a named transaction. Run it '
+                f'without a transaction parameter, after closing any transaction it belongs with.'
             )
 
 
@@ -367,9 +383,9 @@ def _is_read_statement(statement: exp.Expression) -> bool:
     if any(True for _ in statement.find_all(*_WRITE_NODES)):
         return False
 
-    # Changing session state is not a read either. This is what keeps the fallback, where
-    # `might_write` is the only gate, from running the function form of SET unwrapped.
-    if any((node.name or '').upper() == _SET_CONFIG for node in statement.find_all(exp.Anonymous)):
+    # Acting on a session or on other work on the cluster is not a read either: read-write mode
+    # asks before one runs, and the fallback, which has no wrapper, refuses it.
+    if _denied_operation(statement, _SESSION_CONTROL_FUNCTIONS) is not None:
         return False
 
     # `SELECT ... INTO` creates a table, so it is a write despite the Select root. Searched
@@ -387,6 +403,24 @@ def _is_read_statement(statement: exp.Expression) -> bool:
         return (statement.name or '').upper() in _READ_COMMAND_ALLOW_KEYWORD_LIST
 
     return False
+
+
+def may_commit_partway(sql: str) -> bool:
+    """Report whether a statement that failed can still have committed part of its work.
+
+    Only CALL can: a procedure run outside a transaction block may COMMIT inside its body, and
+    what it committed before it failed stands.
+
+    Args:
+        sql: A statement that has already passed `assert_executable`.
+
+    Returns:
+        True for a CALL.
+    """
+    statements = _parse(sql)
+    return (
+        len(statements) == 1 and _denied_operation(statements[0], frozenset({'CALL'})) is not None
+    )
 
 
 def might_write(sql: str) -> bool:

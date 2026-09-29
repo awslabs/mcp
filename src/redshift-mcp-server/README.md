@@ -120,14 +120,15 @@ or docker after a successful `docker build -t awslabs/redshift-mcp-server:latest
 ### Environment Variables
 
 - `AWS_REGION`: AWS region to use (overrides all other region settings)
-- `AWS_DEFAULT_REGION`: Default AWS region (used if AWS_REGION not set and no region in profile)
-- `AWS_PROFILE`: AWS profile to use (optional, uses default if not specified)
+- `AWS_DEFAULT_REGION`: Default AWS region (used if `AWS_REGION` is not set, ahead of the profile's region)
+- `AWS_PROFILE`: AWS profile to use (optional, uses default if not specified). When set, it takes precedence over credentials in environment variables
 - `LOG_LEVEL`: Logging level (optional, defaults to `WARNING`). One of `DEBUG`, `INFO`, `WARNING`, `ERROR`.
 - `LOG_FILE`: Path to log file (optional, logs to stderr if not specified)
 - `ACCESS_MODE`: Access mode for `execute_query` (optional, defaults to `read-only`). Supported modes are `read-only` and `read-write`; any other value falls back to `read-only`. Read [Read-Write Mode](#read-write-mode) before selecting `read-write`.
 - `UNSAFE_SKIP_WRITE_CONFIRMATION`: Skips the per-write confirmation prompt (optional, defaults to `false`). Ignored in `read-only` mode. See [Confirming each write](#confirming-each-write).
 - `SESSION_KEEPALIVE`: How long an open transaction may sit idle before Redshift ends it, in seconds (optional, defaults to `600`, maximum `86400`). Only transactions are affected; a statement outside one holds nothing open. See [Transactions](#transactions).
 - `MAX_OPEN_TRANSACTIONS_PER_TARGET`: How many transactions may be open at once against one cluster and database (optional, defaults to `10`).
+- `MAX_RESULT_ROWS`: The most rows one statement may return (optional, defaults to `1000`). A larger result is refused rather than cut short, by every tool but `list_clusters`. Only a whole number above zero is accepted; anything else falls back to the default.
 
 The log carries statement content: `DEBUG` writes every statement's full SQL, so a `CREATE USER ... PASSWORD` lands verbatim, and `ERROR` — included by the default `WARNING` — carries the engine's message, which quotes the offending value or relation. Treat `LOG_FILE` as holding the statements themselves.
 
@@ -353,7 +354,7 @@ Seller 48950 has 19 sales and 11 listings. Two tables have to change together, s
 
 ...running the delete and committing transaction "seller_48950"...
 
-Done. Seller 48950 is gone from both tables, 19 sales and 11 listings, in one transaction that took two calls: the first opened it and carried the sales delete, the second carried the listings delete and committed. Had the second delete failed, or had you declined it, the first would have been discarded too and the seller would still be there in full.
+Done. Seller 48950 is gone from both tables, 19 sales and 11 listings, in one transaction that took two calls: the first opened it and carried the sales delete, the second carried the listings delete and committed. Had the second delete failed, the first would have been discarded too and the seller would still be there in full. Had you declined it instead, nothing would have run and the transaction would still be open with the sales delete staged, yours to commit or roll back.
 ```
 
 ## Tools
@@ -371,20 +372,25 @@ list_clusters() -> list[RedshiftCluster]
 - Cluster identifier and type (provisioned/serverless)
 - Status and connection details
 - Configuration information (node type, encryption, etc.)
-- Tags and metadata
+- Tags and metadata. A serverless workgroup's tags need the optional `redshift-serverless:ListTagsForResource`; without it a workgroup is reported untagged.
+
+Provisioned clusters and serverless workgroups are separate AWS namespaces, so one name can be both. Every tool taking a `cluster_identifier` refuses an ambiguous one rather than picking a side; say which you mean with the optional `cluster_type`, `provisioned` or `serverless`. It is only needed for a name that is genuinely both. Every tool that takes a `cluster_identifier`, except `review_cluster`, reuses a lookup for up to 5 minutes; `list_clusters` and `review_cluster` look again every time they run. Until the lookup is replaced, a cluster created since reads as not found, with the refusal saying how old the lookup is, and after a second cluster takes a name already in use, a name given without `cluster_type` can still reach the first. While one of the two listings is denied, only the other type is visible, so a name given without `cluster_type` resolves to it without being refused. A name given with `cluster_type` never reaches the other type.
 
 ### list_databases
 
 Lists all databases in a specified Redshift cluster.
 
 ```python
-list_databases(cluster_identifier: str, database_name: str = "dev") -> list[RedshiftDatabase]
+list_databases(
+    cluster_identifier: str, database_name: str = "dev", cluster_type: str | None = None
+) -> list[RedshiftDatabase]
 ```
 
 **Parameters**:
 
 - `cluster_identifier`: The cluster identifier from `list_clusters`
 - `database_name`: Database to connect to for querying (default: "dev")
+- `cluster_type` (optional): `provisioned` or `serverless`, for an identifier that names both; see [list_clusters](#list_clusters)
 
 **Returns**: List of database information including:
 
@@ -398,13 +404,16 @@ list_databases(cluster_identifier: str, database_name: str = "dev") -> list[Reds
 Lists all schemas in a specified database.
 
 ```python
-list_schemas(cluster_identifier: str, schema_database_name: str) -> list[RedshiftSchema]
+list_schemas(
+    cluster_identifier: str, schema_database_name: str, cluster_type: str | None = None
+) -> list[RedshiftSchema]
 ```
 
 **Parameters**:
 
 - `cluster_identifier`: The cluster identifier from `list_clusters`
 - `schema_database_name`: Database name to list schemas for
+- `cluster_type` (optional): `provisioned` or `serverless`, for an identifier that names both; see [list_clusters](#list_clusters)
 
 **Returns**: List of schema information including:
 
@@ -418,7 +427,12 @@ list_schemas(cluster_identifier: str, schema_database_name: str) -> list[Redshif
 Lists all tables in a specified schema.
 
 ```python
-list_tables(cluster_identifier: str, table_database_name: str, table_schema_name: str) -> list[RedshiftTable]
+list_tables(
+    cluster_identifier: str,
+    table_database_name: str,
+    table_schema_name: str,
+    cluster_type: str | None = None,
+) -> list[RedshiftTable]
 ```
 
 **Parameters**:
@@ -426,6 +440,7 @@ list_tables(cluster_identifier: str, table_database_name: str, table_schema_name
 - `cluster_identifier`: The cluster identifier from `list_clusters`
 - `table_database_name`: Database name containing the schema
 - `table_schema_name`: Schema name to list tables for
+- `cluster_type` (optional): `provisioned` or `serverless`, for an identifier that names both; see [list_clusters](#list_clusters)
 
 **Returns**: List of table information including:
 
@@ -442,7 +457,8 @@ list_columns(
     cluster_identifier: str,
     column_database_name: str,
     column_schema_name: str,
-    column_table_name: str
+    column_table_name: str,
+    cluster_type: str | None = None,
 ) -> list[RedshiftColumn]
 ```
 
@@ -452,6 +468,7 @@ list_columns(
 - `column_database_name`: Database name containing the table
 - `column_schema_name`: Schema name containing the table
 - `column_table_name`: Table name to list columns for
+- `cluster_type` (optional): `provisioned` or `serverless`, for an identifier that names both; see [list_clusters](#list_clusters)
 
 **Returns**: List of column information including:
 
@@ -474,6 +491,7 @@ execute_query(
     in_transaction: str | None = None,
     commit_transaction: str | None = None,
     rollback_transaction: str | None = None,
+    cluster_type: str | None = None,
 ) -> QueryResult
 ```
 
@@ -481,8 +499,9 @@ execute_query(
 
 - `cluster_identifier`: The cluster identifier from `list_clusters`
 - `database_name`: Database to execute the query against
-- `sql`: SQL statement to execute (a single statement). Required unless a transaction is only being committed or rolled back
+- `sql`: SQL statement to execute (a single statement). Required on its own and with `in_transaction`; optional with the other three
 - `begin_transaction` / `in_transaction` / `commit_transaction` / `rollback_transaction` (all optional): Name of a transaction to start, run the query in, commit, or roll back. At most one per call, see [Transactions](#transactions)
+- `cluster_type` (optional): `provisioned` or `serverless`, for an identifier that names both; see [list_clusters](#list_clusters)
 
 **Returns**: Query result including:
 
@@ -491,18 +510,23 @@ execute_query(
 - Row count
 - Query ID for reference
 
+A result set is read to its end however many pages the service splits it into, so the row count is the whole result rather than a first page. A result of more than [`MAX_RESULT_ROWS`](#environment-variables) rows is refused rather than cut short; add a `LIMIT` or an aggregate to a query that may match more.
+
 ### review_cluster
 
 Runs a diagnostic review of a Redshift cluster or serverless workgroup. Returns identified potential issues and their recommendations. Recommendations come in the order their signals first triggered; nothing sorts them by effort or impact.
 
 ```python
-review_cluster(cluster_identifier: str, database_name: str = 'dev') -> ReviewResult
+review_cluster(
+    cluster_identifier: str, database_name: str = 'dev', cluster_type: str | None = None
+) -> ReviewResult
 ```
 
 **Parameters**:
 
 - `cluster_identifier`: The cluster identifier from `list_clusters`
 - `database_name`: Database to connect to for querying system views (defaults to `dev`)
+- `cluster_type` (optional): `provisioned` or `serverless`, for an identifier that names both; see [list_clusters](#list_clusters)
 
 **Returns**: Review result including:
 
@@ -528,13 +552,12 @@ Your AWS credentials need the following IAM permissions:
       "Action": [
         "redshift:DescribeClusters",
         "redshift-serverless:ListWorkgroups",
-        "redshift-serverless:GetWorkgroup",
+        "redshift-serverless:ListTagsForResource",
         "redshift-data:BatchExecuteStatement",
         "redshift-data:DescribeStatement",
         "redshift-data:GetStatementResult",
         "redshift-serverless:GetCredentials",
-        "redshift:GetClusterCredentialsWithIAM",
-        "redshift:GetClusterCredentials"
+        "redshift:GetClusterCredentialsWithIAM"
       ],
       "Resource": "*"
     }
@@ -542,14 +565,20 @@ Your AWS credentials need the following IAM permissions:
 }
 ```
 
+`redshift-serverless:ListTagsForResource` is optional: it adds nothing but a serverless workgroup's tags. Without it the server logs a warning on each discovery and reports workgroups untagged. A provisioned cluster's tags come inline from `DescribeClusters`, so they are unaffected.
+
+`redshift-serverless:GetWorkgroup` is not needed. `ListWorkgroups` returns the same fields, so the server does not call it.
+
+`redshift:GetClusterCredentials` is not needed either, and is best left out: the server names no database user, so the Data API authenticates it as its own IAM identity through `GetClusterCredentialsWithIAM`, while `GetClusterCredentials` can mint credentials for any database user, the admin included.
+
 ### Upgrading from an earlier version
 
 > [!IMPORTANT]
-> **Add `redshift-data:BatchExecuteStatement` to your policy.** Earlier versions needed only `redshift-data:ExecuteStatement`; every statement now runs as a batch.
+> **Add `redshift-data:BatchExecuteStatement` to your policy.** Earlier versions needed only `redshift-data:ExecuteStatement`, which is what the server now falls back to when the batch action is denied.
 
 Until you add it, the server keeps the read-only behaviour of the earlier version: discovery, `review_cluster` and reads work, while writes and [named transactions](#transactions) are refused with a message naming the action.
 
-The server logs one warning on the first denial and retries the batch path every 5 minutes, so granting the action takes effect without a restart. This compatibility path will be removed in a later release.
+The server logs a warning each time it sees the denial, then tries the batch path again on the first request made more than 5 minutes later, or sooner if a batch call on that cluster is accepted, so granting the action takes effect without a restart. Nothing retries in the background. The denial is recorded per cluster, since the action takes resource-level permissions. This compatibility path will be removed in a later release.
 
 ### Database Permissions
 
@@ -590,7 +619,7 @@ The mode is read once at startup, so it is fixed for the life of the server proc
 | Transaction wrapper | `BEGIN READ ONLY` … `ROLLBACK`, so nothing is persisted | None; each statement runs with autocommit |
 | Named [transactions](#transactions) | Opened `READ ONLY`, giving several statements one snapshot | Writable, so several statements commit or roll back together |
 | Writes and DDL | Rejected, either by the statement guard or by the read-only transaction | Executed and committed immediately |
-| Statement-type deny list | Denies `UNLOAD`, `GRANT`, `REVOKE`, `TRUNCATE`, `VACUUM`, `ANALYZE`, `CALL`, `COMMENT`, `CANCEL`, `SET`, `RESET` and the `set_config` function that reaches the same settings, plus `PREPARE`, `EXECUTE`, `DECLARE` and `FETCH`, whose bodies the guard cannot read | Not applied |
+| Statement-type deny list | Denies `UNLOAD`, `GRANT`, `REVOKE`, `TRUNCATE`, `VACUUM`, `ANALYZE`, `CALL`, `COMMENT`, `CANCEL`, `SET`, `RESET`, the `set_config` function that reaches the same settings, the `pg_cancel_backend` and `pg_terminate_backend` functions that cancel or end a session, the `change_query_priority`, `change_session_priority` and `change_user_priority` functions that change WLM priority, plus `PREPARE`, `EXECUTE`, `DECLARE` and `FETCH`, whose bodies the guard cannot read | Not applied |
 | Transaction control in `sql` | Rejected | Rejected |
 | `TRUNCATE` or `CALL` inside a named transaction | Rejected | Rejected: `TRUNCATE` commits and cannot be rolled back, and a `NONATOMIC` procedure can commit from inside the call. Both are available on their own |
 | Multiple statements | Rejected | Rejected |
@@ -610,7 +639,9 @@ Statements recognized as reads run without a prompt. That is a deliberately shor
 - `UNION`, `UNION ALL`, `INTERSECT`, `EXCEPT`
 - `SHOW` in all its forms, and `EXPLAIN`, which returns a plan without running its payload
 
-Anything else is treated as a write and prompts, including session statements such as `SET` and `FETCH`, and any syntax the server cannot classify. Two cases that look like reads but are not: `SELECT … INTO` creates a table, and a `WITH` clause containing an `INSERT` writes even though a `SELECT` fronts it. Both prompt.
+Anything else that parses is treated as a write and prompts, including session statements such as `SET` and `FETCH`. Some cases look like reads but are not: `SELECT … INTO` creates a table, a `WITH` clause containing an `INSERT` writes even though a `SELECT` fronts it, and a `SELECT` calling `set_config`, `pg_cancel_backend`, `pg_terminate_backend` or one of the `change_*_priority` functions changes a setting, cancels or ends a session, or changes other work's WLM priority. All of them prompt. Syntax the server cannot parse at all is rejected outright, before any prompt.
+
+The read list is syntactic. A `SELECT` that calls any other side-effecting function, a user-defined one included, is classified as a read and runs unprompted, so the database user's privileges remain the boundary that matters.
 
 Showing that prompt is up to the tool you connect the server to, such as your IDE, chat client, or command-line assistant. Not all of them can. One that cannot is **refused rather than allowed to run the write unconfirmed**, with an error naming the opt-out below. Check if your client supports it.
 
@@ -636,25 +667,20 @@ The durable control is the database user's privileges. With a least-privilege us
 If you select `read-write`:
 
 1. **Know how you would recover.** Development and staging clusters are the low-stakes place to start. Production is a legitimate target for write workloads, but confirm your snapshot schedule first, and take a manual snapshot before a batch of writes you cannot reconstruct.
-2. **Use a dedicated database user**, never the cluster admin, a superuser, or an identity with broad `GRANT`s.
-3. **Grant only what the workload needs**, naming the objects rather than the whole schema:
+2. **Use a dedicated identity.** The server connects as the database user of the IAM identity it runs under, `IAMR:<role>` or `IAM:<user>`, so run it under an IAM role of its own, never one whose database user is the cluster admin, a superuser, or holds broad `GRANT`s.
+3. **Grant only what the workload needs** to that database user, naming the objects rather than the whole schema. `SELECT current_user` through the server shows its name, which is quoted because it contains a colon:
 
    ```sql
-   -- Create a dedicated user for the MCP server
-   CREATE USER mcp_read_write PASSWORD DISABLE NOCREATEDB NOCREATEUSER;
-
    -- Read and write only the tables the workload touches
-   GRANT USAGE ON SCHEMA analytics TO mcp_read_write;
-   GRANT SELECT, INSERT, UPDATE, DELETE ON analytics.events TO mcp_read_write;
+   GRANT USAGE ON SCHEMA analytics TO "IAMR:mcp-read-write";
+   GRANT SELECT, INSERT, UPDATE, DELETE ON analytics.events TO "IAMR:mcp-read-write";
    ```
-
-   For IAM authentication, scope the `redshift:GetClusterCredentials` policy to that database user rather than to `*`.
 4. **Keep the human in the loop.** The server asks you to confirm every write, see [Confirming each write](#confirming-each-write). As a second layer, configure your MCP client to require approval for each `execute_query` call rather than auto-approving the tool.
 5. **Keep the write-capable server switched off until you need it.** Configure it as a second entry alongside a read-only one, disabled by default, and enable it only for the task that needs writes. Running both at once buys nothing on its own, because the model can call whichever it likes.
 
 ## Transactions
 
-Without a transaction parameter, every `execute_query` call runs on its own connection. No session state carries over: a temporary table or a `SET` from one call is invisible to the next, though the statement that made it reports success. Calls to the same cluster and database run concurrently rather than queueing.
+Without a transaction parameter, every `execute_query` call runs on its own connection. No session state carries over: in read-write mode, a temporary table or a `SET` from one call is invisible to the next, though the statement that made it reports success. Calls to the same cluster and database run concurrently rather than queueing.
 
 To carry state across calls, name a transaction:
 
@@ -665,7 +691,7 @@ execute_query(sql='INSERT INTO events SELECT * FROM staging.batch', in_transacti
 execute_query(commit_transaction='load')
 ```
 
-At most one of `begin_transaction`, `in_transaction`, `commit_transaction` and `rollback_transaction` per call. The name is the caller's to choose. `sql` is optional when committing or rolling back, so a transaction can be closed on its own or with one last statement.
+At most one of `begin_transaction`, `in_transaction`, `commit_transaction` and `rollback_transaction` per call. The name is the caller's to choose. `sql` is required on its own and with `in_transaction`; it is optional with the other three, so a transaction can be opened or closed on its own as well as with a statement.
 
 Both access modes support this. In `read-only` a transaction is opened `READ ONLY`, which gives several statements one consistent snapshot; in `read-write` it makes several statements succeed or fail together. Each write inside one is still confirmed individually, and a declined write leaves the transaction open for you to commit or roll back.
 
@@ -675,15 +701,15 @@ What ends a transaction:
 | --- | --- |
 | `commit_transaction` | Its statements are persisted |
 | `rollback_transaction` | Its statements are discarded, as far as a rollback reaches: changes in the database go, and anything done outside it, such as an `UNLOAD` to S3, stands |
-| A statement inside it fails | Rolled back, and the name is dropped. Redshift refuses everything after a failed statement, so a later commit would report success while persisting nothing |
-| The call is cancelled | Rolled back, and the name is dropped, since nothing can reach the transaction again |
+| A statement inside it fails | Rolled back, and the name is dropped. Redshift refuses everything after a failed statement, so a later commit would report success while persisting nothing. A statement sent with `in_transaction` that ran but whose result could not be read does not end it: the transaction stays open, and the error says so. Nor does a statement refused before it is sent, by the SQL guard or the confirmation step. A `commit_transaction` that fails once sent always ends it, and says whether the `COMMIT` stands, may have applied, or was discarded |
+| The call is cancelled | Discarded, and the name is dropped: nothing can reach the transaction again, so it is never committed, though its session can hold its locks until `SESSION_KEEPALIVE` ends it. A cancelled `commit_transaction` is the exception, since its `COMMIT` can still reach the cluster and stand. A call cancelled while it waits, for the cluster to resolve or for another call on the same transaction, ends nothing |
 | Idle longer than `SESSION_KEEPALIVE` | Redshift ends it and discards its statements |
 
 A statement the guard rejects never reaches the cluster, so it does not abort the transaction. One the engine rejects does.
 
 Some statements cannot run inside a transaction at all, whichever mode you are in. A write to an Iceberg table is one: Redshift answers `insert into an "iceberg" table is not allowed within multistatement transaction`, so submit it on its own rather than inside a named transaction. The same restriction is what keeps such a write out of read-only mode, where every statement runs inside `BEGIN READ ONLY`.
 
-Two more are refused by this server rather than by Redshift, because each can end the transaction from inside it and leave a rollback reporting success over work that stands: `TRUNCATE`, which commits what it does, and `CALL`, since a `NONATOMIC` procedure may issue its own `COMMIT`. Run either on its own instead.
+Two more are refused by this server rather than by Redshift, because each can end the transaction from inside it and leave a rollback reporting success over work that stands: `TRUNCATE`, which commits what it does, and `CALL`, since a `NONATOMIC` procedure may issue its own `COMMIT`. In read-write mode, run either on its own instead; read-only mode refuses both everywhere.
 
 Keep them short. An open transaction holds a Redshift connection and can block other writers on the tables it touched, so the model is instructed to open one only once the statements it groups are decided, and to put nothing else between them — no waiting on you, no waiting on another system, no exploring. Asking for a transaction to be held open anyway is a legitimate thing to want, and the model is told to warn you what it costs before doing it.
 

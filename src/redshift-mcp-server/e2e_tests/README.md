@@ -46,8 +46,16 @@ uv run python -m e2e_tests.run down     # delete everything the harness owns
 tool against both warehouse types — and defaults to running both. `--keep-up` skips teardown,
 so an iteration does not pay to resume.
 
-Every operation is idempotent. `up` against warehouses that are already seeded costs a few
-describe calls.
+Re-running `up` is safe: nothing is created twice, and against warehouses that are already
+seeded it costs a few describe calls. It is not a no-op — it rewrites both role policies,
+re-grants, and counts the seeded rows on both targets. Seeding interrupted partway is the
+exception: the tables already exist, so a retry's `COPY` appends to them. Drop the schema and
+re-run, or set `destroy_after_run = true` for that run.
+
+Every resource is created with a `purpose=redshift-mcp-server-e2e-harness` tag, and every path
+that adopts, rewrites or deletes one checks for it first. Point the config at a name that
+already belongs to something else and the harness refuses it rather than adopting or deleting
+it. Use a sandbox account regardless.
 
 ## What a run costs
 
@@ -60,8 +68,10 @@ describe calls.
 
 Teardown pauses the cluster rather than deleting it, so between runs it bills storage only and
 the next run resumes instead of creating. Set `destroy_after_run = true` to delete both
-warehouses instead; the next run then pays full creation. Serverless has no pause operation and
-bills nothing while idle, so it is always left alone.
+warehouses instead; the next run then pays full creation. Serverless has no pause operation, so
+it is always left running: its compute scales to zero when idle, while the seeded namespace
+keeps billing [Redshift Managed Storage](https://docs.aws.amazon.com/redshift/latest/mgmt/serverless-billing.html)
+by the GB-month until it is deleted.
 
 ## The five configurations
 

@@ -93,9 +93,15 @@ SERVERS = {
 }
 
 # The builtins the agent needs: read the package to work out what to test, and run a shell for
-# anything the server does not expose. Naming them rather than granting every builtin keeps the
-# agent from writing to the tree it is testing.
+# anything the server does not expose. Withholding the file-writing builtins is not a sandbox,
+# because the shell can write, delete and run git just as well - it only means the agent has no
+# reason to reach for the tree. Run this against a working tree you can throw away.
 _BUILTIN_TOOLS = ('fs_read', 'execute_bash')
+
+# Environment values the generated config carries that must not reach a report. The agent can read
+# its own config, and the transcript is committed, so what it echoes has to be scrubbed rather
+# than trusted not to appear.
+_SECRET_ENV = ('AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN')
 
 
 def tool_names() -> list[str]:
@@ -123,25 +129,36 @@ def aliases() -> dict[str, str]:
     }
 
 
-def _server(uv: str, name: str, env: dict[str, str]) -> dict:
+def _server(uv: str, name: str, env: dict[str, str], *, without_profile: bool = False) -> dict:
     """Describe one MCP server running this working tree.
 
     Args:
         uv: Absolute path to uv, which runs the server in the package's own environment.
         name: Server name, used to name its log file.
         env: Environment for the server process.
+        without_profile: Start it with `AWS_PROFILE` removed, for a server that authenticates
+            from explicit keys.
 
     Returns:
         One entry for the agent config's `mcpServers`.
     """
+    argv = [
+        uv,
+        '--directory',
+        str(PACKAGE_ROOT / 'awslabs' / 'redshift_mcp_server'),
+        'run',
+        'server.py',
+    ]
+
+    if without_profile:
+        # Removed from the child's environment, which omitting it from `env` does not do: an MCP
+        # server inherits this process's environment, so the inherited profile stays in place,
+        # and a profile wins over explicit keys.
+        argv = [require_executable('env'), '-u', 'AWS_PROFILE', *argv]
+
     return {
-        'command': uv,
-        'args': [
-            '--directory',
-            str(PACKAGE_ROOT / 'awslabs' / 'redshift_mcp_server'),
-            'run',
-            'server.py',
-        ],
+        'command': argv[0],
+        'args': argv[1:],
         'env': {'LOG_FILE': str(LOGS_DIR / f'{name}.log'), 'LOG_LEVEL': 'DEBUG', **env},
     }
 
@@ -181,8 +198,9 @@ def render(config: Config, sts) -> dict:
             READ_WRITE_UNSAFE,
             {**profile, 'ACCESS_MODE': 'read-write', 'UNSAFE_SKIP_WRITE_CONFIRMATION': 'true'},
         ),
-        # No AWS_PROFILE on either: it would win over the assumed role's keys.
-        NO_BATCH: _server(uv, NO_BATCH, no_batch_env),
+        # These two authenticate as the denied role from explicit keys, so the inherited profile
+        # has to go with them.
+        NO_BATCH: _server(uv, NO_BATCH, no_batch_env, without_profile=True),
         NO_BATCH_WRITE: _server(
             uv,
             NO_BATCH_WRITE,
@@ -191,6 +209,7 @@ def render(config: Config, sts) -> dict:
                 'ACCESS_MODE': 'read-write',
                 'UNSAFE_SKIP_WRITE_CONFIRMATION': 'true',
             },
+            without_profile=True,
         ),
     }
 
@@ -215,7 +234,7 @@ def render(config: Config, sts) -> dict:
     }
 
 
-def write(config: Config, sts) -> Path:
+def write(config: Config, sts) -> tuple[Path, set[str]]:
     """Generate the agent config and put it where kiro-cli will find it.
 
     Args:
@@ -223,17 +242,28 @@ def write(config: Config, sts) -> Path:
         sts: An STS client, used to assume the denied-batch role.
 
     Returns:
-        Path to the written config.
+        Path to the written config, and the credential values it carries, for the caller to keep
+        out of anything it writes down.
     """
     AGENTS_DIR.mkdir(parents=True, exist_ok=True)
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
+    rendered = render(config, sts)
+
     path = AGENTS_DIR / f'{config.agent_name}.json'
-    path.write_text(json.dumps(render(config, sts), indent=2) + '\n')
-    # Session credentials, so keep it to the owner.
+    path.write_text(json.dumps(rendered, indent=2) + '\n')
+    # Session credentials, so keep it to the owner. This stops another OS user reading them, not
+    # the agent, which runs as this user and can read its own config.
     path.chmod(0o600)
 
-    return path
+    secret_values = {
+        value
+        for server in rendered['mcpServers'].values()
+        for name, value in server.get('env', {}).items()
+        if name in _SECRET_ENV and value
+    }
+
+    return path, secret_values
 
 
 def trust_argument() -> str:

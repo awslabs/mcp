@@ -21,13 +21,12 @@ from awslabs.redshift_mcp_server import redshift as redshift_module
 
 @pytest.fixture(autouse=True)
 def _reset_module_state():
-    """Clear the batch-denied latch, any open transaction, and the resolved-cluster cache."""
+    """Clear the batch-denied latch, the open transactions, and the stored cluster discovery."""
 
     def clear():
         redshift_module._no_batch_since.clear()
         redshift_module.transaction_manager._transactions.clear()
-        redshift_module.transaction_manager._locks.clear()
-        clusters_module._resolved.clear()
+        clusters_module._discovered = None
 
     clear()
     yield
