@@ -365,6 +365,10 @@ AWS Billing:
 - billing:ListEnterpriseSupportLinkedAccountCharges
 - billing:ListBillingViewSegments
 
+AWS Organizations:
+- organizations:ListAccounts
+- organizations:DescribeAccount
+
 #### Configuration
 
 The server uses these key environment variables:

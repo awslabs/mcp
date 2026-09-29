@@ -426,6 +426,11 @@ def _get_specialized_converter(operation_name: str) -> Optional[str]:
     if operation_name.startswith('billing_preferences_'):
         return 'records'
 
+    # Organizations list operations return {accounts: [...], pagination}; store
+    # one row per account so an offloaded org account list stays queryable.
+    if operation_name.startswith('organizations_'):
+        return 'records'
+
     # BVS segment operations return {segments: [...]}.
     # One row per segment keeps an offloaded result filterable by domain
     # and account.

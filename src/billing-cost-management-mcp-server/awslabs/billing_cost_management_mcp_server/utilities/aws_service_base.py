@@ -76,6 +76,7 @@ def create_aws_client(service_name: str, region_name: Optional[str] = None) -> A
         'billing',  # AWS Billing
         'invoicing',  # AWS Invoicing
         'savingsplans',  # AWS Savings Plans
+        'organizations',  # AWS Organizations (account join metadata)
     ]
 
     # Validate requested service
