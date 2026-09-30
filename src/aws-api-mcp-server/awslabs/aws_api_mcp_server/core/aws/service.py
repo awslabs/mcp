@@ -112,7 +112,8 @@ def check_security_policy(
     ):
         return PolicyDecision.ELICIT if policy.supports_elicitation else PolicyDecision.DENY
 
-    service_name = ir.command_metadata.service_sdk_name
+    # Policy entries use the CLI service name (e.g. s3api), which can differ from the SDK name (s3)
+    service_name = ir.command_metadata.service_cli_name or ir.command_metadata.service_sdk_name
     operation_name = ir.command_metadata.operation_sdk_name
     is_read_only = is_operation_read_only(ir, read_only_operations)
 
