@@ -279,6 +279,216 @@ class TestGetAllTransitGatewayRoutes:
     @patch(
         'awslabs.aws_network_mcp_server.tools.transit_gateway.get_all_transit_gateway_routes.get_aws_client'
     )
+    async def test_get_all_tgw_routes_core_network_on_a_later_page(
+        self,
+        mock_get_client,
+        mock_cloudwan_client,
+        mock_ec2_client,
+        sample_tgw_registrations,
+        sample_route_tables,
+        sample_network_routes,
+    ):
+        """Test a global network whose core network is on a second page."""
+        mock_get_client.side_effect = [mock_cloudwan_client, mock_ec2_client]
+        mock_cloudwan_client.list_core_networks.side_effect = [
+            {
+                'CoreNetworks': [{'GlobalNetworkId': 'global-network-123', 'State': 'PENDING'}],
+                'NextToken': 'core-page-2',
+            },
+            {'CoreNetworks': [{'GlobalNetworkId': 'global-network-456', 'State': 'AVAILABLE'}]},
+        ]
+        mock_cloudwan_client.get_transit_gateway_registrations.return_value = {
+            'TransitGatewayRegistrations': sample_tgw_registrations
+        }
+        mock_ec2_client.describe_transit_gateway_route_tables.return_value = {
+            'TransitGatewayRouteTables': sample_route_tables
+        }
+        mock_cloudwan_client.get_network_routes.return_value = {
+            'NetworkRoutes': sample_network_routes
+        }
+
+        result = await get_all_tgw_routes(
+            transit_gateway_id='tgw-12345678', global_network_region='us-east-1'
+        )
+
+        assert result['global_network_id'] == 'global-network-456'
+        assert mock_cloudwan_client.list_core_networks.call_count == 2
+        mock_cloudwan_client.list_core_networks.assert_called_with(NextToken='core-page-2')
+
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.transit_gateway.get_all_transit_gateway_routes.get_aws_client'
+    )
+    async def test_get_all_tgw_routes_registration_on_a_later_registrations_page(
+        self,
+        mock_get_client,
+        mock_cloudwan_client,
+        mock_ec2_client,
+        sample_core_networks,
+        sample_tgw_registrations,
+        sample_route_tables,
+        sample_network_routes,
+    ):
+        """Test a registration on the second page of a global network's registrations."""
+        mock_get_client.side_effect = [mock_cloudwan_client, mock_ec2_client]
+        mock_cloudwan_client.list_core_networks.return_value = {
+            'CoreNetworks': sample_core_networks
+        }
+        mock_cloudwan_client.get_transit_gateway_registrations.side_effect = [
+            {'TransitGatewayRegistrations': [], 'NextToken': 'registrations-page-2'},
+            {'TransitGatewayRegistrations': sample_tgw_registrations},
+        ]
+        mock_ec2_client.describe_transit_gateway_route_tables.return_value = {
+            'TransitGatewayRouteTables': sample_route_tables
+        }
+        mock_cloudwan_client.get_network_routes.return_value = {
+            'NetworkRoutes': sample_network_routes
+        }
+
+        result = await get_all_tgw_routes(
+            transit_gateway_id='tgw-12345678', global_network_region='us-east-1'
+        )
+
+        assert result['global_network_id'] == 'global-network-123'
+        assert mock_cloudwan_client.get_transit_gateway_registrations.call_count == 2
+        mock_cloudwan_client.get_transit_gateway_registrations.assert_called_with(
+            GlobalNetworkId='global-network-123', NextToken='registrations-page-2'
+        )
+
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.transit_gateway.get_all_transit_gateway_routes.get_aws_client'
+    )
+    async def test_get_all_tgw_routes_stops_paging_once_registered(
+        self,
+        mock_get_client,
+        mock_cloudwan_client,
+        mock_ec2_client,
+        sample_core_networks,
+        sample_tgw_registrations,
+        sample_route_tables,
+        sample_network_routes,
+    ):
+        """Test that registrations are not paged further once the TGW is found."""
+        mock_get_client.side_effect = [mock_cloudwan_client, mock_ec2_client]
+        mock_cloudwan_client.list_core_networks.return_value = {
+            'CoreNetworks': sample_core_networks
+        }
+        mock_cloudwan_client.get_transit_gateway_registrations.return_value = {
+            'TransitGatewayRegistrations': sample_tgw_registrations,
+            'NextToken': 'registrations-page-2',
+        }
+        mock_ec2_client.describe_transit_gateway_route_tables.return_value = {
+            'TransitGatewayRouteTables': sample_route_tables
+        }
+        mock_cloudwan_client.get_network_routes.return_value = {
+            'NetworkRoutes': sample_network_routes
+        }
+
+        result = await get_all_tgw_routes(
+            transit_gateway_id='tgw-12345678', global_network_region='us-east-1'
+        )
+
+        assert result['global_network_id'] == 'global-network-123'
+        assert mock_cloudwan_client.get_transit_gateway_registrations.call_count == 1
+
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.transit_gateway.get_all_transit_gateway_routes.get_aws_client'
+    )
+    async def test_get_all_tgw_routes_registration_after_another_tgw(
+        self,
+        mock_get_client,
+        mock_cloudwan_client,
+        mock_ec2_client,
+        sample_core_networks,
+        sample_route_tables,
+        sample_network_routes,
+    ):
+        """Test a registration listed after the registration of another TGW."""
+        mock_get_client.side_effect = [mock_cloudwan_client, mock_ec2_client]
+        mock_cloudwan_client.list_core_networks.return_value = {
+            'CoreNetworks': sample_core_networks
+        }
+        mock_cloudwan_client.get_transit_gateway_registrations.return_value = {
+            'TransitGatewayRegistrations': [
+                {
+                    'TransitGatewayArn': 'arn:aws:ec2:eu-west-1:210987654321:transit-gateway/tgw-87654321'
+                },
+                {
+                    'TransitGatewayArn': 'arn:aws:ec2:us-east-1:123456789012:transit-gateway/tgw-12345678'
+                },
+            ]
+        }
+        mock_ec2_client.describe_transit_gateway_route_tables.return_value = {
+            'TransitGatewayRouteTables': sample_route_tables
+        }
+        mock_cloudwan_client.get_network_routes.return_value = {
+            'NetworkRoutes': sample_network_routes
+        }
+
+        result = await get_all_tgw_routes(
+            transit_gateway_id='tgw-12345678', global_network_region='us-east-1'
+        )
+
+        assert result['transit_gateway_region'] == 'us-east-1'
+        mock_get_client.assert_any_call('ec2', 'us-east-1', None)
+
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.transit_gateway.get_all_transit_gateway_routes.get_aws_client'
+    )
+    async def test_get_all_tgw_routes_not_registered_on_any_page(
+        self, mock_get_client, mock_cloudwan_client
+    ):
+        """Test the not-registered error once every page of every global network is read."""
+        mock_get_client.return_value = mock_cloudwan_client
+        mock_cloudwan_client.list_core_networks.side_effect = [
+            {
+                'CoreNetworks': [{'GlobalNetworkId': 'global-network-123', 'State': 'AVAILABLE'}],
+                'NextToken': 'core-page-2',
+            },
+            {'CoreNetworks': [{'GlobalNetworkId': 'global-network-456', 'State': 'AVAILABLE'}]},
+        ]
+        mock_cloudwan_client.get_transit_gateway_registrations.side_effect = [
+            {'TransitGatewayRegistrations': [], 'NextToken': 'registrations-page-2'},
+            {'TransitGatewayRegistrations': []},
+            {'TransitGatewayRegistrations': []},
+        ]
+
+        with pytest.raises(
+            ToolError, match='Transit Gateway is not registered to Cloud WAN Global Network'
+        ):
+            await get_all_tgw_routes(
+                transit_gateway_id='tgw-12345678', global_network_region='us-east-1'
+            )
+
+        assert mock_cloudwan_client.get_transit_gateway_registrations.call_count == 3
+
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.transit_gateway.get_all_transit_gateway_routes.get_aws_client'
+    )
+    async def test_get_all_tgw_routes_no_available_core_network_on_any_page(
+        self, mock_get_client, mock_cloudwan_client
+    ):
+        """Test the no-global-networks error when no page has an AVAILABLE core network."""
+        mock_get_client.return_value = mock_cloudwan_client
+        mock_cloudwan_client.list_core_networks.side_effect = [
+            {
+                'CoreNetworks': [{'GlobalNetworkId': 'global-network-123', 'State': 'PENDING'}],
+                'NextToken': 'core-page-2',
+            },
+            {'CoreNetworks': [{'GlobalNetworkId': 'global-network-456', 'State': 'DELETING'}]},
+        ]
+
+        with pytest.raises(
+            ToolError, match='No Cloud WAN Global Networks found in this account and region'
+        ):
+            await get_all_tgw_routes(
+                transit_gateway_id='tgw-12345678', global_network_region='us-east-1'
+            )
+
+        assert mock_cloudwan_client.list_core_networks.call_count == 2
+
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.transit_gateway.get_all_transit_gateway_routes.get_aws_client'
+    )
     async def test_get_all_tgw_routes_pagination(
         self,
         mock_get_client,
