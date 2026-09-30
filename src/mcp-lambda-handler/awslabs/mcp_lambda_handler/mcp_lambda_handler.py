@@ -16,6 +16,8 @@ import functools
 import inspect
 import json
 import logging
+import sys
+import types
 from awslabs.mcp_lambda_handler.session import DynamoDBSessionStore, NoOpSessionStore, SessionStore
 from awslabs.mcp_lambda_handler.types import (
     Capabilities,
@@ -218,7 +220,10 @@ class MCPLambdaHandler:
                 origin = get_origin(type_hint)
 
                 # Handle Union types (including Optional[T] which is Union[T, None])
-                if origin is Union:
+                # Also handle PEP 604 union syntax (e.g., int | None) on Python 3.10+
+                if origin is Union or (
+                    sys.version_info >= (3, 10) and isinstance(type_hint, types.UnionType)
+                ):
                     args = get_args(type_hint)
                     non_none_args = [arg for arg in args if arg is not type(None)]
                     if len(non_none_args) == 1:
