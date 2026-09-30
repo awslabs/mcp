@@ -15,6 +15,7 @@
 """AWS IAM MCP Server implementation."""
 
 import argparse
+import fnmatch
 import json
 import re
 from awslabs.iam_mcp_server.aws_client import get_iam_client
@@ -78,6 +79,49 @@ def _check_denied_policy_arn(policy_arn: str) -> None:
 # Matches a service-scoped action wildcard such as 'iam:*' or 's3:*'.
 _SERVICE_WILDCARD_RE = re.compile(r'^[a-zA-Z0-9\-]+:\*$')
 
+# Matches an IAM resource-type-wide wildcard such as 'arn:aws:iam::123456789012:role/*'
+# or 'arn:aws-us-gov:iam::*:user/*', which covers every principal of that type.
+_IAM_RESOURCE_TYPE_WILDCARD_RE = re.compile(r'^arn:[^:]+:iam::[^:]*:[a-z-]+/\*$')
+
+# Named IAM actions that let the grantee escalate their own privileges without any
+# other permission (Rhino Security Labs / Cloudsplaining single-action methods), plus
+# iam:PassRole, which escalates when paired with any compute service, and the
+# permissions-boundary actions, which can lift a principal's own permission cap.
+# Stored lowercased because IAM action names are case-insensitive.
+PRIVILEGE_ESCALATION_ACTIONS = frozenset(
+    {
+        'iam:addusertogroup',
+        'iam:attachgrouppolicy',
+        'iam:attachrolepolicy',
+        'iam:attachuserpolicy',
+        'iam:createaccesskey',
+        'iam:createloginprofile',
+        'iam:createpolicyversion',
+        'iam:deleterolepermissionsboundary',
+        'iam:deleteuserpermissionsboundary',
+        'iam:passrole',
+        'iam:putgrouppolicy',
+        'iam:putrolepermissionsboundary',
+        'iam:putrolepolicy',
+        'iam:putuserpermissionsboundary',
+        'iam:putuserpolicy',
+        'iam:setdefaultpolicyversion',
+        'iam:updateassumerolepolicy',
+        'iam:updateloginprofile',
+    }
+)
+
+
+def _matching_privilege_escalation_actions(patterns: List[str]) -> set:
+    """Return the privilege-escalation actions matched by the given action patterns.
+
+    Patterns may contain IAM wildcards ('*', '?'), e.g. 'iam:Put*' or 'iam:*Policy'.
+    """
+    lowered = [p.strip().lower() for p in patterns]
+    return {
+        a for a in PRIVILEGE_ESCALATION_ACTIONS if any(fnmatch.fnmatchcase(a, p) for p in lowered)
+    }
+
 
 def _check_wildcard_policy(policy_document: str) -> None:
     """Reject policy documents that grant overly broad access.
@@ -87,6 +131,19 @@ def _check_wildcard_policy(policy_document: str) -> None:
     ARN ending in ':*'). Checking only the literal '*'/'*' pair let equivalent grants
     such as Action 'iam:*' with Resource '*' through, which is still a full
     privilege-escalation primitive.
+
+    NotAction and NotResource are inverse matches ("everything except ..."), so they
+    count as a broad Action and a broad Resource respectively, whatever they list. A
+    finite exclusion list still leaves an unbounded grant, including actions and
+    resources that don't exist yet. They are rejected only when paired with the other
+    broad half: NotAction scoped to a specific resource ARN is still allowed, as is a
+    specific action with NotResource (no broader than that action on Resource '*').
+
+    Named IAM privilege-escalation actions (see PRIVILEGE_ESCALATION_ACTIONS), including
+    those reached through partial wildcards such as 'iam:Put*' or through NotAction, are
+    functionally equivalent to 'iam:*' for identity management. They are rejected on a
+    broad Resource or on every principal of a type (e.g. 'role/*'), and remain allowed
+    when scoped to specific principal ARNs.
     """
     doc = json.loads(policy_document)
     statements = doc.get('Statement', [])
@@ -102,16 +159,39 @@ def _check_wildcard_policy(policy_document: str) -> None:
         if isinstance(resources, str):
             resources = [resources]
 
-        has_broad_action = any(a == '*' or _SERVICE_WILDCARD_RE.match(a) for a in actions)
-        has_broad_resource = any(
+        has_broad_action = 'NotAction' in stmt or any(
+            a == '*' or _SERVICE_WILDCARD_RE.match(a) for a in actions
+        )
+        has_broad_resource = 'NotResource' in stmt or any(
             r == '*' or r == 'arn:*' or (r.startswith('arn:') and r.endswith(':*'))
             for r in resources
         )
 
         if has_broad_action and has_broad_resource:
             raise IamValidationError(
-                'Policy contains overly broad Action (wildcard or service:*) with broad Resource. '
+                'Policy contains overly broad Action (wildcard, service:*, or NotAction) with '
+                'broad Resource (wildcard or NotResource). '
                 'Please scope the policy to specific actions and resources.'
+            )
+
+        if 'NotAction' in stmt:
+            not_actions = stmt['NotAction']
+            if isinstance(not_actions, str):
+                not_actions = [not_actions]
+            escalation_actions = PRIVILEGE_ESCALATION_ACTIONS - (
+                _matching_privilege_escalation_actions(not_actions)
+            )
+        else:
+            escalation_actions = _matching_privilege_escalation_actions(actions)
+        has_principal_wide_resource = has_broad_resource or any(
+            _IAM_RESOURCE_TYPE_WILDCARD_RE.match(r) for r in resources
+        )
+
+        if escalation_actions and has_principal_wide_resource:
+            raise IamValidationError(
+                f'Policy grants IAM privilege-escalation actions {sorted(escalation_actions)} '
+                'on a broad Resource. Scope these actions to specific resource ARNs, or use '
+                'the AWS Console for high-privilege policy changes.'
             )
 
 

@@ -1737,6 +1737,188 @@ async def test_put_user_policy_allows_service_wildcard_with_scoped_resource():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('tool_name', ['put_user_policy', 'put_role_policy'])
+@pytest.mark.parametrize(
+    'stmt',
+    [
+        {'Effect': 'Allow', 'NotAction': 'iam:*', 'Resource': '*'},
+        {'Effect': 'Allow', 'NotAction': ['iam:*', 'sts:*', 'organizations:*'], 'Resource': '*'},
+        {'Effect': 'Allow', 'NotAction': 's3:DeleteBucket', 'Resource': 'arn:*'},
+        {'Effect': 'Allow', 'NotAction': 'iam:*', 'Resource': ['arn:aws:s3:::a', '*']},
+        {'Effect': 'Allow', 'Action': '*', 'NotResource': 'arn:aws:s3:::protected-bucket'},
+        {'Effect': 'Allow', 'Action': 'iam:*', 'NotResource': ['arn:aws:iam::123:role/a']},
+        {'Effect': 'Allow', 'NotAction': 'iam:*', 'NotResource': 'arn:aws:s3:::a'},
+    ],
+)
+async def test_inline_policy_rejects_not_action_not_resource(tool_name, stmt):
+    """NotAction/NotResource are inverse matches and must be treated as broad.
+
+    Inspecting only Action/Resource let statements such as NotAction 'iam:*' with
+    Resource '*' (every non-IAM action, account-wide) or Action '*' with a NotResource
+    (every action on everything but one resource) bypass the guard.
+    """
+    from awslabs.iam_mcp_server import server
+
+    Context.initialize(readonly=False, require_confirmation=False)
+    target = 'role_name' if tool_name == 'put_role_policy' else 'user_name'
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_get_client.return_value = mock_client
+
+        with pytest.raises(IamValidationError) as exc_info:
+            await getattr(server, tool_name)(
+                **{target: 'test-principal'},
+                policy_name='bad-policy',
+                policy_document={'Version': '2012-10-17', 'Statement': [stmt]},
+                confirmed=True,
+            )
+        assert 'overly broad Action' in str(exc_info.value)
+        getattr(mock_client, tool_name).assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'stmt',
+    [
+        {'Effect': 'Allow', 'NotAction': 's3:DeleteObject', 'Resource': 'arn:aws:s3:::b/*'},
+        {'Effect': 'Allow', 'Action': 's3:GetObject', 'NotResource': 'arn:aws:s3:::secret/*'},
+        {'Effect': 'Deny', 'NotAction': 'iam:*', 'Resource': '*'},
+        {'Effect': 'Deny', 'Action': '*', 'NotResource': 'arn:aws:s3:::a'},
+    ],
+)
+async def test_inline_policy_allows_scoped_not_action_not_resource(stmt):
+    """NotAction/NotResource are allowed when the other half is scoped, or in Deny statements."""
+    from awslabs.iam_mcp_server.server import put_user_policy
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_get_client.return_value = Mock()
+
+        result = await put_user_policy(
+            user_name='test-user',
+            policy_name='scoped-policy',
+            policy_document={'Version': '2012-10-17', 'Statement': [stmt]},
+            confirmed=True,
+        )
+        assert 'Successfully' in result.message
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('tool_name', ['put_user_policy', 'put_role_policy'])
+@pytest.mark.parametrize(
+    'stmt',
+    [
+        # Exact reproduction from the report.
+        {
+            'Effect': 'Allow',
+            'Action': ['iam:CreateAccessKey', 'iam:AttachUserPolicy', 'iam:PutUserPolicy'],
+            'Resource': '*',
+        },
+        {'Effect': 'Allow', 'Action': 'iam:PutRolePolicy', 'Resource': '*'},
+        {'Effect': 'Allow', 'Action': 'iam:AddUserToGroup', 'Resource': '*'},
+        {'Effect': 'Allow', 'Action': 'iam:CreateLoginProfile', 'Resource': '*'},
+        {'Effect': 'Allow', 'Action': 'iam:PassRole', 'Resource': '*'},
+        # IAM action names are case-insensitive.
+        {'Effect': 'Allow', 'Action': 'IAM:createAccessKey', 'Resource': '*'},
+        # Partial wildcards that expand to escalation actions.
+        {'Effect': 'Allow', 'Action': 'iam:Put*', 'Resource': '*'},
+        {'Effect': 'Allow', 'Action': 'iam:*Policy', 'Resource': 'arn:aws:iam::*:*'},
+        {'Effect': 'Allow', 'Action': 'iam:Create?ccessKey', 'Resource': '*'},
+        # Mixed with benign actions/resources in the same statement.
+        {
+            'Effect': 'Allow',
+            'Action': ['s3:GetObject', 'iam:CreatePolicyVersion'],
+            'Resource': ['arn:aws:s3:::bucket/*', '*'],
+        },
+        # Every principal of a type is as broad as '*' for escalation.
+        {
+            'Effect': 'Allow',
+            'Action': 'iam:CreateAccessKey',
+            'Resource': 'arn:aws:iam::123456789012:user/*',
+        },
+        {'Effect': 'Allow', 'Action': 'iam:*', 'Resource': 'arn:aws-us-gov:iam::*:role/*'},
+        {'Effect': 'Allow', 'Action': '*', 'Resource': 'arn:aws:iam::123456789012:role/*'},
+        # NotAction that doesn't exclude the escalation actions, on every role.
+        {'Effect': 'Allow', 'NotAction': 's3:*', 'Resource': 'arn:aws:iam::123:role/*'},
+        # Escalation action with NotResource.
+        {'Effect': 'Allow', 'Action': 'iam:UpdateAssumeRolePolicy', 'NotResource': 'x'},
+    ],
+)
+async def test_inline_policy_rejects_privilege_escalation_actions(tool_name, stmt):
+    """Named IAM privesc actions on a broad Resource are equivalent to 'iam:*'.
+
+    Recognizing only '*' and 'service:*' let canonical escalation actions such as
+    iam:CreateAccessKey or iam:AttachUserPolicy with Resource '*' bypass the guard.
+    """
+    from awslabs.iam_mcp_server import server
+
+    Context.initialize(readonly=False, require_confirmation=False)
+    target = 'role_name' if tool_name == 'put_role_policy' else 'user_name'
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_client = Mock()
+        mock_get_client.return_value = mock_client
+
+        with pytest.raises(IamValidationError) as exc_info:
+            await getattr(server, tool_name)(
+                **{target: 'test-principal'},
+                policy_name='bad-policy',
+                policy_document={'Version': '2012-10-17', 'Statement': [stmt]},
+                confirmed=True,
+            )
+        assert 'privilege-escalation' in str(exc_info.value)
+        getattr(mock_client, tool_name).assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'stmt',
+    [
+        # Self-service credential management scoped to the caller.
+        {
+            'Effect': 'Allow',
+            'Action': ['iam:CreateAccessKey', 'iam:UpdateLoginProfile'],
+            'Resource': 'arn:aws:iam::123456789012:user/${aws:username}',
+        },
+        {
+            'Effect': 'Allow',
+            'Action': 'iam:PassRole',
+            'Resource': 'arn:aws:iam::123456789012:role/my-lambda-role',
+        },
+        # Path-scoped, not every role in the account.
+        {
+            'Effect': 'Allow',
+            'Action': 'iam:AttachRolePolicy',
+            'Resource': 'arn:aws:iam::123456789012:role/app/*',
+        },
+        # Read-only IAM wildcards don't expand to any escalation action.
+        {'Effect': 'Allow', 'Action': ['iam:Get*', 'iam:List*'], 'Resource': '*'},
+        # NotAction excluding all of IAM, on role ARNs, grants nothing that escalates.
+        {'Effect': 'Allow', 'NotAction': 'iam:*', 'Resource': 'arn:aws:iam::123:role/*'},
+        {'Effect': 'Deny', 'Action': 'iam:CreateAccessKey', 'Resource': '*'},
+    ],
+)
+async def test_inline_policy_allows_scoped_privilege_escalation_actions(stmt):
+    """Escalation actions on specific principals, and read-only IAM access, are allowed."""
+    from awslabs.iam_mcp_server.server import put_user_policy
+
+    Context.initialize(readonly=False, require_confirmation=False)
+
+    with patch('awslabs.iam_mcp_server.server.get_iam_client') as mock_get_client:
+        mock_get_client.return_value = Mock()
+
+        result = await put_user_policy(
+            user_name='test-user',
+            policy_name='scoped-policy',
+            policy_document={'Version': '2012-10-17', 'Statement': [stmt]},
+            confirmed=True,
+        )
+        assert 'Successfully' in result.message
+
+
+@pytest.mark.asyncio
 async def test_put_user_policy_rejects_wildcard():
     """Test that put_user_policy rejects Action:* with Resource:*."""
     from awslabs.iam_mcp_server.server import put_user_policy
