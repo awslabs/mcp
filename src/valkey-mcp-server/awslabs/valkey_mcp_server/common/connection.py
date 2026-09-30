@@ -59,6 +59,7 @@ def _build_config() -> GlideClientConfiguration | GlideClusterClientConfiguratio
         'request_timeout': 5000,
         'reconnect_strategy': reconnect,
         'client_name': 'valkey-mcp-server',
+        'client_info_tag': 'valkey-mcp-server',
     }
     if credentials:
         kwargs['credentials'] = credentials
