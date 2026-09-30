@@ -236,6 +236,35 @@ class TestGetTransitGatewayRoutes:
     @patch(
         'awslabs.aws_network_mcp_server.tools.transit_gateway.get_transit_gateway_routes.get_aws_client'
     )
+    async def test_get_tgw_routes_registered_to_second_global_network(
+        self, mock_get_client, mock_client, sample_tgw_registrations, sample_network_routes
+    ):
+        """Test a TGW registered to a global network other than the first."""
+        mock_get_client.return_value = mock_client
+        mock_client.list_core_networks.return_value = {
+            'CoreNetworks': [
+                {'GlobalNetworkId': 'global-network-123', 'State': 'AVAILABLE'},
+                {'GlobalNetworkId': 'global-network-456', 'State': 'AVAILABLE'},
+            ]
+        }
+        mock_client.get_transit_gateway_registrations.side_effect = [
+            {'TransitGatewayRegistrations': []},
+            {'TransitGatewayRegistrations': sample_tgw_registrations},
+        ]
+        mock_client.get_network_routes.return_value = {'NetworkRoutes': sample_network_routes}
+
+        result = await get_tgw_routes(
+            global_network_region='us-west-2',
+            transit_gateway_id='tgw-12345678',
+            route_table_id='tgw-rtb-12345678',
+        )
+
+        assert result['global_network_id'] == 'global-network-456'
+        assert result['route_count'] == 2
+
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.transit_gateway.get_transit_gateway_routes.get_aws_client'
+    )
     async def test_get_tgw_routes_wrong_tgw_registered(
         self, mock_get_client, mock_client, sample_core_networks
     ):

@@ -92,7 +92,6 @@ async def get_all_tgw_routes(
         for core_network in cloudwan_client.list_core_networks()['CoreNetworks']:
             if core_network['State'] == 'AVAILABLE':
                 global_network_ids.append(core_network['GlobalNetworkId'])
-                break
 
         if global_network_ids == []:
             raise ToolError(
