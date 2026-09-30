@@ -51,6 +51,7 @@ async def test_tool_annotations():
         'list_schemas': 'List Redshift schemas',
         'list_tables': 'List Redshift tables',
         'list_columns': 'List Redshift columns',
+        'list_udfs': 'List Redshift user-defined functions',
         'execute_query': 'Execute read-only Redshift query',
         'review_cluster': 'Review Redshift cluster',
     }
