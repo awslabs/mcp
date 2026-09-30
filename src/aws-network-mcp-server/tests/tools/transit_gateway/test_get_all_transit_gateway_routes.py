@@ -236,6 +236,49 @@ class TestGetAllTransitGatewayRoutes:
     @patch(
         'awslabs.aws_network_mcp_server.tools.transit_gateway.get_all_transit_gateway_routes.get_aws_client'
     )
+    async def test_get_all_tgw_routes_registration_on_a_later_page(
+        self,
+        mock_get_client,
+        mock_cloudwan_client,
+        mock_ec2_client,
+        sample_tgw_registrations,
+        sample_route_tables,
+        sample_network_routes,
+    ):
+        """Test a TGW whose global network and registration are both on a second page."""
+        mock_get_client.side_effect = [mock_cloudwan_client, mock_ec2_client]
+        mock_cloudwan_client.list_core_networks.side_effect = [
+            {
+                'CoreNetworks': [{'GlobalNetworkId': 'global-network-123', 'State': 'AVAILABLE'}],
+                'NextToken': 'core-page-2',
+            },
+            {'CoreNetworks': [{'GlobalNetworkId': 'global-network-456', 'State': 'AVAILABLE'}]},
+        ]
+        mock_cloudwan_client.get_transit_gateway_registrations.side_effect = [
+            {'TransitGatewayRegistrations': []},
+            {'TransitGatewayRegistrations': [], 'NextToken': 'registrations-page-2'},
+            {'TransitGatewayRegistrations': sample_tgw_registrations},
+        ]
+        mock_ec2_client.describe_transit_gateway_route_tables.return_value = {
+            'TransitGatewayRouteTables': sample_route_tables
+        }
+        mock_cloudwan_client.get_network_routes.return_value = {
+            'NetworkRoutes': sample_network_routes
+        }
+
+        result = await get_all_tgw_routes(
+            transit_gateway_id='tgw-12345678', global_network_region='us-east-1'
+        )
+
+        assert result['global_network_id'] == 'global-network-456'
+        mock_cloudwan_client.list_core_networks.assert_called_with(NextToken='core-page-2')
+        mock_cloudwan_client.get_transit_gateway_registrations.assert_called_with(
+            GlobalNetworkId='global-network-456', NextToken='registrations-page-2'
+        )
+
+    @patch(
+        'awslabs.aws_network_mcp_server.tools.transit_gateway.get_all_transit_gateway_routes.get_aws_client'
+    )
     async def test_get_all_tgw_routes_pagination(
         self,
         mock_get_client,
