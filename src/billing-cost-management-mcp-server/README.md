@@ -262,6 +262,8 @@ Cost Optimization Hub:
 - cost-optimization-hub:ListRecommendations
 - cost-optimization-hub:ListRecommendationSummaries
 - cost-optimization-hub:ListEfficiencyMetrics
+- cost-optimization-hub:ListEnrollmentStatuses
+- cost-optimization-hub:GetPreferences
 
 Compute Optimizer:
 - compute-optimizer:GetAutoScalingGroupRecommendations
@@ -421,6 +423,8 @@ The server currently supports the following AWS services
    - list_recommendations
    - list_recommendation_summaries
    - list_efficiency_metrics
+   - list_enrollment_statuses
+   - get_preferences
 
 6. **Compute Optimizer**
    - get_auto_scaling_group_recommendations

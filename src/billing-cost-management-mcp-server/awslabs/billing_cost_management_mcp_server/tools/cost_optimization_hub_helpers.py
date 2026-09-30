@@ -17,7 +17,11 @@
 These functions handle the specific operations for the Cost Optimization Hub tool.
 """
 
-from ..utilities.aws_service_base import format_response, paginate_aws_response
+from ..utilities.aws_service_base import (
+    format_response,
+    handle_aws_error,
+    paginate_aws_response,
+)
 from ..utilities.constants import (
     EFFICIENCY_PARETO_MAX_PAGES,
     EFFICIENCY_PARETO_PAGE_SIZE,
@@ -183,20 +187,8 @@ async def list_recommendations(
 
         return format_response('success', offload_or_inline)
 
-    except ClientError as e:
-        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
-        error_message = e.response.get('Error', {}).get('Message', 'An unknown error occurred')
-        await ctx_logger.error(f'AWS ClientError in list_recommendations: {error_code}')
-        return format_response(
-            'error',
-            {'error_code': error_code},
-            error_message,
-        )
-
     except Exception as e:
-        # Let the parent try-catch handle other exceptions
-        await ctx_logger.error(f'Unexpected error in list_recommendations: {str(e)}')
-        raise
+        return await handle_aws_error(ctx, e, 'list_recommendations', 'Cost Optimization Hub')
 
 
 async def get_recommendation(
@@ -281,43 +273,22 @@ async def get_recommendation(
         # Return formatted response
         return format_response('success', formatted_response)
 
-    except ClientError as e:
-        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
-        error_message = e.response.get('Error', {}).get('Message', 'An unknown error occurred')
-
-        if error_code == 'ValidationException':
-            await ctx_logger.warning(f'Validation error in get_recommendation: {error_message}')
-            return format_response(
-                'error',
-                {'error_code': error_code, 'error_message': error_message},
-                f'Cost Optimization Hub validation error: {error_message}',
-            )
-        elif error_code == 'AccessDeniedException':
-            await ctx_logger.error(
-                f'Access denied for Cost Optimization Hub get_recommendation: {error_message}'
-            )
-            return format_response(
-                'error',
-                {'error_code': error_code},
-                'Access denied for Cost Optimization Hub. Ensure you have the necessary permissions: cost-optimization-hub:GetRecommendation.',
-            )
-        elif error_code == 'ResourceNotFoundException':
-            await ctx_logger.warning(f'Resource not found: {error_message}')
+    except Exception as e:
+        # A missing recommendation is reported as a warning naming the ID rather than as an error.
+        if (
+            isinstance(e, ClientError)
+            and e.response.get('Error', {}).get('Code') == 'ResourceNotFoundException'
+        ):
+            await ctx_logger.warning(f'Resource not found: {recommendation_id}')
             return format_response(
                 'warning',
                 {
-                    'error_code': error_code,
+                    'error_code': 'ResourceNotFoundException',
                     'recommendation_id': recommendation_id,
                 },
                 f'Recommendation {recommendation_id} not found in Cost Optimization Hub.',
             )
-        else:
-            # Re-raise for other errors
-            raise
-
-    except Exception as e:
-        await ctx_logger.error(f'Unexpected error in get_recommendation: {str(e)}')
-        raise
+        return await handle_aws_error(ctx, e, 'get_recommendation', 'Cost Optimization Hub')
 
 
 async def list_recommendation_summaries(
@@ -437,29 +408,92 @@ async def list_recommendation_summaries(
 
         return format_response('success', formatted_response)
 
-    except ClientError as e:
-        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
-        error_message = e.response.get('Error', {}).get('Message', 'An unknown error occurred')
-        await ctx_logger.error(f'AWS ClientError in list_recommendation_summaries: {error_code}')
+    except Exception as e:
+        return await handle_aws_error(
+            ctx, e, 'list_recommendation_summaries', 'Cost Optimization Hub'
+        )
+
+
+async def list_enrollment_statuses(
+    ctx: Context,
+    coh_client: Any,
+    account_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Get the Cost Optimization Hub enrollment status of an account.
+
+    Args:
+        ctx: MCP context
+        coh_client: Cost Optimization Hub client
+        account_id: Optional account ID. Omit for the calling account.
+
+    Returns:
+        Dict containing the enrollment status of the account.
+    """
+    ctx_logger = get_context_logger(ctx, __name__)
+
+    try:
+        request_params: Dict[str, Any] = {}
+        if account_id:
+            request_params['accountId'] = str(account_id)
+
+        await ctx_logger.info('Fetching Cost Optimization Hub enrollment status')
+        response = coh_client.list_enrollment_statuses(**request_params)
+
+        enrollment_statuses = [
+            {
+                'account_id': item.get('accountId'),
+                'status': item.get('status'),
+                'last_updated_timestamp': format_timestamp(item.get('lastUpdatedTimestamp')),
+                'created_timestamp': format_timestamp(item.get('createdTimestamp')),
+            }
+            for item in response.get('items', [])
+        ]
+        if not enrollment_statuses:
+            # A never-enrolled account has no enrollment record, so the API returns no
+            # items rather than an Inactive one. Report it as Inactive so callers get an
+            # explicit status instead of an empty list.
+            enrollment_statuses = [{'status': 'Inactive'}]
+
+        return format_response('success', {'enrollment_statuses': enrollment_statuses})
+
+    except Exception as e:
+        return await handle_aws_error(ctx, e, 'list_enrollment_statuses', 'Cost Optimization Hub')
+
+
+async def get_preferences(ctx: Context, coh_client: Any) -> Dict[str, Any]:
+    """Get the Cost Optimization Hub preferences of the calling account.
+
+    Args:
+        ctx: MCP context
+        coh_client: Cost Optimization Hub client
+
+    Returns:
+        Dict containing the savings estimation mode, member account discount
+        visibility, and preferred commitment.
+    """
+    ctx_logger = get_context_logger(ctx, __name__)
+
+    try:
+        await ctx_logger.info('Fetching Cost Optimization Hub preferences')
+        response = coh_client.get_preferences()
+
+        preferred_commitment = response.get('preferredCommitment') or {}
         return format_response(
-            'error',
-            {'error_code': error_code},
-            error_message,
+            'success',
+            {
+                'savings_estimation_mode': response.get('savingsEstimationMode'),
+                'member_account_discount_visibility': response.get(
+                    'memberAccountDiscountVisibility'
+                ),
+                'preferred_commitment': {
+                    'term': preferred_commitment.get('term'),
+                    'payment_option': preferred_commitment.get('paymentOption'),
+                },
+            },
         )
 
     except Exception as e:
-        # Handle non-AWS errors
-        await ctx_logger.error(f'Unexpected error in list_recommendation_summaries: {str(e)}')
-        return format_response(
-            'error',
-            {
-                'error_type': 'service_error',
-                'service': 'Cost Optimization Hub',
-                'operation': 'list_recommendation_summaries',
-                'message': str(e),
-            },
-            'Error retrieving recommendation summaries. Try using list_recommendations operation instead.',
-        )
+        return await handle_aws_error(ctx, e, 'get_preferences', 'Cost Optimization Hub')
 
 
 def _latest_efficiency_point(metrics_by_time: list) -> Optional[Dict[str, Any]]:
@@ -768,17 +802,5 @@ async def list_efficiency_metrics(
 
         return format_response('success', offload_or_inline)
 
-    except ClientError as e:
-        error_code = e.response.get('Error', {}).get('Code', 'Unknown')
-        error_message = e.response.get('Error', {}).get('Message', 'An unknown error occurred')
-        await ctx_logger.error(f'AWS ClientError in list_efficiency_metrics: {error_code}')
-        return format_response(
-            'error',
-            {'error_code': error_code},
-            error_message,
-        )
-
     except Exception as e:
-        # Let the parent try-catch handle other exceptions
-        await ctx_logger.error(f'Unexpected error in list_efficiency_metrics: {str(e)}')
-        raise
+        return await handle_aws_error(ctx, e, 'list_efficiency_metrics', 'Cost Optimization Hub')
