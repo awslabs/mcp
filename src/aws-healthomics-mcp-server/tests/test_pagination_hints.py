@@ -267,6 +267,28 @@ class TestSearchHasMoreIdiom:
         assert 'next_token=' not in result['pagination']['instruction']
 
     @pytest.mark.asyncio
+    @pytest.mark.parametrize('has_more', [True, False])
+    @pytest.mark.parametrize('results', [[], [{'path': 's3://bucket/file.fastq'}]])
+    async def test_returned_count_uses_results_not_first_list(self, has_more, results):
+        """Storage-system metadata must not determine the number of matched files."""
+
+        async def search(continuation_token=None):
+            return {
+                'storage_systems_searched': ['s3', 'healthomics'],
+                'results': results,
+                'pagination': {
+                    'has_more': has_more,
+                    'continuation_token': 'next-page' if has_more else None,
+                },
+            }
+
+        result = await paginating('SearchGenomicsFiles', search)()
+        assert result['pagination']['returnedCount'] == len(results)
+        assert result['storage_systems_searched'] == ['s3', 'healthomics']
+        assert result['results'] == results
+        assert result['pagination']['isComplete'] is not has_more
+
+    @pytest.mark.asyncio
     async def test_complete_case_still_emitted(self):
         wrapped = paginating('SearchGenomicsFiles', _fake_search_genomics_files)
         result = await wrapped(continuation_token='search-token-2')
