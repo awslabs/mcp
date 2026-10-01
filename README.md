@@ -76,6 +76,8 @@ A suite of specialized MCP servers that help you get the most out of AWS, wherev
       - [`.vscode/mcp.json`](#vscodemcpjson)
     - [Getting Started with Claude Code](#getting-started-with-claude-code)
       - [`.mcp.json`](#mcpjson)
+    - [Getting Started with fx](#getting-started-with-fx)
+      - [`~/.fx/mcp.json`](#fxmcpjson)
   - [Samples](#samples)
   - [Vibe coding](#vibe-coding)
   - [Additional Resources](#additional-resources)
@@ -1025,6 +1027,64 @@ For macOS/Linux:
   }
 }
 ```
+</details>
+
+### Getting Started with fx
+
+<details>
+<summary>Install in fx</summary>
+
+[fx](https://fx.sh) manages MCP servers from the terminal and stores them in `~/.fx/mcp.json`, so they are available in every project.
+
+1. Follow the steps above in the **Installation and Setup** section to install `uv` from [Astral](https://docs.astral.sh/uv/getting-started/installation/), install Python, and configure AWS credentials with the required services.
+
+2. **Using fx CLI commands**
+
+   ```bash
+   # The hosted AWS Knowledge MCP Server needs no credentials
+   fx mcp add --transport http aws-knowledge https://knowledge-mcp.global.api.aws
+
+   # Local servers take the executable and its arguments
+   fx mcp add aws-api uvx awslabs.aws-api-mcp-server@latest
+   fx mcp add aws-iac uvx awslabs.aws-iac-mcp-server@latest
+   fx mcp add aws-iam uvx awslabs.iam-mcp-server@latest
+
+   # List configured servers
+   fx mcp list
+   ```
+
+3. **Manual configuration (alternative)**
+
+   Add the servers under the `mcp` key. fx uses `mcp` rather than `mcpServers`, `type` to select the transport, and a single `command` array holding the executable and its arguments.
+
+#### `~/.fx/mcp.json`
+
+```json
+{
+  "mcp": {
+    "aws-knowledge-mcp-server": {
+      "type": "http",
+      "url": "https://knowledge-mcp.global.api.aws"
+    },
+    "awslabs.aws-iac-mcp-server": {
+      "type": "local",
+      "command": ["uvx", "awslabs.aws-iac-mcp-server@latest"],
+      "environment": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}
+```
+
+The first launch of a `uvx` server downloads the package, which can exceed the default startup timeout. Raise it for that server if needed:
+
+```json
+"startup_timeout_ms": 30000
+```
+
+If a session is already open when you edit the file, run `/mcp reload` to pick up the change.
+
 </details>
 
 ## Samples

@@ -41,7 +41,7 @@ class TestErrorSignalingMiddleware:
 
     @pytest.mark.asyncio
     async def test_error_response_sets_is_error_true(self, middleware, mock_context):
-        """When a tool returns status='error', isError should be True."""
+        """When a tool returns status='error', is_error should be True."""
         error_result = ToolResult(
             structured_content={'status': 'error', 'message': 'Access denied'},
         )
@@ -52,8 +52,8 @@ class TestErrorSignalingMiddleware:
         assert isinstance(result, _ErrorToolResult)
         mcp_result = result.to_mcp_result()
         assert isinstance(mcp_result, CallToolResult)
-        assert mcp_result.isError is True
-        assert mcp_result.structuredContent == {'status': 'error', 'message': 'Access denied'}
+        assert mcp_result.is_error is True
+        assert mcp_result.structured_content == {'status': 'error', 'message': 'Access denied'}
 
     @pytest.mark.asyncio
     async def test_success_response_unchanged(self, middleware, mock_context):
@@ -84,9 +84,9 @@ class TestErrorSignalingMiddleware:
         result = await middleware.on_call_tool(mock_context, call_next)
 
         mcp_result = result.to_mcp_result()
-        assert mcp_result.isError is True
+        assert mcp_result.is_error is True
         assert mcp_result.content == error_result.content
-        assert mcp_result.structuredContent['error_type'] == 'ValidationError'
+        assert mcp_result.structured_content['error_type'] == 'ValidationError'
 
     @pytest.mark.asyncio
     async def test_error_response_preserves_meta(self, middleware, mock_context):
@@ -100,7 +100,7 @@ class TestErrorSignalingMiddleware:
         result = await middleware.on_call_tool(mock_context, call_next)
 
         mcp_result = result.to_mcp_result()
-        assert mcp_result.isError is True
+        assert mcp_result.is_error is True
         assert mcp_result.meta == {'requestId': '123'}
 
     @pytest.mark.asyncio

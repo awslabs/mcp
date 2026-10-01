@@ -737,6 +737,101 @@ async def test_ap_real_get_service_attributes_reload_identity_decorator(mock_con
     assert 'service_code is required' in res2.get('data', {}).get('message', '')
 
 
+# ---------------------------------------------------------------------------
+# Every aws-pricing error response must carry a top-level error_type +
+# operation so error metrics have a structured type to classify. The legacy
+# `data.*` payload is preserved for backward compatibility.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@patch('awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client')
+async def test_get_service_codes_error_carries_classifier_fields(mock_create_client):
+    """get_service_codes exception path: top-level error_type + operation, legacy data kept."""
+    mock_context = AsyncMock()
+    mock_create_client.side_effect = Exception('boom')
+
+    result = await get_service_codes(mock_context)
+
+    assert result['status'] == 'error'
+    assert 'error_type' in result
+    assert result['operation'] == 'get_service_codes'
+    # Backward-compatible legacy payload preserved.
+    assert 'Error retrieving service codes' in result['data']['message']
+
+
+@pytest.mark.asyncio
+@patch('awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client')
+async def test_get_service_attributes_error_carries_classifier_fields(mock_create_client):
+    """get_service_attributes exception path: top-level error_type + operation, legacy data kept."""
+    mock_context = AsyncMock()
+    mock_client = MagicMock()
+    mock_create_client.return_value = mock_client
+    mock_client.describe_services.side_effect = Exception('boom')
+
+    result = await get_service_attributes(mock_context, 'AmazonEC2')
+
+    assert result['status'] == 'error'
+    assert 'error_type' in result
+    assert result['operation'] == 'get_service_attributes'
+    assert 'Failed to retrieve attributes' in result['data']['message']
+
+
+@pytest.mark.asyncio
+@patch('awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client')
+async def test_get_service_attributes_no_results_carries_classifier_fields(mock_create_client):
+    """get_service_attributes 'no service found': error_type=no_results, legacy data.message kept."""
+    mock_context = AsyncMock()
+    mock_client = MagicMock()
+    mock_create_client.return_value = mock_client
+    mock_client.describe_services.return_value = {'Services': []}
+
+    result = await get_service_attributes(mock_context, 'NonExistentService')
+
+    assert result['status'] == 'error'
+    assert result['error_type'] == 'no_results'
+    assert result['operation'] == 'get_service_attributes'
+    assert 'NonExistentService' in result['message']
+    assert 'NonExistentService' in result['data']['message']
+
+
+@pytest.mark.asyncio
+@patch('awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client')
+async def test_get_attribute_values_error_carries_classifier_fields(mock_create_client):
+    """get_attribute_values exception path: top-level error_type + operation, legacy data kept."""
+    mock_context = AsyncMock()
+    mock_client = MagicMock()
+    mock_create_client.return_value = mock_client
+    mock_client.get_attribute_values.side_effect = Exception('boom')
+
+    result = await get_attribute_values(mock_context, 'AmazonEC2', 'instanceType')
+
+    assert result['status'] == 'error'
+    assert 'error_type' in result
+    assert result['operation'] == 'get_attribute_values'
+    assert 'Failed to retrieve values' in result['data']['message']
+
+
+@pytest.mark.asyncio
+@patch('awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client')
+async def test_get_pricing_from_api_error_carries_classifier_fields(mock_create_client):
+    """get_pricing_from_api exception path: top-level error_type + operation, legacy data kept."""
+    mock_context = AsyncMock()
+    mock_client = MagicMock()
+    mock_create_client.return_value = mock_client
+    mock_client.get_products.side_effect = Exception('boom')
+
+    result = await get_pricing_from_api(mock_context, 'AmazonEC2')
+
+    assert result['status'] == 'error'
+    assert 'error_type' in result
+    assert result['operation'] == 'get_pricing_from_api'
+    # Legacy fields preserved for backward compatibility.
+    assert 'Pricing API request failed' in result['data']['message']
+    assert result['data']['service_code'] == 'AmazonEC2'
+    assert 'note' in result['data']
+
+
 @pytest.mark.asyncio
 async def test_ap_real_get_attribute_values_reload_identity_decorator(mock_context):
     """Test real aws_pricing get_attribute_values with identity decorator."""
@@ -1010,7 +1105,12 @@ class TestGetPricingFromApiAdditional:
 
         result = await get_pricing_from_api(mock_context, 'InvalidService')
 
+        # No-results now carries top-level error_type + operation (Shape A)
+        # while keeping the legacy data.* payload for backward compatibility.
         assert result['status'] == 'error'
+        assert result['error_type'] == 'no_results'
+        assert result['operation'] == 'get_pricing_from_api'
+        assert 'did not return any pricing data' in result['message']
         assert 'did not return any pricing data' in result['data']['message']
         assert 'examples' in result['data']
 

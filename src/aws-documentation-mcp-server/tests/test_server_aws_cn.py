@@ -52,6 +52,7 @@ class TestReadDocumentationChina:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = '<html><body><h1>Test</h1><p>This is a test.</p></body></html>'
         mock_response.headers = {'content-type': 'text/html'}
 
@@ -105,10 +106,8 @@ class TestReadDocumentationChina:
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
             mock_get.side_effect = httpx.HTTPError('Connection error')
 
-            result = await read_documentation_china(ctx, url=url, max_length=10000, start_index=0)
-
-            assert 'Failed to fetch' in result
-            assert 'Connection error' in result
+            with pytest.raises(ValueError, match='Connection error'):
+                await read_documentation_china(ctx, url=url, max_length=10000, start_index=0)
             mock_get.assert_called_once()
 
 
@@ -168,6 +167,44 @@ class TestGetAvailableServices:
                 mock_extract.assert_called_once()
                 called_url = mock_get.call_args[0][0]
                 assert '?session=' in called_url
+
+    @pytest.mark.asyncio
+    async def test_get_available_services_keeps_catalogue_when_page_is_unreadable(self):
+        """A page that will not simplify must not discard the service list already fetched."""
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.url = 'https://docs.amazonaws.cn/en_us/aws/latest/userguide/services.html'
+        mock_response.text = '<html><body></body></html>'  # simplifies to nothing
+        mock_response.headers = {'content-type': 'text/html'}
+
+        mock_toc_response = MagicMock()
+        mock_toc_response.status_code = 200
+        mock_toc_response.json = lambda: {
+            'contents': [
+                {
+                    'title': 'Documentation by Service',
+                    'href': 'services.html',
+                    'contents': [
+                        {'title': 'Amazon Simple Storage Service', 'href': 's3.html'},
+                        {'title': 'Amazon Elastic Compute Cloud', 'href': 'ec2.html'},
+                    ],
+                }
+            ]
+        }
+        mock_toc_response.headers = {'content-type': 'application/json'}
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.side_effect = [mock_response, mock_toc_response]
+            result = await get_available_services(ctx)
+
+        assert 'Amazon Simple Storage Service' in result
+        assert 'Amazon Elastic Compute Cloud' in result
+        assert '## Services in Amazon Web Services China' in result
+        # the read failure is reported, not dropped, and not tagged as an error marker
+        assert 'Note: Page failed to be simplified from HTML' in result
+        assert '<e>' not in result
 
     @pytest.mark.asyncio
     async def test_get_available_services_error(self):
@@ -347,11 +384,14 @@ class TestCnRedirectEnforcement:
             _cn_imds_redirect_routes,
             'awslabs.aws_documentation_mcp_server.server_utils',
         )
-        result = await read_documentation_china(
-            ctx, url='https://docs.amazonaws.cn/en_us/test.html', max_length=1000, start_index=0
-        )
-        assert 'SENSITIVE-IMDS-DATA' not in result
-        assert 'Failed to fetch' in result
+        with pytest.raises(ValueError, match='Failed to fetch') as excinfo:
+            await read_documentation_china(
+                ctx,
+                url='https://docs.amazonaws.cn/en_us/test.html',
+                max_length=1000,
+                start_index=0,
+            )
+        assert 'SENSITIVE-IMDS-DATA' not in str(excinfo.value)
 
     @pytest.mark.asyncio
     async def test_get_available_services_offsite_redirect_blocked(self, monkeypatch):

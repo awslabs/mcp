@@ -59,6 +59,7 @@ from awslabs.aurora_dsql_mcp_server.mutable_sql_detector import (
     detect_mutating_keywords,
     detect_transaction_bypass_attempt,
 )
+from awslabs.aurora_dsql_mcp_server.sql_guard import SqlPolicyError, assert_executable
 from botocore.config import Config
 from loguru import logger
 from mcp.server.mcpserver import Context, MCPServer
@@ -221,6 +222,20 @@ async def readonly_query(
         await ctx.error(ERROR_TRANSACTION_BYPASS_ATTEMPT)
         raise Exception(ERROR_TRANSACTION_BYPASS_ATTEMPT)
 
+    # Parse with PostgreSQL's own grammar after the legacy heuristic checks.
+    # This closes lexical differentials such as U&-escaped identifiers while
+    # preserving the existing, more specific user-facing errors above.
+    try:
+        assert_executable(
+            sql,
+            allow_write_query=False,
+            parameter_count=len(params) if params is not None else None,
+        )
+    except SqlPolicyError as error:
+        logger.warning(f'readonly_query rejected by SQL policy guard: {error}')
+        await ctx.error(f'{ERROR_QUERY_INJECTION_RISK}: {error}')
+        raise Exception(f'{ERROR_QUERY_INJECTION_RISK}: {error}') from error
+
     try:
         conn = await get_connection(ctx)
 
@@ -361,7 +376,7 @@ async def transact(
     # detection only run in read-only mode where those operations are
     # prohibited. Callers that need stacked statements should split them
     # into separate sql_list items.
-    for sql in sql_list:
+    for index, sql in enumerate(sql_list):
         if read_only:
             mutating_matches = detect_mutating_keywords(sql)
             if mutating_matches:
@@ -384,6 +399,18 @@ async def transact(
             await ctx.error(ERROR_TRANSACTION_BYPASS_ATTEMPT)
             raise Exception(ERROR_TRANSACTION_BYPASS_ATTEMPT)
 
+        try:
+            parameters = params_list[index] if params_list is not None else None
+            assert_executable(
+                sql,
+                allow_write_query=not read_only,
+                parameter_count=len(parameters) if parameters is not None else None,
+            )
+        except SqlPolicyError as error:
+            logger.warning(f'transact rejected by SQL policy guard: {error}')
+            await ctx.error(f'{ERROR_QUERY_INJECTION_RISK}: {error}')
+            raise Exception(f'{ERROR_QUERY_INJECTION_RISK}: {error}') from error
+
     try:
         conn = await get_connection(ctx)
 
@@ -401,7 +428,7 @@ async def transact(
         try:
             rows = []
             for idx, query in enumerate(sql_list):
-                p = params_list[idx] if params_list else None
+                p = params_list[idx] if params_list is not None else None
                 rows = await execute_query(ctx, conn, query, p)
             await execute_query(ctx, conn, COMMIT_TRANSACTION_SQL)
             return rows

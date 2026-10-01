@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from ..models import KnowledgeBaseMapping
+from .kb_types import cache_knowledge_base_type
 from loguru import logger
 from typing import TYPE_CHECKING
 
@@ -52,20 +53,29 @@ async def discover_knowledge_bases(
             kb_name = kb.get('name')
             kb_description = kb.get('description', '')
 
-            kb_arn = (
-                agent_client.get_knowledge_base(knowledgeBaseId=kb_id)
-                .get('knowledgeBase', {})
-                .get('knowledgeBaseArn')
+            kb_response = agent_client.get_knowledge_base(knowledgeBaseId=kb_id).get(
+                'knowledgeBase', {}
             )
+            kb_arn = kb_response.get('knowledgeBaseArn')
+            # MANAGED knowledge bases require a different Retrieve configuration than
+            # vector knowledge bases. Capture the type here -- get_knowledge_base is
+            # already being called for the ARN, so this costs no extra API call.
+            kb_type = kb_response.get('knowledgeBaseConfiguration', {}).get('type', '')
 
             tags = agent_client.list_tags_for_resource(resourceArn=kb_arn).get('tags', {})
             if tag_key in tags and tags[tag_key] == 'true':
                 logger.debug(f'KB Name: {kb_name}')
-                kb_data.append((kb_id, kb_name, kb_description))
+                cache_knowledge_base_type(kb_id, kb_type)
+                kb_data.append((kb_id, kb_name, kb_description, kb_type))
 
     # Then, for each matching knowledge base, collect its data sources
-    for kb_id, kb_name, kb_description in kb_data:
-        result[kb_id] = {'name': kb_name, 'description': kb_description, 'data_sources': []}
+    for kb_id, kb_name, kb_description, kb_type in kb_data:
+        result[kb_id] = {
+            'name': kb_name,
+            'description': kb_description,
+            'type': kb_type,
+            'data_sources': [],
+        }
 
         # Collect data sources for this knowledge base
         data_sources = []

@@ -270,7 +270,7 @@ Controls whether write operations (creating or deleting infrastructure) are allo
 
 ### ALLOW_SENSITIVE_DATA
 
-Controls whether tools that return logs and detailed resource information are allowed.
+Controls whether tools that return logs and detailed resource information are allowed. When disabled, the `ecs_troubleshooting_tool` actions that fetch logs, service events, task failures and network configuration return an error, and every other response (`ecs_resource_management`, `ecs_troubleshooting_tool` guidance, `delete_app`) has container environment variable values, environment file locations, and secret and credential references redacted rather than returned.
 
 ```bash
 # Enable access to sensitive data

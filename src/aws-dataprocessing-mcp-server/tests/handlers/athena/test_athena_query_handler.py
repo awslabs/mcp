@@ -362,6 +362,39 @@ async def test_stop_query_execution_missing_parameters(handler):
 
 
 @pytest.mark.asyncio
+async def test_stop_query_execution_blocked_in_readonly_mode(handler_readonly):
+    """Test that stop-query-execution is blocked when write access is disabled.
+
+    Security regression test for the read-only mode bypass reported via
+    aws-security@: stop_query_execution was callable without --allow-write,
+    allowing a read-only-configured server to cancel running Athena queries.
+    """
+    ctx = Mock()
+    response = await handler_readonly.manage_aws_athena_queries(
+        ctx, operation='stop-query-execution', query_execution_id='readonly-stop-bypass-query-id'
+    )
+
+    assert response.is_error
+    assert 'not allowed without write access' in response.content[0].text
+    # Confirm the underlying Athena client was never called
+    handler_readonly.athena_client.stop_query_execution.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_stop_query_execution_allowed_with_write_access(handler, mock_athena_client):
+    """Test that stop-query-execution succeeds when write access is enabled."""
+    handler.athena_client = mock_athena_client
+
+    ctx = Mock()
+    response = await handler.manage_aws_athena_queries(
+        ctx, operation='stop-query-execution', query_execution_id='query1'
+    )
+
+    assert not response.is_error
+    mock_athena_client.stop_query_execution.assert_called_once_with(QueryExecutionId='query1')
+
+
+@pytest.mark.asyncio
 async def test_invalid_query_operation(handler):
     """Test that running manage_aws_athena_queries with an invalid operation results in an error."""
     ctx = Mock()

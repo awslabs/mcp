@@ -30,6 +30,12 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     LogLevel,
     log_with_request_id,
 )
+from awslabs.aws_dataprocessing_mcp_server.utils.sensitive_data_filter import (
+    GLUE_STATEMENT_FIELDS,
+    filter_record,
+    filter_records,
+    redaction_notice,
+)
 from botocore.exceptions import ClientError
 from mcp.server.mcpserver import Context
 from mcp.types import CallToolResult, TextContent
@@ -509,7 +515,7 @@ class GlueInteractiveSessionsHandler:
         operation: Annotated[
             str,
             Field(
-                description='Operation to perform: run-statement, cancel-statement, get-statement, list-statements. Choose "get-statement" or "list-statements" for read-only operations when write access is disabled.',
+                description='Operation to perform: run-statement, cancel-statement, get-statement, list-statements. (statement code and execution output require --allow-sensitive-data-access)',
             ),
         ],
         session_id: Annotated[
@@ -557,14 +563,15 @@ class GlueInteractiveSessionsHandler:
 
         ## Requirements
         - The server must be run with the `--allow-write` flag for run-statement and cancel-statement operations
+        - The server must be run with the `--allow-sensitive-data-access` flag to receive the submitted Code and the execution Output.Data from get-statement and list-statements. Without it these fields are omitted from the response and named in the response message
         - Appropriate AWS permissions for Glue Interactive Session Statement operations
         - A valid session ID is required for all operations
 
         ## Operations
         - **run-statement**: Execute code in an interactive session and get a statement ID
         - **cancel-statement**: Cancel a running statement by ID
-        - **get-statement**: Retrieve detailed information and results of a specific statement
-        - **list-statements**: List all statements in a session with their status
+        - **get-statement**: Retrieve detailed information and results of a specific statement (the code and execution output require --allow-sensitive-data-access)
+        - **list-statements**: List all statements in a session (the code and execution output require --allow-sensitive-data-access)
 
         ## Example
         ```python
@@ -668,16 +675,6 @@ class GlueInteractiveSessionsHandler:
                 if statement_id is None:
                     raise ValueError('statement_id is required for get-statement operation')
 
-                # SECURITY: This operation returns statement execution output (customer data)
-                # Require --allow-sensitive-data-access flag to prevent unauthorized data exposure
-                if not self.allow_sensitive_data_access:
-                    error_message = 'Operation get-statement returns execution output with customer data and requires --allow-sensitive-data-access flag'
-                    log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return CallToolResult(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                    )
-
                 # Prepare get statement parameters
                 get_params = {
                     'SessionId': session_id,
@@ -689,13 +686,22 @@ class GlueInteractiveSessionsHandler:
                 # Get the statement
                 response = self.glue_client.get_statement(**get_params)
 
+                statement = response.get('Statement', {})
                 success_message = (
                     f'Successfully retrieved statement {statement_id} in session {session_id}'
                 )
+
+                if not self.allow_sensitive_data_access:
+                    statement, omitted = filter_record(statement, GLUE_STATEMENT_FIELDS)
+                    notice = redaction_notice('get-statement', omitted)
+                    if notice:
+                        log_with_request_id(ctx, LogLevel.INFO, notice)
+                        success_message = f'{success_message}. {notice}'
+
                 data = GetStatementData(
                     session_id=session_id,
                     statement_id=statement_id,
-                    statement=response.get('Statement', {}),
+                    statement=statement,
                     operation='get-statement',
                 )
 
@@ -720,12 +726,22 @@ class GlueInteractiveSessionsHandler:
                 # List statements
                 response = self.glue_client.list_statements(**params)
 
+                statements = response.get('Statements', [])
                 success_message = f'Successfully retrieved statements for session {session_id}'
+
+                # Same Statement shape as get-statement.
+                if not self.allow_sensitive_data_access:
+                    statements, omitted = filter_records(statements, GLUE_STATEMENT_FIELDS)
+                    notice = redaction_notice('list-statements', omitted)
+                    if notice:
+                        log_with_request_id(ctx, LogLevel.INFO, notice)
+                        success_message = f'{success_message}. {notice}'
+
                 data = ListStatementsData(
                     session_id=session_id,
-                    statements=response.get('Statements', []),
+                    statements=statements,
                     next_token=response.get('NextToken'),
-                    count=len(response.get('Statements', [])),
+                    count=len(statements),
                     operation='list-statements',
                 )
 

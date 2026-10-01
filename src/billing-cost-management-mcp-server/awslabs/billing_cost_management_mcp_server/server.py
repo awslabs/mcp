@@ -108,28 +108,28 @@ logger = get_logger(__name__)
 
 
 class _ErrorToolResult(ToolResult):
-    """A ToolResult that serializes to a CallToolResult with isError=True."""
+    """A ToolResult that serializes to a CallToolResult with is_error=True."""
 
     def to_mcp_result(self):
         return mcp_types.CallToolResult(
             content=self.content,
-            structuredContent=self.structured_content,
-            isError=True,
+            structured_content=self.structured_content,
+            is_error=True,
             _meta=self.meta,
         )
 
 
 class ErrorSignalingMiddleware(Middleware):
-    """Middleware that sets isError=True when a tool returns an error response.
+    """Middleware that sets is_error=True when a tool returns an error response.
 
-    Per the MCP spec, tools should signal errors via isError on CallToolResult.
+    Per the MCP spec, tools should signal errors via is_error on CallToolResult.
     This middleware intercepts tool results that contain status='error' in their
-    response body and returns a result with isError=True, preserving the original
-    content and structuredContent for backward compatibility.
+    response body and returns a result with is_error=True, preserving the original
+    content and structured_content for backward compatibility.
     """
 
     async def on_call_tool(self, context, call_next):
-        """Intercept tool results and set isError for error responses."""
+        """Intercept tool results and set is_error for error responses."""
         result = await call_next(context)
         if (
             isinstance(result, ToolResult)
@@ -178,7 +178,7 @@ TOOLS:
 - sp-purchase-analyzer: Run Savings Plans Purchase Analyzer what-if analyses (max savings, custom commitment, target average coverage) and retrieve their results
 - session-sql: Execute SQL queries on the session database
 - billing-conductor: AWS Billing Conductor tools for AWS Proforma billing (billing groups and associated accounts and cost reports, pricing rules/plans, custom line items)
-- billing-view: AWS Billing View tools for managing and querying billing views (get-billing-view, list-billing-views, list-source-views-for-billing-view, get-resource-policy)
+- billing-view: AWS Billing View tools for managing and querying billing views (get-billing-view, list-billing-views, list-source-views-for-billing-view, get-resource-policy, list-billing-view-segments)
 - cost-allocation-tags: List cost allocation tags and backfill history (list-cost-allocation-tags, list-cost-allocation-tag-backfill-history)
 - cost-category: Describe and list cost category definitions (describe-cost-category-definition, list-cost-category-definitions)
 - invoicing: AWS Invoicing data — invoice summaries with amounts, tax, discounts/fees, currency/FX, due dates, PO numbers, and credit memos (operation: list_invoice_summaries)
@@ -299,6 +299,7 @@ def setup():
         'list-cost-category-definitions',
         'invoicing',
         'get-billing-preferences',
+        'list-billing-view-segments',
     ]
     for tool in tools:
         logger.info(f'- {tool}')

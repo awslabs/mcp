@@ -338,7 +338,6 @@ async def search_table(
     - tables_searched: Number of tables searched
     - tables_with_matches: Number of tables containing matching rows
     - hint: Guidance message when no matches found, section not found, or no tables on page
-    - error: Error message on HTTP/transport failures only
     - results: Array of table result objects, each with:
         - table_heading: The sub-heading above the table (if any)
         - columns: Column headers for that table

@@ -28,6 +28,12 @@ from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     LogLevel,
     log_with_request_id,
 )
+from awslabs.aws_dataprocessing_mcp_server.utils.sensitive_data_filter import (
+    EMR_STEP_FIELDS,
+    filter_record,
+    filter_records,
+    redaction_notice,
+)
 from mcp.server.mcpserver import Context
 from mcp.types import CallToolResult, TextContent
 from pydantic import Field
@@ -59,7 +65,7 @@ class EMREc2StepsHandler:
         operation: Annotated[
             str,
             Field(
-                description='Operation to perform: add-steps, cancel-steps, describe-step, list-steps. Choose read-only operations when write access is disabled.',
+                description='Operation to perform: add-steps, cancel-steps, describe-step, list-steps. Choose read-only operations when write access is disabled. (step arguments and failure text require --allow-sensitive-data-access)',
             ),
         ],
         cluster_id: Annotated[
@@ -113,13 +119,14 @@ class EMREc2StepsHandler:
 
         ## Requirements
         - The server must be run with the `--allow-write` flag for add-steps and cancel-steps operations
+        - The server must be run with the `--allow-sensitive-data-access` flag to receive step arguments (Config.Args, Config.Properties) and failure text (Status.StateChangeReason.Message, Status.FailureDetails) from describe-step and list-steps. Without it these fields are omitted from the response and named in the response message
         - Appropriate AWS permissions for EMR step operations
 
         ## Operations
         - **add-steps**: Add new steps to a running EMR cluster (max 256 steps per job flow)
         - **cancel-steps**: Cancel pending or running steps on an EMR cluster (EMR 4.8.0+ except 5.0.0)
-        - **describe-step**: Get detailed information about a specific step's configuration and status
-        - **list-steps**: List and filter steps for an EMR cluster with pagination support
+        - **describe-step**: Get detailed information about a specific step's configuration and status (step arguments and failure text require --allow-sensitive-data-access)
+        - **list-steps**: List and filter steps for an EMR cluster with pagination support (step arguments and failure text require --allow-sensitive-data-access)
 
         ## Usage Tips
         - Each step consists of a JAR file, its main class, and arguments
@@ -300,28 +307,27 @@ class EMREc2StepsHandler:
                 if step_id is None:
                     raise ValueError('step_id is required for describe-step operation')
 
-                # SECURITY: Step details may contain sensitive data in arguments, configurations, and error messages
-                # Require --allow-sensitive-data-access flag to prevent unauthorized data exposure
-                if not self.allow_sensitive_data_access:
-                    error_message = 'Operation describe-step may contain sensitive data in step arguments and error messages, and requires --allow-sensitive-data-access flag'
-                    log_with_request_id(ctx, LogLevel.ERROR, error_message)
-                    return CallToolResult(
-                        isError=True,
-                        content=[TextContent(type='text', text=error_message)],
-                    )
-
                 # Describe step
                 response = self.emr_client.describe_step(
                     ClusterId=cluster_id,
                     StepId=step_id,
                 )
 
+                step = response.get('Step', {})
                 success_message = (
                     f'Successfully described step {step_id} on EMR cluster {cluster_id}'
                 )
+
+                if not self.allow_sensitive_data_access:
+                    step, omitted = filter_record(step, EMR_STEP_FIELDS)
+                    notice = redaction_notice('describe-step', omitted)
+                    if notice:
+                        log_with_request_id(ctx, LogLevel.INFO, notice)
+                        success_message = f'{success_message}. {notice}'
+
                 data = DescribeStepData(
                     cluster_id=cluster_id,
-                    step=response.get('Step', {}),
+                    step=step,
                     operation='describe-step',
                 )
 
@@ -354,6 +360,15 @@ class EMREc2StepsHandler:
                 response = self.emr_client.list_steps(**params)
                 steps = response.get('Steps', [])
                 success_message = f'Successfully listed steps for EMR cluster {cluster_id}'
+
+                # StepSummary carries the same fields as describe-step's Step record.
+                if not self.allow_sensitive_data_access:
+                    steps, omitted = filter_records(steps or [], EMR_STEP_FIELDS)
+                    notice = redaction_notice('list-steps', omitted)
+                    if notice:
+                        log_with_request_id(ctx, LogLevel.INFO, notice)
+                        success_message = f'{success_message}. {notice}'
+
                 data = ListStepsData(
                     cluster_id=cluster_id,
                     steps=steps or [],

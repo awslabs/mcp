@@ -159,7 +159,7 @@ PRIMARY KEY, UNIQUE, FOREIGN KEY, NOT NULL, CHECK, DEFAULT (CREATE TABLE or dire
 Verify current limits via `awsknowledge`: `aurora dsql transaction limits`
 
 ```
-Rows: 3,000 max
+Row modifications: 3,000 max
 Size: 10 MiB max
 Duration: 5 minutes max
 Isolation: Repeatable Read (fixed)

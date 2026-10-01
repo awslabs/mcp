@@ -33,7 +33,7 @@ DELETE FROM owner WHERE city = 'Portland';
 
 **Transaction Limits** (verify current limits via `awsknowledge`: `aurora dsql transaction limits`)**:**
 
-- Maximum 3,000 rows per transaction
+- Maximum 3,000 row modifications per transaction
 - Maximum 10 MiB data size per transaction
 - Maximum 5 minutes per transaction
 

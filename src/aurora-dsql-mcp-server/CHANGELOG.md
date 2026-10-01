@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Add a subsequent `pglast` policy layer after the existing SQL heuristics, so function and read-only checks use PostgreSQL-decoded quoted and Unicode-escaped identifiers. The parser guard matches psycopg parameter handling and supports Aurora DSQL asynchronous DDL and AWS IAM syntax during validation.
 - Close read-only bypasses in `readonly_query` / `transact` (read-only mode), aligning the SQL classifier with the `postgres-mcp-server` sibling:
   - Detect Postgres session-state mutation that a `BEGIN TRANSACTION READ ONLY` does not block, using a broad keyword approach matched at statement start (mirroring the sibling) rather than an assignment-shape regex: assignment `SET <name> = ...` / `... TO ...`, keyword-syntax `SET ROLE` / `SET SESSION AUTHORIZATION` / `SET SCHEMA` / `SET NAMES`, the session commands `RESET` / `DISCARD` / `LISTEN` / `NOTIFY` / `UNLISTEN` / `LOCK` / `EXECUTE`, prepared-statement / cursor commands `PREPARE` / `DEALLOCATE` / `DECLARE ... CURSOR` (session-scoped, not cleared by `RESET ALL`), and the `set_config(...)` function form (including when embedded as a `SELECT` subquery). `SET TRANSACTION READ ONLY` / isolation-only remains allowed so read-only mode can be asserted, but `SET TRANSACTION ... READ WRITE` (an escalation) is blocked, including when split across a newline.
   - Normalize SQL (strip comments, unwrap double-quoted identifiers) before matching so comment-injection payloads like `SET/**/search_path = ...` can no longer slip past the classifier. This replaces the earlier `sqlparse`-based comment stripping with a self-contained, literal- and dollar-quote-aware normalizer (matching the `postgres-mcp-server` sibling), removing the `sqlparse` dependency.
@@ -39,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Update `SELECT FOR UPDATE` guidance for non-key predicates and joined tables, locking-clause-targeted OCC conflict checks, supported lock clauses, targeted-row primary-key accounting toward the 10 MiB transaction-size limit, and whole-transaction SQLSTATE `40001` retries.
 - Update DSQL steering for PostgreSQL-compatible explicit `NUMERIC(p,s)` bounds: precision 1–1000 and scale -1000–1000, including negative scales and scales greater than precision. Bare `NUMERIC` defaults to `NUMERIC(18,6)`.
 - Bump `dsql-lint` dependency to `>=0.2.1,<0.3` and lock to `0.2.6`. `0.2.6` accepts both `JSON` and `JSONB` as stored column types (earlier 0.2.x versions rewrote `JSONB` → `JSON`).
 - Steering, skill, and migration guides updated:
