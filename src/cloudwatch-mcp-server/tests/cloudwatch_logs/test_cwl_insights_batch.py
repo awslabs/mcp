@@ -336,6 +336,48 @@ class TestMultiRegionQuery:
         assert result.summary.re_chunked >= 1
         assert len(result.summary.warnings) > 0
 
+    async def test_no_rechunk_when_many_events_matched_but_few_rows_returned(self, ctx):
+        """An aggregation query must not split just because it matched many events.
+
+        Splitting an aggregation re-runs it over each half of the time range, so the
+        merged output holds one partial row per half instead of one row per group.
+        """
+        client = MagicMock()
+        client.start_query.return_value = {'queryId': 'qid-agg'}
+        client.stop_query.return_value = {}
+        client.get_query_results.return_value = {
+            'status': 'Complete',
+            'results': [
+                [
+                    {'field': 'bin', 'value': f'2025-01-01T0{i}:00:00Z'},
+                    {'field': 'errors', 'value': '100'},
+                ]
+                for i in range(3)
+            ],
+            'statistics': {'recordsMatched': 50_000.0, 'recordsScanned': 200_000.0},
+        }
+
+        with patch(
+            'awslabs.cloudwatch_mcp_server.cloudwatch_logs.cwl_insights_batch.get_aws_client',
+            return_value=client,
+        ):
+            result = await execute_cwl_insights_batch(
+                ctx,
+                log_group_names=['/aws/test/g1'],
+                regions=['us-east-1'],
+                start_time='2025-01-01T00:00:00+00:00',
+                end_time='2025-01-01T03:00:00+00:00',
+                query_string='filter @message like /ERROR/ | stats count(*) as errors by bin(1h)',
+                max_timeout=10,
+            )
+
+        assert client.start_query.call_count == 1
+        assert result.summary.re_chunked == 0
+        assert result.summary.successful_chunks == 1
+        assert len(result.results) == 3
+        # One row per bin, no duplicated bins from re-run halves.
+        assert len({row['bin'] for row in result.results}) == 3
+
     async def test_rechunk_on_timeout(self, ctx):
         """When a chunk times out, it should split the time range."""
         client = MagicMock()
@@ -586,14 +628,26 @@ class TestHitOutputLimit:
         """Below limit returns False."""
         assert _hit_output_limit({'statistics': {'recordsMatched': 100}, 'results': []}) is False
 
-    def test_at_limit_via_stats(self):
-        """At limit via stats returns True."""
-        assert _hit_output_limit({'statistics': {'recordsMatched': 10_000}, 'results': []}) is True
+    def test_high_records_matched_with_few_rows(self):
+        """A high recordsMatched with few rows returned is not a hit.
 
-    def test_at_limit_via_results_fallback(self):
-        """At limit via results fallback returns True."""
+        recordsMatched counts the log events that matched the query string, not the rows
+        returned. This is the shape of any `stats ... by bin(1h)` over a busy log group.
+        """
+        rows = [{'bin': f'0{i}:00', 'errors': '100'} for i in range(3)]
+        result = {'statistics': {'recordsMatched': 50_000.0}, 'results': rows}
+        assert _hit_output_limit(result) is False
+
+    def test_at_limit_via_row_count(self):
+        """Returning the maximum number of rows is a hit."""
         rows = [{'m': 'x'}] * 10_000
         assert _hit_output_limit({'statistics': {}, 'results': rows}) is True
+
+    def test_at_limit_via_row_count_with_statistics_present(self):
+        """The row count decides even when statistics are present."""
+        rows = [{'m': 'x'}] * 10_000
+        stats = {'recordsMatched': 10_000.0}
+        assert _hit_output_limit({'statistics': stats, 'results': rows}) is True
 
     def test_empty(self):
         """Empty results returns False."""
