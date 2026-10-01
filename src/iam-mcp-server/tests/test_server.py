@@ -1842,6 +1842,11 @@ async def test_inline_policy_allows_scoped_not_action_not_resource(stmt):
         {'Effect': 'Allow', 'Action': '*', 'Resource': 'arn:aws:iam::123456789012:role/*'},
         # NotAction that doesn't exclude the escalation actions, on every role.
         {'Effect': 'Allow', 'NotAction': 's3:*', 'Resource': 'arn:aws:iam::123:role/*'},
+        {
+            'Effect': 'Allow',
+            'NotAction': ['s3:*', 'iam:CreateAccessKey'],
+            'Resource': 'arn:aws:iam::123:role/*',
+        },
         # Escalation action with NotResource.
         {'Effect': 'Allow', 'Action': 'iam:UpdateAssumeRolePolicy', 'NotResource': 'x'},
     ],
@@ -1897,6 +1902,11 @@ async def test_inline_policy_rejects_privilege_escalation_actions(tool_name, stm
         {'Effect': 'Allow', 'Action': ['iam:Get*', 'iam:List*'], 'Resource': '*'},
         # NotAction excluding all of IAM, on role ARNs, grants nothing that escalates.
         {'Effect': 'Allow', 'NotAction': 'iam:*', 'Resource': 'arn:aws:iam::123:role/*'},
+        {
+            'Effect': 'Allow',
+            'NotAction': ['iam:*', 'sts:*'],
+            'Resource': 'arn:aws:iam::123:role/*',
+        },
         {'Effect': 'Deny', 'Action': 'iam:CreateAccessKey', 'Resource': '*'},
     ],
 )

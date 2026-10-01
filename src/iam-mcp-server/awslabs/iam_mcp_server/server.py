@@ -112,6 +112,11 @@ PRIVILEGE_ESCALATION_ACTIONS = frozenset(
 )
 
 
+def _as_list(value: Any) -> Any:
+    """Normalize a policy element that may be a single string or a list of strings."""
+    return [value] if isinstance(value, str) else value
+
+
 def _matching_privilege_escalation_actions(patterns: List[str]) -> set:
     """Return the privilege-escalation actions matched by the given action patterns.
 
@@ -152,12 +157,8 @@ def _check_wildcard_policy(policy_document: str) -> None:
     for stmt in statements:
         if stmt.get('Effect') != 'Allow':
             continue
-        actions = stmt.get('Action', [])
-        resources = stmt.get('Resource', [])
-        if isinstance(actions, str):
-            actions = [actions]
-        if isinstance(resources, str):
-            resources = [resources]
+        actions = _as_list(stmt.get('Action', []))
+        resources = _as_list(stmt.get('Resource', []))
 
         has_broad_action = 'NotAction' in stmt or any(
             a == '*' or _SERVICE_WILDCARD_RE.match(a) for a in actions
@@ -175,11 +176,8 @@ def _check_wildcard_policy(policy_document: str) -> None:
             )
 
         if 'NotAction' in stmt:
-            not_actions = stmt['NotAction']
-            if isinstance(not_actions, str):
-                not_actions = [not_actions]
             escalation_actions = PRIVILEGE_ESCALATION_ACTIONS - (
-                _matching_privilege_escalation_actions(not_actions)
+                _matching_privilege_escalation_actions(_as_list(stmt['NotAction']))
             )
         else:
             escalation_actions = _matching_privilege_escalation_actions(actions)
