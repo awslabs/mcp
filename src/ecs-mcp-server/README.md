@@ -1,10 +1,10 @@
+> **⚠️ DEPRECATION NOTICE**: The local Amazon ECS MCP Server is deprecated and will be archived; it no longer receives updates. Migrate to the [Agent Toolkit for AWS](https://docs.aws.amazon.com/agent-toolkit/latest/userguide/what-is-agent-toolkit.html) — it bundles the AWS MCP Server and a curated set of agent skills, including the `aws-containers` skill for ECS. See the [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-ecs.md).
+
 # Amazon ECS MCP Server
 
 [![PyPI version](https://img.shields.io/pypi/v/awslabs.ecs-mcp-server.svg)](https://pypi.org/project/awslabs.ecs-mcp-server/)
 
 An MCP server for containerizing applications, deploying applications to Amazon Elastic Container Service (ECS), troubleshooting ECS deployments, and managing ECS resources. This server enables AI assistants to help users with the full lifecycle of containerized applications on AWS.
-
-> **Note:** AWS offers a fully managed Amazon ECS MCP server that provides enterprise-grade capabilities including automatic updates, centralized security through IAM integration, comprehensive audit logging via CloudTrail, and the proven scalability and reliability of AWS. The managed service eliminates the need for local installation and maintenance. [Learn more about the managed Amazon ECS MCP server](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-mcp-introduction.html).
 
 ## Features
 
@@ -27,15 +27,7 @@ Customers can list and view their ECS resources (clusters, services, tasks, task
 
 ## Installation
 
-### Option 1 (Recommended): Hosted MCP Server
-
-Use the AWS-managed ECS MCP Server for simplified setup and automatic updates. The hosted service eliminates local installation requirements and provides enterprise-grade security through AWS IAM integration.
-
-For complete setup instructions, configuration examples, and IAM permissions, see the [Amazon ECS MCP Server documentation](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-mcp-getting-started.html).
-
-### Option 2: Local MCP Server (Legacy)
-
-> **Note**: This is the legacy local installation method that will no longer receive updates. We recommend using [Option 1 (Hosted MCP Server)](#option-1-recommended-hosted-mcp-server) instead.
+> **Note**: This local server is deprecated and will be archived; it no longer receives updates. See the [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-ecs.md) to move to the [Agent Toolkit for AWS](https://docs.aws.amazon.com/agent-toolkit/latest/userguide/what-is-agent-toolkit.html) (AWS MCP Server + the `aws-containers` skill). The installation steps below remain for existing users only.
 
 #### Prerequisites
 
@@ -221,36 +213,7 @@ If running from a local repository, configure the MCP client like this:
 
 ## Updating the MCP Server
 
-The ECS MCP Server is regularly updated with new features, bug fixes, and improvements. Here's how to get the latest updates:
-
-### Automatic Updates (Default Behavior)
-
-If you installed via PyPI (recommended), updates are automatic:
-
-- **PyPI Installation**: The MCP client automatically downloads the latest version when the server is restarted
-- **No action required**: Simply restart your MCP client to get the latest updates
-
-### Manual Updates
-
-If you want to manually update to ensure you have the latest version:
-
-```bash
-uv pip install --upgrade awslabs.ecs-mcp-server
-```
-
-### Local Repository Updates
-
-If you're running from a cloned repository, update by pulling the latest changes:
-
-```bash
-# Navigate to your cloned repository
-cd /path/to/mcp
-
-# Pull the latest changes
-git pull origin main
-
-# The MCP server will automatically use the updated code on next restart
-```
+> **Note**: This server is deprecated and will be archived. It no longer receives feature or bug-fix updates; the PyPI package remains available for existing users but is unmaintained. See the [migration guide](https://github.com/awslabs/mcp/blob/main/docs/migration-ecs.md) to move to the [Agent Toolkit for AWS](https://docs.aws.amazon.com/agent-toolkit/latest/userguide/what-is-agent-toolkit.html).
 
 ## Security Controls
 
