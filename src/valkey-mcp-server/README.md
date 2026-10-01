@@ -56,7 +56,7 @@ This MCP server provides 12 purpose-built tools for AI agents working with Valke
    - **Bedrock** (default): Requires AWS credentials — `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, `AWS_PROFILE`, or an IAM role. Without credentials, semantic search will fail with a `NoCredentialsError`.
    - **OpenAI**: Requires `OPENAI_API_KEY`
    - **Ollama**: Requires a running Ollama instance (no credentials needed)
-5. For Amazon ElastiCache/MemoryDB connection instructions, see [ELASTICACHECONNECT.md](https://github.com/awslabs/mcp/blob/main/src/valkey-mcp-server/ELASTICACHECONNECT.md).
+5. For Amazon ElastiCache/MemoryDB connection instructions, see [ELASTICACHECONNECT.md](https://github.com/awslabs/mcp/blob/main/src/valkey-mcp-server/ELASTICACHECONNECT.md). ElastiCache Serverless caches with a **public endpoint** need no EC2 jump host or tunnel: set `VALKEY_IAM_AUTH=true` and connect directly over the internet with IAM authentication.
 
 ## Quickstart
 
@@ -239,14 +239,20 @@ docker run -p 8080:8080 \
 |----------|-------------|---------|
 | `VALKEY_HOST` | Valkey hostname or IP | `127.0.0.1` |
 | `VALKEY_PORT` | Valkey port | `6379` |
-| `VALKEY_USERNAME` | Username for authentication | `None` |
-| `VALKEY_PWD` | Password for authentication (note: not `VALKEY_PASSWORD`) | `""` |
-| `VALKEY_USE_SSL` | Enable TLS | `false` |
+| `VALKEY_USERNAME` | Username for authentication (the IAM-enabled user with IAM auth) | `None` |
+| `VALKEY_PWD` | Password for authentication (note: not `VALKEY_PASSWORD`); ignored with IAM auth | `""` |
+| `VALKEY_USE_SSL` | Enable TLS (forced on with IAM auth) | `false` |
 | `VALKEY_SSL_CA_CERTS` | Path to CA certificate (PEM) for TLS verification | `None` |
 | `VALKEY_CLUSTER_MODE` | Enable cluster mode | `false` |
+| `VALKEY_IAM_AUTH` | Use Amazon ElastiCache IAM authentication instead of a password | `false` |
+| `VALKEY_CACHE_NAME` | ElastiCache cache name for IAM auth (not the endpoint hostname) | `None` |
+| `AWS_REGION` | Region of the cache for IAM auth; also used by Bedrock | `None` |
 | `VALKEY_VECTOR_ALGORITHM` | Default vector index algorithm (`HNSW` or `FLAT`) | `HNSW` |
 | `VALKEY_VECTOR_DISTANCE_METRIC` | Default vector distance metric (`COSINE`, `L2`, or `IP`) | `COSINE` |
 | `VALKEY_ADMIN_ENABLED` | Enable admin tier (destructive commands) | `false` |
+| `VALKEY_GLIDE_LOG_LEVEL` | GLIDE core log level (`ERROR`, `WARN`, `INFO`, `DEBUG`, `TRACE`, `OFF`) | `WARN` |
+
+**IAM authentication** (required for ElastiCache Serverless caches with a public endpoint): set `VALKEY_IAM_AUTH=true`, `VALKEY_USERNAME` (e.g. `default.iam-user`), `VALKEY_CACHE_NAME`, and `AWS_REGION` (falls back to `AWS_DEFAULT_REGION`, then the AWS config chain). GLIDE generates the IAM auth token from the default AWS credential chain and refreshes it automatically; TLS is enabled automatically and `VALKEY_PWD` is ignored. See [ELASTICACHECONNECT.md](https://github.com/awslabs/mcp/blob/main/src/valkey-mcp-server/ELASTICACHECONNECT.md).
 
 ### Embeddings Provider
 
@@ -310,6 +316,11 @@ Credentials via `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, `AWS_PROFILE`, or I
 | Docker: `Connection refused` to `127.0.0.1` | Container loopback is not the host | Use `VALKEY_HOST=host.docker.internal` (macOS/Windows) or `--network host` (Linux). |
 | `Request URL is missing 'http://'` | `OLLAMA_HOST` set without protocol | Include the protocol: `http://localhost:11434`, not just `localhost:11434`. |
 | No output from server | `FASTMCP_LOG_LEVEL=ERROR` suppresses info | Set `FASTMCP_LOG_LEVEL=INFO` or `DEBUG` for troubleshooting. |
+| `WRONGPASS` or authentication failure with `VALKEY_IAM_AUTH` | Wrong `VALKEY_USERNAME`, wrong or non-lowercase `VALKEY_CACHE_NAME`, missing `elasticache:Connect` permission, or expired temporary credentials | Check the username is in the cache's user group, `VALKEY_CACHE_NAME` is the cache name (not the hostname), the IAM principal has `elasticache:Connect` on both the cache ARN and the user ARN, and your AWS credentials are still valid. |
+| TLS handshake failure to a public endpoint | Something on the network path is downgrading or intercepting TLS; public endpoints accept TLS 1.3 only | GLIDE negotiates TLS 1.3 natively. Check for a proxy or TLS-inspecting device between the MCP server and the endpoint. |
+| `ERR IAM Authentication service is not available` or `ERR service is not available` | IAM auth temporarily unavailable, or IAM authentication rate limiting on new connections | Reduce the rate of new connections and retry with exponential backoff. If the rate is normal and the error persists, check the AWS Health Dashboard. |
+| `ERR Exceeded limit of IAM Authentication requests` | IAM authentication rate limit hit on an established connection | Reduce the rate of new connections and re-authentications; retry with exponential backoff. |
+| Connection timeout to an ElastiCache public endpoint | Wrong endpoint address, or outbound TCP 6379 blocked | Verify `Endpoint.Address` from the console or CLI and that your network allows outbound TCP 6379. |
 
 ### Tool Name Collisions
 
