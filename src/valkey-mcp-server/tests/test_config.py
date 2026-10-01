@@ -30,6 +30,43 @@ class TestValkeyConfig:
             assert cfg_mod.VALKEY_CFG['cluster_mode'] is False
             assert cfg_mod.VALKEY_CFG['password'] == ''
             assert cfg_mod.VALKEY_CFG['username'] is None
+            assert cfg_mod.VALKEY_CFG['iam_auth'] is False
+            assert cfg_mod.VALKEY_CFG['cache_name'] is None
+            assert cfg_mod.VALKEY_CFG['region'] is None
+
+    def test_iam_auth_env(self):
+        env = {
+            'VALKEY_IAM_AUTH': 'true',
+            'VALKEY_CACHE_NAME': 'my-cache',
+            'VALKEY_USERNAME': 'default.iam-user',
+            'AWS_REGION': 'us-east-1',
+        }
+        with patch.dict('os.environ', env, clear=True):
+            import awslabs.valkey_mcp_server.common.config as cfg_mod
+            from importlib import reload
+
+            reload(cfg_mod)
+            assert cfg_mod.VALKEY_CFG['iam_auth'] is True
+            assert cfg_mod.VALKEY_CFG['cache_name'] == 'my-cache'
+            assert cfg_mod.VALKEY_CFG['username'] == 'default.iam-user'
+            assert cfg_mod.VALKEY_CFG['region'] == 'us-east-1'
+
+    def test_iam_auth_is_case_insensitive(self):
+        for value, expected in (('TRUE', True), ('True', True), ('1', True), ('false', False)):
+            with patch.dict('os.environ', {'VALKEY_IAM_AUTH': value}, clear=True):
+                import awslabs.valkey_mcp_server.common.config as cfg_mod
+                from importlib import reload
+
+                reload(cfg_mod)
+                assert cfg_mod.VALKEY_CFG['iam_auth'] is expected, value
+
+    def test_region_falls_back_to_aws_default_region(self):
+        with patch.dict('os.environ', {'AWS_DEFAULT_REGION': 'eu-west-1'}, clear=True):
+            import awslabs.valkey_mcp_server.common.config as cfg_mod
+            from importlib import reload
+
+            reload(cfg_mod)
+            assert cfg_mod.VALKEY_CFG['region'] == 'eu-west-1'
 
     def test_env_overrides(self):
         env = {

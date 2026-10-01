@@ -33,6 +33,13 @@ VALKEY_CFG = {
     'vector_algorithm': os.getenv('VALKEY_VECTOR_ALGORITHM', 'HNSW').upper(),
     'vector_distance_metric': os.getenv('VALKEY_VECTOR_DISTANCE_METRIC', 'COSINE').upper(),
     'glide_log_level': os.getenv('VALKEY_GLIDE_LOG_LEVEL', 'WARN').upper(),
+    # IAM authentication for Amazon ElastiCache (required for serverless caches with a
+    # public endpoint). Opt-in: when VALKEY_IAM_AUTH is true, GLIDE generates and refreshes
+    # the IAM auth token itself, TLS is forced on, VALKEY_USERNAME must be the IAM-enabled
+    # user id, and VALKEY_CACHE_NAME must be the ElastiCache cache name the token is signed for.
+    'iam_auth': os.getenv('VALKEY_IAM_AUTH', '').lower() in ('true', '1', 't'),
+    'cache_name': os.getenv('VALKEY_CACHE_NAME', None),
+    'region': os.getenv('AWS_REGION') or os.getenv('AWS_DEFAULT_REGION') or None,
 }
 
 
