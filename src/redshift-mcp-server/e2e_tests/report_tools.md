@@ -1,12 +1,12 @@
 # End-to-end test: Every tool, both warehouse types
 
-2026-09-26 00:17 UTC
+2026-10-01 22:09 UTC
 
 - **Scenario**: `tools`
-- **Code under test**: `feat/redshift-session-redesign` at `6f2ec534`, uncommitted changes
+- **Code under test**: `feat/redshift-session-redesign` at `aa1073db`
 - **Agent**: `kiro-cli`, model `claude-opus-5`
 - **Exit status**: `0`
-- **Duration**: 9.1 min
+- **Duration**: 14.4 min
 - **Region**: `us-east-1`
 - **Provisioned**: `mcp-e2e-provisioned`, ra3.large x2
 - **Serverless**: `mcp-e2e-serverless`, 8 RPU
@@ -16,19 +16,23 @@
 
 | Scenario | Result | Comment |
 |---|---|---|
-| list_clusters | PASS | Both harness warehouses found with correct type, status and tags; also works on denied-batch credentials, which do not use the Data API. |
-| list_databases | PASS | Identical on both warehouses: `dev` as local, three auto-mounted catalogs. |
-| list_schemas | PASS | Four schemas on both, `tickit` among them. An auto-mounted catalog fails with Redshift's refusal to connect, as documented. |
-| list_tables | PASS | Same seven TICKIT tables on both; unknown schema returns an empty list. |
-| list_columns | PASS | Same ten `sales` columns and types on both; unknown table returns an empty list. |
-| execute_query | PASS | Reads, typing, row cap, read-only guard, transaction breaker, named transactions, write confirmation, denied-batch fallback and failed user SQL all behaved as documented. |
-| review_cluster | PASS | 48 signals / 12 findings provisioned; 32 signals / 3 findings serverless, with provisioned-only diagnostics skipped and `ServerlessScaling` run instead. |
+| list_clusters | PASS | Both harness warehouses listed as `available` with correct type, node type and tags; unrelated clusters in the account listed but untouched. Also works under the denied-batch fallback, which uses the control plane rather than the Data API. |
+| list_databases | PASS | Identical on both warehouses: `dev` as `local`, three `auto mounted catalog` entries. Also passes under the denied-batch fallback. |
+| list_schemas | PASS | `tickit`, `public`, `information_schema`, `pg_catalog` on both, with ACLs showing the grants to both database identities. Also passes under the denied-batch fallback. |
+| list_tables | PASS | Same 7 TICKIT tables on both warehouses. An unknown schema returns an empty list rather than an error. Also passes under the denied-batch fallback. |
+| list_columns | PASS | `tickit.sales` columns, types, precision/scale and nullability identical on both warehouses. An unknown table returns an empty list rather than an error. Also passes under the denied-batch fallback. |
+| execute_query | PASS | Reads, type mapping, the row cap, named transactions, read-only protection, the transaction breaker, write confirmation and failed-SQL behaviour all as documented, on both warehouses. Detail in the notes below. |
+| review_cluster | PASS | Provisioned: 48 signals, 12 findings, 11 queries. Serverless: 32 signals, 2 findings; provisioned-only diagnostics (`NodeDetails`, `WLMConfig`, `WorkloadEvaluation`, `CopyPerformance`) skipped and `ServerlessScaling` added. Identical result under the denied-batch fallback. |
 
-- Both warehouses hold identical seeded data (424,309 rows), and every check that held on one held on the other.
-- A `CREATE TABLE` in read-only mode is not deny-listed: it passes the guard and is stopped by `BEGIN READ ONLY` with `ERROR: transaction is read-only`. Verified nothing persisted.
-- A pre-send refusal leaves a named transaction open and usable; a refusal from a statement that ran releases it and discards what it staged. Both confirmed against row counts.
-- `rw_` write confirmation cannot complete a round trip from this CLI, which does not advertise MCP elicitation, so only the fail-closed branch was exercised; `rwu_` covered writes once allowed through.
-- Not exercised: SQL over the 65,536-character limit, and `review_cluster` on the denied-batch fallback.
+- SQL read-only protection (PASS): the guard refuses `TRUNCATE`, `UNLOAD`, `GRANT`, `VACUUM`, `SET`, `set_config`, `pg_terminate_backend` and `change_query_priority` before execution, naming the statement type. `INSERT`/`UPDATE`/`DELETE`/`DROP`/`CREATE` pass the guard and are neutralized by the engine with `ERROR: transaction is read-only`. Verified on both warehouses that neither layer changed any data or left a table behind.
+- Guard evasion attempts all refused (PASS): a mixed-case `tRuNcAtE` behind a leading semicolon was named as `TRUNCATE`; a nested-comment prefix was refused as unparseable; `SELECT 1; SELECT 2` was refused as multi-statement. Keyword text used as a literal or quoted alias, and `current_setting(...)`, remain allowed.
+- Transaction breaker (PASS): `BEGIN`, `COMMIT`, `ROLLBACK` and `START TRANSACTION` in `sql` are refused in every mode. In read-write modes the refusal names the four transaction parameters to use instead; in read-only mode the read-only guard reaches them first and refuses with its own message. `TRUNCATE` and `CALL` are refused inside a named transaction with an explanation, and run normally outside one.
+- Named transactions (PASS): held open across calls on a single session (`transaction_read_only` = `on` in read-only mode); rollback discarded a staged insert and commit persisted one; a temp table survived across calls inside a transaction but not outside one. A failing statement released the transaction and dropped its name; duplicate-open, wrong-target, multiple-parameter and missing-`sql` calls were each refused and left any open transaction as it was.
+- Failed user SQL (PASS): syntax errors, unknown relations and divide-by-zero come back as `Statement failed: ERROR: ...` with Redshift's own message and position intact. An unresolvable cluster identifier is refused before reaching the warehouse.
+- Row cap (PASS): 1001 rows was refused outright with guidance rather than truncated; 1000 rows came back whole across multiple result pages.
+- Write confirmation: `rwu_*` ran a full create/insert/update/delete/truncate/drop lifecycle on both warehouses, with results visible from the read-only server. `rw_*` fails closed on every write — including `SELECT INTO` and a data-modifying CTE, both correctly classified as writes — because this client does not advertise elicitation; the refusal names the `UNSAFE_SKIP_WRITE_CONFIRMATION` opt-out. A confirm-then-proceed and a decline round trip cannot be reached from this client and were not exercised.
+- Denied-batch fallback (PASS): reads and all catalogue tools work; writes and named transactions are refused with messages that name the missing `redshift-data:BatchExecuteStatement`, the 300-second window and what granting it restores. Under `nbw_*` (confirmation skipped) the fallback's own write refusal surfaces, including for `TRUNCATE`, which the read-write guard allows through.
+- Not exercised: the 65 KB `MAX_SQL_LEN` rejection, which is impractical to send through this client and is covered by the unit suite.
 
 ## Prompt
 
@@ -57,62 +61,24 @@ intelligible without the rest of the reply.
 
 ## Transcript
 
-I'll start by looking at the unit tests to understand what behaviours to cover.Cluster discovery works. Now catalog exploration on both warehouses.Catalog and reads agree across both warehouses. Now the read-only SQL guard.Now the read-write path, which needs actual writes on the harness warehouses.Read-only transaction, then the denied-batch fallback configurations.Cleaning up the probe tables I created.All seven tools exercised against both warehouses. Findings:
+I'll start by looking at the unit tests to understand what behaviours to cover.Let me pull scenario ideas from the unit tests and source.Both targets available. Now schema exploration on both warehouses.Catalogue surface matches on both. Now reads through `execute_query`, including type mapping.Now the read-only protection. First the statement types the guard refuses before execution.Now the writes the guard lets through in read-only mode, which the `READ ONLY` transaction must neutralize at the engine.Data intact. Now the transaction breaker: transaction control in `sql` must be refused in every mode.Now named transactions. A read-only transaction across several calls:Now failed user SQL, and what a failure does to an open transaction.Now the `rw_` configuration, where each write must be confirmed:`rw_` fails closed. Now `rwu_`, where writes run unconfirmed — a full write lifecycle:Now a read-write named transaction, to check rollback really discards and commit really persists.Now the documented session-state behaviour: a temp table needs a transaction to survive.Same write lifecycle on the Serverless workgroup:Now the denied-batch fallback path. Catalogue and reads under `nb_`:Pagination reads the whole result. Now `review_cluster` on both warehouses.`review_cluster` scopes correctly per type. Now under the denied-batch fallback:All checks complete. Seeded data is byte-identical on both warehouses after the run, and nothing I created was left behind (the one `public` table on Serverless, `mcp_demo_rows`, pre-dates this run).
 
-Catalog exploration is consistent across the two warehouses — same four databases (one local, three auto-mounted catalogs), same four schemas, the same seven TICKIT tables, the same ten `sales` columns with matching types. Row counts are identical on both: 424,309 rows total (users 49,990 / venue 202 / category 11 / date 365 / event 8,798 / listing 192,497 / sales 172,456). Unknown schemas and tables return empty lists rather than errors; an auto-mounted catalog is listed by `list_databases` but `list_schemas` on it fails with Redshift's own refusal to connect, as documented.
-
-Value typing matches the contract exactly: SMALLINT/INTEGER/BIGINT as integers, REAL/DOUBLE as floats, boolean as boolean, NULL as null, and DECIMAL, dates, times, timestamps and SUPER as strings. VARBYTE `'ab'` came back as `YWI=`, base64 as stated.
-
-The read-only guard refused UNLOAD, GRANT, VACUUM, TRUNCATE, SET, `set_config(...)` and PREPARE by name, and refused multi-statement input, comment-only input and unparseable SQL. A `CREATE TABLE` is not on the deny-list, so it passed the guard and was then stopped by the engine — `ERROR: transaction is read-only` — and `pg_tables` confirmed nothing was left behind. Deny-listed words used as quoted identifiers and string literals were not matched, so classification is structural rather than textual.
-
-The transaction breaker held at every configuration: COMMIT, ROLLBACK, BEGIN, START and ABORT were all refused as SQL. In read-only mode the refusal keeps the read-only wording; in read-write mode it names the four transaction parameters instead. `TRUNCATE` inside a named transaction was refused with its own explanation, and because that refusal happens before the statement is sent, the transaction stayed open and rolled back cleanly afterwards.
-
-Named transactions behaved correctly on both warehouses. A rollback on the provisioned cluster discarded its insert and freed the name; a two-statement commit on Serverless persisted both rows. A statement that failed while opening a transaction reported that the transaction was not opened; a statement that failed inside an open one released it, discarded the staged insert, and the name was then reported unknown with the full list of reasons it could be gone.
-
-Write confirmation fails closed as designed: `rw_` ran a read unconfirmed but refused `CREATE TABLE`, saying the client cannot prompt and naming `UNSAFE_SKIP_WRITE_CONFIRMATION` as the alternative. `rwu_` executed writes, DDL and DML directly.
-
-The denied-batch fallback served reads on both warehouses, against user tables and through the catalog tools, and its query IDs carry no batch-index suffix, which is how the path shows. It refused named transactions and refused writes even at read-write mode, each with the message that says when the denial was seen and when a grant takes effect. The read-only guard still applies on that path.
-
-`review_cluster` returned 48 signals and 12 findings on the provisioned cluster, and 32 signals and 3 findings on Serverless, where `NodeDetails`, `WLMConfig`, `WorkloadEvaluation` and `CopyPerformance` were skipped and `ServerlessScaling` ran instead — the provisioned-only skip works.
-
-The row cap refuses rather than truncates: 1,000 rows returned fine, 1,001 was refused with the count named. A 1,001-row result of 4 KB strings (about 4 MB, certainly several Data API pages) was counted to exactly 1,001, so paging is read to its end before the limit is applied.
-
-I created and dropped `public.e2e_probe` on both warehouses; both are back to their seeded state. The pre-existing `public.mcp_demo_rows` on Serverless is not mine and was left alone.
+A few things worth recording beyond the tool-by-tool result. The denied-batch fallback was verifiably in effect rather than silently falling back to the normal path: reads under `nb_*`/`nbw_*` returned `current_user` = `IAMR:mcp-e2e-denied-batch` and a bare `query_id` UUID, where the batch path returns `uuid:N`. And the read-only protection works in two distinct layers — the guard refuses `TRUNCATE`/`UNLOAD`/`GRANT`/`VACUUM`/`SET`/`set_config`/`pg_terminate_backend`/`change_query_priority` before execution, while `INSERT`/`UPDATE`/`DELETE`/`DROP`/`CREATE` pass the guard and are stopped by the engine with `ERROR: transaction is read-only`. I confirmed both leave the data untouched.
 
 [tool] Reading listing redshift-mcp-server
 
 [tool] status: Completed
 
+[tool] Running: grep -h "^\s*\(async \)\?def test" tests/test_sql_guard.py | sed 's/(.*//' | head -120
+
+[tool] status: Completed
+
+[tool] Running: for f in tests/test_transactions.py tests/test_catalog.py tests/test_server.py; do echo "=== $f"; grep -h "^\s*\(async \)\?def test" $f | sed 's/(.*//'; done
+
+[tool] status: Completed
+
 [tool] Running: @awslabs.redshift-mcp-server/list_clusters
 
-[tool] Reading sql_guard.py:1
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Running: grep -h '^\s*\(async \)\?def test' tests/test_sql_guard.py tests/test_transactions.py | sed 's/(.*//' | sed 's/^\s*//' | head -200
-
-[tool] Running: grep -h '^\s*\(async \)\?def test' tests/test_server.py tests/test_redshift.py tests/test_catalog.py tests/test_clusters.py | sed 's/(.*//' | sed 's/^\s*//' | wc -l; grep -h 'class Test' tests/test...
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Running: grep -n 'class TestTransactionsNeedTheBatch' -A 60 tests/test_redshift.py | head -80; echo ====; grep -n 'class TestCompatibilityPathRouting' -A 50 tests/test_redshift.py | head -60
-
-[tool] status: Completed
-
-[tool] Running: grep -n 'no_batch\|fallback' awslabs/redshift_mcp_server/redshift.py | grep -in 'refus\|cannot\|raise\|ToolError' | head -30
-
-[tool] status: Completed
-
-[tool] Running: grep -n 'Named transactions need\|takes effect within\|read-only cannot be guaranteed\|BatchExecuteStatement' awslabs/redshift_mcp_server/redshift.py | head -30
-
-[tool] status: Completed
-
-[tool] Reading redshift.py:89-118
-
 [tool] status: Completed
 
 [tool] Running: @awslabs.redshift-mcp-server/list_databases
@@ -161,26 +127,6 @@ I created and dropped `public.e2e_probe` on both warehouses; both are back to th
 
 [tool] Running: @awslabs.redshift-mcp-server/execute_query
 
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
-
-[tool] status: Completed
-
 [tool] status: Completed
 
 [tool] status: Completed
@@ -224,6 +170,46 @@ I created and dropped `public.e2e_probe` on both warehouses; both are back to th
 [tool] Running: @awslabs.redshift-mcp-server/execute_query
 
 [tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] status: Completed
+
+[tool] status: Completed
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] status: Completed
+
+[tool] status: Completed
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write/execute_query
 
 [tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
 
@@ -235,17 +221,69 @@ I created and dropped `public.e2e_probe` on both warehouses; both are back to th
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
 
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+[tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
 
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
 
 [tool] status: Completed
 
 [tool] status: Completed
+
+[tool] status: Completed
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] status: Completed
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
 
 [tool] status: Completed
 
@@ -255,13 +293,9 @@ I created and dropped `public.e2e_probe` on both warehouses; both are back to th
 
 [tool] Running: @awslabs.redshift-mcp-server-read-write/execute_query
 
-[tool] status: Completed
+[tool] Running: @awslabs.redshift-mcp-server-read-write/execute_query
 
 [tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
 
 [tool] status: Completed
 
@@ -283,11 +317,7 @@ I created and dropped `public.e2e_probe` on both warehouses; both are back to th
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] status: Completed
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
 
 [tool] status: Completed
 
@@ -300,26 +330,6 @@ I created and dropped `public.e2e_probe` on both warehouses; both are back to th
 [tool] status: Completed
 
 [tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] status: Completed
 
 [tool] status: Completed
 
@@ -331,19 +341,69 @@ I created and dropped `public.e2e_probe` on both warehouses; both are back to th
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+
+[tool] status: Completed
 
 [tool] Running: @awslabs.redshift-mcp-server-no-batch/list_tables
 
-[tool] status: Completed
-
-[tool] status: Completed
-
 [tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server-no-batch-write/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server-no-batch-write/execute_query
 
 [tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
 
@@ -353,23 +413,49 @@ I created and dropped `public.e2e_probe` on both warehouses; both are back to th
 
 [tool] status: Completed
 
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/execute_query
+
 [tool] status: Completed
 
-[tool] Running: grep -n 'MAX_RESULT_ROWS\|MAX_SQL_LEN' awslabs/redshift_mcp_server/consts.py
+[tool] status: Completed
+
+[tool] status: Completed
 
 [tool] Running: @awslabs.redshift-mcp-server-no-batch-write/execute_query
 
+[tool] Running: @awslabs.redshift-mcp-server-no-batch-write/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch-write/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch-write/list_columns
+
+[tool] status: Completed
+
 [tool] status: Completed
 
 [tool] status: Completed
 
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
+[tool] status: Completed
 
 [tool] Running: @awslabs.redshift-mcp-server/execute_query
 
 [tool] Running: @awslabs.redshift-mcp-server/execute_query
 
 [tool] status: Completed
+
+[tool] status: Completed
+
+[tool] Running: grep -rn "MAX_RESULT_ROWS\|max_result_rows" awslabs/redshift_mcp_server/consts.py awslabs/redshift_mcp_server/settings.py e2e_tests/agent.py 2>/dev/null | head -20
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
 
 [tool] status: Completed
 
@@ -384,24 +470,32 @@ I created and dropped `public.e2e_probe` on both warehouses; both are back to th
 [tool] status: Completed
 
 [tool] Running: @awslabs.redshift-mcp-server/review_cluster
+
+[tool] status: Completed
+
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/review_cluster
+
+[tool] status: Completed
+
+[tool] Running: grep -n "LENGTH\|DEPTH\|NEST" awslabs/redshift_mcp_server/consts.py
+
+[tool] status: Completed
+
+[tool] Running: grep -n "MAX_SQL\|max_sql\|too long\|oversiz\|depth\|recursion" awslabs/redshift_mcp_server/sql_guard.py | head -20
+
+[tool] status: Completed
+
+[tool] Running: grep -n "MAX_SQL_LEN" -A2 -B2 awslabs/redshift_mcp_server/consts.py
 
 [tool] status: Completed
 
 [tool] Running: @awslabs.redshift-mcp-server-no-batch/list_clusters
 
-[tool] Running: @awslabs.redshift-mcp-server/execute_query
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/list_databases
 
-[tool] Running: @awslabs.redshift-mcp-server/list_schemas
-
-[tool] status: Completed
+[tool] Running: @awslabs.redshift-mcp-server-no-batch/list_schemas
 
 [tool] status: Completed
-
-[tool] status: Completed
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
-
-[tool] Running: @awslabs.redshift-mcp-server-read-write-unsafe/execute_query
 
 [tool] status: Completed
 
@@ -409,7 +503,27 @@ I created and dropped `public.e2e_probe` on both warehouses; both are back to th
 
 [tool] Running: @awslabs.redshift-mcp-server/execute_query
 
+[tool] Running: @awslabs.redshift-mcp-server-read-write/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server-read-write/execute_query
+
+[tool] status: Completed
+
+[tool] status: Completed
+
+[tool] status: Completed
+
+[tool] status: Completed
+
 [tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] Running: @awslabs.redshift-mcp-server/execute_query
+
+[tool] status: Completed
 
 [tool] status: Completed
 
