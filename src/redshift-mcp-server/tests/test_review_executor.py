@@ -33,11 +33,11 @@ async def test_a_review_runs_every_query_scoped_to_all(cluster_type):
     async def run(**kwargs):
         return {'rows': []}
 
-    async def resolve(identifier, requested_type=None, fresh=False):
-        # Resolved to the parametrized type, whatever the caller named.
+    async def resolve(identifier, requested_type, fresh=False):
+        assert requested_type == cluster_type
         return _fake_cluster(type=cluster_type)
 
-    result = await review_cluster('c', run, resolve)
+    result = await review_cluster('c', cluster_type, run, resolve)
 
     assert scoped_to_all <= set(result.queries_executed)
 
@@ -114,6 +114,7 @@ class TestServerlessExclusion:
 
         result = await review_cluster(
             cluster_identifier='test-cluster',
+            cluster_type='serverless',
             execute_query_func=execute_query_func,
             resolve_cluster_func=resolve_cluster_func,
         )
@@ -130,6 +131,7 @@ class TestServerlessExclusion:
 
         result = await review_cluster(
             cluster_identifier='test-cluster',
+            cluster_type='provisioned',
             execute_query_func=execute_query_func,
             resolve_cluster_func=resolve_cluster_func,
         )
@@ -145,6 +147,7 @@ class TestServerlessExclusion:
 
         result = await review_cluster(
             cluster_identifier='test-cluster',
+            cluster_type='provisioned',
             execute_query_func=execute_query_func,
             resolve_cluster_func=resolve_cluster_func,
         )
@@ -158,7 +161,7 @@ class TestServerlessExclusion:
 
 
 class TestClusterType:
-    """The type the caller gives reaches the resolver, and every query what it resolved."""
+    """The type the caller gives reaches the resolver and every query."""
 
     @pytest.mark.asyncio
     async def test_a_cluster_type_is_reviewed_as_that_type(self):
@@ -182,24 +185,26 @@ class TestClusterType:
         assert recorded
 
     @pytest.mark.asyncio
-    async def test_every_query_reaches_the_cluster_resolved(self):
-        """Addressed by the resolved identifier and type, so none can resolve to another."""
-        targets: list[tuple[str, str | None]] = []
+    @pytest.mark.parametrize('cluster_type', ['provisioned', 'serverless'])
+    async def test_every_query_carries_the_given_type(self, cluster_type):
+        """Each carries the review's identifier and type, so none reaches another warehouse."""
+        targets: list[tuple[str, str]] = []
 
         async def _execute(
-            cluster_identifier, database_name, sql, enforce_read_only=True, cluster_type=None
+            cluster_identifier, cluster_type, database_name, sql, enforce_read_only
         ):
             targets.append((cluster_identifier, cluster_type))
             return _make_empty_response()
 
         await review_cluster(
             cluster_identifier='test-cluster',
+            cluster_type=cluster_type,
             execute_query_func=_execute,
-            resolve_cluster_func=_make_resolve_cluster(),
+            resolve_cluster_func=_make_resolve_cluster(cluster_type=cluster_type),
         )
 
         assert targets
-        assert set(targets) == {('test-cluster', 'provisioned')}
+        assert set(targets) == {('test-cluster', cluster_type)}
 
 
 # ---------------------------------------------------------------------------
@@ -219,6 +224,7 @@ class TestSignalTriggered:
 
         result = await review_cluster(
             cluster_identifier='test-cluster',
+            cluster_type='provisioned',
             execute_query_func=execute_query_func,
             resolve_cluster_func=_make_resolve_cluster(),
         )
@@ -238,6 +244,7 @@ class TestSignalTriggered:
 
         result = await review_cluster(
             cluster_identifier='test-cluster',
+            cluster_type='provisioned',
             execute_query_func=execute_query_func,
             resolve_cluster_func=_make_resolve_cluster(),
         )
@@ -264,6 +271,7 @@ class TestPerBranchFindings:
 
         result = await review_cluster(
             cluster_identifier='test-cluster',
+            cluster_type='provisioned',
             execute_query_func=execute_query_func,
             resolve_cluster_func=_make_resolve_cluster(),
         )
@@ -298,6 +306,7 @@ class TestErrorPropagation:
         with pytest.raises(ToolError, match='Cluster missing-cluster not found'):
             await review_cluster(
                 cluster_identifier='missing-cluster',
+                cluster_type='provisioned',
                 execute_query_func=execute_query_func,
                 resolve_cluster_func=resolve_cluster_func,
             )
@@ -319,10 +328,12 @@ class TestErrorPropagation:
         with pytest.raises(ToolError, match='Listing serverless clusters was denied'):
             await review_cluster(
                 cluster_identifier='missing-cluster',
+                cluster_type='serverless',
                 execute_query_func=execute_query_func,
                 resolve_cluster_func=resolve_cluster_func,
             )
 
+        resolve_cluster_func.assert_awaited_once_with('missing-cluster', 'serverless', fresh=True)
         execute_query_func.assert_not_called()
 
     @pytest.mark.asyncio
@@ -341,6 +352,7 @@ class TestErrorPropagation:
         with pytest.raises(RuntimeError, match='table does not exist'):
             await review_cluster(
                 cluster_identifier='test-cluster',
+                cluster_type='provisioned',
                 execute_query_func=execute_query_func,
                 resolve_cluster_func=_make_resolve_cluster(),
             )
@@ -355,6 +367,7 @@ class TestErrorPropagation:
         with pytest.raises(ToolError, match='Review requires superuser or sys:monitor access'):
             await review_cluster(
                 cluster_identifier='test-cluster',
+                cluster_type='provisioned',
                 execute_query_func=execute_query_func,
                 resolve_cluster_func=_make_resolve_cluster(),
             )
@@ -377,6 +390,7 @@ class TestRecommendationDeduplication:
 
         result = await review_cluster(
             cluster_identifier='test-cluster',
+            cluster_type='provisioned',
             execute_query_func=execute_query_func,
             resolve_cluster_func=_make_resolve_cluster(),
         )
@@ -407,6 +421,7 @@ class TestRecommendationDeduplication:
 
         result = await review_cluster(
             cluster_identifier='test-cluster',
+            cluster_type='provisioned',
             execute_query_func=execute_query_func,
             resolve_cluster_func=_make_resolve_cluster(),
         )
@@ -439,6 +454,7 @@ class TestProgressReporting:
 
         result = await review_cluster(
             cluster_identifier='test-cluster',
+            cluster_type='provisioned',
             execute_query_func=execute_query_func,
             resolve_cluster_func=_make_resolve_cluster(),
             progress_reporter_func=mock_progress,
@@ -468,6 +484,7 @@ class TestFullPipeline:
 
         result = await review_cluster(
             cluster_identifier='test-cluster',
+            cluster_type='provisioned',
             execute_query_func=execute_query_func,
             resolve_cluster_func=_make_resolve_cluster(),
         )
@@ -486,6 +503,7 @@ class TestFullPipeline:
 
         result = await review_cluster(
             cluster_identifier='test-cluster',
+            cluster_type='provisioned',
             execute_query_func=execute_query_func,
             resolve_cluster_func=_make_resolve_cluster(),
         )
@@ -502,6 +520,7 @@ class TestFullPipeline:
 
         result = await review_cluster(
             cluster_identifier='test-cluster',
+            cluster_type='provisioned',
             execute_query_func=execute_query_func,
             resolve_cluster_func=_make_resolve_cluster(),
         )
@@ -525,6 +544,7 @@ class TestNodeTypeSubstitution:
 
         await review_cluster(
             cluster_identifier='test-cluster',
+            cluster_type='provisioned',
             execute_query_func=execute_query_func,
             resolve_cluster_func=_make_resolve_cluster(node_type='ra3.xlplus'),
         )
@@ -538,6 +558,7 @@ class TestNodeTypeSubstitution:
 
         await review_cluster(
             cluster_identifier='test-cluster',
+            cluster_type='provisioned',
             execute_query_func=execute_query_func,
             resolve_cluster_func=_make_resolve_cluster(node_type=None),
         )
@@ -551,6 +572,7 @@ class TestNodeTypeSubstitution:
 
         await review_cluster(
             cluster_identifier='test-cluster',
+            cluster_type='serverless',
             execute_query_func=execute_query_func,
             resolve_cluster_func=_make_resolve_cluster(cluster_type='serverless'),
         )
@@ -582,6 +604,7 @@ class TestSignalsEvaluatedCountsSignals:
 
         result = await review_cluster(
             cluster_identifier='test-cluster',
+            cluster_type='provisioned',
             execute_query_func=execute_query_func,
             resolve_cluster_func=_make_resolve_cluster(),
         )
@@ -602,6 +625,7 @@ class TestSignalsEvaluatedCountsSignals:
 
         result = await review_cluster(
             cluster_identifier='test-cluster',
+            cluster_type='provisioned',
             execute_query_func=execute_query_func,
             resolve_cluster_func=_make_resolve_cluster(),
         )

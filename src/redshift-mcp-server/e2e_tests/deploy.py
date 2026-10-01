@@ -20,8 +20,9 @@ the server's own identity what it needs.
 
 Resources are addressed by the names in the config, so a name that collides with something real
 would have this harness adopt it. Each is created carrying a purpose tag, and every path that
-adopts, rewrites or deletes one checks for that tag first and refuses without it. A resource the
-harness did not create is therefore never touched, in either direction.
+adopts, pauses, rewrites or deletes one checks for that tag first and refuses without it; a test
+run checks every configured name before it creates anything. A resource the harness did not
+create is therefore never changed.
 
 Re-running `up` is safe: it creates nothing twice and costs a few describe calls. It is not a
 no-op, though - it rewrites both role policies, re-grants, and counts the seeded rows - and
@@ -55,9 +56,10 @@ _PROPAGATION_SECONDS = 12
 
 _PURPOSE = 'redshift-mcp-server-e2e-harness'
 
-# The tag every resource is created with, and the proof of ownership every adopt and delete path
-# checks. Names come from the config, so one that collides with something real would otherwise
-# have this harness resume, seed, grant on, rewrite or delete a warehouse it never created.
+# The tag every resource is created with, and the proof of ownership every adopt, pause and delete
+# path checks. Names come from the config, so one that collides with something real would
+# otherwise have this harness resume, pause, seed, grant on, rewrite or delete a warehouse it never
+# created.
 _PURPOSE_KEY = 'purpose'
 
 # redshift takes Key/Value, redshift-serverless takes key/value.
@@ -477,11 +479,27 @@ def pause_cluster(redshift, identifier: str) -> bool:
         identifier: Cluster identifier.
 
     Returns:
-        True if a pause was requested, False if it was not running.
+        True if a pause was requested, False if there is no cluster or it is already paused.
+
+    Raises:
+        DeployError: If a cluster of that name exists and this harness did not create it, or it
+            is in a state a pause cannot be requested from, such as still resuming.
     """
     cluster = describe_cluster(redshift, identifier)
-    if cluster is None or cluster['ClusterStatus'] != 'available':
+    if cluster is None:
         return False
+
+    # Before the status, so a colliding cluster is refused whatever state it is in. Unchecked,
+    # the teardown of a run that `up` had refused paused the cluster `up` refused to touch.
+    _assert_ours('cluster', identifier, cluster.get('Tags', []))
+
+    status = cluster['ClusterStatus']
+    if status == 'paused':
+        return False
+    if status != 'available':
+        # Taken as not running, a cluster `up` gave up on while it resumed went on to bill after
+        # a teardown that reported success.
+        raise DeployError(f'cluster {identifier} is {status}, not available, so it was not paused')
 
     redshift.pause_cluster(ClusterIdentifier=identifier)
     _wait_for_cluster(redshift, identifier, 'paused')
@@ -697,6 +715,53 @@ def clients(session) -> dict:
         'iam': session.client('iam'),
         'sts': session.client('sts'),
     }
+
+
+def check_ownership(session, config: Config) -> None:
+    """Refuse every configured name that belongs to something this harness did not create.
+
+    Changes nothing, so a test run calls it before it creates anything: a collision is then
+    refused with nothing of the run's to tear down. Found only as `up` reached each resource, a
+    colliding cluster was refused after the roles had been made, and the run's teardown went on
+    to reach for that cluster.
+
+    Args:
+        session: A boto3 session for the configured profile and region.
+        config: The harness config.
+
+    Raises:
+        DeployError: If a configured name belongs to a resource without the purpose tag.
+    """
+    aws = clients(session)
+
+    for name in (config.s3_read_role_name, config.denied_batch_role_name):
+        try:
+            role = aws['iam'].get_role(RoleName=name)['Role']
+        except ClientError as e:
+            if e.response['Error']['Code'] != 'NoSuchEntity':
+                raise
+            continue
+        _assert_ours('role', name, role.get('Tags', []))
+
+    cluster = describe_cluster(aws['redshift'], config.cluster_identifier)
+    if cluster is not None:
+        _assert_ours('cluster', config.cluster_identifier, cluster.get('Tags', []))
+
+    namespace = describe_namespace(aws['serverless'], config.namespace_name)
+    if namespace is not None:
+        _assert_ours(
+            'namespace',
+            config.namespace_name,
+            _serverless_tags(aws['serverless'], namespace['namespaceArn']),
+        )
+
+    workgroup = describe_workgroup(aws['serverless'], config.workgroup_name)
+    if workgroup is not None:
+        _assert_ours(
+            'workgroup',
+            config.workgroup_name,
+            _serverless_tags(aws['serverless'], workgroup['workgroupArn']),
+        )
 
 
 def up(session, config: Config, log=print) -> dict[str, Warehouse]:

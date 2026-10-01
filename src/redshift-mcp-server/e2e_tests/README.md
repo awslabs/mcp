@@ -53,9 +53,10 @@ exception: the tables already exist, so a retry's `COPY` appends to them. Drop t
 re-run, or set `destroy_after_run = true` for that run.
 
 Every resource is created with a `purpose=redshift-mcp-server-e2e-harness` tag, and every path
-that adopts, rewrites or deletes one checks for it first. Point the config at a name that
-already belongs to something else and the harness refuses it rather than adopting or deleting
-it. Use a sandbox account regardless.
+that adopts, pauses, rewrites or deletes one checks for it first. Point the config at a name that
+already belongs to something else and the harness refuses it rather than adopting, pausing or
+deleting it; `test` checks every configured name before it creates anything, so a refused run
+leaves nothing to tear down. Use a sandbox account regardless.
 
 ## What a run costs
 

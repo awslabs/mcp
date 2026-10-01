@@ -16,6 +16,7 @@
 
 import asyncio
 import time
+from awslabs.redshift_mcp_server.models import ClusterKey, Target
 from awslabs.redshift_mcp_server.settings import (
     max_open_transactions_per_target,
     session_keepalive,
@@ -24,27 +25,26 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from loguru import logger
 from mcp.server.mcpserver.exceptions import ToolError
+from typing import NamedTuple
 
 
-def _key(cluster: str, database_name: str, name: str) -> str:
-    """Build the map key that identifies one caller's transaction.
+class TransactionKey(NamedTuple):
+    """One caller's transaction: the target it runs on, and the caller's name for it.
 
-    Remote support will add the authenticated principal on the left, so that one caller cannot
-    reach another's transaction. This is the format that changes for it, once the caller's
-    identity reaches this layer.
-
-    Args:
-        cluster: The cluster the transaction runs on, as `redshift._canonical_cluster` names it.
-        database_name: The database the transaction runs in.
-        name: The caller's name for the transaction.
-
-    Returns:
-        The map key.
+    Remote support will add the authenticated principal, so that one caller cannot reach
+    another's transaction. This is what changes for it, once the caller's identity reaches this
+    layer.
     """
-    return f'{cluster}:{database_name}:{name}'
+
+    target: Target
+    name: str
+
+    def __str__(self) -> str:
+        """Show it in the log as `<target>:<name>`."""
+        return f'{self.target}:{self.name}'
 
 
-def unknown_transaction(name: str, target: str) -> ToolError:
+def unknown_transaction(name: str, target: Target) -> ToolError:
     """Build the error for a name that is not open, or is open without a session yet.
 
     Every cause is indistinguishable from the outside, so one message names them all.
@@ -75,16 +75,15 @@ class NamedTransaction:
     session exists, and `attach` is what makes it usable.
     """
 
-    def __init__(self, cluster: str, database_name: str, name: str):
+    def __init__(self, target: Target, name: str):
         """Initialize a transaction that is claimed but not yet open on the cluster.
 
         Args:
-            cluster: The cluster the transaction runs on.
-            database_name: The database the transaction runs in.
+            target: The cluster and database the transaction runs in, which the open-transaction
+                cap is counted against.
             name: The caller's name for the transaction.
         """
-        self.cluster = cluster
-        self.database_name = database_name
+        self.target = target
         self.name = name
 
         # A SessionId is strictly serial: a second statement submitted while one is in flight is
@@ -99,14 +98,9 @@ class NamedTransaction:
         self.touched_at = time.monotonic()
 
     @property
-    def key(self) -> str:
+    def key(self) -> TransactionKey:
         """The map key this transaction is registered under."""
-        return _key(self.cluster, self.database_name, self.name)
-
-    @property
-    def target(self) -> str:
-        """The cluster and database the open-transaction cap is counted against."""
-        return f'{self.cluster}:{self.database_name}'
+        return TransactionKey(self.target, self.name)
 
     @property
     def in_use(self) -> bool:
@@ -162,10 +156,10 @@ class NamedTransactionManager:
             max_open_per_target: How many transactions may be open at once per target. Left
                 unset, the configured cap is read on first use.
         """
-        self._transactions: dict[str, NamedTransaction] = {}
+        self._transactions: dict[TransactionKey, NamedTransaction] = {}
         self._max_open_per_target = max_open_per_target
 
-    def open(self, cluster: str, database_name: str, name: str) -> NamedTransaction:
+    def open(self, cluster: ClusterKey, database_name: str, name: str) -> NamedTransaction:
         """Admit a name and return the transaction to open under it.
 
         Admitting first means a duplicate name or an exhausted cap is refused before any work is
@@ -182,7 +176,7 @@ class NamedTransactionManager:
         Raises:
             ToolError: If the name is already open, or the target is at its cap.
         """
-        transaction = NamedTransaction(cluster, database_name, name)
+        transaction = NamedTransaction(Target(cluster, database_name), name)
 
         # Reaped before the name is tested, not just before the cap is counted. A name whose
         # session the service has already ended is free, and refusing it as still open left the
@@ -212,7 +206,7 @@ class NamedTransactionManager:
         self._transactions[transaction.key] = transaction
         return transaction
 
-    def find(self, cluster: str, database_name: str, name: str) -> NamedTransaction | None:
+    def find(self, cluster: ClusterKey, database_name: str, name: str) -> NamedTransaction | None:
         """Look up a transaction without insisting it exists.
 
         Args:
@@ -223,9 +217,9 @@ class NamedTransactionManager:
         Returns:
             The transaction registered under that name, or None.
         """
-        return self._transactions.get(_key(cluster, database_name, name))
+        return self._transactions.get(TransactionKey(Target(cluster, database_name), name))
 
-    def get(self, cluster: str, database_name: str, name: str) -> NamedTransaction:
+    def get(self, cluster: ClusterKey, database_name: str, name: str) -> NamedTransaction:
         """Get a transaction that is open and has a session to submit on.
 
         Args:
@@ -241,7 +235,7 @@ class NamedTransactionManager:
         """
         transaction = self.find(cluster, database_name, name)
         if transaction is None or transaction.session_id is None:
-            raise unknown_transaction(name, f'{cluster}:{database_name}')
+            raise unknown_transaction(name, Target(cluster, database_name))
         return transaction
 
     @asynccontextmanager
@@ -300,7 +294,7 @@ class NamedTransactionManager:
             del self._transactions[transaction.key]
             logger.info(f'Closed transaction {transaction.key}')
 
-    def _reap_expired(self, target: str) -> None:
+    def _reap_expired(self, target: Target) -> None:
         """Drop transactions whose session the service has already ended.
 
         Redshift ends a session left idle for SESSION_KEEPALIVE seconds and says nothing about

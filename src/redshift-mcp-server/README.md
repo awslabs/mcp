@@ -128,7 +128,7 @@ or docker after a successful `docker build -t awslabs/redshift-mcp-server:latest
 - `UNSAFE_SKIP_WRITE_CONFIRMATION`: Skips the per-write confirmation prompt (optional, defaults to `false`). Ignored in `read-only` mode. See [Confirming each write](#confirming-each-write).
 - `SESSION_KEEPALIVE`: How long an open transaction may sit idle before Redshift ends it, in seconds (optional, defaults to `600`, maximum `86400`). Only transactions are affected; a statement outside one holds nothing open. See [Transactions](#transactions).
 - `MAX_OPEN_TRANSACTIONS_PER_TARGET`: How many transactions may be open at once against one cluster and database (optional, defaults to `10`).
-- `MAX_RESULT_ROWS`: The most rows one statement may return (optional, defaults to `1000`). A larger result is refused rather than cut short, by every tool but `list_clusters`. Only a whole number above zero is accepted; anything else falls back to the default.
+- `MAX_RESULT_ROWS`: The most rows one statement may return (optional, defaults to `1000`). A larger result is refused rather than cut short, by every tool but `list_clusters`. Only a whole number above zero is accepted; anything else falls back to the default. It counts rows, not bytes: a `VARCHAR` value can be 64 KB, so a result of wide rows within the default can be tens of megabytes.
 
 The log carries statement content: `DEBUG` writes every statement's full SQL, so a `CREATE USER ... PASSWORD` lands verbatim, and `ERROR` — included by the default `WARNING` — carries the engine's message, which quotes the offending value or relation. Treat `LOG_FILE` as holding the statements themselves.
 
@@ -167,8 +167,9 @@ What tables are in the 'public' schema of the 'dev' database in my 'analytics-cl
 ```
 
 The assistant will:
-1. Call `list_tables` with the cluster, database, and schema
-2. List all tables with their types (TABLE, VIEW, EXTERNAL TABLE)
+1. Call `list_clusters` to find the cluster's type
+2. Call `list_tables` with the cluster, its type, the database, and the schema
+3. List all tables with their types (TABLE, VIEW, EXTERNAL TABLE)
 
 **Column Inspection**
 
@@ -177,9 +178,10 @@ Show me the columns of the 'users' table in the 'analytics-cluster'.
 ```
 
 The assistant will:
-1. Call `list_databases` and `list_schemas` to locate the table
-2. Call `list_columns` to get column metadata
-3. Display column names, types, nullability, and default values
+1. Call `list_clusters` to find the cluster's type
+2. Call `list_databases` and `list_schemas` to locate the table
+3. Call `list_columns` to get column metadata
+4. Display column names, types, nullability, and default values
 
 **Data Querying**
 
@@ -338,7 +340,7 @@ On the analytics cluster, remove seller 48950 from tickit: their sales and their
 ```log
 Seller 48950 has 19 sales and 11 listings. Two tables have to change together, so I'll group both deletes in one transaction and close it in the same breath.
 
-> Execute this statement against redshift-cluster-analytics:sample_data_dev? It runs inside transaction 'seller_48950' and is not final until you commit.
+> Execute this statement against redshift-cluster-analytics (provisioned):sample_data_dev? It runs inside transaction 'seller_48950', so any change it makes in the database is not final until you commit. Anything it does outside the database, such as writing to S3, is final as soon as it runs.
 >
 > DELETE FROM tickit.sales WHERE sellerid = 48950
 [approved]
@@ -347,7 +349,7 @@ Seller 48950 has 19 sales and 11 listings. Two tables have to change together, s
 
 19 sales deleted, and not yet visible to anything outside the transaction. Now the listings, committing as I go.
 
-> Execute this statement against redshift-cluster-analytics:sample_data_dev? It runs inside transaction 'seller_48950' and commits it, so it is final and cannot be rolled back.
+> Execute this statement against redshift-cluster-analytics (provisioned):sample_data_dev? It runs inside transaction 'seller_48950' and commits it, so it is final and cannot be rolled back.
 >
 > DELETE FROM tickit.listing WHERE sellerid = 48950
 [approved]
@@ -374,7 +376,7 @@ list_clusters() -> list[RedshiftCluster]
 - Configuration information (node type, encryption, etc.)
 - Tags and metadata. A serverless workgroup's tags need the optional `redshift-serverless:ListTagsForResource`; without it a workgroup is reported untagged.
 
-Provisioned clusters and serverless workgroups are separate AWS namespaces, so one name can be both. Every tool taking a `cluster_identifier` refuses an ambiguous one rather than picking a side; say which you mean with the optional `cluster_type`, `provisioned` or `serverless`. It is only needed for a name that is genuinely both. Every tool that takes a `cluster_identifier`, except `review_cluster`, reuses a lookup for up to 5 minutes; `list_clusters` and `review_cluster` look again every time they run. Until the lookup is replaced, a cluster created since reads as not found, with the refusal saying how old the lookup is, and after a second cluster takes a name already in use, a name given without `cluster_type` can still reach the first. While one of the two listings is denied, only the other type is visible, so a name given without `cluster_type` resolves to it without being refused. A name given with `cluster_type` never reaches the other type.
+Provisioned clusters and serverless workgroups are separate AWS namespaces, so one name can be both. Every other tool therefore takes the type with the identifier: `cluster_type`, `provisioned` or `serverless`, as `list_clusters` reports it. Every tool that takes a `cluster_identifier`, except `review_cluster`, reuses a lookup for up to 5 minutes; `list_clusters` and `review_cluster` look again every time they run. Until the lookup is replaced, a cluster created since reads as not found, with the refusal saying how old the lookup is. A lookup that runs while one of the two listings is denied refuses a cluster of that type, names the denial, and is not reused.
 
 ### list_databases
 
@@ -382,15 +384,15 @@ Lists all databases in a specified Redshift cluster.
 
 ```python
 list_databases(
-    cluster_identifier: str, database_name: str = "dev", cluster_type: str | None = None
+    cluster_identifier: str, cluster_type: str, database_name: str = "dev"
 ) -> list[RedshiftDatabase]
 ```
 
 **Parameters**:
 
 - `cluster_identifier`: The cluster identifier from `list_clusters`
+- `cluster_type`: `provisioned` or `serverless`, the type `list_clusters` reports for it
 - `database_name`: Database to connect to for querying (default: "dev")
-- `cluster_type` (optional): `provisioned` or `serverless`, for an identifier that names both; see [list_clusters](#list_clusters)
 
 **Returns**: List of database information including:
 
@@ -405,15 +407,15 @@ Lists all schemas in a specified database.
 
 ```python
 list_schemas(
-    cluster_identifier: str, schema_database_name: str, cluster_type: str | None = None
+    cluster_identifier: str, cluster_type: str, schema_database_name: str
 ) -> list[RedshiftSchema]
 ```
 
 **Parameters**:
 
 - `cluster_identifier`: The cluster identifier from `list_clusters`
+- `cluster_type`: `provisioned` or `serverless`, the type `list_clusters` reports for it
 - `schema_database_name`: Database name to list schemas for
-- `cluster_type` (optional): `provisioned` or `serverless`, for an identifier that names both; see [list_clusters](#list_clusters)
 
 **Returns**: List of schema information including:
 
@@ -429,18 +431,18 @@ Lists all tables in a specified schema.
 ```python
 list_tables(
     cluster_identifier: str,
+    cluster_type: str,
     table_database_name: str,
     table_schema_name: str,
-    cluster_type: str | None = None,
 ) -> list[RedshiftTable]
 ```
 
 **Parameters**:
 
 - `cluster_identifier`: The cluster identifier from `list_clusters`
+- `cluster_type`: `provisioned` or `serverless`, the type `list_clusters` reports for it
 - `table_database_name`: Database name containing the schema
 - `table_schema_name`: Schema name to list tables for
-- `cluster_type` (optional): `provisioned` or `serverless`, for an identifier that names both; see [list_clusters](#list_clusters)
 
 **Returns**: List of table information including:
 
@@ -455,20 +457,20 @@ Lists all columns in a specified table.
 ```python
 list_columns(
     cluster_identifier: str,
+    cluster_type: str,
     column_database_name: str,
     column_schema_name: str,
     column_table_name: str,
-    cluster_type: str | None = None,
 ) -> list[RedshiftColumn]
 ```
 
 **Parameters**:
 
 - `cluster_identifier`: The cluster identifier from `list_clusters`
+- `cluster_type`: `provisioned` or `serverless`, the type `list_clusters` reports for it
 - `column_database_name`: Database name containing the table
 - `column_schema_name`: Schema name containing the table
 - `column_table_name`: Table name to list columns for
-- `cluster_type` (optional): `provisioned` or `serverless`, for an identifier that names both; see [list_clusters](#list_clusters)
 
 **Returns**: List of column information including:
 
@@ -485,23 +487,23 @@ Executes a SQL query against a Redshift cluster with safety protections. Read-on
 ```python
 execute_query(
     cluster_identifier: str,
+    cluster_type: str,
     database_name: str,
     sql: str | None = None,
     begin_transaction: str | None = None,
     in_transaction: str | None = None,
     commit_transaction: str | None = None,
     rollback_transaction: str | None = None,
-    cluster_type: str | None = None,
 ) -> QueryResult
 ```
 
 **Parameters**:
 
 - `cluster_identifier`: The cluster identifier from `list_clusters`
+- `cluster_type`: `provisioned` or `serverless`, the type `list_clusters` reports for it
 - `database_name`: Database to execute the query against
 - `sql`: SQL statement to execute (a single statement). Required on its own and with `in_transaction`; optional with the other three
 - `begin_transaction` / `in_transaction` / `commit_transaction` / `rollback_transaction` (all optional): Name of a transaction to start, run the query in, commit, or roll back. At most one per call, see [Transactions](#transactions)
-- `cluster_type` (optional): `provisioned` or `serverless`, for an identifier that names both; see [list_clusters](#list_clusters)
 
 **Returns**: Query result including:
 
@@ -518,15 +520,15 @@ Runs a diagnostic review of a Redshift cluster or serverless workgroup. Returns 
 
 ```python
 review_cluster(
-    cluster_identifier: str, database_name: str = 'dev', cluster_type: str | None = None
+    cluster_identifier: str, cluster_type: str, database_name: str = 'dev'
 ) -> ReviewResult
 ```
 
 **Parameters**:
 
 - `cluster_identifier`: The cluster identifier from `list_clusters`
+- `cluster_type`: `provisioned` or `serverless`, the type `list_clusters` reports for it
 - `database_name`: Database to connect to for querying system views (defaults to `dev`)
-- `cluster_type` (optional): `provisioned` or `serverless`, for an identifier that names both; see [list_clusters](#list_clusters)
 
 **Returns**: Review result including:
 
@@ -631,7 +633,7 @@ Only `execute_query` is affected. The discovery tools (`list_clusters`, `list_da
 
 ### Confirming each write
 
-In read-write mode the server asks you to approve each statement that could change something, using the MCP [elicitation](https://modelcontextprotocol.io/docs/learn/client-concepts) feature. The prompt names the target cluster and database and shows the statement. Declining or cancelling it means nothing is executed.
+In read-write mode the server asks you to approve each statement that could change something, using the MCP [elicitation](https://modelcontextprotocol.io/docs/learn/client-concepts) feature. The prompt names the target cluster, its type and the database, and shows the statement. Declining or cancelling it means nothing is executed.
 
 Statements recognized as reads run without a prompt. That is a deliberately short list:
 

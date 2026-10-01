@@ -26,8 +26,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 
 # The last discovery that answered for both types: when it ran, and every cluster and workgroup it
 # found. `resolve_cluster` answers from it until it is CLUSTER_RESOLVE_TTL old, and each such
-# discovery replaces it, `list_clusters`' included. Every type found under a name is in it, which
-# is what lets an ambiguous name be refused rather than answered.
+# discovery replaces it, `list_clusters`' included. One a denial cut short clears it.
 _discovered: tuple[float, list[RedshiftCluster]] | None = None
 
 
@@ -235,11 +234,11 @@ async def discover_clusters(denied_sink: set[str] | None = None) -> list[Redshif
     # the TTL bounds; serialized instead, one stalled control-plane call held every other resolve
     # behind it.
     #
-    # A discovery a denial cut short is not stored, because its clusters are the evidence `_pick`
-    # refuses an ambiguous name on, and a missing half makes a name that is both types look like
-    # one. It clears the stored one instead, both halves denied included, so a resolve sees what
-    # list_clusters sees: kept, the older one answered for the rest of its TTL, and refused a
-    # cluster list_clusters had just shown.
+    # A discovery a denial cut short is not stored, because only a discovery knows what was
+    # denied: stored, a refusal of the hidden type would blame the age of the lookup rather
+    # than the denial. It clears the stored one instead, both halves denied included, so a
+    # resolve sees what list_clusters sees: kept, the older one answered for the rest of its TTL,
+    # and refused a cluster list_clusters had just shown.
     _discovered = None if provisioned_error or serverless_error else (time.monotonic(), clusters)
 
     if provisioned_error and serverless_error:
@@ -256,57 +255,10 @@ async def discover_clusters(denied_sink: set[str] | None = None) -> list[Redshif
     return clusters
 
 
-def _pick(
-    candidates: list[RedshiftCluster], cluster_type: str | None, note: str
-) -> RedshiftCluster:
-    """Choose which of the clusters found under one identifier the caller meant.
-
-    Args:
-        candidates: Everything discovery found under that identifier, in discovery order; at
-            least one.
-        cluster_type: The type the caller named, or None.
-        note: Appended to every refusal, to say why `candidates` may be incomplete or out of
-            date rather than assert what nothing checked.
-
-    Returns:
-        The single cluster the caller addressed.
-
-    Raises:
-        ToolError: If none of the type the caller named is found, or a name given without a type
-            matches both types.
-    """
-    identifier = candidates[0].identifier
-
-    if cluster_type is not None:
-        for candidate in candidates:
-            if candidate.type == cluster_type:
-                return candidate
-        # Without `note`, a denial or an old lookup read as the cluster not existing, and named the
-        # other type as what to use instead - a different warehouse holding its own data.
-        raise ToolError(
-            f'No {cluster_type} cluster named {identifier} was found. Found instead: a '
-            f'{" and a ".join(sorted(one.type for one in candidates))} one.{note}'
-        )
-
-    if len(candidates) == 1:
-        return candidates[0]
-
-    # Refused rather than guessed. Both are real warehouses holding their own data, so picking
-    # either sends the caller's statements, writes included, somewhere they did not name.
-    raise ToolError(
-        f'{identifier} names both a provisioned cluster and a serverless workgroup, which are '
-        f"separate resources. Pass cluster_type='provisioned' or cluster_type='serverless' to "
-        f'say which. Every tool taking a cluster identifier accepts it.{note}'
-    )
-
-
 async def resolve_cluster(
-    cluster_identifier: str, cluster_type: str | None = None, fresh: bool = False
+    cluster_identifier: str, cluster_type: str, fresh: bool = False
 ) -> RedshiftCluster:
-    """Resolve a cluster identifier to its discovered cluster.
-
-    The type is needed only when a provisioned cluster and a serverless workgroup share the
-    identifier; without it that name is refused rather than resolved to either.
+    """Resolve a cluster identifier and type to the discovered cluster.
 
     Answered from the last complete discovery until it is CLUSTER_RESOLVE_TTL old, because every
     statement resolves and a discovery costs a DescribeClusters, a ListWorkgroups and a
@@ -321,15 +273,14 @@ async def resolve_cluster(
 
     Args:
         cluster_identifier: The cluster identifier to resolve.
-        cluster_type: `provisioned` or `serverless`, or None for whichever the identifier names.
+        cluster_type: `provisioned` or `serverless`.
         fresh: Discover even when the stored discovery would answer.
 
     Returns:
         The matching RedshiftCluster model.
 
     Raises:
-        ToolError: If no discovered cluster of that type carries that identifier, or it names
-            both types and no type was given.
+        ToolError: If no discovered cluster of that type carries that identifier.
     """
     stored = _discovered
     if not fresh and stored is not None and time.monotonic() - stored[0] < CLUSTER_RESOLVE_TTL:
@@ -346,19 +297,28 @@ async def resolve_cluster(
         clusters = await discover_clusters(denied_sink=denied)
         # A half of discovery IAM refused leaves its clusters out of this list and out of
         # list_clusters alike, so "not found" would name the wrong cause and send the caller to a
-        # tool that omits it too. Only for a type the caller could have meant: said of a
-        # provisioned cluster with the serverless listing denied, it sent the caller to grant a
-        # permission that could not help.
+        # tool that omits it too. Only for the type the caller named: said of a provisioned
+        # cluster with the serverless listing denied, it sent the caller to grant a permission
+        # that could not help.
         note = (
-            f' Listing {" and ".join(sorted(denied))} clusters was denied, so any of that type is '
-            f'absent here and from list_clusters; grant the listing permission to address it.'
-            if denied and (cluster_type is None or cluster_type in denied)
+            f' Listing {cluster_type} clusters was denied, so any of that type is absent here and '
+            f'from list_clusters; grant the listing permission to address it.'
+            if cluster_type in denied
             else ''
         )
 
     found = [cluster for cluster in clusters if cluster.identifier == cluster_identifier]
+    for cluster in found:
+        if cluster.type == cluster_type:
+            return cluster
+
     if found:
-        return _pick(found, cluster_type, note)
+        # Without `note`, a denial or an old lookup read as the cluster not existing, and named
+        # the other type as what to use instead - a different warehouse holding its own data.
+        raise ToolError(
+            f'No {cluster_type} cluster named {cluster_identifier} was found. Found instead: a '
+            f'{found[0].type} one.{note}'
+        )
 
     raise ToolError(
         f'Cluster {cluster_identifier} not found. Please use list_clusters to get valid cluster '

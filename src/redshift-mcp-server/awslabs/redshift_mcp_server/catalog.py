@@ -42,14 +42,14 @@ def _sql_identifier(value: str) -> str:
 
 
 async def discover_databases(
-    cluster_identifier: str, database_name: str = 'dev', cluster_type: str | None = None
+    cluster_identifier: str, cluster_type: str, database_name: str = 'dev'
 ) -> list[RedshiftDatabase]:
     """Discover the databases in a Redshift cluster.
 
     Args:
         cluster_identifier: The cluster identifier to query.
+        cluster_type: `provisioned` or `serverless`.
         database_name: The database to connect to.
-        cluster_type: `provisioned` or `serverless`, needed only when the identifier names both.
 
     Returns:
         List of RedshiftDatabase models.
@@ -76,14 +76,14 @@ async def discover_databases(
 
 
 async def discover_schemas(
-    cluster_identifier: str, schema_database_name: str, cluster_type: str | None = None
+    cluster_identifier: str, cluster_type: str, schema_database_name: str
 ) -> list[RedshiftSchema]:
     """Discover the schemas in a Redshift database.
 
     Args:
         cluster_identifier: The cluster identifier to query.
+        cluster_type: `provisioned` or `serverless`.
         schema_database_name: The database name to filter schemas for. Also the database connected to.
-        cluster_type: `provisioned` or `serverless`, needed only when the identifier names both.
 
     Returns:
         List of RedshiftSchema models.
@@ -116,17 +116,17 @@ async def discover_schemas(
 
 async def discover_tables(
     cluster_identifier: str,
+    cluster_type: str,
     table_database_name: str,
     table_schema_name: str,
-    cluster_type: str | None = None,
 ) -> list[RedshiftTable]:
     """Discover the tables in a Redshift schema.
 
     Args:
         cluster_identifier: The cluster identifier to query.
+        cluster_type: `provisioned` or `serverless`.
         table_database_name: The database name to filter tables for. Also the database connected to.
         table_schema_name: The schema name to filter tables for.
-        cluster_type: `provisioned` or `serverless`, needed only when the identifier names both.
 
     Returns:
         List of RedshiftTable models.
@@ -162,19 +162,19 @@ async def discover_tables(
 
 async def discover_columns(
     cluster_identifier: str,
+    cluster_type: str,
     column_database_name: str,
     column_schema_name: str,
     column_table_name: str,
-    cluster_type: str | None = None,
 ) -> list[RedshiftColumn]:
     """Discover the columns in a Redshift table.
 
     Args:
         cluster_identifier: The cluster identifier to query.
+        cluster_type: `provisioned` or `serverless`.
         column_database_name: The database name to filter columns for. Also the database connected to.
         column_schema_name: The schema name to filter columns for.
         column_table_name: The table name to filter columns for.
-        cluster_type: `provisioned` or `serverless`, needed only when the identifier names both.
 
     Returns:
         List of RedshiftColumn models.

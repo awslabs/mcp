@@ -31,30 +31,29 @@ from typing import Any, Callable
 
 async def review_cluster(
     cluster_identifier: str,
+    cluster_type: str,
     execute_query_func: Callable[..., Any],
     resolve_cluster_func: Callable[..., Any],
     database_name: str = 'dev',
     progress_reporter_func: Callable[[int, int], Any] | None = None,
-    cluster_type: str | None = None,
 ):
     """Execute a full cluster review.
 
     Args:
         cluster_identifier: The cluster identifier to review.
+        cluster_type: `provisioned` or `serverless`.
         execute_query_func: Async callable matching the signature of execute_query().
         resolve_cluster_func: Async callable matching the signature of resolve_cluster().
         database_name: The database to run the review against. Defaults to 'dev'.
         progress_reporter_func: Optional async callable receiving (current, total) after each query.
-        cluster_type: `provisioned` or `serverless`, needed only when the identifier names both.
 
     Returns:
         ReviewResult with findings and deduplicated recommendations.
     """
-    # Resolved rather than searched for. A local scan over discovery reads a cluster whose listing
-    # IAM denied as not found with no mention of the denial, and lets the first match win where
-    # resolving refuses to choose between two types of the same name. Fresh, because the node type
-    # is read below: answered from the stored discovery after a resize, the review evaluated the
-    # node-type signals for the node type the cluster had before it.
+    # Resolved rather than searched for: a local scan over discovery reads a cluster whose listing
+    # IAM denied as not found with no mention of the denial. Fresh, because the node type is read
+    # below: answered from the stored discovery after a resize, the review evaluated the node-type
+    # signals for the node type the cluster had before it.
     cluster_info = await resolve_cluster_func(cluster_identifier, cluster_type, fresh=True)
 
     is_serverless = cluster_info.type == 'serverless'
@@ -89,11 +88,9 @@ async def review_cluster(
         logger.debug('Executing review query: {} ({}/{})', query_name, idx + 1, total_queries)
 
         try:
-            # With the type resolved above, so every query reaches the cluster the node type and
-            # the scope were taken from.
             result = await execute_query_func(
                 cluster_identifier=cluster_identifier,
-                cluster_type=cluster_info.type,
+                cluster_type=cluster_type,
                 database_name=database_name,
                 sql=sql,
                 enforce_read_only=False,

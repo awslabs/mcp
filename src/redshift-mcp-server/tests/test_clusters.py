@@ -798,16 +798,16 @@ class TestAClusterHiddenByIam:
         )
 
     @pytest.mark.parametrize(
-        ('provisioned', 'serverless', 'expected'),
+        ('provisioned', 'serverless', 'cluster_type', 'expected'),
         [
-            (False, True, 'Listing serverless clusters was denied'),
-            (True, False, 'Listing provisioned clusters was denied'),
+            (False, True, 'serverless', 'Listing serverless clusters was denied'),
+            (True, False, 'provisioned', 'Listing provisioned clusters was denied'),
         ],
         ids=['serverless_denied', 'provisioned_denied'],
     )
     @pytest.mark.asyncio
     async def test_a_refused_listing_is_named_in_the_refusal(
-        self, mocker, provisioned, serverless, expected
+        self, mocker, provisioned, serverless, cluster_type, expected
     ):
         """Discovery swallows a denial, so a hidden cluster answered as one that is not there.
 
@@ -818,7 +818,7 @@ class TestAClusterHiddenByIam:
         self._denied(mocker, provisioned=provisioned, serverless=serverless)
 
         with pytest.raises(ToolError) as raised:
-            await resolve_cluster('some-cluster')
+            await resolve_cluster('some-cluster', cluster_type)
 
         assert 'not found' in str(raised.value)
         assert expected in str(raised.value)
@@ -830,7 +830,7 @@ class TestAClusterHiddenByIam:
         self._denied(mocker, provisioned=False, serverless=False)
 
         with pytest.raises(ToolError) as raised:
-            await resolve_cluster('some-cluster')
+            await resolve_cluster('some-cluster', 'provisioned')
 
         assert 'not found' in str(raised.value)
         assert 'denied' not in str(raised.value)
@@ -930,8 +930,8 @@ class TestResolveAnswersFromTheStoredDiscovery:
         """Answered from the stored discovery, so a second resolve asks nothing."""
         serverless_client = self._discovery(mocker)
 
-        first = await resolve_cluster('wg')
-        second = await resolve_cluster('wg')
+        first = await resolve_cluster('wg', 'serverless')
+        second = await resolve_cluster('wg', 'serverless')
 
         assert second is first
         assert serverless_client.get_paginator.call_count == 1
@@ -940,10 +940,10 @@ class TestResolveAnswersFromTheStoredDiscovery:
     async def test_the_stored_discovery_expires(self, mocker):
         """Bounded, so a cluster that changes type is not believed forever."""
         serverless_client = self._discovery(mocker)
-        await resolve_cluster('wg')
+        await resolve_cluster('wg', 'serverless')
 
         mocker.patch('awslabs.redshift_mcp_server.clusters.CLUSTER_RESOLVE_TTL', 0)
-        await resolve_cluster('wg')
+        await resolve_cluster('wg', 'serverless')
 
         assert serverless_client.get_paginator.call_count == 2
 
@@ -954,10 +954,10 @@ class TestResolveAnswersFromTheStoredDiscovery:
         Told only 'not found', a caller would take a cluster that exists for one that does not.
         """
         serverless_client = self._discovery(mocker)
-        await resolve_cluster('wg')
+        await resolve_cluster('wg', 'serverless')
 
         with pytest.raises(ToolError) as raised:
-            await resolve_cluster('appears-later')
+            await resolve_cluster('appears-later', 'serverless')
 
         assert 'not found' in str(raised.value)
         assert 'Clusters were last looked up' in str(raised.value)
@@ -968,30 +968,30 @@ class TestResolveAnswersFromTheStoredDiscovery:
     async def test_a_discovery_picks_up_a_cluster_created_since(self, mocker):
         """The discovery list_clusters runs replaces the stored one, so the new name resolves."""
         serverless_client = self._discovery(mocker)
-        await resolve_cluster('wg')
+        await resolve_cluster('wg', 'serverless')
         serverless_client.get_paginator.return_value.paginate.return_value = [
             {'workgroups': [{'workgroupName': 'appears-later', 'status': 'AVAILABLE'}]}
         ]
 
         await discover_clusters()
 
-        assert (await resolve_cluster('appears-later')).identifier == 'appears-later'
+        assert (await resolve_cluster('appears-later', 'serverless')).identifier == 'appears-later'
 
     @pytest.mark.asyncio
     async def test_a_discovery_forgets_a_cluster_it_no_longer_finds(self, mocker):
         """It saw the whole account, so a name missing from it no longer exists.
 
-        Kept, a bare name reached the deleted cluster until the TTL ran out, and a write there was
+        Kept, the name reached the deleted cluster until the TTL ran out, and a write there was
         reported as possibly applied rather than as not found.
         """
         serverless_client = self._discovery(mocker)
-        await resolve_cluster('wg')
+        await resolve_cluster('wg', 'serverless')
         serverless_client.get_paginator.return_value.paginate.return_value = [{'workgroups': []}]
 
         await discover_clusters()
 
         with pytest.raises(ToolError, match='not found'):
-            await resolve_cluster('wg')
+            await resolve_cluster('wg', 'serverless')
 
     @pytest.mark.asyncio
     async def test_a_discovery_a_denial_cut_short_clears_the_stored_one(self, mocker):
@@ -1000,7 +1000,7 @@ class TestResolveAnswersFromTheStoredDiscovery:
         Its advice, to run list_clusters, could not help until the stored discovery expired.
         """
         serverless_client = self._discovery(mocker)
-        await resolve_cluster('wg')
+        await resolve_cluster('wg', 'serverless')
         serverless_client.get_paginator.return_value.paginate.side_effect = _client_error(
             'AccessDeniedException', 'Not authorized', status=403, operation='ListWorkgroups'
         )
@@ -1014,15 +1014,15 @@ class TestResolveAnswersFromTheStoredDiscovery:
         await discover_clusters()
 
         assert clusters_module._discovered is None
-        assert (await resolve_cluster('new')).identifier == 'new'
+        assert (await resolve_cluster('new', 'provisioned')).identifier == 'new'
 
     @pytest.mark.asyncio
     async def test_a_fresh_resolve_asks_again(self, mocker):
         """For a caller that reads what can change, such as the node type after a resize."""
         serverless_client = self._discovery(mocker)
-        await resolve_cluster('wg')
+        await resolve_cluster('wg', 'serverless')
 
-        await resolve_cluster('wg', fresh=True)
+        await resolve_cluster('wg', 'serverless', fresh=True)
 
         assert serverless_client.get_paginator.call_count == 2
 
@@ -1031,8 +1031,8 @@ class TestOneNameTwoWarehouses:
     """A provisioned cluster and a serverless workgroup can share a name.
 
     Confirmed against AWS: CreateWorkgroup accepts the name of an existing cluster, because the
-    two are separate namespaces. Both then answer to one identifier, and picking either sends the
-    caller's statements, writes included, to a warehouse they did not name.
+    two are separate namespaces. Both then answer to one identifier, and only the type tells them
+    apart.
     """
 
     def _discovery(self, mocker, name='shared'):
@@ -1090,7 +1090,7 @@ class TestOneNameTwoWarehouses:
         to a different warehouse. Told how old the lookup is, it looks again.
         """
         discoveries = self._workgroup_appears_later(mocker)
-        assert (await resolve_cluster('shared')).type == 'provisioned'
+        assert (await resolve_cluster('shared', 'provisioned')).type == 'provisioned'
 
         with pytest.raises(ToolError) as raised:
             await resolve_cluster('shared', 'serverless')
@@ -1105,45 +1105,11 @@ class TestOneNameTwoWarehouses:
         assert (await resolve_cluster('shared', 'serverless')).type == 'serverless'
 
     @pytest.mark.asyncio
-    async def test_a_discovery_refreshes_what_a_bare_name_resolves_to(self, mocker):
-        """Once list_clusters shows a name twice, a bare one is refused rather than guessed.
-
-        Answered from the discovery stored before the workgroup appeared, a bare name went to the
-        provisioned cluster though the caller had just been shown both.
-        """
-        discoveries = self._workgroup_appears_later(mocker)
-        assert (await resolve_cluster('shared')).type == 'provisioned'
-
-        # What list_clusters calls.
-        await discover_clusters()
-
-        with pytest.raises(ToolError, match='names both') as raised:
-            await resolve_cluster('shared')
-        # Refused from what that discovery stored, not from one of its own, and says how old
-        # that is: either one may have been deleted since.
-        assert discoveries.call_count == 2
-        assert 'last looked up' in str(raised.value)
-
-    @pytest.mark.asyncio
-    async def test_a_name_without_a_type_is_refused_rather_than_guessed(self, mocker):
-        """Either answer would be a warehouse the caller did not ask for."""
-        self._discovery(mocker)
-
-        with pytest.raises(ToolError) as raised:
-            await resolve_cluster('shared')
-
-        message = str(raised.value)
-        assert 'names both a provisioned cluster and a serverless workgroup' in message
-        assert "cluster_type='provisioned'" in message
-        assert "cluster_type='serverless'" in message
-
-    @pytest.mark.asyncio
     async def test_a_discovery_a_denial_cut_short_is_not_stored(self, mocker):
-        """The candidate list is the evidence an ambiguous name is refused on.
+        """Stored while a half was denied, the lookup hid that half for the rest of the TTL.
 
-        Stored while a half was denied, a name that is both types looked like one for the rest of
-        the TTL: statements went to whichever type had been visible at that moment, after the
-        denial cleared and without the caller being told.
+        Even after the denial cleared, a resolve answered from it, and its refusal named the age
+        of the lookup rather than the denial.
         """
         redshift_client = mocker.Mock()
         redshift_client.get_paginator.return_value.paginate.return_value = [
@@ -1171,16 +1137,15 @@ class TestOneNameTwoWarehouses:
 
         # Answered from what was found, since a principal permanently denied one half has to keep
         # working, but not stored.
-        assert (await resolve_cluster('shared')).type == 'provisioned'
+        assert (await resolve_cluster('shared', 'provisioned')).type == 'provisioned'
         assert clusters_module._discovered is None
 
-        # So the next resolve asks again and sees both types.
-        with pytest.raises(ToolError, match='names both a provisioned cluster'):
-            await resolve_cluster('shared')
+        # So the next resolve asks again and sees the workgroup.
+        assert (await resolve_cluster('shared', 'serverless')).type == 'serverless'
 
     @pytest.mark.asyncio
     async def test_the_cluster_type_says_which_one(self, mocker):
-        """Refusing would leave both unreachable, so the caller needs a way to say."""
+        """Each type reaches its own warehouse."""
         self._discovery(mocker)
 
         assert (await resolve_cluster('shared', 'provisioned')).type == 'provisioned'

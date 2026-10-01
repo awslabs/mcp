@@ -28,12 +28,14 @@ from awslabs.redshift_mcp_server.consts import (
     LOG_LEVEL_DEFAULT,
 )
 from awslabs.redshift_mcp_server.models import (
+    ClusterKey,
     QueryResult,
     RedshiftCluster,
     RedshiftColumn,
     RedshiftDatabase,
     RedshiftSchema,
     RedshiftTable,
+    Target,
 )
 from awslabs.redshift_mcp_server.redshift import (
     execute_query,
@@ -159,15 +161,14 @@ Redshift, Redshift Serverless and Redshift Data APIs.
 
 ## Discovery order
 
-Work down the hierarchy: `list_clusters` for an identifier, then `list_databases` for that
-cluster, then `list_schemas`, `list_tables` and `list_columns`. Every tool takes the cluster
-identifier as its first argument, and only a cluster whose status is `available` can be
-queried.
+Work down the hierarchy: `list_clusters` for an identifier and its type, then `list_databases`
+for that cluster, then `list_schemas`, `list_tables` and `list_columns`. Every tool but
+`list_clusters` takes both, as `cluster_identifier` and `cluster_type`, and only a cluster whose
+status is `available` can be queried.
 
-A provisioned cluster and a serverless workgroup can share an identifier. When `list_clusters`
-shows one twice, also pass `cluster_type` as `provisioned` or `serverless`: without it the
-identifier is refused as ambiguous, or, for a few minutes after the second appeared, can still
-reach the first.
+A provisioned cluster and a serverless workgroup can share an identifier, and are separate
+warehouses holding their own data. When the user names one that `list_clusters` shows under both
+types, ask which they mean.
 
 A database is connected to, while a schema and a table are filtered for. So an unknown schema
 or table comes back as an empty list, but a database that does not exist or cannot be connected
@@ -178,7 +179,8 @@ below `list_databases`, not only `list_schemas`.
 
 Every tool but `list_clusters` refuses a result of more than `MAX_RESULT_ROWS` rows, listed
 below, rather than returning part of it. With `execute_query`, a `LIMIT`, a narrower predicate or
-an aggregate keeps a result within it.
+an aggregate keeps a result within it. The limit counts rows, not bytes: wide rows within it can
+still make a result of tens of megabytes, so name only the columns you need.
 
 ## Concurrency
 
@@ -215,17 +217,9 @@ credentials setup and its permissions.
 )
 
 
-# One declaration for every tool that takes a cluster, so they cannot drift apart.
-_ClusterType = Annotated[
-    Literal['provisioned', 'serverless'] | None,
-    Field(
-        description=(
-            'The type list_clusters reports for the cluster: provisioned or serverless. Needed '
-            'only when list_clusters shows a provisioned cluster and a serverless workgroup '
-            'under one identifier.'
-        )
-    ),
-]
+# One type and description for every tool that takes a cluster, so they cannot drift apart.
+_ClusterType = Literal['provisioned', 'serverless']
+_CLUSTER_TYPE_DESCRIPTION = 'The type list_clusters reports for the cluster.'
 
 
 def _read_only_annotations(title: str) -> ToolAnnotations:
@@ -250,32 +244,31 @@ class ConfirmWrite(BaseModel):
 def _write_confirmation(
     ctx: Context,
     cluster_identifier: str,
+    cluster_type: str,
     database_name: str,
     sql: str | None,
     begin_transaction: str | None = None,
     in_transaction: str | None = None,
     commit_transaction: str | None = None,
     rollback_transaction: str | None = None,
-    cluster_type: str | None = None,
 ) -> ConfirmWrite | Elicit[ConfirmWrite]:
     """Resolve the caller's approval for one statement.
 
     Returning `Elicit` asks the client. The framework runs the round trip on whichever
     shape the negotiated protocol requires and aborts the call on decline or cancel.
     Returning a value asks nothing, which is the case for read-only mode, the
-    confirmation opt-out, and recognized reads.
+    confirmation opt-out, a call carrying no statement, and recognized reads.
 
     Args:
         ctx: The tool call context, used to check what the client can do.
         cluster_identifier: The target cluster, named in the prompt.
+        cluster_type: The target cluster's type, named in the prompt.
         database_name: The target database, named in the prompt.
-        sql: The statement awaiting approval, or None when a transaction is only being
-            closed, which carries no statement of the caller's.
+        sql: The statement awaiting approval, or None when the call carries none.
         begin_transaction: Name of a transaction being opened, if any.
         in_transaction: Name of a transaction being added to, if any.
         commit_transaction: Name of a transaction being committed, if any.
         rollback_transaction: Name of a transaction being rolled back, if any.
-        cluster_type: The target cluster's type, named in the prompt when the caller gave it.
 
     A decline or cancel is not observable here: the framework aborts the call after this
     returns, so only the request to ask is logged, not its answer.
@@ -290,8 +283,8 @@ def _write_confirmation(
         return ConfirmWrite(confirmed=True)
 
     if sql is None:
-        # Closing a transaction runs nothing of the caller's, and every write inside it was
-        # confirmed when it was submitted.
+        # Nothing of the caller's runs: the call opens or closes a transaction, whose writes are
+        # each confirmed when submitted, or the tool body refuses it.
         return ConfirmWrite(confirmed=True)
 
     # Reject before asking, so a statement that cannot run never raises a prompt. Only
@@ -312,11 +305,8 @@ def _write_confirmation(
     if not might_write(sql):
         return ConfirmWrite(confirmed=True)
 
-    # With its type when the caller gave one, which is when the identifier alone names two
-    # warehouses: the user approving the write needs to know which one it reaches. Written as the
-    # transaction errors write a cluster.
-    cluster = f'{cluster_identifier} ({cluster_type})' if cluster_type else cluster_identifier
-    target = f'{cluster}:{database_name}'
+    # From the arguments the tool body resolves, so it names the warehouse the statement reaches.
+    target = Target(ClusterKey(cluster_identifier, cluster_type), database_name)
 
     # Checked here, rather than leaving it to the framework, so the error names the
     # setting that lets the operator proceed.
@@ -439,8 +429,8 @@ async def list_clusters_tool(ctx: Context) -> list[RedshiftCluster]:
     database_name, endpoint, port, vpc_id, node_type, number_of_nodes, creation_time,
     master_username, publicly_accessible, encrypted and tags.
 
-    Only a cluster whose status is 'available' can be queried, and its identifier is what
-    every other tool takes as its first argument.
+    Only a cluster whose status is 'available' can be queried, and its identifier and type are
+    what every other tool takes as its first two arguments.
 
     Requires redshift:DescribeClusters and redshift-serverless:ListWorkgroups. Whichever of
     provisioned or serverless discovery is denied is skipped, so a partial list is normal; both
@@ -484,11 +474,11 @@ async def list_databases_tool(
         ...,
         description='The cluster identifier to query for databases. Must be a valid cluster identifier from the list_clusters tool.',
     ),
+    cluster_type: _ClusterType = Field(..., description=_CLUSTER_TYPE_DESCRIPTION),
     database_name: str = Field(
         'dev',
         description='The database to connect to for metadata discovery. Defaults to "dev".',
     ),
-    cluster_type: _ClusterType = None,
 ) -> list[RedshiftDatabase]:
     """List the databases in a cluster.
 
@@ -536,11 +526,11 @@ async def list_schemas_tool(
         ...,
         description='The cluster identifier to query for schemas. Must be a valid cluster identifier from the list_clusters tool.',
     ),
+    cluster_type: _ClusterType = Field(..., description=_CLUSTER_TYPE_DESCRIPTION),
     schema_database_name: str = Field(
         ...,
         description='The database name to list schemas for. Also the database connected to. Must be a valid database name from the list_databases tool.',
     ),
-    cluster_type: _ClusterType = None,
 ) -> list[RedshiftSchema]:
     """List the schemas in a database.
 
@@ -586,6 +576,7 @@ async def list_tables_tool(
         ...,
         description='The cluster identifier to query for tables. Must be a valid cluster identifier from the list_clusters tool.',
     ),
+    cluster_type: _ClusterType = Field(..., description=_CLUSTER_TYPE_DESCRIPTION),
     table_database_name: str = Field(
         ...,
         description='The database name to list tables for. Also the database connected to. Must be a valid database name from the list_databases tool.',
@@ -594,7 +585,6 @@ async def list_tables_tool(
         ...,
         description='The schema name to list tables for. Must be a valid schema name from the list_schemas tool.',
     ),
-    cluster_type: _ClusterType = None,
 ) -> list[RedshiftTable]:
     """List the tables in a schema.
 
@@ -638,6 +628,7 @@ async def list_columns_tool(
         ...,
         description='The cluster identifier to query for columns. Must be a valid cluster identifier from the list_clusters tool.',
     ),
+    cluster_type: _ClusterType = Field(..., description=_CLUSTER_TYPE_DESCRIPTION),
     column_database_name: str = Field(
         ...,
         description='The database name to list columns for. Also the database connected to. Must be a valid database name from the list_databases tool.',
@@ -650,7 +641,6 @@ async def list_columns_tool(
         ...,
         description='The table name to list columns for. Must be a valid table name from the list_tables tool.',
     ),
-    cluster_type: _ClusterType = None,
 ) -> list[RedshiftColumn]:
     """List the columns in a table.
 
@@ -697,6 +687,7 @@ async def execute_query_tool(
         ...,
         description='The cluster identifier to execute the query on. Must be a valid cluster identifier from the list_clusters tool.',
     ),
+    cluster_type: _ClusterType = Field(..., description=_CLUSTER_TYPE_DESCRIPTION),
     database_name: str = Field(
         ...,
         description='The database name to execute the query against. Must be a valid database name from the list_databases tool.',
@@ -734,7 +725,6 @@ async def execute_query_tool(
             description='Run sql, if given, then roll back the transaction open under this name.'
         ),
     ] = None,
-    cluster_type: _ClusterType = None,
 ) -> QueryResult:
     """Execute one SQL statement against a Redshift cluster or serverless workgroup.
 
@@ -870,11 +860,11 @@ async def review_cluster_tool(
         ...,
         description='The cluster identifier to run the review on. Must be a valid cluster identifier from the list_clusters tool.',
     ),
+    cluster_type: _ClusterType = Field(..., description=_CLUSTER_TYPE_DESCRIPTION),
     database_name: str = Field(
         'dev',
         description='The database to connect to for querying system views. Defaults to "dev".',
     ),
-    cluster_type: _ClusterType = None,
 ) -> ReviewResult:
     """Run a diagnostic review of a Redshift cluster or serverless workgroup.
 

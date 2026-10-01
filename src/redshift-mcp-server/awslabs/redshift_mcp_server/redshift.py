@@ -34,8 +34,10 @@ from awslabs.redshift_mcp_server.consts import (
     QUERY_TIMEOUT,
 )
 from awslabs.redshift_mcp_server.models import (
+    ClusterKey,
     RedshiftCluster,
     RedshiftDataModel,
+    Target,
 )
 from awslabs.redshift_mcp_server.settings import (
     max_result_rows,
@@ -77,12 +79,11 @@ _TRANSACTION_CLOSERS = {'commit_transaction': 'COMMIT', 'rollback_transaction': 
 # Tags the connection with an application name.
 _APP_NAME_SQL = f"SET application_name TO '{CLIENT_USER_AGENT_NAME}/{__version__}'"
 
-# Cluster, as `_canonical_cluster` names it, to the moment the batch action was last seen denied
-# on it, which holds the compatibility path in place without paying a denied call per statement.
-# A cluster believed permitted is absent rather than present with a null. Keyed by cluster
-# because the action takes resource-level permissions, so a denial on one says nothing about
-# another.
-_no_batch_since: dict[str, float] = {}
+# Cluster to the moment the batch action was last seen denied on it, which holds the
+# compatibility path in place without paying a denied call per statement. A cluster believed
+# permitted is absent rather than present with a null. Keyed by cluster because the action takes
+# resource-level permissions, so a denial on one says nothing about another.
+_no_batch_since: dict[ClusterKey, float] = {}
 
 # Refusals for what the compatibility path will not carry, kept together so they stay consistent
 # with each other. A transaction cannot be grouped by one statement per call. A write is declined
@@ -107,27 +108,6 @@ _FALLBACK_NO_BATCH_REFUSES_TRANSACTION = (
     'still work where redshift-data:ExecuteStatement is granted; a grant of the batch action '
     f'takes effect within {FALLBACK_NO_BATCH_REPROBE} seconds.'
 )
-
-
-def _canonical_cluster(cluster_info: RedshiftCluster) -> str:
-    """Name one cluster the same way however the caller addressed it.
-
-    What this server keys per cluster - open transactions, the per-target cap, the batch-denial
-    latch - has to agree on which cluster that is. Keyed on the caller's arguments, a name given
-    with and without its `cluster_type` was two clusters: one name held two live transactions on
-    one cluster and database, the cap counted each separately, and a commit could reach only one
-    of them while the other held its locks until its session timed out.
-
-    Args:
-        cluster_info: The resolved cluster.
-
-    Returns:
-        The identifier with its type after it. The type is part of it because the two AWS
-        namespaces are separate, so a provisioned cluster and a workgroup can share a name. Shown
-        in errors, so not written as `<type>:<identifier>`, which looks like an identifier to pass
-        back.
-    """
-    return f'{cluster_info.identifier} ({cluster_info.type})'
 
 
 # --- Submitting a batch ---
@@ -224,7 +204,7 @@ async def _execute_batch(
     # Accepted, so the action is permitted on this cluster now, whichever call latched a denial.
     # Left latched, every write and transaction there was refused as denied until the re-probe,
     # though the grant had been restored.
-    _no_batch_since.pop(_canonical_cluster(cluster_info), None)
+    _no_batch_since.pop(cluster_info.key, None)
 
     if session_sink is not None and response.get('SessionId'):
         # Recorded before settling, because a batch that mints a session and then fails still
@@ -382,8 +362,9 @@ async def _read_result(statement_id: str) -> dict:
         `NextToken` removed.
 
     Raises:
-        ToolError: If the result has more rows than MAX_RESULT_ROWS, or the paging does not end -
-            the same page token twice, or more pages than MAX_RESULT_PAGES.
+        ToolError: If the result has more rows than MAX_RESULT_ROWS, the paging does not end -
+            the same page token twice, or more pages than MAX_RESULT_PAGES - or the pages carry
+            a different number of rows than the service reported.
     """
     cap = max_result_rows()
     data_client = client_manager.redshift_data_client()
@@ -395,9 +376,10 @@ async def _read_result(statement_id: str) -> dict:
         raise _over_row_cap(cap, total)
     # Popped: the merged result is the whole answer, and the token would say more remains.
     token = first.pop('NextToken', None)
+    # One token per page read, while the paging goes on.
     seen = {token}
     while token:
-        if len(seen) > MAX_RESULT_PAGES:
+        if len(seen) >= MAX_RESULT_PAGES:
             raise ToolError(
                 f'Reading this result did not end: more than {MAX_RESULT_PAGES} pages, '
                 f'{len(records)} rows so far. What was read is discarded rather than returned as '
@@ -418,6 +400,15 @@ async def _read_result(statement_id: str) -> dict:
                 f'whole result.'
             )
         seen.add(token)
+
+    # Checked against the size the service reported, which the pages have matched in every shape
+    # measured, SHOW and a wrapped batch's statement included. Paging that ended early would
+    # otherwise return part of a result as the whole of it, the defect paging was added to fix.
+    if total is not None and len(records) != total:
+        raise ToolError(
+            f'The service reported {total} rows for this result, but its pages carried '
+            f'{len(records)}. What was read is discarded rather than returned as the whole result.'
+        )
 
     return {**first, 'Records': records}
 
@@ -534,11 +525,11 @@ async def _execute_batch_for_statement(
 
 async def execute_standalone_statement(
     cluster_identifier: str,
+    cluster_type: str,
     database_name: str,
     sql: str,
     parameters: list[dict] | None = None,
     enforce_read_only: bool = True,
-    cluster_type: str | None = None,
 ) -> tuple[dict, str]:
     """Execute one standalone SQL statement, outside any transaction the caller named.
 
@@ -567,6 +558,7 @@ async def execute_standalone_statement(
 
     Args:
         cluster_identifier: The cluster identifier to query.
+        cluster_type: `provisioned` or `serverless`.
         database_name: The database to execute the statement against.
         sql: The single SQL statement to execute.
         parameters: Optional list of parameter dictionaries with 'name' and 'value' keys.
@@ -575,7 +567,6 @@ async def execute_standalone_statement(
             deny-list and the transaction wrapper. Clear it for a caller permitted to write,
             and for this server's own SQL, which it authors and so does not police.
             Single-statement enforcement applies either way.
-        cluster_type: `provisioned` or `serverless`, needed only when the identifier names both.
 
     Returns:
         Tuple of the statement's result as `_read_result` returns it, and its query_id.
@@ -588,7 +579,7 @@ async def execute_standalone_statement(
     assert_executable(sql, enforce_read_only=enforce_read_only)
 
     cluster_info = await clusters.resolve_cluster(cluster_identifier, cluster_type)
-    cluster = _canonical_cluster(cluster_info)
+    cluster = cluster_info.key
 
     if not _no_batch_active(cluster):
         sqls = [_APP_NAME_SQL]
@@ -627,6 +618,27 @@ async def execute_standalone_statement(
             # write an earlier retry attempt carried, with the grant revoked before the next
             # attempt of the same call. A read runs again below either way, which is harmless.
             _latch_no_batch(e, cluster)
+        except BaseException:
+            # Cancellation, which is not an Exception and so does not reach the arm above. There
+            # is no caller left to tell, so what became of a write that autocommits is recorded in
+            # the log, as the transaction path records a cancelled closer. Unrecorded, a write that
+            # had landed left no trace of it.
+            if not enforce_read_only and might_write(sql):
+                if settled:
+                    outcome = 'after it finished, so it was applied'
+                elif terminal and may_commit_partway(sql):
+                    outcome = 'after it failed, though a procedure may have committed part of it'
+                elif terminal:
+                    outcome = 'after it failed'
+                else:
+                    outcome = (
+                        'before it was seen to finish, so it may or may not have been applied'
+                    )
+                # With the batch id once the batch concluded, which the default log level omits.
+                batch = f' (batch {terminal[0]})' if terminal else ''
+                target = Target(cluster, database_name)
+                logger.warning(f'A write on {target} was cancelled {outcome}{batch}')
+            raise
 
     if might_write(sql):
         raise ToolError(_FALLBACK_NO_BATCH_REFUSES_WRITE)
@@ -642,12 +654,12 @@ async def execute_standalone_statement(
 
 async def _begin_transaction(
     cluster_identifier: str,
+    cluster_type: str,
     database_name: str,
     name: str,
     sql: str | None = None,
     parameters: list[dict] | None = None,
     enforce_read_only: bool = True,
-    cluster_type: str | None = None,
 ) -> tuple[dict, str]:
     """Open a named transaction, optionally running its first statement.
 
@@ -658,12 +670,12 @@ async def _begin_transaction(
 
     Args:
         cluster_identifier: The cluster identifier to query.
+        cluster_type: `provisioned` or `serverless`.
         database_name: The database to open the transaction in.
         name: The caller's name for the transaction.
         sql: Optional first statement to run inside it.
         parameters: Optional list of parameter dictionaries with 'name' and 'value' keys.
         enforce_read_only: Whether to apply read-only protection.
-        cluster_type: `provisioned` or `serverless`, needed only when the identifier names both.
 
     Returns:
         Tuple of the result of `sql` as `_read_result` returns it, and its query_id; an empty
@@ -677,7 +689,7 @@ async def _begin_transaction(
         assert_executable(sql, enforce_read_only=enforce_read_only, in_transaction=True)
 
     cluster_info = await clusters.resolve_cluster(cluster_identifier, cluster_type)
-    cluster = _canonical_cluster(cluster_info)
+    cluster = cluster_info.key
 
     if _no_batch_active(cluster):
         raise ToolError(_FALLBACK_NO_BATCH_REFUSES_TRANSACTION)
@@ -779,13 +791,13 @@ async def _begin_transaction(
 
 async def _execute_statement_in_transaction(
     cluster_identifier: str,
+    cluster_type: str,
     database_name: str,
     name: str,
     sql: str | None = None,
     parameters: list[dict] | None = None,
     closer: str | None = None,
     enforce_read_only: bool = True,
-    cluster_type: str | None = None,
 ) -> tuple[dict, str]:
     """Execute a statement on an open transaction's session, optionally closing it.
 
@@ -795,13 +807,13 @@ async def _execute_statement_in_transaction(
 
     Args:
         cluster_identifier: The cluster identifier to query.
+        cluster_type: `provisioned` or `serverless`.
         database_name: The database the transaction runs in.
         name: The caller's name for the transaction.
         sql: Optional statement to run on the session.
         parameters: Optional list of parameter dictionaries with 'name' and 'value' keys.
         closer: `COMMIT` or `ROLLBACK` to end the transaction with, or None to leave it open.
         enforce_read_only: Whether to apply read-only protection.
-        cluster_type: `provisioned` or `serverless`, needed only when the identifier names both.
 
     Returns:
         Tuple of the result of `sql` as `_read_result` returns it, and its query_id; an empty
@@ -813,10 +825,9 @@ async def _execute_statement_in_transaction(
     if sql is not None:
         assert_executable(sql, enforce_read_only=enforce_read_only, in_transaction=True)
 
-    # Before everything keyed per cluster, because the caller's arguments are not the key: see
-    # `_canonical_cluster`. Answered from the stored discovery, so the common case costs nothing.
+    # Answered from the stored discovery, so the common case costs nothing.
     cluster_info = await clusters.resolve_cluster(cluster_identifier, cluster_type)
-    cluster = _canonical_cluster(cluster_info)
+    cluster = cluster_info.key
 
     # Sent whatever the batch latch says. The latch can be another call's and stale, the grant
     # restored since: refused on it, a COMMIT that would have landed was dropped, and a statement
@@ -1296,11 +1307,11 @@ def _is_no_batch(error: ClientError) -> bool:
     return denied is None or denied.group(1) == BATCH_ACTION
 
 
-def _no_batch_active(cluster: str) -> bool:
+def _no_batch_active(cluster: ClusterKey) -> bool:
     """Report whether the no_batch fallback is in force for one cluster, consuming a due re-probe.
 
     Args:
-        cluster: The cluster, as `_canonical_cluster` names it.
+        cluster: The cluster.
 
     Returns:
         True while the batch path is known denied on that cluster, and False once per
@@ -1321,7 +1332,7 @@ def _no_batch_active(cluster: str) -> bool:
     return False
 
 
-def _latch_no_batch(error: ClientError, cluster: str) -> None:
+def _latch_no_batch(error: ClientError, cluster: ClusterKey) -> None:
     """Record that the batch action is denied on one cluster, and name the grant that restores it.
 
     Kept per cluster because the action takes resource-level permissions: a principal can be
@@ -1330,7 +1341,7 @@ def _latch_no_batch(error: ClientError, cluster: str) -> None:
 
     Args:
         error: The denial, quoted so the operator can see which principal was refused.
-        cluster: The cluster the denial came from, as `_canonical_cluster` names it.
+        cluster: The cluster the denial came from.
     """
     _no_batch_since[cluster] = time.monotonic()
     logger.warning(
@@ -1488,6 +1499,7 @@ def _resolve_transaction_action(
 
 async def execute_query(
     cluster_identifier: str,
+    cluster_type: str,
     database_name: str,
     sql: str | None = None,
     enforce_read_only: bool = True,
@@ -1495,7 +1507,6 @@ async def execute_query(
     in_transaction: str | None = None,
     commit_transaction: str | None = None,
     rollback_transaction: str | None = None,
-    cluster_type: str | None = None,
 ) -> dict:
     """Execute a SQL statement against a Redshift cluster using the Data API.
 
@@ -1505,6 +1516,7 @@ async def execute_query(
 
     Args:
         cluster_identifier: The cluster identifier to query.
+        cluster_type: `provisioned` or `serverless`.
         database_name: The database to execute against.
         sql: The SQL statement to execute. Required on its own and with `in_transaction`;
             optional with the other three.
@@ -1514,7 +1526,6 @@ async def execute_query(
         in_transaction: Run `sql` inside the transaction already open under this name.
         commit_transaction: Run `sql`, if given, then commit this transaction.
         rollback_transaction: Run `sql`, if given, then roll this transaction back.
-        cluster_type: `provisioned` or `serverless`, needed only when the identifier names both.
 
     Returns:
         Dictionary with query results including columns, rows, and metadata.

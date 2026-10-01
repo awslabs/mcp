@@ -16,10 +16,43 @@
 
 from datetime import datetime
 from pydantic import BaseModel, Field
-from typing import Any, Dict, Optional, TypeVar
+from typing import Any, Dict, NamedTuple, Optional, TypeVar
 
 
 RedshiftDataModelT = TypeVar('RedshiftDataModelT', bound='RedshiftDataModel')
+
+
+class ClusterKey(NamedTuple):
+    """A cluster's identifier and type: the key of everything this server holds per cluster.
+
+    That is open transactions, the per-target cap and the batch-denial latch. The type is part of
+    it because the two AWS namespaces are separate, so a provisioned cluster and a workgroup can
+    share a name.
+
+    A tuple rather than a joined string, like `Target` and the transaction key: joined with a
+    separator, a database or transaction name containing it made two keys equal.
+    """
+
+    identifier: str
+    type: str
+
+    def __str__(self) -> str:
+        """Show it in errors and the log as `<identifier> (<type>)`.
+
+        Not as `<type>:<identifier>`, which looks like an identifier to pass back.
+        """
+        return f'{self.identifier} ({self.type})'
+
+
+class Target(NamedTuple):
+    """A cluster and a database: where a statement runs, and what the transaction cap counts."""
+
+    cluster: ClusterKey
+    database: str
+
+    def __str__(self) -> str:
+        """Show it as `<cluster>:<database>`."""
+        return f'{self.cluster}:{self.database}'
 
 
 class RedshiftDataModel(BaseModel):
@@ -87,6 +120,11 @@ class RedshiftCluster(BaseModel):
     tags: Optional[Dict[str, str]] = Field(
         default_factory=dict, description='Tags associated with the cluster'
     )
+
+    @property
+    def key(self) -> ClusterKey:
+        """This cluster as everything keyed per cluster names it."""
+        return ClusterKey(self.identifier, self.type)
 
 
 class RedshiftDatabase(RedshiftDataModel):

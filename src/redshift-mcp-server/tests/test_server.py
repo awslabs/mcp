@@ -26,6 +26,7 @@ from awslabs.redshift_mcp_server.consts import (
     LOG_LEVEL_DEFAULT,
 )
 from awslabs.redshift_mcp_server.models import (
+    ClusterKey,
     QueryResult,
     RedshiftCluster,
     RedshiftColumn,
@@ -68,7 +69,7 @@ from mcp.server.mcpserver.exceptions import ToolError, UnexpectedToolError
 
 
 class TestWriteConfirmation:
-    """The resolver asks the client only when a write needs confirming."""
+    """The resolver asks the client only when a write needs confirming, naming where it goes."""
 
     def _configure(self, mocker, access_mode, skip):
         """Pin the resolved access mode and confirmation opt-out."""
@@ -81,6 +82,12 @@ class TestWriteConfirmation:
         ctx.session.check_client_capability = mocker.Mock(return_value=can_elicit)
         return ctx
 
+    def _ask(self, mocker, sql, **transaction):
+        """Ask about one statement on the test cluster's dev database."""
+        return _write_confirmation(
+            self._ctx(mocker), 'test-cluster', 'provisioned', 'dev', sql, **transaction
+        )
+
     @pytest.mark.parametrize(
         'sql', ['SELECT pg_terminate_backend(123)', 'SELECT pg_cancel_backend(123)']
     )
@@ -88,7 +95,7 @@ class TestWriteConfirmation:
         """Read as a SELECT, either ran unasked and could end another caller's work."""
         self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
 
-        result = _write_confirmation(self._ctx(mocker), 'test-cluster', 'dev', sql)
+        result = self._ask(mocker, sql)
 
         assert isinstance(result, Elicit)
         assert sql in result.message
@@ -100,9 +107,7 @@ class TestWriteConfirmation:
         """
         self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
 
-        result = _write_confirmation(
-            self._ctx(mocker), 'test-cluster', 'dev', 'GRANT SELECT ON t TO u'
-        )
+        result = self._ask(mocker, 'GRANT SELECT ON t TO u')
 
         assert isinstance(result, Elicit)
 
@@ -110,7 +115,7 @@ class TestWriteConfirmation:
         """Read-write mode returns a request to elicit, against the ConfirmWrite schema."""
         self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
 
-        result = _write_confirmation(self._ctx(mocker), 'test-cluster', 'dev', 'DELETE FROM t')
+        result = self._ask(mocker, 'DELETE FROM t')
 
         assert isinstance(result, Elicit)
         assert result.schema is ConfirmWrite
@@ -125,47 +130,45 @@ class TestWriteConfirmation:
         unasked. One prompt in a configuration where every write is refused is the cheaper side.
         """
         self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
-        # Under both keys a check could consult: the canonical one the latch is written under, and
-        # the caller's raw string, which is all this synchronous resolver has. Seeded under one,
-        # a check keyed on the other would miss it and pass whatever the code did.
-        now = time.monotonic()
-        redshift_module._no_batch_since['test-cluster (provisioned)'] = now
-        redshift_module._no_batch_since['test-cluster'] = now
+        # Under the key the latch is written under, which the arguments here spell out.
+        latched = {ClusterKey('test-cluster', 'provisioned'): time.monotonic()}
+        redshift_module._no_batch_since.update(latched)
         mocker.patch('awslabs.redshift_mcp_server.redshift.FALLBACK_NO_BATCH_REPROBE', reprobe)
 
-        result = _write_confirmation(self._ctx(mocker), 'test-cluster', 'dev', 'DELETE FROM t')
+        result = self._ask(mocker, 'DELETE FROM t')
 
         assert isinstance(result, Elicit)
+        # Unread as well as unheeded: reading a due re-probe spends it, and the body needs it.
+        assert redshift_module._no_batch_since == latched
 
     def test_prompt_names_target_and_statement(self, mocker):
         """The prompt tells the user which cluster and statement they are approving."""
         self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
 
-        result = _write_confirmation(self._ctx(mocker), 'test-cluster', 'dev', 'DELETE FROM t')
+        result = self._ask(mocker, 'DELETE FROM t')
 
         assert isinstance(result, Elicit)
-        assert 'test-cluster:dev' in result.message
+        assert 'test-cluster (provisioned):dev' in result.message
         assert 'DELETE FROM t' in result.message
         assert 'cannot be rolled back' in result.message
 
-    def test_the_prompt_names_the_cluster_type_when_one_was_given(self, mocker):
-        """Given, it is because the identifier names two warehouses; the user must see which."""
+    @pytest.mark.parametrize('cluster_type', ['provisioned', 'serverless'])
+    def test_the_prompt_names_the_type_it_was_given(self, mocker, cluster_type):
+        """The identifier alone can name two warehouses, so the user must see which this is."""
         self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
 
         result = _write_confirmation(
-            self._ctx(mocker), 'shared', 'dev', 'DELETE FROM t', cluster_type='serverless'
+            self._ctx(mocker), 'shared', cluster_type, 'dev', 'DELETE FROM t'
         )
 
         assert isinstance(result, Elicit)
-        assert 'against shared (serverless):dev?' in result.message
+        assert f'against shared ({cluster_type}):dev?' in result.message
 
     def test_a_write_inside_a_transaction_is_not_described_as_final(self, mocker):
         """Inside a transaction the write is not final until it is committed."""
         self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
 
-        result = _write_confirmation(
-            self._ctx(mocker), 'test-cluster', 'dev', 'DELETE FROM t', in_transaction='load'
-        )
+        result = self._ask(mocker, 'DELETE FROM t', in_transaction='load')
 
         assert isinstance(result, Elicit)
         assert "transaction 'load'" in result.message
@@ -178,9 +181,7 @@ class TestWriteConfirmation:
         """The call being approved takes the commit decision, so it cannot be called pending."""
         self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
 
-        result = _write_confirmation(
-            self._ctx(mocker), 'test-cluster', 'dev', 'DELETE FROM t', commit_transaction='load'
-        )
+        result = self._ask(mocker, 'DELETE FROM t', commit_transaction='load')
 
         assert isinstance(result, Elicit)
         assert "transaction 'load'" in result.message
@@ -192,9 +193,7 @@ class TestWriteConfirmation:
         """Promising a pending commit would overstate what approving it keeps."""
         self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
 
-        result = _write_confirmation(
-            self._ctx(mocker), 'test-cluster', 'dev', 'DELETE FROM t', rollback_transaction='load'
-        )
+        result = self._ask(mocker, 'DELETE FROM t', rollback_transaction='load')
 
         assert isinstance(result, Elicit)
         assert "transaction 'load'" in result.message
@@ -203,37 +202,26 @@ class TestWriteConfirmation:
         assert 'outside the database' in result.message
         assert 'not final until you commit' not in result.message
 
-    def test_closing_a_transaction_asks_nothing(self, mocker):
-        """A bare commit or rollback runs no statement of the caller's."""
-        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
+    @pytest.mark.parametrize(
+        ('access_mode', 'skip', 'sql', 'transaction'),
+        [
+            # A bare commit or rollback runs no statement of the caller's.
+            (ACCESS_MODE_READ_WRITE, False, None, {'commit_transaction': 'load'}),
+            # A recognized read is not confirmed, even when writes are permitted.
+            (ACCESS_MODE_READ_WRITE, False, 'SELECT 1', {}),
+            # Read-only mode persists nothing, a write included.
+            (ACCESS_MODE_READ_ONLY, False, 'DELETE FROM t', {}),
+            (ACCESS_MODE_READ_WRITE, True, 'DELETE FROM t', {}),
+        ],
+        ids=['closing', 'read', 'read_only', 'opt_out'],
+    )
+    def test_nothing_is_asked_when_no_approval_is_due(
+        self, mocker, access_mode, skip, sql, transaction
+    ):
+        """None of these calls is due an approval."""
+        self._configure(mocker, access_mode, skip)
 
-        result = _write_confirmation(
-            self._ctx(mocker), 'test-cluster', 'dev', None, commit_transaction='load'
-        )
-
-        assert result == ConfirmWrite(confirmed=True)
-
-    def test_read_in_read_write_mode_asks_nothing(self, mocker):
-        """A recognized read is not confirmed, even when writes are permitted."""
-        self._configure(mocker, ACCESS_MODE_READ_WRITE, False)
-
-        result = _write_confirmation(self._ctx(mocker), 'test-cluster', 'dev', 'SELECT 1')
-
-        assert result == ConfirmWrite(confirmed=True)
-
-    def test_read_only_asks_nothing(self, mocker):
-        """Read-only mode approves without asking, since nothing can be persisted."""
-        self._configure(mocker, ACCESS_MODE_READ_ONLY, False)
-
-        result = _write_confirmation(self._ctx(mocker), 'test-cluster', 'dev', 'SELECT 1')
-
-        assert result == ConfirmWrite(confirmed=True)
-
-    def test_opt_out_asks_nothing(self, mocker):
-        """The opt-out approves without asking."""
-        self._configure(mocker, ACCESS_MODE_READ_WRITE, True)
-
-        result = _write_confirmation(self._ctx(mocker), 'test-cluster', 'dev', 'DELETE FROM t')
+        result = self._ask(mocker, sql, **transaction)
 
         assert result == ConfirmWrite(confirmed=True)
 
@@ -243,7 +231,9 @@ class TestWriteConfirmation:
         ctx = self._ctx(mocker)
 
         with pytest.raises(ToolError, match='single SQL statement is allowed'):
-            _write_confirmation(ctx, 'test-cluster', 'dev', 'SELECT 1; DROP TABLE t')
+            _write_confirmation(
+                ctx, 'test-cluster', 'provisioned', 'dev', 'SELECT 1; DROP TABLE t'
+            )
 
         ctx.session.check_client_capability.assert_not_called()
 
@@ -253,7 +243,11 @@ class TestWriteConfirmation:
 
         with pytest.raises(ToolError, match='cannot prompt for confirmation'):
             _write_confirmation(
-                self._ctx(mocker, can_elicit=False), 'test-cluster', 'dev', 'DELETE FROM t'
+                self._ctx(mocker, can_elicit=False),
+                'test-cluster',
+                'provisioned',
+                'dev',
+                'DELETE FROM t',
             )
 
     def test_refusal_names_the_opt_out(self, mocker):
@@ -262,7 +256,11 @@ class TestWriteConfirmation:
 
         with pytest.raises(ToolError, match='UNSAFE_SKIP_WRITE_CONFIRMATION'):
             _write_confirmation(
-                self._ctx(mocker, can_elicit=False), 'test-cluster', 'dev', 'DELETE FROM t'
+                self._ctx(mocker, can_elicit=False),
+                'test-cluster',
+                'provisioned',
+                'dev',
+                'DELETE FROM t',
             )
 
 
@@ -373,6 +371,23 @@ async def test_resolved_confirmation_is_not_a_tool_argument():
         'rollback_transaction',
         'cluster_type',
     }
+
+
+@pytest.mark.asyncio
+async def test_every_tool_taking_a_cluster_requires_its_type():
+    """One identifier can name a provisioned cluster and a workgroup, so alone it picks neither."""
+    tools = await mcp.list_tools()
+    taking_a_cluster = [
+        tool for tool in tools if 'cluster_identifier' in tool.input_schema['properties']
+    ]
+
+    assert len(taking_a_cluster) == 6
+    for tool in taking_a_cluster:
+        assert 'cluster_type' in tool.input_schema['required'], tool.name
+        assert tool.input_schema['properties']['cluster_type']['enum'] == [
+            'provisioned',
+            'serverless',
+        ]
 
 
 class TestListClustersTool:
@@ -527,7 +542,7 @@ class TestListClustersTool:
         await list_clusters_tool(Context())
         discovered = redshift_client.get_paginator.return_value.paginate.call_count
 
-        assert (await resolve_cluster('new-cluster')).identifier == 'new-cluster'
+        assert (await resolve_cluster('new-cluster', 'provisioned')).identifier == 'new-cluster'
         # Answered from what list_clusters stored, not from a discovery of its own.
         assert redshift_client.get_paginator.return_value.paginate.call_count == discovered
 
@@ -566,12 +581,10 @@ class TestListToolsForwardTheirArguments:
             'awslabs.redshift_mcp_server.server.discover_columns', return_value=[]
         )
 
-        await list_databases_tool(Context(), 'c1', 'analytics', cluster_type='serverless')
-        await list_schemas_tool(Context(), 'c1', 'analytics', cluster_type='serverless')
-        await list_tables_tool(Context(), 'c1', 'analytics', 'sales', cluster_type='serverless')
-        await list_columns_tool(
-            Context(), 'c1', 'analytics', 'sales', 'orders', cluster_type='serverless'
-        )
+        await list_databases_tool(Context(), 'c1', 'serverless', 'analytics')
+        await list_schemas_tool(Context(), 'c1', 'serverless', 'analytics')
+        await list_tables_tool(Context(), 'c1', 'serverless', 'analytics', 'sales')
+        await list_columns_tool(Context(), 'c1', 'serverless', 'analytics', 'sales', 'orders')
 
         databases.assert_called_once_with(
             cluster_identifier='c1', database_name='analytics', cluster_type='serverless'
@@ -622,7 +635,7 @@ class TestListDatabasesTool:
             ),
         ]
 
-        result = await list_databases_tool(Context(), 'test-cluster', 'dev')
+        result = await list_databases_tool(Context(), 'test-cluster', 'provisioned', 'dev')
 
         # Verify return type and structure
         assert isinstance(result, list)
@@ -644,7 +657,7 @@ class TestListDatabasesTool:
         )
         mock_discover_databases.return_value = []
 
-        result = await list_databases_tool(Context(), 'test-cluster', 'dev')
+        result = await list_databases_tool(Context(), 'test-cluster', 'provisioned', 'dev')
 
         # Verify return type
         assert isinstance(result, list)
@@ -663,7 +676,7 @@ class TestListDatabasesTool:
         )
 
         with pytest.raises(Exception, match='DB error'):
-            await list_databases_tool(mock_ctx, 'test-cluster')
+            await list_databases_tool(mock_ctx, 'test-cluster', 'provisioned')
 
 
 class TestListSchemasTool:
@@ -694,7 +707,7 @@ class TestListSchemasTool:
             ),
         ]
 
-        result = await list_schemas_tool(Context(), 'test-cluster', 'dev')
+        result = await list_schemas_tool(Context(), 'test-cluster', 'provisioned', 'dev')
 
         # Verify return type and structure
         assert isinstance(result, list)
@@ -714,7 +727,7 @@ class TestListSchemasTool:
         mock_discover_schemas = mocker.patch('awslabs.redshift_mcp_server.server.discover_schemas')
         mock_discover_schemas.return_value = []
 
-        result = await list_schemas_tool(Context(), 'test-cluster', 'dev')
+        result = await list_schemas_tool(Context(), 'test-cluster', 'provisioned', 'dev')
 
         # Verify return type
         assert isinstance(result, list)
@@ -733,7 +746,7 @@ class TestListSchemasTool:
         )
 
         with pytest.raises(Exception, match='Schema error'):
-            await list_schemas_tool(mock_ctx, 'test-cluster', 'test-db')
+            await list_schemas_tool(mock_ctx, 'test-cluster', 'provisioned', 'test-db')
 
 
 class TestListTablesTool:
@@ -762,7 +775,7 @@ class TestListTablesTool:
             ),
         ]
 
-        result = await list_tables_tool(Context(), 'test-cluster', 'dev', 'public')
+        result = await list_tables_tool(Context(), 'test-cluster', 'provisioned', 'dev', 'public')
 
         # Verify return type and structure
         assert isinstance(result, list)
@@ -782,7 +795,7 @@ class TestListTablesTool:
         mock_discover_tables = mocker.patch('awslabs.redshift_mcp_server.server.discover_tables')
         mock_discover_tables.return_value = []
 
-        result = await list_tables_tool(Context(), 'test-cluster', 'dev', 'public')
+        result = await list_tables_tool(Context(), 'test-cluster', 'provisioned', 'dev', 'public')
 
         # Verify return type
         assert isinstance(result, list)
@@ -801,7 +814,9 @@ class TestListTablesTool:
         )
 
         with pytest.raises(Exception, match='Table error'):
-            await list_tables_tool(mock_ctx, 'test-cluster', 'test-db', 'test-schema')
+            await list_tables_tool(
+                mock_ctx, 'test-cluster', 'provisioned', 'test-db', 'test-schema'
+            )
 
 
 class TestListColumnsTool:
@@ -842,7 +857,9 @@ class TestListColumnsTool:
             ),
         ]
 
-        result = await list_columns_tool(Context(), 'test-cluster', 'dev', 'public', 'users')
+        result = await list_columns_tool(
+            Context(), 'test-cluster', 'provisioned', 'dev', 'public', 'users'
+        )
 
         # Verify return type and structure
         assert isinstance(result, list)
@@ -864,7 +881,9 @@ class TestListColumnsTool:
         mock_discover_columns = mocker.patch('awslabs.redshift_mcp_server.server.discover_columns')
         mock_discover_columns.return_value = []
 
-        result = await list_columns_tool(Context(), 'test-cluster', 'dev', 'public', 'users')
+        result = await list_columns_tool(
+            Context(), 'test-cluster', 'provisioned', 'dev', 'public', 'users'
+        )
 
         # Verify return type
         assert isinstance(result, list)
@@ -884,7 +903,7 @@ class TestListColumnsTool:
 
         with pytest.raises(Exception, match='Column error'):
             await list_columns_tool(
-                mock_ctx, 'test-cluster', 'test-db', 'test-schema', 'test-table'
+                mock_ctx, 'test-cluster', 'provisioned', 'test-db', 'test-schema', 'test-table'
             )
 
 
@@ -908,6 +927,7 @@ class TestExecuteQueryTool:
             Context(),
             ConfirmWrite(confirmed=True),
             cluster_identifier='test-cluster',
+            cluster_type='provisioned',
             database_name='dev',
             sql=None,
             commit_transaction='load' if parameter == 'commit_transaction' else None,
@@ -936,6 +956,7 @@ class TestExecuteQueryTool:
             Context(),
             ConfirmWrite(confirmed=True),
             cluster_identifier='test-cluster',
+            cluster_type='provisioned',
             database_name='dev',
             sql='SELECT id, name, age, active, score FROM users LIMIT 2',
         )
@@ -969,13 +990,14 @@ class TestExecuteQueryTool:
             'query_id': 'query-123',
         }
 
+        # Serverless, so a body that dropped the caller's type for a default could not pass.
         await execute_query_tool(
             Context(),
             ConfirmWrite(confirmed=True),
             cluster_identifier='test-cluster',
+            cluster_type='serverless',
             database_name='dev',
             sql='SELECT 1 AS id',
-            cluster_type='provisioned',
         )
 
         mock_execute_query.assert_called_once_with(
@@ -987,7 +1009,7 @@ class TestExecuteQueryTool:
             in_transaction=None,
             commit_transaction=None,
             rollback_transaction=None,
-            cluster_type='provisioned',
+            cluster_type='serverless',
         )
 
     @pytest.mark.asyncio
@@ -1007,6 +1029,7 @@ class TestExecuteQueryTool:
                 mock_ctx,
                 ConfirmWrite(confirmed=False),
                 cluster_identifier='test-cluster',
+                cluster_type='provisioned',
                 database_name='dev',
                 sql='DELETE FROM t',
             )
@@ -1028,6 +1051,7 @@ class TestExecuteQueryTool:
             Context(),
             ConfirmWrite(confirmed=True),
             cluster_identifier='test-workgroup',
+            cluster_type='serverless',
             database_name='test_db',
             sql='SELECT COUNT(*) FROM empty_table',
         )
@@ -1055,7 +1079,12 @@ class TestExecuteQueryTool:
 
         with pytest.raises(Exception, match='Query error'):
             await execute_query_tool(
-                mock_ctx, ConfirmWrite(confirmed=True), 'test-cluster', 'test-db', 'SELECT 1'
+                mock_ctx,
+                ConfirmWrite(confirmed=True),
+                'test-cluster',
+                'provisioned',
+                'test-db',
+                'SELECT 1',
             )
 
 
@@ -1140,6 +1169,7 @@ class TestReviewClusterTool:
         result = await review_cluster_tool(
             ctx=mock_ctx,
             cluster_identifier='test-cluster',
+            cluster_type='provisioned',
             database_name='dev',
         )
 
@@ -1161,6 +1191,7 @@ class TestReviewClusterTool:
             await review_cluster_tool(
                 ctx=mock_ctx,
                 cluster_identifier='test-cluster',
+                cluster_type='provisioned',
                 database_name='dev',
             )
 

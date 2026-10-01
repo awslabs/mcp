@@ -362,6 +362,10 @@ def test(config: Config, keys: list[str], keep_up: bool) -> int:
     session = _session(config)
     failures = 0
 
+    # Outside the `finally`: a configured name that belongs to something else is refused before
+    # anything is created, so there is nothing of this run's to tear down.
+    deploy.check_ownership(session, config)
+
     # Everything after `up` runs under `finally`, because by then the cluster, the workgroup and
     # two IAM roles exist and are billing. A crash in the agent, the report or the harness itself
     # must not be the reason someone finds them still running tomorrow.

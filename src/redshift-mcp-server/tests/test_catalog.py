@@ -49,8 +49,8 @@ async def test_a_listing_runs_on_the_cluster_and_database_it_names(mocker, funct
     """The tools document the named database as the one connected to.
 
     Connected to 'dev' instead, a listing answered for whatever 'dev' could see, and run on
-    another cluster, for a warehouse the caller did not name. The type goes too, since without it
-    a name shared by a cluster and a workgroup is refused.
+    another cluster, for a warehouse the caller did not name. The type goes too, since a
+    cluster and a workgroup can share a name.
     """
     run = mocker.patch(
         'awslabs.redshift_mcp_server.catalog.redshift.execute_standalone_statement',
@@ -99,7 +99,7 @@ class TestDiscoverCatalog:
             'query-123',
         )
 
-        result = await discover_databases('test-cluster', 'dev')
+        result = await discover_databases('test-cluster', 'provisioned', 'dev')
 
         assert len(result) == 1
         assert result[0].database_name == 'dev'
@@ -126,7 +126,7 @@ class TestDiscoverCatalog:
         mock_execute_protected.side_effect = Exception('Database discovery failed')
 
         with pytest.raises(Exception, match='Database discovery failed'):
-            await discover_databases('test-cluster')
+            await discover_databases('test-cluster', 'provisioned')
 
     @pytest.mark.asyncio
     async def test_discover_schemas(self, mocker):
@@ -161,7 +161,7 @@ class TestDiscoverCatalog:
             'query-456',
         )
 
-        result = await discover_schemas('test-cluster', 'dev')
+        result = await discover_schemas('test-cluster', 'provisioned', 'dev')
 
         assert len(result) == 1
         assert result[0].database_name == 'dev'
@@ -179,7 +179,7 @@ class TestDiscoverCatalog:
         # A double quote in the database name is doubled so the value cannot
         # break out of the identifier (injection-safe).
         mock_execute_protected.return_value = ({'Records': []}, 'query-457')
-        await discover_schemas('test-cluster', 'd"b')
+        await discover_schemas('test-cluster', 'provisioned', 'd"b')
         assert '"d""b"' in mock_execute_protected.call_args[1]['sql']
 
     @pytest.mark.asyncio
@@ -191,7 +191,7 @@ class TestDiscoverCatalog:
         mock_execute_protected.side_effect = Exception('Schema discovery failed')
 
         with pytest.raises(Exception, match='Schema discovery failed'):
-            await discover_schemas('test-cluster', 'dev')
+            await discover_schemas('test-cluster', 'provisioned', 'dev')
 
     @pytest.mark.asyncio
     async def test_discover_tables(self, mocker):
@@ -224,7 +224,7 @@ class TestDiscoverCatalog:
             'query-789',
         )
 
-        result = await discover_tables('test-cluster', 'dev', 'public')
+        result = await discover_tables('test-cluster', 'provisioned', 'dev', 'public')
 
         assert len(result) == 1
         assert result[0].database_name == 'dev'
@@ -246,7 +246,7 @@ class TestDiscoverCatalog:
         # Double quotes in the identifiers are doubled so the values cannot
         # break out of them (injection-safe).
         mock_execute_protected.return_value = ({'Records': []}, 'query-790')
-        await discover_tables('test-cluster', 'd"b', 's"c')
+        await discover_tables('test-cluster', 'provisioned', 'd"b', 's"c')
         assert '"d""b"."s""c"' in mock_execute_protected.call_args[1]['sql']
 
     @pytest.mark.asyncio
@@ -258,7 +258,7 @@ class TestDiscoverCatalog:
         mock_execute_protected.side_effect = Exception('Table discovery failed')
 
         with pytest.raises(Exception, match='Table discovery failed'):
-            await discover_tables('test-cluster', 'dev', 'public')
+            await discover_tables('test-cluster', 'provisioned', 'dev', 'public')
 
     @pytest.mark.asyncio
     async def test_discover_columns(self, mocker):
@@ -303,7 +303,7 @@ class TestDiscoverCatalog:
             'query-101',
         )
 
-        result = await discover_columns('test-cluster', 'dev', 'public', 'users')
+        result = await discover_columns('test-cluster', 'provisioned', 'dev', 'public', 'users')
 
         assert len(result) == 1
         assert result[0].database_name == 'dev'
@@ -324,7 +324,7 @@ class TestDiscoverCatalog:
         # Double quotes in the identifiers are doubled so the values cannot
         # break out of them (injection-safe).
         mock_execute_protected.return_value = ({'Records': []}, 'query-102')
-        await discover_columns('test-cluster', 'd"b', 's"c', 't"l')
+        await discover_columns('test-cluster', 'provisioned', 'd"b', 's"c', 't"l')
         assert '"d""b"."s""c"."t""l"' in mock_execute_protected.call_args[1]['sql']
 
     @pytest.mark.asyncio
@@ -336,7 +336,7 @@ class TestDiscoverCatalog:
         mock_execute_protected.side_effect = Exception('Column discovery failed')
 
         with pytest.raises(Exception, match='Column discovery failed'):
-            await discover_columns('test-cluster', 'dev', 'public', 'users')
+            await discover_columns('test-cluster', 'provisioned', 'dev', 'public', 'users')
 
 
 class TestSqlIdentifier:
