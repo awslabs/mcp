@@ -58,12 +58,12 @@ def mock_context():
 
 
 async def _registered_tool():
-    """Return the registered enterprise_support tool, asserting it exists.
+    """Return the registered enterprise-support tool, asserting it exists.
 
     Returns:
         The registered FastMCP tool.
     """
-    tool = await enterprise_support_server.get_tool('enterprise_support')
+    tool = await enterprise_support_server.get_tool('enterprise-support')
     assert tool is not None
     return tool
 
@@ -104,7 +104,7 @@ class TestToolRegistration:
 
     @pytest.mark.asyncio
     async def test_tool_is_registered(self):
-        """The enterprise_support tool exists on the server."""
+        """The enterprise-support tool exists on the server."""
         tool = await _registered_tool()
 
         assert tool is not None
