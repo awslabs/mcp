@@ -209,7 +209,7 @@ async def cost_explorer(
     except Exception as client_error:
         await ctx.error(f'Failed to create AWS client: {str(client_error)}')
         error_message = f'Failed to create AWS client: {str(client_error)}'
-        response = format_response(
+        return format_response(
             'error',
             {
                 'error_type': 'client_creation_error',
@@ -217,16 +217,10 @@ async def cost_explorer(
                 'details': repr(client_error),
             },
             error_message,
+            error_type='client_creation_error',
+            operation=operation,
+            service='Cost Explorer',
         )
-        # Surface the classification at the top level, not only under data
-        response.update(
-            {
-                'error_type': 'client_creation_error',
-                'operation': operation,
-                'service': 'Cost Explorer',
-            }
-        )
-        return response
 
     # Route to the appropriate operation handler
     try:

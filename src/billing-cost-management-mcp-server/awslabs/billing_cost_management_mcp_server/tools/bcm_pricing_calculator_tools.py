@@ -54,19 +54,14 @@ def _preferences_error_response(preferences_result: Dict[str, Any]) -> Dict[str,
     Returns:
         Dict containing the error response
     """
-    response = format_response(
+    return format_response(
         'error',
         {'error': preferences_result['error'], 'error_code': 'PREFERENCES_NOT_CONFIGURED'},
         preferences_result['error'],
+        error_type=preferences_result.get('error_type', 'PREFERENCES_NOT_CONFIGURED'),
+        operation='get_preferences',
+        service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
     )
-    response.update(
-        {
-            'error_type': preferences_result.get('error_type', 'PREFERENCES_NOT_CONFIGURED'),
-            'operation': 'get_preferences',
-            'service': BCM_PRICING_CALCULATOR_SERVICE_NAME,
-        }
-    )
-    return response
 
 
 async def bcm_pricing_calc_core(
@@ -188,15 +183,14 @@ async def bcm_pricing_calc_core(
         error_message = error_response.get('message', str(e))
         full_message = f'Failed to process AWS Billing and Cost Management Pricing Calculator request: {error_message}'
         await ctx.error(full_message)
-        response = format_response('error', {'error': error_message}, full_message)
-        response.update(
-            {
-                'error_type': error_response.get('error_type', 'unknown_error'),
-                'operation': operation,
-                'service': BCM_PRICING_CALCULATOR_SERVICE_NAME,
-            }
+        return format_response(
+            'error',
+            {'error': error_message},
+            full_message,
+            error_type=error_response.get('error_type', 'unknown_error'),
+            operation=operation,
+            service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
         )
-        return response
 
 
 @bcm_pricing_calculator_server.tool(
