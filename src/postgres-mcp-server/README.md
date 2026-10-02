@@ -155,6 +155,57 @@ The MCP server supports connecting to multiple database endpoints using differen
 - RDS Data API must be enabled on the Aurora PostgreSQL cluster
 - Appropriate IAM permissions for Data API access
 
+#### RDS Proxy auto-detection (RPG only)
+
+For standalone RDS PostgreSQL instances (`database_type: RPG` without a `cluster_identifier`), the server automatically checks whether an RDS Proxy fronts the target instance and routes the connection through the proxy endpoint when one is found. The proxy uses the same Secrets Manager secret on its backend, so no additional configuration is required.
+
+This lookup is best-effort: if the IAM permissions below are missing or the API call fails, the server logs a warning and falls back to a direct instance connection.
+
+Optional IAM permissions for proxy auto-detection:
+- `rds:DescribeDBProxies`
+- `rds:DescribeDBProxyTargets`
+
+Routing is transparent: **keep using the instance endpoint**. Detecting a proxy
+changes where the server opens its socket, not how you address the target. The
+instance endpoint remains the target's identity everywhere it matters — it keys
+the per-target `--secret_arn` override map, it keys the internal connection
+cache, and it is what `connect_to_database` echoes back as `db_endpoint`. So
+subsequent `run_query` calls pass the same endpoint they always did.
+
+When a proxy is detected, `connect_to_database` reports it as an additional
+`proxy_endpoint` field:
+
+```json
+{
+  "connection_method": "pgwire",
+  "cluster_identifier": "",
+  "db_endpoint": "myinstance.abc123.us-east-1.rds.amazonaws.com",
+  "proxy_endpoint": "myproxy.proxy-abc123.us-east-1.rds.amazonaws.com",
+  "database": "postgres",
+  "port": 5432
+}
+```
+
+That field is observability only — it tells you the traffic is proxied. It is not
+a handle for the connection; `db_endpoint` is.
+
+Two further consequences worth calling out:
+
+- **`pgwire_iam` tokens are issued for the proxy hostname.** This is what RDS Proxy
+  IAM authentication requires, but it also means the `rds-db:connect` policy must
+  authorize the *proxy* resource (`arn:aws:rds-db:<region>:<account>:dbuser:prx-<proxy-resource-id>/<db-user>`)
+  rather than the instance resource. A policy scoped only to the instance will
+  fail to authenticate once a proxy is detected.
+- **Non-default ports are not translated.** The proxy is contacted on the port
+  resolved from the instance. RDS Proxy for PostgreSQL listens on 5432, so an
+  instance running on a non-default port that is also fronted by a proxy would be
+  dialed on the wrong port. Uncommon, but it will fail rather than silently
+  bypass the proxy.
+
+TLS is unaffected in principle — the proxy presents an RDS-issued certificate for
+its own hostname, which the bundled CA set verifies under the default
+`--sslmode=verify-full`.
+
 ### AWS Authentication
 
 The MCP server needs AWS credential to read database cluster or instance data, and to to create clusters or instances. These are control plane operations that are separate from Postgres operations (i.e. SELECT, CREATE etc). If you choose to use rdsapi connection method, the AWS credential must have the rds-data:ExecuteStatement permission on the Aurora cluster (see https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazonrdsdataapi.html). The MCP uses the AWS profile specified in the `AWS_PROFILE` environment variable. If not provided, it defaults to the "default" profile in your AWS configuration file.
