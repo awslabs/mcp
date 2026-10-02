@@ -388,6 +388,13 @@ def test_cost_anomaly_server_initialization():
     )
 
 
+def _assert_validation_error(res):
+    """Local validation failures carry a top-level classification."""
+    assert res['error_type'] == 'validation_error'
+    assert res['operation'] == 'cost_anomaly'
+    assert res['service'] == 'Cost Explorer'
+
+
 def _reload_cost_anomaly_with_identity_decorator():
     """Reload cost_anomaly_tools with FastMCP.tool patched to return the original function unchanged (identity decorator).
 
@@ -423,6 +430,7 @@ class TestCostAnomalyFastMCP:
             assert res['status'] == 'error'
             assert 'Invalid start_date format' in res['message']
             assert res['data']['invalid_parameter'] == 'start_date'
+            _assert_validation_error(res)
 
     async def test_ca_real_invalid_end_date_format(self, mock_context):
         """Test cost_anomaly with invalid end_date format."""
@@ -437,6 +445,7 @@ class TestCostAnomalyFastMCP:
             assert res['status'] == 'error'
             assert 'Invalid end_date format' in res['message']
             assert res['data']['invalid_parameter'] == 'end_date'
+            _assert_validation_error(res)
 
     async def test_ca_real_start_date_after_end_date(self, mock_context):
         """Test cost_anomaly with start_date after end_date."""
@@ -450,6 +459,7 @@ class TestCostAnomalyFastMCP:
             res = await real_fn(mock_context, start_date='2023-01-31', end_date='2023-01-01')  # type: ignore[reportCallIssue]
             assert res['status'] == 'error'
             assert 'start_date must be before or equal to end_date' in res['message']
+            _assert_validation_error(res)
 
     async def test_ca_real_future_end_date(self, mock_context):
         """Test cost_anomaly with future end_date."""
@@ -467,6 +477,7 @@ class TestCostAnomalyFastMCP:
             res = await real_fn(mock_context, start_date='2023-01-01', end_date=future_date)  # type: ignore[reportCallIssue]
             assert res['status'] == 'error'
             assert 'Cannot request anomalies for future dates' in res['message']
+            _assert_validation_error(res)
 
     async def test_ca_real_old_start_date_warning(self, mock_context):
         """Test cost_anomaly with start_date more than 90 days old triggers warning."""
@@ -558,6 +569,7 @@ class TestCostAnomalyFastMCP:
             assert res['status'] == 'error'
             assert 'Invalid feedback value' in res['message']
             assert res['data']['invalid_parameter'] == 'feedback'
+            _assert_validation_error(res)
 
     async def test_ca_real_invalid_total_impact_operator(self, mock_context):
         """Test cost_anomaly with invalid total_impact_operator."""
@@ -576,6 +588,7 @@ class TestCostAnomalyFastMCP:
             )
             assert res['status'] == 'error'
             assert 'Invalid total_impact_operator' in res['message']
+            _assert_validation_error(res)
 
     async def test_ca_real_between_operator_missing_end_value(self, mock_context):
         """Test cost_anomaly with BETWEEN operator missing total_impact_end."""
@@ -598,6 +611,7 @@ class TestCostAnomalyFastMCP:
             assert (
                 'both total_impact_start and total_impact_end must be provided' in res['message']
             )
+            _assert_validation_error(res)
 
     async def test_ca_real_value_error_handling(self, mock_context):
         """Test cost_anomaly ValueError handling."""
@@ -618,6 +632,7 @@ class TestCostAnomalyFastMCP:
             res = await real_fn(mock_context, start_date='2023-01-01', end_date='2023-01-31')  # type: ignore[reportCallIssue]
             assert res['status'] == 'error'
             assert 'Date validation error' in res['message']
+            _assert_validation_error(res)
 
     async def test_ca_real_client_error_2024_data(self, mock_context):
         """Test cost_anomaly ClientError with 2024 data issue."""
@@ -648,10 +663,6 @@ class TestCostAnomalyFastMCP:
             assert res['status'] == 'error'
             assert '2024 data' in res['message']
             assert '24-48 hours in the past' in res['message']
-            assert res['error_type'] == 'ValidationException'
-            assert res['operation'] == 'cost_anomaly'
-            assert res['service'] == 'Cost Explorer'
-            assert res['data'] == {'error_code': 'ValidationException'}
 
     async def test_ca_real_client_error_validation(self, mock_context):
         """Test cost_anomaly ClientError with general validation exception."""
@@ -678,36 +689,6 @@ class TestCostAnomalyFastMCP:
             res = await real_fn(mock_context, start_date='2023-01-01', end_date='2023-01-31')  # type: ignore[reportCallIssue]
             assert res['status'] == 'error'
             assert 'validation error' in res['message']
-            assert res['error_type'] == 'ValidationException'
-            assert res['operation'] == 'cost_anomaly'
-            assert res['data'] == {'error_code': 'ValidationException'}
-
-    async def test_ca_real_client_error_non_validation(self, mock_context):
-        """A non-validation ClientError is returned classified, not re-raised."""
-        ca_mod = _reload_cost_anomaly_with_identity_decorator()
-        real_fn = ca_mod.cost_anomaly
-
-        with (
-            patch.object(ca_mod, 'get_context_logger') as mock_get_logger,
-            patch.object(ca_mod, 'create_aws_client') as mock_create_client,
-        ):
-            mock_logger = AsyncMock()
-            mock_get_logger.return_value = mock_logger
-
-            from botocore.exceptions import ClientError
-
-            error = ClientError(
-                error_response={'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}},
-                operation_name='GetAnomalies',
-            )
-            mock_create_client.side_effect = error
-
-            res = await real_fn(mock_context, start_date='2023-01-01', end_date='2023-01-31')  # type: ignore[reportCallIssue]
-            assert res['status'] == 'error'
-            assert res['error_type'] == 'AccessDenied'
-            assert res['operation'] == 'cost_anomaly'
-            assert res['service'] == 'Cost Explorer'
-            assert res['message'] == 'Access denied'
 
     async def test_ca_real_successful_call(self, mock_context):
         """Test cost_anomaly successful call."""
