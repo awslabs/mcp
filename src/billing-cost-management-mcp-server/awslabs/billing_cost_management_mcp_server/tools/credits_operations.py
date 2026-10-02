@@ -370,11 +370,11 @@ async def _paginate_get_credit_allocation_history(
     await ctx.info(f'Fetched {pages_fetched} page(s), {len(rows)} allocation records')
 
     pagination = {
-        'complete_dataset': resume_token is None,
+        'complete_dataset': not resume_token,
         'pages_fetched': pages_fetched,
         'total_results': len(rows),
-        'has_more': resume_token is not None,
-        'next_token': resume_token,
+        'has_more': bool(resume_token),
+        'next_token': resume_token or None,
         'duration_ms': int(duration_ms),
     }
     completeness = {'partial_results': partial_results, 'failed_months': failed_months}
