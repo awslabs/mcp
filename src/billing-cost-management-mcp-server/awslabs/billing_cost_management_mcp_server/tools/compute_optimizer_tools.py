@@ -17,6 +17,7 @@
 Updated to use shared utility functions.
 """
 
+import botocore.session
 import os
 from ..utilities.aws_service_base import (
     create_aws_client,
@@ -28,7 +29,8 @@ from ..utilities.logging_utils import get_context_logger
 from ..utilities.time_utils import timestamp_to_utc_iso_string
 from botocore.exceptions import ClientError
 from fastmcp import Context, FastMCP
-from typing import Any, Dict, Optional
+from functools import lru_cache
+from typing import Any, Dict, List, Optional
 
 
 compute_optimizer_server = FastMCP(
@@ -75,7 +77,8 @@ For get_idle_recommendations, the `finding` field uses a distinct enum:
 - Unattached: Resource exists but isn't connected to anything
 - Unused: Resource is provisioned but sees no meaningful activity
 Its `filters` accept the filter names `Finding` (values: Idle, Unattached, Unused) and
-`ResourceType`.""",
+`ResourceType`. Finding and ResourceType values are matched case-insensitively and
+normalized to the idle enum spelling (e.g. ebsvolume is sent as EBSVolume, idle as Idle).""",
 )
 async def compute_optimizer(
     ctx: Context,
@@ -809,6 +812,59 @@ async def get_ecs_service_recommendations(
     return format_response('success', formatted_response)
 
 
+# Idle filter name -> botocore enum shape that holds its valid values.
+_IDLE_FILTER_ENUM_SHAPES = {
+    'ResourceType': 'IdleRecommendationResourceType',
+    'Finding': 'IdleFinding',
+}
+
+
+@lru_cache(maxsize=None)
+def _idle_enum_canonical_map(shape_name: str) -> Dict[str, str]:
+    """Build a casefolded -> canonical map of an idle filter enum from the boto model.
+
+    Used to normalize passed `ResourceType` and `Finding` values onto the exact spelling
+    the idle API expects (e.g. `EbsVolume` -> `EBSVolume`, `idle` -> `Idle`); every valid
+    value is recoverable by case-folding alone. The enum is read from the installed
+    botocore service model rather than hardcoded, so new values are supported
+    automatically whenever boto3 is upgraded. The model is loaded offline (no AWS call).
+
+    Returns:
+        Mapping of casefolded value to canonical value. Returns an empty map if the
+        service model or shape cannot be loaded (normalization is then skipped).
+    """
+    try:
+        service_model: Any = botocore.session.get_session().get_service_model('compute-optimizer')
+        enum_values = service_model.shape_for(shape_name).enum
+    except Exception:
+        # Older boto3 without this shape, or model load failure: skip normalization.
+        return {}
+    return {value.casefold(): value for value in enum_values or []}
+
+
+def _normalize_idle_filters(filters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Fold `ResourceType` and `Finding` filter values onto the canonical idle enum spelling.
+
+    Unrecognized values are passed through unchanged: the installed botocore model is a
+    floor, so the service stays the authority on which values are valid.
+    """
+    normalized = []
+    for f in filters:
+        name = f.get('name') if isinstance(f, dict) else None
+        shape_name = _IDLE_FILTER_ENUM_SHAPES.get(name) if isinstance(name, str) else None
+        canonical = _idle_enum_canonical_map(shape_name) if shape_name else {}
+        if canonical:
+            values = f.get('values') or []
+            f = {
+                **f,
+                'values': [
+                    canonical.get(v.casefold(), v) if isinstance(v, str) else v for v in values
+                ],
+            }
+        normalized.append(f)
+    return normalized
+
+
 async def get_idle_recommendations(ctx, co_client, max_results, filters, account_ids, next_token):
     """Get idle resource recommendations.
 
@@ -828,7 +884,7 @@ async def get_idle_recommendations(ctx, co_client, max_results, filters, account
 
     # Parse the filters if provided
     if filters:
-        request_params['filters'] = parse_json(filters, 'filters')
+        request_params['filters'] = _normalize_idle_filters(parse_json(filters, 'filters'))
 
     # Parse the account IDs if provided
     if account_ids:
@@ -840,13 +896,43 @@ async def get_idle_recommendations(ctx, co_client, max_results, filters, account
 
     # Make the API call
     await ctx_logger.info(f'Calling get_idle_recommendations with parameters: {request_params}')
-    response = co_client.get_idle_recommendations(**request_params)
+    try:
+        response = co_client.get_idle_recommendations(**request_params)
+    except ClientError as e:
+        # The service's "Invalid filter value" names neither the rejected value nor the
+        # valid set, so surface the model's enum to let the caller self-correct instead
+        # of retrying the same call. Values that case-folding can't rescue (e.g. a resource
+        # type idle recommendations don't support) end up here.
+        if e.response.get('Error', {}).get('Code') != 'InvalidParameterValueException':
+            raise
+        return format_response(
+            'error',
+            {
+                'error_type': 'invalid_parameter_value',
+                'operation': 'get_idle_recommendations',
+                'aws_error_code': 'InvalidParameterValueException',
+                'aws_error_message': e.response.get('Error', {}).get('Message'),
+                'filters': request_params.get('filters'),
+                'valid_resource_type_values': sorted(
+                    _idle_enum_canonical_map(_IDLE_FILTER_ENUM_SHAPES['ResourceType']).values()
+                ),
+                'valid_finding_values': sorted(
+                    _idle_enum_canonical_map(_IDLE_FILTER_ENUM_SHAPES['Finding']).values()
+                ),
+            },
+            'Invalid filter value for get_idle_recommendations. ResourceType must be one of '
+            'valid_resource_type_values; resource types outside this list are not supported '
+            'by idle recommendations. Finding must be one of valid_finding_values.',
+        )
 
     formatted_response: Dict[str, Any] = {
         'recommendations': [],
         'errors': response.get('errors', []),
         'next_token': response.get('nextToken'),
     }
+    if 'filters' in request_params:
+        # Echo what was actually queried (post-normalization), not what was typed.
+        formatted_response['applied_filters'] = request_params['filters']
 
     for recommendation in response.get('idleRecommendations', []):
         utilization_metrics = []

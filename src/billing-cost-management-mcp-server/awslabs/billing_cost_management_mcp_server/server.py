@@ -178,7 +178,7 @@ TOOLS:
 - sp-purchase-analyzer: Run Savings Plans Purchase Analyzer what-if analyses (max savings, custom commitment, target average coverage) and retrieve their results
 - session-sql: Execute SQL queries on the session database
 - billing-conductor: AWS Billing Conductor tools for AWS Proforma billing (billing groups and associated accounts and cost reports, pricing rules/plans, custom line items)
-- billing-view: AWS Billing View tools for managing and querying billing views (get-billing-view, list-billing-views, list-source-views-for-billing-view, get-resource-policy)
+- billing-view: AWS Billing View tools for managing and querying billing views (get-billing-view, list-billing-views, list-source-views-for-billing-view, get-resource-policy, list-billing-view-segments)
 - cost-allocation-tags: List cost allocation tags and backfill history (list-cost-allocation-tags, list-cost-allocation-tag-backfill-history)
 - cost-category: Describe and list cost category definitions (describe-cost-category-definition, list-cost-category-definitions)
 - invoicing: AWS Invoicing data — invoice summaries with amounts, tax, discounts/fees, currency/FX, due dates, PO numbers, and credit memos (operation: list_invoice_summaries)
@@ -299,6 +299,7 @@ def setup():
         'list-cost-category-definitions',
         'invoicing',
         'get-billing-preferences',
+        'list-billing-view-segments',
     ]
     for tool in tools:
         logger.info(f'- {tool}')

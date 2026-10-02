@@ -165,6 +165,9 @@ async def _enterprise_support(
 
 This tool reports what Enterprise Support was charged and the spend it was derived from. It does not explain Enterprise Support pricing policy. For questions about why Support is priced a particular way, or why a specific charge type behaves as it does, point the customer to the public AWS Support plan FAQ at https://aws.amazon.com/premiumsupport/faqs/ rather than speculating. Questions about the overall bill, general discounts, or credits belong to the cost-explorer, invoicing and credits tools respectively.
 
+QUESTIONS THAT NEED MORE THAN ONE OPERATION:
+- "What is my support charge percentage across my accounts?", and any paraphrase asking how the charge is split, shared, distributed, or allocated, or asking for a per-account percentage. Call get_contract_details FIRST, because supportAllocationMethod decides what answers the question. Fixed_Percentage: the split is chargedPayerAccountIds[].chargePercentage and is already complete. Proportional: chargePercentage is 0.0 by definition and the split follows per-account spend, which only list_linked_account_charges carries, so call it too. Never present a split, computed or otherwise, before the method is known. chargedPayerAccountIds is payer-level while list_linked_account_charges is linked-account-level, so say which level you are reporting.
+
 EXAMPLES
 - {"operation": "get_charge_summary", "billing_month": "2026-06"}
 - {"operation": "get_contract_details", "billing_month": "2026-06"}

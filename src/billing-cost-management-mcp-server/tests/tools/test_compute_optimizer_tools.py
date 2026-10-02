@@ -763,6 +763,165 @@ class TestGetIdleRecommendations:
             assert call_kwargs['accountIds'] == ['123456789012']
             assert call_kwargs['nextToken'] == 'next-page-idle'
 
+    async def test_resource_type_filter_normalized_to_idle_casing(
+        self, mock_context, mock_co_client
+    ):
+        """Passed ResourceType and Finding values are normalized to the idle enum spelling."""
+        filters = json.dumps(
+            [
+                {'name': 'ResourceType', 'values': ['EbsVolume', 'ec2instance', 'NatGateway']},
+                {'name': 'Finding', 'values': ['unattached', 'IDLE', 'Unused']},
+            ]
+        )
+
+        result = await get_idle_recommendations(
+            mock_context,
+            mock_co_client,
+            max_results=None,
+            filters=filters,
+            account_ids=None,
+            next_token=None,
+        )
+
+        expected = [
+            {'name': 'ResourceType', 'values': ['EBSVolume', 'EC2Instance', 'NatGateway']},
+            {'name': 'Finding', 'values': ['Unattached', 'Idle', 'Unused']},
+        ]
+        call_kwargs = mock_co_client.get_idle_recommendations.call_args[1]
+        assert call_kwargs['filters'] == expected
+        assert result['status'] == 'success'
+        assert result['data']['applied_filters'] == expected
+
+    async def test_unknown_resource_type_passed_through(self, mock_context, mock_co_client):
+        """Values the installed model doesn't know (or non-strings) are forwarded unchanged."""
+        filters = json.dumps([{'name': 'ResourceType', 'values': ['SomeFutureType', 42]}])
+
+        await get_idle_recommendations(mock_context, mock_co_client, None, filters, None, None)
+
+        call_kwargs = mock_co_client.get_idle_recommendations.call_args[1]
+        assert call_kwargs['filters'] == [
+            {'name': 'ResourceType', 'values': ['SomeFutureType', 42]}
+        ]
+
+    async def test_unrelated_filter_names_passed_through(self, mock_context, mock_co_client):
+        """Filters without a known enum (other names, non-dict entries) are left untouched."""
+        filters = json.dumps([{'name': 'SomethingElse', 'values': ['ebsvolume']}, 'raw'])
+
+        await get_idle_recommendations(mock_context, mock_co_client, None, filters, None, None)
+
+        call_kwargs = mock_co_client.get_idle_recommendations.call_args[1]
+        assert call_kwargs['filters'] == [
+            {'name': 'SomethingElse', 'values': ['ebsvolume']},
+            'raw',
+        ]
+
+    async def test_invalid_parameter_value_returns_valid_enum(self, mock_context, mock_co_client):
+        """InvalidParameterValueException is returned with the valid ResourceType/Finding sets."""
+        from botocore.exceptions import ClientError
+
+        mock_co_client.get_idle_recommendations.side_effect = ClientError(
+            {
+                'Error': {
+                    'Code': 'InvalidParameterValueException',
+                    'Message': 'Invalid filter value',
+                }
+            },
+            'GetIdleRecommendations',
+        )
+        filters = json.dumps([{'name': 'ResourceType', 'values': ['LambdaFunction']}])
+
+        result = await get_idle_recommendations(
+            mock_context, mock_co_client, None, filters, None, None
+        )
+
+        assert result['status'] == 'error'
+        assert result['data']['error_type'] == 'invalid_parameter_value'
+        assert result['data']['filters'] == [
+            {'name': 'ResourceType', 'values': ['LambdaFunction']}
+        ]
+        valid = result['data']['valid_resource_type_values']
+        assert 'EBSVolume' in valid
+        assert 'LambdaFunction' not in valid
+        assert result['data']['valid_finding_values'] == ['Idle', 'Unattached', 'Unused']
+
+    async def test_other_client_errors_propagate(self, mock_context, mock_co_client):
+        """Non-InvalidParameterValue errors still reach the dispatcher's error ladder."""
+        from botocore.exceptions import ClientError
+
+        mock_co_client.get_idle_recommendations.side_effect = ClientError(
+            {'Error': {'Code': 'ThrottlingException', 'Message': 'slow down'}},
+            'GetIdleRecommendations',
+        )
+
+        with pytest.raises(ClientError):
+            await get_idle_recommendations(mock_context, mock_co_client, None, None, None, None)
+
+
+class TestIdleEnumCanonicalMap:
+    """Tests for the model-driven idle ResourceType/Finding normalization maps."""
+
+    def test_values_come_from_service_model(self):
+        """Canonical values are read from the installed botocore model, not a literal."""
+        import botocore.session
+
+        mod = importlib.import_module(
+            'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools'
+        )
+        model_enum = (
+            botocore.session.get_session()
+            .get_service_model('compute-optimizer')
+            .shape_for('IdleRecommendationResourceType')
+            .enum
+        )
+
+        mod._idle_enum_canonical_map.cache_clear()
+        mapping = mod._idle_enum_canonical_map('IdleRecommendationResourceType')
+
+        assert sorted(mapping.values()) == sorted(model_enum)
+        assert mapping['ebsvolume'] == 'EBSVolume'
+        assert mapping['rdsdbinstance'] == 'RDSDBInstance'
+        # Case-folding must be collision-free for the fold to be deterministic.
+        assert len(mapping) == len(model_enum)
+        mod._idle_enum_canonical_map.cache_clear()
+
+    def test_finding_values_come_from_service_model(self):
+        """The Finding map is read from the model's IdleFinding enum."""
+        mod = importlib.import_module(
+            'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools'
+        )
+
+        mod._idle_enum_canonical_map.cache_clear()
+        mapping = mod._idle_enum_canonical_map(mod._IDLE_FILTER_ENUM_SHAPES['Finding'])
+
+        assert mapping == {'idle': 'Idle', 'unattached': 'Unattached', 'unused': 'Unused'}
+        mod._idle_enum_canonical_map.cache_clear()
+
+    def test_model_load_failure_skips_normalization(self):
+        """A model load failure yields an empty map and filters pass through untouched."""
+        mod = importlib.import_module(
+            'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools'
+        )
+        filters = [{'name': 'ResourceType', 'values': ['EbsVolume']}]
+
+        mod._idle_enum_canonical_map.cache_clear()
+        with patch('botocore.session.Session.get_service_model', side_effect=RuntimeError('boom')):
+            assert mod._idle_enum_canonical_map('IdleRecommendationResourceType') == {}
+            assert mod._normalize_idle_filters(filters) == filters
+        mod._idle_enum_canonical_map.cache_clear()
+
+    def test_model_without_enum_skips_normalization(self):
+        """A shape with no enum yields an empty map rather than raising."""
+        mod = importlib.import_module(
+            'awslabs.billing_cost_management_mcp_server.tools.compute_optimizer_tools'
+        )
+        service_model = MagicMock()
+        service_model.shape_for.return_value.enum = None
+
+        mod._idle_enum_canonical_map.cache_clear()
+        with patch('botocore.session.Session.get_service_model', return_value=service_model):
+            assert mod._idle_enum_canonical_map('IdleFinding') == {}
+        mod._idle_enum_canonical_map.cache_clear()
+
 
 class TestHelperFunctions:
     """Tests for helper functions."""
