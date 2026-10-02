@@ -222,7 +222,11 @@ class TestGetPreferences:
             {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}, 'GetPreferences'
         )
         mock_create_client.side_effect = error
-        mock_handle_error.return_value = {'data': {'error': 'Access denied'}}
+        mock_handle_error.return_value = {
+            'status': 'error',
+            'error_type': 'AccessDenied',
+            'message': 'Access denied',
+        }
 
         # Execute
         result = await get_preferences(mock_context)
@@ -235,6 +239,8 @@ class TestGetPreferences:
         assert (
             'Failed to check BCM Pricing Calculator preferences: Access denied' in result['error']
         )
+        # The AWS classification is kept, not collapsed into "not configured"
+        assert result['error_type'] == 'AccessDenied'
         mock_context.error.assert_called()
 
 
@@ -340,6 +346,29 @@ class TestListWorkloadEstimates:
         # Assert
         assert result['status'] == 'error'
         assert result['data']['error_code'] == 'PREFERENCES_NOT_CONFIGURED'
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
+    )
+    async def test_list_workload_estimates_preferences_access_denied(
+        self, mock_get_preferences, mock_context
+    ):
+        """An AWS error from the preferences check keeps its error_type."""
+        # Setup
+        mock_get_preferences.return_value = {
+            'error': 'Failed to check BCM Pricing Calculator preferences: Access denied',
+            'error_type': 'AccessDenied',
+        }
+
+        # Execute
+        result = await list_workload_estimates(mock_context)
+
+        # Assert
+        assert result['status'] == 'error'
+        assert result['data']['error_code'] == 'PREFERENCES_NOT_CONFIGURED'
+        assert result['error_type'] == 'AccessDenied'
+        assert result['operation'] == 'get_preferences'
+        assert result['service'] == 'BCM Pricing Calculator'
 
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
@@ -1802,6 +1831,9 @@ class TestBcmPricingCalcCoreFunction:
         assert result['status'] == 'error'
         assert result['data']['error'] == PREFERENCES_NOT_CONFIGURED_ERROR
         assert result['message'] == PREFERENCES_NOT_CONFIGURED_ERROR
+        assert result['error_type'] == 'PREFERENCES_NOT_CONFIGURED'
+        assert result['operation'] == 'get_preferences'
+        assert result['service'] == 'BCM Pricing Calculator'
         mock_context.info.assert_called_with(
             'Received BCM Pricing Calculator operation: get_preferences'
         )
@@ -1820,8 +1852,9 @@ class TestBcmPricingCalcCoreFunction:
         test_error = Exception('Test error')
         mock_get_workload_estimate.side_effect = test_error
         mock_handle_error.return_value = {
-            'data': {'error': 'Test error message'},
             'status': 'error',
+            'error_type': 'ValidationException',
+            'message': 'Test error message',
         }
 
         # Execute - call the core function directly
@@ -1850,6 +1883,9 @@ class TestBcmPricingCalcCoreFunction:
             'Failed to process AWS Billing and Cost Management Pricing Calculator request'
             in result['message']
         )
+        assert result['error_type'] == 'ValidationException'
+        assert result['operation'] == 'get_workload_estimate'
+        assert result['service'] == 'AWS Billing and Cost Management Pricing Calculator'
 
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.list_workload_estimates'
@@ -1865,8 +1901,7 @@ class TestBcmPricingCalcCoreFunction:
         test_error = Exception('Direct error message')
         mock_list_estimates.side_effect = test_error
         mock_handle_error.return_value = {
-            'data': {},  # No error field in data
-            'status': 'error',
+            'status': 'error',  # No message field
         }
 
         # Execute - call the core function directly

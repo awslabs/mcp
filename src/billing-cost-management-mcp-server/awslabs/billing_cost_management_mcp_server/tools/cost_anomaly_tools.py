@@ -199,28 +199,28 @@ async def cost_anomaly(
             'error', {'error_type': 'validation_error'}, f'Date validation error: {str(e)}'
         )
     except ClientError as e:
-        # Handle AWS service-specific errors
-        error_code = e.response.get('Error', {}).get('Code')
-        error_message = e.response.get('Error', {}).get('Message')
+        # The shared handler sets the top-level error_type/operation/service.
+        # A bare `raise` here would escape the function: the sibling
+        # `except Exception` does not catch errors raised from this handler.
+        error_response = await handle_aws_error(ctx, e, 'cost_anomaly', 'Cost Explorer')
+        error_code = error_response['error_type']
+        error_message = error_response['message']
 
-        if error_code == 'ValidationException' and '2024' in error_message:
-            # Special handling for 2024 data issues
-            return format_response(
-                'error',
-                {'error_code': error_code},
-                f'Cost Anomaly Detection validation error for 2024 data: {error_message}. '
-                f'Note that cost anomalies may not be available yet for very recent data. '
-                f'Try querying a date range that ends at least 24-48 hours in the past.',
-            )
-        elif error_code == 'ValidationException':
-            return format_response(
-                'error',
-                {'error_code': error_code},
-                f'Cost Anomaly Detection validation error: {error_message}',
-            )
-        else:
-            # Use shared error handler for other AWS errors
-            raise
+        if error_code == 'ValidationException':
+            # Keep data.error_code for backward compatibility
+            error_response['data'] = {'error_code': error_code}
+            if '2024' in error_message:
+                # Special handling for 2024 data issues
+                error_response['message'] = (
+                    f'Cost Anomaly Detection validation error for 2024 data: {error_message}. '
+                    f'Note that cost anomalies may not be available yet for very recent data. '
+                    f'Try querying a date range that ends at least 24-48 hours in the past.'
+                )
+            else:
+                error_response['message'] = (
+                    f'Cost Anomaly Detection validation error: {error_message}'
+                )
+        return error_response
     except Exception as e:
         # Use shared error handler for other exceptions
         return await handle_aws_error(ctx, e, 'cost_anomaly', 'Cost Explorer')

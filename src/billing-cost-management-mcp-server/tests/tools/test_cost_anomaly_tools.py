@@ -648,6 +648,10 @@ class TestCostAnomalyFastMCP:
             assert res['status'] == 'error'
             assert '2024 data' in res['message']
             assert '24-48 hours in the past' in res['message']
+            assert res['error_type'] == 'ValidationException'
+            assert res['operation'] == 'cost_anomaly'
+            assert res['service'] == 'Cost Explorer'
+            assert res['data'] == {'error_code': 'ValidationException'}
 
     async def test_ca_real_client_error_validation(self, mock_context):
         """Test cost_anomaly ClientError with general validation exception."""
@@ -674,6 +678,36 @@ class TestCostAnomalyFastMCP:
             res = await real_fn(mock_context, start_date='2023-01-01', end_date='2023-01-31')  # type: ignore[reportCallIssue]
             assert res['status'] == 'error'
             assert 'validation error' in res['message']
+            assert res['error_type'] == 'ValidationException'
+            assert res['operation'] == 'cost_anomaly'
+            assert res['data'] == {'error_code': 'ValidationException'}
+
+    async def test_ca_real_client_error_non_validation(self, mock_context):
+        """A non-validation ClientError is returned classified, not re-raised."""
+        ca_mod = _reload_cost_anomaly_with_identity_decorator()
+        real_fn = ca_mod.cost_anomaly
+
+        with (
+            patch.object(ca_mod, 'get_context_logger') as mock_get_logger,
+            patch.object(ca_mod, 'create_aws_client') as mock_create_client,
+        ):
+            mock_logger = AsyncMock()
+            mock_get_logger.return_value = mock_logger
+
+            from botocore.exceptions import ClientError
+
+            error = ClientError(
+                error_response={'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}},
+                operation_name='GetAnomalies',
+            )
+            mock_create_client.side_effect = error
+
+            res = await real_fn(mock_context, start_date='2023-01-01', end_date='2023-01-31')  # type: ignore[reportCallIssue]
+            assert res['status'] == 'error'
+            assert res['error_type'] == 'AccessDenied'
+            assert res['operation'] == 'cost_anomaly'
+            assert res['service'] == 'Cost Explorer'
+            assert res['message'] == 'Access denied'
 
     async def test_ca_real_successful_call(self, mock_context):
         """Test cost_anomaly successful call."""
