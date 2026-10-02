@@ -191,7 +191,12 @@ def paginating(tool_name: str, fn: Callable[..., Any]) -> Callable[..., Any]:
         if isinstance(nested, dict) and 'has_more' in nested:
             token = nested.get('continuation_token')
             is_complete = not bool(nested['has_more'])
-            returned_count = _first_list_length(result.values())
+            results_list = result.get('results')
+            returned_count = (
+                len(results_list)
+                if isinstance(results_list, list)
+                else _first_list_length(result.values())
+            )
             nested.update(
                 _pagination_block(is_complete, returned_count, tool_name, param_name, token)
             )
@@ -200,7 +205,12 @@ def paginating(tool_name: str, fn: Callable[..., Any]) -> Callable[..., Any]:
         if token_key is not None:
             token = result.get(token_key)
             is_complete = token is None
-            returned_count = _first_list_length(result.values())
+            results_list = result.get('results')
+            returned_count = (
+                len(results_list)
+                if isinstance(results_list, list)
+                else _first_list_length(result.values())
+            )
             result['pagination'] = _pagination_block(
                 is_complete, returned_count, tool_name, param_name, token
             )
