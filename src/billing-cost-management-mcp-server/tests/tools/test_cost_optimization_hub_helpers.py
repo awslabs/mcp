@@ -756,7 +756,7 @@ class TestListRecommendationSummariesErrorHandling:
         # Boto3 was called exactly twice — max_pages stopped further fetches.
         assert mock_coh_client.list_recommendation_summaries.call_count == 2
         # Aggregate header comes from the FIRST response, not the last.
-        assert result['data']['estimated_total_savings'] == 600.0
+        assert result['data']['estimated_total_deduped_savings'] == 600.0
         # Resumption state is plumbed through under ``Pagination`` so the
         # caller can continue from page 3.
         pagination = result['data'].get('Pagination', {})

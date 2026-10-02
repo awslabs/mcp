@@ -419,7 +419,7 @@ async def list_recommendation_summaries(
         formatted_response: Dict[str, Any] = {
             'group_by': first_response.get('groupBy', group_by),
             'currency_code': first_response.get('currencyCode', 'USD'),
-            'estimated_total_savings': first_response.get('estimatedTotalDedupedSavings'),
+            'estimated_total_deduped_savings': first_response.get('estimatedTotalDedupedSavings'),
             'summaries': formatted_summaries,
         }
         if 'metrics' in first_response:
