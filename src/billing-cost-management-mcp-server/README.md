@@ -488,7 +488,7 @@ The server currently supports the following AWS services
     - get-billing-preferences
 
 16. **AWS Enterprise Support**
-    - `enterprise_support` tool: get_charge_summary, get_contract_details, list_linked_account_charges
+    - `enterprise-support` tool: get_charge_summary, get_contract_details, list_linked_account_charges
 
 17. **AWS Billing Views**
     - `get-billing-view`: retrieve metadata for a specific billing view
