@@ -44,9 +44,14 @@ from fastmcp import Context
 from fastmcp.server.elicitation import AcceptedElicitation
 from io import StringIO
 from loguru import logger
-from mcp.shared.exceptions import McpError
 from mcp.types import METHOD_NOT_FOUND
 from typing import Any
+
+
+try:  # mcp SDK v2 renamed McpError -> MCPError; no alias is kept for the old spelling.
+    from mcp.shared.exceptions import MCPError  # pyright: ignore[reportAttributeAccessIssue]
+except ImportError:  # mcp SDK v1
+    from mcp.shared.exceptions import McpError as MCPError
 
 
 async def request_consent(cli_command: str, ctx: Context):
@@ -64,7 +69,7 @@ async def request_consent(cli_command: str, ctx: Context):
             error_message = 'User rejected the execution of the command.'
             await ctx.error(error_message)
             raise AwsApiMcpError(error_message)
-    except McpError as e:
+    except MCPError as e:
         if e.error.code == METHOD_NOT_FOUND:
             error_message = 'Client does not support elicitation. Use a different client or update the server configuration.'
             logger.error(error_message)
