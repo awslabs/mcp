@@ -1867,7 +1867,7 @@ class TestBcmPricingCalcCoreFunction:
             mock_context,
             test_error,
             'get_workload_estimate',
-            'AWS Billing and Cost Management Pricing Calculator',
+            'BCM Pricing Calculator',
         )
         mock_context.error.assert_called_once()
         error_call_args = mock_context.error.call_args[0][0]
@@ -1885,7 +1885,7 @@ class TestBcmPricingCalcCoreFunction:
         )
         assert result['error_type'] == 'ValidationException'
         assert result['operation'] == 'get_workload_estimate'
-        assert result['service'] == 'AWS Billing and Cost Management Pricing Calculator'
+        assert result['service'] == 'BCM Pricing Calculator'
 
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.list_workload_estimates'
@@ -1912,7 +1912,7 @@ class TestBcmPricingCalcCoreFunction:
             mock_context,
             test_error,
             'list_workload_estimates',
-            'AWS Billing and Cost Management Pricing Calculator',
+            'BCM Pricing Calculator',
         )
         mock_context.error.assert_called_once()
         error_call_args = mock_context.error.call_args[0][0]

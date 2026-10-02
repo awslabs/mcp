@@ -182,7 +182,7 @@ async def bcm_pricing_calc_core(
     except Exception as e:
         # Use shared error handler for consistent error handling
         error_response = await handle_aws_error(
-            ctx, e, operation, 'AWS Billing and Cost Management Pricing Calculator'
+            ctx, e, operation, BCM_PRICING_CALCULATOR_SERVICE_NAME
         )
         # handle_aws_error puts the message and classification at the top level.
         error_message = error_response.get('message', str(e))
@@ -193,7 +193,7 @@ async def bcm_pricing_calc_core(
             {
                 'error_type': error_response.get('error_type', 'unknown_error'),
                 'operation': operation,
-                'service': 'AWS Billing and Cost Management Pricing Calculator',
+                'service': BCM_PRICING_CALCULATOR_SERVICE_NAME,
             }
         )
         return response
