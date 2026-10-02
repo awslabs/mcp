@@ -497,6 +497,50 @@ class TestExecuteSessionSql:
         assert 'Error executing SQL query' in result['message']
         assert 'SQL syntax error' in result['message']
 
+        # The error envelope carries a structured, query-content-free error_type
+        # plus operation/service so failures are classifiable. This exception is
+        # a manually constructed sqlite3.Error (no sqlite_errorname), so it falls
+        # back to the exception-class name ('Error').
+        assert result['error_type'] == 'Error'
+        assert result['operation'] == 'session_sql'
+        assert result['service'] == 'SQL'
+
+    @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
+    async def test_execute_error_classified_by_exception_class(self, mock_get_path, mock_context):
+        """A real SQLite failure classifies by its exception class name."""
+        # Use a real in-memory connection (no sqlite3.connect mock) so a genuine
+        # sqlite3.OperationalError is raised.
+        mock_get_path.return_value = ':memory:'
+
+        # Query a table that does not exist -> real sqlite3.OperationalError.
+        result = await execute_session_sql(mock_context, 'SELECT * FROM missing_table')
+
+        assert result['status'] == 'error'
+        assert 'Error executing SQL query' in result['message']
+        assert result['error_type'] == 'OperationalError'
+        assert result['operation'] == 'session_sql'
+        assert result['service'] == 'SQL'
+
+    @patch('sqlite3.connect')
+    @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
+    async def test_execute_validation_error_classified(
+        self, mock_get_path, mock_connect, mock_context
+    ):
+        """A blocked/harmful query classifies by its exception class ('ValueError')."""
+        mock_get_path.return_value = '/mock/path/session.db'
+        mock_connection = MagicMock()
+        mock_connection.cursor.return_value = MagicMock()
+        mock_connect.return_value = mock_connection
+
+        # validate_sql_query raises ValueError before execute is reached.
+        result = await execute_session_sql(mock_context, 'DROP TABLE users')
+
+        assert result['status'] == 'error'
+        assert 'Error executing SQL query' in result['message']
+        assert result['error_type'] == 'ValueError'
+        assert result['operation'] == 'session_sql'
+        assert result['service'] == 'SQL'
+
     @patch('sqlite3.connect')
     @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
     async def test_execute_query_write_operation(self, mock_get_path, mock_connect, mock_context):
@@ -750,6 +794,14 @@ class TestConvertApiResponseToTableAdditional:
 
         assert _get_specialized_converter('budget_actions') == 'records'
         assert _get_specialized_converter('budget_notifications') == 'records'
+
+    def test_specialized_converter_routes_bvs_segment_ops_to_records(self):
+        """BVS list billing view segments operations map to the 'records' converter."""
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _get_specialized_converter,
+        )
+
+        assert _get_specialized_converter('bvs_list_billing_view_segments') == 'records'
 
     def test_record_columns_rejects_unsafe_identifiers(self):
         """Derived column names must be safe SQL identifiers (injection guard)."""

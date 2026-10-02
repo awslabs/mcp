@@ -426,6 +426,12 @@ def _get_specialized_converter(operation_name: str) -> Optional[str]:
     if operation_name.startswith('billing_preferences_'):
         return 'records'
 
+    # BVS segment operations return {segments: [...]}.
+    # One row per segment keeps an offloaded result filterable by domain
+    # and account.
+    if operation_name.startswith('bvs_list_billing_view_segments'):
+        return 'records'
+
     return None
 
 
@@ -1489,7 +1495,17 @@ async def execute_session_sql(
         # Use context logger for consistent error reporting
         ctx_logger = get_context_logger(ctx, __name__)
         await ctx_logger.error(error_message, exc_info=True)
-        return {'status': 'error', 'message': error_message}
+
+        # Add a structured error_type/operation/service so failures are
+        # classifiable. error_type is the exception class name only (e.g.
+        # 'OperationalError').
+        return {
+            'status': 'error',
+            'service': 'SQL',
+            'operation': 'session_sql',
+            'error_type': type(e).__name__,
+            'message': error_message,
+        }
 
     finally:
         # Close connection only if it was successfully opened
