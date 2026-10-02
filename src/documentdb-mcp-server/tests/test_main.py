@@ -24,8 +24,9 @@ class TestMain:
 
     @patch('awslabs.documentdb_mcp_server.server.mcp.run')
     @patch('sys.argv', ['awslabs.documentdb-mcp-server'])
-    def test_main_default(self, mock_run):
+    def test_main_default(self, mock_run, monkeypatch):
         """Test main function with default arguments (no connection string, read-only)."""
+        monkeypatch.delenv('DOCUMENTDB_CONNECTION_STRING', raising=False)
         # Call the main function
         main()
 
@@ -69,8 +70,9 @@ class TestMain:
 
     @patch('awslabs.documentdb_mcp_server.server.mcp.run', side_effect=Exception('boom'))
     @patch('sys.argv', ['awslabs.documentdb-mcp-server'])
-    def test_main_handles_run_failure(self, mock_run):
+    def test_main_handles_run_failure(self, mock_run, monkeypatch):
         """Test main logs and cleans up when mcp.run raises."""
+        monkeypatch.delenv('DOCUMENTDB_CONNECTION_STRING', raising=False)
         # Should not raise; the finally block closes the connection
         main()
         mock_run.assert_called_once()

@@ -55,7 +55,7 @@ The DocumentDB MCP Server provides the following tools. All tools operate on the
 
 The server requires a connection string for the DocumentDB cluster it should connect to, supplied via the `DOCUMENTDB_CONNECTION_STRING` environment variable (recommended) or the `--connection-string` argument. If no connection string is configured, database tools fail until one is set.
 
-Prefer the environment variable: a connection string passed as a command-line argument is visible to other local users via process listings (e.g. `ps`) and is often persisted in MCP client configuration files. The environment variable keeps the credentials out of `argv`.
+Prefer the environment variable: a connection string passed as a command-line argument is visible to other local users via process listings (e.g. `ps`), and the environment variable keeps the credentials out of `argv`. An MCP client configuration file that sets `DOCUMENTDB_CONNECTION_STRING` still holds the password, so restrict access to that file.
 
 ```bash
 # Recommended: provide the connection string via environment variable
@@ -67,8 +67,8 @@ DOCUMENTDB_CONNECTION_STRING="mongodb://...&retryWrites=false" \
   python -m awslabs.documentdb_mcp_server.server --allow-write
 
 # Convenience only: pass the connection string as an argument. Note that this
-# exposes the connection string (including any password) in process listings
-# and client config files; prefer DOCUMENTDB_CONNECTION_STRING instead.
+# exposes the connection string (including any password) in process listings;
+# prefer DOCUMENTDB_CONNECTION_STRING instead.
 python -m awslabs.documentdb_mcp_server.server \
   --connection-string "mongodb://<username>:<password>@docdb-cluster.cluster-xyz.us-west-2.docdb.amazonaws.com:27017/?tls=true&tlsCAFile=global-bundle.pem&retryWrites=false"
 ```
@@ -78,7 +78,7 @@ python -m awslabs.documentdb_mcp_server.server \
 | Option | Description | Default |
 |--------|-------------|---------|
 | `--log-level` | Set logging level (TRACE, DEBUG, INFO, etc.) | INFO |
-| `--connection-string` | DocumentDB connection string for the cluster to connect to. Prefer the `DOCUMENTDB_CONNECTION_STRING` environment variable, which keeps credentials out of process listings and client config files. | None |
+| `--connection-string` | DocumentDB connection string for the cluster to connect to. Prefer the `DOCUMENTDB_CONNECTION_STRING` environment variable, which keeps credentials out of process listings. | None |
 | `--allow-write` | Enable write operations (otherwise defaults to read-only mode) | False |
 
 ### Read-Only Mode
@@ -146,7 +146,7 @@ insert_result = await use_mcp_tool(
 
 | Kiro | Cursor | VS Code |
 |:----:|:------:|:-------:|
-| [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=awslabs.documentdb-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.documentdb-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%2C%22AWS_PROFILE%22%3A%22your-aws-profile%22%7D%7D) | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.documentdb-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuZG9jdW1lbnRkYi1tY3Atc2VydmVyQGxhdGVzdCIsImVudiI6eyJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIiwiQVdTX1BST0ZJTEUiOiJ5b3VyLWF3cy1wcm9maWxlIn0sImRpc2FibGVkIjpmYWxzZSwiYXV0b0FwcHJvdmUiOltdfQ==) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=DocumentDB%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.documentdb-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%2C%22AWS_PROFILE%22%3A%22your-aws-profile%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
+| [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=awslabs.documentdb-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.documentdb-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22DOCUMENTDB_CONNECTION_STRING%22%3A%22your-documentdb-connection-string%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%2C%22AWS_PROFILE%22%3A%22your-aws-profile%22%7D%7D) | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.documentdb-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuZG9jdW1lbnRkYi1tY3Atc2VydmVyQGxhdGVzdCIsImVudiI6eyJET0NVTUVOVERCX0NPTk5FQ1RJT05fU1RSSU5HIjoieW91ci1kb2N1bWVudGRiLWNvbm5lY3Rpb24tc3RyaW5nIiwiRkFTVE1DUF9MT0dfTEVWRUwiOiJFUlJPUiIsIkFXU19QUk9GSUxFIjoieW91ci1hd3MtcHJvZmlsZSJ9LCJkaXNhYmxlZCI6ZmFsc2UsImF1dG9BcHByb3ZlIjpbXX0=) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=DocumentDB%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.documentdb-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22DOCUMENTDB_CONNECTION_STRING%22%3A%22your-documentdb-connection-string%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%2C%22AWS_PROFILE%22%3A%22your-aws-profile%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
 
 Configure the MCP server in your MCP client configuration (e.g., for Kiro, edit ~/.kiro/settings/mcp.json):
 
