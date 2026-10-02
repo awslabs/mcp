@@ -14,7 +14,6 @@
 """Tests for DocumentDB MCP Server analytic tools (statistics and schema analysis)."""
 
 import pytest
-import uuid
 from awslabs.documentdb_mcp_server.analytic_tools import (
     analyze_schema,
     count_documents,
@@ -23,7 +22,6 @@ from awslabs.documentdb_mcp_server.analytic_tools import (
     get_database_stats,
     get_field_type,
 )
-from awslabs.documentdb_mcp_server.connection_tools import DocumentDBConnection
 from bson import ObjectId
 
 
@@ -35,10 +33,6 @@ class TestCountDocumentsTool:
         """Test successful counting of documents."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Set up test documents
         documents = [
@@ -51,7 +45,7 @@ class TestCountDocumentsTool:
             mock_client['test_db']['test_collection'].insert_one(doc)
 
         # Act
-        result = await count_documents(connection_id, 'test_db', 'test_collection')
+        result = await count_documents('test_db', 'test_collection')
 
         # Assert
         assert 'count' in result
@@ -64,10 +58,6 @@ class TestCountDocumentsTool:
         """Test counting documents with a filter."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Set up test documents
         documents = [
@@ -81,7 +71,7 @@ class TestCountDocumentsTool:
 
         # Act
         filter_doc = {'category': 'A'}
-        result = await count_documents(connection_id, 'test_db', 'test_collection', filter_doc)
+        result = await count_documents('test_db', 'test_collection', filter_doc)
 
         # Assert
         assert 'count' in result
@@ -90,11 +80,11 @@ class TestCountDocumentsTool:
         assert result['filter'] == {'category': 'A'}
 
     @pytest.mark.asyncio
-    async def test_count_documents_connection_not_found(self, mock_ctx):
-        """Test count_documents with invalid connection ID."""
+    async def test_count_documents_not_configured(self, mock_ctx):
+        """Test count_documents when no connection string is configured."""
         # Act/Assert
-        with pytest.raises(ValueError, match='Connection ID .* not found'):
-            await count_documents(str(uuid.uuid4()), 'test_db', 'test_collection')
+        with pytest.raises(ValueError, match='connection is not configured'):
+            await count_documents('test_db', 'test_collection')
 
     @pytest.mark.asyncio
     async def test_count_documents_handles_generic_exception(
@@ -103,10 +93,6 @@ class TestCountDocumentsTool:
         """Test handling of generic exceptions during count_documents."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         def mock_count_documents(*args, **kwargs):
             raise Exception('Generic error')
@@ -115,7 +101,7 @@ class TestCountDocumentsTool:
 
         # Act/Assert
         with pytest.raises(ValueError, match='Failed to count documents: Generic error'):
-            await count_documents(connection_id, 'test_db', 'test_collection')
+            await count_documents('test_db', 'test_collection')
 
 
 class TestGetDatabaseStatsTool:
@@ -126,17 +112,13 @@ class TestGetDatabaseStatsTool:
         """Test successful retrieval of database statistics."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Create some test collections
         mock_client['test_db']['collection1'].insert_one({'test': 'data'})
         mock_client['test_db']['collection2'].insert_one({'test': 'data'})
 
         # Act
-        result = await get_database_stats(connection_id, 'test_db')
+        result = await get_database_stats('test_db')
 
         # Assert
         assert 'stats' in result
@@ -149,11 +131,11 @@ class TestGetDatabaseStatsTool:
         assert result['stats']['collections'] == 2
 
     @pytest.mark.asyncio
-    async def test_get_database_stats_connection_not_found(self, mock_ctx):
-        """Test get_database_stats with invalid connection ID."""
+    async def test_get_database_stats_not_configured(self, mock_ctx):
+        """Test get_database_stats when no connection string is configured."""
         # Act/Assert
-        with pytest.raises(ValueError, match='Connection ID .* not found'):
-            await get_database_stats(str(uuid.uuid4()), 'test_db')
+        with pytest.raises(ValueError, match='connection is not configured'):
+            await get_database_stats('test_db')
 
     @pytest.mark.asyncio
     async def test_get_database_stats_handles_generic_exception(
@@ -162,10 +144,6 @@ class TestGetDatabaseStatsTool:
         """Test handling of generic exceptions during get_database_stats."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         def mock_command(*args, **kwargs):
             raise Exception('Generic error')
@@ -174,7 +152,7 @@ class TestGetDatabaseStatsTool:
 
         # Act/Assert
         with pytest.raises(ValueError, match='Failed to get database statistics: Generic error'):
-            await get_database_stats(connection_id, 'test_db')
+            await get_database_stats('test_db')
 
 
 class TestGetCollectionStatsTool:
@@ -185,17 +163,13 @@ class TestGetCollectionStatsTool:
         """Test successful retrieval of collection statistics."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Create a test collection with some documents
         for i in range(5):
             mock_client['test_db']['test_collection'].insert_one({'index': i})
 
         # Act
-        result = await get_collection_stats(connection_id, 'test_db', 'test_collection')
+        result = await get_collection_stats('test_db', 'test_collection')
 
         # Assert
         assert 'stats' in result
@@ -208,11 +182,11 @@ class TestGetCollectionStatsTool:
         assert result['stats']['count'] == 5
 
     @pytest.mark.asyncio
-    async def test_get_collection_stats_connection_not_found(self, mock_ctx):
-        """Test get_collection_stats with invalid connection ID."""
+    async def test_get_collection_stats_not_configured(self, mock_ctx):
+        """Test get_collection_stats when no connection string is configured."""
         # Act/Assert
-        with pytest.raises(ValueError, match='Connection ID .* not found'):
-            await get_collection_stats(str(uuid.uuid4()), 'test_db', 'test_collection')
+        with pytest.raises(ValueError, match='connection is not configured'):
+            await get_collection_stats('test_db', 'test_collection')
 
     @pytest.mark.asyncio
     async def test_get_collection_stats_handles_generic_exception(
@@ -221,10 +195,6 @@ class TestGetCollectionStatsTool:
         """Test handling of generic exceptions during get_collection_stats."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         def mock_command(*args, **kwargs):
             raise Exception('Generic error')
@@ -233,7 +203,7 @@ class TestGetCollectionStatsTool:
 
         # Act/Assert
         with pytest.raises(ValueError, match='Failed to get collection statistics: Generic error'):
-            await get_collection_stats(connection_id, 'test_db', 'test_collection')
+            await get_collection_stats('test_db', 'test_collection')
 
 
 class TestAnalyzeSchemaTool:
@@ -244,10 +214,6 @@ class TestAnalyzeSchemaTool:
         """Test successful schema analysis."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Set up test documents with different schemas
         documents = [
@@ -260,7 +226,7 @@ class TestAnalyzeSchemaTool:
             mock_client['test_db']['test_collection'].insert_one(doc)
 
         # Act
-        result = await analyze_schema(connection_id, 'test_db', 'test_collection', 100)
+        result = await analyze_schema('test_db', 'test_collection', 100)
 
         # Assert
         assert 'field_coverage' in result
@@ -286,13 +252,9 @@ class TestAnalyzeSchemaTool:
         """Test analyze_schema with empty collection."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Act
-        result = await analyze_schema(connection_id, 'test_db', 'empty_collection', 100)
+        result = await analyze_schema('test_db', 'empty_collection', 100)
 
         # Assert
         assert 'error' in result
@@ -301,11 +263,11 @@ class TestAnalyzeSchemaTool:
         assert result['sampled_documents'] == 0
 
     @pytest.mark.asyncio
-    async def test_analyze_schema_connection_not_found(self, mock_ctx):
-        """Test analyze_schema with invalid connection ID."""
+    async def test_analyze_schema_not_configured(self, mock_ctx):
+        """Test analyze_schema when no connection string is configured."""
         # Act/Assert
-        with pytest.raises(ValueError, match='Connection ID .* not found'):
-            await analyze_schema(str(uuid.uuid4()), 'test_db', 'test_collection', 100)
+        with pytest.raises(ValueError, match='connection is not configured'):
+            await analyze_schema('test_db', 'test_collection', 100)
 
     @pytest.mark.asyncio
     async def test_analyze_schema_handles_generic_exception(
@@ -314,10 +276,6 @@ class TestAnalyzeSchemaTool:
         """Test handling of generic exceptions during analyze_schema."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         def mock_count_documents(*args, **kwargs):
             raise Exception('Generic error')
@@ -326,7 +284,7 @@ class TestAnalyzeSchemaTool:
 
         # Act/Assert
         with pytest.raises(ValueError, match='Failed to analyze collection schema: Generic error'):
-            await analyze_schema(connection_id, 'test_db', 'test_collection', 100)
+            await analyze_schema('test_db', 'test_collection', 100)
 
 
 class TestExplainOperationTool:
@@ -337,10 +295,6 @@ class TestExplainOperationTool:
         """Test explaining a find operation."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Add some test data
         for i in range(5):
@@ -348,7 +302,6 @@ class TestExplainOperationTool:
 
         # Act
         result = await explain_operation(
-            connection_id,
             'test_db',
             'test_collection',
             'find',
@@ -371,10 +324,6 @@ class TestExplainOperationTool:
         """Test explaining an aggregate operation."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Add some test data
         for i in range(5):
@@ -390,7 +339,6 @@ class TestExplainOperationTool:
 
         # Act
         result = await explain_operation(
-            connection_id,
             'test_db',
             'test_collection',
             'aggregate',
@@ -413,15 +361,10 @@ class TestExplainOperationTool:
         """Test explainOperation with invalid operation type."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Act/Assert
         with pytest.raises(ValueError, match='Operation type must be one of: find, aggregate'):
             await explain_operation(
-                connection_id,
                 'test_db',
                 'test_collection',
                 'invalid_type',
@@ -435,15 +378,10 @@ class TestExplainOperationTool:
         """Test explainOperation with missing pipeline for aggregate operation."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Act/Assert
         with pytest.raises(ValueError, match='Pipeline is required for aggregate operations'):
             await explain_operation(
-                connection_id,
                 'test_db',
                 'test_collection',
                 'aggregate',
@@ -453,13 +391,11 @@ class TestExplainOperationTool:
             )
 
     @pytest.mark.asyncio
-    async def test_explain_operation_connection_not_found(self, mock_ctx):
-        """Test explainOperation with invalid connection ID."""
+    async def test_explain_operation_not_configured(self, mock_ctx):
+        """Test explainOperation when no connection string is configured."""
         # Act/Assert
-        with pytest.raises(ValueError, match='Connection ID .* not found'):
-            await explain_operation(
-                str(uuid.uuid4()), 'test_db', 'test_collection', 'find', {}, None, 'queryPlanner'
-            )
+        with pytest.raises(ValueError, match='connection is not configured'):
+            await explain_operation('test_db', 'test_collection', 'find', {}, None, 'queryPlanner')
 
 
 class TestHelperFunctions:

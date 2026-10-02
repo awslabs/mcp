@@ -811,9 +811,32 @@ def mock_documentdb_client():
     return _create_mock_client
 
 
+@pytest.fixture(autouse=True)
+def reset_connection_state():
+    """Reset connection state before each test for isolation.
+
+    Ensures each test starts with no cached client and no configured connection
+    string, so tests that rely on the fail-closed behavior are not affected by
+    ordering. Tests that need a working connection opt in via ``patch_client``.
+    """
+    from awslabs.documentdb_mcp_server.config import serverConfig
+    from awslabs.documentdb_mcp_server.connection_tools import DocumentDBConnection
+
+    saved = serverConfig.connection_string
+    DocumentDBConnection._client = None
+    serverConfig.connection_string = None
+    yield
+    DocumentDBConnection._client = None
+    serverConfig.connection_string = saved
+
+
 @pytest.fixture
 def patch_client(monkeypatch):
-    """Fixture that patches MongoClient with our mock.
+    """Fixture that patches MongoClient with our mock and configures a connection.
+
+    Installs a mock DocumentDB client and sets a configured connection string on
+    ``serverConfig`` so ``DocumentDBConnection.get_client()`` returns the mock. The
+    single cached client is reset before and after the test.
 
     Args:
         monkeypatch: pytest monkeypatch fixture
@@ -822,22 +845,23 @@ def patch_client(monkeypatch):
         function: Function to create and install a mock DocumentDB client
     """
     # Import here to avoid circular imports
+    from awslabs.documentdb_mcp_server.config import serverConfig
     from awslabs.documentdb_mcp_server.connection_tools import DocumentDBConnection
 
-    # Clear connections at the beginning of the test
-    DocumentDBConnection._connections = {}
-
-    # Store original connections dictionary to restore if needed
-    original_connections = {}
+    # Reset any cached client at the beginning of the test
+    DocumentDBConnection._client = None
+    original_connection_string = serverConfig.connection_string
 
     def _patch_with_mock(raise_on_connect=None):
         mock_client = MockDocumentDBClient(
             'mongodb://example.com:27017?retryWrites=false', raise_on_connect
         )
 
-        # Capture current connections before patching
-        nonlocal original_connections
-        original_connections = DocumentDBConnection._connections.copy()
+        # Configure an operator connection string so get_client() will connect
+        serverConfig.connection_string = 'mongodb://example.com:27017/?retryWrites=false'
+
+        # Reset the cached client so the next get_client() builds from the mock
+        DocumentDBConnection._client = None
 
         # Patch MongoClient in all relevant modules - server.py imports from connection_tools, so we only need to patch there
         monkeypatch.setattr(
@@ -846,13 +870,13 @@ def patch_client(monkeypatch):
         )
         monkeypatch.setattr('pymongo.MongoClient', lambda *args, **kwargs: mock_client)
 
-        # Make sure we don't lose our connections after patching
-        for conn_id, conn_info in original_connections.items():
-            DocumentDBConnection._connections[conn_id] = conn_info
-
         return mock_client
 
-    return _patch_with_mock
+    yield _patch_with_mock
+
+    # Restore state
+    DocumentDBConnection._client = None
+    serverConfig.connection_string = original_connection_string
 
 
 @pytest.fixture
