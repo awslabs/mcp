@@ -39,7 +39,7 @@ The framework can be configured via environment variables.
 - **MCP_EVAL_MODEL_ID**: Override default Bedrock model ID (default: `us.anthropic.claude-sonnet-4-20250514-v1:0`)
 - **MCP_EVAL_AWS_REGION**: Override default AWS region (default: `us-east-1`)
 - **MCP_EVAL_MAX_TURNS**: Override default max conversation turns (default: `20`)
-- **MCP_EVAL_TEMPERATURE**: Override default model temperature (default: `0.0`)
+- **MCP_EVAL_TEMPERATURE**: Override default model temperature (default: `0.0`). Set to `none` to omit the field for models that reject it (e.g. OpenAI GPT-5.6/GPT-6 on Bedrock Converse)
 
 **Note:** These settings apply to both the agent being evaluated and the LLM judge, but MAX_TURNS is not relevant for the LLM judge (one-shot call).
 

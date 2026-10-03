@@ -15,6 +15,7 @@
 """Validators for evaluating agent outputs."""
 
 import asyncio
+import re
 import time
 from .captor import (
     CONTENT_TEXT,
@@ -135,7 +136,12 @@ class LLMJudgeValidator(Validator):
             response = self.llm_provider.converse(
                 messages=[{MESSAGE_ROLE: ROLE_USER, MESSAGE_CONTENT: [{CONTENT_TEXT: prompt}]}]
             )
-            response_text = response['output']['message'][MESSAGE_CONTENT][0][CONTENT_TEXT]
+            # Reasoning models can return a reasoningContent block before the text block
+            content = response['output']['message'][MESSAGE_CONTENT]
+            texts = [block[CONTENT_TEXT] for block in content if CONTENT_TEXT in block]
+            if not texts:
+                raise ValueError('LLM judge response has no text block')
+            response_text = texts[0]
             elapsed = time.time() - start
             logger.debug(f'LLM validation took {elapsed:.2f}s')
 
@@ -195,6 +201,8 @@ class LLMJudgeValidator(Validator):
             if not line:
                 continue
 
+            # Some models drop the brackets around the verdict: "1. PASS reasoning"
+            line = re.sub(r'^(\d+\.\s*)(PASS|FAIL)\b', r'\1[\2]', line)
             line_upper = line.upper()
             if '[PASS]' in line_upper:
                 status = 'PASS'

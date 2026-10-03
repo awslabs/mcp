@@ -101,8 +101,9 @@ class BedrockLLMProvider(LLMProvider):
         converse_params = {
             'modelId': model_id,
             'messages': messages,
-            'inferenceConfig': {'temperature': temperature},
         }
+        if temperature is not None:
+            converse_params['inferenceConfig'] = {'temperature': temperature}
 
         if tools:
             converse_params['toolConfig'] = {'tools': tools}

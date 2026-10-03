@@ -39,4 +39,6 @@ _DEFAULT_TEMPERATURE = 0.0
 MODEL_ID = os.environ.get('MCP_EVAL_MODEL_ID', _DEFAULT_MODEL_ID)
 AWS_REGION = os.environ.get('MCP_EVAL_AWS_REGION', _DEFAULT_AWS_REGION)
 MAX_TURNS = int(os.environ.get('MCP_EVAL_MAX_TURNS', str(_DEFAULT_MAX_TURNS)))
-TEMPERATURE = float(os.environ.get('MCP_EVAL_TEMPERATURE', str(_DEFAULT_TEMPERATURE)))
+# 'none' omits temperature (e.g. OpenAI GPT-5.6/GPT-6 on Bedrock Converse reject the field)
+_TEMPERATURE = os.environ.get('MCP_EVAL_TEMPERATURE', str(_DEFAULT_TEMPERATURE))
+TEMPERATURE = None if _TEMPERATURE.lower() == 'none' else float(_TEMPERATURE)
