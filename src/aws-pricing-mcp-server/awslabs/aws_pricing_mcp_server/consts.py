@@ -28,6 +28,9 @@ AWS_PROFILE = os.environ.get('AWS_PROFILE')
 PRICING_ENDPOINT = os.environ.get('PRICING_ENDPOINT')
 LOG_LEVEL = os.getenv('FASTMCP_LOG_LEVEL', 'WARNING')
 
+# The Savings Plans API is a global service served from us-east-1
+SAVINGS_PLANS_REGION = 'us-east-1'
+
 # Supported AWS Pricing API regions
 PRICING_API_REGIONS = {
     'classic': ['us-east-1', 'eu-central-1', 'ap-southeast-1'],

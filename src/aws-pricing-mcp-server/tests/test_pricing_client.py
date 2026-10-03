@@ -17,6 +17,7 @@
 import pytest
 from awslabs.aws_pricing_mcp_server.pricing_client import (
     create_pricing_client,
+    create_savings_plans_client,
     get_currency_for_region,
     get_pricing_region,
 )
@@ -191,3 +192,37 @@ class TestGetCurrencyForRegion:
     def test_currency_mapping(self, region, expected):
         """Test currency mapping for different regions."""
         assert get_currency_for_region(region) == expected
+
+
+class TestCreateSavingsPlansClient:
+    """Tests for the create_savings_plans_client function."""
+
+    @pytest.mark.parametrize('profile', [None, 'test-profile'])
+    @patch('awslabs.aws_pricing_mcp_server.pricing_client.boto3.Session')
+    def test_create_client_uses_global_endpoint_region(self, mock_session, profile):
+        """Test the savingsplans client is created in us-east-1 whatever AWS_REGION is."""
+        mock_session_instance = Mock()
+        mock_client = Mock()
+        mock_session.return_value = mock_session_instance
+        mock_session_instance.client.return_value = mock_client
+
+        result = create_savings_plans_client(profile=profile)
+
+        mock_session.assert_called_once_with(profile_name=profile)
+        mock_session_instance.client.assert_called_once()
+        call_args = mock_session_instance.client.call_args
+        assert call_args[0][0] == 'savingsplans'
+        config = call_args[1]['config']
+        assert config.region_name == 'us-east-1'
+        assert 'md/awslabs#mcp#' in config.user_agent_extra
+        assert result == mock_client
+
+    @patch('awslabs.aws_pricing_mcp_server.pricing_client.boto3.Session')
+    def test_uses_env_profile_when_none_specified(self, mock_session, monkeypatch):
+        """Test that AWS_PROFILE environment variable is used when no profile specified."""
+        monkeypatch.setattr('awslabs.aws_pricing_mcp_server.consts.AWS_PROFILE', 'env-profile')
+        mock_session.return_value.client.return_value = Mock()
+
+        create_savings_plans_client()
+
+        mock_session.assert_called_once_with(profile_name='env-profile')
