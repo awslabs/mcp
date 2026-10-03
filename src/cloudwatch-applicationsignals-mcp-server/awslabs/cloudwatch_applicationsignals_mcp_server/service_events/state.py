@@ -57,9 +57,9 @@ def set_appsignals_enabled(value: bool) -> None:
 def check_appsignals_enabled(region: str) -> bool:
     """Check if Application Signals is enabled by verifying log group exists."""
     try:
-        import boto3
+        from ..aws_clients import get_client
 
-        logs = boto3.client('logs', region_name=region)
+        logs = get_client('logs')
         resp = logs.describe_log_groups(
             logGroupNamePrefix='/aws/application-signals/data', limit=1
         )
