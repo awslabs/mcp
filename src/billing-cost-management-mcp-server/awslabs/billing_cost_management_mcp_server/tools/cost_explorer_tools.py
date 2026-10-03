@@ -28,7 +28,6 @@ from .cost_explorer_operations import (
     get_tags,
     get_usage_forecast,
 )
-from botocore.exceptions import ClientError
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
 
@@ -209,13 +208,18 @@ async def cost_explorer(
         ce_client = create_aws_client('ce')
     except Exception as client_error:
         await ctx.error(f'Failed to create AWS client: {str(client_error)}')
+        error_message = f'Failed to create AWS client: {str(client_error)}'
         return format_response(
             'error',
             {
                 'error_type': 'client_creation_error',
-                'message': f'Failed to create AWS client: {str(client_error)}',
+                'message': error_message,
                 'details': repr(client_error),
             },
+            error_message,
+            error_type='client_creation_error',
+            operation=operation,
+            service='Cost Explorer',
         )
 
     # Route to the appropriate operation handler
@@ -346,9 +350,6 @@ async def cost_explorer(
         else:
             return format_response('error', {'message': f'Unknown operation: {operation}'})
 
-    except ClientError as e:
-        # Let the shared handler take care of this
-        return await handle_aws_error(ctx, e, operation, 'Cost Explorer')
     except Exception as e:
-        # For all other exceptions, use the shared error handler
+        # The shared handler classifies ClientError and all other exceptions
         return await handle_aws_error(ctx, e, operation, 'Cost Explorer')

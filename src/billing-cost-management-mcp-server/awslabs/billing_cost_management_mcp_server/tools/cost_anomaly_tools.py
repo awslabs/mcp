@@ -92,6 +92,9 @@ async def cost_anomaly(
                 'error',
                 {'invalid_parameter': 'start_date'},
                 f'Invalid start_date format: {start_date}. Date must be in YYYY-MM-DD format.',
+                error_type='validation_error',
+                operation='cost_anomaly',
+                service='Cost Explorer',
             )
 
         if not validate_date_format(end_date):
@@ -99,6 +102,9 @@ async def cost_anomaly(
                 'error',
                 {'invalid_parameter': 'end_date'},
                 f'Invalid end_date format: {end_date}. Date must be in YYYY-MM-DD format.',
+                error_type='validation_error',
+                operation='cost_anomaly',
+                service='Cost Explorer',
             )
 
         # Parse dates for validation
@@ -115,6 +121,9 @@ async def cost_anomaly(
                 'error',
                 {'start_date': start_date, 'end_date': end_date},
                 'Invalid date range: start_date must be before or equal to end_date.',
+                error_type='validation_error',
+                operation='cost_anomaly',
+                service='Cost Explorer',
             )
 
         # Check if dates are in the future
@@ -123,6 +132,9 @@ async def cost_anomaly(
                 'error',
                 {'end_date': end_date},
                 'Invalid end_date: Cannot request anomalies for future dates.',
+                error_type='validation_error',
+                operation='cost_anomaly',
+                service='Cost Explorer',
             )
 
         # Check if dates are beyond the 90-day lookback period
@@ -149,6 +161,9 @@ async def cost_anomaly(
                 'error',
                 {'invalid_parameter': 'feedback', 'value': feedback},
                 f'Invalid feedback value: {feedback}. Must be one of: YES, NO, PLANNED_ACTIVITY.',
+                error_type='validation_error',
+                operation='cost_anomaly',
+                service='Cost Explorer',
             )
 
         # Validate total impact operator if provided
@@ -165,6 +180,9 @@ async def cost_anomaly(
                 'error',
                 {'invalid_parameter': 'total_impact_operator', 'value': total_impact_operator},
                 f'Invalid total_impact_operator: {total_impact_operator}. Must be one of: {", ".join(valid_operators)}',
+                error_type='validation_error',
+                operation='cost_anomaly',
+                service='Cost Explorer',
             )
 
         # Validate total_impact_end is provided when using BETWEEN operator
@@ -173,6 +191,9 @@ async def cost_anomaly(
                 'error',
                 {'missing_parameter': 'total_impact_end'},
                 'When using BETWEEN operator for total_impact, both total_impact_start and total_impact_end must be provided.',
+                error_type='validation_error',
+                operation='cost_anomaly',
+                service='Cost Explorer',
             )
 
         await ctx_logger.info(f'Retrieving cost anomalies from {start_date} to {end_date}')
@@ -196,7 +217,12 @@ async def cost_anomaly(
     except ValueError as e:
         # Handle date parsing errors
         return format_response(
-            'error', {'error_type': 'validation_error'}, f'Date validation error: {str(e)}'
+            'error',
+            {'error_type': 'validation_error'},
+            f'Date validation error: {str(e)}',
+            error_type='validation_error',
+            operation='cost_anomaly',
+            service='Cost Explorer',
         )
     except ClientError as e:
         # Handle AWS service-specific errors

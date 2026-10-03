@@ -376,3 +376,23 @@ class TestFormatResponse:
         assert result['data'] == data
         assert result['message'] == message
         assert len(result.keys()) == 3  # status, data, and message keys should be present
+
+    def test_format_error_response_with_classification(self):
+        """Test error_type/operation/service are added at the top level."""
+        result = format_response(
+            'error',
+            {'error_details': 'Invalid input'},
+            'Operation failed',
+            error_type='validation_error',
+            operation='getCostAndUsage',
+            service='Cost Explorer',
+        )
+
+        assert result == {
+            'status': 'error',
+            'data': {'error_details': 'Invalid input'},
+            'message': 'Operation failed',
+            'error_type': 'validation_error',
+            'operation': 'getCostAndUsage',
+            'service': 'Cost Explorer',
+        }
