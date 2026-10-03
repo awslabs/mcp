@@ -13,6 +13,8 @@
 # limitations under the License.
 """Tests for the amazon-neptune MCP Server."""
 
+import importlib
+import os
 import pytest
 from awslabs.amazon_neptune_mcp_server.server import (
     get_graph,
@@ -280,3 +282,37 @@ class TestMainFunction:
 
         # Assert
         assert mock_mcp.run.call_count == 1
+
+
+class TestLogging:
+    """Test class for the logging configuration."""
+
+    def test_logging_uses_env_level(self):
+        """Test that FASTMCP_LOG_LEVEL sets the log level."""
+        with patch('loguru.logger.remove') as mock_remove:
+            with patch('loguru.logger.add') as mock_add:
+                with patch.dict(os.environ, {'FASTMCP_LOG_LEVEL': 'DEBUG'}):
+                    # Reload the module so it reads the patched environment variable
+                    import awslabs.amazon_neptune_mcp_server.server
+
+                    importlib.reload(awslabs.amazon_neptune_mcp_server.server)
+
+                    mock_remove.assert_called_once()
+                    mock_add.assert_called_once()
+                    args, kwargs = mock_add.call_args
+                    assert kwargs.get('level') == 'DEBUG'
+
+    def test_logging_default_level(self):
+        """Test that the log level defaults to WARNING when FASTMCP_LOG_LEVEL is not set."""
+        with patch('loguru.logger.remove') as mock_remove:
+            with patch('loguru.logger.add') as mock_add:
+                with patch.dict(os.environ, {}, clear=True):
+                    # Reload the module so it reads the patched environment variable
+                    import awslabs.amazon_neptune_mcp_server.server
+
+                    importlib.reload(awslabs.amazon_neptune_mcp_server.server)
+
+                    mock_remove.assert_called_once()
+                    mock_add.assert_called_once()
+                    args, kwargs = mock_add.call_args
+                    assert kwargs.get('level') == 'WARNING'
