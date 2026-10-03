@@ -14,7 +14,10 @@
 
 """Unit tests for Memory event, actor, and session tools."""
 
+import boto3
+import json
 import pytest
+import time
 from awslabs.amazon_bedrock_agentcore_mcp_server.tools.memory.events import (
     EventTools,
 )
@@ -26,7 +29,10 @@ from awslabs.amazon_bedrock_agentcore_mcp_server.tools.memory.models import (
     ListEventsResponse,
     ListSessionsResponse,
 )
+from botocore.awsrequest import AWSResponse
 from botocore.exceptions import ClientError
+from datetime import datetime, timezone
+from unittest.mock import MagicMock
 
 
 class TestMemoryCreateEvent:
@@ -82,6 +88,64 @@ class TestMemoryCreateEvent:
         assert kw['branch'] == {'name': 'alt', 'rootEventId': '1#abc'}
         assert kw['metadata'] == {'key': {'stringValue': 'val'}}
         assert kw['eventTimestamp'] == 1700000000.0
+
+    @pytest.mark.asyncio
+    async def test_defaults_timestamp_to_now(self, mock_ctx, client_factory, mock_boto3_client):
+        """Sends the current UTC time as eventTimestamp when none is given."""
+        mock_boto3_client.create_event.return_value = {'event': {'eventId': '3#abc'}}
+        tools = EventTools(client_factory)
+        before = datetime.now(timezone.utc)
+        result = await tools.memory_create_event(
+            ctx=mock_ctx, memory_id='mem-id', actor_id='user-1', payload=[]
+        )
+        after = datetime.now(timezone.utc)
+        assert isinstance(result, EventResponse)
+        sent = mock_boto3_client.create_event.call_args.kwargs['eventTimestamp']
+        assert isinstance(sent, datetime)
+        assert sent.tzinfo is not None
+        assert before <= sent <= after
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('event_timestamp', [None, 1700000000.0])
+    async def test_botocore_accepts_request(self, mock_ctx, event_timestamp):
+        """A real boto3 client validates and serializes the CreateEvent request.
+
+        CreateEvent requires eventTimestamp, so omitting it must not trigger
+        botocore's ParamValidationError.
+        """
+        client = boto3.client(
+            'bedrock-agentcore',
+            region_name='us-east-1',
+            aws_access_key_id='testing',
+            aws_secret_access_key='testing',  # pragma: allowlist secret
+        )
+        sent: dict = {}
+
+        def fake_send(request, **kwargs):
+            # Runs only after botocore parameter validation and serialization.
+            sent['body'] = json.loads(request.body)
+            raw = MagicMock()
+            raw.stream.return_value = [b'{"event": {"eventId": "1#abc"}}']
+            return AWSResponse(request.url, 200, {'Content-Type': 'application/json'}, raw)
+
+        client.meta.events.register('before-send.bedrock-agentcore.CreateEvent', fake_send)
+        before = time.time()
+        result = await EventTools(lambda: client).memory_create_event(
+            ctx=mock_ctx,
+            memory_id='my_memory-abcdEFGH12',
+            actor_id='user-1',
+            session_id='sess-1',
+            payload=[{'conversational': {'role': 'USER', 'content': {'text': 'hi'}}}],
+            event_timestamp=event_timestamp,
+        )
+        after = time.time()
+
+        assert isinstance(result, EventResponse), result
+        assert result.event['eventId'] == '1#abc'
+        if event_timestamp is None:
+            assert before - 1 <= sent['body']['eventTimestamp'] <= after + 1
+        else:
+            assert sent['body']['eventTimestamp'] == event_timestamp
 
     @pytest.mark.asyncio
     async def test_client_error(self, mock_ctx, client_factory, mock_boto3_client):
