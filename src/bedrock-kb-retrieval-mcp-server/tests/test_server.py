@@ -93,6 +93,34 @@ class TestListKnowledgeBasesTool:
         # Check that discover_knowledge_bases was called with the correct arguments
         mock_discover_knowledge_bases.assert_called_once()
 
+    @pytest.mark.asyncio
+    @patch('awslabs.bedrock_kb_retrieval_mcp_server.server.discover_knowledge_bases')
+    async def test_list_knowledge_bases_tool_preserves_non_ascii(
+        self, mock_discover_knowledge_bases
+    ):
+        """Test that non-ASCII knowledge base names are preserved and not unicode-escaped."""
+        mock_discover_knowledge_bases.return_value = {
+            'kb-12345': {
+                'name': '東京ナレッジベース',
+                'description': '日本語のテスト用ナレッジベース',
+                'data_sources': [
+                    {'id': 'ds-12345', 'name': '한국어 데이터 소스'},
+                ],
+            },
+        }
+
+        result = await list_knowledge_bases_tool()
+
+        # The raw serialized result must contain the literal characters, not \\uXXXX escapes
+        assert '東京ナレッジベース' in result
+        assert '한국어 데이터 소스' in result
+        assert '\\u' not in result
+
+        # And it must still round-trip as valid JSON
+        kb_mapping = json.loads(result)
+        assert kb_mapping['kb-12345']['name'] == '東京ナレッジベース'
+        assert kb_mapping['kb-12345']['data_sources'][0]['name'] == '한국어 데이터 소스'
+
 
 class TestQueryKnowledgeBasesTool:
     """Tests for the query_knowledge_bases_tool function."""
