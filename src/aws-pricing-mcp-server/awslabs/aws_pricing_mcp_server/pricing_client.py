@@ -110,6 +110,29 @@ def create_pricing_client(profile: Optional[str] = None, region: Optional[str] =
     return session.client('pricing', config=config, endpoint_url=consts.PRICING_ENDPOINT)
 
 
+def create_savings_plans_client(profile: Optional[str] = None) -> Any:
+    """Create an AWS Savings Plans API client.
+
+    The Savings Plans API is a global service served from us-east-1.
+
+    Args:
+        profile: AWS profile name to use (default: None, uses AWS_PROFILE or default profile)
+
+    Returns:
+        boto3 savingsplans client
+    """
+    profile_name = profile if profile else consts.AWS_PROFILE
+    session = boto3.Session(profile_name=profile_name)
+
+    config = Config(
+        region_name=consts.SAVINGS_PLANS_REGION,
+        user_agent_extra=f'md/awslabs#mcp#aws-pricing-mcp-server#{__version__}',
+    )
+
+    logger.debug(f'Creating savings plans client for profile "{profile_name}"')
+    return session.client('savingsplans', config=config)
+
+
 def get_currency_for_region(region: str) -> str:
     """Determine currency based on AWS region.
 
