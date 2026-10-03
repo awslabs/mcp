@@ -278,3 +278,44 @@ async def test_delete_infrastructure_invalid_json(mock_file, mock_get_aws_client
     mock_get_aws_client.assert_called_once_with("cloudformation")
     mock_cf_client.list_stacks.assert_called_once()
     mock_cf_client.delete_stack.assert_not_called()
+
+
+@pytest.mark.anyio
+@patch("awslabs.ecs_mcp_server.api.delete.get_aws_client")
+@patch("builtins.open", new_callable=mock_open, read_data='{"test": "template"}')
+async def test_delete_infrastructure_stacks_on_later_page(mock_file, mock_get_aws_client):
+    """Test that stacks are found when ListStacks returns them on a later page."""
+    # Mock CloudFormation client with two pages of results
+    mock_cf_client = MagicMock()
+    mock_cf_client.list_stacks.side_effect = [
+        {
+            "StackSummaries": [
+                {"StackName": "other-stack", "StackStatus": "CREATE_COMPLETE"},
+            ],
+            "NextToken": "page-2-token",
+        },
+        {
+            "StackSummaries": [
+                {"StackName": "test-app-ecr-infrastructure", "StackStatus": "CREATE_COMPLETE"},
+                {"StackName": "test-app-ecs-infrastructure", "StackStatus": "CREATE_COMPLETE"},
+            ]
+        },
+    ]
+    mock_cf_client.get_template.return_value = {"TemplateBody": '{"test": "template"}'}
+    mock_get_aws_client.return_value = mock_cf_client
+
+    # Call the function
+    result = await delete_infrastructure(
+        app_name="test-app",
+        ecr_template_path="/path/to/ecr-template.json",
+        ecs_template_path="/path/to/ecs-template.json",
+    )
+
+    # Verify both stacks from the second page were found and deleted
+    assert result["ecr_stack"]["status"] == "deleting"
+    assert result["ecs_stack"]["status"] == "deleting"
+
+    # Verify the second call passed the NextToken from the first page
+    assert mock_cf_client.list_stacks.call_count == 2
+    assert mock_cf_client.list_stacks.call_args_list[1].kwargs["NextToken"] == "page-2-token"
+    assert mock_cf_client.delete_stack.call_count == 2
