@@ -643,7 +643,10 @@ where "schema" NOT LIKE 'pg!_%' ESCAPE '!' and "schema" <> 'information_schema' 
 -- Signal: large tables without a sort key
 SELECT count(*), 'REC_007', 'large tables without a sort key'
 FROM data
-WHERE tbl_rows > 5000000 and sortkey1 NOT LIKE 'AUTO(SORTKEY%' AND (sortkey1 = '')
+-- No sort key is NULL in sortkey1, not the empty string, and NULL fails a NOT LIKE guard
+-- too, so testing for NULL is both the fix and all the guard this branch needs: a NULL
+-- sortkey1 cannot be AUTO(SORTKEY).
+WHERE tbl_rows > 5000000 AND sortkey1 IS NULL
 UNION ALL
 -- Signal: large tables with skew
 SELECT count(*), 'REC_008', 'large tables with skew'
@@ -690,10 +693,14 @@ SELECT count(*), 'REC_004', 'tables with low column compression'
 FROM data
 WHERE ((column_count - encoded_column_count) - (case when sortkey1_enc = 'none' or sortkey1_enc = '' then 1 else 0 end)) AND tbl_rows > 5000000 AND (encoded_column_pct < 80)
 UNION ALL
--- Signal: large tables distributed by date or datetime
-SELECT count(*), 'REC_008', 'large tables distributed by date or datetime'
+-- Signal: large tables distributed by a column named like a date
+-- The label says "named like" because that is all this tests. diststyle holds KEY(<column
+-- name>), not a type, so this matches on the name and cannot tell a real timestamp key from
+-- an integer surrogate called dateid. The AUTO% guard matches the three diststyle branches
+-- above, which a KEY chosen by Redshift should not be reported against.
+SELECT count(*), 'REC_008', 'large tables distributed by a column named like a date'
 FROM data
-WHERE tbl_rows > 5000000 AND (diststyle like '%KEY%date%' or diststyle like '%KEY%dt%' or diststyle like '%KEY%timestamp%' or diststyle like '%KEY%datetime%')
+WHERE tbl_rows > 5000000 AND diststyle not like 'AUTO%' AND (diststyle like '%KEY%date%' or diststyle like '%KEY%dt%' or diststyle like '%KEY%timestamp%' or diststyle like '%KEY%datetime%')
 """,
     ),
     (
