@@ -79,6 +79,7 @@ class SnapshotManager:
         self._ref_maps: dict[str, dict[str, dict]] = {}
         self._nth_counters: dict[str, dict[tuple[str, str], int]] = {}
         self._previous_snapshots: dict[str, str] = {}
+        self._ref_scopes: dict[str, str | None] = {}
 
     async def capture(self, page: Page, session_id: str, *, selector: str | None = None) -> str:
         """Capture the accessibility tree and return formatted text.
@@ -182,6 +183,9 @@ class SnapshotManager:
                 formatted = '\n'.join(lines)
 
         self._previous_snapshots[session_id] = formatted
+        # Refs (and their nth counts) come from the selector's subtree only
+        # when scoping succeeded; any warning means the full page was used.
+        self._ref_scopes[session_id] = None if warning_prefix else selector
 
         logger.debug(f'Captured snapshot with {self._ref_counters[session_id]} refs')
         content = warning_prefix + formatted
@@ -421,10 +425,18 @@ class SnapshotManager:
         name = info['name']
         nth = info.get('nth', 0)
 
-        if name:
-            locator = page.get_by_role(role, name=name, exact=True)
-        else:
-            locator = page.get_by_role(role)
+        def by_role(base: Page | Locator) -> Locator:
+            if name:
+                return base.get_by_role(role, name=name, exact=True)
+            return base.get_by_role(role)
+
+        locator = by_role(page)
+        scope = self._ref_scopes.get(session_id)
+        if scope:
+            # Resolve within the scoped snapshot's subtree: the scope root
+            # itself (which Locator.get_by_role excludes) or its descendants.
+            root = page.locator(scope).first
+            locator = root.and_(locator).or_(by_role(root))
 
         # Use nth to disambiguate when multiple elements share the same role+name.
         # We check the nth_counters to see if this role+name had more than one
@@ -458,3 +470,4 @@ class SnapshotManager:
         self._ref_maps.pop(session_id, None)
         self._nth_counters.pop(session_id, None)
         self._previous_snapshots.pop(session_id, None)
+        self._ref_scopes.pop(session_id, None)
