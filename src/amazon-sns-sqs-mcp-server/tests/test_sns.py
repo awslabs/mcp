@@ -8,27 +8,25 @@ from awslabs.amazon_sns_sqs_mcp_server.sns import (
     is_unsubscribe_allowed,
     register_sns_tools,
 )
+from mcp.server.mcpserver import MCPServer
 from unittest.mock import MagicMock, patch
 
 
 class TestSNSTools:
     """Test SNS tools."""
 
-    def test_create_topic_override(self):
-        """Test create_topic_override function."""
-        # Mock FastMCP
-        mock_mcp = MagicMock()
-        mock_mcp.tool = MagicMock(return_value=lambda x: x)
+    async def test_create_topic_override(self):
+        """Test that create_topic exposes its description through MCP."""
+        mcp = MCPServer()
+        mock_sns_client_getter = MagicMock()
 
-        # Mock SNS client getter
-        mock_sns_client = MagicMock()
-        mock_sns_client_getter = MagicMock(return_value=mock_sns_client)
+        create_topic_override(mcp, mock_sns_client_getter, '')
 
-        # Call the function
-        create_topic_override(mock_mcp, mock_sns_client_getter, '')
-
-        # Assert tool was registered
-        assert mock_mcp.tool.called
+        tools = {tool.name: tool for tool in await mcp.list_tools()}
+        assert (
+            tools['create_topic'].description == 'Create an SNS topic with MCP server version tag.'
+        )
+        mock_sns_client_getter.assert_not_called()
 
     def test_allow_mutative_action_only_on_tagged_sns_resource(self):
         """Test allow_mutative_action_only_on_tagged_sns_resource function."""
