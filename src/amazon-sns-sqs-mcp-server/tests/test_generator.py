@@ -617,6 +617,57 @@ class TestAWSToolGenerator(unittest.TestCase):
         self.assertEqual(optional_param.default, None)
 
 
+class TestOperationNameResolution(unittest.TestCase):
+    """Tests for resolving boto3 method names to API operation names."""
+
+    def setUp(self):
+        """Create a generator for SNS, which has operations with acronyms in their names."""
+        self.generator = AWSToolGenerator(
+            service_name='sns',
+            service_display_name='SNS',
+            mcp=MagicMock(),
+            mcp_server_version='10.15.99',
+        )
+
+    @patch('awslabs.amazon_sns_sqs_mcp_server.generator.boto3.Session')
+    def test_operations_with_acronyms_resolve_to_real_operation_names(self, _mock_session):
+        """Operations such as GetSMSAttributes must not be rebuilt as GetSmsAttributes."""
+        for method_name in [
+            'get_sms_attributes',
+            'get_sms_sandbox_account_status',
+            'list_sms_sandbox_phone_numbers',
+            'verify_sms_sandbox_phone_number',
+        ]:
+            with self.subTest(method_name=method_name):
+                # Would raise OperationNotFoundError if the name were converted incorrectly
+                params = self.generator._AWSToolGenerator__get_operation_input_parameters(
+                    method_name
+                )
+                self.assertIsInstance(params, list)
+
+    def test_get_api_operation_name_uses_service_model(self):
+        """The API operation name is taken from the service model when a match exists."""
+        service_model = MagicMock()
+        service_model.operation_names = ['ListTopics', 'GetSMSAttributes']
+
+        result = self.generator._AWSToolGenerator__get_api_operation_name(
+            service_model, 'get_sms_attributes'
+        )
+
+        self.assertEqual(result, 'GetSMSAttributes')
+
+    def test_get_api_operation_name_falls_back_to_camel_case(self):
+        """Falls back to simple snake_case to CamelCase conversion if the model has no match."""
+        service_model = MagicMock()
+        service_model.operation_names = ['ListTopics']
+
+        result = self.generator._AWSToolGenerator__get_api_operation_name(
+            service_model, 'list_queues'
+        )
+
+        self.assertEqual(result, 'ListQueues')
+
+
 def test_hello_world():
     """Basic test to verify test setup is working."""
     assert True, 'Hello world test passes'
