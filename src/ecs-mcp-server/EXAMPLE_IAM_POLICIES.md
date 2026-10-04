@@ -10,14 +10,19 @@ to your environment.
 > (`my-app`, `my-cluster`) with your own values, and review each statement against your
 > organization's security requirements before attaching it to a role.
 
-Policies are cumulative by scenario:
+Sections 1–3 are cumulative; section 4 is a replacement variant of section 1:
 
-| Scenario | `ALLOW_WRITE` | `ALLOW_SENSITIVE_DATA` | Adds on top of |
+| Scenario | `ALLOW_WRITE` | `ALLOW_SENSITIVE_DATA` | Relationship to other sections |
 |---|---|---|---|
-| [1. Read-only / monitoring](#1-read-only--monitoring-access) | `false` | either | — |
-| [2. Troubleshooting](#2-troubleshooting-access) | `false` | `true` recommended | (1) |
-| [3. Full deployment](#3-full-deployment-access-allow_writetrue) | `true` | either | (1) + (2) |
-| [4. Single-cluster scoped](#4-optional-single-cluster-scoped-example) | `false` | either | (1), resource-scoped |
+| [1. Read-only / monitoring](#1-read-only--monitoring-access) | `false` | either | baseline |
+| [2. Troubleshooting](#2-troubleshooting-access) | `false` | `true` recommended | add on top of (1) |
+| [3. Full deployment](#3-full-deployment-access-allow_writetrue) | `true` | either | add on top of (1) + (2) |
+| [4. Single-cluster scoped](#4-optional-single-cluster-scoped-example) | `false` | either | **replaces** the ECS and Logs statements of (1) — do not attach both |
+
+> IAM permissions are additive. Attaching a broad `"Resource": "*"` statement alongside a
+> resource-scoped one does not narrow access — the broad statement still wins. Section 4
+> therefore only works if the corresponding section 1 statements are *not* also attached
+> to the same identity.
 
 ## 1. Read-Only / Monitoring Access
 
@@ -338,9 +343,21 @@ different service principal — replace the role names if you pass custom
 
 ## 4. (Optional) Single-Cluster Scoped Example
 
-Restricts the read-only policy from section 1 to a single named ECS cluster using resource
-ARNs, for cases where one IAM role/identity should only ever see or touch one cluster.
-Replace `my-cluster` with your cluster name.
+A **replacement** for the `ECSReadOnly` and `CloudWatchLogsReadOnly` statements in
+section 1, for cases where one IAM role/identity should only ever see or touch one named
+ECS cluster. Replace `my-cluster` with your cluster name.
+
+To build the complete policy:
+
+1. Start from the section 1 JSON.
+2. **Remove** the `ECSReadOnly` and `CloudWatchLogsReadOnly` statements.
+3. **Add** every statement from the JSON below in their place.
+4. **Keep** `ECRReadOnly`, `CloudFormationReadOnly`, `NetworkingReadOnly`, and
+   `IAMRoleValidationReadOnly` unchanged — the read-only tools still depend on them, and
+   none of those actions can be scoped to an ECS cluster.
+
+Because IAM is additive, attaching this JSON *alongside* an unmodified section 1 policy
+would not restrict anything; the section 1 `"Resource": "*"` grants would still apply.
 
 ```json
 {
