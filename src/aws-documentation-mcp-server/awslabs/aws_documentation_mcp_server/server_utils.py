@@ -15,6 +15,7 @@ import httpx
 import os
 from awslabs.aws_documentation_mcp_server.models import SearchResponse
 from awslabs.aws_documentation_mcp_server.util import (
+    DocumentationToolError,
     extract_content_from_html,
     extract_sections_from_html,
     format_documentation_result,
@@ -194,7 +195,7 @@ async def read_sections_impl(
 
     try:
         filtered_content = extract_sections_from_html(page_raw, section_titles)
-    except ValueError as e:
+    except DocumentationToolError as e:
         error_msg = str(e)
         logger.error(error_msg)
         await ctx.error(error_msg)
@@ -207,12 +208,14 @@ async def read_sections_impl(
         if markdown.startswith('<e>') and markdown.endswith('</e>'):
             # strip only the outer wrapper tags
             error_msg = markdown[3:-4]
-            raise ValueError(error_msg)
+            raise DocumentationToolError(error_msg)
 
+    except DocumentationToolError:
+        raise
     except Exception as e:
         error_msg = str(e)
         logger.error(error_msg)
         await ctx.error(error_msg)
-        raise
+        raise DocumentationToolError(error_msg) from e
 
     return markdown

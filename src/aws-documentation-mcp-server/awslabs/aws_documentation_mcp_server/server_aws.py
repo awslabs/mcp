@@ -33,6 +33,7 @@ from awslabs.aws_documentation_mcp_server.server_utils import (
 
 # Import utility functions
 from awslabs.aws_documentation_mcp_server.util import (
+    DocumentationToolError,
     add_search_intent_to_search_request,
     parse_recommendation_results,
 )
@@ -157,10 +158,10 @@ async def read_documentation(
 
     if not any(re.match(domain_regex, url_str) for domain_regex in supported_domains_regex):
         await ctx.error(f'Invalid URL: {url_str}. URL must be from list of supported domains')
-        raise ValueError('URL must be from list of supported domains')
+        raise DocumentationToolError('URL must be from list of supported domains')
     if not url_str.endswith('.html'):
         await ctx.error(f'Invalid URL: {url_str}. URL must end with .html')
-        raise ValueError('URL must end with .html')
+        raise DocumentationToolError('URL must end with .html')
 
     return await read_documentation_impl(ctx, url_str, max_length, start_index, SESSION_UUID)
 
@@ -227,14 +228,14 @@ async def read_sections(
 
     if not any(re.match(domain_regex, url_str) for domain_regex in supported_domains_regex):
         await ctx.error(f'Invalid URL: {url_str}. URL must be from list of supported domains')
-        raise ValueError('URL must be from list of supported domains')
+        raise DocumentationToolError('URL must be from list of supported domains')
     if not url_str.endswith('.html'):
         await ctx.error(f'Invalid URL: {url_str}. URL must end with .html')
-        raise ValueError('URL must end with .html')
+        raise DocumentationToolError('URL must end with .html')
 
     if not section_titles:
         await ctx.error('section_titles parameter cannot be empty')
-        raise ValueError('section_titles parameter cannot be empty')
+        raise DocumentationToolError('section_titles parameter cannot be empty')
 
     return await read_sections_impl(ctx, url_str, section_titles, SESSION_UUID)
 

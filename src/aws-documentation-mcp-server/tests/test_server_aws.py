@@ -23,6 +23,8 @@ from awslabs.aws_documentation_mcp_server.server_aws import (
     recommend,
     search_documentation,
 )
+from awslabs.aws_documentation_mcp_server.util import DocumentationToolError
+from mcp.server.fastmcp.exceptions import ToolError
 from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.parse import parse_qs, unquote, urlparse
 
@@ -127,6 +129,29 @@ class TestReadDocumentation:
         ctx = MockContext()
 
         with pytest.raises(ValueError, match='URL must end with .html'):
+            await read_documentation(ctx, url=url, max_length=10000, start_index=0)
+
+    @pytest.mark.asyncio
+    async def test_read_documentation_invalid_domain_raises_tool_error(self):
+        """URL validation failure raises DocumentationToolError (a ToolError subclass).
+
+        Under MCP SDK 2.x, only ToolError subclasses have their message forwarded to
+        clients. This test confirms the raised exception is both a ToolError (so the
+        SDK passes the message through) and a ValueError (for backwards compatibility).
+        """
+        url = 'https://invalid-domain.com/test.html'
+        ctx = MockContext()
+
+        with pytest.raises(ToolError, match='URL must be from list of supported domains'):
+            await read_documentation(ctx, url=url, max_length=10000, start_index=0)
+
+    @pytest.mark.asyncio
+    async def test_read_documentation_non_html_raises_tool_error(self):
+        """Non-.html URL raises DocumentationToolError that is also a ToolError."""
+        url = 'https://docs.aws.amazon.com/test.pdf'
+        ctx = MockContext()
+
+        with pytest.raises(ToolError, match='URL must end with .html'):
             await read_documentation(ctx, url=url, max_length=10000, start_index=0)
 
 
@@ -288,6 +313,63 @@ class TestReadSections:
 
         with pytest.raises(ValueError, match='section_titles parameter cannot be empty'):
             await read_sections(ctx, url=url, section_titles=section_titles)
+
+    @pytest.mark.asyncio
+    async def test_read_sections_validation_raises_tool_error(self):
+        """Validation failures in read_sections raise DocumentationToolError (a ToolError).
+
+        Confirms the MCP SDK 2.x fix: clients receive the actual error message instead of
+        the generic 'Error executing tool read_sections'.
+        """
+        ctx = MockContext()
+
+        with pytest.raises(ToolError, match='URL must be from list of supported domains'):
+            await read_sections(
+                ctx,
+                url='https://invalid-domain.com/test.html',
+                section_titles=['Introduction'],
+            )
+
+        with pytest.raises(ToolError, match='URL must end with .html'):
+            await read_sections(
+                ctx,
+                url='https://docs.aws.amazon.com/test.pdf',
+                section_titles=['Introduction'],
+            )
+
+        with pytest.raises(ToolError, match='section_titles parameter cannot be empty'):
+            await read_sections(
+                ctx,
+                url='https://docs.aws.amazon.com/test.html',
+                section_titles=[],
+            )
+
+    @pytest.mark.asyncio
+    async def test_read_sections_no_sections_found_raises_tool_error(self):
+        """Missing section raises DocumentationToolError (a ToolError) so the message reaches clients."""
+        url = 'https://docs.aws.amazon.com/test.html'
+        section_titles = ['Nonexistent Section']
+        ctx = MockContext()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = (
+            '<html><body><h1>Other Section</h1><p>Different content.</p></body></html>'
+        )
+        mock_response.headers = {'content-type': 'text/html'}
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_response
+
+            with pytest.raises(ToolError, match='This document does not contain subsections'):
+                await read_sections(ctx, url=url, section_titles=section_titles)
+
+    def test_documentation_tool_error_is_tool_error_and_value_error(self):
+        """DocumentationToolError must be both a ToolError and a ValueError."""
+        err = DocumentationToolError('test message')
+        assert isinstance(err, ToolError)
+        assert isinstance(err, ValueError)
+        assert str(err) == 'test message'
 
     @pytest.mark.asyncio
     async def test_read_sections_special_characters_url_encoding(self):

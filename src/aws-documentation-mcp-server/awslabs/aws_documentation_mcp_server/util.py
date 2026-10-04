@@ -15,8 +15,17 @@
 
 import markdownify
 from awslabs.aws_documentation_mcp_server.models import RecommendationResult
+from mcp.server.fastmcp.exceptions import ToolError
 from typing import Any, Dict, List
 from urllib.parse import quote_plus
+
+
+class DocumentationToolError(ToolError, ValueError):
+    """Raised for anticipated read-path failures in the documentation server.
+
+    Subclasses both ToolError (so MCP SDK 2.x forwards the message to clients)
+    and ValueError (so existing pytest.raises(ValueError) tests keep passing).
+    """
 
 
 def extract_content_from_html(html: str) -> str:
@@ -243,10 +252,10 @@ def extract_sections_from_html(html: str, section_titles: List[str]) -> str:
         if available_level2_sections:
             available_list = ', '.join(f'"{section}"' for section in available_level2_sections)
             error_msg = f'No matching sections were found: {section_list}. Available sections: {available_list}. Please retry with one or more of these sections or use the read_documentation tool instead to get the full document content.'
-            raise ValueError(error_msg)
+            raise DocumentationToolError(error_msg)
         else:
             error_msg = 'This document does not contain subsections. Please use the read_documentation tool instead to get the full document content.'
-            raise ValueError(error_msg)
+            raise DocumentationToolError(error_msg)
 
     result_html = ''.join(matched_sections_html)
 
