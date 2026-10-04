@@ -1588,3 +1588,22 @@ async def test_ce_real_exception_flow_calls_handle_error_reload_identity_decorat
         assert res['status'] == 'error'
         assert 'boom' in res.get('message', '')
         mock_handle.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_ce_real_client_creation_error_is_classified(mock_context):
+    """A client-creation failure carries top-level error_type/operation/service."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with patch.object(ce_mod, 'create_aws_client') as mock_create_client:
+        mock_create_client.side_effect = Exception('no credentials')
+        res = await real_fn(mock_context, operation='getCostAndUsage')  # type: ignore
+
+    assert res['status'] == 'error'
+    assert res['error_type'] == 'client_creation_error'
+    assert res['operation'] == 'getCostAndUsage'
+    assert res['service'] == 'Cost Explorer'
+    assert res['message'] == 'Failed to create AWS client: no credentials'
+    # Legacy nested payload is preserved
+    assert res['data']['error_type'] == 'client_creation_error'

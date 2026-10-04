@@ -14,7 +14,7 @@
 
 """Enterprise Support tools for the AWS Billing and Cost Management MCP server.
 
-Exposes a single ``enterprise_support`` tool that routes by ``operation`` across
+Exposes a single ``enterprise-support`` tool that routes by ``operation`` across
 the Enterprise Support APIs, so the charge summary, the contract details
 and the per-linked-account charge breakdown are reached through one tool rather
 than three (mirroring the credits and cost-explorer tools). The rich tool
@@ -96,7 +96,7 @@ async def _enterprise_support(
 
 
 @enterprise_support_server.tool(
-    name='enterprise_support',
+    name='enterprise-support',
     description="""Access AWS Enterprise Support charge data: the Support charge for a billing period, the Support-eligible spend it was calculated from, the effective pricing plan, the contract terms that govern how the charge is allocated, and the per-linked-account breakdown. Choose an action with the required `operation` parameter.
 
 ## OPERATIONS
