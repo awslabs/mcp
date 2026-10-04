@@ -36,15 +36,19 @@ from ..utilities.constants import (
     EFFICIENCY_RANKING_MODE_PERFORMANCE,
     GRANULARITY_DAILY,
     GRANULARITY_MONTHLY,
+    OPERATION_GET_PREFERENCES,
     OPERATION_GET_RECOMMENDATION,
     OPERATION_LIST_EFFICIENCY_METRICS,
+    OPERATION_LIST_ENROLLMENT_STATUSES,
     OPERATION_LIST_RECOMMENDATION_SUMMARIES,
     OPERATION_LIST_RECOMMENDATIONS,
     ORDER_BY_VALID_ORDERS,
 )
 from .cost_optimization_hub_helpers import (
+    get_preferences,
     get_recommendation,
     list_efficiency_metrics,
+    list_enrollment_statuses,
     list_recommendation_summaries,
     list_recommendations,
 )
@@ -219,6 +223,15 @@ Supported Operations:
    a time series (optionally grouped by AccountId or Region). Use for questions
    about the cost-efficiency score, its trend over time, month-over-month change,
    cross-region/cross-account comparison, and top/worst performers.
+5. list_enrollment_statuses: Cost Optimization Hub enrollment status (Active/Inactive)
+   of the calling account. Optional 'account_id' returns the status of that account instead.
+   An account that has never enrolled has no enrollment record; it is reported as
+   'Inactive'. On Inactive, do not call the recommendation or
+   efficiency-metrics operations, which would only fail with "AWS account is not
+   enrolled for recommendations."
+6. get_preferences: Cost Optimization Hub preferences of the calling account: savings
+   estimation mode, member account discount visibility, and preferred commitment term
+   and payment option for Savings Plans/RI recommendations. Params: (none)
 
 IMPORTANT: 'list_recommendation_summaries' operation REQUIRES a 'group_by' parameter.
 Valid 'group_by' values: AccountId, Region, ActionType, ResourceType, RestartNeeded, RollbackPossible, ImplementationEffort
@@ -287,12 +300,13 @@ async def cost_optimization_hub(
     end_date: Optional[str] = None,
     order_by: Optional[str] = None,
     ranking_mode: Optional[str] = None,
+    account_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Retrieves recommendations and efficiency metrics from AWS Cost Optimization Hub.
 
     Args:
         ctx: The MCP context
-        operation: The operation to perform ('list_recommendations', 'get_recommendation', 'list_recommendation_summaries', or 'list_efficiency_metrics')
+        operation: The operation to perform ('list_recommendations', 'get_recommendation', 'list_recommendation_summaries', 'list_efficiency_metrics', 'list_enrollment_statuses', or 'get_preferences')
         recommendation_id: Recommendation ID for get_recommendation operation (mapped to the API's recommendationId)
         max_results: Per-page result count (boto3 ``maxResults``). NOT a total
             cap. Combine with ``max_pages`` to bound total fetched results.
@@ -331,6 +345,8 @@ async def cost_optimization_hub(
             for the rest). Ranking direction comes from order_by (see above).
             Requires group_by=AccountId or Region. Omit for the raw per-group series
             (e.g. a plain trend or single-account score).
+        account_id: For list_enrollment_statuses only. Optional account ID whose
+            enrollment status to return. Omit for the calling account.
 
     Returns:
         Dict containing the Cost Optimization Hub recommendations
@@ -410,21 +426,11 @@ async def cost_optimization_hub(
                 return result
 
             except Exception as recommendation_error:
-                await ctx.error(
-                    f'Error in list_recommendation_summaries: {str(recommendation_error)}'
-                )
-
-                # Create a detailed error response
-                return format_response(
-                    'error',
-                    {
-                        'error_type': 'service_error',
-                        'service': 'Cost Optimization Hub',
-                        'operation': 'list_recommendation_summaries',
-                        'message': str(recommendation_error),
-                        'group_by': group_by or 'RESOURCE_TYPE',
-                    },
-                    'Error fetching recommendation summaries from Cost Optimization Hub.',
+                return await handle_aws_error(
+                    ctx,
+                    recommendation_error,
+                    'list_recommendation_summaries',
+                    'Cost Optimization Hub',
                 )
 
         elif operation == OPERATION_LIST_RECOMMENDATIONS:
@@ -465,18 +471,8 @@ async def cost_optimization_hub(
                 return result
 
             except Exception as recommendation_error:
-                await ctx.error(f'Error in list_recommendations: {str(recommendation_error)}')
-
-                # Create a detailed error response
-                return format_response(
-                    'error',
-                    {
-                        'error_type': 'service_error',
-                        'service': 'Cost Optimization Hub',
-                        'operation': 'list_recommendations',
-                        'message': str(recommendation_error),
-                    },
-                    'Error fetching recommendations from Cost Optimization Hub.',
+                return await handle_aws_error(
+                    ctx, recommendation_error, 'list_recommendations', 'Cost Optimization Hub'
                 )
 
         elif operation == OPERATION_GET_RECOMMENDATION:
@@ -620,17 +616,15 @@ async def cost_optimization_hub(
                 return result
 
             except Exception as efficiency_error:
-                await ctx.error(f'Error in list_efficiency_metrics: {str(efficiency_error)}')
-                return format_response(
-                    'error',
-                    {
-                        'error_type': 'service_error',
-                        'service': 'Cost Optimization Hub',
-                        'operation': 'list_efficiency_metrics',
-                        'message': str(efficiency_error),
-                    },
-                    'Error fetching efficiency metrics from Cost Optimization Hub.',
+                return await handle_aws_error(
+                    ctx, efficiency_error, 'list_efficiency_metrics', 'Cost Optimization Hub'
                 )
+
+        elif operation == OPERATION_LIST_ENROLLMENT_STATUSES:
+            return await list_enrollment_statuses(ctx, coh_client, account_id=account_id)
+
+        elif operation == OPERATION_GET_PREFERENCES:
+            return await get_preferences(ctx, coh_client)
 
         else:
             # Return error for unsupported operations
@@ -642,9 +636,11 @@ async def cost_optimization_hub(
                         OPERATION_LIST_RECOMMENDATIONS,
                         OPERATION_GET_RECOMMENDATION,
                         OPERATION_LIST_EFFICIENCY_METRICS,
+                        OPERATION_LIST_ENROLLMENT_STATUSES,
+                        OPERATION_GET_PREFERENCES,
                     ]
                 },
-                f"Unsupported operation: {operation}. Use '{OPERATION_LIST_RECOMMENDATION_SUMMARIES}', '{OPERATION_LIST_RECOMMENDATIONS}', '{OPERATION_GET_RECOMMENDATION}', or '{OPERATION_LIST_EFFICIENCY_METRICS}'.",
+                f"Unsupported operation: {operation}. Use '{OPERATION_LIST_RECOMMENDATION_SUMMARIES}', '{OPERATION_LIST_RECOMMENDATIONS}', '{OPERATION_GET_RECOMMENDATION}', '{OPERATION_LIST_EFFICIENCY_METRICS}', '{OPERATION_LIST_ENROLLMENT_STATUSES}', or '{OPERATION_GET_PREFERENCES}'.",
             )
 
     except Exception as e:

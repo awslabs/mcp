@@ -14,9 +14,7 @@
 """Tests for DocumentDB MCP Server query tools (find and aggregate)."""
 
 import pytest
-import uuid
 from awslabs.documentdb_mcp_server.config import serverConfig
-from awslabs.documentdb_mcp_server.connection_tools import DocumentDBConnection
 from awslabs.documentdb_mcp_server.query_tools import (
     aggregate,
     find,
@@ -32,10 +30,6 @@ class TestFindTool:
         """Test successful find operation with filtering."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Set up mock data
         db_name = 'test_db'
@@ -53,7 +47,7 @@ class TestFindTool:
             mock_collection.insert_one(doc)
 
         # Act
-        result = await find(connection_id, db_name, collection_name, {'value': 20}, None, 10)
+        result = await find(db_name, collection_name, {'value': 20}, None, 10)
 
         # Assert
         assert isinstance(result, list)
@@ -66,10 +60,6 @@ class TestFindTool:
         """Test find with projection."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Set up mock data
         db_name = 'test_db'
@@ -86,7 +76,7 @@ class TestFindTool:
             mock_collection.insert_one(doc)
 
         # Act - include only name field, exclude _id
-        result = await find(connection_id, db_name, collection_name, {}, {'name': 1, '_id': 0}, 10)
+        result = await find(db_name, collection_name, {}, {'name': 1, '_id': 0}, 10)
 
         # Assert
         assert isinstance(result, list)
@@ -104,10 +94,6 @@ class TestFindTool:
         """Test find with limit."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Set up mock data
         db_name = 'test_db'
@@ -125,7 +111,7 @@ class TestFindTool:
             mock_collection.insert_one(doc)
 
         # Act
-        result = await find(connection_id, db_name, collection_name, {}, None, 2)
+        result = await find(db_name, collection_name, {}, None, 2)
 
         # Assert
         assert isinstance(result, list)
@@ -136,21 +122,17 @@ class TestFindTool:
         assert 'Document 2' in first_two_names
 
     @pytest.mark.asyncio
-    async def test_find_connection_not_found(self, mock_ctx):
-        """Test find with invalid connection ID."""
+    async def test_find_not_configured(self, mock_ctx):
+        """Test find when no connection string is configured."""
         # Act/Assert
-        with pytest.raises(ValueError, match='Connection ID .* not found'):
-            await find(str(uuid.uuid4()), 'test_db', 'test_collection', {}, None, 10)
+        with pytest.raises(ValueError, match='connection is not configured'):
+            await find('test_db', 'test_collection', {}, None, 10)
 
     @pytest.mark.asyncio
     async def test_find_handles_generic_exception(self, mock_ctx, patch_client, monkeypatch):
         """Test handling of generic exceptions during find."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         def mock_find(*args, **kwargs):
             raise Exception('Generic error')
@@ -159,7 +141,7 @@ class TestFindTool:
 
         # Act/Assert
         with pytest.raises(ValueError, match='Failed to query DocumentDB: Generic error'):
-            await find(connection_id, 'test_db', 'test_collection', {}, None, 10)
+            await find('test_db', 'test_collection', {}, None, 10)
 
 
 class TestAggregateTool:
@@ -170,10 +152,6 @@ class TestAggregateTool:
         """Test successful aggregate operation with grouping."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Set up mock data
         db_name = 'test_db'
@@ -195,7 +173,7 @@ class TestAggregateTool:
         pipeline = [{'$group': {'_id': '$category', 'total': {'$sum': '$value'}}}]
 
         # Act
-        result = await aggregate(connection_id, db_name, collection_name, pipeline, 10)
+        result = await aggregate(db_name, collection_name, pipeline, 10)
 
         # Assert
         assert isinstance(result, list)
@@ -216,10 +194,6 @@ class TestAggregateTool:
         """Test aggregate with limit."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Set up mock data
         db_name = 'test_db'
@@ -241,7 +215,7 @@ class TestAggregateTool:
         pipeline = [{'$group': {'_id': '$category', 'total': {'$sum': '$value'}}}]
 
         # Act
-        result = await aggregate(connection_id, db_name, collection_name, pipeline, 2)
+        result = await aggregate(db_name, collection_name, pipeline, 2)
 
         # Assert
         assert isinstance(result, list)
@@ -253,10 +227,6 @@ class TestAggregateTool:
         """Test aggregate with limit already in pipeline."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Set up mock data
         db_name = 'test_db'
@@ -278,7 +248,7 @@ class TestAggregateTool:
         pipeline = [{'$group': {'_id': '$category', 'total': {'$sum': '$value'}}}, {'$limit': 1}]
 
         # Act
-        result = await aggregate(connection_id, db_name, collection_name, pipeline, 10)
+        result = await aggregate(db_name, collection_name, pipeline, 10)
 
         # Assert
         assert isinstance(result, list)
@@ -286,22 +256,18 @@ class TestAggregateTool:
         # the limit in the pipeline would be respected
 
     @pytest.mark.asyncio
-    async def test_aggregate_connection_not_found(self, mock_ctx):
-        """Test aggregate with invalid connection ID."""
+    async def test_aggregate_not_configured(self, mock_ctx):
+        """Test aggregate when no connection string is configured."""
         # Act/Assert
         pipeline = [{'$group': {'_id': '$category', 'total': {'$sum': '$value'}}}]
-        with pytest.raises(ValueError, match='Connection ID .* not found'):
-            await aggregate(str(uuid.uuid4()), 'test_db', 'test_collection', pipeline, 10)
+        with pytest.raises(ValueError, match='connection is not configured'):
+            await aggregate('test_db', 'test_collection', pipeline, 10)
 
     @pytest.mark.asyncio
     async def test_aggregate_handles_generic_exception(self, mock_ctx, patch_client, monkeypatch):
         """Test handling of generic exceptions during aggregate."""
         # Arrange
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         def mock_aggregate(*args, **kwargs):
             raise Exception('Generic error')
@@ -313,7 +279,7 @@ class TestAggregateTool:
 
         # Act/Assert
         with pytest.raises(ValueError, match='Failed to run aggregation: Generic error'):
-            await aggregate(connection_id, 'test_db', 'test_collection', pipeline, 10)
+            await aggregate('test_db', 'test_collection', pipeline, 10)
 
     @pytest.mark.asyncio
     async def test_aggregate_blocks_out_in_read_only_mode(
@@ -324,10 +290,6 @@ class TestAggregateTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', True)
 
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Define a pipeline with $out stage
         pipeline = [
@@ -340,7 +302,7 @@ class TestAggregateTool:
             ValueError,
             match='Operation not permitted: Server is configured in read-only mode',
         ):
-            await aggregate(connection_id, 'test_db', 'test_collection', pipeline, 10)
+            await aggregate('test_db', 'test_collection', pipeline, 10)
 
     @pytest.mark.asyncio
     async def test_aggregate_blocks_merge_in_read_only_mode(
@@ -351,10 +313,6 @@ class TestAggregateTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', True)
 
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Define a pipeline with $merge stage
         pipeline = [
@@ -367,7 +325,7 @@ class TestAggregateTool:
             ValueError,
             match='Operation not permitted: Server is configured in read-only mode',
         ):
-            await aggregate(connection_id, 'test_db', 'test_collection', pipeline, 10)
+            await aggregate('test_db', 'test_collection', pipeline, 10)
 
     @pytest.mark.asyncio
     async def test_aggregate_allows_out_when_write_enabled(
@@ -378,10 +336,6 @@ class TestAggregateTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', False)
 
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Set up mock data
         db_name = 'test_db'
@@ -404,7 +358,7 @@ class TestAggregateTool:
         ]
 
         # Act - should not raise an error
-        result = await aggregate(connection_id, db_name, collection_name, pipeline, 10)
+        result = await aggregate(db_name, collection_name, pipeline, 10)
 
         # Assert - in mock implementation, this should succeed
         assert isinstance(result, list)
@@ -418,10 +372,6 @@ class TestAggregateTool:
         monkeypatch.setattr(serverConfig, 'read_only_mode', False)
 
         mock_client = patch_client()  # noqa: F841
-        connection_info = DocumentDBConnection.create_connection(
-            'mongodb://example.com:27017/?retryWrites=false'
-        )
-        connection_id = connection_info.connection_id
 
         # Set up mock data
         db_name = 'test_db'
@@ -444,7 +394,7 @@ class TestAggregateTool:
         ]
 
         # Act - should not raise an error
-        result = await aggregate(connection_id, db_name, collection_name, pipeline, 10)
+        result = await aggregate(db_name, collection_name, pipeline, 10)
 
         # Assert - in mock implementation, this should succeed
         assert isinstance(result, list)
