@@ -72,6 +72,9 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 _SERVICE_NAME = 'Compute Optimizer Automation'
 _BOTO_SERVICE_NAME = 'compute-optimizer-automation'
 _MAX_CONCURRENT_REGIONS = 8
+_RESOURCE_NOT_FOUND_ERROR_TYPE = 'ResourceNotFoundException'
+# Top-level error_type for a multi-region failure whose regions failed for different reasons.
+_MULTI_REGION_ERROR_TYPE = 'multi_region_error'
 
 # The operations this tool supports, in the order presented to callers.
 VALID_OPERATIONS = [
@@ -138,6 +141,43 @@ def _valid_filter_names_by_operation() -> Dict[str, List[str]]:
             result[xform_name(op_name)] = list(enum_values)
 
     return result
+
+
+def _validation_error(operation: str, data: Dict[str, Any], message: str) -> Dict[str, Any]:
+    """Return an error response for a local parameter-validation failure.
+
+    Sets the same top-level `error_type`, `operation`, and `service` fields that
+    handle_aws_error attaches to AWS-side errors, so callers can tell a bad parameter
+    apart from a service failure without parsing the message.
+    """
+    return format_response(
+        'error',
+        data,
+        message,
+        error_type='validation_error',
+        operation=operation,
+        service=_SERVICE_NAME,
+    )
+
+
+def _multi_region_error_type(
+    region_errors: Dict[str, Dict[str, Any]], regions_not_found: List[str]
+) -> str:
+    """Classify a failure in which no queried region succeeded.
+
+    Per-region error types are keyed by region name, which changes from call to call,
+    so the shared type is promoted to the top level when every failed region agrees.
+    Otherwise the failure is reported as a multi_region_error, and callers can still
+    read the per-region detail from `region_errors`.
+    """
+    error_types = {error.get('error_type') for error in region_errors.values()}
+    if regions_not_found:
+        error_types.add(_RESOURCE_NOT_FOUND_ERROR_TYPE)
+    if len(error_types) == 1:
+        error_type = error_types.pop()
+        if error_type:
+            return error_type
+    return _MULTI_REGION_ERROR_TYPE
 
 
 compute_optimizer_automation_server = FastMCP(
@@ -344,8 +384,8 @@ async def compute_optimizer_automation(
         # Catch the actionable cross-mode mistake locally instead of sending an encoded
         # regional map to AWS as though it were a native service token.
         if is_regional_next_token(next_token):
-            return format_response(
-                'error',
+            return _validation_error(
+                operation,
                 {'operation': operation, 'parameter': 'next_token'},
                 'A multi-region next_token cannot be used for a single-region request. '
                 'Pass the same `regions` list the token was produced with, or omit '
@@ -450,8 +490,8 @@ async def dispatch_regional(
 
     handler = handlers.get(operation)
     if handler is None:
-        return format_response(
-            'error',
+        return _validation_error(
+            operation,
             {'provided_operation': operation, 'valid_operations': VALID_OPERATIONS},
             f'Unsupported operation: {operation}. Valid operations: {", ".join(VALID_OPERATIONS)}.',
         )
@@ -481,7 +521,9 @@ async def dispatch_multi_region(
     if operation == 'get_automation_event':
         return await _get_automation_event_multi_region(ctx, str(event_id), regions)
 
-    regions_tokens, token_error = parse_regional_next_token(next_token, regions)
+    regions_tokens, token_error = parse_regional_next_token(
+        next_token, regions, operation=operation, service_name=_SERVICE_NAME
+    )
     if token_error is not None:
         return token_error
 
@@ -556,8 +598,8 @@ async def dispatch_multi_region(
 
     spec = global_handlers.get(operation)
     if spec is None:
-        return format_response(
-            'error',
+        return _validation_error(
+            operation,
             {'provided_operation': operation, 'valid_operations': VALID_OPERATIONS},
             f'Unsupported operation: {operation}. Valid operations: {", ".join(VALID_OPERATIONS)}.',
         )
@@ -575,12 +617,12 @@ def _partition_resource_not_found_errors(
     regions_not_found = [
         region
         for region, error in region_errors.items()
-        if error.get('error_type') == 'ResourceNotFoundException'
+        if error.get('error_type') == _RESOURCE_NOT_FOUND_ERROR_TYPE
     ]
     other_errors = {
         region: error
         for region, error in region_errors.items()
-        if error.get('error_type') != 'ResourceNotFoundException'
+        if error.get('error_type') != _RESOURCE_NOT_FOUND_ERROR_TYPE
     }
     return other_errors, regions_not_found
 
@@ -626,6 +668,9 @@ async def _run_multi_region_list(
             },
             f'The requested resource was not found in any of the {len(regions_not_found)} '
             f'region(s) queried for {operation}.',
+            error_type=_RESOURCE_NOT_FOUND_ERROR_TYPE,
+            operation=operation,
+            service=_SERVICE_NAME,
         )
 
     if region_errors and not successful_regions:
@@ -643,7 +688,14 @@ async def _run_multi_region_list(
             )
         else:
             message = f'All {len(region_errors)} region(s) failed for {operation}.'
-        return format_response('error', data, message)
+        return format_response(
+            'error',
+            data,
+            message,
+            error_type=_multi_region_error_type(region_errors, regions_not_found),
+            operation=operation,
+            service=_SERVICE_NAME,
+        )
 
     return await _finalize_multi_region_list_response(
         ctx,
@@ -734,12 +786,18 @@ async def _get_automation_event_multi_region(
             f'Could not determine whether automation event {event_id} exists because '
             f'{len(region_errors)} of {len(regions)} region(s) could not be searched. '
             'Review region_errors and retry.',
+            error_type=_multi_region_error_type(region_errors, regions_not_found),
+            operation='get_automation_event',
+            service=_SERVICE_NAME,
         )
     return format_response(
         'error',
         data,
         f'Automation event {event_id} was not found in any of the {len(regions)} '
         'region(s) queried.',
+        error_type=_RESOURCE_NOT_FOUND_ERROR_TYPE,
+        operation='get_automation_event',
+        service=_SERVICE_NAME,
     )
 
 
@@ -782,8 +840,8 @@ def _validate_operation_params(
 
     missing = [name for name, value in required.get(operation, []) if not value]
     if missing:
-        return format_response(
-            'error',
+        return _validation_error(
+            operation,
             {'operation': operation, 'missing_parameters': missing},
             f'Missing required parameter(s) for {operation}: {", ".join(missing)}.',
         )
@@ -810,16 +868,16 @@ def _resolve_requested_regions(
         return [], None
 
     if isinstance(regions, str) or not isinstance(regions, (list, tuple)):
-        return [], format_response(
-            'error',
+        return [], _validation_error(
+            operation,
             {'operation': operation, 'parameter': 'regions'},
             'The regions parameter must be a list of AWS region names, e.g. '
             '["us-east-1", "eu-west-1"].',
         )
 
     if any(not isinstance(region, str) or not region.strip() for region in regions):
-        return [], format_response(
-            'error',
+        return [], _validation_error(
+            operation,
             {'operation': operation, 'parameter': 'regions', 'regions': list(regions)},
             'Every entry in regions must be a non-empty AWS region name.',
         )
@@ -827,8 +885,8 @@ def _resolve_requested_regions(
     deduplicated = list(dict.fromkeys(region.strip() for region in regions))
 
     if operation in _SINGLE_REGION_OPERATIONS and len(deduplicated) > 1:
-        return [], format_response(
-            'error',
+        return [], _validation_error(
+            operation,
             {
                 'operation': operation,
                 'parameter': 'regions',
@@ -895,15 +953,15 @@ def _validate_filters(operation: str, filters: Optional[str]) -> Optional[Dict[s
     try:
         parsed = parse_json(filters, 'filters')
     except ValueError as e:
-        return format_response(
-            'error',
+        return _validation_error(
+            operation,
             {'operation': operation, 'filters': filters},
             f'Invalid JSON for filters parameter: {e}',
         )
 
     if not isinstance(parsed, list):
-        return format_response(
-            'error',
+        return _validation_error(
+            operation,
             {'operation': operation, 'filters': filters},
             'The filters parameter must be a JSON array of {name, values} objects.',
         )
@@ -914,8 +972,8 @@ def _validate_filters(operation: str, filters: Optional[str]) -> Optional[Dict[s
         if isinstance(item, dict) and item.get('name') not in valid_names
     ]
     if invalid:
-        return format_response(
-            'error',
+        return _validation_error(
+            operation,
             {
                 'operation': operation,
                 'invalid_filter_names': invalid,
