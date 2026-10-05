@@ -145,7 +145,7 @@ _FILE_ACCESS_MSGS = {
         - Description of what the command does
     """,
     annotations=ToolAnnotations(
-        title='Suggest AWS CLI commands', readOnlyHint=True, openWorldHint=False
+        title='Suggest AWS CLI commands', readOnlyHint=True, openWorldHint=True
     ),
 )
 async def suggest_aws_commands(
