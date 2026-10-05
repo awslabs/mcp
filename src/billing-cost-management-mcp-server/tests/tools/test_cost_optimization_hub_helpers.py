@@ -19,8 +19,10 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_optimization_hub_help
     _apply_pareto_materiality,
     _latest_efficiency_point,
     format_timestamp,
+    get_preferences,
     get_recommendation,
     list_efficiency_metrics,
+    list_enrollment_statuses,
     list_recommendation_summaries,
     list_recommendations,
 )
@@ -529,7 +531,8 @@ class TestListRecommendationsErrorHandling:
         result = await list_recommendations(mock_context, mock_coh_client)
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'ValidationException'
+        assert result['operation'] == 'list_recommendations'
+        assert result['error_type'] == 'ValidationException'
         # The service's own message is surfaced verbatim (no bespoke mapping).
         assert result['message'] == 'Invalid filter'
 
@@ -547,7 +550,8 @@ class TestListRecommendationsErrorHandling:
         result = await list_recommendations(mock_context, mock_coh_client)
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'AccessDeniedException'
+        assert result['operation'] == 'list_recommendations'
+        assert result['error_type'] == 'AccessDeniedException'
         assert result['message'] == 'Access denied'
 
     async def test_resource_not_found_exception(self, mock_context, mock_coh_client):
@@ -564,7 +568,8 @@ class TestListRecommendationsErrorHandling:
         result = await list_recommendations(mock_context, mock_coh_client)
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'ResourceNotFoundException'
+        assert result['operation'] == 'list_recommendations'
+        assert result['error_type'] == 'ResourceNotFoundException'
         assert result['message'] == 'Resource not found'
 
     async def test_other_client_error_returns_service_message(self, mock_context, mock_coh_client):
@@ -580,16 +585,21 @@ class TestListRecommendationsErrorHandling:
         result = await list_recommendations(mock_context, mock_coh_client)
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'InternalServerError'
+        assert result['operation'] == 'list_recommendations'
+        assert result['error_type'] == 'InternalServerError'
         assert result['message'] == 'Internal error'
 
-    async def test_non_client_error_reraise(self, mock_context, mock_coh_client):
-        """Test list_recommendations non-ClientError gets re-raised."""
+    async def test_non_client_error_returns_structured_error(self, mock_context, mock_coh_client):
+        """Test list_recommendations non-ClientError returns a structured validation_error."""
         error = ValueError('Some unexpected error')
         mock_coh_client.list_recommendations.side_effect = error
 
-        with pytest.raises(ValueError):
-            await list_recommendations(mock_context, mock_coh_client)
+        result = await list_recommendations(mock_context, mock_coh_client)
+
+        assert result['status'] == 'error'
+        assert result['operation'] == 'list_recommendations'
+        assert result['error_type'] == 'validation_error'
+        assert result['message'] == 'Some unexpected error'
 
 
 @pytest.mark.asyncio
@@ -627,8 +637,9 @@ class TestGetRecommendationErrorHandling:
         result = await get_recommendation(mock_context, mock_coh_client, 'invalid-id')
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'ValidationException'
-        assert 'validation error' in result['message']
+        assert result['operation'] == 'get_recommendation'
+        assert result['error_type'] == 'ValidationException'
+        assert result['message'] == 'Invalid resource'
 
     async def test_access_denied_exception(self, mock_context, mock_coh_client):
         """Test get_recommendation AccessDeniedException handling."""
@@ -644,11 +655,12 @@ class TestGetRecommendationErrorHandling:
         result = await get_recommendation(mock_context, mock_coh_client, 'i-1234567890abcdef0')
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'AccessDeniedException'
-        assert 'Access denied' in result['message']
+        assert result['operation'] == 'get_recommendation'
+        assert result['error_type'] == 'AccessDeniedException'
+        assert result['message'] == 'Access denied'
 
     async def test_resource_not_found_exception(self, mock_context, mock_coh_client):
-        """Test get_recommendation ResourceNotFoundException handling."""
+        """ResourceNotFoundException is reported as a warning naming the recommendation ID."""
         from botocore.exceptions import ClientError
 
         mock_coh_client.get_recommendation.side_effect = ClientError(
@@ -660,12 +672,19 @@ class TestGetRecommendationErrorHandling:
 
         result = await get_recommendation(mock_context, mock_coh_client, 'i-nonexistent')
 
-        assert result['status'] == 'warning'
-        assert result['data']['error_code'] == 'ResourceNotFoundException'
-        assert 'not found' in result['message']
+        assert result == {
+            'status': 'warning',
+            'data': {
+                'error_code': 'ResourceNotFoundException',
+                'recommendation_id': 'i-nonexistent',
+            },
+            'message': 'Recommendation i-nonexistent not found in Cost Optimization Hub.',
+        }
 
-    async def test_other_client_error_reraise(self, mock_context, mock_coh_client):
-        """Test get_recommendation other ClientError gets re-raised."""
+    async def test_other_client_error_returns_structured_error(
+        self, mock_context, mock_coh_client
+    ):
+        """Test get_recommendation other ClientError returns a structured error."""
         from botocore.exceptions import ClientError
 
         error = ClientError(
@@ -674,16 +693,24 @@ class TestGetRecommendationErrorHandling:
         )
         mock_coh_client.get_recommendation.side_effect = error
 
-        with pytest.raises(ClientError):
-            await get_recommendation(mock_context, mock_coh_client, 'i-1234567890abcdef0')
+        result = await get_recommendation(mock_context, mock_coh_client, 'i-1234567890abcdef0')
 
-    async def test_non_client_error_reraise(self, mock_context, mock_coh_client):
-        """Test get_recommendation non-ClientError gets re-raised."""
+        assert result['status'] == 'error'
+        assert result['operation'] == 'get_recommendation'
+        assert result['error_type'] == 'InternalServerError'
+        assert result['message'] == 'Internal error'
+
+    async def test_non_client_error_returns_structured_error(self, mock_context, mock_coh_client):
+        """Test get_recommendation non-ClientError returns a structured validation_error."""
         error = ValueError('Some unexpected error')
         mock_coh_client.get_recommendation.side_effect = error
 
-        with pytest.raises(ValueError):
-            await get_recommendation(mock_context, mock_coh_client, 'i-1234567890abcdef0')
+        result = await get_recommendation(mock_context, mock_coh_client, 'i-1234567890abcdef0')
+
+        assert result['status'] == 'error'
+        assert result['operation'] == 'get_recommendation'
+        assert result['error_type'] == 'validation_error'
+        assert result['message'] == 'Some unexpected error'
 
 
 @pytest.mark.asyncio
@@ -808,7 +835,8 @@ class TestListRecommendationSummariesErrorHandling:
         )
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'ValidationException'
+        assert result['operation'] == 'list_recommendation_summaries'
+        assert result['error_type'] == 'ValidationException'
         # The service's own message is surfaced verbatim (no bespoke mapping).
         assert result['message'] == 'Invalid group_by'
 
@@ -828,7 +856,8 @@ class TestListRecommendationSummariesErrorHandling:
         )
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'AccessDeniedException'
+        assert result['operation'] == 'list_recommendation_summaries'
+        assert result['error_type'] == 'AccessDeniedException'
         assert result['message'] == 'Access denied'
 
     async def test_unauthorized_exception(self, mock_context, mock_coh_client):
@@ -845,7 +874,8 @@ class TestListRecommendationSummariesErrorHandling:
         )
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'UnauthorizedException'
+        assert result['operation'] == 'list_recommendation_summaries'
+        assert result['error_type'] == 'UnauthorizedException'
         assert result['message'] == 'Unauthorized'
 
     async def test_resource_not_found_exception(self, mock_context, mock_coh_client):
@@ -864,7 +894,8 @@ class TestListRecommendationSummariesErrorHandling:
         )
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'ResourceNotFoundException'
+        assert result['operation'] == 'list_recommendation_summaries'
+        assert result['error_type'] == 'ResourceNotFoundException'
         assert result['message'] == 'Resource not found'
 
     async def test_other_aws_error(self, mock_context, mock_coh_client):
@@ -884,7 +915,8 @@ class TestListRecommendationSummariesErrorHandling:
         )
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'InternalServerError'
+        assert result['operation'] == 'list_recommendation_summaries'
+        assert result['error_type'] == 'InternalServerError'
         assert result['message'] == 'Internal error'
 
     async def test_non_aws_error(self, mock_context, mock_coh_client):
@@ -898,9 +930,10 @@ class TestListRecommendationSummariesErrorHandling:
         )
 
         assert result['status'] == 'error'
-        assert result['data']['error_type'] == 'service_error'
-        assert result['data']['service'] == 'Cost Optimization Hub'
-        assert 'Try using list_recommendations' in result['message']
+        assert result['service'] == 'Cost Optimization Hub'
+        assert result['operation'] == 'list_recommendation_summaries'
+        assert result['error_type'] == 'validation_error'
+        assert result['message'] == 'Some unexpected error'
 
 
 @pytest.mark.asyncio
@@ -1304,7 +1337,8 @@ class TestListEfficiencyMetrics:
         )
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'ValidationException'
+        assert result['operation'] == 'list_efficiency_metrics'
+        assert result['error_type'] == 'ValidationException'
         assert result['message'] == 'Invalid timePeriod'
 
     async def test_access_denied_exception(self, mock_context, mock_coh_client):
@@ -1327,7 +1361,8 @@ class TestListEfficiencyMetrics:
         )
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'AccessDeniedException'
+        assert result['operation'] == 'list_efficiency_metrics'
+        assert result['error_type'] == 'AccessDeniedException'
         assert result['message'] == 'Access denied'
 
     async def test_resource_not_found_exception(self, mock_context, mock_coh_client):
@@ -1350,7 +1385,8 @@ class TestListEfficiencyMetrics:
         )
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'ResourceNotFoundException'
+        assert result['operation'] == 'list_efficiency_metrics'
+        assert result['error_type'] == 'ResourceNotFoundException'
         assert result['message'] == 'Not found'
 
     async def test_other_client_error_returns_service_message(self, mock_context, mock_coh_client):
@@ -1371,21 +1407,26 @@ class TestListEfficiencyMetrics:
         )
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'InternalServerError'
+        assert result['operation'] == 'list_efficiency_metrics'
+        assert result['error_type'] == 'InternalServerError'
         assert result['message'] == 'Internal error'
 
-    async def test_non_client_error_reraise(self, mock_context, mock_coh_client):
-        """Non-ClientError exceptions are re-raised."""
+    async def test_non_client_error_returns_structured_error(self, mock_context, mock_coh_client):
+        """Non-ClientError exceptions return a structured validation_error."""
         mock_coh_client.list_efficiency_metrics.side_effect = ValueError('boom')
 
-        with pytest.raises(ValueError):
-            await list_efficiency_metrics(
-                mock_context,
-                mock_coh_client,
-                granularity='Monthly',
-                start_date='2026-06',
-                end_date='2026-08',
-            )
+        result = await list_efficiency_metrics(
+            mock_context,
+            mock_coh_client,
+            granularity='Monthly',
+            start_date='2026-06',
+            end_date='2026-08',
+        )
+
+        assert result['status'] == 'error'
+        assert result['operation'] == 'list_efficiency_metrics'
+        assert result['error_type'] == 'validation_error'
+        assert result['message'] == 'boom'
 
 
 @pytest.mark.asyncio
@@ -1858,3 +1899,220 @@ class TestEfficiencyPerformanceRanking:
         data = result['data']
         assert {g['group'] for g in data['groups']} == {'A', 'tiny'}
         assert 'ranking_focus' not in data
+
+
+class TestListEnrollmentStatuses:
+    """Tests for list_enrollment_statuses."""
+
+    _ITEM = {
+        'accountId': '123456789012',
+        'status': 'Active',
+        'lastUpdatedTimestamp': datetime(2026, 9, 1, 12, 0, 0),
+        'createdTimestamp': datetime(2025, 1, 1, 0, 0, 0),
+    }
+
+    @pytest.mark.asyncio
+    async def test_no_params_calls_api_without_arguments(self, mock_context):
+        """No params: the API is called with no arguments (the calling account)."""
+        client = MagicMock()
+        client.list_enrollment_statuses.return_value = {'items': [self._ITEM]}
+
+        result = await list_enrollment_statuses(mock_context, client)
+
+        client.list_enrollment_statuses.assert_called_once_with()
+        assert result['status'] == 'success'
+        assert result['data']['enrollment_statuses'] == [
+            {
+                'account_id': '123456789012',
+                'status': 'Active',
+                'last_updated_timestamp': '2026-09-01T12:00:00',
+                'created_timestamp': '2025-01-01T00:00:00',
+            }
+        ]
+
+    @pytest.mark.asyncio
+    async def test_account_id_forwarded(self, mock_context):
+        """account_id maps to the API's accountId."""
+        client = MagicMock()
+        client.list_enrollment_statuses.return_value = {'items': [self._ITEM]}
+
+        await list_enrollment_statuses(mock_context, client, account_id='123456789012')
+
+        client.list_enrollment_statuses.assert_called_once_with(accountId='123456789012')
+
+    @pytest.mark.asyncio
+    async def test_no_record_reported_as_inactive(self, mock_context):
+        """A never-enrolled calling account (no items) is reported as Inactive."""
+        client = MagicMock()
+        client.list_enrollment_statuses.return_value = {'items': []}
+
+        result = await list_enrollment_statuses(mock_context, client)
+
+        assert result['status'] == 'success'
+        (entry,) = result['data']['enrollment_statuses']
+        assert entry == {'status': 'Inactive'}
+
+    @pytest.mark.asyncio
+    async def test_no_record_for_named_account_reported_as_inactive(self, mock_context):
+        """A missing record for a named account (no items key) is also reported as Inactive."""
+        client = MagicMock()
+        client.list_enrollment_statuses.return_value = {}
+
+        result = await list_enrollment_statuses(mock_context, client, account_id='123456789012')
+
+        (entry,) = result['data']['enrollment_statuses']
+        client.list_enrollment_statuses.assert_called_once_with(accountId='123456789012')
+        assert entry == {'status': 'Inactive'}
+
+    @pytest.mark.asyncio
+    async def test_real_inactive_status_passed_through(self, mock_context):
+        """An Inactive status returned by the API is passed through with its timestamps."""
+        client = MagicMock()
+        client.list_enrollment_statuses.return_value = {
+            'items': [{**self._ITEM, 'status': 'Inactive'}]
+        }
+
+        result = await list_enrollment_statuses(mock_context, client)
+
+        (entry,) = result['data']['enrollment_statuses']
+        assert entry['status'] == 'Inactive'
+        assert entry['last_updated_timestamp'] == '2026-09-01T12:00:00'
+
+    @pytest.mark.asyncio
+    async def test_access_denied_surfaces_aws_message(self, mock_context):
+        """AccessDenied returns handle_aws_error's structured error with the AWS code."""
+        from botocore.exceptions import ClientError
+
+        client = MagicMock()
+        client.list_enrollment_statuses.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDeniedException', 'Message': 'denied'}},
+            'ListEnrollmentStatuses',
+        )
+
+        result = await list_enrollment_statuses(mock_context, client)
+
+        assert result['status'] == 'error'
+        assert result['service'] == 'Cost Optimization Hub'
+        assert result['operation'] == 'list_enrollment_statuses'
+        assert result['error_type'] == 'AccessDeniedException'
+        assert result['message'] == 'denied'
+
+    @pytest.mark.asyncio
+    async def test_non_client_error_returns_structured_error(self, mock_context):
+        """Non-AWS errors are also classified by handle_aws_error instead of raising."""
+        client = MagicMock()
+        client.list_enrollment_statuses.side_effect = RuntimeError('boom')
+
+        result = await list_enrollment_statuses(mock_context, client)
+
+        assert result['status'] == 'error'
+        assert result['operation'] == 'list_enrollment_statuses'
+        assert result['error_type'] == 'unknown_runtimeerror'
+        assert result['exception_type'] == 'RuntimeError'
+        assert result['message'] == 'boom'
+
+    @pytest.mark.asyncio
+    async def test_other_client_error_returns_message(self, mock_context):
+        """Other ClientErrors are passed through as the structured error_type and message."""
+        from botocore.exceptions import ClientError
+
+        client = MagicMock()
+        client.list_enrollment_statuses.side_effect = ClientError(
+            {'Error': {'Code': 'ValidationException', 'Message': 'bad account'}},
+            'ListEnrollmentStatuses',
+        )
+
+        result = await list_enrollment_statuses(mock_context, client, account_id='x')
+
+        assert result['status'] == 'error'
+        assert result['operation'] == 'list_enrollment_statuses'
+        assert result['error_type'] == 'ValidationException'
+        assert result['message'] == 'bad account'
+
+
+class TestGetPreferences:
+    """Tests for get_preferences."""
+
+    @pytest.mark.asyncio
+    async def test_formats_response(self, mock_context):
+        """The API is called with no arguments and fields are snake_cased."""
+        client = MagicMock()
+        client.get_preferences.return_value = {
+            'savingsEstimationMode': 'AfterDiscounts',
+            'memberAccountDiscountVisibility': 'All',
+            'preferredCommitment': {'term': 'OneYear', 'paymentOption': 'NoUpfront'},
+        }
+
+        result = await get_preferences(mock_context, client)
+
+        client.get_preferences.assert_called_once_with()
+        assert result == {
+            'status': 'success',
+            'data': {
+                'savings_estimation_mode': 'AfterDiscounts',
+                'member_account_discount_visibility': 'All',
+                'preferred_commitment': {'term': 'OneYear', 'payment_option': 'NoUpfront'},
+            },
+        }
+
+    @pytest.mark.asyncio
+    async def test_missing_preferred_commitment(self, mock_context):
+        """A response without preferredCommitment yields None term/payment_option."""
+        client = MagicMock()
+        client.get_preferences.return_value = {'savingsEstimationMode': 'BeforeDiscounts'}
+
+        result = await get_preferences(mock_context, client)
+
+        assert result['data']['preferred_commitment'] == {'term': None, 'payment_option': None}
+        assert result['data']['member_account_discount_visibility'] is None
+
+    @pytest.mark.asyncio
+    async def test_access_denied_surfaces_aws_message(self, mock_context):
+        """AccessDenied returns handle_aws_error's structured error with the AWS code."""
+        from botocore.exceptions import ClientError
+
+        client = MagicMock()
+        client.get_preferences.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDeniedException', 'Message': 'denied'}},
+            'GetPreferences',
+        )
+
+        result = await get_preferences(mock_context, client)
+
+        assert result['status'] == 'error'
+        assert result['service'] == 'Cost Optimization Hub'
+        assert result['operation'] == 'get_preferences'
+        assert result['error_type'] == 'AccessDeniedException'
+        assert result['message'] == 'denied'
+
+    @pytest.mark.asyncio
+    async def test_non_client_error_returns_structured_error(self, mock_context):
+        """Non-AWS errors are also classified by handle_aws_error instead of raising."""
+        client = MagicMock()
+        client.get_preferences.side_effect = RuntimeError('boom')
+
+        result = await get_preferences(mock_context, client)
+
+        assert result['status'] == 'error'
+        assert result['operation'] == 'get_preferences'
+        assert result['error_type'] == 'unknown_runtimeerror'
+        assert result['exception_type'] == 'RuntimeError'
+        assert result['message'] == 'boom'
+
+    @pytest.mark.asyncio
+    async def test_other_client_error_returns_message(self, mock_context):
+        """Other ClientErrors are passed through as the structured error_type and message."""
+        from botocore.exceptions import ClientError
+
+        client = MagicMock()
+        client.get_preferences.side_effect = ClientError(
+            {'Error': {'Code': 'ThrottlingException', 'Message': 'slow down'}},
+            'GetPreferences',
+        )
+
+        result = await get_preferences(mock_context, client)
+
+        assert result['status'] == 'error'
+        assert result['operation'] == 'get_preferences'
+        assert result['error_type'] == 'ThrottlingException'
+        assert result['message'] == 'slow down'
