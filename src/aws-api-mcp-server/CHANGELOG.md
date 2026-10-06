@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Set `openWorldHint=True` on `suggest_aws_commands`, which sends the query to a remote endpoint (#TBD)
+- Set `openWorldHint=True` on `suggest_aws_commands`, which sends the query to a remote endpoint (#4734)
 - Missing api calls for s3 customizations in static map (#4548)
 - Pass `AWS_API_MCP_ALLOWED_HOSTS` and `AWS_API_MCP_ALLOWED_ORIGINS` through to FastMCP's Host and Origin guard so the `streamable-http` transport no longer rejects every non-localhost `Host` header with `421 Misdirected Request`. The `fastmcp` floor is raised to `>=3.4.3`, the first release that accepts these arguments (#4507)
 
