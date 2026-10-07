@@ -14,6 +14,7 @@
 
 """Tests for workflow linting functionality."""
 
+import asyncio
 import pytest
 import subprocess
 from awslabs.aws_healthomics_mcp_server.tools.workflow_linting import (
@@ -46,18 +47,10 @@ class TestWorkflowLinter:
             get_linter('xyz')
 
     @pytest.mark.asyncio
-    @patch('subprocess.run')
-    async def test_lint_wdl_success(self, mock_subprocess):
-        """Test successful WDL linting."""
-        # Mock subprocess result
-        mock_result = MagicMock()
-        mock_result.stdout = 'Workflow is valid'
-        mock_result.stderr = ''
-        mock_result.returncode = 0
-        mock_subprocess.return_value = mock_result
-
+    async def test_lint_wdl_success(self):
+        """Test successful WDL linting using the vendored miniwdl parser/lint modules."""
         result = await self.wdl_linter.lint_workflow(
-            'workflow test { input: String x }', 'test.wdl'
+            'version 1.0\nworkflow test { input { String x } }', 'test.wdl'
         )
 
         assert result['status'] == 'success'
@@ -65,24 +58,20 @@ class TestWorkflowLinter:
         assert result['linter'] == 'miniwdl'
         assert 'raw_output' in result
         assert 'STDOUT:' in result['raw_output']
+        assert 'Return code: 0' in result['raw_output']
 
     @pytest.mark.asyncio
-    @patch('subprocess.run')
-    async def test_lint_wdl_validation_error(self, mock_subprocess):
-        """Test WDL linting with validation errors."""
-        # Mock subprocess result with validation error
-        mock_result = MagicMock()
-        mock_result.stdout = ''
-        mock_result.stderr = 'Validation error: syntax error at line 1'
-        mock_result.returncode = 1
-        mock_subprocess.return_value = mock_result
-
+    async def test_lint_wdl_validation_error(self):
+        """Test WDL linting surfaces syntax errors as a successful lint run with findings."""
         result = await self.wdl_linter.lint_workflow('invalid wdl', 'test.wdl')
 
-        assert result['status'] == 'success'  # We always return success when subprocess runs
+        assert (
+            result['status'] == 'success'
+        )  # the linter ran successfully; the *document* is invalid
         assert result['format'] == 'wdl'
         assert 'raw_output' in result
-        assert 'Validation error' in result['raw_output']
+        assert 'SyntaxError' in result['raw_output']
+        assert 'Return code: 1' in result['raw_output']
 
     @pytest.mark.asyncio
     @patch('subprocess.run')
@@ -718,10 +707,10 @@ steps:
             )
 
     @pytest.mark.asyncio
-    @patch('subprocess.run')
-    async def test_lint_wdl_timeout_handling(self, mock_subprocess):
+    @patch('awslabs.aws_healthomics_mcp_server.tools.workflow_linting._check_wdl_document')
+    async def test_lint_wdl_timeout_handling(self, mock_check_wdl_document):
         """Test WDL linting timeout handling."""
-        mock_subprocess.side_effect = subprocess.TimeoutExpired('cmd', 30)
+        mock_check_wdl_document.side_effect = asyncio.TimeoutError()
 
         result = await self.wdl_linter.lint_workflow('workflow test {}', 'test.wdl')
 
@@ -744,16 +733,16 @@ steps:
         assert result['format'] == 'cwl'
 
     @pytest.mark.asyncio
-    @patch('subprocess.run')
-    async def test_lint_wdl_subprocess_exception(self, mock_subprocess):
-        """Test WDL linting subprocess exception handling."""
-        mock_subprocess.side_effect = FileNotFoundError('miniwdl not found')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.workflow_linting._check_wdl_document')
+    async def test_lint_wdl_unexpected_exception(self, mock_check_wdl_document):
+        """Test WDL linting handling of an unexpected internal error."""
+        mock_check_wdl_document.side_effect = RuntimeError('unexpected vendored parser failure')
 
         result = await self.wdl_linter.lint_workflow('workflow test {}', 'test.wdl')
 
         assert result['status'] == 'error'
         assert 'WDL linting failed' in result['message']
-        assert 'miniwdl not found' in result['message']
+        assert 'unexpected vendored parser failure' in result['message']
 
     @pytest.mark.asyncio
     @patch('subprocess.run')
@@ -795,16 +784,8 @@ steps:
 
     @pytest.mark.asyncio
     @patch('pathlib.Path.unlink')
-    @patch('subprocess.run')
-    async def test_lint_wdl_cleanup_exception(self, mock_subprocess, mock_unlink):
+    async def test_lint_wdl_cleanup_exception(self, mock_unlink):
         """Test WDL linting with file cleanup exception."""
-        # Mock successful subprocess
-        mock_result = MagicMock()
-        mock_result.stdout = 'Success'
-        mock_result.stderr = ''
-        mock_result.returncode = 0
-        mock_subprocess.return_value = mock_result
-
         # Mock cleanup failure
         mock_unlink.side_effect = PermissionError('Permission denied')
 
@@ -890,10 +871,10 @@ steps:
             assert 'Unexpected error' in result['message']
 
     @pytest.mark.asyncio
-    @patch('subprocess.run')
-    async def test_lint_wdl_bundle_timeout_handling(self, mock_subprocess):
+    @patch('awslabs.aws_healthomics_mcp_server.tools.workflow_linting._check_wdl_document')
+    async def test_lint_wdl_bundle_timeout_handling(self, mock_check_wdl_document):
         """Test WDL bundle linting timeout handling."""
-        mock_subprocess.side_effect = subprocess.TimeoutExpired('cmd', 30)
+        mock_check_wdl_document.side_effect = asyncio.TimeoutError()
 
         result = await self.wdl_linter.lint_workflow_bundle(
             workflow_files={'main.wdl': 'workflow test {}'}, main_workflow_file='main.wdl'
@@ -919,10 +900,10 @@ steps:
         assert result['format'] == 'cwl'
 
     @pytest.mark.asyncio
-    @patch('subprocess.run')
-    async def test_lint_wdl_bundle_subprocess_exception(self, mock_subprocess):
-        """Test WDL bundle linting subprocess exception handling."""
-        mock_subprocess.side_effect = FileNotFoundError('miniwdl not found')
+    @patch('awslabs.aws_healthomics_mcp_server.tools.workflow_linting._check_wdl_document')
+    async def test_lint_wdl_bundle_unexpected_exception(self, mock_check_wdl_document):
+        """Test WDL bundle linting handling of an unexpected internal error."""
+        mock_check_wdl_document.side_effect = RuntimeError('unexpected vendored parser failure')
 
         result = await self.wdl_linter.lint_workflow_bundle(
             workflow_files={'main.wdl': 'workflow test {}'}, main_workflow_file='main.wdl'
@@ -930,7 +911,7 @@ steps:
 
         assert result['status'] == 'error'
         assert 'WDL bundle linting failed' in result['message']
-        assert 'miniwdl not found' in result['message']
+        assert 'unexpected vendored parser failure' in result['message']
 
     @pytest.mark.asyncio
     @patch('subprocess.run')
@@ -2015,15 +1996,8 @@ class TestPathTraversalPrevention:
         assert 'Path traversal detected' in result['message']
 
     @pytest.mark.asyncio
-    @patch('subprocess.run')
-    async def test_wdl_bundle_allows_valid_subdirectory_paths(self, mock_subprocess):
+    async def test_wdl_bundle_allows_valid_subdirectory_paths(self):
         """Property: WDL bundle linting allows legitimate nested file paths."""
-        mock_result = MagicMock()
-        mock_result.stdout = 'Valid'
-        mock_result.stderr = ''
-        mock_result.returncode = 0
-        mock_subprocess.return_value = mock_result
-
         workflow_files = {
             'workflows/main.wdl': 'version 1.0\nworkflow main {}',
             'tasks/align.wdl': 'version 1.0\ntask align { command {} }',

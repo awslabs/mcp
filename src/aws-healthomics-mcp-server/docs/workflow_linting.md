@@ -13,16 +13,25 @@ Workflow linting helps catch common issues early in the development process:
 ## Supported Formats
 
 ### WDL (Workflow Description Language)
-- Uses **miniwdl** for comprehensive validation
+- Uses a vendored subset of **miniwdl**'s parser and static-lint modules
+  (called directly as a library, not shelled out to a CLI) — see
+  `awslabs/aws_healthomics_mcp_server/vendor/wdl/VENDORED.md` for what's
+  vendored and why. The full `miniwdl` PyPI package is not a dependency, since
+  it unconditionally requires the GPL-licensed `pygtail` for a task-execution
+  feature this server never uses.
 - Validates syntax, structure, and semantics
 - Checks for missing runtime requirements
 - Identifies unused inputs and outputs
 
 ### CWL (Common Workflow Language)
-- Uses **cwltool** for standards-compliant validation
+- Uses **cwltool** for standards-compliant validation, via `cwltool --validate`
 - Validates against CWL specifications
 - Checks workflow structure and step definitions
 - Ensures proper input/output connections
+- cwltool unconditionally depends on the MPL-2.0-licensed `spython` package for
+  Singularity support, a feature never exercised by `--validate`. That
+  dependency is satisfied by a local no-op stub instead of the real package —
+  see `third_party_stubs/spython/README.md`.
 
 ## Available Tools
 
