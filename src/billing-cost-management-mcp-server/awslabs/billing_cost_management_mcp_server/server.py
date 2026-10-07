@@ -183,7 +183,7 @@ TOOLS:
 - cost-category: Describe and list cost category definitions (describe-cost-category-definition, list-cost-category-definitions)
 - invoicing: AWS Invoicing data — invoice summaries with amounts, tax, discounts/fees, currency/FX, due dates, PO numbers, and credit memos (operation: list_invoice_summaries)
 - credits: AWS Billing credits — credit balance, expiration, product applicability, sharing configuration, and the per-service allocation ledger (operations: get_credits, get_credit_allocation_history)
-- enterprise_support: AWS Enterprise Support charge data for a closed billing period — the Support charge and the Support-eligible spend it was calculated from, the contract terms that govern how the charge is allocated, and the per-linked-account breakdown (operations: get_charge_summary, get_contract_details, list_linked_account_charges)
+- enterprise-support: AWS Enterprise Support charge data for a closed billing period — the Support charge and the Support-eligible spend it was calculated from, the contract terms that govern how the charge is allocated, and the per-linked-account breakdown (operations: get_charge_summary, get_contract_details, list_linked_account_charges)
 
 PROMPTS:
 - savings_plans: Analyzes AWS usage and identifies opportunities for Savings Plans purchases

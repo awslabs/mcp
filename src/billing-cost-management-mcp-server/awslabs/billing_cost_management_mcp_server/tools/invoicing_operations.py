@@ -42,6 +42,23 @@ _TIMESTAMP_FIELDS = ('IssuedDate', 'DueDate')
 
 _SECONDS_PER_DAY = 86400
 
+# Classification for local parameter-validation failures, mirroring the
+# top-level fields handle_aws_error sets on AWS-side errors so callers can
+# tell a bad parameter apart from a service failure without parsing messages.
+_LIST_INVOICE_SUMMARIES_OPERATION = 'ListInvoiceSummaries'
+INVOICING_SERVICE_NAME = 'Invoicing'
+
+
+def _validation_error(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Return an error response for a list_invoice_summaries validation failure."""
+    return format_response(
+        'error',
+        data,
+        error_type='validation_error',
+        operation=_LIST_INVOICE_SUMMARIES_OPERATION,
+        service=INVOICING_SERVICE_NAME,
+    )
+
 
 def _max_time_interval_days(start_epoch: int) -> int:
     """Widest ``TimeInterval`` span, in whole days, accepted for a given start.
@@ -200,15 +217,13 @@ async def list_invoice_summaries(
     try:
         # --- Selector: ACCOUNT_ID or INVOICE_ID, not both ---
         if account_id and invoice_id:
-            return format_response(
-                'error',
+            return _validation_error(
                 {'message': 'Provide either account_id or invoice_id, not both.'},
             )
 
         # --- Time filter: billing_period XOR start_date/end_date ---
         if billing_period and (start_date or end_date):
-            return format_response(
-                'error',
+            return _validation_error(
                 {
                     'message': (
                         'billing_period and start_date/end_date are mutually '
@@ -217,8 +232,7 @@ async def list_invoice_summaries(
                 },
             )
         if bool(start_date) != bool(end_date):
-            return format_response(
-                'error',
+            return _validation_error(
                 {'message': 'start_date and end_date must be provided together.'},
             )
 
@@ -227,8 +241,7 @@ async def list_invoice_summaries(
         # TimeInterval are absent. The INVOICE_ID flow takes a different path
         # and needs no filter, so only guard the account case.
         if not invoice_id and not billing_period and not start_date and not end_date:
-            return format_response(
-                'error',
+            return _validation_error(
                 {
                     'message': (
                         'A time filter is required when listing invoice summaries for an '
@@ -245,21 +258,18 @@ async def list_invoice_summaries(
         if billing_period:
             parts = billing_period.split('-')
             if len(parts) != 2:
-                return format_response(
-                    'error',
+                return _validation_error(
                     {'message': 'billing_period must be in YYYY-MM format (e.g. "2026-05").'},
                 )
             try:
                 year = int(parts[0])
                 month = int(parts[1])
             except ValueError:
-                return format_response(
-                    'error',
+                return _validation_error(
                     {'message': 'billing_period must be in YYYY-MM format (e.g. "2026-05").'},
                 )
             if month < 1 or month > 12:
-                return format_response(
-                    'error',
+                return _validation_error(
                     {'message': 'billing_period month must be between 1 and 12.'},
                 )
 
@@ -284,11 +294,10 @@ async def list_invoice_summaries(
                 start_epoch = utc_datetime_string_to_epoch_seconds(start_date)
                 end_epoch = utc_datetime_string_to_epoch_seconds(end_date)
             except ValueError as parse_error:
-                return format_response('error', {'message': str(parse_error)})
+                return _validation_error({'message': str(parse_error)})
 
             if end_epoch <= start_epoch:
-                return format_response(
-                    'error',
+                return _validation_error(
                     {
                         'message': (
                             'end_date must be later than start_date. The Invoicing service '
@@ -303,8 +312,7 @@ async def list_invoice_summaries(
             span_days = (end_epoch - start_epoch) // _SECONDS_PER_DAY
             max_days = _max_time_interval_days(start_epoch)
             if span_days > max_days:
-                return format_response(
-                    'error',
+                return _validation_error(
                     {
                         'message': (
                             f'start_date to end_date spans {span_days} days. The Invoicing '
@@ -355,4 +363,6 @@ async def list_invoice_summaries(
         return format_response('success', response_data)
 
     except Exception as e:
-        return await handle_aws_error(ctx, e, 'ListInvoiceSummaries', 'Invoicing')
+        return await handle_aws_error(
+            ctx, e, _LIST_INVOICE_SUMMARIES_OPERATION, INVOICING_SERVICE_NAME
+        )

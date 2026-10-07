@@ -32,11 +32,17 @@ ColumnSpec = Tuple[str, str]
 # ===== AWS Regions =====
 REGION_US_EAST_1 = 'us-east-1'
 
+# ===== Cost Optimization Hub =====
+# Service name reported in error responses (top-level ``service``).
+COST_OPTIMIZATION_HUB_SERVICE_NAME = 'Cost Optimization Hub'
+
 # ===== Cost Optimization Hub Operation Types =====
 OPERATION_LIST_RECOMMENDATION_SUMMARIES = 'list_recommendation_summaries'
 OPERATION_LIST_RECOMMENDATIONS = 'list_recommendations'
 OPERATION_GET_RECOMMENDATION = 'get_recommendation'
 OPERATION_LIST_EFFICIENCY_METRICS = 'list_efficiency_metrics'
+OPERATION_LIST_ENROLLMENT_STATUSES = 'list_enrollment_statuses'
+OPERATION_GET_PREFERENCES = 'get_preferences'
 
 # ===== Cost Optimization Hub Group By Values =====
 GROUP_BY_ACCOUNT_ID = 'AccountId'

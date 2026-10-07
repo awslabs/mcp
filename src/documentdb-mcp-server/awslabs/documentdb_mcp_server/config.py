@@ -14,6 +14,8 @@
 
 """Configuration settings for DocumentDB MCP Server."""
 
+from typing import Optional
+
 
 class ServerConfig:
     """Configuration class for DocumentDB MCP Server.
@@ -27,6 +29,7 @@ class ServerConfig:
         By default, the server starts in read-only mode for safety.
         """
         self.read_only_mode = True
+        self.connection_string: Optional[str] = None
 
 
 # Singleton instance

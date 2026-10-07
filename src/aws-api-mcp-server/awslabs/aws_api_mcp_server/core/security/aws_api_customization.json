@@ -267,7 +267,7 @@
         "aws emr wait"
       ]
     },
-    "emr terminate-cluster": {
+    "emr terminate-clusters": {
       "api_calls": [
         "aws emr terminate-job-flows"
       ]
@@ -279,12 +279,12 @@
         "aws iam update-assume-role-policy"
       ]
     },
-    "gamelist get-game-session-log": {
+    "gamelift get-game-session-log": {
       "api_calls": [
         "aws gamelift get-game-session-log-url"
       ]
     },
-    "gamelist upload-build": {
+    "gamelift upload-build": {
       "api_calls": [
         "aws gamelift create-build",
         "aws gamelift request-upload-credentials",

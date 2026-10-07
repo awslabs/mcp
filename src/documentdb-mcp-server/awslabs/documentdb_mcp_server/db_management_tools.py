@@ -21,11 +21,7 @@ from pydantic import Field
 from typing import Annotated, Any, Dict, List
 
 
-async def list_databases(
-    connection_id: Annotated[
-        str, Field(description='The connection ID returned by the connect tool')
-    ],
-) -> Dict[str, Any]:
+async def list_databases() -> Dict[str, Any]:
     """List all available databases in the DocumentDB cluster.
 
     This tool returns the names of all accessible databases in the connected cluster.
@@ -34,7 +30,7 @@ async def list_databases(
         Dict[str, Any]: List of database names
     """
     try:
-        client = DocumentDBConnection.get_connection(connection_id)
+        client = DocumentDBConnection.get_client()
         databases = client.list_database_names()
         logger.info(f'Found {len(databases)} databases')
         return {'databases': databases, 'count': len(databases)}
@@ -47,9 +43,6 @@ async def list_databases(
 
 
 async def create_collection(
-    connection_id: Annotated[
-        str, Field(description='The connection ID returned by the connect tool')
-    ],
     database: Annotated[str, Field(description='Name of the database')],
     collection: Annotated[str, Field(description='Name of the collection to create')],
 ) -> Dict[str, Any]:
@@ -66,12 +59,7 @@ async def create_collection(
         raise ValueError('Operation not permitted: Server is configured in read-only mode')
 
     try:
-        # Get connection
-        if connection_id not in DocumentDBConnection._connections:
-            raise ValueError(f'Connection ID {connection_id} not found. You must connect first.')
-
-        connection_info = DocumentDBConnection._connections[connection_id]
-        client = connection_info.client
+        client = DocumentDBConnection.get_client()
 
         db = client[database]
 
@@ -97,9 +85,6 @@ async def create_collection(
 
 
 async def list_collections(
-    connection_id: Annotated[
-        str, Field(description='The connection ID returned by the connect tool')
-    ],
     database: Annotated[str, Field(description='Name of the database')],
 ) -> List[str]:
     """List collections in a DocumentDB database.
@@ -110,12 +95,7 @@ async def list_collections(
         List[str]: List of collection names
     """
     try:
-        # Get connection
-        if connection_id not in DocumentDBConnection._connections:
-            raise ValueError(f'Connection ID {connection_id} not found. You must connect first.')
-
-        connection_info = DocumentDBConnection._connections[connection_id]
-        client = connection_info.client
+        client = DocumentDBConnection.get_client()
         db = client[database]
         collections = db.list_collection_names()
         logger.info(f"Found {len(collections)} collections in database '{database}'")
@@ -129,9 +109,6 @@ async def list_collections(
 
 
 async def drop_collection(
-    connection_id: Annotated[
-        str, Field(description='The connection ID returned by the connect tool')
-    ],
     database: Annotated[str, Field(description='Name of the database')],
     collection: Annotated[str, Field(description='Name of the collection to drop')],
 ) -> Dict[str, Any]:
@@ -149,12 +126,7 @@ async def drop_collection(
         raise ValueError('Operation not permitted: Server is configured in read-only mode')
 
     try:
-        # Get connection
-        if connection_id not in DocumentDBConnection._connections:
-            raise ValueError(f'Connection ID {connection_id} not found. You must connect first.')
-
-        connection_info = DocumentDBConnection._connections[connection_id]
-        client = connection_info.client
+        client = DocumentDBConnection.get_client()
 
         db = client[database]
 
