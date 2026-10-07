@@ -404,6 +404,8 @@ def _get_specialized_converter(operation_name: str) -> Optional[str]:
         'cost_optimization_hub_list_efficiency_metrics': 'coh_efficiency_metrics',
         'budget_actions': 'records',
         'budget_notifications': 'records',
+        'sp_explorer_describe_savings_plans': 'records',
+        'sp_explorer_describe_savings_plan_rates': 'records',
         'sp_explorer_describe_savings_plans_offerings': 'records',
         'sp_explorer_describe_savings_plans_offering_rates': 'records',
     }
