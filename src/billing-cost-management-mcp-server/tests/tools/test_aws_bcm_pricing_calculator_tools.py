@@ -452,6 +452,9 @@ class TestGetWorkloadEstimate:
         assert result['status'] == 'error'
         assert 'Identifier is required' in result['data']['error']
         assert result['data']['error_code'] == 'MISSING_PARAMETER'
+        assert result['error_type'] == 'validation_error'
+        assert result['operation'] == 'get_workload_estimate'
+        assert result['service'] == 'BCM Pricing Calculator'
 
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
@@ -534,6 +537,9 @@ class TestListWorkloadEstimateUsage:
         assert result['status'] == 'error'
         assert 'workload_estimate_id is required' in result['data']['error']
         assert result['data']['error_code'] == 'MISSING_PARAMETER'
+        assert result['error_type'] == 'validation_error'
+        assert result['operation'] == 'list_workload_estimate_usage'
+        assert result['service'] == 'BCM Pricing Calculator'
 
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
@@ -1670,6 +1676,14 @@ class TestBcmPricingCalcCoreFunction:
         assert result['status'] == 'error'
         assert 'Invalid operation' in result['message']
         assert 'invalid_parameter' in result['data']
+        # The message lists the operations the tool actually accepts
+        assert (
+            'get_workload_estimate, list_workload_estimates, list_workload_estimate_usage, '
+            'get_preferences' in result['message']
+        )
+        assert result['error_type'] == 'validation_error'
+        assert result['operation'] == 'invalid_operation'
+        assert result['service'] == 'BCM Pricing Calculator'
         mock_context.info.assert_called_with(
             'Received BCM Pricing Calculator operation: invalid_operation'
         )

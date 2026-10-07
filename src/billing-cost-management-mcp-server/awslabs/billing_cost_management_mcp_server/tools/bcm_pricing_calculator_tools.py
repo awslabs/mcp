@@ -33,6 +33,13 @@ from typing import Any, Dict, Optional
 DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S UTC'
 UTC_TIMEZONE_OFFSET = '+00:00'
 BCM_PRICING_CALCULATOR_SERVICE_NAME = 'BCM Pricing Calculator'
+# The operations this tool supports, in the order presented to callers.
+VALID_OPERATIONS = [
+    'get_workload_estimate',
+    'list_workload_estimates',
+    'list_workload_estimate_usage',
+    'get_preferences',
+]
 PREFERENCES_NOT_CONFIGURED_ERROR = 'BCM Pricing Calculator preferences are not configured. Please configure preferences before using this service.'
 
 bcm_pricing_calculator_server = FastMCP(
@@ -60,6 +67,25 @@ def _preferences_error_response(preferences_result: Dict[str, Any]) -> Dict[str,
         preferences_result['error'],
         error_type=preferences_result.get('error_type', 'PREFERENCES_NOT_CONFIGURED'),
         operation='get_preferences',
+        service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
+    )
+
+
+def _validation_error(
+    operation: str, data: Dict[str, Any], message: Optional[str] = None
+) -> Dict[str, Any]:
+    """Return an error response for a local parameter-validation failure.
+
+    Sets the same top-level `error_type`, `operation`, and `service` fields that
+    handle_aws_error attaches to AWS-side errors, so callers can tell a bad parameter
+    apart from a service failure without parsing the message.
+    """
+    return format_response(
+        'error',
+        data,
+        message,
+        error_type='validation_error',
+        operation=operation,
         service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
     )
 
@@ -116,16 +142,11 @@ async def bcm_pricing_calc_core(
         await ctx.info(f'Received BCM Pricing Calculator operation: {operation}')
 
         # Check if the operation is valid
-        if operation not in [
-            'get_workload_estimate',
-            'list_workload_estimates',
-            'list_workload_estimate_usage',
-            'get_preferences',
-        ]:
-            return format_response(
-                'error',
+        if operation not in VALID_OPERATIONS:
+            return _validation_error(
+                operation,
                 {'invalid_parameter': 'operation'},
-                f'Invalid operation: {operation}. Valid operations are: get_workload_estimates, get_preferences, describe_workload_estimates',
+                f'Invalid operation: {operation}. Valid operations are: {", ".join(VALID_OPERATIONS)}',
             )
 
         # Call the appropriate operation
@@ -172,7 +193,7 @@ async def bcm_pricing_calc_core(
                     },
                 )
         else:
-            return format_response('error', {'message': f'Unknown operation: {operation}'})
+            return _validation_error(operation, {'message': f'Unknown operation: {operation}'})
 
     except Exception as e:
         # Use shared error handler for consistent error handling
@@ -556,8 +577,8 @@ async def get_workload_estimate(
         # Thereby all parameters to the entry point are optional, requiring this check.
         if identifier is None:
             await ctx.error('Identifier is required when calling get_workload_estimate')
-            return format_response(
-                'error',
+            return _validation_error(
+                'get_workload_estimate',
                 {
                     'error': 'Identifier is required when calling get_workload_estimate',
                     'error_code': 'MISSING_PARAMETER',
@@ -647,8 +668,8 @@ async def list_workload_estimate_usage(
             await ctx.error(
                 'workload_estimate_id is required when calling list_workload_estimate_usage'
             )
-            return format_response(
-                'error',
+            return _validation_error(
+                'list_workload_estimate_usage',
                 {
                     'error': 'workload_estimate_id is required when calling list_workload_estimate_usage',
                     'error_code': 'MISSING_PARAMETER',

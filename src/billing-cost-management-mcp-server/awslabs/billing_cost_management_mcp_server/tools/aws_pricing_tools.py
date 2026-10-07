@@ -31,6 +31,22 @@ from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
 
 
+def _validation_error(operation: str, message: str) -> Dict[str, Any]:
+    """Return an error response for a local parameter-validation failure.
+
+    Sets the same top-level `error_type`, `operation`, and `service` fields that
+    handle_aws_error attaches to AWS-side errors, so callers can tell a bad parameter
+    apart from a service failure without parsing the message.
+    """
+    return format_response(
+        'error',
+        {'message': message},
+        error_type='validation_error',
+        operation=operation,
+        service=AWS_PRICING_SERVICE_NAME,
+    )
+
+
 aws_pricing_server = FastMCP(
     name='aws-pricing-tools', instructions='Tools for working with AWS Pricing API'
 )
@@ -99,19 +115,16 @@ async def aws_pricing(
 
         elif operation == 'get_service_attributes':
             if not service_code:
-                return format_response(
-                    'error',
-                    {'message': 'service_code is required for get_service_attributes operation'},
+                return _validation_error(
+                    operation, 'service_code is required for get_service_attributes operation'
                 )
             return await get_service_attributes(ctx, service_code)
 
         elif operation == 'get_attribute_values':
             if not service_code or not attribute_name:
-                return format_response(
-                    'error',
-                    {
-                        'message': 'service_code and attribute_name are required for get_attribute_values operation'
-                    },
+                return _validation_error(
+                    operation,
+                    'service_code and attribute_name are required for get_attribute_values operation',
                 )
             return await get_attribute_values(
                 ctx, service_code, attribute_name, max_results=max_results
@@ -119,18 +132,15 @@ async def aws_pricing(
 
         elif operation == 'get_pricing_from_api':
             if not service_code:
-                return format_response(
-                    'error',
-                    {'message': 'service_code is required for get_pricing_from_api operation'},
+                return _validation_error(
+                    operation, 'service_code is required for get_pricing_from_api operation'
                 )
             return await get_pricing_from_api(ctx, service_code, filters, max_results=max_results)
 
         else:
-            return format_response(
-                'error',
-                {
-                    'message': f'Unknown operation: {operation}. Supported operations: get_service_codes, get_service_attributes, get_attribute_values, get_pricing_from_api'
-                },
+            return _validation_error(
+                operation,
+                f'Unknown operation: {operation}. Supported operations: get_service_codes, get_service_attributes, get_attribute_values, get_pricing_from_api',
             )
 
     except Exception as e:
