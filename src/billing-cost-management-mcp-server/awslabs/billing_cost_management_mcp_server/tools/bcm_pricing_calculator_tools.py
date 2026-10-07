@@ -21,7 +21,6 @@ import json
 from ..utilities.aws_service_base import (
     create_aws_client,
     format_response,
-    format_validation_error,
     handle_aws_error,
     paginate_aws_response,
 )
@@ -125,9 +124,11 @@ async def bcm_pricing_calc_core(
 
         # Check if the operation is valid
         if operation not in VALID_OPERATIONS:
-            return format_validation_error(
+            return format_response(
+                'error',
                 {'invalid_parameter': 'operation'},
                 f'Invalid operation: {operation}. Valid operations are: {", ".join(VALID_OPERATIONS)}',
+                error_type='validation_error',
                 operation=operation,
                 service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
             )
@@ -176,8 +177,10 @@ async def bcm_pricing_calc_core(
                     },
                 )
         else:
-            return format_validation_error(
+            return format_response(
+                'error',
                 {'message': f'Unknown operation: {operation}'},
+                error_type='validation_error',
                 operation=operation,
                 service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
             )
@@ -564,11 +567,13 @@ async def get_workload_estimate(
         # Thereby all parameters to the entry point are optional, requiring this check.
         if identifier is None:
             await ctx.error('Identifier is required when calling get_workload_estimate')
-            return format_validation_error(
+            return format_response(
+                'error',
                 {
                     'error': 'Identifier is required when calling get_workload_estimate',
                     'error_code': 'MISSING_PARAMETER',
                 },
+                error_type='validation_error',
                 operation='get_workload_estimate',
                 service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
             )
@@ -656,11 +661,13 @@ async def list_workload_estimate_usage(
             await ctx.error(
                 'workload_estimate_id is required when calling list_workload_estimate_usage'
             )
-            return format_validation_error(
+            return format_response(
+                'error',
                 {
                     'error': 'workload_estimate_id is required when calling list_workload_estimate_usage',
                     'error_code': 'MISSING_PARAMETER',
                 },
+                error_type='validation_error',
                 operation='list_workload_estimate_usage',
                 service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
             )

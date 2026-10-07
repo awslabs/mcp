@@ -18,7 +18,6 @@ import json
 from ..utilities.aws_service_base import (
     create_aws_client,
     format_response,
-    format_validation_error,
     handle_aws_error,
     paginate_aws_response,
 )
@@ -95,10 +94,12 @@ async def list_cost_allocation_tags(
             try:
                 params['TagKeys'] = json.loads(tag_keys)
             except json.JSONDecodeError as e:
-                return format_validation_error(
+                return format_response(
+                    'error',
                     {
                         'message': f'Invalid JSON for tag_keys parameter: {e}',
                     },
+                    error_type='validation_error',
                     operation='ListCostAllocationTags',
                     service='Cost Explorer',
                 )

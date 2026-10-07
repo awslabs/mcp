@@ -17,7 +17,7 @@
 Updated to use shared utility functions.
 """
 
-from ..utilities.aws_service_base import format_validation_error, handle_aws_error
+from ..utilities.aws_service_base import format_response, handle_aws_error
 
 # Import operation handlers from local module
 from .aws_pricing_operations import (
@@ -99,8 +99,10 @@ async def aws_pricing(
 
         elif operation == 'get_service_attributes':
             if not service_code:
-                return format_validation_error(
+                return format_response(
+                    'error',
                     {'message': 'service_code is required for get_service_attributes operation'},
+                    error_type='validation_error',
                     operation=operation,
                     service=AWS_PRICING_SERVICE_NAME,
                 )
@@ -108,10 +110,12 @@ async def aws_pricing(
 
         elif operation == 'get_attribute_values':
             if not service_code or not attribute_name:
-                return format_validation_error(
+                return format_response(
+                    'error',
                     {
                         'message': 'service_code and attribute_name are required for get_attribute_values operation'
                     },
+                    error_type='validation_error',
                     operation=operation,
                     service=AWS_PRICING_SERVICE_NAME,
                 )
@@ -121,18 +125,22 @@ async def aws_pricing(
 
         elif operation == 'get_pricing_from_api':
             if not service_code:
-                return format_validation_error(
+                return format_response(
+                    'error',
                     {'message': 'service_code is required for get_pricing_from_api operation'},
+                    error_type='validation_error',
                     operation=operation,
                     service=AWS_PRICING_SERVICE_NAME,
                 )
             return await get_pricing_from_api(ctx, service_code, filters, max_results=max_results)
 
         else:
-            return format_validation_error(
+            return format_response(
+                'error',
                 {
                     'message': f'Unknown operation: {operation}. Supported operations: get_service_codes, get_service_attributes, get_attribute_values, get_pricing_from_api'
                 },
+                error_type='validation_error',
                 operation=operation,
                 service=AWS_PRICING_SERVICE_NAME,
             )
