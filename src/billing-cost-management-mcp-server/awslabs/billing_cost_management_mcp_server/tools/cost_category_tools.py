@@ -23,6 +23,7 @@ import json
 from ..utilities.aws_service_base import (
     create_aws_client,
     format_response,
+    format_validation_error,
     handle_aws_error,
     paginate_aws_response,
 )
@@ -164,12 +165,10 @@ async def list_cost_category_definitions(
             try:
                 params['SupportedResourceTypes'] = json.loads(supported_resource_types)
             except json.JSONDecodeError as e:
-                return format_response(
-                    'error',
+                return format_validation_error(
                     {
                         'message': f'Invalid JSON for supported_resource_types parameter: {e}',
                     },
-                    error_type='validation_error',
                     operation='ListCostCategoryDefinitions',
                     service='Cost Explorer',
                 )

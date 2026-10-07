@@ -21,6 +21,7 @@ import json
 from ..utilities.aws_service_base import (
     create_aws_client,
     format_response,
+    format_validation_error,
     handle_aws_error,
     paginate_aws_response,
 )
@@ -67,25 +68,6 @@ def _preferences_error_response(preferences_result: Dict[str, Any]) -> Dict[str,
         preferences_result['error'],
         error_type=preferences_result.get('error_type', 'PREFERENCES_NOT_CONFIGURED'),
         operation='get_preferences',
-        service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
-    )
-
-
-def _validation_error(
-    operation: str, data: Dict[str, Any], message: Optional[str] = None
-) -> Dict[str, Any]:
-    """Return an error response for a local parameter-validation failure.
-
-    Sets the same top-level `error_type`, `operation`, and `service` fields that
-    handle_aws_error attaches to AWS-side errors, so callers can tell a bad parameter
-    apart from a service failure without parsing the message.
-    """
-    return format_response(
-        'error',
-        data,
-        message,
-        error_type='validation_error',
-        operation=operation,
         service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
     )
 
@@ -143,10 +125,11 @@ async def bcm_pricing_calc_core(
 
         # Check if the operation is valid
         if operation not in VALID_OPERATIONS:
-            return _validation_error(
-                operation,
+            return format_validation_error(
                 {'invalid_parameter': 'operation'},
                 f'Invalid operation: {operation}. Valid operations are: {", ".join(VALID_OPERATIONS)}',
+                operation=operation,
+                service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
             )
 
         # Call the appropriate operation
@@ -193,7 +176,11 @@ async def bcm_pricing_calc_core(
                     },
                 )
         else:
-            return _validation_error(operation, {'message': f'Unknown operation: {operation}'})
+            return format_validation_error(
+                {'message': f'Unknown operation: {operation}'},
+                operation=operation,
+                service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
+            )
 
     except Exception as e:
         # Use shared error handler for consistent error handling
@@ -577,12 +564,13 @@ async def get_workload_estimate(
         # Thereby all parameters to the entry point are optional, requiring this check.
         if identifier is None:
             await ctx.error('Identifier is required when calling get_workload_estimate')
-            return _validation_error(
-                'get_workload_estimate',
+            return format_validation_error(
                 {
                     'error': 'Identifier is required when calling get_workload_estimate',
                     'error_code': 'MISSING_PARAMETER',
                 },
+                operation='get_workload_estimate',
+                service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
             )
 
         # Log the request
@@ -668,12 +656,13 @@ async def list_workload_estimate_usage(
             await ctx.error(
                 'workload_estimate_id is required when calling list_workload_estimate_usage'
             )
-            return _validation_error(
-                'list_workload_estimate_usage',
+            return format_validation_error(
                 {
                     'error': 'workload_estimate_id is required when calling list_workload_estimate_usage',
                     'error_code': 'MISSING_PARAMETER',
                 },
+                operation='list_workload_estimate_usage',
+                service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
             )
 
         # Log the request

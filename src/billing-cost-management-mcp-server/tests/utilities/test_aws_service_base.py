@@ -27,6 +27,7 @@ from awslabs.billing_cost_management_mcp_server.utilities.aws_service_base impor
     __version__,
     create_aws_client,
     format_response,
+    format_validation_error,
     get_date_range,
     handle_aws_error,
     paginate_aws_response,
@@ -397,6 +398,38 @@ class TestFormatResponse:
             'operation': 'getCostAndUsage',
             'service': 'Cost Explorer',
         }
+
+
+class TestFormatValidationError:
+    """Tests for format_validation_error function."""
+
+    def test_sets_validation_classification(self):
+        """Test the response is classified as a validation_error with operation and service."""
+        result = format_validation_error(
+            {'invalid_parameter': 'operation'},
+            'Invalid operation: foo',
+            operation='foo',
+            service='Cost Explorer',
+        )
+
+        assert result == {
+            'status': 'error',
+            'data': {'invalid_parameter': 'operation'},
+            'message': 'Invalid operation: foo',
+            'error_type': 'validation_error',
+            'operation': 'foo',
+            'service': 'Cost Explorer',
+        }
+
+    def test_message_is_optional(self):
+        """Test the message key is omitted when no message is passed."""
+        result = format_validation_error(
+            {'message': 'metric is required'}, operation='getCostForecast', service='Cost Explorer'
+        )
+
+        assert 'message' not in result
+        assert result['data'] == {'message': 'metric is required'}
+        assert result['error_type'] == 'validation_error'
 
 
 class TestPaginateAwsResponse:

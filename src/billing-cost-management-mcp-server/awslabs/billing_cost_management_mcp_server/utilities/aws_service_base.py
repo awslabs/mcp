@@ -417,3 +417,35 @@ def format_response(
         response['service'] = service
 
     return response
+
+
+def format_validation_error(
+    data: Any,
+    message: Optional[str] = None,
+    *,
+    operation: str,
+    service: str,
+) -> Dict[str, Any]:
+    """Format the error response for a local parameter-validation failure.
+
+    Sets the same top-level `error_type`, `operation`, and `service` fields that
+    handle_aws_error attaches to AWS-side errors, so callers can tell a bad parameter
+    apart from a service failure without parsing the message.
+
+    Args:
+        data: Response data payload
+        message: Optional message to include
+        operation: Name of the operation whose parameters failed validation
+        service: AWS service name
+
+    Returns:
+        Dict containing a standardized error response
+    """
+    return format_response(
+        'error',
+        data,
+        message,
+        error_type='validation_error',
+        operation=operation,
+        service=service,
+    )
