@@ -26,8 +26,8 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 
 - **Reserved Instance planning**: Analyze RI coverage and receive purchase recommendations
 - **Savings Plans performance**: Analyze how much eligible spend existing plans cover and how much of their commitment is consumed over a lookback window
-- **Savings Plans inventory**: Describe the plans an account owns with their state, term, payment option, commitment, and expiry, including the queued, returned, and payment-failed plans that Cost Explorer does not report
-- **Savings Plans rates and offerings**: Look up the rates locked in on plans already owned, and the offerings available to purchase with their rates, to compare terms and payment options against real numbers. Large offering and offering-rate results are offloaded to session SQL (queryable with the `session-sql` tool) to save tokens
+- **Savings Plans inventory**: Describe the plans an account owns with their state, term, payment option, commitment, and expiry, including the queued, returned, and payment-failed plans that Cost Explorer does not report; a large inventory is offloaded to session SQL to save tokens
+- **Savings Plans rates and offerings**: Look up the rates locked in on plans already owned, and the offerings available to purchase with their rates, to compare terms and payment options against real numbers. A large result from any of these describe operations is offloaded to session SQL (queryable with the `session-sql` tool) to save tokens
 - **Savings Plans recommendations**: Get personalized purchase recommendations based on usage patterns, the hourly data-points behind a recommendation, and the history of when recommendations were generated
 - **Savings Plans purchase analysis**: Run Purchase Analyzer what-if analyses — maximum savings, a specific commitment, or a target average coverage — and retrieve the projected cost, coverage, and utilization once an analysis completes
 
