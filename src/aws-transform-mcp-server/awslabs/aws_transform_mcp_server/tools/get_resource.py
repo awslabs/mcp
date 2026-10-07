@@ -14,7 +14,6 @@
 
 """Get resource tool handler — retrieves a single AWS Transform resource."""
 
-import asyncio
 import json
 from awslabs.aws_transform_mcp_server.audit import audited_tool
 from awslabs.aws_transform_mcp_server.config_store import is_fes_available
@@ -27,7 +26,10 @@ from awslabs.aws_transform_mcp_server.tool_utils import (
     format_job_response,
     success_result,
 )
-from awslabs.aws_transform_mcp_server.transform_api_client import call_transform_api
+from awslabs.aws_transform_mcp_server.transform_api_client import (
+    call_transform_api,
+    paginate_all,
+)
 from awslabs.aws_transform_mcp_server.transform_api_models import (
     BatchGetMessageRequest,
     CreateArtifactDownloadUrlRequest,
@@ -36,8 +38,6 @@ from awslabs.aws_transform_mcp_server.transform_api_models import (
     GetHitlTaskRequest,
     GetJobRequest,
     GetWorkspaceRequest,
-    ListJobPlanStepsRequest,
-    ListPlanUpdatesRequest,
 )
 from enum import Enum
 from loguru import logger
@@ -503,40 +503,20 @@ class GetResourceHandler:
                         'VALIDATION_ERROR', 'jobId is required for getting the plan.'
                     )
 
-                results = await asyncio.gather(
-                    call_transform_api(
-                        'ListJobPlanSteps',
-                        ListJobPlanStepsRequest(workspaceId=workspaceId, jobId=jobId),
-                    ),
-                    call_transform_api(
-                        'ListPlanUpdates',
-                        ListPlanUpdatesRequest(
-                            workspaceId=workspaceId,
-                            jobId=jobId,
-                            planVersion='1',
-                            timestamp=0,
-                        ),
-                    ),
-                    return_exceptions=True,
+                plan_steps = await paginate_all(
+                    'ListJobPlanSteps',
+                    {'workspaceId': workspaceId, 'jobId': jobId},
+                    'steps',
                 )
 
-                plan_steps = None if isinstance(results[0], Exception) else results[0]
-                plan_updates = None if isinstance(results[1], Exception) else results[1]
-
-                if not plan_steps and not plan_updates:
+                if not plan_steps or not plan_steps.get('steps'):
                     return error_result(
                         'NOT_FOUND',
                         'No plan data available. The job may not have started yet.',
                         'Check job status with get_resource resource="job".',
                     )
 
-                merged: Dict[str, Any] = {}
-                if plan_steps:
-                    merged['planSteps'] = plan_steps
-                if plan_updates:
-                    merged['planUpdates'] = plan_updates
-
-                return success_result(merged)
+                return success_result({'planSteps': plan_steps})
 
             else:
                 return error_result('VALIDATION_ERROR', f'Unknown resource type: {resource}')
