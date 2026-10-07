@@ -55,6 +55,7 @@ from awslabs.s3_tables_mcp_server.file_processor import (
 )
 from datetime import datetime, timezone
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 from pydantic import Field
 from typing import Annotated, Any, Callable, Dict, Optional
 
@@ -209,7 +210,13 @@ def log_tool_call(tool_name, *args, **kwargs):
         sys.exit(1)
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='List table buckets',
+        read_only_hint=True,
+        open_world_hint=True,
+    ),
+)
 @log_tool_call_with_response
 async def list_table_buckets(
     region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None,
@@ -222,7 +229,13 @@ async def list_table_buckets(
     return await resources.list_table_buckets_resource(region_name=region_name)
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='List namespaces',
+        read_only_hint=True,
+        open_world_hint=True,
+    ),
+)
 @log_tool_call_with_response
 async def list_namespaces(region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None) -> str:
     """List all namespaces across all S3 table buckets.
@@ -233,7 +246,13 @@ async def list_namespaces(region_name: Annotated[Optional[str], REGION_NAME_FIEL
     return await resources.list_namespaces_resource(region_name=region_name)
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='List tables',
+        read_only_hint=True,
+        open_world_hint=True,
+    ),
+)
 @log_tool_call_with_response
 async def list_tables(region_name: Annotated[Optional[str], REGION_NAME_FIELD] = None) -> str:
     """List all S3 tables across all table buckets and namespaces.
@@ -244,7 +263,14 @@ async def list_tables(region_name: Annotated[Optional[str], REGION_NAME_FIELD] =
     return await resources.list_tables_resource(region_name=region_name)
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='Create table bucket',
+        read_only_hint=False,
+        destructive_hint=False,
+        open_world_hint=True,
+    ),
+)
 @log_tool_call_with_response
 @write_operation
 async def create_table_bucket(
@@ -268,7 +294,14 @@ async def create_table_bucket(
     return await table_buckets.create_table_bucket(name=name, region_name=region_name)
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='Create namespace',
+        read_only_hint=False,
+        destructive_hint=False,
+        open_world_hint=True,
+    ),
+)
 @log_tool_call_with_response
 @write_operation
 async def create_namespace(
@@ -289,7 +322,14 @@ async def create_namespace(
     )
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='Create table',
+        read_only_hint=False,
+        destructive_hint=False,
+        open_world_hint=True,
+    ),
+)
 @log_tool_call_with_response
 @write_operation
 async def create_table(
@@ -442,7 +482,13 @@ async def create_table(
     )
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='Get table maintenance configuration',
+        read_only_hint=True,
+        open_world_hint=True,
+    ),
+)
 @log_tool_call_with_response
 async def get_table_maintenance_config(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
@@ -462,7 +508,13 @@ async def get_table_maintenance_config(
     )
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='Get maintenance job status',
+        read_only_hint=True,
+        open_world_hint=True,
+    ),
+)
 @log_tool_call_with_response
 async def get_maintenance_job_status(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
@@ -482,7 +534,13 @@ async def get_maintenance_job_status(
     )
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='Get table metadata location',
+        read_only_hint=True,
+        open_world_hint=True,
+    ),
+)
 @log_tool_call_with_response
 async def get_table_metadata_location(
     table_bucket_arn: Annotated[str, TABLE_BUCKET_ARN_FIELD],
@@ -503,7 +561,14 @@ async def get_table_metadata_location(
     )
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='Rename table',
+        read_only_hint=False,
+        destructive_hint=True,
+        open_world_hint=True,
+    ),
+)
 @log_tool_call_with_response
 @write_operation
 async def rename_table(
@@ -542,7 +607,14 @@ async def rename_table(
     )
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='Update table metadata location',
+        read_only_hint=False,
+        destructive_hint=True,
+        open_world_hint=True,
+    ),
+)
 @log_tool_call_with_response
 @write_operation
 async def update_table_metadata_location(
@@ -591,7 +663,13 @@ def _default_uri_for_region(region: str) -> str:
     return f'https://s3tables.{region}.amazonaws.com/iceberg'
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='Query table data (read-only SQL)',
+        read_only_hint=True,
+        open_world_hint=True,
+    ),
+)
 @log_tool_call_with_response
 async def query_database(
     warehouse: Annotated[str, Field(..., description='Warehouse string for Iceberg catalog')],
@@ -638,7 +716,15 @@ async def query_database(
     )
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='Import CSV into table',
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=False,
+        open_world_hint=True,
+    ),
+)
 @log_tool_call_with_response
 @write_operation
 async def import_csv_to_table(
@@ -711,7 +797,15 @@ async def import_csv_to_table(
     )
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='Import Parquet into table',
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=False,
+        open_world_hint=True,
+    ),
+)
 @log_tool_call_with_response
 @write_operation
 async def import_parquet_to_table(
@@ -789,7 +883,13 @@ async def import_parquet_to_table(
     )
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='Get bucket metadata configuration',
+        read_only_hint=True,
+        open_world_hint=True,
+    ),
+)
 @log_tool_call_with_response
 async def get_bucket_metadata_config(
     bucket: Annotated[
@@ -850,7 +950,15 @@ async def get_bucket_metadata_config(
     )
 
 
-@app.tool()
+@app.tool(
+    annotations=ToolAnnotations(
+        title='Append rows to table',
+        read_only_hint=False,
+        destructive_hint=False,
+        idempotent_hint=False,
+        open_world_hint=True,
+    ),
+)
 @log_tool_call_with_response
 @write_operation
 async def append_rows_to_table(
