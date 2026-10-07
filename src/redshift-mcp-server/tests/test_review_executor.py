@@ -15,11 +15,13 @@
 """Tests for review cluster executor."""
 
 import pytest
+import sqlglot
 from awslabs.redshift_mcp_server.models import RedshiftCluster
 from awslabs.redshift_mcp_server.review.definitions import SIGNAL_EVALUATION_SQL
 from awslabs.redshift_mcp_server.review.executor import review_cluster
 from helpers import _fake_cluster
 from mcp.server.mcpserver.exceptions import ToolError
+from sqlglot import exp
 from unittest.mock import AsyncMock
 
 
@@ -40,6 +42,45 @@ async def test_a_review_runs_every_query_scoped_to_all(cluster_type):
     result = await review_cluster('c', cluster_type, run, resolve)
 
     assert scoped_to_all <= set(result.queries_executed)
+
+
+def _terms(condition: exp.Expression):
+    """Yield the terms a WHERE or HAVING joins with AND and OR, looking through NOT."""
+    while isinstance(condition, (exp.Paren, exp.Not, exp.Escape)):
+        condition = condition.this
+    if isinstance(condition, exp.Connector):
+        yield from _terms(condition.left)
+        yield from _terms(condition.right)
+    else:
+        yield condition
+
+
+@pytest.mark.parametrize(
+    'sql',
+    [sql for _, _, sql in SIGNAL_EVALUATION_SQL],
+    ids=[name for name, _, _ in SIGNAL_EVALUATION_SQL],
+)
+def test_every_filter_term_is_a_condition(sql):
+    """Redshift reads a number used as a filter as true whenever it is nonzero.
+
+    So a count meant as `> 0` tests `<> 0`. REC_004 filtered on a count that way, and was right
+    only because another term excluded its one negative case.
+    """
+    tree = sqlglot.parse_one(sql.format(node_type='ra3.xlplus'), read='redshift')
+    # A bare command is sqlglot's fallback for SQL it cannot parse, and has no clauses to check.
+    assert not isinstance(tree, exp.Command)
+
+    terms = [
+        term
+        for clause in (*tree.find_all(exp.Where), *tree.find_all(exp.Having))
+        for term in _terms(clause.this)
+    ]
+
+    assert [
+        term.sql(dialect='redshift')
+        for term in terms
+        if not isinstance(term, (exp.Predicate, exp.Boolean))
+    ] == []
 
 
 def _make_response(rows: list[tuple]) -> dict:

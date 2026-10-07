@@ -641,9 +641,10 @@ class TestMightWriteRecognizesReads:
         """Every SHOW form parses as one command name, so the allow-list covers them all."""
         assert might_write(sql) is False
 
-    def test_explain_of_a_read_is_a_read(self):
-        """`EXPLAIN` returns a plan without running its payload."""
-        assert might_write('EXPLAIN SELECT 1') is False
+    @pytest.mark.parametrize('sql', ['EXPLAIN SELECT 1', 'EXPLAIN DELETE FROM t'])
+    def test_explain_is_a_read(self, sql):
+        """`EXPLAIN` returns a plan without running its payload, a write included."""
+        assert might_write(sql) is False
 
 
 class TestMightWriteRecognizesWrites:

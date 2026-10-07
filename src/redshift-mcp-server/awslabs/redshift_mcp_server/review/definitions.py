@@ -691,7 +691,8 @@ UNION ALL
 -- Signal: tables with low column compression
 SELECT count(*), 'REC_004', 'tables with low column compression'
 FROM data
-WHERE ((column_count - encoded_column_count) - (case when sortkey1_enc = 'none' or sortkey1_enc = '' then 1 else 0 end)) AND tbl_rows > 5000000 AND (encoded_column_pct < 80)
+-- Compared, because Redshift reads a bare count as true whenever it is nonzero.
+WHERE ((column_count - encoded_column_count) - (case when sortkey1_enc = 'none' or sortkey1_enc = '' then 1 else 0 end)) > 0 AND tbl_rows > 5000000 AND (encoded_column_pct < 80)
 UNION ALL
 -- Signal: large tables distributed by a column named like a date
 -- The label says "named like" because that is all this tests. diststyle holds KEY(<column

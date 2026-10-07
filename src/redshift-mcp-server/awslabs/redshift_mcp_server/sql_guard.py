@@ -118,9 +118,15 @@ _READ_ONLY_DENY_KEYWORD_LIST = (
 )
 
 # Bare commands treated as reads, matched by name because sqlglot has no node class
-# for them. Anything not listed might write. `DESC` and `DESCRIBE` are deliberately absent:
-# Redshift's forms of them, such as `DESC DATASHARE`, do not parse here and are refused as
-# unparseable, so allow-listing the words would only widen the surface.
+# for them. Anything not listed might write.
+#
+# `EXPLAIN` carries a statement this guard never parses, as PREPARE and DECLARE do. Those are
+# denied because what they carry can run; Redshift never runs what `EXPLAIN` carries. It returns
+# the plan alone, and refuses `EXPLAIN ANALYZE`, the form that would run it, as not supported.
+#
+# `DESC` and `DESCRIBE` are deliberately absent: Redshift's forms of them, such as
+# `DESC DATASHARE`, do not parse here and are refused as unparseable, so allow-listing the words
+# would only widen the surface.
 _READ_COMMAND_ALLOW_KEYWORD_LIST = frozenset(
     {
         'SHOW',
