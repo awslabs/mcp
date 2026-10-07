@@ -246,15 +246,20 @@ class ConfigStore:
         if not os.path.exists(self._config_file):
             return False
 
-        # Reject if permissions have been tampered with
-        file_mode = os.stat(self._config_file).st_mode
-        if file_mode & 0o077:
-            logger.warning(
-                'Config file %s has insecure permissions %o, refusing to load',
-                self._config_file,
-                file_mode,
-            )
-            return False
+        # Reject if permissions have been tampered with. Group and other bits only
+        # carry meaning where the filesystem has POSIX permission bits. Windows
+        # derives st_mode from the read-only attribute, so every file reports them,
+        # and this check would reject a config that persist_config() has just written
+        # with the most restrictive mode the platform can set.
+        if os.name == 'posix':
+            file_mode = os.stat(self._config_file).st_mode
+            if file_mode & 0o077:
+                logger.warning(
+                    'Config file %s has insecure permissions %o, refusing to load',
+                    self._config_file,
+                    file_mode,
+                )
+                return False
 
         try:
             with open(self._config_file) as f:
