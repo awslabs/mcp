@@ -246,7 +246,7 @@ docker run -p 8080:8080 \
 | `VALKEY_CLUSTER_MODE` | Enable cluster mode | `false` |
 | `VALKEY_IAM_AUTH` | Use Amazon ElastiCache IAM authentication instead of a password | `false` |
 | `VALKEY_CACHE_NAME` | ElastiCache cache name for IAM auth (not the endpoint hostname) | `None` |
-| `AWS_REGION` | Region of the cache for IAM auth; also used by Bedrock | `None` |
+| `AWS_REGION` | Region of the cache for IAM auth | `None` |
 | `VALKEY_VECTOR_ALGORITHM` | Default vector index algorithm (`HNSW` or `FLAT`) | `HNSW` |
 | `VALKEY_VECTOR_DISTANCE_METRIC` | Default vector distance metric (`COSINE`, `L2`, or `IP`) | `COSINE` |
 | `VALKEY_ADMIN_ENABLED` | Enable admin tier (destructive commands) | `false` |

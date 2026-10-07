@@ -45,7 +45,7 @@ MODULE = 'awslabs.valkey_mcp_server.common.connection'
 
 
 def _iam_env_present() -> bool:
-    return os.environ.get('VALKEY_IAM_AUTH', '').lower() in ('true', '1', 't') and bool(
+    return os.environ.get('VALKEY_IAM_AUTH', '') in ('true', '1', 't') and bool(
         os.environ.get('VALKEY_HOST')
     )
 

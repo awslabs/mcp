@@ -215,6 +215,11 @@ class TestIamAuth:
             with pytest.raises(ValueError, match='VALKEY_CACHE_NAME'):
                 _build_config()
 
+    def test_rejects_hostname_as_cache_name(self):
+        with patch(f'{MODULE}.VALKEY_CFG', dict(self.IAM_CFG, cache_name='my-cache.example.com')):
+            with pytest.raises(ValueError, match='not an endpoint address'):
+                _build_config()
+
     def test_region_falls_back_to_boto3_session(self):
         mock_session = MagicMock()
         mock_session.return_value.region_name = 'eu-west-1'

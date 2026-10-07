@@ -84,6 +84,10 @@ def _build_credentials() -> ServerCredentials | None:
                 'VALKEY_CACHE_NAME (the ElastiCache cache name the IAM token is signed for) '
                 'is required when VALKEY_IAM_AUTH is enabled'
             )
+        if '.' in cache_name:
+            raise ValueError(
+                'Invalid VALKEY_CACHE_NAME: expected the cache name, not an endpoint address'
+            )
         if VALKEY_CFG.get('password'):
             logger.warning('VALKEY_PWD is ignored because VALKEY_IAM_AUTH is enabled')
         return ServerCredentials(
@@ -111,7 +115,7 @@ def _build_config() -> GlideClientConfiguration | GlideClusterClientConfiguratio
     if iam_auth and not VALKEY_CFG.get('ssl', False):
         logger.info('TLS enabled automatically because VALKEY_IAM_AUTH is enabled')
 
-    reconnect = BackoffStrategy(num_of_retries=10, factor=500, exponent_base=2)
+    reconnect = BackoffStrategy(num_of_retries=10, factor=500, exponent_base=2, jitter_percent=20)
 
     kwargs: dict = {
         'addresses': addresses,
