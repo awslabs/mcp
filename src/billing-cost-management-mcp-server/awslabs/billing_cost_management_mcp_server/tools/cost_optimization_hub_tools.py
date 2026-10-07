@@ -27,6 +27,7 @@ from ..utilities.aws_service_base import (
 from ..utilities.constants import (
     COST_OPTIMIZATION_HUB_LIST_EFFICIENCY_METRICS_VALID_ORDER_DIMENSIONS,
     COST_OPTIMIZATION_HUB_LIST_RECOMMENDATIONS_VALID_ORDER_DIMENSIONS,
+    COST_OPTIMIZATION_HUB_SERVICE_NAME,
     COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES,
     EFFICIENCY_METRICS_MAX_DAILY_SPAN_DAYS,
     EFFICIENCY_METRICS_MAX_MONTHLY_SPAN_MONTHS,
@@ -162,30 +163,52 @@ def _clamp_efficiency_time_span(start_date: str, end_date: str, granularity: str
     return start_date
 
 
-def _validate_order_by(order_by: Any, valid_dimensions: list) -> Optional[Dict[str, Any]]:
+def _error_response(
+    operation: str, data: Any, message: str, error_type: str = 'validation_error'
+) -> Dict[str, Any]:
+    """Build a local (pre-API) validation error response.
+
+    Adds top-level ``service``, ``operation``, and ``error_type`` so the failure
+    is classifiable, matching the shape ``handle_aws_error`` returns for AWS
+    errors. The legacy ``status``/``data``/``message`` payload is preserved for
+    backward compatibility.
+    """
+    return format_response(
+        'error',
+        data,
+        message,
+        error_type=error_type,
+        operation=operation,
+        service=COST_OPTIMIZATION_HUB_SERVICE_NAME,
+    )
+
+
+def _validate_order_by(
+    order_by: Any, valid_dimensions: list, operation: str
+) -> Optional[Dict[str, Any]]:
     """Validate a parsed ``order_by`` structure against the supported dimensions.
 
-    Returns a ``format_response('error', ...)`` dict when the structure is
+    Returns an ``_error_response(...)`` dict when the structure is
     invalid, or ``None`` when it is acceptable. ``order`` (``Asc``/``Desc``) is
     optional; when present it must be a valid order value.
     """
     if not isinstance(order_by, dict):
-        return format_response(
-            'error',
+        return _error_response(
+            operation,
             {'provided_order_by': order_by},
             'order_by must be a JSON object like {"dimension": ..., "order": "Asc"|"Desc"}.',
         )
     dimension = order_by.get('dimension')
     order = order_by.get('order')
     if dimension not in valid_dimensions:
-        return format_response(
-            'error',
+        return _error_response(
+            operation,
             {'provided_dimension': dimension, 'valid_dimensions': valid_dimensions},
             f'Invalid order_by dimension: {dimension}. Must be one of: {", ".join(valid_dimensions)}.',
         )
     if order is not None and order not in ORDER_BY_VALID_ORDERS:
-        return format_response(
-            'error',
+        return _error_response(
+            operation,
             {'provided_order': order, 'valid_orders': ORDER_BY_VALID_ORDERS},
             f'Invalid order_by order: {order}. Must be one of: {", ".join(ORDER_BY_VALID_ORDERS)}.',
         )
@@ -369,16 +392,16 @@ async def cost_optimization_hub(
         # Validate operation-specific requirements
         if operation == OPERATION_LIST_RECOMMENDATION_SUMMARIES:
             if not group_by:
-                return format_response(
-                    'error',
+                return _error_response(
+                    operation,
                     {'valid_group_by_values': COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES},
                     f'group_by parameter is required for list_recommendation_summaries operation. Must be one of: {", ".join(COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES)}',
                 )
 
             # Validate the group_by value is one of the allowed values
             if group_by not in COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES:
-                return format_response(
-                    'error',
+                return _error_response(
+                    operation,
                     {
                         'provided_group_by': group_by,
                         'valid_group_by_values': COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES,
@@ -388,8 +411,8 @@ async def cost_optimization_hub(
 
         elif operation == OPERATION_GET_RECOMMENDATION:
             if not recommendation_id:
-                return format_response(
-                    'error',
+                return _error_response(
+                    operation,
                     {},
                     'recommendation_id is required for get_recommendation operation',
                 )
@@ -429,8 +452,8 @@ async def cost_optimization_hub(
                 return await handle_aws_error(
                     ctx,
                     recommendation_error,
-                    'list_recommendation_summaries',
-                    'Cost Optimization Hub',
+                    OPERATION_LIST_RECOMMENDATION_SUMMARIES,
+                    COST_OPTIMIZATION_HUB_SERVICE_NAME,
                 )
 
         elif operation == OPERATION_LIST_RECOMMENDATIONS:
@@ -442,6 +465,7 @@ async def cost_optimization_hub(
                     order_by_error = _validate_order_by(
                         parsed_order_by,
                         COST_OPTIMIZATION_HUB_LIST_RECOMMENDATIONS_VALID_ORDER_DIMENSIONS,
+                        operation,
                     )
                     if order_by_error:
                         return order_by_error
@@ -472,7 +496,10 @@ async def cost_optimization_hub(
 
             except Exception as recommendation_error:
                 return await handle_aws_error(
-                    ctx, recommendation_error, 'list_recommendations', 'Cost Optimization Hub'
+                    ctx,
+                    recommendation_error,
+                    OPERATION_LIST_RECOMMENDATIONS,
+                    COST_OPTIMIZATION_HUB_SERVICE_NAME,
                 )
 
         elif operation == OPERATION_GET_RECOMMENDATION:
@@ -483,8 +510,8 @@ async def cost_optimization_hub(
             try:
                 effective_granularity = granularity or GRANULARITY_MONTHLY
                 if effective_granularity not in EFFICIENCY_METRICS_VALID_GRANULARITY:
-                    return format_response(
-                        'error',
+                    return _error_response(
+                        operation,
                         {
                             'provided_granularity': granularity,
                             'valid_granularity_values': EFFICIENCY_METRICS_VALID_GRANULARITY,
@@ -494,8 +521,8 @@ async def cost_optimization_hub(
 
                 # Efficiency metrics only group by AccountId/Region (no per-service score).
                 if group_by and group_by not in EFFICIENCY_METRICS_VALID_GROUP_BY_VALUES:
-                    return format_response(
-                        'error',
+                    return _error_response(
+                        operation,
                         {
                             'provided_group_by': group_by,
                             'valid_group_by_values': EFFICIENCY_METRICS_VALID_GROUP_BY_VALUES,
@@ -531,8 +558,8 @@ async def cost_optimization_hub(
                     ('end_date', effective_end),
                 ):
                     if not _is_valid_efficiency_date(value, effective_granularity):
-                        return format_response(
-                            'error',
+                        return _error_response(
+                            operation,
                             {label: value, 'granularity': effective_granularity},
                             f'Invalid {label}: {value}. For {effective_granularity} '
                             f'granularity use {expected_format}.',
@@ -554,6 +581,7 @@ async def cost_optimization_hub(
                     order_by_error = _validate_order_by(
                         parsed_order_by,
                         COST_OPTIMIZATION_HUB_LIST_EFFICIENCY_METRICS_VALID_ORDER_DIMENSIONS,
+                        operation,
                     )
                     if order_by_error:
                         return order_by_error
@@ -562,8 +590,8 @@ async def cost_optimization_hub(
                 # grouping dimension to rank, so require group_by when it is set.
                 if ranking_mode is not None:
                     if ranking_mode not in EFFICIENCY_METRICS_VALID_RANKING_MODES:
-                        return format_response(
-                            'error',
+                        return _error_response(
+                            operation,
                             {
                                 'provided_ranking_mode': ranking_mode,
                                 'valid_ranking_modes': EFFICIENCY_METRICS_VALID_RANKING_MODES,
@@ -572,8 +600,8 @@ async def cost_optimization_hub(
                             f'{", ".join(EFFICIENCY_METRICS_VALID_RANKING_MODES)}.',
                         )
                     if ranking_mode == EFFICIENCY_RANKING_MODE_PERFORMANCE and not group_by:
-                        return format_response(
-                            'error',
+                        return _error_response(
+                            operation,
                             {'ranking_mode': ranking_mode, 'group_by': group_by},
                             "ranking_mode='performance' requires group_by=AccountId or "
                             'Region (there is nothing to rank without a grouping dimension).',
@@ -617,7 +645,10 @@ async def cost_optimization_hub(
 
             except Exception as efficiency_error:
                 return await handle_aws_error(
-                    ctx, efficiency_error, 'list_efficiency_metrics', 'Cost Optimization Hub'
+                    ctx,
+                    efficiency_error,
+                    OPERATION_LIST_EFFICIENCY_METRICS,
+                    COST_OPTIMIZATION_HUB_SERVICE_NAME,
                 )
 
         elif operation == OPERATION_LIST_ENROLLMENT_STATUSES:
@@ -628,8 +659,8 @@ async def cost_optimization_hub(
 
         else:
             # Return error for unsupported operations
-            return format_response(
-                'error',
+            return _error_response(
+                operation,
                 {
                     'supported_operations': [
                         OPERATION_LIST_RECOMMENDATION_SUMMARIES,
@@ -641,8 +672,9 @@ async def cost_optimization_hub(
                     ]
                 },
                 f"Unsupported operation: {operation}. Use '{OPERATION_LIST_RECOMMENDATION_SUMMARIES}', '{OPERATION_LIST_RECOMMENDATIONS}', '{OPERATION_GET_RECOMMENDATION}', '{OPERATION_LIST_EFFICIENCY_METRICS}', '{OPERATION_LIST_ENROLLMENT_STATUSES}', or '{OPERATION_GET_PREFERENCES}'.",
+                error_type='invalid_operation',
             )
 
     except Exception as e:
         await ctx.error(f'Error in Cost Optimization Hub operation {operation}: {str(e)}')
-        return await handle_aws_error(ctx, e, operation, 'Cost Optimization Hub')
+        return await handle_aws_error(ctx, e, operation, COST_OPTIMIZATION_HUB_SERVICE_NAME)
