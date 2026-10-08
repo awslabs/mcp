@@ -169,6 +169,9 @@ async def list_cost_category_definitions(
                     {
                         'message': f'Invalid JSON for supported_resource_types parameter: {e}',
                     },
+                    error_type='validation_error',
+                    operation='ListCostCategoryDefinitions',
+                    service='Cost Explorer',
                 )
         if max_results is not None:
             params['MaxResults'] = max_results

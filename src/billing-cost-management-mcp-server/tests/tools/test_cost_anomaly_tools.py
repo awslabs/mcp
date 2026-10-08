@@ -663,6 +663,10 @@ class TestCostAnomalyFastMCP:
             assert res['status'] == 'error'
             assert '2024 data' in res['message']
             assert '24-48 hours in the past' in res['message']
+            assert res['error_type'] == 'ValidationException'
+            assert res['operation'] == 'cost_anomaly'
+            assert res['service'] == 'Cost Explorer'
+            assert res['data'] == {'error_code': 'ValidationException'}
 
     async def test_ca_real_client_error_validation(self, mock_context):
         """Test cost_anomaly ClientError with general validation exception."""
@@ -689,6 +693,10 @@ class TestCostAnomalyFastMCP:
             res = await real_fn(mock_context, start_date='2023-01-01', end_date='2023-01-31')  # type: ignore[reportCallIssue]
             assert res['status'] == 'error'
             assert 'validation error' in res['message']
+            assert res['error_type'] == 'ValidationException'
+            assert res['operation'] == 'cost_anomaly'
+            assert res['service'] == 'Cost Explorer'
+            assert res['data'] == {'error_code': 'ValidationException'}
 
     async def test_ca_real_successful_call(self, mock_context):
         """Test cost_anomaly successful call."""

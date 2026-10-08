@@ -735,6 +735,9 @@ async def test_ap_real_get_service_attributes_reload_identity_decorator(mock_con
     )
     assert res2['status'] == 'error'
     assert 'service_code is required' in res2.get('data', {}).get('message', '')
+    assert res2['error_type'] == 'validation_error'
+    assert res2['operation'] == 'get_service_attributes'
+    assert res2['service'] == 'AWS Pricing'
 
 
 # ---------------------------------------------------------------------------
@@ -858,6 +861,9 @@ async def test_ap_real_get_attribute_values_reload_identity_decorator(mock_conte
     )
     assert res2['status'] == 'error'
     assert 'service_code and attribute_name' in res2.get('data', {}).get('message', '')
+    assert res2['error_type'] == 'validation_error'
+    assert res2['operation'] == 'get_attribute_values'
+    assert res2['service'] == 'AWS Pricing'
 
 
 @pytest.mark.asyncio
@@ -885,6 +891,9 @@ async def test_ap_real_get_pricing_from_api_reload_identity_decorator(mock_conte
     )
     assert res2['status'] == 'error'
     assert 'service_code is required' in res2.get('data', {}).get('message', '')
+    assert res2['error_type'] == 'validation_error'
+    assert res2['operation'] == 'get_pricing_from_api'
+    assert res2['service'] == 'AWS Pricing'
 
 
 @pytest.mark.asyncio
@@ -899,6 +908,9 @@ async def test_ap_real_unknown_operation_error_reload_identity_decorator(mock_co
     assert res['status'] == 'error'
     # Real format_response puts message under data
     assert 'Unknown operation' in res.get('data', {}).get('message', '')
+    assert res['error_type'] == 'validation_error'
+    assert res['operation'] == 'definitely_not_supported'
+    assert res['service'] == 'AWS Pricing'
 
 
 @pytest.mark.asyncio

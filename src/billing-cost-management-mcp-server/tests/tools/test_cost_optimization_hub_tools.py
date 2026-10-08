@@ -1403,3 +1403,57 @@ async def test_coh_real_unsupported_operation_lists_get_preferences(mock_context
         res = await real_fn(mock_context, operation='definitely_not_supported')  # type: ignore
 
     assert 'get_preferences' in res['data']['supported_operations']
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'kwargs,expected_error_type',
+    [
+        ({'operation': 'list_recommendation_summaries', 'group_by': ''}, 'validation_error'),
+        ({'operation': 'list_recommendation_summaries', 'group_by': 'Bogus'}, 'validation_error'),
+        ({'operation': 'get_recommendation'}, 'validation_error'),
+        (
+            {'operation': 'list_recommendations', 'order_by': '["not", "a", "dict"]'},
+            'validation_error',
+        ),
+        (
+            {'operation': 'list_recommendations', 'order_by': '{"dimension": "Bogus"}'},
+            'validation_error',
+        ),
+        ({'operation': 'list_efficiency_metrics', 'granularity': 'Hourly'}, 'validation_error'),
+        ({'operation': 'list_efficiency_metrics', 'group_by': 'ServiceName'}, 'validation_error'),
+        ({'operation': 'list_efficiency_metrics', 'start_date': 'not-a-date'}, 'validation_error'),
+        (
+            {
+                'operation': 'list_efficiency_metrics',
+                'order_by': '{"dimension": "Score", "order": "Sideways"}',
+            },
+            'validation_error',
+        ),
+        ({'operation': 'list_efficiency_metrics', 'ranking_mode': 'bogus'}, 'validation_error'),
+        (
+            {'operation': 'list_efficiency_metrics', 'ranking_mode': 'performance'},
+            'validation_error',
+        ),
+        ({'operation': 'definitely_not_supported'}, 'invalid_operation'),
+    ],
+)
+async def test_coh_local_validation_errors_carry_telemetry_fields(
+    mock_context, kwargs, expected_error_type
+):
+    """Local validation errors carry top-level service/operation/error_type for telemetry."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with patch.object(coh_mod, 'create_aws_client') as mock_create_client:
+        res = await real_fn(mock_context, **kwargs)  # type: ignore
+
+    assert res['status'] == 'error'
+    assert res['service'] == 'Cost Optimization Hub'
+    assert res['operation'] == kwargs['operation']
+    assert res['error_type'] == expected_error_type
+    # Legacy payload is preserved.
+    assert 'data' in res
+    assert res['message']
+    # Rejected locally: no COH API call is made.
+    assert not mock_create_client.return_value.method_calls

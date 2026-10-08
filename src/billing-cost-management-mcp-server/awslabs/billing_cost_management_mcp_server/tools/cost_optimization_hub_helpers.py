@@ -23,10 +23,17 @@ from ..utilities.aws_service_base import (
     paginate_aws_response,
 )
 from ..utilities.constants import (
+    COST_OPTIMIZATION_HUB_SERVICE_NAME,
     EFFICIENCY_PARETO_MAX_PAGES,
     EFFICIENCY_PARETO_PAGE_SIZE,
     EFFICIENCY_PARETO_SPEND_FRACTION,
     EFFICIENCY_RANKING_MODE_PERFORMANCE,
+    OPERATION_GET_PREFERENCES,
+    OPERATION_GET_RECOMMENDATION,
+    OPERATION_LIST_EFFICIENCY_METRICS,
+    OPERATION_LIST_ENROLLMENT_STATUSES,
+    OPERATION_LIST_RECOMMENDATION_SUMMARIES,
+    OPERATION_LIST_RECOMMENDATIONS,
 )
 from ..utilities.logging_utils import get_context_logger
 from ..utilities.sql_utils import convert_response_if_needed
@@ -188,7 +195,9 @@ async def list_recommendations(
         return format_response('success', offload_or_inline)
 
     except Exception as e:
-        return await handle_aws_error(ctx, e, 'list_recommendations', 'Cost Optimization Hub')
+        return await handle_aws_error(
+            ctx, e, OPERATION_LIST_RECOMMENDATIONS, COST_OPTIMIZATION_HUB_SERVICE_NAME
+        )
 
 
 async def get_recommendation(
@@ -288,7 +297,9 @@ async def get_recommendation(
                 },
                 f'Recommendation {recommendation_id} not found in Cost Optimization Hub.',
             )
-        return await handle_aws_error(ctx, e, 'get_recommendation', 'Cost Optimization Hub')
+        return await handle_aws_error(
+            ctx, e, OPERATION_GET_RECOMMENDATION, COST_OPTIMIZATION_HUB_SERVICE_NAME
+        )
 
 
 async def list_recommendation_summaries(
@@ -410,7 +421,7 @@ async def list_recommendation_summaries(
 
     except Exception as e:
         return await handle_aws_error(
-            ctx, e, 'list_recommendation_summaries', 'Cost Optimization Hub'
+            ctx, e, OPERATION_LIST_RECOMMENDATION_SUMMARIES, COST_OPTIMIZATION_HUB_SERVICE_NAME
         )
 
 
@@ -457,7 +468,9 @@ async def list_enrollment_statuses(
         return format_response('success', {'enrollment_statuses': enrollment_statuses})
 
     except Exception as e:
-        return await handle_aws_error(ctx, e, 'list_enrollment_statuses', 'Cost Optimization Hub')
+        return await handle_aws_error(
+            ctx, e, OPERATION_LIST_ENROLLMENT_STATUSES, COST_OPTIMIZATION_HUB_SERVICE_NAME
+        )
 
 
 async def get_preferences(ctx: Context, coh_client: Any) -> Dict[str, Any]:
@@ -493,7 +506,9 @@ async def get_preferences(ctx: Context, coh_client: Any) -> Dict[str, Any]:
         )
 
     except Exception as e:
-        return await handle_aws_error(ctx, e, 'get_preferences', 'Cost Optimization Hub')
+        return await handle_aws_error(
+            ctx, e, OPERATION_GET_PREFERENCES, COST_OPTIMIZATION_HUB_SERVICE_NAME
+        )
 
 
 def _latest_efficiency_point(metrics_by_time: list) -> Optional[Dict[str, Any]]:
@@ -803,4 +818,6 @@ async def list_efficiency_metrics(
         return format_response('success', offload_or_inline)
 
     except Exception as e:
-        return await handle_aws_error(ctx, e, 'list_efficiency_metrics', 'Cost Optimization Hub')
+        return await handle_aws_error(
+            ctx, e, OPERATION_LIST_EFFICIENCY_METRICS, COST_OPTIMIZATION_HUB_SERVICE_NAME
+        )
