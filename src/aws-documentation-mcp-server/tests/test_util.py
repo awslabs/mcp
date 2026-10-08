@@ -1187,13 +1187,31 @@ class TestSectionIndex:
         assert 'id=' not in markdown
 
     def test_every_anchor_maps_to_a_heading_position(self):
-        """Ordinals are assigned in document order."""
+        """Positions are assigned in document order, over section headings only."""
         _, anchors = extract_content_and_anchors(self.HTML)
         assert anchors.position_for_anchor('page') == 0
         assert anchors.position_for_anchor('first') == 1
         assert anchors.position_for_anchor('second') == 2
-        assert anchors.position_for_anchor('note') == 3
-        assert anchors.position_for_anchor('third') == 4
+        assert anchors.position_for_anchor('third') == 3
+
+    def test_an_h6_is_not_a_section_and_its_anchor_stays_in_the_enclosing_one(self):
+        """AWS uses h6 for callout titles, so it is chrome rather than a boundary.
+
+        The "Note" here sits inside Second, so #note belongs to Second. Treating the h6 as a
+        section would make it a position of its own; sending its anchor forward instead would
+        land it on Third, past the content it names.
+        """
+        _, anchors = extract_content_and_anchors(self.HTML)
+        assert [h.text for h in anchors.headings] == ['Page', 'First', 'Second', 'Third']
+        assert anchors.position_for_anchor('note') == anchors.position_for_anchor('second')
+
+    def test_an_h6_still_appears_inside_its_section(self):
+        """Not a boundary does not mean removed from the content."""
+        markdown, anchors = extract_content_and_anchors(self.HTML)
+        section = anchor_section(markdown, anchors, 'second')
+        assert '###### Note' in section
+        assert 'a nested callout' in section
+        assert 'third body' not in section
 
     def test_an_anchor_on_a_wrapper_resolves_to_the_heading_inside_it(self):
         """AWS pages often put the id on a div around the section, not on its heading."""

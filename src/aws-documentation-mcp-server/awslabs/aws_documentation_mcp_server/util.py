@@ -25,7 +25,14 @@ from urllib.parse import quote_plus, unquote, urljoin
 # An unresolved cross-reference leaves an href with no filename, e.g. './.html#anchor'.
 _EMPTY_TARGET_FILENAMES = frozenset({'.html', '.htm'})
 
-HEADING_TAGS = ('h1', 'h2', 'h3', 'h4', 'h5', 'h6')
+# The heading levels that open a section. h6 is excluded: AWS documentation uses it for callout
+# titles and in-page topic lists rather than for sections. Across 61 sampled pages its text was
+# "Note" 350 times, "Important" 52, "Topics" 17, "Warning" 11, "Tip" 4, and no anchor anywhere in
+# that sample pointed at one. table_utils skips the same headings for the same reason.
+SECTION_HEADING_TAGS = ('h1', 'h2', 'h3', 'h4', 'h5')
+
+# Every heading level, including the ones that never open a section.
+_ANY_HEADING_TAG = frozenset(SECTION_HEADING_TAGS) | {'h6'}
 
 
 def has_empty_link_target(href: str) -> bool:
@@ -237,7 +244,8 @@ def heading_match_text(text: str) -> str:
 
 
 # Markdownify indents a heading nested in one of these under the list or quote marker, or folds
-# it into a table cell, so it never begins a line and cannot be matched.
+# it into a table cell, so it never begins a line and cannot be matched. 17 h3 headings in the
+# sample sit inside a blockquote.
 NON_SECTION_ANCESTORS = frozenset({'blockquote', 'li', 'dd', 'dt', 'td', 'th', 'a'})
 
 
@@ -302,7 +310,7 @@ def heading_table(main_content) -> List[Heading]:
             for value in (element.get('id'), element.get('name'))
             if isinstance(value, str) and value
         ]
-        in_section_position = element.name in HEADING_TAGS and not any(
+        in_section_position = element.name in SECTION_HEADING_TAGS and not any(
             parent.name in NON_SECTION_ANCESTORS for parent in element.parents
         )
         has_text = bool(element.get_text(strip=True))
@@ -313,9 +321,10 @@ def heading_table(main_content) -> List[Heading]:
                 Heading.of(int(element.name[1]), element.get_text(), (*pending, *names))
             )
             pending.clear()
-        elif in_section_position and names and headings:
-            # An empty heading marks the section above it, not a new one, so its anchors
-            # attach backwards. Forwards would skip the content they name.
+        elif element.name in _ANY_HEADING_TAG and names and headings:
+            # A heading that does not open a section - an h6 callout title, an empty one, or one
+            # nested in a list - is content inside the section above it, so that is where its
+            # anchors belong. Forwards would skip the content they name.
             headings[-1] = replace(headings[-1], anchors=(*headings[-1].anchors, *names))
         else:
             pending.extend(names)
@@ -395,7 +404,7 @@ def extract_content_and_anchors(html: str) -> Tuple[str, SectionIndex]:
         raise UnreadablePageError(f'Error converting HTML to Markdown: {str(e)}') from e
 
 
-_ATX_HEADING_RE = re.compile(r'^(#{1,6})\s+(\S.*)$')
+_ATX_HEADING_RE = re.compile(rf'^(#{{1,{len(SECTION_HEADING_TAGS)}}})\s+(\S.*)$')
 
 # How far ahead to look for the next expected heading. The conversion occasionally drops one
 # outright, and without a little slack a single miss would strand every heading after it.
@@ -482,8 +491,7 @@ def section_markdown(markdown: str, index: SectionIndex, position: int) -> Optio
     level = index.headings[position].level
     end = len(markdown)
     for later in range(position + 1, len(located)):
-        # AWS uses h6 for both callouts and real subsections, so stopping at the next heading
-        # of any level would cut a section off at its first "Note".
+        # A deeper heading belongs to this section, so only a sibling or an ancestor ends it.
         if index.headings[later].level <= level and located[later] is not None:
             end = located[later]
             break
