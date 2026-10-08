@@ -119,7 +119,19 @@ Idle results are sorted by estimated monthly savings after discounts, highest fi
 default. To change it, pass `order_by` as a JSON object, e.g.
 '{"dimension": "SavingsValue", "order": "Asc"}' (dimension: SavingsValue or
 SavingsValueAfterDiscount; order: Asc or Desc). Only get_idle_recommendations accepts
-`order_by`.""",
+`order_by`.
+
+EC2, Auto Scaling group, and RDS recommendations rank options within the current CPU
+architecture by default (cpuVendorArchitectures CURRENT). To get Graviton options, pass
+`cpu_vendor_architectures` as a JSON array, e.g. '["AWS_ARM64"]' (Graviton only). Values:
+CURRENT, AWS_ARM64. '["CURRENT", "AWS_ARM64"]' ranks both architectures in one pool and
+still returns only the top options (usually all Graviton); to compare x86 with Graviton,
+make one call without the parameter and one with '["AWS_ARM64"]'. This is a per-request
+preference, not an account setting; the result echoes it as
+`applied_recommendation_preferences`, and each recommendation's
+`effective_recommendation_preferences.cpuVendorArchitectures` reflects it. Only
+get_ec2_instance_recommendations, get_auto_scaling_group_recommendations, and
+get_rds_recommendations accept `cpu_vendor_architectures`.""",
 )
 async def compute_optimizer(
     ctx: Context,
@@ -131,6 +143,7 @@ async def compute_optimizer(
     next_token: Optional[str] = None,
     resource_arns: Optional[str] = None,
     order_by: Optional[str] = None,
+    cpu_vendor_architectures: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Retrieves recommendations from AWS Compute Optimizer.
 
@@ -147,6 +160,9 @@ async def compute_optimizer(
         order_by: get_idle_recommendations only. Optional JSON object
             {"dimension": "SavingsValue"|"SavingsValueAfterDiscount", "order": "Asc"|"Desc"};
             defaults to SavingsValueAfterDiscount, Desc
+        cpu_vendor_architectures: EC2, Auto Scaling group, and RDS only. Optional JSON
+            array of CURRENT and/or AWS_ARM64, sent as
+            recommendationPreferences.cpuVendorArchitectures; the API defaults to CURRENT
 
     Returns:
         Dict containing the Compute Optimizer recommendations
@@ -171,6 +187,23 @@ async def compute_optimizer(
                 f'order_by is supported only by get_idle_recommendations, not {operation}.',
                 {'provided_order_by': order_by},
             )
+
+        # Only EC2, ASG, and RDS take a CPU architecture preference; reject it elsewhere.
+        cpu_architectures = None
+        if cpu_vendor_architectures and operation in _FILTER_SPECS:
+            if operation not in _CPU_VENDOR_ARCHITECTURE_OPERATIONS:
+                return _error_response(
+                    operation,
+                    'validation_error',
+                    'cpu_vendor_architectures is supported only by '
+                    f'{", ".join(_CPU_VENDOR_ARCHITECTURE_OPERATIONS)}, not {operation}.',
+                    {'provided_cpu_vendor_architectures': cpu_vendor_architectures},
+                )
+            cpu_architectures, error = _resolve_cpu_vendor_architectures(
+                operation, cpu_vendor_architectures
+            )
+            if error:
+                return error
 
         # Initialize Compute Optimizer client using shared utility
         co_client = create_aws_client('compute-optimizer', region_name=region)
@@ -227,11 +260,25 @@ async def compute_optimizer(
         # Process the operation
         if operation == 'get_ec2_instance_recommendations':
             return await get_ec2_instance_recommendations(
-                ctx, co_client, max_results, filters, account_ids, next_token, arn_list
+                ctx,
+                co_client,
+                max_results,
+                filters,
+                account_ids,
+                next_token,
+                arn_list,
+                cpu_vendor_architectures=cpu_architectures,
             )
         elif operation == 'get_auto_scaling_group_recommendations':
             return await get_auto_scaling_group_recommendations(
-                ctx, co_client, max_results, filters, account_ids, next_token, arn_list
+                ctx,
+                co_client,
+                max_results,
+                filters,
+                account_ids,
+                next_token,
+                arn_list,
+                cpu_vendor_architectures=cpu_architectures,
             )
         elif operation == 'get_ebs_volume_recommendations':
             return await get_ebs_volume_recommendations(
@@ -243,7 +290,14 @@ async def compute_optimizer(
             )
         elif operation == 'get_rds_recommendations':
             return await get_rds_recommendations(
-                ctx, co_client, max_results, filters, account_ids, next_token, arn_list
+                ctx,
+                co_client,
+                max_results,
+                filters,
+                account_ids,
+                next_token,
+                arn_list,
+                cpu_vendor_architectures=cpu_architectures,
             )
         elif operation == 'get_ecs_service_recommendations':
             return await get_ecs_service_recommendations(
@@ -495,6 +549,14 @@ _IDLE_ORDER_BY_DIMENSIONS = ('SavingsValue', 'SavingsValueAfterDiscount')
 _IDLE_ORDER_BY_ORDERS = ('Asc', 'Desc')
 _IDLE_DEFAULT_ORDER_BY = {'dimension': 'SavingsValueAfterDiscount', 'order': 'Desc'}
 
+# Operations whose request takes recommendationPreferences.cpuVendorArchitectures.
+_CPU_VENDOR_ARCHITECTURE_OPERATIONS = (
+    'get_ec2_instance_recommendations',
+    'get_auto_scaling_group_recommendations',
+    'get_rds_recommendations',
+)
+_CPU_VENDOR_ARCHITECTURES = ('CURRENT', 'AWS_ARM64')
+
 _DEFAULT_MAX_RESULTS_LIMIT = 1000
 _MAX_RESULTS_LIMITS = {'get_idle_recommendations': 100}
 
@@ -664,6 +726,7 @@ def _build_request_params(
     next_token: Optional[str],
     resource_arns: Optional[List[str]],
     arn_param: str,
+    cpu_vendor_architectures: Optional[List[str]] = None,
 ) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
     """Build the request for a get_*_recommendations call, validating locally first.
 
@@ -710,7 +773,50 @@ def _build_request_params(
     if resource_arns:
         request_params[arn_param] = resource_arns
 
+    if cpu_vendor_architectures:
+        request_params['recommendationPreferences'] = {
+            'cpuVendorArchitectures': cpu_vendor_architectures
+        }
+
     return request_params, None
+
+
+def _resolve_cpu_vendor_architectures(
+    operation: str, cpu_vendor_architectures: str
+) -> Tuple[Optional[List[str]], Optional[Dict[str, Any]]]:
+    """Parse cpu_vendor_architectures onto the API's enum spelling.
+
+    Accepts a JSON array or a single bare value. Values fold case and underscores (the API
+    rejects e.g. `aws_arm64`); duplicates are dropped, order kept.
+
+    Returns:
+        (architectures, None), or (None, error response) for an invalid value.
+    """
+    valid = list(_CPU_VENDOR_ARCHITECTURES)
+    text = cpu_vendor_architectures.strip()
+    parsed: Any = parse_json(text, 'cpu_vendor_architectures') if text.startswith('[') else [text]
+    if not isinstance(parsed, list) or not parsed:
+        return None, _error_response(
+            operation,
+            'validation_error',
+            'cpu_vendor_architectures must be a JSON array like ["AWS_ARM64"].',
+            {'provided_cpu_vendor_architectures': parsed, 'valid_values': valid},
+        )
+    canonical = {_filter_value_key(v): v for v in valid}
+    resolved: List[str] = []
+    for value in parsed:
+        match = canonical.get(_filter_value_key(value)) if isinstance(value, str) else None
+        if match is None:
+            return None, _error_response(
+                operation,
+                'validation_error',
+                f'Invalid cpu_vendor_architectures value: {value}. Must be one of: '
+                f'{", ".join(valid)}.',
+                {'provided_cpu_vendor_architectures': parsed, 'valid_values': valid},
+            )
+        if match not in resolved:
+            resolved.append(match)
+    return resolved, None
 
 
 def _resolve_idle_order_by(
@@ -837,6 +943,10 @@ def _new_formatted_response(
     if 'filters' in request_params:
         # Echo what was actually queried (post-normalization), not what was typed.
         formatted_response['applied_filters'] = request_params['filters']
+    if 'recommendationPreferences' in request_params:
+        formatted_response['applied_recommendation_preferences'] = request_params[
+            'recommendationPreferences'
+        ]
     return formatted_response
 
 
@@ -853,12 +963,26 @@ def _format_metrics(metrics: Optional[List[Dict[str, Any]]]) -> List[Dict[str, A
 
 
 async def get_ec2_instance_recommendations(
-    ctx, co_client, max_results, filters, account_ids, next_token, resource_arns=None
+    ctx,
+    co_client,
+    max_results,
+    filters,
+    account_ids,
+    next_token,
+    resource_arns=None,
+    cpu_vendor_architectures=None,
 ):
     """Get EC2 instance recommendations."""
     operation = 'get_ec2_instance_recommendations'
     request_params, error = _build_request_params(
-        operation, max_results, filters, account_ids, next_token, resource_arns, 'instanceArns'
+        operation,
+        max_results,
+        filters,
+        account_ids,
+        next_token,
+        resource_arns,
+        'instanceArns',
+        cpu_vendor_architectures,
     )
     if error:
         return error
@@ -942,7 +1066,14 @@ def _format_asg_configuration(config: Dict[str, Any]) -> Dict[str, Any]:
 
 
 async def get_auto_scaling_group_recommendations(
-    ctx, co_client, max_results, filters, account_ids, next_token, resource_arns=None
+    ctx,
+    co_client,
+    max_results,
+    filters,
+    account_ids,
+    next_token,
+    resource_arns=None,
+    cpu_vendor_architectures=None,
 ):
     """Get Auto Scaling group recommendations."""
     operation = 'get_auto_scaling_group_recommendations'
@@ -954,6 +1085,7 @@ async def get_auto_scaling_group_recommendations(
         next_token,
         resource_arns,
         'autoScalingGroupArns',
+        cpu_vendor_architectures,
     )
     if error:
         return error
@@ -1162,7 +1294,14 @@ async def get_lambda_function_recommendations(
 
 
 async def get_rds_recommendations(
-    ctx, co_client, max_results, filters, account_ids, next_token, resource_arns=None
+    ctx,
+    co_client,
+    max_results,
+    filters,
+    account_ids,
+    next_token,
+    resource_arns=None,
+    cpu_vendor_architectures=None,
 ):
     """Get Amazon RDS and Aurora database recommendations.
 
@@ -1174,6 +1313,8 @@ async def get_rds_recommendations(
         account_ids: Optional list of account IDs as JSON string
         next_token: Pagination token
         resource_arns: Optional list of RDS DB instance or cluster ARNs
+        cpu_vendor_architectures: Optional resolved list for
+            recommendationPreferences.cpuVendorArchitectures
 
     Returns:
         Dict containing RDS instance recommendations
@@ -1183,7 +1324,14 @@ async def get_rds_recommendations(
 
     operation = 'get_rds_recommendations'
     request_params, error = _build_request_params(
-        operation, max_results, filters, account_ids, next_token, resource_arns, 'resourceArns'
+        operation,
+        max_results,
+        filters,
+        account_ids,
+        next_token,
+        resource_arns,
+        'resourceArns',
+        cpu_vendor_architectures,
     )
     if error:
         return error
