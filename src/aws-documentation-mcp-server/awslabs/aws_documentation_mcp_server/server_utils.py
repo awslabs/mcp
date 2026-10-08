@@ -20,6 +20,7 @@ from awslabs.aws_documentation_mcp_server.models import (
     TableResult,
 )
 from awslabs.aws_documentation_mcp_server.util import (
+    DocumentationToolError,
     UnreadablePageError,
     enforce_redirect_allowlist,
     extract_content_from_html,
@@ -147,7 +148,7 @@ async def read_documentation_impl(
             error_msg = f'Failed to fetch {url_str}: {str(e)}'
             logger.error(error_msg)
             await ctx.error(error_msg)
-            raise ValueError(error_msg) from e
+            raise DocumentationToolError(error_msg) from e
 
         page = Page.of(url_str, response)
 
@@ -157,7 +158,7 @@ async def read_documentation_impl(
             )
             logger.error(error_msg)
             await ctx.error(error_msg)
-            raise ValueError(error_msg)
+            raise DocumentationToolError(error_msg)
 
         page_raw = response.text
         content_type = response.headers.get('content-type', '')
@@ -169,7 +170,7 @@ async def read_documentation_impl(
             error_msg = page.message(f'{page.served} could not be read: {e}')
             logger.error(error_msg)
             await ctx.error(error_msg)
-            raise ValueError(error_msg) from e
+            raise DocumentationToolError(error_msg) from e
         content = truncate_large_tables(content, url=page.served)
     else:
         content = page_raw
@@ -263,7 +264,7 @@ async def read_sections_impl(
             error_msg = f'Failed to fetch {url_str}: {str(e)}'
             logger.error(error_msg)
             await ctx.error(error_msg)
-            raise ValueError(error_msg) from e
+            raise DocumentationToolError(error_msg) from e
 
         page = Page.of(url_str, response)
 
@@ -273,7 +274,7 @@ async def read_sections_impl(
             )
             logger.error(error_msg)
             await ctx.error(error_msg)
-            raise ValueError(error_msg)
+            raise DocumentationToolError(error_msg)
 
         page_raw = response.text
         content_type = response.headers.get('content-type', '')
@@ -283,7 +284,7 @@ async def read_sections_impl(
         error_msg = page.message(non_html_msg)
         logger.error(error_msg)
         await ctx.error(error_msg)
-        raise ValueError(error_msg)
+        raise DocumentationToolError(error_msg)
 
     try:
         filtered_content = extract_sections_from_html(page_raw, section_titles)
@@ -291,12 +292,12 @@ async def read_sections_impl(
         error_msg = page.message(f'{page.served} could not be read: {e}')
         logger.error(error_msg)
         await ctx.error(error_msg)
-        raise ValueError(error_msg) from e
+        raise DocumentationToolError(error_msg) from e
     except ValueError as e:
         error_msg = page.message(str(e))
         logger.error(error_msg)
         await ctx.error(error_msg)
-        raise ValueError(error_msg) from e
+        raise DocumentationToolError(error_msg) from e
 
     try:
         markdown = extract_content_from_html(filtered_content)
@@ -305,7 +306,7 @@ async def read_sections_impl(
         error_msg = page.message(f'{page.served} could not be read: {e}')
         logger.error(error_msg)
         await ctx.error(error_msg)
-        raise ValueError(error_msg) from e
+        raise DocumentationToolError(error_msg) from e
     except Exception as e:
         error_msg = str(e)
         logger.error(error_msg)
@@ -361,7 +362,7 @@ async def search_table_impl(
             error_msg = f'Failed to fetch {url_str}: {str(e)}'
             logger.error(error_msg)
             await ctx.error(error_msg)
-            raise ValueError(error_msg) from e
+            raise DocumentationToolError(error_msg) from e
 
         page = Page.of(url_str, response)
 
@@ -371,7 +372,7 @@ async def search_table_impl(
             )
             logger.error(error_msg)
             await ctx.error(error_msg)
-            raise ValueError(error_msg)
+            raise DocumentationToolError(error_msg)
 
         page_raw = response.text
         content_type = response.headers.get('content-type', '')
@@ -381,7 +382,7 @@ async def search_table_impl(
         error_msg = page.message(non_html_msg)
         logger.error(error_msg)
         await ctx.error(error_msg)
-        raise ValueError(error_msg)
+        raise DocumentationToolError(error_msg)
 
     try:
         table_data = parse_html_tables(page_raw, section_title if section_title else None)
@@ -389,7 +390,7 @@ async def search_table_impl(
         error_msg = page.message(f'{page.served} could not be read: {e}')
         logger.error(error_msg)
         await ctx.error(error_msg)
-        raise ValueError(error_msg) from e
+        raise DocumentationToolError(error_msg) from e
 
     if table_data is None:
         return SearchTableResponse(

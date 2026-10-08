@@ -17,6 +17,7 @@ import httpx
 import markdownify
 import re
 from awslabs.aws_documentation_mcp_server.models import RecommendationResult
+from mcp.server.mcpserver.exceptions import ToolError
 from typing import Any, Dict, List, Sequence
 from urllib.parse import quote_plus, urljoin
 
@@ -41,7 +42,20 @@ def _unwrap_broken_links(root) -> None:
             anchor.unwrap()
 
 
-class UnreadablePageError(ValueError):
+class DocumentationToolError(ToolError, ValueError):
+    """An anticipated failure whose message is meant for the caller.
+
+    The MCP SDK forwards a ``ToolError``'s message to the client and withholds the text of any
+    other exception, keeping crash details off the wire (python-sdk#3314). Every failure the read
+    path raises deliberately already builds a message for the caller, so those messages have to
+    travel as a ``ToolError`` to arrive at all.
+
+    ``ValueError`` stays in the bases because that is what these paths raised before, and callers
+    and tests catch it.
+    """
+
+
+class UnreadablePageError(DocumentationToolError):
     """Raised when a page carries no extractable content, only markup."""
 
 
@@ -327,10 +341,10 @@ def extract_sections_from_html(html: str, section_titles: List[str]) -> str:
         if available_level2_sections:
             available_list = ', '.join(f'"{section}"' for section in available_level2_sections)
             error_msg = f'No matching sections were found: {section_list}. Available sections: {available_list}. Please retry with one or more of these sections or use the read_documentation tool instead to get the full document content.'
-            raise ValueError(error_msg)
+            raise DocumentationToolError(error_msg)
         else:
             error_msg = 'This document does not contain subsections. Please use the read_documentation tool instead to get the full document content.'
-            raise ValueError(error_msg)
+            raise DocumentationToolError(error_msg)
 
     result_html = ''.join(matched_sections_html)
 
