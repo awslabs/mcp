@@ -68,6 +68,14 @@ DEFAULT_USER_AGENT = (
 )
 
 
+# Named so the caller has somewhere to go, as the missing-subsections message does. Only added
+# where searching could actually help: a page that is gone, or a redirect that landed elsewhere.
+_FIND_THE_PAGE = (
+    'The page may have moved or may no longer exist. '
+    'Use search_documentation to find the current page.'
+)
+
+
 # - '/a/index.html' 301s to '/a/' everywhere on the site
 # - a missing page gets a 302 to '/a/' instead
 _DIRECTORY_INDEX_FILENAME = 'index.html'
@@ -105,13 +113,14 @@ class Page:
         """Build from a completed response, stripping query parameters from both URLs."""
         return cls(_without_query(url_str), _without_query(str(response.url)))
 
+    @property
+    def substituted(self) -> bool:
+        """Whether the page that answered is a different page from the one asked for."""
+        return _page_identity(self.served) != _page_identity(self.requested)
+
     def message(self, *parts: str) -> str:
         """Join a substitution note and any reasons into one sentence run."""
-        note = (
-            f'Requested {self.requested}; served {self.served}.'
-            if _page_identity(self.served) != _page_identity(self.requested)
-            else ''
-        )
+        note = f'Requested {self.requested}; served {self.served}.' if self.substituted else ''
         return ' '.join(part for part in (note, *parts) if part)
 
 
@@ -154,7 +163,8 @@ async def read_documentation_impl(
 
         if response.status_code >= 400:
             error_msg = page.message(
-                f'Failed to fetch {page.served} - status code {response.status_code}'
+                f'Failed to fetch {page.served} - status code {response.status_code}',
+                _FIND_THE_PAGE,
             )
             logger.error(error_msg)
             await ctx.error(error_msg)
@@ -167,7 +177,10 @@ async def read_documentation_impl(
         try:
             content = extract_content_from_html(page_raw)
         except UnreadablePageError as e:
-            error_msg = page.message(f'{page.served} could not be read: {e}')
+            error_msg = page.message(
+                f'{page.served} could not be read: {e}',
+                _FIND_THE_PAGE if page.substituted else '',
+            )
             logger.error(error_msg)
             await ctx.error(error_msg)
             raise DocumentationToolError(error_msg) from e
@@ -270,7 +283,8 @@ async def read_sections_impl(
 
         if response.status_code >= 400:
             error_msg = page.message(
-                f'Failed to fetch {page.served} - status code {response.status_code}'
+                f'Failed to fetch {page.served} - status code {response.status_code}',
+                _FIND_THE_PAGE,
             )
             logger.error(error_msg)
             await ctx.error(error_msg)
@@ -289,7 +303,10 @@ async def read_sections_impl(
     try:
         filtered_content = extract_sections_from_html(page_raw, section_titles)
     except UnreadablePageError as e:
-        error_msg = page.message(f'{page.served} could not be read: {e}')
+        error_msg = page.message(
+            f'{page.served} could not be read: {e}',
+            _FIND_THE_PAGE if page.substituted else '',
+        )
         logger.error(error_msg)
         await ctx.error(error_msg)
         raise DocumentationToolError(error_msg) from e
@@ -303,7 +320,10 @@ async def read_sections_impl(
         markdown = extract_content_from_html(filtered_content)
         markdown = truncate_large_tables(markdown, url=page.served)
     except UnreadablePageError as e:
-        error_msg = page.message(f'{page.served} could not be read: {e}')
+        error_msg = page.message(
+            f'{page.served} could not be read: {e}',
+            _FIND_THE_PAGE if page.substituted else '',
+        )
         logger.error(error_msg)
         await ctx.error(error_msg)
         raise DocumentationToolError(error_msg) from e
@@ -368,7 +388,8 @@ async def search_table_impl(
 
         if response.status_code >= 400:
             error_msg = page.message(
-                f'Failed to fetch {page.served} - status code {response.status_code}'
+                f'Failed to fetch {page.served} - status code {response.status_code}',
+                _FIND_THE_PAGE,
             )
             logger.error(error_msg)
             await ctx.error(error_msg)
@@ -387,7 +408,10 @@ async def search_table_impl(
     try:
         table_data = parse_html_tables(page_raw, section_title if section_title else None)
     except UnreadablePageError as e:
-        error_msg = page.message(f'{page.served} could not be read: {e}')
+        error_msg = page.message(
+            f'{page.served} could not be read: {e}',
+            _FIND_THE_PAGE if page.substituted else '',
+        )
         logger.error(error_msg)
         await ctx.error(error_msg)
         raise DocumentationToolError(error_msg) from e

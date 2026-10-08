@@ -9,7 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Recoverable read-path failures now name a next step. A 4xx, and a redirect that landed on a page with nothing to read, both add "Use search_documentation to find the current page", in the same spirit as the existing missing-subsections message. A page that is simply unreadable at the URL asked for, and a transport failure, do not - nothing moved, so a search would be misdirection.
 - Read-path failures now reach the client with their message. Anticipated failures raise `DocumentationToolError`, a `ToolError` subclass, because MCP SDK 2.1.0 and later forward only a `ToolError`'s text and replace everything else with a bare `Error executing tool <name>`. This affected `read_documentation`, `read_sections` and `search_table`: a moved page, a 4xx response, an unreadable index shell or a rejected URL all arrived at the model with no reason and no suggested next step. Unexpected exceptions are deliberately left unconverted, so crash details stay off the wire.
+
+### Changed
+
+- Raised the `mcp` floor to `>=2.1.0`. 2.1.0 is where the SDK stopped forwarding non-`ToolError` messages, so an environment that resolved 2.0.0 hid this entire class of bug, CI included. The lock now resolves 2.3.0.
 
 ### Added
 
