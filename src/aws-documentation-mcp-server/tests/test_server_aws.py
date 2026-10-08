@@ -359,7 +359,11 @@ class TestReadSections:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.url = url
-        mock_response.text = '<html><body><h1>This is a page<h1/><h2>Best practices</h2><p>Content here.</p></body></html>'
+        # The h1 used to be written '<h1>This is a page<h1/>', which never closes, so the parser
+        # nested the headings and swallowed the page into one of them. Closed properly here so
+        # the test exercises title normalisation rather than malformed-markup recovery, which
+        # TestUnseparableSections now covers on its own.
+        mock_response.text = '<html><body><h1>This is a page</h1><h2>Best practices</h2><p>Content here.</p></body></html>'
         mock_response.headers = {'content-type': 'text/html'}
 
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
@@ -430,7 +434,7 @@ class TestReadSections:
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_response
             with patch(
-                'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html'
+                'awslabs.aws_documentation_mcp_server.server_utils.extract_sections_from_html'
             ) as mock_extract:
                 # Simulate extraction refusing the page
                 mock_extract.side_effect = UnreadablePageError('Page failed to be simplified')
@@ -1366,3 +1370,150 @@ class TestMain:
                 main()
                 mock_logger.assert_called_once_with('Starting AWS Documentation MCP Server')
                 mock_run.assert_called_once()
+
+
+class TestReadDocumentationAnchors:
+    """A URL fragment names a section of the page and is honoured as one."""
+
+    PAGE = """<html><body><main>
+      <h1 id="top">Bucket naming rules</h1><p>intro</p>
+      <h2 id="general">General rules</h2><p>general body</p>
+      <h2 id="automatically-created-buckets">Best practices</h2><p>practices body</p>
+        <h6 id="scheme">Choose a naming scheme</h6><p>scheme body</p>
+      <h2 id="guid">Creating a bucket with a GUID</h2><p>guid body</p>
+    </main></body></html>"""
+
+    def _response(self, url, text=None):
+        response = MagicMock()
+        response.status_code = 200
+        response.url = url
+        response.text = self.PAGE if text is None else text
+        response.headers = {'content-type': 'text/html'}
+        return response
+
+    @pytest.mark.asyncio
+    async def test_a_fragment_no_longer_fails_validation(self):
+        """'....html#anchor' does not end in .html, so this used to raise before fetching."""
+        url = 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/test.html#general'
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = self._response(url.split('#')[0])
+            result = await read_documentation(
+                ctx=MockContext(), url=url, max_length=10000, start_index=0
+            )
+        assert 'General rules' in result
+
+    @pytest.mark.asyncio
+    async def test_the_fragment_is_not_sent_to_the_origin(self):
+        """A '#' left on the URL would push '?session=' out of the query string."""
+        url = 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/test.html#general'
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = self._response(url.split('#')[0])
+            await read_documentation(ctx=MockContext(), url=url, max_length=10000, start_index=0)
+        called_url = mock_get.call_args[0][0]
+        assert '#' not in called_url
+        assert '?session=' in called_url
+
+    @pytest.mark.asyncio
+    async def test_only_the_named_section_comes_back(self):
+        """The section ends where the next heading of the same or higher level begins."""
+        url = (
+            'https://docs.aws.amazon.com/AmazonS3/latest/userguide/'
+            'test.html#automatically-created-buckets'
+        )
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = self._response(url.split('#')[0])
+            result = await read_documentation(
+                ctx=MockContext(), url=url, max_length=10000, start_index=0
+            )
+        assert 'practices body' in result
+        assert 'scheme body' in result  # an h6 child belongs to the section
+        assert 'general body' not in result
+        assert 'guid body' not in result
+
+    @pytest.mark.asyncio
+    async def test_an_anchor_beats_the_heading_it_sits_on(self):
+        """The anchor and the title disagree here, which is the point of addressing by anchor."""
+        url = (
+            'https://docs.aws.amazon.com/AmazonS3/latest/userguide/'
+            'test.html#automatically-created-buckets'
+        )
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = self._response(url.split('#')[0])
+            result = await read_documentation(
+                ctx=MockContext(), url=url, max_length=10000, start_index=0
+            )
+        assert '## Best practices' in result
+
+    @pytest.mark.asyncio
+    async def test_an_unknown_anchor_serves_the_whole_page_with_a_note(self):
+        """An anchor that misses must not be worse than no anchor at all."""
+        url = 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/test.html#no-such-anchor'
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = self._response(url.split('#')[0])
+            result = await read_documentation(
+                ctx=MockContext(), url=url, max_length=10000, start_index=0
+            )
+        assert 'was not found' in result
+        assert 'general body' in result
+        assert 'guid body' in result
+
+    @pytest.mark.asyncio
+    async def test_a_url_without_a_fragment_is_unchanged(self):
+        """The backward-compatibility guarantee."""
+        url = 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/test.html'
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = self._response(url)
+            result = await read_documentation(
+                ctx=MockContext(), url=url, max_length=10000, start_index=0
+            )
+        assert 'general body' in result
+        assert 'guid body' in result
+        assert 'was not found' not in result
+
+    @pytest.mark.asyncio
+    async def test_a_fragment_on_a_non_html_page_is_reported_not_applied(self):
+        """There are no headings to resolve against, so say so rather than fail."""
+        url = 'https://docs.aws.amazon.com/cli/latest/reference/index.html#general'
+        response = self._response(url.split('#')[0], text='plain text body')
+        response.headers = {'content-type': 'text/plain'}
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = response
+            result = await read_documentation(
+                ctx=MockContext(), url=url, max_length=10000, start_index=0
+            )
+        assert 'not an HTML page' in result
+        assert 'plain text body' in result
+
+    @pytest.mark.asyncio
+    async def test_a_bad_domain_is_still_rejected_with_a_fragment(self):
+        """Splitting the fragment off must not weaken the allowlist."""
+        with pytest.raises(ValueError, match='supported domains'):
+            await read_documentation(
+                ctx=MockContext(), url='https://evil.example.com/page.html#top'
+            )
+
+    @pytest.mark.asyncio
+    async def test_a_non_html_path_is_still_rejected_with_a_fragment(self):
+        """The .html requirement applies to the page, which is what is left after the split."""
+        with pytest.raises(ValueError, match='must end with .html'):
+            await read_documentation(
+                ctx=MockContext(), url='https://docs.aws.amazon.com/page.pdf#top'
+            )
+
+    @pytest.mark.asyncio
+    async def test_a_read_without_a_fragment_does_not_index_anchors(self):
+        """Indexing walks every tag, so a plain read must not pay for it.
+
+        On the Bedrock quotas page the index took longer to build than the markdown
+        conversion itself, so this guards the common path rather than a nicety.
+        """
+        url = 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/test.html'
+        with (
+            patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get,
+            patch(
+                'awslabs.aws_documentation_mcp_server.server_utils.extract_content_and_anchors'
+            ) as mock_with_anchors,
+        ):
+            mock_get.return_value = self._response(url)
+            await read_documentation(ctx=MockContext(), url=url, max_length=10000, start_index=0)
+        mock_with_anchors.assert_not_called()

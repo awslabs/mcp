@@ -17,16 +17,23 @@ import httpx
 import os
 import pytest
 from awslabs.aws_documentation_mcp_server.util import (
+    Heading,
+    SectionIndex,
     UnreadablePageError,
     add_search_intent_to_search_request,
+    anchor_section,
     enforce_redirect_allowlist,
+    extract_content_and_anchors,
     extract_content_from_html,
     extract_sections_from_html,
     format_documentation_result,
     has_empty_link_target,
     has_readable_text,
     is_html_content,
+    locate_headings,
+    markdown_heading_candidates,
     parse_recommendation_results,
+    section_markdown,
     url_matches_allowlist,
 )
 from unittest.mock import MagicMock, patch
@@ -695,11 +702,11 @@ class TestExtractSectionsFromHtml:
             <p>This is the end.</p>
         </body></html>"""
         result = extract_sections_from_html(html, ['Main Section'])
-        assert '<h2>Main Section</h2>' in result
-        assert '<p>This is the main content.</p>' in result
-        assert '<p>Some more content here.</p>' in result
-        assert '<h2>Introduction</h2>' not in result
-        assert '<h2>Conclusion</h2>' not in result
+        assert '## Main Section' in result
+        assert 'This is the main content.' in result
+        assert 'Some more content here.' in result
+        assert '## Introduction' not in result
+        assert '## Conclusion' not in result
 
     def test_multiple_sections_extraction(self):
         """Test extracting multiple sections."""
@@ -714,11 +721,11 @@ class TestExtractSectionsFromHtml:
             <p>Third content.</p>
         </body></html>"""
         result = extract_sections_from_html(html, ['First Section', 'Third Section'])
-        assert '<h2>First Section</h2>' in result
+        assert '## First Section' in result
         assert 'First content' in result
-        assert '<h2>Third Section</h2>' in result
+        assert '## Third Section' in result
         assert 'Third content' in result
-        assert '<h2>Second Section</h2>' not in result
+        assert '## Second Section' not in result
         assert 'Second content' not in result
 
     def test_case_insensitive_matching(self):
@@ -728,7 +735,7 @@ class TestExtractSectionsFromHtml:
             <p>Content here.</p>
         </body></html>"""
         result = extract_sections_from_html(html, ['MAIN SECTION'])
-        assert '<h2>Main Section</h2>' in result
+        assert '## Main Section' in result
         assert 'Content here' in result
 
     def test_whitespace_handling(self):
@@ -749,9 +756,9 @@ class TestExtractSectionsFromHtml:
 
         for test_input in test_cases:
             result = extract_sections_from_html(html, [test_input])
-            assert '<h2>Best practices</h2>' in result, f"Failed to match '{repr(test_input)}'"
+            assert '## Best practices' in result, f"Failed to match '{repr(test_input)}'"
             assert 'best practices' in result.lower(), f"Content missing for '{repr(test_input)}'"
-            assert '<h2>Another Section</h2>' not in result, (
+            assert '## Another Section' not in result, (
                 f"Should not include other sections for '{repr(test_input)}'"
             )
 
@@ -770,15 +777,15 @@ class TestExtractSectionsFromHtml:
             <p>Other content.</p>
         </body></html>"""
         result = extract_sections_from_html(html, ['Main Section'])
-        assert '<h2>Main Section</h2>' in result
+        assert '## Main Section' in result
         assert 'Main content' in result
-        assert '<h3>Subsection 1</h3>' in result
+        assert '### Subsection 1' in result
         assert 'Sub content 1' in result
-        assert '<h4>Sub-subsection</h4>' in result
+        assert '#### Sub-subsection' in result
         assert 'Sub-sub content' in result
-        assert '<h3>Subsection 2</h3>' in result
+        assert '### Subsection 2' in result
         assert 'Sub content 2' in result
-        assert '<h2>Another Section</h2>' not in result
+        assert '## Another Section' not in result
         assert 'Other content' not in result
 
     def test_no_sections_found_with_h2_headings(self):
@@ -826,9 +833,9 @@ class TestExtractSectionsFromHtml:
             html, ['Found Section', 'Missing Section', 'Another Found']
         )
 
-        assert '<h2>Found Section</h2>' in result
+        assert '## Found Section' in result
         assert 'Found content' in result
-        assert '<h2>Another Found</h2>' in result
+        assert '## Another Found' in result
         assert 'More content' in result
         assert 'The following requested sections were not found: "Missing Section"' in result
 
@@ -842,10 +849,10 @@ class TestExtractSectionsFromHtml:
             <p>Final line.</p>
         </body></html>"""
         result = extract_sections_from_html(html, ['Last Section'])
-        assert '<h2>Last Section</h2>' in result
+        assert '## Last Section' in result
         assert 'Last content' in result
         assert 'Final line' in result
-        assert '<h2>First Section</h2>' not in result
+        assert '## First Section' not in result
 
     def test_section_with_no_content(self):
         """Test empty sections."""
@@ -857,7 +864,7 @@ class TestExtractSectionsFromHtml:
             <p>More content.</p>
         </body></html>"""
         result = extract_sections_from_html(html, ['Empty Section'])
-        assert '<h2>Empty Section</h2>' in result
+        assert '## Empty Section' in result
 
     def test_mixed_heading_levels(self):
         """Test mixed heading hierarchy."""
@@ -874,12 +881,12 @@ class TestExtractSectionsFromHtml:
             <p>Content 1B.</p>
         </body></html>"""
         result = extract_sections_from_html(html, ['Level 2'])
-        assert '<h2>Level 2</h2>' in result
+        assert '## Level 2' in result
         assert 'Content 2' in result
-        assert '<h3>Level 3</h3>' in result  # Should include subsection
+        assert '### Level 3' in result  # Should include subsection
         assert 'Content 3' in result
-        assert '<h2>Another Level 2</h2>' not in result  # Should stop at same level
-        assert '<h1>Another Level 1</h1>' not in result
+        assert '## Another Level 2' not in result  # Should stop at same level
+        assert '# Another Level 1' not in result
 
     def test_duplicate_section_names(self):
         """Test handling of duplicate section titles (should get all matches)."""
@@ -892,7 +899,7 @@ class TestExtractSectionsFromHtml:
             <p>Second main content.</p>
         </body></html>"""
         result = extract_sections_from_html(html, ['Main Section'])
-        assert '<h2>Main Section</h2>' in result
+        assert '## Main Section' in result
         assert 'First main content' in result
         assert 'Second main content' in result  # Should include both matching sections
 
@@ -1057,8 +1064,8 @@ class TestSectionTitleMatching:
 
     HTML = (
         '<html><body><main>'
-        '<h2>Using the <code>Switch Role</code> API</h2><p>First body.</p>'
-        '<h2>Plain Heading</h2><p>Second body.</p>'
+        '<h2>Using the <code>Switch Role</code> API</h2><p>First body.'
+        '<h2>Plain Heading</h2><p>Second body.'
         '</main></body></html>'
     )
 
@@ -1094,3 +1101,357 @@ class TestWhitespaceOnlyBody:
         """Paragraphs holding only whitespace are not prose either."""
         with pytest.raises(UnreadablePageError):
             extract_content_from_html('<html><body><p> </p><p>  </p></body></html>')
+
+
+class TestMarkdownHeadingOffsets:
+    """Candidate heading lines. Deciding which are real is locate_headings' job, not this one."""
+
+    def test_offsets_point_at_the_hashes(self):
+        """Each offset is the index of the heading's own line."""
+        markdown = '# One\n\nbody\n\n## Two\n'
+        assert markdown_heading_candidates(markdown) == [(1, 0), (2, 13)]
+        assert markdown[13:].startswith('## Two')
+
+    def test_candidates_include_lines_inside_code(self):
+        """Deliberately unfiltered: this cannot tell code from prose, so it does not try.
+
+        An earlier version tracked fenced blocks here. markdownify indents a fence nested in a
+        list or definition list, which desynchronised the open/close pairing and swallowed whole
+        regions of the page - 11 real headings on the IAM condition-operators page, including
+        "Date condition operators", were read as code comments.
+        """
+        markdown = '# Real\n\n```\n# just a comment\n```\n\n## Also real\n'
+        assert [level for level, _ in markdown_heading_candidates(markdown)] == [1, 1, 2]
+
+    def test_hashes_without_a_space_are_not_a_candidate(self):
+        """'#1 priority' is prose, not an h1."""
+        assert markdown_heading_candidates('#1 priority\n') == []
+
+
+class TestAlignHeadings:
+    """Matching the page's headings into the markdown, which is what positions depend on."""
+
+    def test_a_code_comment_matches_nothing_and_is_ignored(self):
+        """The false candidate is rejected because the page has no such heading."""
+        markdown = '# Real\n\n```\n# just a comment\n```\n\n## Also real\n'
+        headings = [Heading.of(1, 'Real'), Heading.of(2, 'Also real')]
+        located = locate_headings(markdown, headings)
+        assert located == [0, markdown.index('## Also real')]
+
+    def test_a_heading_the_conversion_dropped_is_stepped_over(self):
+        """One missing heading must not strand every heading after it."""
+        markdown = '# One\n\n## Three\n'
+        headings = [Heading.of(1, 'One'), Heading.of(2, 'Two'), Heading.of(2, 'Three')]
+        located = locate_headings(markdown, headings)
+        assert located[0] == 0
+        assert located[1] is None
+        assert located[2] == markdown.index('## Three')
+
+    def test_a_permalink_suffix_still_matches(self):
+        """CLI reference headings carry a permalink anchor that becomes a markdown link."""
+        markdown = '## cp[¶](#cp "Permalink to this heading")\n\nbody\n'
+        assert locate_headings(markdown, [Heading.of(2, 'cp¶')]) == [0]
+
+    def test_a_code_element_in_a_heading_still_matches(self):
+        """<code> inside a heading comes back wrapped in backticks."""
+        markdown = '## Avoid `.` in names\n\nbody\n'
+        assert locate_headings(markdown, [Heading.of(2, 'Avoid . in names')]) == [0]
+
+    def test_the_same_level_is_required(self):
+        """Matching text at the wrong level is not the same heading."""
+        assert locate_headings('### Two\n', [Heading.of(2, 'Two')]) == [None]
+
+    def test_hashes_without_a_space_are_not_a_heading(self):
+        """'#1 priority' is prose, not an h1."""
+        assert markdown_heading_candidates('#1 priority\n') == []
+
+
+class TestSectionIndex:
+    """An anchor is resolved by the heading's position, because markdownify drops its id."""
+
+    HTML = """
+    <html><body><main>
+      <h1 id="page">Page</h1>
+      <h2 id="first">First</h2><p>first body</p>
+      <div id="wrapper"><h2 id="second">Second</h2><p>second body</p>
+        <h6 id="note">Note</h6><p>a nested callout</p>
+      </div>
+      <h2 id="third">Third</h2><p>third body</p>
+    </main></body></html>
+    """
+
+    def test_markdownify_drops_the_heading_id(self):
+        """The premise of the whole mechanism: the anchor cannot survive into the markdown."""
+        markdown = extract_content_from_html(self.HTML)
+        assert '## Second' in markdown
+        assert 'id=' not in markdown
+
+    def test_every_anchor_maps_to_a_heading_position(self):
+        """Ordinals are assigned in document order."""
+        _, anchors = extract_content_and_anchors(self.HTML)
+        assert anchors.position_for_anchor('page') == 0
+        assert anchors.position_for_anchor('first') == 1
+        assert anchors.position_for_anchor('second') == 2
+        assert anchors.position_for_anchor('note') == 3
+        assert anchors.position_for_anchor('third') == 4
+
+    def test_an_anchor_on_a_wrapper_resolves_to_the_heading_inside_it(self):
+        """AWS pages often put the id on a div around the section, not on its heading."""
+        _, anchors = extract_content_and_anchors(self.HTML)
+        assert anchors.position_for_anchor('wrapper') == anchors.position_for_anchor('second')
+
+    def test_an_unknown_fragment_resolves_to_nothing(self):
+        """A miss is reported as a miss rather than guessed at."""
+        _, anchors = extract_content_and_anchors(self.HTML)
+        assert anchors.position_for_anchor('no-such-anchor') is None
+
+    def test_a_percent_encoded_fragment_is_decoded(self):
+        """A fragment arrives percent-encoded in a URL but is plain in the id attribute."""
+        _, anchors = extract_content_and_anchors('<main><h2 id="a b">A B</h2></main>')
+        assert anchors.position_for_anchor('a%20b') == 0
+
+    def test_an_empty_named_anchor_resolves_to_the_following_heading(self):
+        """<a name="..."> carries no content, so the heading after it is the target."""
+        _, anchors = extract_content_and_anchors('<main><a name="jump"></a><h2>Target</h2></main>')
+        assert anchors.position_for_anchor('jump') == 0
+
+    def test_one_parse_serves_both_results(self):
+        """The markdown is identical to what the anchor-free path produces."""
+        markdown, _ = extract_content_and_anchors(self.HTML)
+        assert markdown == extract_content_from_html(self.HTML)
+
+
+class TestAnchorSection:
+    """Trimming is bounded by heading level, not by the next heading of any level."""
+
+    def _resolve(self, html, fragment):
+        markdown, anchors = extract_content_and_anchors(html)
+        return anchor_section(markdown, anchors, fragment)
+
+    def test_a_section_stops_at_the_next_sibling(self):
+        """The following h2 ends an h2's section."""
+        section = self._resolve(TestSectionIndex.HTML, 'first')
+        assert section.startswith('## First')
+        assert 'first body' in section
+        assert 'Second' not in section
+
+    def test_a_deeper_heading_stays_inside_the_section(self):
+        """AWS uses h6 for callouts, so stopping at any heading would cut a section short."""
+        section = self._resolve(TestSectionIndex.HTML, 'second')
+        assert 'second body' in section
+        assert '###### Note' in section
+        assert 'a nested callout' in section
+        assert 'Third' not in section
+
+    def test_the_last_section_runs_to_the_end(self):
+        """With no following heading the section ends with the document."""
+        section = self._resolve(TestSectionIndex.HTML, 'third')
+        assert section.startswith('## Third')
+        assert 'third body' in section
+
+    def test_a_top_level_anchor_takes_the_whole_page(self):
+        """Nothing outranks the h1, so its section is everything below it."""
+        section = self._resolve(TestSectionIndex.HTML, 'page')
+        assert 'first body' in section
+        assert 'third body' in section
+
+    def test_an_unknown_fragment_returns_none(self):
+        """None lets the caller serve the whole page instead of raising."""
+        assert self._resolve(TestSectionIndex.HTML, 'no-such-anchor') is None
+
+    def test_a_repeated_heading_is_told_apart_by_its_anchor(self):
+        """The case a section title cannot address, which is why anchors are worth honouring.
+
+        "Note" repeating under separate anchors is the common shape: heading text repeated on
+        6 of 9 sampled pages, "Note", "Important" and "Warning" being the usual culprits.
+        """
+        html = """<main>
+          <h3 id="note-request">Note</h3><p>about the request</p>
+          <h3 id="note-response">Note</h3><p>about the response</p>
+        </main>"""
+        request = self._resolve(html, 'note-request')
+        response = self._resolve(html, 'note-response')
+        assert 'about the request' in request and 'about the response' not in request
+        assert 'about the response' in response and 'about the request' not in response
+
+    def test_an_anchor_below_h2_resolves(self):
+        """Only 63 of 267 sampled anchors sit on an h2, so the deeper levels are the common case."""
+        html = """<main>
+          <h2 id="syntax">Request Syntax</h2><p>syntax body</p>
+          <h3 id="uri-parameters">URI Parameters</h3><p>parameter body</p>
+          <h4 id="bucket">bucket</h4><p>bucket body</p>
+          <h3 id="response">Response</h3><p>response body</p>
+        </main>"""
+        section = self._resolve(html, 'uri-parameters')
+        assert 'parameter body' in section
+        assert 'bucket body' in section  # the h4 belongs to the h3
+        assert 'response body' not in section
+        assert 'syntax body' not in section
+
+    def test_a_heading_inside_a_wrapper_is_still_bounded(self):
+        """The sibling walk the title path uses found no body for 47 of 176 anchored headings.
+
+        Markdown is flat, so nesting the heading inside a div changes nothing here.
+        """
+        html = """<main>
+          <div class="section"><h2 id="first">First</h2><p>first body</p></div>
+          <div class="section"><h2 id="second">Second</h2><p>second body</p></div>
+        </main>"""
+        section = self._resolve(html, 'first')
+        assert 'first body' in section
+        assert 'second body' not in section
+
+    def test_a_heading_whose_markdown_differs_still_resolves(self):
+        """A <code> element inside a heading comes back in backticks; the position does not care."""
+        html = '<main><h2 id="periods">Avoid <code>.</code> in names</h2><p>why</p></main>'
+        section = self._resolve(html, 'periods')
+        assert '`.`' in section
+        assert 'why' in section
+
+    def test_a_dropped_heading_only_costs_its_own_section(self):
+        """A heading missing from the markdown must not strand the ones around it.
+
+        An earlier version compared heading counts and refused to slice at all when they
+        disagreed. Counts disagreed on 5 of 9 sampled real pages, so anchors silently fell back
+        to the whole page on the majority of them. Matching each heading by level and text
+        instead confines the loss to the heading actually missing.
+        """
+        index = SectionIndex(
+            (
+                Heading.of(1, 'one', ('one',)),
+                Heading.of(2, 'two', ('two',)),
+                Heading.of(2, 'three', ('three',)),
+            )
+        )
+        # The index saw three headings; this markdown is missing "three".
+        markdown = '# One\n\nbody\n\n## Two\n\nmore\n'
+        assert anchor_section(markdown, index, 'two') == '## Two\n\nmore'
+        assert anchor_section(markdown, index, 'three') is None
+
+    def test_a_section_is_not_bounded_by_a_heading_that_went_missing(self):
+        """The next *located* sibling ends the section, not the next one in the index."""
+        index = SectionIndex(
+            (
+                Heading.of(2, 'first', ('first',)),
+                Heading.of(2, 'missing', ('missing',)),
+                Heading.of(2, 'last', ('last',)),
+            )
+        )
+        markdown = '## First\n\nfirst body\n\n## Last\n\nlast body\n'
+        assert anchor_section(markdown, index, 'first') == '## First\n\nfirst body'
+
+    def test_a_position_past_the_end_refuses_to_slice(self):
+        """Same guard reached directly, without a fragment to look up."""
+        index = SectionIndex((Heading.of(1, 'one', ('one',)),))
+        assert section_markdown('# One\n\nbody\n', index, 5) is None
+        assert section_markdown('# One\n\nbody\n', index, -1) is None
+
+    def test_a_consistent_index_does_slice(self):
+        """The guard must not be so strict that the ordinary case trips it."""
+        index = SectionIndex((Heading.of(1, 'one', ('one',)), Heading.of(2, 'two', ('two',))))
+        assert (
+            anchor_section('# One\n\nbody\n\n## Two\n\nmore\n', index, 'two') == '## Two\n\nmore'
+        )
+
+
+class TestSectionIndexTitleLookup:
+    """The title lookup exists so a title and an anchor resolve against the same headings."""
+
+    HTML = """<main>
+      <h2 id="syntax">Request Syntax</h2><p>syntax body</p>
+      <h3 id="note-a">Note</h3><p>first note</p>
+      <h2 id="response">Response</h2><p>response body</p>
+      <h3 id="note-b">Note</h3><p>second note</p>
+    </main>"""
+
+    def _index(self):
+        return extract_content_and_anchors(self.HTML)[1]
+
+    def test_a_title_resolves_to_a_position(self):
+        """The same currency the anchor lookup returns."""
+        assert self._index().positions_for_title('Request Syntax') == [0]
+
+    def test_a_title_is_matched_case_and_whitespace_insensitively(self):
+        """Callers do not reproduce the page's exact spacing."""
+        assert self._index().positions_for_title('  request   SYNTAX ') == [0]
+
+    def test_a_repeated_title_returns_every_match(self):
+        """Heading text is not unique, so the caller is told about all of them."""
+        assert self._index().positions_for_title('Note') == [1, 3]
+
+    def test_levels_narrow_the_match(self):
+        """Restricting to h2 keeps a title like "Note" from matching a callout."""
+        index = self._index()
+        assert index.positions_for_title('Note', levels=[2]) == []
+        assert index.positions_for_title('Response', levels=[2]) == [2]
+
+    def test_a_title_and_an_anchor_reach_the_same_section(self):
+        """The point of holding both on one record."""
+        markdown, index = extract_content_and_anchors(self.HTML)
+        by_anchor = anchor_section(markdown, index, 'response')
+        by_title = section_markdown(markdown, index, index.positions_for_title('Response')[0])
+        assert by_anchor == by_title
+        assert 'response body' in by_anchor
+
+
+class TestTitleMatchingIsLevelTwoOnly:
+    """Search returns the page's h2 titles, so h2 is what a title is allowed to match."""
+
+    HTML = """<main>
+      <h2 id="syntax">Request Syntax</h2><p>syntax body</p>
+      <h3 id="note-a">Note</h3><p>a nested note</p>
+      <h2 id="response">Response</h2><p>response body</p>
+    </main>"""
+
+    def test_a_title_matches_an_h2(self):
+        """The level a caller can actually name."""
+        result = extract_sections_from_html(self.HTML, ['Request Syntax'])
+        assert 'syntax body' in result
+        assert 'response body' not in result
+
+    def test_a_title_does_not_match_a_deeper_heading(self):
+        """A "Note" names a callout here, not a section, so it must not be selectable by title."""
+        with pytest.raises(ValueError, match='No matching sections were found'):
+            extract_sections_from_html(self.HTML, ['Note'])
+
+    def test_a_nested_heading_stays_inside_its_section(self):
+        """Not selectable on its own, but still returned as part of its parent."""
+        result = extract_sections_from_html(self.HTML, ['Request Syntax'])
+        assert '### Note' in result
+        assert 'a nested note' in result
+
+    def test_available_sections_list_only_h2_as_the_page_writes_them(self):
+        """The caller has to retype one of these, so casing is the page's, not normalised."""
+        with pytest.raises(ValueError) as excinfo:
+            extract_sections_from_html(self.HTML, ['Nonexistent'])
+        message = str(excinfo.value)
+        assert '"Request Syntax"' in message
+        assert '"Response"' in message
+        assert 'Note' not in message
+
+    def test_a_title_and_an_anchor_reach_the_same_section(self):
+        """Both lookups resolve against one heading table, so they cannot disagree."""
+        markdown, index = extract_content_and_anchors(self.HTML)
+        by_title = extract_sections_from_html(self.HTML, ['Response'])
+        by_anchor = anchor_section(markdown, index, 'response')
+        assert by_anchor == by_title
+
+    def test_sections_come_back_in_page_order_without_duplicates(self):
+        """Asking out of order, or twice, does not reorder or repeat the page."""
+        result = extract_sections_from_html(self.HTML, ['Response', 'Request Syntax', 'Response'])
+        assert result.index('syntax body') < result.index('response body')
+        assert result.count('response body') == 1
+
+
+class TestUnseparableSections:
+    """Markup that collapses its own headings leaves nothing to cut on."""
+
+    def test_an_unclosed_heading_is_reported_not_returned_empty(self):
+        """The h1 never closes, so the parser folds the whole page into it.
+
+        The section cannot be separated from the page. Saying so beats returning a header with
+        nothing underneath it, which is what an earlier version of this did.
+        """
+        html = '<html><body><h1>Page<h1/><h2>Best practices</h2><p>Content.</p></body></html>'
+        with pytest.raises(ValueError, match='could not be separated'):
+            extract_sections_from_html(html, ['Best practices'])

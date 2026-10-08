@@ -17,12 +17,16 @@ import httpx
 import markdownify
 import re
 from awslabs.aws_documentation_mcp_server.models import RecommendationResult
-from typing import Any, Dict, List, Sequence
-from urllib.parse import quote_plus, urljoin
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+from urllib.parse import quote_plus, unquote, urljoin
 
 
 # An unresolved cross-reference leaves an href with no filename, e.g. './.html#anchor'.
 _EMPTY_TARGET_FILENAMES = frozenset({'.html', '.htm'})
+
+# A URL fragment can only address a heading, so headings are what the anchor index records.
+HEADING_TAGS = ('h1', 'h2', 'h3', 'h4', 'h5', 'h6')
 
 
 def has_empty_link_target(href: str) -> bool:
@@ -59,6 +63,131 @@ def has_readable_text(soup) -> bool:
     )
 
 
+# Common content container selectors for AWS documentation
+_CONTENT_SELECTORS = (
+    'main',
+    'article',
+    '#main-content',
+    '.main-content',
+    '#content',
+    '.content',
+    "div[role='main']",
+    '#awsdocs-content',
+    '.awsui-article',
+)
+
+# Navigation elements that might be in the main content
+_NAV_SELECTORS = (
+    'noscript',
+    '.prev-next',
+    '#main-col-footer',
+    '.awsdocs-page-utilities',
+    '#quick-feedback-yes',
+    '#quick-feedback-no',
+    '.page-loading-indicator',
+    '#tools-panel',
+    '.doc-cookie-banner',
+    'awsdocs-copyright',
+    'awsdocs-thumb-feedback',
+)
+
+# Tags to strip - these are elements we don't want in the output
+_TAGS_TO_STRIP = [
+    'script',
+    'style',
+    'noscript',
+    'meta',
+    'link',
+    'footer',
+    'nav',
+    'aside',
+    'header',
+    # AWS documentation specific elements
+    'awsdocs-cookie-consent-container',
+    'awsdocs-feedback-container',
+    'awsdocs-page-header',
+    'awsdocs-page-header-container',
+    'awsdocs-filter-selector',
+    'awsdocs-breadcrumb-container',
+    'awsdocs-page-footer',
+    'awsdocs-page-footer-container',
+    'awsdocs-footer',
+    'awsdocs-cookie-banner',
+    # Common unnecessary elements
+    'js-show-more-buttons',
+    'js-show-more-text',
+    'feedback-container',
+    'feedback-section',
+    'doc-feedback-container',
+    'doc-feedback-section',
+    'warning-container',
+    'warning-section',
+    'cookie-banner',
+    'cookie-notice',
+    'copyright-section',
+    'legal-section',
+    'terms-section',
+]
+
+
+def _clean_main_content(html: str):
+    """Parse the page and return the cleaned element that markdownify will convert."""
+    # First use BeautifulSoup to clean up the HTML
+    from bs4 import BeautifulSoup
+
+    # Parse HTML with BeautifulSoup
+    soup = BeautifulSoup(html, 'html.parser')
+
+    # Try to find the main content area using common selectors
+    main_content = None
+    for selector in _CONTENT_SELECTORS:
+        content = soup.select_one(selector)
+        if content:
+            main_content = content
+            break
+
+    # If no main content found, use the body
+    if not main_content:
+        main_content = soup.body if soup.body else soup
+
+    for selector in _NAV_SELECTORS:
+        for element in main_content.select(selector):
+            element.decompose()
+
+    # strip= keeps a tag's text, so remove these outright
+    for selector in ('script', 'style'):
+        for element in main_content.select(selector):
+            element.decompose()
+
+    _unwrap_broken_links(main_content)
+
+    return main_content
+
+
+def _to_markdown(main_content) -> str:
+    """Convert a cleaned content element to markdown.
+
+    Raises:
+        UnreadablePageError: the conversion produced nothing but whitespace
+    """
+    # Use markdownify on the cleaned HTML content
+    content = markdownify.markdownify(
+        str(main_content),
+        heading_style=markdownify.ATX,
+        autolinks=False,  # markdownify gates this on default_title; keep [url](url)
+        default_title=False,  # would repeat the href as the title: [text](url "url")
+        escape_asterisks=True,
+        escape_underscores=True,
+        newline_style='SPACES',
+        strip=_TAGS_TO_STRIP,
+    )
+
+    if not content.strip():
+        raise UnreadablePageError('Page failed to be simplified from HTML')
+
+    return content
+
+
 def extract_content_from_html(html: str) -> str:
     """Extract and convert HTML content to Markdown format.
 
@@ -75,123 +204,307 @@ def extract_content_from_html(html: str) -> str:
         raise UnreadablePageError('Empty HTML content')
 
     try:
-        # First use BeautifulSoup to clean up the HTML
-        from bs4 import BeautifulSoup
-
-        # Parse HTML with BeautifulSoup
-        soup = BeautifulSoup(html, 'html.parser')
-
-        # Try to find the main content area
-        main_content = None
-
-        # Common content container selectors for AWS documentation
-        content_selectors = [
-            'main',
-            'article',
-            '#main-content',
-            '.main-content',
-            '#content',
-            '.content',
-            "div[role='main']",
-            '#awsdocs-content',
-            '.awsui-article',
-        ]
-
-        # Try to find the main content using common selectors
-        for selector in content_selectors:
-            content = soup.select_one(selector)
-            if content:
-                main_content = content
-                break
-
-        # If no main content found, use the body
-        if not main_content:
-            main_content = soup.body if soup.body else soup
-
-        # Remove navigation elements that might be in the main content
-        nav_selectors = [
-            'noscript',
-            '.prev-next',
-            '#main-col-footer',
-            '.awsdocs-page-utilities',
-            '#quick-feedback-yes',
-            '#quick-feedback-no',
-            '.page-loading-indicator',
-            '#tools-panel',
-            '.doc-cookie-banner',
-            'awsdocs-copyright',
-            'awsdocs-thumb-feedback',
-        ]
-
-        for selector in nav_selectors:
-            for element in main_content.select(selector):
-                element.decompose()
-
-        # strip= keeps a tag's text, so remove these outright
-        for selector in ('script', 'style'):
-            for element in main_content.select(selector):
-                element.decompose()
-
-        _unwrap_broken_links(main_content)
-
-        # Define tags to strip - these are elements we don't want in the output
-        tags_to_strip = [
-            'script',
-            'style',
-            'noscript',
-            'meta',
-            'link',
-            'footer',
-            'nav',
-            'aside',
-            'header',
-            # AWS documentation specific elements
-            'awsdocs-cookie-consent-container',
-            'awsdocs-feedback-container',
-            'awsdocs-page-header',
-            'awsdocs-page-header-container',
-            'awsdocs-filter-selector',
-            'awsdocs-breadcrumb-container',
-            'awsdocs-page-footer',
-            'awsdocs-page-footer-container',
-            'awsdocs-footer',
-            'awsdocs-cookie-banner',
-            # Common unnecessary elements
-            'js-show-more-buttons',
-            'js-show-more-text',
-            'feedback-container',
-            'feedback-section',
-            'doc-feedback-container',
-            'doc-feedback-section',
-            'warning-container',
-            'warning-section',
-            'cookie-banner',
-            'cookie-notice',
-            'copyright-section',
-            'legal-section',
-            'terms-section',
-        ]
-
-        # Use markdownify on the cleaned HTML content
-        content = markdownify.markdownify(
-            str(main_content),
-            heading_style=markdownify.ATX,
-            autolinks=False,  # markdownify gates this on default_title; keep [url](url)
-            default_title=False,  # would repeat the href as the title: [text](url "url")
-            escape_asterisks=True,
-            escape_underscores=True,
-            newline_style='SPACES',
-            strip=tags_to_strip,
-        )
-
-        if not content.strip():
-            raise UnreadablePageError('Page failed to be simplified from HTML')
-
-        return content
+        return _to_markdown(_clean_main_content(html))
     except UnreadablePageError:
         raise
     except Exception as e:
         raise UnreadablePageError(f'Error converting HTML to Markdown: {str(e)}') from e
+
+
+def normalize_title(text: str) -> str:
+    """Reduce heading text so a caller's wording matches the page's.
+
+    Shared by both ways of naming a section: ``extract_sections_from_html`` compares the titles
+    a caller passed against the page's headings, and ``heading_table`` records the same form so
+    a title lookup and an anchor lookup agree on what a heading is called.
+    """
+    return ' '.join(text.strip().lower().split())
+
+
+_MARKDOWN_LINK_RE = re.compile(r'\[([^\]]*)\]\([^)]*\)')
+_MARKDOWN_EMPHASIS_RE = re.compile(r'[`*_\\]')
+
+
+def heading_match_text(text: str) -> str:
+    """Reduce heading text far enough that the HTML and the markdown forms agree.
+
+    The conversion rewrites heading text in ways that are cosmetic but defeat equality:
+    ``<code>`` becomes backticks, ``escape_asterisks`` adds backslashes, and the permalink
+    ``<a>`` AWS puts inside CLI reference headings becomes a markdown link, so ``cp¶`` arrives
+    as ``cp[¶](#cp "Permalink to this heading")``. Stripping link syntax and emphasis leaves a
+    form both sides produce identically.
+    """
+    return normalize_title(_MARKDOWN_EMPHASIS_RE.sub('', _MARKDOWN_LINK_RE.sub(r'\1', text)))
+
+
+# A heading inside one of these is not a section boundary, and the conversion does not render
+# it as one either: markdownify indents it under the list or quote marker, or folds it into a
+# table cell, so it never begins a line. Counting it would desynchronise the two sides.
+NON_SECTION_ANCESTORS = frozenset({'blockquote', 'li', 'dd', 'dt', 'td', 'th', 'a'})
+
+
+@dataclass(frozen=True)
+class Heading:
+    """One heading on a page, described for both ways of naming a section.
+
+    Four views of one heading, all derived from the same source text:
+
+    - ``text`` as the page writes it, which is what to show a caller who has to retype it.
+    - ``title`` lowercased, for matching a title a caller supplied.
+    - ``match_text`` stripped further, for finding this heading again after conversion.
+    - ``anchors``, the ids and names that address it, for resolving a URL fragment.
+
+    Holding them on one record is what keeps a title lookup and an anchor lookup resolving to
+    the same heading, instead of each path discovering headings its own way.
+    """
+
+    level: int
+    text: str
+    title: str
+    anchors: Tuple[str, ...]
+    match_text: str
+
+    @classmethod
+    def of(cls, level: int, text: str, anchors: Tuple[str, ...] = ()) -> 'Heading':
+        """Build from a heading's raw text, deriving every normalised form from it.
+
+        The forms have to come from the same text or a heading becomes unfindable, so this is
+        the only way one should be constructed.
+        """
+        return cls(
+            level=level,
+            text=' '.join(text.split()),
+            title=normalize_title(text),
+            anchors=anchors,
+            match_text=heading_match_text(text),
+        )
+
+
+def heading_table(main_content) -> List[Heading]:
+    """Describe every section heading on the page, in document order.
+
+    One forward pass over the DOM. An anchor belongs to the first heading at or after it, which
+    covers all three ways AWS pages carry one: on the heading itself, on a wrapper around the
+    section, and on an empty ``<a name="...">`` just before the heading.
+
+    Resolving each id on its own with ``find_next`` instead rescans the rest of the document
+    per id, which is quadratic in the number of ids. On the Bedrock quotas page, whose table
+    rows carry thousands of them, that measured 1.5s against 3ms here.
+
+    Headings nested in a list, quote or table cell are skipped - see
+    ``NON_SECTION_ANCESTORS``. Their anchors fall through to the next real section heading,
+    which is where a reader following the link would land anyway.
+    """
+    headings: List[Heading] = []
+    pending: List[str] = []
+
+    for element in main_content.find_all(True):
+        names = [
+            value
+            for value in (element.get('id'), element.get('name'))
+            if isinstance(value, str) and value
+        ]
+        is_section_heading = element.name in HEADING_TAGS and not any(
+            parent.name in NON_SECTION_ANCESTORS for parent in element.parents
+        )
+        if is_section_heading:
+            # Anchors seen since the previous heading were waiting for this one.
+            headings.append(
+                Heading.of(int(element.name[1]), element.get_text(), (*pending, *names))
+            )
+            pending.clear()
+        else:
+            pending.extend(names)
+
+    # Anchors left pending sit after the last heading and so address no section at all.
+    return headings
+
+
+@dataclass(frozen=True)
+class SectionIndex:
+    """The page's headings, and the lookups that turn a caller's name for one into its position.
+
+    Position is the currency because markdownify drops the ``id`` off a heading, so by the time
+    the page is markdown a fragment has nothing left to match against. Position survives the
+    conversion: ``#automatically-created-buckets`` is heading 7 of 16, and heading 7 of the
+    markdown is the same heading.
+
+    Position also addresses a heading that a title cannot. Over 9 sampled pages carrying 267
+    anchors, heading text repeated on 6 of the 9 - "Note", "Important" and "Warning" being the
+    usual culprits - and markdown may render a heading differently from its source text, since
+    a ``<code>`` element inside one comes back wrapped in backticks.
+    """
+
+    headings: Tuple[Heading, ...]
+
+    @property
+    def heading_count(self) -> int:
+        """How many headings the page has, for checking the markdown still agrees."""
+        return len(self.headings)
+
+    def position_for_anchor(self, fragment: str) -> Optional[int]:
+        """Return the heading position a URL fragment addresses, or None if it addresses none."""
+        wanted = unquote(fragment).strip()
+        for position, heading in enumerate(self.headings):
+            if wanted in heading.anchors:
+                return position
+        return None
+
+    def positions_for_title(self, title: str, levels: Optional[Sequence[int]] = None) -> List[int]:
+        """Return every heading position matching a title, optionally limited to some levels.
+
+        Returns a list because heading text is not unique on a page. ``levels`` exists because
+        the level a title is allowed to match is a policy choice, not a property of the page:
+        restricting to ``h2`` keeps a title like "Note" from matching a callout.
+        """
+        wanted = normalize_title(title)
+        return [
+            position
+            for position, heading in enumerate(self.headings)
+            if heading.title == wanted and (levels is None or heading.level in levels)
+        ]
+
+
+def extract_content_and_anchors(html: str) -> Tuple[str, SectionIndex]:
+    """Convert HTML to markdown and record where each of its anchors points.
+
+    One parse serves both, so honouring an anchor costs no extra pass over the page.
+
+    Args:
+        html: Raw HTML content to process
+
+    Returns:
+        The markdown, and the anchor index for resolving a fragment against it
+
+    Raises:
+        UnreadablePageError: the page carries no extractable content
+    """
+    if not html:
+        raise UnreadablePageError('Empty HTML content')
+
+    try:
+        main_content = _clean_main_content(html)
+        return _to_markdown(main_content), SectionIndex(tuple(heading_table(main_content)))
+    except UnreadablePageError:
+        raise
+    except Exception as e:
+        raise UnreadablePageError(f'Error converting HTML to Markdown: {str(e)}') from e
+
+
+_ATX_HEADING_RE = re.compile(r'^(#{1,6})\s+(\S.*)$')
+
+# How far ahead to look for the next expected heading. The conversion occasionally drops one
+# outright, and without a little slack a single miss would strand every heading after it.
+_ALIGNMENT_LOOKAHEAD = 4
+
+
+def markdown_heading_candidates(markdown: str) -> List[Tuple[int, int]]:
+    """List the (level, character offset) of every line that looks like an ATX heading.
+
+    Candidates only. A '# ' inside a fenced code block is a comment in the sample rather than a
+    heading, and this does not try to tell the difference - ``locate_headings`` does, by matching
+    against the headings the page actually has.
+    """
+    offsets: List[Tuple[int, int]] = []
+    position = 0
+
+    for line in markdown.splitlines(keepends=True):
+        if match := _ATX_HEADING_RE.match(line):
+            offsets.append((len(match.group(1)), position))
+        position += len(line)
+
+    return offsets
+
+
+def locate_headings(markdown: str, headings: Sequence[Heading]) -> List[Optional[int]]:
+    """Locate each of the page's headings in the markdown, by character offset.
+
+    Returns one entry per heading, in the same order, holding the offset of its heading line or
+    None if it could not be found.
+
+    Matching on level and text rather than counting is what makes this reliable. Counting
+    assumes every candidate line is a heading and every heading becomes a candidate, and
+    neither holds: a '# ' inside a code fence is not a heading, and the conversion sometimes
+    drops one. Both break a count, and a broken count silently shifts every position after it.
+    Text matching rejects a false candidate because it matches nothing the page has, and the
+    lookahead steps over a heading the conversion dropped.
+    """
+    located: List[Optional[int]] = [None] * len(headings)
+    cursor = 0
+
+    for level, offset in markdown_heading_candidates(markdown):
+        if cursor >= len(headings):
+            break
+        line_end = markdown.find('\n', offset)
+        match = _ATX_HEADING_RE.match(
+            markdown[offset : line_end if line_end != -1 else len(markdown)]
+        )
+        if match is None:
+            continue
+        candidate = heading_match_text(match.group(2))
+        for ahead in range(min(_ALIGNMENT_LOOKAHEAD, len(headings) - cursor)):
+            heading = headings[cursor + ahead]
+            if heading.level == level and heading.match_text == candidate:
+                located[cursor + ahead] = offset
+                cursor += ahead + 1
+                break
+
+    return located
+
+
+def section_markdown(markdown: str, index: SectionIndex, position: int) -> Optional[str]:
+    """Return the markdown of one section, named by its heading's position.
+
+    The position can come from either lookup on ``SectionIndex``, so an anchor and a title
+    reach the same slicing. Returns None when the heading cannot be found in the markdown
+    rather than raising, leaving the caller free to serve the whole page instead.
+
+    Args:
+        markdown: The page as markdown
+        index: The section index built from the same page
+        position: The heading's position in document order
+
+    Returns:
+        The section's markdown, or None if that heading could not be located
+    """
+    if not 0 <= position < index.heading_count:
+        return None
+
+    located = locate_headings(markdown, index.headings)
+    start = located[position]
+    if start is None:
+        return None
+
+    level = index.headings[position].level
+    end = len(markdown)
+    for later in range(position + 1, len(located)):
+        # A sibling or an ancestor ends the section; a deeper heading belongs to it. AWS uses
+        # h6 for both callouts and real subsections, so stopping at the next heading of any
+        # level would cut a section off at its first "Note".
+        if index.headings[later].level <= level and located[later] is not None:
+            end = located[later]
+            break
+
+    return markdown[start:end].strip()
+
+
+def anchor_section(markdown: str, index: SectionIndex, fragment: str) -> Optional[str]:
+    """Return just the section a URL fragment addresses.
+
+    Selecting the heading is all that is specific to anchors; the bounding is shared with any
+    other way of naming a section. Returns None when the fragment resolves to nothing, so an
+    anchor that misses is no worse for the agent than a read with no anchor at all.
+
+    Args:
+        markdown: The page as markdown
+        index: The section index built from the same page
+        fragment: The URL fragment, without its leading '#'
+
+    Returns:
+        The section's markdown, or None if the fragment addresses no heading
+    """
+    position = index.position_for_anchor(fragment)
+    return None if position is None else section_markdown(markdown, index, position)
 
 
 def is_html_content(page_raw: str, content_type: str) -> bool:
@@ -273,75 +586,90 @@ def format_documentation_result(url: str, content: str, start_index: int, max_le
     return result
 
 
+# A title names a section, and on these pages a section is an h2. Search returns the page's h2
+# titles as its table of contents, so those are the titles a caller has to work with, and
+# matching deeper levels would let a title like "Note" select a callout instead of a section.
+TITLE_MATCH_LEVELS = (2,)
+
+
 def extract_sections_from_html(html: str, section_titles: List[str]) -> str:
-    """Extract requested sections from HTML.
+    """Extract the named sections from a page, as markdown.
+
+    Resolves each title against the same heading table an anchor resolves against, so the two
+    ways of naming a section cannot disagree about which heading a page has or where it ends.
+    Titles are matched at the levels in ``TITLE_MATCH_LEVELS``.
 
     Args:
         html: Raw HTML content
-        section_titles: List of section titles to extract
+        section_titles: Titles of the sections to return
 
     Returns:
-        Filtered HTML content containing only the requested sections
+        Markdown holding only the requested sections, in the order the page presents them
+
+    Raises:
+        UnreadablePageError: the page carries no readable content
+        ValueError: none of the requested titles name a section on the page
     """
     if not html or not section_titles:
         return 'No content or section titles provided'
 
-    from bs4 import BeautifulSoup, Tag
+    from bs4 import BeautifulSoup
 
-    soup = BeautifulSoup(html, 'html.parser')
-
-    if not has_readable_text(soup):
+    if not has_readable_text(BeautifulSoup(html, 'html.parser')):
         raise UnreadablePageError('The page carries no readable content.')
 
-    normalized_titles = {}
-    for title in section_titles:
-        normalized_key = ' '.join(title.strip().lower().split())
-        normalized_titles[normalized_key] = title.strip()
+    markdown, index = extract_content_and_anchors(html)
 
-    h2_tags = soup.find_all('h2')
-    available_level2_sections = []
-    matched_sections_html = []
-    found_sections = set()
+    # Page order, not the order the caller asked in, and deduplicated: one title can name
+    # several headings, and two titles can name the same one.
+    wanted_positions = sorted(
+        {
+            position
+            for title in section_titles
+            for position in index.positions_for_title(title, levels=TITLE_MATCH_LEVELS)
+        }
+    )
+    found_titles = {
+        title.strip()
+        for title in section_titles
+        if index.positions_for_title(title, levels=TITLE_MATCH_LEVELS)
+    }
 
-    for h2 in h2_tags:
-        h2_text = ' '.join(h2.get_text().split())
-        available_level2_sections.append(h2_text)
-
-        normalized_h2 = h2_text.lower()
-
-        if normalized_h2 in normalized_titles:
-            section_content = [h2]
-
-            for sibling in h2.find_next_siblings():
-                # Only Tag elements have name attribute; skip NavigableStrings
-                if isinstance(sibling, Tag) and sibling.name in ['h1', 'h2']:
-                    break
-                section_content.append(sibling)
-
-            section_html_str = ''.join(str(elem) for elem in section_content)
-            matched_sections_html.append(section_html_str)
-            found_sections.add(normalized_titles[normalized_h2])
-
-    if not found_sections:
+    if not found_titles:
         section_list = ', '.join(f'"{title}"' for title in section_titles)
-        if available_level2_sections:
-            available_list = ', '.join(f'"{section}"' for section in available_level2_sections)
+        # As the page writes them, since the caller has to retype one of these to retry.
+        available = [h.text for h in index.headings if h.level in TITLE_MATCH_LEVELS]
+        if available:
+            available_list = ', '.join(f'"{section}"' for section in available)
             error_msg = f'No matching sections were found: {section_list}. Available sections: {available_list}. Please retry with one or more of these sections or use the read_documentation tool instead to get the full document content.'
             raise ValueError(error_msg)
         else:
             error_msg = 'This document does not contain subsections. Please use the read_documentation tool instead to get the full document content.'
             raise ValueError(error_msg)
 
-    result_html = ''.join(matched_sections_html)
+    sections = [section_markdown(markdown, index, position) for position in wanted_positions]
+    result = '\n\n'.join(section for section in sections if section)
 
-    if len(found_sections) < len(section_titles):
+    if not result:
+        # The titles named headings the page has, but none could be found again in the converted
+        # markdown. That happens when malformed markup collapses the headings into one another,
+        # so there is no section boundary left to cut on. Say so rather than return a header with
+        # nothing under it.
+        raise ValueError(
+            'The requested sections could not be separated from the rest of the page. '
+            'Please use the read_documentation tool instead to get the full document content.'
+        )
+
+    if len(found_titles) < len({title.strip() for title in section_titles}):
         missing_sections = [
-            title.strip() for title in section_titles if title.strip() not in found_sections
+            title.strip() for title in section_titles if title.strip() not in found_titles
         ]
         missing_list = ', '.join(f'"{title}"' for title in missing_sections)
-        result_html += f'\n\n<blockquote><strong>Note</strong>: The following requested sections were not found: {missing_list}</blockquote>'
+        result += (
+            f'\n\n> **Note**: The following requested sections were not found: {missing_list}'
+        )
 
-    return result_html
+    return result
 
 
 def truncate_large_tables(
