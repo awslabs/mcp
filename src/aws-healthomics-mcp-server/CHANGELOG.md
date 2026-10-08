@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
+  - **StartAHORun tags**: `StartAHORun` now accepts an optional `tags` map that is applied to the run at start
   - **Remote-Deployment Integration Test Harness**: Added an opt-in `integration/` harness that provisions live AWS infrastructure to verify the server's `streamable-http` transport and multi-tenant credential resolution end-to-end behind real fronting layers, then tears it down
     - Zero-setup **AgentCore Runtime** deployment that auto-provisions the tenant IAM roles, the execution role, a Cognito identity provider (minting caller tokens), the DynamoDB role registry, the ECR image, and the AgentCore Runtime, with a one-shot `e2e` CLI that provisions, runs the tests, and tears everything down; plus an **API Gateway** deployment
     - `--inbound explicit` workaround to run the suite end-to-end in accounts whose SCPs deny `sts:TagSession`
