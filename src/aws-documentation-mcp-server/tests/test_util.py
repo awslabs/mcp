@@ -1455,3 +1455,50 @@ class TestUnseparableSections:
         html = '<html><body><h1>Page<h1/><h2>Best practices</h2><p>Content.</p></body></html>'
         with pytest.raises(ValueError, match='could not be separated'):
             extract_sections_from_html(html, ['Best practices'])
+
+
+class TestEmptyHeadings:
+    """An empty heading is a marker, not a boundary, and AWS hangs real anchors on them."""
+
+    HTML = """<main>
+      <h2 id="return-values">Return values</h2><p>intro</p>
+      <h3 id="getatt">Fn::GetAtt</h3><p>getatt body</p>
+      <h4 id="getatt-alias"></h4>
+      <h2 id="examples">Examples</h2><p>examples body</p>
+    </main>"""
+
+    def test_an_empty_heading_is_not_a_section(self):
+        """It has no title and the conversion renders nothing for it."""
+        _, index = extract_content_and_anchors(self.HTML)
+        assert [h.text for h in index.headings] == [
+            'Return values',
+            'Fn::GetAtt',
+            'Examples',
+        ]
+
+    def test_its_anchor_attaches_to_the_section_above_it(self):
+        """CloudFormation puts a return-value anchor on an empty heading just after the real one.
+
+        Attaching forwards would resolve it to the next section and skip the content it names:
+        on the live AWS::S3::Bucket page that returned 62% of the page starting at "Examples",
+        against 4.4% starting at "Fn::GetAtt".
+        """
+        markdown, index = extract_content_and_anchors(self.HTML)
+        assert index.position_for_anchor('getatt-alias') == index.position_for_anchor('getatt')
+        section = anchor_section(markdown, index, 'getatt-alias')
+        assert section.startswith('### Fn::GetAtt')
+        assert 'getatt body' in section
+        assert 'examples body' not in section
+
+    def test_an_empty_heading_does_not_bound_the_section_above_it(self):
+        """Being dropped from the table means it cannot cut the section short either."""
+        markdown, index = extract_content_and_anchors(self.HTML)
+        section = anchor_section(markdown, index, 'getatt')
+        assert 'getatt body' in section
+
+    def test_a_named_anchor_before_a_heading_still_attaches_forwards(self):
+        """The empty-heading rule must not invert the ordinary anchor-before-heading case."""
+        _, index = extract_content_and_anchors(
+            '<main><h2>First</h2><p>a</p><a name="jump"></a><h2>Second</h2><p>b</p></main>'
+        )
+        assert index.position_for_anchor('jump') == 1

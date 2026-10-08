@@ -17,7 +17,7 @@ import httpx
 import markdownify
 import re
 from awslabs.aws_documentation_mcp_server.models import RecommendationResult
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 from urllib.parse import quote_plus, unquote, urljoin
 
@@ -302,15 +302,21 @@ def heading_table(main_content) -> List[Heading]:
             for value in (element.get('id'), element.get('name'))
             if isinstance(value, str) and value
         ]
-        is_section_heading = element.name in HEADING_TAGS and not any(
+        in_section_position = element.name in HEADING_TAGS and not any(
             parent.name in NON_SECTION_ANCESTORS for parent in element.parents
         )
-        if is_section_heading:
+        has_text = bool(element.get_text(strip=True))
+
+        if in_section_position and has_text:
             # Anchors seen since the previous heading were waiting for this one.
             headings.append(
                 Heading.of(int(element.name[1]), element.get_text(), (*pending, *names))
             )
             pending.clear()
+        elif in_section_position and names and headings:
+            # An empty heading marks the section above it, not a new one, so its anchors
+            # attach backwards. Forwards would skip the content they name.
+            headings[-1] = replace(headings[-1], anchors=(*headings[-1].anchors, *names))
         else:
             pending.extend(names)
 
