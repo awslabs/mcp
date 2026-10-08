@@ -1195,3 +1195,60 @@ def _format_pricing_plans(pricing_plans: List[Dict[str, Any]]) -> List[Dict[str,
         formatted_plans.append(formatted_plan)
 
     return formatted_plans
+
+
+async def get_billing_transfer_preference(
+    ctx: Context,
+    responsibility_transfer_arn: str,
+) -> Dict[str, Any]:
+    """Get the auto billing group creation preference for a billing transfer.
+
+    Args:
+        ctx: The MCP context object.
+        responsibility_transfer_arn: The ARN of the billing transfer whose
+            preference to retrieve.
+
+    Returns:
+        Dict containing the formatted billing transfer preference.
+    """
+    try:
+        bc_client = _create_billing_conductor_client()
+
+        await ctx.info(f'Fetching billing transfer preference for {responsibility_transfer_arn}')
+        response = bc_client.get_billing_transfer_preference(
+            ResponsibilityTransferArn=responsibility_transfer_arn
+        )
+
+        return format_response('success', _format_billing_transfer_preference(response))
+
+    except Exception as e:
+        return await handle_aws_error(ctx, e, 'getBillingTransferPreference', 'Billing Conductor')
+
+
+def _format_billing_transfer_preference(preference: Dict[str, Any]) -> Dict[str, Any]:
+    """Format a billing transfer preference from the AWS API response.
+
+    Args:
+        preference: A GetBillingTransferPreference response from the Billing Conductor API.
+
+    Returns:
+        Dict with the formatted billing transfer preference fields.
+    """
+    formatted: Dict[str, Any] = {
+        'responsibility_transfer_arn': preference.get('ResponsibilityTransferArn'),
+    }
+
+    auto_creation = preference.get('AutoBillingTransferBillingGroupCreation')
+    if auto_creation is not None:
+        formatted['auto_billing_transfer_billing_group_creation'] = {
+            'enabled': auto_creation.get('Enabled'),
+            'pricing_plan_arn': auto_creation.get('PricingPlanArn'),
+        }
+
+    # Empty when the preference has never been set for the billing transfer.
+    if preference.get('LastModifiedTime') is not None:
+        formatted['last_modified_time'] = timestamp_to_utc_iso_string(
+            preference['LastModifiedTime']
+        )
+
+    return formatted

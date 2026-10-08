@@ -141,6 +141,14 @@ def test_list_pricing_plans_tool_registered():
     assert tool.name == 'list-pricing-plans'
 
 
+def test_get_billing_transfer_preference_tool_registered():
+    """Test that the get_billing_transfer_preference tool is registered."""
+    tool = asyncio.run(billing_conductor_server.get_tool('get-billing-transfer-preference'))
+    assert tool is not None
+    assert tool.name == 'get-billing-transfer-preference'
+    assert 'responsibility_transfer_arn' in tool.parameters.get('required', [])
+
+
 def test_list_custom_line_items_tool_registered():
     """Test that the list_custom_line_items tool is registered."""
     tool = asyncio.run(billing_conductor_server.get_tool('list-custom-line-items'))
@@ -796,6 +804,56 @@ class TestListAccountAssociationsTool:
             }
 
             result = await real_fn(mock_ctx)  # type: ignore
+
+            assert result['status'] == STATUS_ERROR
+            mock_handle.assert_awaited_once()
+
+
+# --- Get Billing Transfer Preference Tool Tests ---
+
+
+@pytest.mark.asyncio
+class TestGetBillingTransferPreferenceTool:
+    """Tests for the get_billing_transfer_preference MCP tool wrapper."""
+
+    async def test_delegates_to_operation(self, mock_ctx):
+        """Test that the tool delegates to the operation function."""
+        bc_mod = _reload_bc_with_identity_decorator()
+        real_fn = bc_mod.get_billing_transfer_preference  # type: ignore
+        transfer_arn = (
+            'arn:aws:organizations::123456789012:transfer/o-abc123/billing/inbound/rt-12345678'
+        )
+
+        with patch.object(
+            bc_mod, '_get_billing_transfer_preference', new_callable=AsyncMock
+        ) as mock_op:
+            mock_op.return_value = {
+                'status': STATUS_SUCCESS,
+                'data': {'responsibility_transfer_arn': transfer_arn},
+            }
+
+            result = await real_fn(mock_ctx, responsibility_transfer_arn=transfer_arn)  # type: ignore
+
+            assert result['status'] == STATUS_SUCCESS
+            mock_op.assert_awaited_once_with(mock_ctx, transfer_arn)
+
+    async def test_handles_unexpected_exception(self, mock_ctx):
+        """Test that unexpected exceptions are caught by the tool wrapper."""
+        bc_mod = _reload_bc_with_identity_decorator()
+        real_fn = bc_mod.get_billing_transfer_preference  # type: ignore
+
+        with (
+            patch.object(
+                bc_mod, '_get_billing_transfer_preference', new_callable=AsyncMock
+            ) as mock_op,
+            patch.object(bc_mod, 'handle_aws_error', new_callable=AsyncMock) as mock_handle,
+        ):
+            mock_op.side_effect = RuntimeError('boom')
+            mock_handle.return_value = {'status': STATUS_ERROR, 'message': 'boom'}
+
+            result = await real_fn(  # type: ignore
+                mock_ctx, responsibility_transfer_arn='arn:example'
+            )
 
             assert result['status'] == STATUS_ERROR
             mock_handle.assert_awaited_once()
