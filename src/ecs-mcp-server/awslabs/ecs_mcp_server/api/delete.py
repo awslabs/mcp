@@ -85,10 +85,10 @@ async def delete_infrastructure(
     # Get CloudFormation client
     cloudformation = await get_aws_client("cloudformation")
 
-    # List all stacks to find matching ones
+    # List all stacks to find matching ones (ListStacks is paginated)
     try:
-        stacks_response = cloudformation.list_stacks(
-            StackStatusFilter=[
+        list_stacks_kwargs = {
+            "StackStatusFilter": [
                 "CREATE_COMPLETE",
                 "CREATE_IN_PROGRESS",
                 "CREATE_FAILED",
@@ -103,9 +103,18 @@ async def delete_infrastructure(
                 "UPDATE_ROLLBACK_FAILED",
                 "UPDATE_ROLLBACK_IN_PROGRESS",
             ]
-        )
+        }
 
-        stacks = stacks_response.get("StackSummaries", [])
+        stacks = []
+        while True:
+            stacks_response = cloudformation.list_stacks(**list_stacks_kwargs)
+            stacks.extend(stacks_response.get("StackSummaries", []))
+
+            next_token = stacks_response.get("NextToken")
+            if not next_token:
+                break
+            list_stacks_kwargs["NextToken"] = next_token
+
     except Exception as e:
         logger.error(f"Error listing CloudFormation stacks: {e}")
         return {
