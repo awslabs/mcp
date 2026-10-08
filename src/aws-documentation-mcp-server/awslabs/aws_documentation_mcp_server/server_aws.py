@@ -44,6 +44,7 @@ from loguru import logger
 from mcp.server.mcpserver import Context, MCPServer
 from pydantic import BaseModel, Field, ValidationError
 from typing import Any, Dict, List, Optional, Type, TypeVar
+from urllib.parse import urldefrag
 
 
 SEARCH_API_URL = 'https://proxy.search.docs.aws.com/search'
@@ -118,7 +119,9 @@ mcp = MCPServer(
 @mcp.tool()
 async def read_documentation(
     ctx: Context,
-    url: str = Field(description='URL of the AWS documentation page to read'),
+    url: str = Field(
+        description='URL of the AWS documentation page to read. May end with a #section-anchor to read only that section.'
+    ),
     max_length: int = Field(
         default=5000,
         description='Maximum number of characters to return.',
@@ -127,7 +130,7 @@ async def read_documentation(
     ),
     start_index: int = Field(
         default=0,
-        description='On return output starting at this character index, useful if a previous fetch was truncated and more content is required.',
+        description='On return output starting at this character index, useful if a previous fetch was truncated and more content is required. Counts from the start of the page, or from the start of the section when the URL carries a #section-anchor.',
         ge=0,
     ),
 ) -> str:
@@ -142,12 +145,33 @@ async def read_documentation(
     ## URL Requirements
 
     - Must be from the docs.aws.amazon.com domain
-    - Must end with .html
+    - The page must end with .html, optionally followed by a #section-anchor
 
     ## Example URLs
 
     - https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html
     - https://docs.aws.amazon.com/lambda/latest/dg/lambda-invocation.html
+
+    ## Section Anchors
+
+    If the URL carries a fragment, only that section is returned, ending where the next section
+    of the same or higher level begins. Pass anchors through as you find them - documentation
+    pages link to specific sections of other pages, and reading one costs far fewer tokens than
+    reading the page around it:
+
+    - https://docs.aws.amazon.com/AmazonS3/latest/userguide/bucketnamingrules.html#automatically-created-buckets
+
+    Anchors and `read_sections` solve the same problem from opposite ends. Use an anchor when a
+    page or a search result handed you one, since an anchor is exact and needs no guessing about
+    wording. Use `read_sections` when you know what a section is called but not its anchor.
+
+    If the anchor matches nothing on the page, the whole page is returned with a note saying so,
+    so an anchor is never worse than omitting it.
+
+    `start_index` and `max_length` apply to the section, not the page, whenever an anchor
+    resolves. Character 0 is the section's own heading. If the section is truncated, keep the
+    anchor on the URL when you call back with the next `start_index`, because dropping it would
+    make the same number count from the top of the page instead.
 
     ## Output Format
 
@@ -171,15 +195,17 @@ async def read_documentation(
 
     Args:
         ctx: MCP context for logging and error handling
-        url: URL of the AWS documentation page to read
+        url: URL of the AWS documentation page to read, optionally with a #section-anchor
         max_length: Maximum number of characters to return
         start_index: On return output starting at this character index
 
     Returns:
         Markdown content of the AWS documentation
     """
-    # Validate that URL is from docs.aws.amazon.com and ends with .html
-    url_str = str(url)
+    # Split the fragment off before anything else reads the URL: it would fail the .html check,
+    # and the '?session=' appended downstream has to land before the '#' to stay a query
+    # parameter.
+    url_str, fragment = urldefrag(str(url))
 
     supported_domains_regex = [r'^https?://docs\.aws\.amazon\.com/']
     for modifier in SEARCH_TERM_DOMAIN_MODIFIERS:
@@ -192,7 +218,9 @@ async def read_documentation(
         await ctx.error(f'Invalid URL: {url_str}. URL must end with .html')
         raise ValueError('URL must end with .html')
 
-    return await read_documentation_impl(ctx, url_str, max_length, start_index, SESSION_UUID)
+    return await read_documentation_impl(
+        ctx, url_str, max_length, start_index, SESSION_UUID, fragment=fragment
+    )
 
 
 @mcp.tool()
@@ -254,8 +282,9 @@ async def read_sections(
     Returns:
         Filtered markdown content containing only the requested sections
     """
-    # Validate that URL is from docs.aws.amazon.com and ends with .html
-    url_str = str(url)
+    # Validate that URL is from docs.aws.amazon.com and ends with .html. section_titles already
+    # says which sections are wanted, so a fragment is redundant rather than wrong.
+    url_str, _ = urldefrag(str(url))
 
     supported_domains_regex = [r'^https?://docs\.aws\.amazon\.com/']
     for modifier in SEARCH_TERM_DOMAIN_MODIFIERS:
@@ -359,7 +388,8 @@ async def search_table(
     Returns:
         SearchTableResponse with matching rows grouped by table
     """
-    url_str = str(url)
+    # section_title already scopes the search, so a fragment adds nothing.
+    url_str, _ = urldefrag(str(url))
 
     supported_domains_regex = [r'^https?://docs\.aws\.amazon\.com/']
     for modifier in SEARCH_TERM_DOMAIN_MODIFIERS:

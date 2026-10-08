@@ -9,8 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `read_documentation` accepts a section anchor on the URL. `.../page.html#section-anchor` returns only that section, bounded at the next heading of the same or higher level. An anchor that matches nothing returns the whole page with a note, so passing one is never worse than omitting it. `read_sections` and `search_table` now ignore a fragment rather than rejecting the URL.
+
 - Add environment variable `AWS_DOCUMENTATION_PARTITION` to select AWS documentation partition.
 - Add `get_available_services` and `read_documentation` when `AWS_DOCUMENTATION_PARTITION` is set to `aws-cn`.
+
+### Changed
+
+- `read_sections` resolves a title against the same heading table an anchor resolves against, instead of finding and slicing sections separately, so the two ways of naming a section cannot disagree about which headings a page has or where one ends. Titles still match `h2` only. A page whose markup collapses its own headings now reports that the section could not be separated, rather than returning a header with nothing under it.
 
 ### Removed
 

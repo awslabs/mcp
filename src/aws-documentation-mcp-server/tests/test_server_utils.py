@@ -28,9 +28,24 @@ from awslabs.aws_documentation_mcp_server.server_utils import (
     read_sections_impl,
     search_table_impl,
 )
-from awslabs.aws_documentation_mcp_server.util import UnreadablePageError
+from awslabs.aws_documentation_mcp_server.util import (
+    Heading,
+    SectionIndex,
+    UnreadablePageError,
+    markdown_heading_candidates,
+)
 from mcp.server.mcpserver import Context
 from unittest.mock import AsyncMock, MagicMock, patch
+
+
+def _markdown_only(markdown: str):
+    """Stand in for extract_content_and_anchors on a page with no anchors to resolve."""
+    return markdown, SectionIndex(
+        tuple(
+            Heading.of(level, markdown[pos:].split('\n', 1)[0].lstrip('#').strip())
+            for level, pos in markdown_heading_candidates(markdown)
+        )
+    )
 
 
 class TestReadDocumentationImpl:
@@ -67,8 +82,8 @@ class TestReadDocumentationImpl:
                     return_value=True,
                 ),
                 patch(
-                    'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html',
-                    return_value='# Test\n\nContent',
+                    'awslabs.aws_documentation_mcp_server.server_utils.extract_content_and_anchors',
+                    return_value=_markdown_only('# Test\n\nContent'),
                 ),
                 patch(
                     'awslabs.aws_documentation_mcp_server.server_utils.format_documentation_result',
@@ -161,7 +176,7 @@ class TestReadDocumentationImpl:
                     return_value=True,
                 ),
                 patch(
-                    'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html',
+                    'awslabs.aws_documentation_mcp_server.server_utils.extract_content_and_anchors',
                     side_effect=UnreadablePageError('Page failed to be simplified from HTML'),
                 ),
                 pytest.raises(ValueError, match='could not be read'),
@@ -261,8 +276,8 @@ class TestReadDocumentationImpl:
                     return_value=True,
                 ),
                 patch(
-                    'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html',
-                    return_value='# Test\n\nLong content that exceeds max length',
+                    'awslabs.aws_documentation_mcp_server.server_utils.extract_content_and_anchors',
+                    return_value=_markdown_only('# Test\n\nLong content that exceeds max length'),
                 ),
                 patch(
                     'awslabs.aws_documentation_mcp_server.server_utils.format_documentation_result'
@@ -321,8 +336,8 @@ class TestReadDocumentationImpl:
                     return_value=True,
                 ),
                 patch(
-                    'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html',
-                    return_value='# Test\n\nContent',
+                    'awslabs.aws_documentation_mcp_server.server_utils.extract_content_and_anchors',
+                    return_value=_markdown_only('# Test\n\nContent'),
                 ),
                 patch(
                     'awslabs.aws_documentation_mcp_server.server_utils.format_documentation_result',
@@ -392,8 +407,8 @@ class TestReadDocumentationImpl:
                     return_value=True,
                 ),
                 patch(
-                    'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html',
-                    return_value='# Test\n\nContent',
+                    'awslabs.aws_documentation_mcp_server.server_utils.extract_content_and_anchors',
+                    return_value=_markdown_only('# Test\n\nContent'),
                 ),
                 patch(
                     'awslabs.aws_documentation_mcp_server.server_utils.format_documentation_result',
@@ -1617,7 +1632,7 @@ class TestRedirectSignal:
         try:
             with (
                 patch(
-                    'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html',
+                    'awslabs.aws_documentation_mcp_server.server_utils.extract_sections_from_html',
                     side_effect=UnreadablePageError('Page failed to be simplified from HTML'),
                 ),
                 pytest.raises(ValueError, match='; served '),
