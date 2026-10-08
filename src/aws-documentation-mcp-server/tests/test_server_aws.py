@@ -1517,3 +1517,43 @@ class TestReadDocumentationAnchors:
             mock_get.return_value = self._response(url)
             await read_documentation(ctx=MockContext(), url=url, max_length=10000, start_index=0)
         mock_with_anchors.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_pagination_inside_a_section_counts_from_the_section(self):
+        """start_index is section-relative when an anchor resolves, as the tool description says.
+
+        Character 0 is the section's own heading, so continuing a truncated section means
+        calling back with the anchor still on the URL.
+        """
+        url = 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/test.html'
+        heading = '## Creating a bucket with a GUID'
+
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = self._response(url)
+            # Character 0 of the window is the section's heading, not the page's.
+            first = await read_documentation(
+                ctx=MockContext(), url=f'{url}#guid', max_length=len(heading), start_index=0
+            )
+            # Resuming at the previous end stays inside the same section.
+            rest = await read_documentation(
+                ctx=MockContext(), url=f'{url}#guid', max_length=200, start_index=len(heading)
+            )
+
+        assert heading in first
+        assert 'intro' not in first and 'general body' not in first
+        assert 'guid body' in rest
+        assert heading not in rest
+
+    @pytest.mark.asyncio
+    async def test_the_same_index_means_something_else_without_the_anchor(self):
+        """Why the description tells the agent to keep the anchor when continuing."""
+        url = 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/test.html'
+        with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = self._response(url)
+            in_section = await read_documentation(
+                ctx=MockContext(), url=f'{url}#guid', max_length=60, start_index=20
+            )
+            in_page = await read_documentation(
+                ctx=MockContext(), url=url, max_length=60, start_index=20
+            )
+        assert in_section != in_page

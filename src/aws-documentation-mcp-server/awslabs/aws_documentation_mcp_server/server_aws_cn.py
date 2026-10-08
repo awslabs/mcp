@@ -83,7 +83,7 @@ async def read_documentation(
     ),
     start_index: int = Field(
         default=0,
-        description='On return output starting at this character index, useful if a previous fetch was truncated and more content is required.',
+        description='On return output starting at this character index, useful if a previous fetch was truncated and more content is required. Counts from the start of the page, or from the start of the section when the URL carries a #section-anchor.',
         ge=0,
     ),
 ) -> str:
@@ -111,7 +111,9 @@ async def read_documentation(
     of the same or higher level begins. Pass anchors through as you find them, since reading one
     section costs far fewer tokens than reading the page around it. If the anchor matches nothing
     the whole page is returned with a note, so an anchor is never worse than omitting it.
-    `start_index` and `max_length` then apply within the section rather than the page.
+
+    `start_index` and `max_length` apply to the section, not the page, whenever an anchor
+    resolves. Keep the anchor on the URL when calling back for more of a truncated section.
 
     ## Output Format
 
