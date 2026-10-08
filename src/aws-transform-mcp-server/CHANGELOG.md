@@ -13,6 +13,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so accounts whose only AWS Transform profile lives there are found by the
   startup credential probe and by SSO profile discovery.
 
+- Added the `download_artifact` tool, which streams a job or user artifact, or a
+  connector asset, through the `GetArtifact` event-stream operation so no
+  pre-signed S3 URL is returned to the client. The file is saved only after the
+  terminal `streamFinishedEvent` arrives; a stream that ends without it is
+  reported as `STREAM_INCOMPLETE` and nothing is written. Without `outputPath`
+  the file is written to the allowed write base (`AWS_TRANSFORM_MCP_WRITE_DIR`
+  or the server working directory); an `outputPath` that ends in `/`, has no
+  file extension, or names an existing directory saves inside it under the
+  file's own name, as `get_resource`'s `savePath` does. The bytes are never
+  returned inline; the result carries the path, byte count, and SHA-256.
+  Workspace-scope downloads are not supported.
+
 ### Removed
 
 - Removed the `ListPlanUpdates` call from the `plan` resource in `get_resource`

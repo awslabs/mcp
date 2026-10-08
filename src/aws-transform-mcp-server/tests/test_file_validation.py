@@ -335,3 +335,10 @@ class TestValidateWritePath:
         with tempfile.TemporaryDirectory() as tmpdir:
             monkeypatch.setenv(file_validation.WRITE_BASE_ENV_VAR, tmpdir)
             assert file_validation._resolve_write_base() == os.path.realpath(tmpdir)
+
+
+def test_get_write_base_returns_allowed_base():
+    from awslabs.aws_transform_mcp_server import file_validation
+
+    with patch.object(file_validation, '_ALLOWED_WRITE_BASE', '/tmp/wb'):
+        assert file_validation.get_write_base() == '/tmp/wb'
