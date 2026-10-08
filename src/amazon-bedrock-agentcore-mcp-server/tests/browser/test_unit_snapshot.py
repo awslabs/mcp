@@ -19,6 +19,7 @@ from awslabs.amazon_bedrock_agentcore_mcp_server.tools.browser.snapshot_manager 
     RefNotFoundError,
     SnapshotManager,
 )
+from playwright.async_api import async_playwright
 from unittest.mock import AsyncMock, MagicMock
 
 
@@ -593,6 +594,93 @@ class TestScopedSnapshot:
         assert 'empty accessibility subtree' in result
         assert 'Home' in result
 
+    async def test_scoped_ref_resolves_within_scope(self, snapshot_manager, mock_page):
+        """Refs from a scoped snapshot resolve inside the scope root, not the whole page."""
+        cdp = _get_cdp(mock_page)
+        cdp.send = AsyncMock(side_effect=self._make_cdp_dispatcher())
+        await snapshot_manager.capture(mock_page, 'sess-1', selector='main')
+
+        locator = await snapshot_manager.resolve_ref(mock_page, 'e1', 'sess-1')
+
+        mock_page.locator.assert_called_once_with('main')
+        root = mock_page.locator.return_value.first
+        root.get_by_role.assert_called_once_with('button', name='Action', exact=True)
+        # The scope root itself or one of its descendants
+        root.and_.assert_called_once_with(mock_page.get_by_role.return_value)
+        root.and_.return_value.or_.assert_called_once_with(root.get_by_role.return_value)
+        assert locator is root.and_.return_value.or_.return_value
+
+    async def test_scoped_ref_duplicates_use_nth_within_scope(self, snapshot_manager, mock_page):
+        """Duplicate names in a scoped snapshot apply nth to the scoped locator."""
+        cdp = _get_cdp(mock_page)
+        scoped_nodes = [
+            _node(4, 'group', 'Wishlist', parent_id=1),
+            _node(5, 'button', 'Remove', parent_id=4),
+            _node(6, 'button', 'Remove', parent_id=4),
+        ]
+        cdp.send = AsyncMock(side_effect=self._make_cdp_dispatcher(partial_nodes=scoped_nodes))
+        await snapshot_manager.capture(mock_page, 'sess-1', selector='#wishlist')
+
+        locator = await snapshot_manager.resolve_ref(mock_page, 'e2', 'sess-1')
+
+        scoped = mock_page.locator.return_value.first.and_.return_value.or_.return_value
+        scoped.nth.assert_called_once_with(1)
+        assert locator is scoped.nth.return_value
+
+    async def test_unscoped_capture_clears_scope(self, snapshot_manager, mock_page):
+        """An unscoped snapshot after a scoped one resolves refs against the page."""
+        cdp = _get_cdp(mock_page)
+        cdp.send = AsyncMock(side_effect=self._make_cdp_dispatcher())
+        await snapshot_manager.capture(mock_page, 'sess-1', selector='main')
+        await snapshot_manager.capture(mock_page, 'sess-1')
+
+        locator = await snapshot_manager.resolve_ref(mock_page, 'e1', 'sess-1')
+
+        mock_page.locator.assert_not_called()
+        mock_page.get_by_role.assert_called_once_with('link', name='Home', exact=True)
+        assert locator is mock_page.get_by_role.return_value
+
+    @pytest.mark.parametrize(
+        'dispatcher_kwargs',
+        [
+            pytest.param({'match_node_id': 0}, id='selector-not-found'),
+            pytest.param({'partial_error': True}, id='query-ax-tree-error'),
+            pytest.param({'partial_nodes': []}, id='empty-subtree'),
+            pytest.param(
+                {'partial_nodes': [_node(10, 'generic', '', parent_id=None)]},
+                id='empty-formatted-subtree',
+            ),
+        ],
+    )
+    async def test_scope_fallback_resolves_against_page(
+        self, snapshot_manager, mock_page, dispatcher_kwargs
+    ):
+        """When a scoped capture falls back to the full page, refs resolve against the page."""
+        cdp = _get_cdp(mock_page)
+        cdp.send = AsyncMock(side_effect=self._make_cdp_dispatcher())
+        await snapshot_manager.capture(mock_page, 'sess-1', selector='main')
+
+        cdp.send = AsyncMock(side_effect=self._make_cdp_dispatcher(**dispatcher_kwargs))
+        result = await snapshot_manager.capture(mock_page, 'sess-1', selector='#missing')
+        assert 'Warning' in result
+
+        locator = await snapshot_manager.resolve_ref(mock_page, 'e1', 'sess-1')
+
+        mock_page.locator.assert_not_called()
+        mock_page.get_by_role.assert_called_once_with('link', name='Home', exact=True)
+        assert locator is mock_page.get_by_role.return_value
+
+    async def test_cleanup_session_clears_scope(self, snapshot_manager, mock_page):
+        """Cleanup removes the stored snapshot scope for a session."""
+        cdp = _get_cdp(mock_page)
+        cdp.send = AsyncMock(side_effect=self._make_cdp_dispatcher())
+        await snapshot_manager.capture(mock_page, 'sess-1', selector='main')
+        assert snapshot_manager._ref_scopes['sess-1'] == 'main'
+
+        snapshot_manager.cleanup_session('sess-1')
+
+        assert 'sess-1' not in snapshot_manager._ref_scopes
+
 
 class TestFormatCdpNode:
     """Tests for _format_cdp_node edge cases."""
@@ -746,3 +834,66 @@ class TestCleanupSession:
         assert snapshot_manager.previous_snapshot('sess-1') is None
         with pytest.raises(RefNotFoundError):
             await snapshot_manager.resolve_ref(mock_page, 'e1', 'sess-1')
+
+
+CART_AND_WISHLIST_HTML = """
+<div id="cart">
+  <button onclick="window.clicked = 'cart'">Remove</button>
+</div>
+<div id="wishlist">
+  <button onclick="window.clicked = 'wishlist-1'">Remove</button>
+  <button onclick="window.clicked = 'wishlist-2'">Remove</button>
+</div>
+"""
+
+
+@pytest.fixture
+async def local_page():
+    """Launch a local headless Chromium page with a cart and a wishlist."""
+    async with async_playwright() as p:
+        browser = await p.chromium.launch()
+        try:
+            page = await browser.new_page()
+            await page.set_content(CART_AND_WISHLIST_HTML)
+            yield page
+        finally:
+            await browser.close()
+
+
+@pytest.mark.local_browser
+class TestScopedRefsLocalBrowser:
+    """Scoped snapshot refs against a real Chromium page."""
+
+    @pytest.mark.parametrize('ref, expected', [('e1', 'wishlist-1'), ('e2', 'wishlist-2')])
+    async def test_scoped_ref_clicks_element_in_scope(
+        self, snapshot_manager, local_page, ref, expected
+    ):
+        """A scoped ref clicks the matching element inside the scope, not elsewhere."""
+        snapshot = await snapshot_manager.capture(local_page, 'sess-1', selector='#wishlist')
+        assert 'ref=e2' in snapshot and 'ref=e3' not in snapshot
+
+        locator = await snapshot_manager.resolve_ref(local_page, ref, 'sess-1')
+        await locator.click(timeout=2000)
+
+        assert await local_page.evaluate('window.clicked') == expected
+
+    async def test_scoped_ref_unique_in_scope(self, snapshot_manager, local_page):
+        """A name unique in scope but repeated on the page is clickable."""
+        snapshot = await snapshot_manager.capture(local_page, 'sess-1', selector='#cart')
+        assert 'ref=e1' in snapshot and 'ref=e2' not in snapshot
+
+        locator = await snapshot_manager.resolve_ref(local_page, 'e1', 'sess-1')
+        await locator.click(timeout=2000)
+
+        assert await local_page.evaluate('window.clicked') == 'cart'
+
+    async def test_scope_root_is_the_element(self, snapshot_manager, local_page):
+        """A selector that matches the element itself resolves to that element."""
+        await snapshot_manager.capture(
+            local_page, 'sess-1', selector='#wishlist button:nth-of-type(2)'
+        )
+
+        locator = await snapshot_manager.resolve_ref(local_page, 'e1', 'sess-1')
+        await locator.click(timeout=2000)
+
+        assert await local_page.evaluate('window.clicked') == 'wishlist-2'
