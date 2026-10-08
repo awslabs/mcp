@@ -25,7 +25,6 @@ from urllib.parse import quote_plus, unquote, urljoin
 # An unresolved cross-reference leaves an href with no filename, e.g. './.html#anchor'.
 _EMPTY_TARGET_FILENAMES = frozenset({'.html', '.htm'})
 
-# A URL fragment can only address a heading, so headings are what the anchor index records.
 HEADING_TAGS = ('h1', 'h2', 'h3', 'h4', 'h5', 'h6')
 
 
@@ -237,9 +236,8 @@ def heading_match_text(text: str) -> str:
     return normalize_title(_MARKDOWN_EMPHASIS_RE.sub('', _MARKDOWN_LINK_RE.sub(r'\1', text)))
 
 
-# A heading inside one of these is not a section boundary, and the conversion does not render
-# it as one either: markdownify indents it under the list or quote marker, or folds it into a
-# table cell, so it never begins a line. Counting it would desynchronise the two sides.
+# Markdownify indents a heading nested in one of these under the list or quote marker, or folds
+# it into a table cell, so it never begins a line and cannot be matched.
 NON_SECTION_ANCESTORS = frozenset({'blockquote', 'li', 'dd', 'dt', 'td', 'th', 'a'})
 
 
@@ -478,9 +476,8 @@ def section_markdown(markdown: str, index: SectionIndex, position: int) -> Optio
     level = index.headings[position].level
     end = len(markdown)
     for later in range(position + 1, len(located)):
-        # A sibling or an ancestor ends the section; a deeper heading belongs to it. AWS uses
-        # h6 for both callouts and real subsections, so stopping at the next heading of any
-        # level would cut a section off at its first "Note".
+        # AWS uses h6 for both callouts and real subsections, so stopping at the next heading
+        # of any level would cut a section off at its first "Note".
         if index.headings[later].level <= level and located[later] is not None:
             end = located[later]
             break
@@ -586,9 +583,8 @@ def format_documentation_result(url: str, content: str, start_index: int, max_le
     return result
 
 
-# A title names a section, and on these pages a section is an h2. Search returns the page's h2
-# titles as its table of contents, so those are the titles a caller has to work with, and
-# matching deeper levels would let a title like "Note" select a callout instead of a section.
+# The section list search_documentation returns for a page is its h2 headings, so those are the
+# titles a caller has to work with. Matching deeper levels would let "Note" select a callout.
 TITLE_MATCH_LEVELS = (2,)
 
 
@@ -620,8 +616,8 @@ def extract_sections_from_html(html: str, section_titles: List[str]) -> str:
 
     markdown, index = extract_content_and_anchors(html)
 
-    # Page order, not the order the caller asked in, and deduplicated: one title can name
-    # several headings, and two titles can name the same one.
+    # Page order rather than the order asked in, deduplicated: one title can name several
+    # headings and two titles can name the same one.
     wanted_positions = sorted(
         {
             position
@@ -651,10 +647,8 @@ def extract_sections_from_html(html: str, section_titles: List[str]) -> str:
     result = '\n\n'.join(section for section in sections if section)
 
     if not result:
-        # The titles named headings the page has, but none could be found again in the converted
-        # markdown. That happens when malformed markup collapses the headings into one another,
-        # so there is no section boundary left to cut on. Say so rather than return a header with
-        # nothing under it.
+        # The titles named headings the page has, but malformed markup collapsed them into one
+        # another, so no section boundary survived the conversion to cut on.
         raise ValueError(
             'The requested sections could not be separated from the rest of the page. '
             'Please use the read_documentation tool instead to get the full document content.'

@@ -198,10 +198,9 @@ async def read_documentation(
     Returns:
         Markdown content of the AWS documentation
     """
-    # A fragment names a section of the page, not a page of its own, so split it off before
-    # anything else looks at the URL. Validation would reject '....html#anchor' for not
-    # ending in .html, and the fetch appends '?session=', which has to land before the '#'
-    # to stay a query parameter.
+    # Split the fragment off before anything else reads the URL: it would fail the .html check,
+    # and the '?session=' appended downstream has to land before the '#' to stay a query
+    # parameter.
     url_str, fragment = urldefrag(str(url))
 
     supported_domains_regex = [r'^https?://docs\.aws\.amazon\.com/']
@@ -279,9 +278,8 @@ async def read_sections(
     Returns:
         Filtered markdown content containing only the requested sections
     """
-    # Validate that URL is from docs.aws.amazon.com and ends with .html.
-    # section_titles already says which sections are wanted, so a fragment on the URL is
-    # redundant rather than wrong - drop it instead of failing the call over it.
+    # Validate that URL is from docs.aws.amazon.com and ends with .html. section_titles already
+    # says which sections are wanted, so a fragment is redundant rather than wrong.
     url_str, _ = urldefrag(str(url))
 
     supported_domains_regex = [r'^https?://docs\.aws\.amazon\.com/']
@@ -386,8 +384,7 @@ async def search_table(
     Returns:
         SearchTableResponse with matching rows grouped by table
     """
-    # section_title already scopes the search, so a fragment on the URL adds nothing. Drop it
-    # rather than reject a URL an agent copied straight out of a page.
+    # section_title already scopes the search, so a fragment adds nothing.
     url_str, _ = urldefrag(str(url))
 
     supported_domains_regex = [r'^https?://docs\.aws\.amazon\.com/']

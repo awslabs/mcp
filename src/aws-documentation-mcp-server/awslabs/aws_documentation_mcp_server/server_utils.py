@@ -173,8 +173,7 @@ async def read_documentation_impl(
     anchor_note = ''
     if is_html_content(page_raw, content_type):
         try:
-            # Indexing the anchors walks every tag on the page, so only do it when a
-            # fragment asked for it. A read without one costs exactly what it always did.
+            # Indexing the anchors walks every tag, so only do it when a fragment asked for it.
             if fragment:
                 content, anchors = extract_content_and_anchors(page_raw)
             else:
@@ -312,9 +311,8 @@ async def read_sections_impl(
         raise ValueError(error_msg)
 
     try:
-        # Returns markdown already: the sections are cut out of the converted page rather than
-        # converted separately, so a heading nested in a wrapper is bounded the same way an
-        # anchor would bound it.
+        # Returns markdown: sections are cut out of the converted page rather than converted
+        # separately, so a title and an anchor bound a section identically.
         markdown = extract_sections_from_html(page_raw, section_titles)
     except UnreadablePageError as e:
         error_msg = page.message(f'{page.served} could not be read: {e}')

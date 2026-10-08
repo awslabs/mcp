@@ -136,9 +136,8 @@ async def read_documentation(
     Returns:
         Markdown content of the AWS China documentation
     """
-    # Validate that URL is from docs.amazonaws.cn and ends with .html. The fragment names a
-    # section rather than a page, so split it off first: it would fail the .html check, and
-    # the '?session=' appended downstream has to land before the '#' to stay a query parameter.
+    # Validate that URL is from docs.amazonaws.cn and ends with .html. Split the fragment off
+    # first: it would fail that check, and '?session=' has to land before the '#'.
     url_str, fragment = urldefrag(str(url))
     if not url_matches_allowlist(url_str, CN_ALLOWED_DOMAIN_REGEXES):
         error_msg = f'Invalid URL: {url_str}. URL must be from the docs.amazonaws.cn domain'
