@@ -28,9 +28,12 @@ from awslabs.aws_transform_mcp_server._service_model import create_session
 from awslabs.aws_transform_mcp_server.aws_helper import USER_AGENT, AwsHelper
 from awslabs.aws_transform_mcp_server.consts import (
     CLIENT_APP_ID,
+    FES_SERVICE,
     FES_TARGET_BEARER,
     HEADER_CLIENT_APP_ID,
     MAX_RETRIES,
+    STREAMING_SERVICE,
+    STREAMING_TARGET_BEARER,
     TIMEOUT_SECONDS,
     TOKEN_REFRESH_BUFFER_SECS,
 )
@@ -75,14 +78,21 @@ class AuthConflict(Exception):
 
 # ── boto3 client helpers ────────────────────────────────────────────────
 
+# Event ids for before-call handler registration. FES uses the service-scoped
+# id; the streaming client registers at the ``before-call`` root, which the
+# hierarchical emitter fires for every operation on that dedicated client
+# (avoids depending on the streaming service's derived event name).
+_FES_EVENT = 'before-call.elasticgumbyfrontend.*'
+_STREAMING_EVENT = 'before-call'
 
-def _register_client_app_id(client):
+
+def _register_client_app_id(client, event: str = _FES_EVENT):
     """Register event handler to inject clientAppId on every request."""
 
     def add_client_app_id(params, **kwargs):
         params['headers'][HEADER_CLIENT_APP_ID] = CLIENT_APP_ID
 
-    client.meta.events.register('before-call.elasticgumbyfrontend.*', add_client_app_id)
+    client.meta.events.register(event, add_client_app_id)
 
 
 def _create_unsigned_client(
@@ -90,11 +100,13 @@ def _create_unsigned_client(
     region: str = 'us-east-1',
     max_retries: int = MAX_RETRIES,
     timeout: float = TIMEOUT_SECONDS,
+    service_name: str = FES_SERVICE,
+    event: str = _FES_EVENT,
 ):
-    """Create a boto3 FES client with UNSIGNED config (no SigV4)."""
+    """Create an UNSIGNED (no SigV4) boto3 client for a Transform Coral service."""
     session = create_session()
     client = session.client(
-        'elasticgumbyfrontendservice',
+        service_name,
         region_name=region,
         endpoint_url=endpoint,
         config=BotoConfig(
@@ -105,7 +117,7 @@ def _create_unsigned_client(
             read_timeout=timeout,
         ),
     )
-    _register_client_app_id(client)
+    _register_client_app_id(client, event)
     return client
 
 
@@ -114,11 +126,16 @@ def _create_sigv4_client(
     region: str = 'us-east-1',
     max_retries: int = MAX_RETRIES,
     timeout: float = TIMEOUT_SECONDS,
+    service_name: str = FES_SERVICE,
+    event: str = _FES_EVENT,
 ):
-    """Create a boto3 FES client with SigV4 signing from default credentials.
+    """Create a SigV4-signed boto3 client for a Transform Coral service.
 
     Creates a fresh botocore session with the user's profile and region so that
-    credential providers (e.g., LoginProvider) can resolve internal clients.
+    credential providers (e.g., LoginProvider) can resolve internal clients. The
+    SigV4 signing name is taken from the service model's ``signingName`` (FES
+    signs ``elasticgumbyfrontendservice``; the streaming service signs
+    ``transform``).
     """
     from awslabs.aws_transform_mcp_server._service_model import _MODEL_DIR
 
@@ -132,7 +149,7 @@ def _create_sigv4_client(
 
     session = boto3.Session(botocore_session=core)
     client = session.client(
-        'elasticgumbyfrontendservice',
+        service_name,
         region_name=region,
         endpoint_url=endpoint,
         config=BotoConfig(
@@ -142,31 +159,37 @@ def _create_sigv4_client(
             read_timeout=timeout,
         ),
     )
-    _register_client_app_id(client)
+    _register_client_app_id(client, event)
     return client
 
 
-def _inject_cookie_auth(client, origin: str, cookie: str):
+def _inject_cookie_auth(client, origin: str, cookie: str, event: str = _FES_EVENT):
     """Register event handler to inject cookie auth headers on every request."""
 
     def add_headers(params, **kwargs):
         params['headers']['Origin'] = origin
         params['headers']['Cookie'] = cookie
 
-    client.meta.events.register('before-call.elasticgumbyfrontend.*', add_headers)
+    client.meta.events.register(event, add_headers)
 
 
-def _inject_bearer_auth(client, token: str, origin: Optional[str] = None):
+def _inject_bearer_auth(
+    client,
+    token: str,
+    origin: Optional[str] = None,
+    event: str = _FES_EVENT,
+    target_bearer: str = FES_TARGET_BEARER,
+):
     """Register event handler to inject bearer auth headers on every request."""
 
     def add_headers(params, model, **kwargs):
         params['headers']['Authorization'] = f'Bearer {token}'
         params['headers']['Content-Encoding'] = 'amz-1.0'
-        params['headers']['X-Amz-Target'] = f'{FES_TARGET_BEARER}.{model.name}'
+        params['headers']['X-Amz-Target'] = f'{target_bearer}.{model.name}'
         if origin and model.name != 'ListAvailableProfiles':
             params['headers']['Origin'] = origin
 
-    client.meta.events.register('before-call.elasticgumbyfrontend.*', add_headers)
+    client.meta.events.register(event, add_headers)
 
 
 def _call_boto3(client, operation: str, body: Dict[str, Any]) -> Any:
@@ -375,6 +398,105 @@ async def call_transform_api(
                     original_error=str(exc),
                 ) from exc
         raise
+
+
+def _invoke_stream_boto3(client, operation: str, body: Dict[str, Any]) -> Dict[str, Any]:
+    """Invoke a streaming FES operation and drain its event stream synchronously.
+
+    Reassembles ``binaryPayloadEvent`` chunks into a single ``bytes`` object and
+    captures the first ``binaryMetadataEvent`` and any ``streamErrorEvent``. The
+    event stream must be consumed on this thread while the HTTP response is open.
+    """
+    method_name = xform_name(operation)
+    method = getattr(client, method_name, None)
+    if method is None:
+        raise ValueError(f'Unknown operation: {operation}')
+    try:
+        response = method(**body)
+    except ClientError as exc:
+        error = exc.response.get('Error', {})
+        status = exc.response.get('ResponseMetadata', {}).get('HTTPStatusCode', 0)
+        raise HttpError(
+            status_code=status,
+            body=error,
+            message=f'HTTP {status}: {error.get("Message", str(exc))}',
+        ) from exc
+
+    metadata: Optional[Dict[str, Any]] = None
+    error_event: Optional[Dict[str, Any]] = None
+    chunks: list = []
+    for event in response['stream']:
+        if 'binaryPayloadEvent' in event:
+            chunks.append(event['binaryPayloadEvent']['bytes'])
+        elif 'binaryMetadataEvent' in event and metadata is None:
+            metadata = event['binaryMetadataEvent']
+        elif 'streamErrorEvent' in event:
+            error_event = event['streamErrorEvent']
+            break
+    return {'metadata': metadata, 'content': b''.join(chunks), 'error': error_event}
+
+
+async def call_transform_api_streaming(
+    operation: FESOperation,
+    body: Union[FESRequest, Mapping[str, Any], None] = None,
+) -> Dict[str, Any]:
+    """Call a streaming FES operation and return the reassembled bytes.
+
+    Mirrors :func:`call_transform_api` auth resolution (SigV4, cookie, or bearer)
+    but consumes an event-stream response instead of a unary one.
+
+    Returns a dict with ``metadata`` (the ``binaryMetadataEvent`` payload or
+    ``None``), ``content`` (the concatenated payload ``bytes``), and ``error``
+    (the ``streamErrorEvent`` payload or ``None``).
+    """
+    if isinstance(body, FESRequest):
+        body = body.model_dump(by_alias=True, exclude_none=True)
+    elif body is None:
+        body = {}
+    else:
+        body = dict(body)
+
+    config = config_store.get_config()
+    if config is None:
+        if config_store.is_sigv4_fes_available():
+            region = config_store.get_sigv4_region()
+            if region is None:
+                regions = config_store.get_sigv4_regions()
+                raise ProfileSelectionRequired(regions or [])
+            endpoint = config_store.derive_transform_api_endpoint(region)
+            session = AwsHelper.create_session()
+            resolved = region or AwsHelper.resolve_region(session)
+            client = _create_sigv4_client(
+                endpoint,
+                region=resolved,
+                service_name=STREAMING_SERVICE,
+                event=_STREAMING_EVENT,
+            )
+            return await asyncio.to_thread(_invoke_stream_boto3, client, operation, body)
+        raise RuntimeError('Not configured. Call configure first.')
+
+    if config.auth_mode == 'bearer':
+        config = await _ensure_fresh_token(config)
+
+    endpoint = config_store.derive_transform_api_endpoint(config.region or 'us-east-1')
+    client = _create_unsigned_client(
+        endpoint,
+        config.region or 'us-east-1',
+        service_name=STREAMING_SERVICE,
+        event=_STREAMING_EVENT,
+    )
+    if config.auth_mode == 'cookie':
+        _inject_cookie_auth(client, config.origin, config.session_cookie or '', _STREAMING_EVENT)
+    else:
+        _inject_bearer_auth(
+            client,
+            config.bearer_token or '',
+            config.origin,
+            event=_STREAMING_EVENT,
+            target_bearer=STREAMING_TARGET_BEARER,
+        )
+
+    return await asyncio.to_thread(_invoke_stream_boto3, client, operation, body)
 
 
 async def _ensure_fresh_token(config: 'ConnectionConfig') -> 'ConnectionConfig':

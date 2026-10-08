@@ -50,6 +50,7 @@ EXPECTED_TOOL_NAMES = [
     'delete_job',
     'complete_task',
     'upload_artifact',
+    'download_artifact',
     'send_message',
     'load_instructions',
     'create_connector',
