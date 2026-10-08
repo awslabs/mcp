@@ -3114,6 +3114,177 @@ class TestIdleDefaultOrder:
         assert 'Desc' in order_by.members['order'].enum
 
 
+_CPU_ARCH_HELPERS = [
+    (get_ec2_instance_recommendations, 'get_ec2_instance_recommendations'),
+    (get_auto_scaling_group_recommendations, 'get_auto_scaling_group_recommendations'),
+    (get_rds_recommendations, 'get_rds_database_recommendations'),
+]
+
+
+def _dispatch_with_cpu_architectures(mock_context, operation, cpu_vendor_architectures):
+    """Run the dispatcher with an ACTIVE, empty-result client; return (coroutine, client)."""
+    co_mod = _reload_compute_optimizer_with_identity_decorator()
+    client = MagicMock()
+    client.get_enrollment_status.return_value = {'status': 'ACTIVE'}
+    for method in co_mod._API_METHODS.values():
+        getattr(client, method).return_value = {}
+
+    async def run():
+        with (
+            patch.object(co_mod, 'create_aws_client', return_value=client),
+            patch.object(co_mod, 'get_context_logger', return_value=AsyncMock()),
+        ):
+            return await co_mod.compute_optimizer(
+                mock_context,
+                operation=operation,
+                cpu_vendor_architectures=cpu_vendor_architectures,
+            )
+
+    return run(), client
+
+
+@pytest.mark.asyncio
+class TestCpuVendorArchitectures:
+    """EC2, ASG, and RDS accept a per-request CPU architecture preference."""
+
+    @pytest.mark.parametrize('helper,method', _CPU_ARCH_HELPERS)
+    async def test_preference_sent_and_echoed(self, mock_context, helper, method):
+        """The resolved list is sent as recommendationPreferences and echoed back."""
+        client = MagicMock()
+        getattr(client, method).return_value = {}
+
+        result = await helper(
+            mock_context,
+            client,
+            None,
+            None,
+            None,
+            None,
+            cpu_vendor_architectures=['AWS_ARM64'],
+        )
+
+        preferences = {'cpuVendorArchitectures': ['AWS_ARM64']}
+        assert getattr(client, method).call_args[1]['recommendationPreferences'] == preferences
+        assert result['data']['applied_recommendation_preferences'] == preferences
+
+    @pytest.mark.parametrize('helper,method', _CPU_ARCH_HELPERS)
+    async def test_preference_omitted_by_default(self, mock_context, helper, method):
+        """Without the parameter nothing is sent, so the API default (CURRENT) applies."""
+        client = MagicMock()
+        getattr(client, method).return_value = {}
+
+        result = await helper(mock_context, client, None, None, None, None)
+
+        assert 'recommendationPreferences' not in getattr(client, method).call_args[1]
+        assert 'applied_recommendation_preferences' not in result['data']
+
+    @pytest.mark.parametrize(
+        'value,expected',
+        [
+            ('["AWS_ARM64"]', ['AWS_ARM64']),
+            ('["aws_arm64"]', ['AWS_ARM64']),
+            ('["awsarm64", "current"]', ['AWS_ARM64', 'CURRENT']),
+            ('["CURRENT", "current", "AWS_ARM64"]', ['CURRENT', 'AWS_ARM64']),
+            ('AWS_ARM64', ['AWS_ARM64']),
+        ],
+    )
+    async def test_values_are_folded(self, mock_context, value, expected):
+        """Values fold case and underscores onto the API enum; duplicates are dropped."""
+        run, client = _dispatch_with_cpu_architectures(
+            mock_context, 'get_ec2_instance_recommendations', value
+        )
+
+        result = await run
+
+        assert result['status'] == 'success'
+        assert client.get_ec2_instance_recommendations.call_args[1][
+            'recommendationPreferences'
+        ] == {'cpuVendorArchitectures': expected}
+
+    @pytest.mark.parametrize(
+        'value', ['["X86"]', '["ARM64"]', '[]', '[5]', '{"cpu": "AWS_ARM64"}']
+    )
+    async def test_invalid_values_are_rejected(self, mock_context, value):
+        """An invalid value returns a structured error listing the valid values; no call."""
+        run, client = _dispatch_with_cpu_architectures(
+            mock_context, 'get_rds_recommendations', value
+        )
+
+        result = await run
+
+        client.get_rds_database_recommendations.assert_not_called()
+        assert result['error_type'] == 'validation_error'
+        assert result['operation'] == 'get_rds_recommendations'
+        assert result['data']['valid_values'] == ['CURRENT', 'AWS_ARM64']
+
+    @pytest.mark.parametrize(
+        'operation',
+        [
+            'get_ebs_volume_recommendations',
+            'get_lambda_function_recommendations',
+            'get_ecs_service_recommendations',
+            'get_idle_recommendations',
+        ],
+    )
+    async def test_rejected_on_unsupported_operations(self, mock_context, operation):
+        """Operations without recommendationPreferences get an error instead of a silent drop."""
+        run, client = _dispatch_with_cpu_architectures(mock_context, operation, '["AWS_ARM64"]')
+
+        result = await run
+
+        client.get_enrollment_status.assert_not_called()
+        assert result['error_type'] == 'validation_error'
+        assert result['operation'] == operation
+
+    @pytest.mark.parametrize('helper,method', _CPU_ARCH_HELPERS)
+    async def test_preference_kept_with_arns_and_next_token(self, mock_context, helper, method):
+        """The preference rides along with ARN lookups and pagination."""
+        client = MagicMock()
+        getattr(client, method).return_value = {}
+
+        await helper(
+            mock_context,
+            client,
+            None,
+            None,
+            None,
+            'page-2-token',
+            ['arn:aws:ec2:us-east-1:123456789012:instance/i-0abc'],
+            cpu_vendor_architectures=['CURRENT', 'AWS_ARM64'],
+        )
+
+        kwargs = getattr(client, method).call_args[1]
+        assert kwargs['nextToken'] == 'page-2-token'
+        assert kwargs['recommendationPreferences'] == {
+            'cpuVendorArchitectures': ['CURRENT', 'AWS_ARM64']
+        }
+
+
+class TestCpuVendorArchitectureModel:
+    """The supported operations and values match the service model."""
+
+    def test_operations_and_values_match_model(self):
+        """Exactly these operations take the preference, with exactly these values."""
+        import botocore.session
+        from awslabs.billing_cost_management_mcp_server.tools import compute_optimizer_tools
+
+        client: Any = botocore.session.get_session().create_client(
+            'compute-optimizer', region_name='us-east-1'
+        )
+        for operation, method in compute_optimizer_tools._API_METHODS.items():
+            api_name = client.meta.method_to_api_mapping[method]
+            members = client.meta.service_model.operation_model(api_name).input_shape.members
+            supported = operation in compute_optimizer_tools._CPU_VENDOR_ARCHITECTURE_OPERATIONS
+            assert ('recommendationPreferences' in members) == supported, operation
+            if supported:
+                enum = (
+                    members['recommendationPreferences']
+                    .members['cpuVendorArchitectures']
+                    .member.enum
+                )
+                assert sorted(enum) == sorted(compute_optimizer_tools._CPU_VENDOR_ARCHITECTURES)
+
+
 class TestComputeOptimizerHelperEdgeCases:
     """Edge cases of the ARN-region and filter-normalization helpers."""
 
