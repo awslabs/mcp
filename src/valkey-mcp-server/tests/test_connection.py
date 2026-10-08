@@ -21,13 +21,24 @@ from awslabs.valkey_mcp_server.common.connection import (
     get_client,
     reset_client,
 )
-from glide import GlideClientConfiguration, GlideClusterClientConfiguration
+from glide import GlideClientConfiguration, GlideClusterClientConfiguration, ServiceType
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
 pytestmark = pytest.mark.asyncio
 
 MODULE = 'awslabs.valkey_mcp_server.common.connection'
+
+
+def _creds(config):
+    assert config.credentials is not None
+    return config.credentials
+
+
+def _iam(config):
+    iam_config = _creds(config).iam_config
+    assert iam_config is not None
+    return iam_config
 
 
 @pytest.fixture(autouse=True)
@@ -148,6 +159,103 @@ class TestBuildConfig:
         ):
             config = _build_config()
         assert isinstance(config, GlideClientConfiguration)
+
+
+class TestIamAuth:
+    """IAM authentication (ElastiCache serverless public endpoints) via GLIDE IamAuthConfig."""
+
+    IAM_CFG = {
+        'host': 'my-cache-x2e9hv.public.serverless.use1.cache.amazonaws.com',
+        'port': 6379,
+        'password': '',
+        'username': 'default.iam-user',
+        'ssl': False,
+        'cluster_mode': False,
+        'iam_auth': True,
+        'cache_name': 'my-cache',
+        'region': 'us-east-1',
+    }
+
+    def test_builds_iam_credentials_and_forces_tls(self):
+        with patch(f'{MODULE}.VALKEY_CFG', dict(self.IAM_CFG)):
+            config = _build_config()
+        assert isinstance(config, GlideClientConfiguration)
+        # TLS is forced on even though ssl is False in the config.
+        assert config.use_tls is True
+        creds = _creds(config)
+        assert creds.is_iam_auth()
+        assert creds.password is None
+        assert creds.username == 'default.iam-user'
+        iam = _iam(config)
+        assert iam.cluster_name == 'my-cache'
+        assert iam.service is ServiceType.ELASTICACHE
+        assert iam.region == 'us-east-1'
+        # No custom refresh interval: GLIDE's default applies.
+        assert iam.refresh_interval_seconds is None
+
+    def test_cache_name_is_lowercased_for_signing(self):
+        with patch(f'{MODULE}.VALKEY_CFG', dict(self.IAM_CFG, cache_name='My-Cache')):
+            config = _build_config()
+        assert _iam(config).cluster_name == 'my-cache'
+
+    def test_password_ignored_when_iam_auth_enabled(self):
+        cfg = dict(self.IAM_CFG, password='ignored')  # pragma: allowlist secret
+        with patch(f'{MODULE}.VALKEY_CFG', cfg):
+            config = _build_config()
+        assert _creds(config).is_iam_auth()
+        assert _creds(config).password is None
+
+    def test_requires_username(self):
+        with patch(f'{MODULE}.VALKEY_CFG', dict(self.IAM_CFG, username=None)):
+            with pytest.raises(ValueError, match='VALKEY_USERNAME'):
+                _build_config()
+
+    def test_requires_cache_name(self):
+        with patch(f'{MODULE}.VALKEY_CFG', dict(self.IAM_CFG, cache_name=None)):
+            with pytest.raises(ValueError, match='VALKEY_CACHE_NAME'):
+                _build_config()
+
+    def test_rejects_hostname_as_cache_name(self):
+        with patch(f'{MODULE}.VALKEY_CFG', dict(self.IAM_CFG, cache_name='my-cache.example.com')):
+            with pytest.raises(ValueError, match='not an endpoint address'):
+                _build_config()
+
+    def test_region_falls_back_to_boto3_session(self):
+        mock_session = MagicMock()
+        mock_session.return_value.region_name = 'eu-west-1'
+        with (
+            patch(f'{MODULE}.VALKEY_CFG', dict(self.IAM_CFG, region=None)),
+            patch('boto3.session.Session', mock_session),
+        ):
+            config = _build_config()
+        assert _iam(config).region == 'eu-west-1'
+
+    def test_requires_region_when_unresolvable(self):
+        mock_session = MagicMock()
+        mock_session.return_value.region_name = None
+        with (
+            patch(f'{MODULE}.VALKEY_CFG', dict(self.IAM_CFG, region=None)),
+            patch('boto3.session.Session', mock_session),
+        ):
+            with pytest.raises(ValueError, match='AWS_REGION'):
+                _build_config()
+
+    def test_ca_certs_wired_when_tls_forced_by_iam(self, tmp_path):
+        ca_file = tmp_path / 'ca.pem'
+        ca_file.write_bytes(b'fake-ca-cert')
+        with patch(f'{MODULE}.VALKEY_CFG', dict(self.IAM_CFG, ssl_ca_certs=str(ca_file))):
+            config = _build_config()
+        assert config.use_tls is True
+        assert config.advanced_config is not None
+        tls_config = config.advanced_config.tls_config
+        assert tls_config is not None
+        assert tls_config.root_pem_cacerts == b'fake-ca-cert'
+
+    def test_cluster_mode_with_iam(self):
+        with patch(f'{MODULE}.VALKEY_CFG', dict(self.IAM_CFG, cluster_mode=True)):
+            config = _build_config()
+        assert isinstance(config, GlideClusterClientConfiguration)
+        assert _creds(config).is_iam_auth()
 
 
 class TestGetClient:
