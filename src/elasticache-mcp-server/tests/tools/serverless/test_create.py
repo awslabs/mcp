@@ -10,6 +10,8 @@ from awslabs.elasticache_mcp_server.tools.serverless.models import (
     ECPULimits,
     Tag,
 )
+from pydantic import ValidationError
+from typing import Optional
 from unittest.mock import MagicMock, patch
 
 
@@ -31,6 +33,7 @@ async def test_create_serverless_cache_readonly_mode():
             user_group_id=None,
             snapshot_retention_limit=None,
             daily_snapshot_time=None,
+            connection_type=None,
         )
         result = await create_serverless_cache(request)
         assert 'error' in result
@@ -67,6 +70,7 @@ async def test_create_serverless_cache_basic():
             user_group_id=None,
             snapshot_retention_limit=None,
             daily_snapshot_time=None,
+            connection_type=None,
         )
         result = await create_serverless_cache(request=request)
 
@@ -110,6 +114,7 @@ async def test_create_serverless_cache_all_params():
             user_group_id='group-1',
             snapshot_retention_limit=7,
             daily_snapshot_time='04:00-05:00',
+            connection_type=None,
         )
         result = await create_serverless_cache(request=request)
 
@@ -157,6 +162,7 @@ async def test_create_serverless_cache_all_params():
                     user_group_id=None,
                     snapshot_retention_limit=None,
                     daily_snapshot_time=None,
+                    connection_type=None,
                 )
             },
         ),
@@ -178,6 +184,7 @@ async def test_create_serverless_cache_all_params():
                     user_group_id=None,
                     snapshot_retention_limit=None,
                     daily_snapshot_time=None,
+                    connection_type=None,
                 )
             },
         ),
@@ -208,3 +215,82 @@ async def test_create_serverless_cache_exceptions(exception_class, error_message
         assert isinstance(result, dict)
         assert 'error' in result
         assert error_message in result['error']
+
+
+def _request(
+    connection_type: Optional[str] = None,
+    major_engine_version: Optional[str] = None,
+    user_group_id: Optional[str] = None,
+) -> CreateServerlessCacheRequest:
+    """Build a Valkey CreateServerlessCacheRequest with every optional field set explicitly."""
+    return CreateServerlessCacheRequest(
+        serverless_cache_name='test-cache',
+        engine='valkey',
+        description=None,
+        kms_key_id=None,
+        major_engine_version=major_engine_version,
+        snapshot_arns_to_restore=None,
+        subnet_ids=None,
+        tags=None,
+        security_group_ids=None,
+        cache_usage_limits=None,
+        user_group_id=user_group_id,
+        snapshot_retention_limit=None,
+        daily_snapshot_time=None,
+        connection_type=connection_type,
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('connection_type', ['public', 'vpc'])
+async def test_create_serverless_cache_connection_type(connection_type):
+    """Test that connection_type is forwarded as ConnectionType."""
+    mock_client = MagicMock()
+    mock_client.create_serverless_cache.return_value = {
+        'ServerlessCache': {
+            'ServerlessCacheName': 'test-cache',
+            'ServerlessCacheStatus': 'creating',
+            'ConnectionType': connection_type,
+        }
+    }
+
+    with patch(
+        'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+        return_value=mock_client,
+    ):
+        request = _request(
+            major_engine_version='9',
+            user_group_id='default.iam-user-group',
+            connection_type=connection_type,
+        )
+        result = await create_serverless_cache(request)
+
+        call_args = mock_client.create_serverless_cache.call_args[1]
+        assert call_args['ConnectionType'] == connection_type
+        assert call_args['MajorEngineVersion'] == '9'
+        assert call_args['UserGroupId'] == 'default.iam-user-group'
+        assert result['ServerlessCache']['ConnectionType'] == connection_type
+
+
+@pytest.mark.asyncio
+async def test_create_serverless_cache_connection_type_omitted():
+    """Test that ConnectionType is not sent when connection_type is not provided."""
+    mock_client = MagicMock()
+    mock_client.create_serverless_cache.return_value = {
+        'ServerlessCache': {'ServerlessCacheName': 'test-cache'}
+    }
+
+    with patch(
+        'awslabs.elasticache_mcp_server.common.connection.ElastiCacheConnectionManager.get_connection',
+        return_value=mock_client,
+    ):
+        request = _request()
+        await create_serverless_cache(request)
+
+        assert 'ConnectionType' not in mock_client.create_serverless_cache.call_args[1]
+
+
+def test_create_serverless_cache_invalid_connection_type():
+    """Test that an unsupported connection_type is rejected at validation time."""
+    with pytest.raises(ValidationError, match="connection_type must be 'vpc' or 'public'"):
+        _request(connection_type='internet')
