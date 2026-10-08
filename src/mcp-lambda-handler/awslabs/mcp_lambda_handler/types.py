@@ -71,11 +71,14 @@ class ServerInfo:
 class Capabilities:
     tools: Dict[str, bool]
     resources: Optional[Dict[str, bool]] = None
+    prompts: Optional[Dict[str, bool]] = None
 
     def model_dump(self) -> Dict:
         data = {'tools': self.tools}
         if self.resources:
             data['resources'] = self.resources
+        if self.prompts:
+            data['prompts'] = self.prompts
         return data
 
 
