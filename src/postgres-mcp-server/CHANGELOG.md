@@ -54,6 +54,28 @@ not always obvious from the entries below.
 
 ### Added
 
+- **RDS Proxy auto-detection for standalone RPG instances.** When connecting to a
+  standalone RDS PostgreSQL instance (`RPG` with no `cluster_identifier`), the
+  server now checks whether an available RDS Proxy fronts that instance and, if
+  so, connects through the proxy endpoint instead of the instance endpoint. The
+  lookup is best-effort: a missing `rds:DescribeDBProxies` /
+  `rds:DescribeDBProxyTargets` permission, or any API failure, logs a warning and
+  falls back to a direct instance connection rather than failing the connect.
+  Cluster-backed targets (APG, and RPG multi-AZ clusters) are unaffected.
+
+  Routing is transparent to callers: the instance endpoint stays the target's
+  identity, and only the connection's host changes. `db_endpoint` continues to key
+  the per-target `--secret_arn` override map and the connection cache, and is what
+  `connect_to_database` echoes back, so a caller keeps addressing the target the
+  way it always did. A detected proxy is reported as a new `proxy_endpoint` field
+  in the `connect_to_database` response — observability, not a connection handle.
+
+  One consequence to plan for: the `pgwire_iam` auth token is generated for the
+  proxy hostname, which is what RDS Proxy IAM auth requires, and which means the
+  `rds-db:connect` policy must authorize the proxy resource (`prx-*`) rather than
+  the instance. A policy scoped only to the instance stops working once a proxy is
+  detected. Non-default ports are also not translated: the proxy is dialed on the
+  port resolved from the instance, and RDS Proxy for PostgreSQL listens on 5432.
 - `create_cluster` gains an optional `enable_iam_auth` flag (default `False`)
   that enables IAM database authentication (`EnableIAMDatabaseAuthentication`)
   on serverless Aurora clusters it creates. It only permits IAM token auth in
