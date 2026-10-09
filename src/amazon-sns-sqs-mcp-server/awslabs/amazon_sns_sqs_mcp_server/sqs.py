@@ -35,6 +35,7 @@ def create_queue_override(mcp: MCPServer, sqs_client_getter: BOTO3_CLIENT_GETTER
         tags: Dict[str, str] = {},
         region: str = 'us-east-1',
     ):
+        """Create an SQS queue with MCP server version tag."""
         create_params = {
             'QueueName': queue_name,
             'Attributes': attributes.copy(),  # Create a copy to avoid modifying the original
