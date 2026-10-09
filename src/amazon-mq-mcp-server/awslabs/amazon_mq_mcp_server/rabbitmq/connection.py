@@ -17,7 +17,7 @@
 import pika
 import ssl
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 
 class RabbitMQConnection:
@@ -28,7 +28,8 @@ class RabbitMQConnection:
         port = 5671
         host = hostname
         self.protocol = 'amqps'
-        self.url = f'{self.protocol}://{username}:{password}@{host}:{port}'
+        # Encode credentials as URL components so delimiters remain literal credentials.
+        self.url = f'{self.protocol}://{quote(username, safe="")}:{quote(password, safe="")}@{host}:{port}'
         self.parameters = pika.URLParameters(self.url)
         ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         self.parameters.ssl_options = pika.SSLOptions(context=ssl_context)
