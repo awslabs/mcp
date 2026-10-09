@@ -158,6 +158,25 @@ class TestFormatHelpers:
         result = format_timestamp(None)
         assert result is None
 
+    def test_format_timestamp_with_epoch_seconds(self):
+        """Epoch seconds are read as seconds, not milliseconds (no 1970 dates)."""
+        assert format_timestamp(1756728000) == '2025-09-01T12:00:00'
+
+    def test_format_timestamp_with_epoch_milliseconds(self):
+        """Epoch milliseconds are still supported."""
+        assert format_timestamp(1756728000000) == '2025-09-01T12:00:00'
+
+    def test_format_timestamp_with_aware_datetime(self):
+        """An aware datetime is normalized to UTC."""
+        from datetime import timezone
+
+        value = datetime(2025, 9, 1, 12, 0, tzinfo=timezone.utc)
+        assert format_timestamp(value) == '2025-09-01T12:00:00'
+
+    def test_format_timestamp_unconvertible_returns_none(self):
+        """Unconvertible input yields None, never an error string."""
+        assert format_timestamp('garbage') is None
+
 
 @pytest.mark.asyncio
 class TestListRecommendations:
@@ -1929,6 +1948,26 @@ class TestListEnrollmentStatuses:
                 'created_timestamp': '2025-01-01T00:00:00',
             }
         ]
+
+    @pytest.mark.asyncio
+    async def test_epoch_second_timestamps_are_not_1970(self, mock_context):
+        """JSON callers send epoch seconds; enrollment dates must not land in 1970."""
+        client = MagicMock()
+        client.list_enrollment_statuses.return_value = {
+            'items': [
+                {
+                    **self._ITEM,
+                    'lastUpdatedTimestamp': 1788264000,
+                    'createdTimestamp': 1735689600.0,
+                }
+            ]
+        }
+
+        result = await list_enrollment_statuses(mock_context, client)
+
+        (entry,) = result['data']['enrollment_statuses']
+        assert entry['last_updated_timestamp'] == '2026-09-01T12:00:00'
+        assert entry['created_timestamp'] == '2025-01-01T00:00:00'
 
     @pytest.mark.asyncio
     async def test_account_id_forwarded(self, mock_context):

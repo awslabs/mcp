@@ -37,7 +37,7 @@ from ..utilities.constants import (
     SERVICE_MAP,
     TERM_MAP,
 )
-from datetime import datetime
+from ..utilities.time_utils import format_timestamp_to_utc_iso
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
 
@@ -382,15 +382,9 @@ async def get_compute_optimizer_data(
         return {'error': f'Error getting Compute Optimizer data: {str(e)}'}
 
 
-def format_timestamp(timestamp: Optional[int]) -> Optional[str]:
-    """Format Unix timestamp to ISO format string."""
-    if timestamp is None:
-        return None
-
-    try:
-        return datetime.fromtimestamp(timestamp / 1000).isoformat()
-    except Exception as e:
-        return str(f'Error: {e}, Timestamp: {timestamp}')  # Return as string if conversion fails
+def format_timestamp(timestamp: Any) -> Optional[str]:
+    """Format a COH timestamp (datetime, epoch seconds or epoch ms) as a UTC ISO string."""
+    return format_timestamp_to_utc_iso(timestamp)
 
 
 def get_template_for_recommendation(

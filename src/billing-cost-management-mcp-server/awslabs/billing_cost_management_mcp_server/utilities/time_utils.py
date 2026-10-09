@@ -14,8 +14,12 @@
 
 """Time utility functions for the AWS Billing and Cost Management MCP server."""
 
+from .logging_utils import get_logger
 from datetime import datetime, timezone
-from typing import Any, Union
+from typing import Any, Optional, Union
+
+
+logger = get_logger(__name__)
 
 
 # Supported UTC datetime formats, ordered from most specific to least specific.
@@ -68,6 +72,66 @@ def timestamp_to_utc_iso_string(timestamp: Union[int, float, datetime]) -> str:
             timestamp = timestamp.astimezone(timezone.utc)
         return timestamp.replace(tzinfo=None).isoformat()
     return datetime.fromtimestamp(timestamp, tz=timezone.utc).replace(tzinfo=None).isoformat()
+
+
+# An epoch value above this is in milliseconds: read as seconds it would fall after
+# the year 5000, while read as milliseconds it falls after March 1973.
+EPOCH_MILLISECONDS_THRESHOLD = 1e11
+
+
+def format_timestamp_to_utc_iso(timestamp: Any) -> Optional[str]:
+    """Format an AWS timestamp of any wire form as a UTC ISO 8601 string.
+
+    The same field arrives in different forms depending on the client: boto3
+    deserializes timestamps into ``datetime`` objects, while JSON callers see epoch
+    seconds or, for some services, epoch milliseconds. Accepts:
+
+    - ``datetime`` (naive values are taken as UTC; aware values are converted)
+    - epoch seconds (int/float)
+    - epoch milliseconds (int/float above ``EPOCH_MILLISECONDS_THRESHOLD``)
+    - strings holding any of the above numbers, or an ISO 8601 datetime
+
+    Args:
+        timestamp: The timestamp value, or None.
+
+    Returns:
+        ISO 8601 UTC string without offset (e.g. "2023-11-14T22:13:20"), or None when
+        the value is missing or cannot be converted. Conversion failures are logged,
+        never written into the returned value.
+    """
+    if timestamp is None:
+        return None
+
+    value = timestamp
+    if isinstance(value, str):
+        value = _parse_timestamp_string(value)
+
+    try:
+        if isinstance(value, datetime):
+            return timestamp_to_utc_iso_string(value)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            seconds = value / 1000 if abs(value) > EPOCH_MILLISECONDS_THRESHOLD else value
+            return timestamp_to_utc_iso_string(seconds)
+    except (OverflowError, OSError, ValueError):
+        pass
+
+    logger.warning(
+        f'Could not convert timestamp of type {type(timestamp).__name__}; returning None'
+    )
+    return None
+
+
+def _parse_timestamp_string(text: str) -> Any:
+    """Parse a timestamp string into a number or datetime; return None if neither."""
+    stripped = text.strip()
+    try:
+        return float(stripped)
+    except ValueError:
+        pass
+    try:
+        return datetime.fromisoformat(stripped.replace('Z', '+00:00'))
+    except ValueError:
+        return None
 
 
 def normalize_datetimes_to_iso(obj: Any) -> Any:
