@@ -1121,7 +1121,9 @@ def _parse_datetime(value: str, parameter_name: str) -> Any:
     """Parse a UTC datetime string into a timezone-aware datetime for boto3.
 
     Args:
-        value: A datetime string in YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS format (UTC).
+        value: A datetime string in YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS format (UTC),
+            optionally ending in the ISO 8601 UTC designator 'Z'
+            (e.g. 2026-07-10T00:00:00Z).
         parameter_name: Name of the parameter, used in error messages.
 
     Returns:
@@ -1130,15 +1132,17 @@ def _parse_datetime(value: str, parameter_name: str) -> Any:
     Raises:
         ValueError: If the datetime string format is invalid.
     """
+    # 'Z' names the UTC offset these strings are already interpreted in.
+    text = value[:-1] if value.endswith(('Z', 'z')) else value
     for fmt in _SUPPORTED_UTC_DATETIME_FORMATS:
         try:
-            return datetime.strptime(value, fmt).replace(tzinfo=timezone.utc)
+            return datetime.strptime(text, fmt).replace(tzinfo=timezone.utc)
         except ValueError:
             continue
 
     raise ValueError(
         f"Invalid datetime format for {parameter_name}: '{value}'. "
-        'Expected YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS (UTC).'
+        'Expected YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS, optionally with a trailing Z (UTC).'
     )
 
 
