@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
+  - **Session policies for runs**: `StartAHORun` and `StartAHORunBatch` accept an optional `session_policy` (inline IAM policy as a JSON string or object, max 2048 characters) that scopes down the run role; its shape and length are checked locally and it is sent minified, and `GetAHORun` now returns `sessionPolicy`. Requires boto3/botocore >= 1.43.90
   - **StartAHORun tags**: `StartAHORun` now accepts an optional `tags` map that is applied to the run at start
   - **Remote-Deployment Integration Test Harness**: Added an opt-in `integration/` harness that provisions live AWS infrastructure to verify the server's `streamable-http` transport and multi-tenant credential resolution end-to-end behind real fronting layers, then tears it down
     - Zero-setup **AgentCore Runtime** deployment that auto-provisions the tenant IAM roles, the execution role, a Cognito identity provider (minting caller tokens), the DynamoDB role registry, the ECR image, and the AgentCore Runtime, with a one-shot `e2e` CLI that provisions, runs the tests, and tears everything down; plus an **API Gateway** deployment
