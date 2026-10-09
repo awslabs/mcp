@@ -369,8 +369,10 @@ async def get_compute_optimizer_data(
             )
             return response
         elif resource_type == RESOURCE_TYPE_RDS:
-            response = compute_optimizer.get_rds_instance_recommendations(
-                instanceArns=[resource_arn]
+            # Compute Optimizer's RDS API is GetRDSDatabaseRecommendations, keyed by
+            # resourceArns; its results are under 'rdsDBRecommendations'.
+            response = compute_optimizer.get_rds_database_recommendations(
+                resourceArns=[resource_arn]
             )
             return response
         else:
