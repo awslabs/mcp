@@ -1705,7 +1705,10 @@ class TestRedirectToDeadPage:
                 await read_documentation_impl(ctx, self.URL, 5000, 0, 'test-uuid')
         finally:
             patcher.stop()
-        assert str(excinfo.value) == f'Failed to fetch {self.URL} - status code 404'
+        message = str(excinfo.value)
+        # The point of this test is the absence of a substitution note, not the exact string.
+        assert message.startswith(f'Failed to fetch {self.URL} - status code 404')
+        assert '; served ' not in message
 
 
 class TestRedirectOnNonHtmlContent:
@@ -1963,3 +1966,104 @@ class TestReadSectionsOutputShape:
             patcher.stop()
         assert result.startswith(f'<e>Requested {requested}; served {served}.</e>')
         assert f'AWS Documentation from {served}:' in result
+
+
+class TestRecoverableFailuresNameANextStep:
+    """A failure the caller could recover from should say how, as the subsections message does."""
+
+    URL = 'https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazonec2.html'
+    INDEX = 'https://docs.aws.amazon.com/service-authorization/latest/reference/'
+
+    def _client_for(self, response):
+        patcher = patch('httpx.AsyncClient')
+        mock_class = patcher.start()
+        client = MagicMock()
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=None)
+        client.get = AsyncMock(return_value=response)
+        mock_class.return_value = client
+        return patcher
+
+    def _response(self, *, status=200, text='<html><body></body></html>', url=None):
+        response = MagicMock()
+        response.status_code = status
+        response.text = text
+        response.headers = {'content-type': 'text/html'}
+        response.url = url or self.URL
+        return response
+
+    @pytest.mark.asyncio
+    async def test_the_reason_and_the_next_step_are_separate_sentences(self):
+        """The reason must not run into the next step as one sentence."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        patcher = self._client_for(self._response(url=self.INDEX))
+        try:
+            with pytest.raises(ValueError) as excinfo:
+                await read_documentation_impl(ctx, self.URL, 5000, 0, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert '. Use search_documentation.' in str(excinfo.value)
+
+    @pytest.mark.asyncio
+    async def test_a_4xx_points_at_search(self):
+        """The page is not there to read, so the next step is finding it."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        patcher = self._client_for(self._response(status=404))
+        try:
+            with pytest.raises(ValueError, match='search_documentation') as excinfo:
+                await read_documentation_impl(ctx, self.URL, 5000, 0, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert 'status code 404' in str(excinfo.value)
+
+    @pytest.mark.asyncio
+    async def test_a_redirect_onto_an_unreadable_page_points_at_search(self):
+        """The moved-guide-page case: the redirect lands on an index shell with no content."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        patcher = self._client_for(self._response(url=self.INDEX))
+        try:
+            with pytest.raises(ValueError) as excinfo:
+                await read_documentation_impl(ctx, self.URL, 5000, 0, 'test-uuid')
+        finally:
+            patcher.stop()
+        message = str(excinfo.value)
+        assert '; served ' in message  # still names the page that answered
+        assert 'could not be read' in message
+        assert 'search_documentation' in message
+
+    @pytest.mark.asyncio
+    async def test_an_unreadable_page_at_the_url_asked_for_does_not(self):
+        """Nothing moved, so suggesting a search would be misdirection."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        patcher = self._client_for(self._response())
+        try:
+            with pytest.raises(ValueError) as excinfo:
+                await read_documentation_impl(ctx, self.URL, 5000, 0, 'test-uuid')
+        finally:
+            patcher.stop()
+        message = str(excinfo.value)
+        assert 'could not be read' in message
+        assert 'search_documentation' not in message
+
+    @pytest.mark.asyncio
+    async def test_a_transport_failure_does_not(self):
+        """The request never completed, so the page's existence is not in question."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        patcher = patch('httpx.AsyncClient')
+        mock_class = patcher.start()
+        client = MagicMock()
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=None)
+        client.get = AsyncMock(side_effect=httpx.ConnectError('refused'))
+        mock_class.return_value = client
+        try:
+            with pytest.raises(ValueError, match='Failed to fetch') as excinfo:
+                await read_documentation_impl(ctx, self.URL, 5000, 0, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert 'search_documentation' not in str(excinfo.value)
