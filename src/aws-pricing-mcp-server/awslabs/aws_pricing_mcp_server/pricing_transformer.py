@@ -127,3 +127,43 @@ def transform_pricing_data(
         result.append(filtered_item)
 
     return result
+
+
+SECONDS_PER_YEAR = 365 * 24 * 60 * 60
+
+
+def transform_savings_plans_rates(search_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Flatten the offering rates returned by the Savings Plans API.
+
+    Args:
+        search_results: The `searchResults` of a `DescribeSavingsPlansOfferingRates` response
+
+    Returns:
+        One flat dictionary per rate, with the properties of the rate (instance type, region, ...)
+        collected in a `properties` dictionary and the duration of the plan converted to years.
+    """
+    rates = []
+    for result in search_results:
+        offering = result.get('savingsPlanOffering', {})
+        duration_seconds = offering.get('durationSeconds')
+        rates.append(
+            {
+                'rate': result.get('rate'),
+                'unit': result.get('unit'),
+                'currency': offering.get('currency'),
+                'service_code': result.get('serviceCode'),
+                'product_type': result.get('productType'),
+                'usage_type': result.get('usageType'),
+                'operation': result.get('operation'),
+                'savings_plan_type': offering.get('planType'),
+                'payment_option': offering.get('paymentOption'),
+                'term_years': (
+                    duration_seconds // SECONDS_PER_YEAR if duration_seconds is not None else None
+                ),
+                'offering_id': offering.get('offeringId'),
+                'properties': {
+                    prop['name']: prop['value'] for prop in result.get('properties', [])
+                },
+            }
+        )
+    return rates

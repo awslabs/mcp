@@ -18,7 +18,11 @@ This server provides models for analyzing AWS service costs.
 """
 
 from pydantic import BaseModel, ConfigDict, Field
-from typing import List, Optional, Union
+from typing import List, Literal, Optional, Union
+
+
+SavingsPlanType = Literal['Compute', 'EC2Instance', 'SageMaker', 'Database']
+SavingsPlanPaymentOption = Literal['All Upfront', 'Partial Upfront', 'No Upfront']
 
 
 class ErrorResponse(BaseModel):
@@ -132,4 +136,40 @@ SERVICE_ATTRIBUTES_FILTER_FIELD = Field(
 ATTRIBUTE_VALUES_FILTERS_FIELD = Field(
     None,
     description='Optional dictionary mapping attribute names to regex patterns for filtering their values (e.g., {"instanceType": "t3", "operatingSystem": "Linux"})',
+)
+
+
+SAVINGS_PLANS_SERVICE_CODE_FIELD = Field(
+    ...,
+    description='Service code the Savings Plans rates apply to (e.g., "AmazonEC2", "AWSLambda", "AmazonRDS", "AmazonSageMaker")',
+)
+
+SAVINGS_PLAN_TYPE_FIELD = Field(
+    None,
+    description='Optional Savings Plans type: "Compute", "EC2Instance", "SageMaker" or "Database". Omit to get every type.',
+)
+
+SAVINGS_PLAN_PAYMENT_OPTION_FIELD = Field(
+    None,
+    description='Optional payment option: "All Upfront", "Partial Upfront" or "No Upfront". Omit to get every option.',
+)
+
+SAVINGS_PLANS_REGION_FIELD = Field(
+    None,
+    description='Optional AWS region code the rates apply to (e.g., "us-east-1"). Omit to get the rates of every region.',
+)
+
+SAVINGS_PLANS_INSTANCE_TYPE_FIELD = Field(
+    None,
+    description='Optional instance type (e.g., "m5.xlarge", "db.r6g.large"). Omit to get the rates of every instance type.',
+)
+
+SAVINGS_PLANS_TENANCY_FIELD = Field(
+    None,
+    description='Optional EC2 tenancy: "shared", "dedicated" or "host".',
+)
+
+SAVINGS_PLANS_PRODUCT_DESCRIPTION_FIELD = Field(
+    None,
+    description='Optional product description, e.g. the operating system of an EC2 instance ("Linux/UNIX", "Windows") or the database engine of an RDS instance ("Aurora PostgreSQL").',
 )

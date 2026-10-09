@@ -20,6 +20,7 @@ from awslabs.aws_pricing_mcp_server.models import OutputOptions
 from awslabs.aws_pricing_mcp_server.pricing_transformer import (
     _is_free_product,
     transform_pricing_data,
+    transform_savings_plans_rates,
 )
 
 
@@ -799,3 +800,65 @@ class TestExcludeFreeProductsFiltering:
     def test_is_free_product_helper_function(self, item, expected):
         """Test the _is_free_product helper function with various inputs."""
         assert _is_free_product(item) is expected
+
+
+class TestTransformSavingsPlansRates:
+    """Tests for the transform_savings_plans_rates function."""
+
+    def test_flattens_rate(self):
+        """Test a rate is flattened and its properties are collected in a dictionary."""
+        search_results = [
+            {
+                'savingsPlanOffering': {
+                    'offeringId': 'offering-1',
+                    'paymentOption': 'No Upfront',
+                    'planType': 'Compute',
+                    'durationSeconds': 94608000,
+                    'currency': 'USD',
+                    'planDescription': 'Compute Savings Plan',
+                },
+                'rate': '0.0321',
+                'unit': 'Hrs',
+                'productType': 'EC2',
+                'serviceCode': 'AmazonEC2',
+                'usageType': 'BoxUsage:m5.xlarge',
+                'operation': 'RunInstances',
+                'properties': [
+                    {'name': 'region', 'value': 'us-east-1'},
+                    {'name': 'instanceType', 'value': 'm5.xlarge'},
+                ],
+            }
+        ]
+
+        assert transform_savings_plans_rates(search_results) == [
+            {
+                'rate': '0.0321',
+                'unit': 'Hrs',
+                'currency': 'USD',
+                'service_code': 'AmazonEC2',
+                'product_type': 'EC2',
+                'usage_type': 'BoxUsage:m5.xlarge',
+                'operation': 'RunInstances',
+                'savings_plan_type': 'Compute',
+                'payment_option': 'No Upfront',
+                'term_years': 3,
+                'offering_id': 'offering-1',
+                'properties': {'region': 'us-east-1', 'instanceType': 'm5.xlarge'},
+            }
+        ]
+
+    @pytest.mark.parametrize(
+        'duration_seconds,expected_years', [(31536000, 1), (94608000, 3), (None, None)]
+    )
+    def test_term_years(self, duration_seconds, expected_years):
+        """Test the duration of the plan is converted to years."""
+        offering = {} if duration_seconds is None else {'durationSeconds': duration_seconds}
+
+        rates = transform_savings_plans_rates([{'savingsPlanOffering': offering, 'rate': '1'}])
+
+        assert rates[0]['term_years'] == expected_years
+
+    def test_empty_results_and_missing_fields(self):
+        """Test empty results and a result without offering or properties."""
+        assert transform_savings_plans_rates([]) == []
+        assert transform_savings_plans_rates([{}])[0]['properties'] == {}
