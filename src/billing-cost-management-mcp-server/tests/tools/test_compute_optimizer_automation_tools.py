@@ -438,6 +438,39 @@ class TestListEvents:
         assert event['event_id'] == EVENT_ID
         assert event['estimated_monthly_savings']['after_discount_savings'] == 9.0
 
+    @pytest.mark.parametrize(
+        ('value', 'expected'),
+        [
+            ('2026-07-10T00:00:00Z', datetime(2026, 7, 10, tzinfo=timezone.utc)),
+            ('2026-07-10T13:45:30Z', datetime(2026, 7, 10, 13, 45, 30, tzinfo=timezone.utc)),
+            ('2026-07-10T13:45:30z', datetime(2026, 7, 10, 13, 45, 30, tzinfo=timezone.utc)),
+            ('2026-07-10Z', datetime(2026, 7, 10, tzinfo=timezone.utc)),
+            ('2026-07-10T13:45:30', datetime(2026, 7, 10, 13, 45, 30, tzinfo=timezone.utc)),
+            ('2026-07-10', datetime(2026, 7, 10, tzinfo=timezone.utc)),
+        ],
+    )
+    async def test_trailing_z_is_accepted_as_utc(self, mock_ctx, value, expected):
+        """A trailing 'Z' (UTC designator) parses to the same UTC datetime."""
+        client = MagicMock()
+        client.list_automation_events.return_value = {'automationEvents': []}
+
+        await ops.list_automation_events(mock_ctx, client, start_time=value, end_time=value)
+
+        _, kwargs = client.list_automation_events.call_args
+        assert kwargs['startTimeInclusive'] == expected
+        assert kwargs['endTimeExclusive'] == expected
+
+    @pytest.mark.parametrize(
+        'value',
+        ['Z', '2026-07-10T00:00:00ZZ', '2026-07-10T00:00:00+00:00', '2026-07-10T25:00:00Z'],
+    )
+    async def test_malformed_z_strings_still_rejected(self, mock_ctx, value):
+        """Only a single trailing Z is accepted; other malformed strings still fail."""
+        client = MagicMock()
+        with pytest.raises(ValueError, match='start_time'):
+            await ops.list_automation_events(mock_ctx, client, start_time=value)
+        client.list_automation_events.assert_not_called()
+
     async def test_invalid_time_raises_value_error(self, mock_ctx):
         """An invalid datetime string raises ValueError."""
         client = MagicMock()
