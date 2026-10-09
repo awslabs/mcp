@@ -1,5 +1,5 @@
 ---
-title: Amazon RDS Oracle MCP Server
+title: Amazon RDS for Oracle & Oracle Database@AWS MCP Server
 ---
 
 import ReadmeContent from "../../../src/oracle-mcp-server/README.md";

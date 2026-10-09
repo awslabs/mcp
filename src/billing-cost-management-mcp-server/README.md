@@ -26,8 +26,8 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 
 - **Reserved Instance planning**: Analyze RI coverage and receive purchase recommendations
 - **Savings Plans performance**: Analyze how much eligible spend existing plans cover and how much of their commitment is consumed over a lookback window
-- **Savings Plans inventory**: Describe the plans an account owns with their state, term, payment option, commitment, and expiry, including the queued, returned, and payment-failed plans that Cost Explorer does not report
-- **Savings Plans rates and offerings**: Look up the rates locked in on plans already owned, and the offerings available to purchase with their rates, to compare terms and payment options against real numbers
+- **Savings Plans inventory**: Describe the plans an account owns with their state, term, payment option, commitment, and expiry, including the queued, returned, and payment-failed plans that Cost Explorer does not report; a large inventory is offloaded to session SQL to save tokens
+- **Savings Plans rates and offerings**: Look up the rates locked in on plans already owned, and the offerings available to purchase with their rates, to compare terms and payment options against real numbers. A large result from any of these describe operations is offloaded to session SQL (queryable with the `session-sql` tool) to save tokens
 - **Savings Plans recommendations**: Get personalized purchase recommendations based on usage patterns, the hourly data-points behind a recommendation, and the history of when recommendations were generated
 - **Savings Plans purchase analysis**: Run Purchase Analyzer what-if analyses — maximum savings, a specific commitment, or a target average coverage — and retrieve the projected cost, coverage, and utilization once an analysis completes
 
@@ -55,6 +55,7 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 - **Detailed cost breakdowns**: Get billing group cost reports broken down by service name or billing period
 - **Pricing rules and plans**: List pricing rules (MARKUP, DISCOUNT, TIERING) and pricing plans with their associations
 - **Custom line items**: List custom cost allocations including support fees, shared service costs, taxes, credits, and RI/SP distribution
+- **Billing transfer preferences**: Check whether billing groups are created automatically for new end customers in a two-level billing transfer, and which pricing plan they use
 
 ### Cost Allocation Tags
 
@@ -262,6 +263,8 @@ Cost Optimization Hub:
 - cost-optimization-hub:ListRecommendations
 - cost-optimization-hub:ListRecommendationSummaries
 - cost-optimization-hub:ListEfficiencyMetrics
+- cost-optimization-hub:ListEnrollmentStatuses
+- cost-optimization-hub:GetPreferences
 
 Compute Optimizer:
 - compute-optimizer:GetAutoScalingGroupRecommendations
@@ -343,6 +346,7 @@ AWS Billing Conductor:
 - billingconductor:ListCustomLineItems
 - billingconductor:ListCustomLineItemVersions
 - billingconductor:ListResourcesAssociatedToCustomLineItem
+- billingconductor:GetBillingTransferPreference
 
 AWS Invoicing:
 - invoicing:ListInvoiceSummaries
@@ -353,12 +357,17 @@ AWS Invoicing:
 - invoicing:GetProcurementPortalPreference
 
 AWS Billing:
+- billing:GetBillingView
+- billing:ListBillingViews
+- billing:ListSourceViewsForBillingView
+- billing:GetResourcePolicy
 - billing:GetCredits
 - billing:GetCreditAllocationHistory
 - billing:GetBillingPreferences
 - billing:GetEnterpriseSupportChargeSummary
 - billing:GetEnterpriseSupportContractDetails
 - billing:ListEnterpriseSupportLinkedAccountCharges
+- billing:ListBillingViewSegments
 
 #### Configuration
 
@@ -416,6 +425,8 @@ The server currently supports the following AWS services
    - list_recommendations
    - list_recommendation_summaries
    - list_efficiency_metrics
+   - list_enrollment_statuses
+   - get_preferences
 
 6. **Compute Optimizer**
    - get_auto_scaling_group_recommendations
@@ -462,6 +473,7 @@ The server currently supports the following AWS services
    - list_custom_line_items
    - list_custom_line_item_versions
    - list_resources_associated_to_custom_line_item
+   - get_billing_transfer_preference
 
 11. **Cost Allocation Tags**
     - list_cost_allocation_tags
@@ -471,15 +483,23 @@ The server currently supports the following AWS services
     - describe_cost_category_definition
     - list_cost_category_definitions
 
-12. **AWS Invoicing**
+13. **AWS Invoicing**
     - `invoicing` tool: list_invoice_summaries
     - `invoice-units` tool: list_invoice_units, get_invoice_unit, batch_get_invoice_profile
     - `procurement-preferences` tool: list_procurement_portal_preferences, get_procurement_portal_preference
 
-13. **AWS Credits**
+14. **AWS Credits**
     - `credits` tool: get_credits, get_credit_allocation_history
 
-14. **AWS Billing Preferences**
+15. **AWS Billing Preferences**
     - get-billing-preferences
-14. **AWS Enterprise Support**
-    - `enterprise_support` tool: get_charge_summary, get_contract_details, list_linked_account_charges
+
+16. **AWS Enterprise Support**
+    - `enterprise-support` tool: get_charge_summary, get_contract_details, list_linked_account_charges
+
+17. **AWS Billing Views**
+    - `get-billing-view`: retrieve metadata for a specific billing view
+    - `list-billing-views`: list billing views available for a given time period
+    - `list-source-views-for-billing-view`: list source views that a custom billing view is built from
+    - `get-resource-policy`: retrieve the resource-based policy attached to a billing view
+    - `list-billing-view-segments`: list billing view segments over a time period to determine billing domain (BILLABLE vs PRO_FORMA) and account relationships

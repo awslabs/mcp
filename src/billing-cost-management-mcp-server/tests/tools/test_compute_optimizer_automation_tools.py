@@ -73,6 +73,18 @@ def mock_ctx():
     return ctx
 
 
+def _assert_classified_error(result, error_type, operation):
+    """Assert an error response carries the top-level classification fields.
+
+    These match the fields handle_aws_error sets on AWS-side errors, so callers can
+    classify a failure without parsing the message or the region-keyed `data` payload.
+    """
+    assert result['status'] == STATUS_ERROR
+    assert result['error_type'] == error_type
+    assert result['operation'] == operation
+    assert result['service'] == 'Compute Optimizer Automation'
+
+
 # ===== Server / registration =====
 
 
@@ -839,7 +851,7 @@ class TestDispatchRouting:
 
             result = await automation_fn(mock_ctx, operation='delete_everything')
 
-            assert result['status'] == STATUS_ERROR
+            _assert_classified_error(result, 'validation_error', 'delete_everything')
             assert result['data']['provided_operation'] == 'delete_everything'
 
     async def test_unsupported_operation_with_regions(self, mock_ctx):
@@ -849,7 +861,7 @@ class TestDispatchRouting:
                 mock_ctx, operation='delete_everything', regions=['us-east-1', 'eu-west-1']
             )
 
-        assert result['status'] == STATUS_ERROR
+        _assert_classified_error(result, 'validation_error', 'delete_everything')
         assert result['data']['provided_operation'] == 'delete_everything'
         mock_create.assert_not_called()
 
@@ -879,7 +891,7 @@ class TestDispatchValidation:
         with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             result = await automation_fn(mock_ctx, operation='get_automation_event')
 
-            assert result['status'] == STATUS_ERROR
+            _assert_classified_error(result, 'validation_error', 'get_automation_event')
             assert 'event_id' in result['data']['missing_parameters']
             mock_create.assert_not_called()
 
@@ -888,7 +900,7 @@ class TestDispatchValidation:
         with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             result = await automation_fn(mock_ctx, operation='list_automation_rule_preview')
 
-            assert result['status'] == STATUS_ERROR
+            _assert_classified_error(result, 'validation_error', 'list_automation_rule_preview')
             assert set(result['data']['missing_parameters']) == {
                 'rule_type',
                 'recommended_action_types',
@@ -900,7 +912,7 @@ class TestDispatchValidation:
         with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             result = await automation_fn(mock_ctx, operation='list_tags_for_resource')
 
-            assert result['status'] == STATUS_ERROR
+            _assert_classified_error(result, 'validation_error', 'list_tags_for_resource')
             assert 'resource_arn' in result['data']['missing_parameters']
             mock_create.assert_not_called()
 
@@ -916,7 +928,7 @@ class TestFilterValidation:
                 mock_ctx, operation='list_automation_events', filters='{not json'
             )
 
-            assert result['status'] == STATUS_ERROR
+            _assert_classified_error(result, 'validation_error', 'list_automation_events')
             assert 'Invalid JSON' in result['message']
             mock_create.assert_not_called()
 
@@ -927,7 +939,7 @@ class TestFilterValidation:
                 mock_ctx, operation='list_automation_events', filters='{"name": "EventStatus"}'
             )
 
-            assert result['status'] == STATUS_ERROR
+            _assert_classified_error(result, 'validation_error', 'list_automation_events')
             mock_create.assert_not_called()
 
     async def test_invalid_filter_name(self, mock_ctx):
@@ -939,7 +951,7 @@ class TestFilterValidation:
                 filters='[{"name": "Nonsense", "values": ["x"]}]',
             )
 
-            assert result['status'] == STATUS_ERROR
+            _assert_classified_error(result, 'validation_error', 'list_automation_events')
             assert result['data']['invalid_filter_names'] == ['Nonsense']
             assert 'EventStatus' in result['data']['valid_filter_names']
             mock_create.assert_not_called()
@@ -1163,6 +1175,39 @@ def test_partition_resource_not_found_errors():
     assert other_errors == {
         'us-west-2': {'error_type': 'AccessDeniedException', 'message': 'denied'}
     }
+
+
+@pytest.mark.parametrize(
+    ('region_errors', 'regions_not_found', 'expected'),
+    [
+        (
+            {
+                'us-east-1': {'error_type': 'AccessDeniedException'},
+                'eu-west-1': {'error_type': 'AccessDeniedException'},
+            },
+            [],
+            'AccessDeniedException',
+        ),
+        ({}, ['us-east-1', 'eu-west-1'], 'ResourceNotFoundException'),
+        (
+            {
+                'us-east-1': {'error_type': 'AccessDeniedException'},
+                'eu-west-1': {'error_type': 'ThrottlingException'},
+            },
+            [],
+            'multi_region_error',
+        ),
+        (
+            {'us-east-1': {'error_type': 'AccessDeniedException'}},
+            ['eu-west-1'],
+            'multi_region_error',
+        ),
+        ({'us-east-1': {'message': 'no type'}}, [], 'multi_region_error'),
+    ],
+)
+def test_multi_region_error_type(region_errors, regions_not_found, expected):
+    """The shared regional error type is promoted; disagreement is a multi_region_error."""
+    assert automation_tools._multi_region_error_type(region_errors, regions_not_found) == expected
 
 
 # The regions passed as `regions` by the fan-out tests. Callers choose the set now, so
@@ -1458,7 +1503,12 @@ class TestMultiRegionFanOut:
 
         next_token = result['data']['next_token']
         assert isinstance(next_token, str)
-        regions_tokens, error = parse_regional_next_token(next_token, _REGIONS)
+        regions_tokens, error = parse_regional_next_token(
+            next_token,
+            _REGIONS,
+            operation='list_recommended_actions',
+            service_name='Compute Optimizer Automation',
+        )
         assert error is None
         assert regions_tokens == {'eu-west-1': 'MORE'}
         assert 'region_next_tokens' not in result['data']
@@ -1499,7 +1549,7 @@ class TestMultiRegionFanOut:
                 next_token=encode_regional_next_token({'eu-west-1': 'abc'}),
             )
 
-        assert result['status'] == STATUS_ERROR
+        _assert_classified_error(result, 'validation_error', 'list_recommended_actions')
         assert result['data']['unsupported_regions'] == ['eu-west-1']
         mock_create.assert_not_called()
 
@@ -1525,7 +1575,7 @@ class TestMultiRegionFanOut:
                 next_token=next_token,
             )
 
-        assert result['status'] == STATUS_ERROR
+        _assert_classified_error(result, 'validation_error', 'list_recommended_actions')
         assert message_fragment in result['message'].lower()
         mock_create.assert_not_called()
 
@@ -1608,8 +1658,64 @@ class TestMultiRegionFanOut:
                 max_pages=1,
             )
 
-        assert result['status'] == STATUS_ERROR
+        # Every region failed the same way, so that shared type is promoted to the top level.
+        _assert_classified_error(result, 'unknown_runtimeerror', 'list_recommended_actions')
         assert len(result['data']['region_errors']) == len(_REGIONS)
+
+    async def test_all_regions_fail_with_shared_aws_error_promotes_it(self, mock_ctx):
+        """An AWS error code shared by every failed region becomes the top-level error_type."""
+        access_denied = ClientError(
+            {'Error': {'Code': 'AccessDeniedException', 'Message': 'denied'}},
+            'ListRecommendedActions',
+        )
+
+        def factory(region=None):
+            client = MagicMock()
+            client.list_recommended_actions.side_effect = access_denied
+            return client
+
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            mock_create.side_effect = factory
+
+            result = await automation_fn(
+                mock_ctx,
+                operation='list_recommended_actions',
+                regions=_REGIONS,
+                max_pages=1,
+            )
+
+        _assert_classified_error(result, 'AccessDeniedException', 'list_recommended_actions')
+        assert set(result['data']['region_errors']) == set(_REGIONS)
+
+    async def test_all_regions_fail_differently_is_multi_region_error(self, mock_ctx):
+        """Regions failing for different reasons report multi_region_error with the detail."""
+        throttled = ClientError(
+            {'Error': {'Code': 'ThrottlingException', 'Message': 'slow down'}},
+            'ListRecommendedActions',
+        )
+
+        def factory(region=None):
+            client = MagicMock()
+            if region == 'us-east-1':
+                client.list_recommended_actions.side_effect = throttled
+            else:
+                client.list_recommended_actions.side_effect = RuntimeError('unavailable')
+            return client
+
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            mock_create.side_effect = factory
+
+            result = await automation_fn(
+                mock_ctx,
+                operation='list_recommended_actions',
+                regions=_REGIONS,
+                max_pages=1,
+            )
+
+        _assert_classified_error(result, 'multi_region_error', 'list_recommended_actions')
+        region_errors = result['data']['region_errors']
+        assert region_errors['us-east-1']['error_type'] == 'ThrottlingException'
+        assert region_errors['eu-west-1']['error_type'] == 'unknown_runtimeerror'
 
     async def test_plain_token_rejected_in_multi_region_mode(self, mock_ctx):
         """A native single-region token is rejected when a regions list is given."""
@@ -1621,7 +1727,7 @@ class TestMultiRegionFanOut:
                 next_token='plaintoken==',
             )
 
-        assert result['status'] == STATUS_ERROR
+        _assert_classified_error(result, 'validation_error', 'list_recommended_actions')
         assert 'invalid multi-region next_token' in result['message'].lower()
         mock_create.assert_not_called()
 
@@ -1674,7 +1780,9 @@ class TestMultiRegionFanOut:
                 max_pages=1,
             )
 
-        assert result['status'] == STATUS_ERROR
+        _assert_classified_error(
+            result, 'ResourceNotFoundException', 'list_automation_event_steps'
+        )
         assert 'not found' in result['message'].lower()
         assert len(result['data']['regions_not_found']) == len(_REGIONS)
 
@@ -1726,7 +1834,8 @@ class TestMultiRegionFanOut:
                 max_pages=1,
             )
 
-        assert result['status'] == STATUS_ERROR
+        # One region failed and the rest returned not found, so the regions disagree.
+        _assert_classified_error(result, 'multi_region_error', 'list_automation_event_steps')
         assert 'could not determine' in result['message'].lower()
         assert result['data']['region_errors']['us-east-1']['error_type'] == (
             'unknown_runtimeerror'
@@ -1778,7 +1887,7 @@ class TestMultiRegionGetAutomationEvent:
                 mock_ctx, operation='get_automation_event', regions=_REGIONS, event_id=EVENT_ID
             )
 
-        assert result['status'] == STATUS_ERROR
+        _assert_classified_error(result, 'ResourceNotFoundException', 'get_automation_event')
         assert 'not found' in result['message'].lower()
         assert result['data']['regions_queried'] == _REGIONS
 
@@ -1797,7 +1906,7 @@ class TestMultiRegionGetAutomationEvent:
                 mock_ctx, operation='get_automation_event', regions=_REGIONS, event_id=EVENT_ID
             )
 
-        assert result['status'] == STATUS_ERROR
+        _assert_classified_error(result, 'unknown_runtimeerror', 'get_automation_event')
         assert 'could not determine' in result['message'].lower()
         assert 'not found' not in result['message'].lower()
         assert len(result['data']['region_errors']) == len(_REGIONS)
@@ -1820,7 +1929,7 @@ class TestMultiRegionGetAutomationEvent:
                 mock_ctx, operation='get_automation_event', regions=_REGIONS, event_id=EVENT_ID
             )
 
-        assert result['status'] == STATUS_ERROR
+        _assert_classified_error(result, 'multi_region_error', 'get_automation_event')
         assert 'could not determine' in result['message'].lower()
         assert len(result['data']['regions_not_found']) == len(_REGIONS) - 1
 
@@ -1842,7 +1951,7 @@ class TestMultiRegionGetAutomationEvent:
                 mock_ctx, operation='get_automation_event', regions=_REGIONS, event_id=EVENT_ID
             )
 
-        assert result['status'] == STATUS_ERROR
+        _assert_classified_error(result, 'ResourceNotFoundException', 'get_automation_event')
         assert 'not found' in result['message'].lower()
 
     async def test_searches_only_the_requested_regions(self, mock_ctx):
@@ -1928,7 +2037,8 @@ class TestRegionRouting:
                 next_token=token,
             )
 
-        assert result['status'] == STATUS_ERROR
+        _assert_classified_error(result, 'validation_error', 'list_recommended_actions')
+        assert result['data']['parameter'] == 'next_token'
         assert 'cannot be used for a single-region request' in result['message']
         mock_create.assert_not_called()
 
@@ -2008,7 +2118,7 @@ class TestRegionRouting:
                 **extra_kwargs,
             )
 
-        assert result['status'] == STATUS_ERROR
+        _assert_classified_error(result, 'validation_error', operation)
         assert result['data']['parameter'] == 'regions'
         assert 'account-global' in result['message']
         mock_create.assert_not_called()
@@ -2049,7 +2159,7 @@ class TestRegionRouting:
                 mock_ctx, operation='list_recommended_actions', regions=regions
             )
 
-        assert result['status'] == STATUS_ERROR
+        _assert_classified_error(result, 'validation_error', 'list_recommended_actions')
         assert result['data']['parameter'] == 'regions'
         assert message_fragment in result['message']
         mock_create.assert_not_called()
@@ -2141,6 +2251,11 @@ class TestMultiRegionSqlOffload:
         assert data['row_count'] == 60
         # regions_queried is passed as offload metadata so it survives the SQL conversion.
         assert data['regions_queried'] == _REGIONS
-        regions_tokens, error = parse_regional_next_token(data['next_token'], _REGIONS)
+        regions_tokens, error = parse_regional_next_token(
+            data['next_token'],
+            _REGIONS,
+            operation='list_recommended_actions',
+            service_name='Compute Optimizer Automation',
+        )
         assert error is None
         assert regions_tokens == {'us-east-1': 'more-pages'}

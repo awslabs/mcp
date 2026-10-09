@@ -1008,6 +1008,9 @@ async def test_ce_real_get_dimension_values_missing_dimension_error_reload_ident
             'dimension is required' in res.get('message', '')
             or 'dimension is required' in str(res.get('data', {})).lower()
         )
+        assert res['error_type'] == 'validation_error'
+        assert res['operation'] == 'getDimensionValues'
+        assert res['service'] == 'Cost Explorer'
 
 
 @pytest.mark.asyncio
@@ -1070,6 +1073,31 @@ async def test_ce_real_get_cost_forecast_missing_metric_error_reload_identity_de
             'metric is required' in res.get('message', '')
             or 'metric is required' in str(res.get('data', {})).lower()
         )
+        assert res['error_type'] == 'validation_error'
+        assert res['operation'] == 'getCostForecast'
+        assert res['service'] == 'Cost Explorer'
+
+
+@pytest.mark.asyncio
+async def test_ce_real_get_usage_forecast_missing_metric_error_reload_identity_decorator(
+    mock_context,
+):
+    """Test real cost_explorer get_usage_forecast missing metric is classified as validation_error."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with patch.object(ce_mod, 'create_aws_client') as mock_create_client:
+        mock_create_client.return_value = MagicMock()
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getUsageForecast',
+            # metric intentionally omitted
+        )
+        assert res['status'] == 'error'
+        assert res['data'] == {'message': 'metric is required for getUsageForecast operation'}
+        assert res['error_type'] == 'validation_error'
+        assert res['operation'] == 'getUsageForecast'
+        assert res['service'] == 'Cost Explorer'
 
 
 @pytest.mark.asyncio
@@ -1566,6 +1594,9 @@ async def test_ce_real_unknown_operation_error_reload_identity_decorator(mock_co
         res = await real_fn(mock_context, operation='definitely_not_supported')  # type: ignore
         assert res['status'] == 'error'
         assert 'Unknown operation' in res.get('data', {}).get('message', '')
+        assert res['error_type'] == 'validation_error'
+        assert res['operation'] == 'definitely_not_supported'
+        assert res['service'] == 'Cost Explorer'
 
 
 @pytest.mark.asyncio
@@ -1588,3 +1619,22 @@ async def test_ce_real_exception_flow_calls_handle_error_reload_identity_decorat
         assert res['status'] == 'error'
         assert 'boom' in res.get('message', '')
         mock_handle.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_ce_real_client_creation_error_is_classified(mock_context):
+    """A client-creation failure carries top-level error_type/operation/service."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with patch.object(ce_mod, 'create_aws_client') as mock_create_client:
+        mock_create_client.side_effect = Exception('no credentials')
+        res = await real_fn(mock_context, operation='getCostAndUsage')  # type: ignore
+
+    assert res['status'] == 'error'
+    assert res['error_type'] == 'client_creation_error'
+    assert res['operation'] == 'getCostAndUsage'
+    assert res['service'] == 'Cost Explorer'
+    assert res['message'] == 'Failed to create AWS client: no credentials'
+    # Legacy nested payload is preserved
+    assert res['data']['error_type'] == 'client_creation_error'

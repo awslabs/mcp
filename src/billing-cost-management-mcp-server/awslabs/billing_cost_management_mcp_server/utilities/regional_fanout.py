@@ -263,8 +263,15 @@ def decode_regional_next_token(
 def parse_regional_next_token(
     next_token: Optional[str],
     supported_regions: Sequence[str],
+    *,
+    operation: str,
+    service_name: str,
 ) -> Tuple[Dict[str, Optional[str]], Optional[Dict[str, Any]]]:
-    """Resolve an opaque token into regional request state or a validation response."""
+    """Resolve an opaque token into regional request state or a validation response.
+
+    The validation response carries top-level `error_type`, `operation`, and `service`,
+    matching the shape `handle_aws_error` returns for AWS-side failures.
+    """
     supported_region_list = list(supported_regions)
     try:
         return decode_regional_next_token(next_token, supported_region_list), None
@@ -302,4 +309,11 @@ def parse_regional_next_token(
                 f'`regions` list: {", ".join(unsupported_regions)}. Pass the same `regions` '
                 'list the token was produced with.'
             )
-        return {}, format_response('error', data, message)
+        return {}, format_response(
+            'error',
+            data,
+            message,
+            error_type='validation_error',
+            operation=operation,
+            service=service_name,
+        )

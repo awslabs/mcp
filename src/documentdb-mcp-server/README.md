@@ -4,11 +4,13 @@ An AWS Labs Model Context Protocol (MCP) server for AWS DocumentDB that enables 
 
 ## Overview
 
-The DocumentDB MCP Server provides tools to connect to and query AWS DocumentDB databases. It serves as a bridge between AI assistants and AWS DocumentDB, allowing for safe and efficient database operations through the Model Context Protocol (MCP).
+The DocumentDB MCP Server provides tools to query a single AWS DocumentDB cluster. It serves as a bridge between AI assistants and AWS DocumentDB, allowing for safe and efficient database operations through the Model Context Protocol (MCP).
+
+The target cluster is configured by the operator at server startup (via the `--connection-string` CLI argument or the `DOCUMENTDB_CONNECTION_STRING` environment variable). Tools operate on that configured cluster directly and take only database/collection/query arguments.
 
 ## Features
 
-- **Connection Management**: Establish and maintain connections to DocumentDB clusters
+- **Operator-configured connection**: Connect to a single DocumentDB cluster fixed at startup
 - **Database Management**: List databases and retrieve database statistics
 - **Collection Management**: List, create, drop collections and retrieve collection statistics
 - **Document Operations**: Query, insert, update, and delete documents
@@ -19,12 +21,7 @@ The DocumentDB MCP Server provides tools to connect to and query AWS DocumentDB 
 
 ## Available Tools
 
-The DocumentDB MCP Server provides the following tools:
-
-### Connection Management
-
-- `connect`: Connect to a DocumentDB cluster and get a connection ID
-- `disconnect`: Close an active connection
+The DocumentDB MCP Server provides the following tools. All tools operate on the cluster configured at server startup and take only database/collection/query arguments (no connection string or connection id):
 
 ### Database Management
 
@@ -56,15 +53,24 @@ The DocumentDB MCP Server provides the following tools:
 
 ### Starting the Server
 
+The server requires a connection string for the DocumentDB cluster it should connect to, supplied via the `DOCUMENTDB_CONNECTION_STRING` environment variable (recommended) or the `--connection-string` argument. If no connection string is configured, database tools fail until one is set.
+
+Prefer the environment variable: a connection string passed as a command-line argument is visible to other local users via process listings (e.g. `ps`), and the environment variable keeps the credentials out of `argv`. An MCP client configuration file that sets `DOCUMENTDB_CONNECTION_STRING` still holds the password, so restrict access to that file.
+
 ```bash
-# Basic usage
+# Recommended: provide the connection string via environment variable
+export DOCUMENTDB_CONNECTION_STRING="mongodb://<username>:<password>@docdb-cluster.cluster-xyz.us-west-2.docdb.amazonaws.com:27017/?tls=true&tlsCAFile=global-bundle.pem&retryWrites=false"
 python -m awslabs.documentdb_mcp_server.server
 
-# With custom port and host
-python -m awslabs.documentdb_mcp_server.server --port 9000 --host 0.0.0.0
-
 # With write operations enabled
-python -m awslabs.documentdb_mcp_server.server --allow-write
+DOCUMENTDB_CONNECTION_STRING="mongodb://...&retryWrites=false" \
+  python -m awslabs.documentdb_mcp_server.server --allow-write
+
+# Convenience only: pass the connection string as an argument. Note that this
+# exposes the connection string (including any password) in process listings;
+# prefer DOCUMENTDB_CONNECTION_STRING instead.
+python -m awslabs.documentdb_mcp_server.server \
+  --connection-string "mongodb://<username>:<password>@docdb-cluster.cluster-xyz.us-west-2.docdb.amazonaws.com:27017/?tls=true&tlsCAFile=global-bundle.pem&retryWrites=false"
 ```
 
 ### Command Line Options
@@ -72,7 +78,7 @@ python -m awslabs.documentdb_mcp_server.server --allow-write
 | Option | Description | Default |
 |--------|-------------|---------|
 | `--log-level` | Set logging level (TRACE, DEBUG, INFO, etc.) | INFO |
-| `--connection-timeout` | Idle connection timeout in minutes | 30 |
+| `--connection-string` | DocumentDB connection string for the cluster to connect to. Prefer the `DOCUMENTDB_CONNECTION_STRING` environment variable, which keeps credentials out of process listings. | None |
 | `--allow-write` | Enable write operations (otherwise defaults to read-only mode) | False |
 
 ### Read-Only Mode
@@ -82,7 +88,6 @@ By default, the server runs in read-only mode that only allows read operations. 
 - Read operations (`find`, `listCollections`) work normally
 - Aggregation pipelines (`aggregate`) work normally, except pipelines containing `$out` or `$merge` stages are blocked
 - Write operations (`insert`, `update`, `delete`, `createCollection`, `dropCollection`) are blocked and return a permission error
-- Connection management operations (`connect`, `disconnect`) work normally
 
 This mode is particularly useful for:
 - Demonstration environments
@@ -92,37 +97,21 @@ This mode is particularly useful for:
 
 ## Usage Examples
 
-### Basic Connection and Query (Read-Only Operations)
+The cluster is configured when the server is started (see [Starting the Server](#starting-the-server)). Tools operate on that configured cluster and do not take a connection string or connection id.
+
+### Basic Query (Read-Only Operations)
 
 ```python
-# Connect to a DocumentDB cluster
-connection_result = await use_mcp_tool(
-    server_name="awslabs.aws-documentdb-mcp-server",
-    tool_name="connect",
-    arguments={
-        "connection_string": "mongodb://<username>:<password>@docdb-cluster.cluster-xyz.us-west-2.docdb.amazonaws.com:27017/?tls=true&tlsCAFile=global-bundle.pem"
-    }
-)
-connection_id = connection_result["connection_id"]
-
-# Query documents
+# Query documents on the configured cluster
 query_result = await use_mcp_tool(
     server_name="awslabs.aws-documentdb-mcp-server",
     tool_name="find",
     arguments={
-        "connection_id": connection_id,
         "database": "my_database",
         "collection": "users",
         "query": {"active": True},
         "limit": 5
     }
-)
-
-# Close the connection when done
-await use_mcp_tool(
-    server_name="awslabs.aws-documentdb-mcp-server",
-    tool_name="disconnect",
-    arguments={"connection_id": connection_id}
 )
 ```
 
@@ -131,30 +120,18 @@ await use_mcp_tool(
 To enable write operations, start the server with the `--allow-write` flag:
 
 ```bash
-python -m awslabs.documentdb_mcp_server.server --allow-write
+python -m awslabs.documentdb_mcp_server.server \
+  --connection-string "mongodb://...&retryWrites=false" --allow-write
 ```
 
 When the server is running with write operations enabled:
 
 ```python
-# This operation will succeed
-query_result = await use_mcp_tool(
-    server_name="awslabs.aws-documentdb-mcp-server",
-    tool_name="find",
-    arguments={
-        "connection_id": connection_id,
-        "database": "my_database",
-        "collection": "users",
-        "query": {"active": True}
-    }
-)
-
 # This operation will now succeed when --allow-write is used
 insert_result = await use_mcp_tool(
     server_name="awslabs.aws-documentdb-mcp-server",
     tool_name="insert",
     arguments={
-        "connection_id": connection_id,
         "database": "my_database",
         "collection": "users",
         "documents": {"name": "New User", "active": True}
@@ -169,7 +146,7 @@ insert_result = await use_mcp_tool(
 
 | Kiro | Cursor | VS Code |
 |:----:|:------:|:-------:|
-| [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=awslabs.documentdb-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.documentdb-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%2C%22AWS_PROFILE%22%3A%22your-aws-profile%22%7D%7D) | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.documentdb-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuZG9jdW1lbnRkYi1tY3Atc2VydmVyQGxhdGVzdCIsImVudiI6eyJGQVNUTUNQX0xPR19MRVZFTCI6IkVSUk9SIiwiQVdTX1BST0ZJTEUiOiJ5b3VyLWF3cy1wcm9maWxlIn0sImRpc2FibGVkIjpmYWxzZSwiYXV0b0FwcHJvdmUiOltdfQ==) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=DocumentDB%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.documentdb-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%2C%22AWS_PROFILE%22%3A%22your-aws-profile%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
+| [![Add to Kiro](https://kiro.dev/images/add-to-kiro.svg)](https://kiro.dev/launch/mcp/add?name=awslabs.documentdb-mcp-server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.documentdb-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22DOCUMENTDB_CONNECTION_STRING%22%3A%22your-documentdb-connection-string%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%2C%22AWS_PROFILE%22%3A%22your-aws-profile%22%7D%7D) | [![Install MCP Server](https://cursor.com/deeplink/mcp-install-light.svg)](https://cursor.com/en/install-mcp?name=awslabs.documentdb-mcp-server&config=eyJjb21tYW5kIjoidXZ4IGF3c2xhYnMuZG9jdW1lbnRkYi1tY3Atc2VydmVyQGxhdGVzdCIsImVudiI6eyJET0NVTUVOVERCX0NPTk5FQ1RJT05fU1RSSU5HIjoieW91ci1kb2N1bWVudGRiLWNvbm5lY3Rpb24tc3RyaW5nIiwiRkFTVE1DUF9MT0dfTEVWRUwiOiJFUlJPUiIsIkFXU19QUk9GSUxFIjoieW91ci1hd3MtcHJvZmlsZSJ9LCJkaXNhYmxlZCI6ZmFsc2UsImF1dG9BcHByb3ZlIjpbXX0=) | [![Install on VS Code](https://img.shields.io/badge/Install_on-VS_Code-FF9900?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=DocumentDB%20MCP%20Server&config=%7B%22command%22%3A%22uvx%22%2C%22args%22%3A%5B%22awslabs.documentdb-mcp-server%40latest%22%5D%2C%22env%22%3A%7B%22DOCUMENTDB_CONNECTION_STRING%22%3A%22your-documentdb-connection-string%22%2C%22FASTMCP_LOG_LEVEL%22%3A%22ERROR%22%2C%22AWS_PROFILE%22%3A%22your-aws-profile%22%7D%2C%22disabled%22%3Afalse%2C%22autoApprove%22%3A%5B%5D%7D) |
 
 Configure the MCP server in your MCP client configuration (e.g., for Kiro, edit ~/.kiro/settings/mcp.json):
 
@@ -182,6 +159,7 @@ Configure the MCP server in your MCP client configuration (e.g., for Kiro, edit 
         "awslabs.documentdb-mcp-server@latest",
       ],
       "env": {
+        "DOCUMENTDB_CONNECTION_STRING": "mongodb://<username>:<password>@docdb-cluster.cluster-xyz.us-west-2.docdb.amazonaws.com:27017/?tls=true&tlsCAFile=global-bundle.pem&retryWrites=false",
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1",
         "FASTMCP_LOG_LEVEL": "ERROR"
@@ -212,6 +190,7 @@ For Windows users, the MCP server configuration format is slightly different:
         "awslabs.documentdb-mcp-server.exe"
       ],
       "env": {
+        "DOCUMENTDB_CONNECTION_STRING": "mongodb://<username>:<password>@docdb-cluster.cluster-xyz.us-west-2.docdb.amazonaws.com:27017/?tls=true&tlsCAFile=global-bundle.pem&retryWrites=false",
         "FASTMCP_LOG_LEVEL": "ERROR",
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1"

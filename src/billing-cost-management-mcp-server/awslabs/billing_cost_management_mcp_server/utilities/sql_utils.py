@@ -404,6 +404,10 @@ def _get_specialized_converter(operation_name: str) -> Optional[str]:
         'cost_optimization_hub_list_efficiency_metrics': 'coh_efficiency_metrics',
         'budget_actions': 'records',
         'budget_notifications': 'records',
+        'sp_explorer_describe_savings_plans': 'records',
+        'sp_explorer_describe_savings_plan_rates': 'records',
+        'sp_explorer_describe_savings_plans_offerings': 'records',
+        'sp_explorer_describe_savings_plans_offering_rates': 'records',
     }
 
     if operation_name in converters:
@@ -424,6 +428,12 @@ def _get_specialized_converter(operation_name: str) -> Optional[str]:
     # One row per preference keeps an offloaded organization
     # filterable by account and value
     if operation_name.startswith('billing_preferences_'):
+        return 'records'
+
+    # BVS segment operations return {segments: [...]}.
+    # One row per segment keeps an offloaded result filterable by domain
+    # and account.
+    if operation_name.startswith('bvs_list_billing_view_segments'):
         return 'records'
 
     return None
@@ -1489,7 +1499,17 @@ async def execute_session_sql(
         # Use context logger for consistent error reporting
         ctx_logger = get_context_logger(ctx, __name__)
         await ctx_logger.error(error_message, exc_info=True)
-        return {'status': 'error', 'message': error_message}
+
+        # Add a structured error_type/operation/service so failures are
+        # classifiable. error_type is the exception class name only (e.g.
+        # 'OperationalError').
+        return {
+            'status': 'error',
+            'service': 'SQL',
+            'operation': 'session_sql',
+            'error_type': type(e).__name__,
+            'message': error_message,
+        }
 
     finally:
         # Close connection only if it was successfully opened

@@ -365,11 +365,11 @@ async def paginate_aws_response(
 
     # Create pagination metadata
     pagination_metadata = {
-        'complete_dataset': current_token is None,
+        'complete_dataset': not current_token,
         'pages_fetched': pages_fetched,
         'total_results': len(all_results),
-        'has_more': current_token is not None,
-        'next_token': current_token,
+        'has_more': bool(current_token),
+        'next_token': current_token or None,
         'duration_ms': int(duration_ms),
     }
 
@@ -381,13 +381,24 @@ async def paginate_aws_response(
     return all_results, pagination_metadata
 
 
-def format_response(status: str, data: Any, message: Optional[str] = None) -> Dict[str, Any]:
+def format_response(
+    status: str,
+    data: Any,
+    message: Optional[str] = None,
+    *,
+    error_type: Optional[str] = None,
+    operation: Optional[str] = None,
+    service: Optional[str] = None,
+) -> Dict[str, Any]:
     """Format a standard API response.
 
     Args:
         status: Response status ("success" or "error")
         data: Response data payload
         message: Optional message to include
+        error_type: Optional error classification, set at the top level like handle_aws_error
+        operation: Optional name of the operation that produced the response
+        service: Optional AWS service name
 
     Returns:
         Dict containing a standardized response format
@@ -396,5 +407,13 @@ def format_response(status: str, data: Any, message: Optional[str] = None) -> Di
 
     if message:
         response['message'] = message
+
+    # Only added when supplied, so existing callers keep the same shape
+    if error_type is not None:
+        response['error_type'] = error_type
+    if operation is not None:
+        response['operation'] = operation
+    if service is not None:
+        response['service'] = service
 
     return response
