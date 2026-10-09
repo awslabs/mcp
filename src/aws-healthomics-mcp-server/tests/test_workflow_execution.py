@@ -17,6 +17,7 @@
 import botocore.exceptions
 import copy as _copy
 import inspect as _inspect
+import json
 import pytest
 from awslabs.aws_healthomics_mcp_server.consts import DEFAULT_SCRATCH_STORAGE_MODE
 from awslabs.aws_healthomics_mcp_server.tools import workflow_execution as _workflow_execution
@@ -2921,3 +2922,157 @@ class TestStartRunTags:
 
         assert 'error' not in result, f'Unexpected error: {result}'
         assert 'tags' not in mock_client.start_run.call_args.kwargs
+
+
+class TestStartRunSessionPolicy:
+    """start_run handling of the optional session_policy parameter."""
+
+    _base_params = {
+        'workflow_id': 'wfl-12345',
+        'role_arn': 'arn:aws:iam::123456789012:role/HealthOmicsRole',
+        'name': 'test-run',
+        'output_uri': 's3://my-bucket/outputs/',
+        'parameters': {'param1': 'value1'},
+    }
+
+    _api_response = {
+        'id': 'run-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:run/run-12345',
+        'status': 'PENDING',
+        'uuid': 'uuid-abc-123',
+    }
+
+    _policy = {
+        'Version': '2012-10-17',
+        'Statement': [
+            {'Effect': 'Allow', 'Action': 's3:GetObject', 'Resource': 'arn:aws:s3:::my-bucket/*'}
+        ],
+    }
+
+    async def _call(self, mock_client, **kwargs):
+        wrapper = MCPToolTestWrapper(start_run)
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+            return_value=mock_client,
+        ):
+            return await wrapper.call(ctx=AsyncMock(), **self._base_params, **kwargs)
+
+    @pytest.mark.asyncio
+    async def test_start_run_forwards_session_policy_string(self):
+        """A minified JSON string policy is forwarded to the API unchanged."""
+        policy_str = json.dumps(self._policy, separators=(',', ':'))
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        result = await self._call(mock_client, session_policy=policy_str)
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        assert mock_client.start_run.call_args.kwargs['sessionPolicy'] == policy_str
+
+    @pytest.mark.asyncio
+    async def test_start_run_serializes_session_policy_dict(self):
+        """A dict policy is serialized to a JSON string before being forwarded."""
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        result = await self._call(mock_client, session_policy=self._policy)
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        forwarded = mock_client.start_run.call_args.kwargs['sessionPolicy']
+        assert isinstance(forwarded, str)
+        assert json.loads(forwarded) == self._policy
+
+    @pytest.mark.asyncio
+    async def test_start_run_omits_session_policy_when_not_provided(self):
+        """session_policy=None => no sessionPolicy key in the params passed to the API."""
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        result = await self._call(mock_client, session_policy=None)
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        assert 'sessionPolicy' not in mock_client.start_run.call_args.kwargs
+
+    @pytest.mark.parametrize('session_policy', ['not json', '[1, 2]', '{}', 'x' * 3000])
+    @pytest.mark.asyncio
+    async def test_start_run_invalid_session_policy_returns_error(self, session_policy):
+        """An invalid session policy returns an error and never calls the API."""
+        mock_client = MagicMock()
+
+        result = await self._call(mock_client, session_policy=session_policy)
+
+        assert 'error' in result
+        assert 'Invalid session policy' in result['error']
+        mock_client.start_run.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_start_run_omits_session_policy_when_called_directly(self):
+        """Calling start_run directly (unresolved Field default) does not forward it."""
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+            return_value=mock_client,
+        ):
+            result = await start_run(
+                AsyncMock(),
+                workflow_version_name=None,
+                storage_type='DYNAMIC',
+                storage_capacity=None,
+                cache_id=None,
+                cache_behavior=None,
+                run_group_id=None,
+                networking_mode=None,
+                configuration_name=None,
+                scratch_storage_mode='LOCAL',
+                log_level=None,
+                tags=None,
+                aws_profile=None,
+                aws_region=None,
+                **self._base_params,
+            )
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        assert 'sessionPolicy' not in mock_client.start_run.call_args.kwargs
+
+    @pytest.mark.asyncio
+    async def test_get_run_surfaces_session_policy(self):
+        """get_run includes sessionPolicy when the API returns it."""
+        policy_str = json.dumps(self._policy)
+        mock_client = MagicMock()
+        mock_client.get_run.return_value = {
+            'id': 'run-12345',
+            'status': 'RUNNING',
+            'sessionPolicy': policy_str,
+        }
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+            return_value=mock_client,
+        ):
+            result = await get_run(AsyncMock(), run_id='run-12345')
+
+        assert result['sessionPolicy'] == policy_str
+
+    @pytest.mark.asyncio
+    async def test_start_run_params_validate_against_botocore_model(self):
+        """The forwarded params, including sessionPolicy, satisfy the real StartRun shape."""
+        import botocore.session
+        from botocore.validate import ParamValidator
+
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        await self._call(mock_client, session_policy=self._policy)
+
+        input_shape = (
+            botocore.session.get_session()
+            .get_service_model('omics')
+            .operation_model('StartRun')
+            .input_shape
+        )
+        # requestId is an idempotency token that boto3 auto-populates on real clients
+        params = {'requestId': 'test-token', **mock_client.start_run.call_args.kwargs}
+        report = ParamValidator().validate(params, input_shape)
+        assert not report.has_errors(), report.generate_report()

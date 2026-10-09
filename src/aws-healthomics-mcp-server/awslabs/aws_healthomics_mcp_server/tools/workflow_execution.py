@@ -39,11 +39,12 @@ from awslabs.aws_healthomics_mcp_server.consts import (
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_omics_client
 from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
 from awslabs.aws_healthomics_mcp_server.utils.s3_utils import ensure_s3_uri_ends_with_slash
+from awslabs.aws_healthomics_mcp_server.utils.validation_utils import normalize_session_policy
 from datetime import datetime
 from loguru import logger
 from mcp.server.mcpserver import Context
 from pydantic import Field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 
 def parse_iso_datetime(iso_string: str) -> datetime:
@@ -205,6 +206,14 @@ async def start_run(
         None,
         description='Optional tags (key-value pairs) to apply to the run',
     ),
+    session_policy: Optional[Union[str, Dict[str, Any]]] = Field(
+        None,
+        description=(
+            'Optional inline IAM session policy (JSON string or object, max 2048 characters) '
+            'that scopes down the permissions of role_arn for this run. The effective '
+            'permissions are the intersection of the role policy and the session policy.'
+        ),
+    ),
     aws_profile: Optional[str] = Field(
         None,
         description='AWS profile name for this operation. Overrides the default credential chain.',
@@ -241,6 +250,8 @@ async def start_run(
             Controls engine log capture to CloudWatch. Defaults to the HealthOmics API
             default when omitted.
         tags: Optional tags (key-value pairs) to apply to the run
+        session_policy: Optional inline IAM session policy (JSON string or dict) that
+            scopes down the permissions of role_arn for this run
         aws_profile: Optional AWS profile name override
         aws_region: Optional AWS region override
 
@@ -335,6 +346,12 @@ async def start_run(
     # Normalize tags the same way (guards against an unresolved Field default)
     effective_tags = tags if isinstance(tags, dict) else None
 
+    # Validate and serialize the session policy
+    try:
+        effective_session_policy = normalize_session_policy(session_policy)
+    except ValueError as e:
+        return await handle_tool_error(ctx, e, 'Invalid session policy')
+
     # Ensure output URI ends with a slash
     try:
         output_uri = ensure_s3_uri_ends_with_slash(output_uri)
@@ -378,6 +395,9 @@ async def start_run(
 
     if effective_tags is not None:
         params['tags'] = effective_tags
+
+    if effective_session_policy is not None:
+        params['sessionPolicy'] = effective_session_policy
 
     try:
         response = client.start_run(**params)
@@ -668,6 +688,7 @@ async def get_run(
             'failureReason',
             'workflowVersionName',
             'scratchStorageMode',
+            'sessionPolicy',
         ]:
             if field in response:
                 result[field] = response[field]
