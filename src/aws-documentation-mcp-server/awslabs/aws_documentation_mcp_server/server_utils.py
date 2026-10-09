@@ -68,12 +68,7 @@ DEFAULT_USER_AGENT = (
 )
 
 
-# Named so the caller has somewhere to go, as the missing-subsections message does. Only added
-# where searching could actually help: a page that is gone, or a redirect that landed elsewhere.
-_FIND_THE_PAGE = (
-    'The page may have moved or may no longer exist. '
-    'Use search_documentation to find the current page.'
-)
+_USE_SEARCH = 'Use search_documentation.'
 
 
 # - '/a/index.html' 301s to '/a/' everywhere on the site
@@ -164,7 +159,7 @@ async def read_documentation_impl(
         if response.status_code >= 400:
             error_msg = page.message(
                 f'Failed to fetch {page.served} - status code {response.status_code}',
-                _FIND_THE_PAGE,
+                _USE_SEARCH,
             )
             logger.error(error_msg)
             await ctx.error(error_msg)
@@ -179,7 +174,7 @@ async def read_documentation_impl(
         except UnreadablePageError as e:
             error_msg = page.message(
                 f'{page.served} could not be read: {e}',
-                _FIND_THE_PAGE if page.substituted else '',
+                _USE_SEARCH if page.substituted else '',
             )
             logger.error(error_msg)
             await ctx.error(error_msg)
@@ -284,7 +279,7 @@ async def read_sections_impl(
         if response.status_code >= 400:
             error_msg = page.message(
                 f'Failed to fetch {page.served} - status code {response.status_code}',
-                _FIND_THE_PAGE,
+                _USE_SEARCH,
             )
             logger.error(error_msg)
             await ctx.error(error_msg)
@@ -305,7 +300,7 @@ async def read_sections_impl(
     except UnreadablePageError as e:
         error_msg = page.message(
             f'{page.served} could not be read: {e}',
-            _FIND_THE_PAGE if page.substituted else '',
+            _USE_SEARCH if page.substituted else '',
         )
         logger.error(error_msg)
         await ctx.error(error_msg)
@@ -322,7 +317,7 @@ async def read_sections_impl(
     except UnreadablePageError as e:
         error_msg = page.message(
             f'{page.served} could not be read: {e}',
-            _FIND_THE_PAGE if page.substituted else '',
+            _USE_SEARCH if page.substituted else '',
         )
         logger.error(error_msg)
         await ctx.error(error_msg)
@@ -389,7 +384,7 @@ async def search_table_impl(
         if response.status_code >= 400:
             error_msg = page.message(
                 f'Failed to fetch {page.served} - status code {response.status_code}',
-                _FIND_THE_PAGE,
+                _USE_SEARCH,
             )
             logger.error(error_msg)
             await ctx.error(error_msg)
@@ -410,7 +405,7 @@ async def search_table_impl(
     except UnreadablePageError as e:
         error_msg = page.message(
             f'{page.served} could not be read: {e}',
-            _FIND_THE_PAGE if page.substituted else '',
+            _USE_SEARCH if page.substituted else '',
         )
         logger.error(error_msg)
         await ctx.error(error_msg)
