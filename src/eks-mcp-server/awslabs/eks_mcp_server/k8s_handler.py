@@ -582,6 +582,19 @@ class K8sHandler:
             KubernetesResourceListResponse with operation result
         """
         try:
+            # Check if sensitive data access is disabled and trying to list Secret resources.
+            # Listed items include annotations such as last-applied-configuration, which can
+            # carry the full Secret data.
+            if not self.allow_sensitive_data_access and kind.lower() == 'secret':
+                error_msg = (
+                    'Access to Kubernetes Secrets requires --allow-sensitive-data-access flag'
+                )
+                log_with_request_id(ctx, LogLevel.ERROR, error_msg)
+                return CallToolResult(
+                    is_error=True,
+                    content=[TextContent(type='text', text=error_msg)],
+                )
+
             # Get Kubernetes client for the cluster
             k8s_client = self.get_client(cluster_name)
 

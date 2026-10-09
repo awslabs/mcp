@@ -230,7 +230,7 @@ Enables write access mode, which allows mutating operations (e.g., create, updat
 
 #### `--allow-sensitive-data-access` (optional)
 
-Enables access to sensitive data such as logs, events, and Kubernetes Secrets. This flag is required for tools that access potentially sensitive information, such as get_pod_logs, get_k8s_events, get_cloudwatch_logs, and manage_k8s_resource (when used to read Kubernetes secrets).
+Enables access to sensitive data such as logs, events, and Kubernetes Secrets. This flag is required for tools that access potentially sensitive information, such as get_pod_logs, get_k8s_events, get_cloudwatch_logs, manage_k8s_resource (when used to read Kubernetes secrets), and list_k8s_resources (when used to list Kubernetes secrets).
 
 * Default: false (Access to sensitive data is restricted by default)
 * Example: Add `--allow-sensitive-data-access` to the `args` list in your MCP server definition.
@@ -414,6 +414,7 @@ Features:
 
 * Returns summaries of EKS resources with metadata.
 * Supports filtering by EKS cluster namespace, labels, and fields.
+* Listing Kubernetes Secrets requires `--allow-sensitive-data-access` server flag to be enabled.
 
 Parameters:
 
