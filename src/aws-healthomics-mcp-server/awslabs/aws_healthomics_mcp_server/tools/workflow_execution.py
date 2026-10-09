@@ -201,6 +201,10 @@ async def start_run(
             'Set to ALL to capture full engine logs for debugging.'
         ),
     ),
+    tags: Optional[Dict[str, str]] = Field(
+        None,
+        description='Optional tags (key-value pairs) to apply to the run',
+    ),
     aws_profile: Optional[str] = Field(
         None,
         description='AWS profile name for this operation. Overrides the default credential chain.',
@@ -236,6 +240,7 @@ async def start_run(
         log_level: Optional log level for the run (OFF, FATAL, ERROR, or ALL).
             Controls engine log capture to CloudWatch. Defaults to the HealthOmics API
             default when omitted.
+        tags: Optional tags (key-value pairs) to apply to the run
         aws_profile: Optional AWS profile name override
         aws_region: Optional AWS region override
 
@@ -327,6 +332,9 @@ async def start_run(
             'Invalid log level',
         )
 
+    # Normalize tags the same way (guards against an unresolved Field default)
+    effective_tags = tags if isinstance(tags, dict) else None
+
     # Ensure output URI ends with a slash
     try:
         output_uri = ensure_s3_uri_ends_with_slash(output_uri)
@@ -367,6 +375,9 @@ async def start_run(
     # Only set logLevel when provided, to preserve the HealthOmics API default otherwise
     if effective_log_level is not None:
         params['logLevel'] = effective_log_level
+
+    if effective_tags is not None:
+        params['tags'] = effective_tags
 
     try:
         response = client.start_run(**params)
