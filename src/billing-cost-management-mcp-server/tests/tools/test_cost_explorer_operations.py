@@ -878,6 +878,63 @@ class TestGetTags:
         assert result['status'] == 'success'
         assert result['data'] is not None
 
+    async def test_paginated_tag_values_are_collected_from_tags(
+        self, mock_context, mock_ce_client
+    ):
+        """Paginated tag values come back under 'Tags' (CE GetTags), not 'TagValues'."""
+        mock_ce_client.get_tags.side_effect = [
+            {'Tags': ['dev', 'prod'], 'NextPageToken': 'page-2'},
+            {'Tags': ['test']},
+        ]
+
+        result = await get_tags(
+            mock_context,
+            mock_ce_client,
+            tag_key='Environment',
+            max_pages=5,
+        )
+
+        assert result['status'] == 'success'
+        assert result['data']['Tags'] == ['dev', 'prod', 'test']
+        assert 'TagValues' not in result['data']
+        assert mock_ce_client.get_tags.call_count == 2
+        second_call = mock_ce_client.get_tags.call_args_list[1][1]
+        assert second_call['TagKey'] == 'Environment'
+        assert second_call['NextPageToken'] == 'page-2'
+
+    async def test_paginated_tag_keys_are_collected_from_tags(self, mock_context, mock_ce_client):
+        """Paginated tag keys (no TagKey) are still read from 'Tags'."""
+        mock_ce_client.get_tags.return_value = {'Tags': ['Environment', 'Project']}
+
+        result = await get_tags(mock_context, mock_ce_client, max_pages=1)
+
+        assert result['data']['Tags'] == ['Environment', 'Project']
+        assert result['data']['Pagination']['complete_dataset'] is True
+
+    async def test_paginated_tag_values_from_next_token(self, mock_context, mock_ce_client):
+        """Resuming with next_token sends the token and reads values from 'Tags'."""
+        mock_ce_client.get_tags.return_value = {'Tags': ['staging']}
+
+        result = await get_tags(
+            mock_context,
+            mock_ce_client,
+            tag_key='Environment',
+            next_token='resume-token',
+        )
+
+        call_kwargs = mock_ce_client.get_tags.call_args[1]
+        assert call_kwargs['NextPageToken'] == 'resume-token'
+        assert result['data']['Tags'] == ['staging']
+
+    async def test_paginated_tag_values_empty_page(self, mock_context, mock_ce_client):
+        """A tag key with no values yields an empty list, not an error."""
+        mock_ce_client.get_tags.return_value = {'Tags': []}
+
+        result = await get_tags(mock_context, mock_ce_client, tag_key='Unused', max_pages=1)
+
+        assert result['status'] == 'success'
+        assert result['data']['Tags'] == []
+
     async def test_with_search_string(self, mock_context, mock_ce_client):
         """Test get_tags with search string."""
         await get_tags(
