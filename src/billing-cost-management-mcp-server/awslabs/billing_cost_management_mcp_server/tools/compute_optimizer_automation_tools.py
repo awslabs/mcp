@@ -305,8 +305,10 @@ async def compute_optimizer_automation(
         rule_arn: Automation rule ARN (get_automation_rule).
         resource_arn: Resource ARN (list_tags_for_resource).
         filters: Optional JSON string list of {name, values} filter objects.
-        start_time: Optional inclusive start datetime for list_automation_events (UTC).
-        end_time: Optional exclusive end datetime for list_automation_events (UTC).
+        start_time: Optional inclusive start datetime for list_automation_events (UTC;
+            YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS, trailing Z allowed).
+        end_time: Optional exclusive end datetime for list_automation_events (UTC;
+            YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS, trailing Z allowed).
         start_date: Optional inclusive start date for list_automation_event_summaries.
         end_date: Optional exclusive end date for list_automation_event_summaries.
         rule_type: Rule type for the preview operations ('OrganizationRule'/'AccountRule').
