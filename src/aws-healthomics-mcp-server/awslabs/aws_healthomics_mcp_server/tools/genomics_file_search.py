@@ -50,12 +50,21 @@ async def search_genomics_files(
     ),
     offset: int = Field(
         0,
-        description='Number of results to skip for pagination (0-based offset), ignored if enable_storage_pagination is true',
+        description=(
+            'Number of results to skip for pagination (0-based offset). Ignored if '
+            'enable_storage_pagination is true. When enable_storage_pagination is false, a '
+            'provided continuation_token takes precedence over offset for resuming a search.'
+        ),
         ge=0,
     ),
     continuation_token: Optional[str] = Field(
         None,
-        description='Continuation token from previous search response for paginated results',
+        description=(
+            'Continuation token from previous search response for paginated results. When '
+            'enable_storage_pagination is false, a valid continuation_token overrides offset. '
+            'An unparseable continuation_token raises an error rather than silently restarting '
+            'the search; omit continuation_token to start from the beginning.'
+        ),
     ),
     enable_storage_pagination: bool = Field(
         False,
@@ -92,8 +101,8 @@ async def search_genomics_files(
         search_terms: List of search terms to match against file paths and tags
         max_results: Maximum number of results to return (default: 100, max: 10000)
         include_associated_files: Whether to include associated files in results (default: True)
-        offset: Number of results to skip for pagination (0-based offset, default: 0), allows arbitray page skippig, ignored of enable_storage_pagination is true
-        continuation_token: Continuation token from previous search response for paginated results
+        offset: Number of results to skip for pagination (0-based offset, default: 0), allows arbitrary page skipping; ignored if enable_storage_pagination is true. When enable_storage_pagination is false, a provided continuation_token takes precedence over offset.
+        continuation_token: Continuation token from previous search response for paginated results. When enable_storage_pagination is false, a valid token overrides offset; an unparseable token raises an error rather than silently restarting. Omit to start from the beginning.
         enable_storage_pagination: Enable efficient storage-level pagination for large datasets
         pagination_buffer_size: Buffer size for storage-level pagination (affects ranking accuracy)
         adhoc_s3_buckets: Optional list of additional S3 bucket paths to search beyond configured buckets
