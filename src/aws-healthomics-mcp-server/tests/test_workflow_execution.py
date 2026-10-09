@@ -2822,3 +2822,102 @@ class TestStartRunLogLevel:
 
         assert 'error' in result
         mock_client.start_run.assert_not_called()
+
+
+class TestStartRunTags:
+    """start_run handling of the optional tags parameter.
+
+    - When tags is omitted (None), no tags key is forwarded to the HealthOmics API.
+    - When tags are provided (including an empty dict), they are forwarded unchanged.
+    """
+
+    _base_params = {
+        'workflow_id': 'wfl-12345',
+        'role_arn': 'arn:aws:iam::123456789012:role/HealthOmicsRole',
+        'name': 'test-run',
+        'output_uri': 's3://my-bucket/outputs/',
+        'parameters': {'param1': 'value1'},
+    }
+
+    _api_response = {
+        'id': 'run-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:run/run-12345',
+        'status': 'PENDING',
+        'uuid': 'uuid-abc-123',
+    }
+
+    async def _call(self, mock_client, **kwargs):
+        wrapper = MCPToolTestWrapper(start_run)
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+            return_value=mock_client,
+        ):
+            return await wrapper.call(ctx=AsyncMock(), **self._base_params, **kwargs)
+
+    @pytest.mark.asyncio
+    async def test_start_run_forwards_tags(self):
+        """Provided tags are forwarded to the API and reflected in the response."""
+        tags = {'project': 'genomics', 'cost-center': '1234'}
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = {**self._api_response, 'tags': tags}
+
+        result = await self._call(mock_client, tags=tags)
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        mock_client.start_run.assert_called_once()
+        assert mock_client.start_run.call_args.kwargs['tags'] == tags
+        assert result['tags'] == tags
+
+    @pytest.mark.asyncio
+    async def test_start_run_forwards_empty_tags(self):
+        """An explicit empty tags dict is forwarded, matching CreateAHORunGroup."""
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        result = await self._call(mock_client, tags={})
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        assert mock_client.start_run.call_args.kwargs['tags'] == {}
+
+    @pytest.mark.asyncio
+    async def test_start_run_omits_tags_when_not_provided(self):
+        """tags=None => no tags key in the params passed to the API."""
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        result = await self._call(mock_client, tags=None)
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        mock_client.start_run.assert_called_once()
+        assert 'tags' not in mock_client.start_run.call_args.kwargs
+        assert result['tags'] == {}
+
+    @pytest.mark.asyncio
+    async def test_start_run_omits_tags_when_called_directly_without_tags(self):
+        """Calling start_run directly (unresolved Field default) does not forward tags."""
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+            return_value=mock_client,
+        ):
+            result = await start_run(
+                AsyncMock(),
+                workflow_version_name=None,
+                storage_type='DYNAMIC',
+                storage_capacity=None,
+                cache_id=None,
+                cache_behavior=None,
+                run_group_id=None,
+                networking_mode=None,
+                configuration_name=None,
+                scratch_storage_mode='LOCAL',
+                log_level=None,
+                aws_profile=None,
+                aws_region=None,
+                **self._base_params,
+            )
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        assert 'tags' not in mock_client.start_run.call_args.kwargs

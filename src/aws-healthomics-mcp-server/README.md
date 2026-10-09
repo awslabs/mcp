@@ -51,7 +51,7 @@ This MCP server provides tools for:
 
 ### Workflow Execution Tools
 
-1. **StartAHORun** - Start workflow runs with custom parameters, resource configuration, and optional VPC networking mode with a named configuration
+1. **StartAHORun** - Start workflow runs with custom parameters, resource configuration, and optional VPC networking mode with a named configuration, and optional tags
 2. **ListAHORuns** - List workflow runs with filtering by status and date ranges
 3. **GetAHORun** - Retrieve detailed run information including status and metadata
 4. **ListAHORunTasks** - List tasks for specific runs with status filtering
