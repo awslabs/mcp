@@ -1346,6 +1346,23 @@ class TestRedirectSignal:
         page = Page.of(requested, response)
         assert page.message() == f'Requested {requested}; served {served}.'
 
+    def test_parts_are_punctuated_so_they_do_not_run_together(self):
+        """Without this the reason and the next step read as one sentence."""
+        response = MagicMock()
+        response.url = 'https://docs.aws.amazon.com/a/b.html'
+        page = Page.of('https://docs.aws.amazon.com/a/b.html', response)
+        assert (
+            page.message('Page failed to be simplified from HTML', 'Use search_documentation.')
+            == 'Page failed to be simplified from HTML. Use search_documentation.'
+        )
+
+    def test_a_part_that_is_already_a_sentence_is_left_alone(self):
+        """No doubled period on the parts that bring their own."""
+        response = MagicMock()
+        response.url = 'https://docs.aws.amazon.com/a/b.html'
+        page = Page.of('https://docs.aws.amazon.com/a/b.html', response)
+        assert page.message('No tables found on this page.') == 'No tables found on this page.'
+
     @pytest.mark.asyncio
     async def test_error_message_names_the_served_page_throughout(self):
         """The whole message names the served page, not just the substitution note."""

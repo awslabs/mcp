@@ -96,6 +96,15 @@ def _without_query(url: str) -> str:
     return url.split('?', 1)[0]
 
 
+def _sentence(part: str) -> str:
+    """Terminate a message part so the next one reads as a new sentence, not a run-on.
+
+    Parts come from exception text and from fixed strings, so some already end in punctuation
+    and some do not.
+    """
+    return part if part.endswith(('.', '!', '?')) else f'{part}.'
+
+
 @dataclass(frozen=True)
 class Page:
     """The page asked for and the page that answered."""
@@ -116,7 +125,7 @@ class Page:
     def message(self, *parts: str) -> str:
         """Join a substitution note and any reasons into one sentence run."""
         note = f'Requested {self.requested}; served {self.served}.' if self.substituted else ''
-        return ' '.join(part for part in (note, *parts) if part)
+        return ' '.join(_sentence(part) for part in (note, *parts) if part)
 
 
 async def read_documentation_impl(
