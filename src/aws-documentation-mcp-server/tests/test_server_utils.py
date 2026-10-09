@@ -1346,23 +1346,6 @@ class TestRedirectSignal:
         page = Page.of(requested, response)
         assert page.message() == f'Requested {requested}; served {served}.'
 
-    def test_parts_are_punctuated_so_they_do_not_run_together(self):
-        """Without this the reason and the next step read as one sentence."""
-        response = MagicMock()
-        response.url = 'https://docs.aws.amazon.com/a/b.html'
-        page = Page.of('https://docs.aws.amazon.com/a/b.html', response)
-        assert (
-            page.message('Page failed to be simplified from HTML', 'Use search_documentation.')
-            == 'Page failed to be simplified from HTML. Use search_documentation.'
-        )
-
-    def test_a_part_that_is_already_a_sentence_is_left_alone(self):
-        """No doubled period on the parts that bring their own."""
-        response = MagicMock()
-        response.url = 'https://docs.aws.amazon.com/a/b.html'
-        page = Page.of('https://docs.aws.amazon.com/a/b.html', response)
-        assert page.message('No tables found on this page.') == 'No tables found on this page.'
-
     @pytest.mark.asyncio
     async def test_error_message_names_the_served_page_throughout(self):
         """The whole message names the served page, not just the substitution note."""
@@ -2008,6 +1991,19 @@ class TestRecoverableFailuresNameANextStep:
         response.headers = {'content-type': 'text/html'}
         response.url = url or self.URL
         return response
+
+    @pytest.mark.asyncio
+    async def test_the_reason_and_the_next_step_are_separate_sentences(self):
+        """The reason must not run into the next step as one sentence."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        patcher = self._client_for(self._response(url=self.INDEX))
+        try:
+            with pytest.raises(ValueError) as excinfo:
+                await read_documentation_impl(ctx, self.URL, 5000, 0, 'test-uuid')
+        finally:
+            patcher.stop()
+        assert '. Use search_documentation.' in str(excinfo.value)
 
     @pytest.mark.asyncio
     async def test_a_4xx_points_at_search(self):

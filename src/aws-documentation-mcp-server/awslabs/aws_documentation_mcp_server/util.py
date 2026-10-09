@@ -86,7 +86,7 @@ def extract_content_from_html(html: str) -> str:
         UnreadablePageError: the page carries no extractable content
     """
     if not html:
-        raise UnreadablePageError('Empty HTML content')
+        raise UnreadablePageError('Empty HTML content.')
 
     try:
         # First use BeautifulSoup to clean up the HTML
@@ -199,13 +199,13 @@ def extract_content_from_html(html: str) -> str:
         )
 
         if not content.strip():
-            raise UnreadablePageError('Page failed to be simplified from HTML')
+            raise UnreadablePageError('Page failed to be simplified from HTML.')
 
         return content
     except UnreadablePageError:
         raise
     except Exception as e:
-        raise UnreadablePageError(f'Error converting HTML to Markdown: {str(e)}') from e
+        raise UnreadablePageError(f'Error converting HTML to Markdown: {str(e)}.') from e
 
 
 def is_html_content(page_raw: str, content_type: str) -> bool:
