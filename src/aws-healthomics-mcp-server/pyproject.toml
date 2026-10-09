@@ -49,7 +49,6 @@ changelog = "https://github.com/awslabs/mcp/blob/main/src/aws-healthomics-mcp-se
 
 [dependency-groups]
 dev = [
-    "commitizen>=4.2.2",
     "pre-commit>=4.1.0",
     "ruff>=0.9.7",
     "pyright>=1.1.398",
@@ -110,16 +109,6 @@ docstring-code-format = true
 [tool.pyright]
 include = ["awslabs", "tests"]
 exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
-
-[tool.commitizen]
-name = "cz_conventional_commits"
-version = "0.0.0"
-tag_format = "v$version"
-version_files = [
-    "pyproject.toml:version",
-    "awslabs/aws_healthomics_mcp_server/__init__.py:__version__"
-]
-update_changelog_on_bump = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["awslabs"]
