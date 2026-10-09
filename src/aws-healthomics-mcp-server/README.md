@@ -989,6 +989,14 @@ uv run ruff check
 uv run pyright
 ```
 
+### Changelog
+
+Add entries for your change under `## Unreleased` in `CHANGELOG.md`; don't guess a version number. Releases are cut by the repository's release automation, so after a release ships, move the released entries under their version heading by running this from a branch that is up to date with `main`:
+
+```bash
+python scripts/changelog_release.py          # use --check to only report what would move
+```
+
 ## Running in a container
 
 The published image runs the server over **stdio** by default and binds nothing
