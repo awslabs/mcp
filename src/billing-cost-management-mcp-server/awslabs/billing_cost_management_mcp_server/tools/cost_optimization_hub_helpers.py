@@ -37,40 +37,23 @@ from ..utilities.constants import (
 )
 from ..utilities.logging_utils import get_context_logger
 from ..utilities.sql_utils import convert_response_if_needed
+from ..utilities.time_utils import format_timestamp_to_utc_iso
 from botocore.exceptions import ClientError
-from datetime import datetime
 from fastmcp import Context
 from typing import Any, Dict, Optional
 
 
 def format_timestamp(timestamp: Any) -> Optional[str]:
-    """Format a timestamp to ISO format string.
+    """Format a timestamp to a UTC ISO 8601 string.
 
     Args:
-        timestamp: Timestamp from Cost Optimization Hub API
+        timestamp: Timestamp from Cost Optimization Hub API: a datetime (boto3),
+            epoch seconds, or epoch milliseconds.
 
     Returns:
-        Formatted timestamp string
+        Formatted timestamp string, or None if missing or unconvertible.
     """
-    if not timestamp:
-        return None
-
-    try:
-        # Check if it's already a datetime object
-        if isinstance(timestamp, datetime):
-            return timestamp.isoformat()
-        else:
-            # Assume it's a Unix timestamp in milliseconds
-            from datetime import timezone
-
-            return (
-                datetime.fromtimestamp(timestamp / 1000, tz=timezone.utc)
-                .astimezone()
-                .replace(tzinfo=None)
-                .isoformat()
-            )
-    except Exception as e:
-        return str(f'Error: {e}, Timestamp: {timestamp}')
+    return format_timestamp_to_utc_iso(timestamp)
 
 
 async def list_recommendations(
