@@ -18,6 +18,8 @@ import os
 import sys
 from awslabs.redshift_mcp_server.consts import (
     DEFAULT_LOG_LEVEL,
+    VERBOSITY_LEVEL_DEFAULT,
+    VerbosityLevel,
 )
 from awslabs.redshift_mcp_server.models import (
     QueryResult,
@@ -41,6 +43,7 @@ from loguru import logger
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
+from typing import Annotated
 
 
 # Remove default handler and add custom configuration
@@ -95,6 +98,43 @@ Requires the connected database user to hold the sys:monitor role (or be a super
 2. Use the list_clusters tool to discover available Redshift instances.
 3. Note the cluster identifiers for use with other tools (coming in future milestones).
 
+## Verbosity
+
+The four discovery tools (list_databases, list_schemas, list_tables, list_columns) each take a
+`verbosity_level` that selects how much detail comes back per item. The rule is the same for
+all four:
+
+- `low` returns what identifies an object plus its own type. That is the database, schema,
+  table and column names that apply, with `database_type`, `schema_type`, `table_type` or
+  `data_type` respectively. Enough to navigate to an object and write a well-typed predicate
+  against it.
+- `standard`, the default, returns every field the tool lists in its own description.
+
+`low` is a subset of `standard`, so asking for more detail never drops a field. Prefer `low`
+while navigating, and `standard` once you need ownership, permissions, or the sizing of a
+table's columns.
+
+## Result Size
+
+Every tool returns a whole result set in one response, following every page of the Redshift
+Data API internally, so a large result set is never cut short at the first page.
+
+What bounds a response is `REDSHIFT_MAX_RESULT_ROWS`, a cap on the rows any one statement may
+return, shipping as 1000. Only a whole number above zero is accepted: anything else is logged
+as unusable and the shipped default applies instead, so the cap cannot be switched off.
+Changing it takes a server restart.
+
+A statement returning more rows than the cap fails rather than returning a short answer, so
+plan for small result sets:
+
+- With `execute_query`, prefer an aggregation, a selective WHERE predicate, or a LIMIT clause
+  over retrieving many rows and reducing them afterwards. Retrieve a large table in parts
+  using LIMIT and OFFSET, or by filtering on a sort key.
+- The discovery tools take no query of their own, so there is no clause to add. Narrow them by
+  listing one database or schema at a time, and use `low` verbosity while navigating.
+- A column listing is the exception: it reads one table and there is no narrower target to
+  choose, so a table with more columns than the cap needs an operator to raise it.
+
 ## Session Management and Concurrency
 
 The server reuses one Redshift Data API session per `cluster:database`:
@@ -147,6 +187,11 @@ def _read_only_annotations(title: str) -> ToolAnnotations:
         idempotent_hint=True,
         open_world_hint=True,
     )
+
+
+def _requested_level(verbosity_level: str | None) -> str:
+    """The level to apply, treating an omitted or null parameter as the default."""
+    return verbosity_level or VERBOSITY_LEVEL_DEFAULT
 
 
 @mcp.tool(
@@ -225,6 +270,14 @@ async def list_databases_tool(
         'dev',
         description='The database to connect to for metadata discovery. Defaults to "dev".',
     ),
+    verbosity_level: Annotated[
+        VerbosityLevel | None,
+        Field(
+            description='How much detail to return per database. "low" returns the name '
+            'identifying a database plus its type; "standard" returns every field this tool '
+            'reports. Defaults to "standard".'
+        ),
+    ] = VERBOSITY_LEVEL_DEFAULT,
 ) -> list[RedshiftDatabase]:
     """List all databases in a specified Amazon Redshift cluster.
 
@@ -244,14 +297,17 @@ async def list_databases_tool(
     - cluster_identifier: The unique identifier of the Redshift cluster to query.
                          IMPORTANT: Use a valid cluster identifier from the list_clusters tool.
     - database_name: The database to connect to for metadata discovery (defaults to 'dev').
+    - verbosity_level: How much detail to return per database, 'low' or 'standard'
+                      (defaults to 'standard').
 
     ## Response Structure
 
-    Returns a list of RedshiftDatabase objects with the following structure:
+    Returns a list of database objects, each carrying the fields the requested verbosity level
+    includes:
 
     - database_name: The name of the database.
     - database_owner: The database owner user ID.
-    - database_type: The type of database (local or shared).
+    - database_type: The type of database, such as local, shared, or auto mounted catalog.
     - database_acl: Access control information (for internal use).
     - parameters: The properties of the database.
     - database_isolation_level: The isolation level (Snapshot Isolation or Serializable).
@@ -261,7 +317,8 @@ async def list_databases_tool(
     1. First use list_clusters to get valid cluster identifiers.
     2. Ensure the cluster status is 'available' before querying databases.
     3. Use the default database name unless you know a specific database exists.
-    4. Note database types to understand if they are local or shared from datashares.
+    4. Note database types to tell a cluster-native database from one reached through a
+       datashare or an external catalog.
     5. Shared (datashare) databases appear only if the connecting principal has been granted access to the consumer database (e.g. GRANT USAGE ON DATABASE <db> TO <principal>); otherwise they are omitted even though the datashare exists.
 
     ## Interpretation Best Practices
@@ -277,10 +334,12 @@ async def list_databases_tool(
             cluster_identifier=cluster_identifier, database_name=database_name
         )
 
+        level = _requested_level(verbosity_level)
+
         logger.info(
             f'Successfully retrieved {len(databases)} databases from cluster {cluster_identifier}'
         )
-        return databases
+        return [database.at_verbosity_level(level) for database in databases]
 
     except Exception as e:
         logger.error(f'Error in list_databases_tool: {str(e)}')
@@ -302,6 +361,14 @@ async def list_schemas_tool(
         ...,
         description='The database name to list schemas for. Also used to connect to. Must be a valid database name from the list_databases tool.',
     ),
+    verbosity_level: Annotated[
+        VerbosityLevel | None,
+        Field(
+            description='How much detail to return per schema. "low" returns the names '
+            'identifying a schema plus its type; "standard" returns every field this tool '
+            'reports. Defaults to "standard".'
+        ),
+    ] = VERBOSITY_LEVEL_DEFAULT,
 ) -> list[RedshiftSchema]:
     """List all schemas in a specified database within a Redshift cluster.
 
@@ -322,10 +389,13 @@ async def list_schemas_tool(
                          IMPORTANT: Use a valid cluster identifier from the list_clusters tool.
     - schema_database_name: The database name to list schemas for. Also used to connect to.
                            IMPORTANT: Use a valid database name from the list_databases tool.
+    - verbosity_level: How much detail to return per schema, 'low' or 'standard'
+                      (defaults to 'standard').
 
     ## Response Structure
 
-    Returns a list of RedshiftSchema objects with the following structure:
+    Returns a list of schema objects, each carrying the fields the requested verbosity level
+    includes:
 
     - database_name: The name of the database where the schema exists.
     - schema_name: The name of the schema.
@@ -360,10 +430,12 @@ async def list_schemas_tool(
             cluster_identifier=cluster_identifier, schema_database_name=schema_database_name
         )
 
+        level = _requested_level(verbosity_level)
+
         logger.info(
             f'Successfully retrieved {len(schemas)} schemas from database {schema_database_name} on cluster {cluster_identifier}'
         )
-        return schemas
+        return [schema.at_verbosity_level(level) for schema in schemas]
 
     except Exception as e:
         logger.error(f'Error in list_schemas_tool: {str(e)}')
@@ -391,6 +463,14 @@ async def list_tables_tool(
         ...,
         description='The schema name to list tables for. Also used to connect to. Must be a valid schema name from the list_schemas tool.',
     ),
+    verbosity_level: Annotated[
+        VerbosityLevel | None,
+        Field(
+            description='How much detail to return per table. "low" returns the names '
+            'identifying a table plus its type; "standard" returns every field this tool '
+            'reports. Defaults to "standard".'
+        ),
+    ] = VERBOSITY_LEVEL_DEFAULT,
 ) -> list[RedshiftTable]:
     """List all tables in a specified schema within a Redshift database.
 
@@ -413,10 +493,13 @@ async def list_tables_tool(
                           IMPORTANT: Use a valid database name from the list_databases tool.
     - table_schema_name: The schema name to list tables for.
                         IMPORTANT: Use a valid schema name from the list_schemas tool.
+    - verbosity_level: How much detail to return per table, 'low' or 'standard'
+                      (defaults to 'standard').
 
     ## Response Structure
 
-    Returns a list of RedshiftTable objects with the following structure:
+    Returns a list of table objects, each carrying the fields the requested verbosity level
+    includes:
 
     - database_name: The name of the database where the table exists.
     - schema_name: The schema name for the table.
@@ -452,10 +535,12 @@ async def list_tables_tool(
             table_schema_name=table_schema_name,
         )
 
+        level = _requested_level(verbosity_level)
+
         logger.info(
             f'Successfully retrieved {len(tables)} tables from schema {table_schema_name} in database {table_database_name} on cluster {cluster_identifier}'
         )
-        return tables
+        return [table.at_verbosity_level(level) for table in tables]
 
     except Exception as e:
         logger.error(f'Error in list_tables_tool: {str(e)}')
@@ -487,6 +572,14 @@ async def list_columns_tool(
         ...,
         description='The table name to list columns for. Must be a valid table name from the list_tables tool.',
     ),
+    verbosity_level: Annotated[
+        VerbosityLevel | None,
+        Field(
+            description='How much detail to return per column. "low" returns the names '
+            'identifying a column plus its data type; "standard" returns every field this '
+            'tool reports. Defaults to "standard".'
+        ),
+    ] = VERBOSITY_LEVEL_DEFAULT,
 ) -> list[RedshiftColumn]:
     """List all columns in a specified table within a Redshift schema.
 
@@ -511,10 +604,13 @@ async def list_columns_tool(
                          IMPORTANT: Use a valid schema name from the list_schemas tool.
     - column_table_name: The table name to list columns for.
                         IMPORTANT: Use a valid table name from the list_tables tool.
+    - verbosity_level: How much detail to return per column, 'low' or 'standard'
+                      (defaults to 'standard').
 
     ## Response Structure
 
-    Returns a list of RedshiftColumn objects with the following structure:
+    Returns a list of column objects, each carrying the fields the requested verbosity level
+    includes:
 
     - database_name: The name of the database.
     - schema_name: The name of the schema.
@@ -528,6 +624,12 @@ async def list_columns_tool(
     - numeric_precision: The numeric precision.
     - numeric_scale: The numeric scale.
     - remarks: Remarks about the column.
+
+    An empty list does not confirm that the table exists and has no columns. SHOW COLUMNS
+    returns nothing both for a table that is absent and for one the caller lacks the privileges
+    to see, without distinguishing the two. Confirm the name with list_tables before concluding
+    the table is absent; seeing a table's columns needs ownership of it, or USAGE on the schema
+    together with SELECT on the table or column.
 
     ## Usage Tips
 
@@ -558,10 +660,12 @@ async def list_columns_tool(
             column_table_name=column_table_name,
         )
 
+        level = _requested_level(verbosity_level)
+
         logger.info(
             f'Successfully retrieved {len(columns)} columns from table {column_table_name} in schema {column_schema_name} in database {column_database_name} on cluster {cluster_identifier}'
         )
-        return columns
+        return [column.at_verbosity_level(level) for column in columns]
 
     except Exception as e:
         logger.error(f'Error in list_columns_tool: {str(e)}')
