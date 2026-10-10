@@ -32,7 +32,7 @@ class TestNeptuneDatabase:
         This test verifies that:
         1. The boto3 Session is created correctly
         2. The client is created with the correct parameters
-        3. The schema is refreshed during initialization.
+        3. Initialization does not discover the schema.
         """
         # Arrange
         mock_session_instance = MagicMock()
@@ -132,7 +132,7 @@ class TestNeptuneDatabase:
             NeptuneDatabase(host='test-endpoint')
 
     @patch('boto3.Session')
-    async def test_init_refresh_schema_error(self, mock_session):
+    async def test_get_schema_refresh_error(self, mock_session):
         """Test handling of schema refresh errors.
 
         This test verifies that:
@@ -151,7 +151,7 @@ class TestNeptuneDatabase:
         ):
             # Act & Assert
             with pytest.raises(NeptuneException) as exc_info:
-                NeptuneDatabase(host='test-endpoint')
+                NeptuneDatabase(host='test-endpoint').get_schema()
 
             # Check the exception details
             assert 'Could not get schema for Neptune database' in exc_info.value.message
@@ -449,16 +449,11 @@ class TestNeptuneDatabase:
         mock_schema = GraphSchema(nodes=[], relationships=[], relationship_patterns=[])
 
         # Mock _refresh_schema to avoid actual API calls during init
-        with patch.object(NeptuneDatabase, '_refresh_schema', return_value=mock_schema):
-            # Create the database instance
+        with patch.object(NeptuneDatabase, '_refresh_schema', return_value=mock_schema) as refresh:
             db = NeptuneDatabase(host='test-endpoint')
-
-            # Act
-            result = db.get_schema()
-
-            # Assert - just verify the result is the mock schema
-            assert result == mock_schema
-            assert result == mock_schema
+            assert db.get_schema() == mock_schema
+            assert db.get_schema() == mock_schema
+            refresh.assert_called_once()
 
     @patch('boto3.Session')
     async def test_get_schema_refresh(self, mock_session):

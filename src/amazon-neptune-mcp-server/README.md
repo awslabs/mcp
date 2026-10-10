@@ -23,6 +23,11 @@ Note: This server will run any query sent to it, which could include both mutati
 * [Neptune Database](https://docs.aws.amazon.com/neptune/latest/userguide/security.html)
 * [Neptune Analytics](https://docs.aws.amazon.com/neptune-analytics/latest/userguide/security.html)
 
+### Neptune Database schema discovery
+
+Database connections do not query the graph schema during startup. The first schema request runs the existing label and property scans with at most four concurrent queries. Results are reused for five minutes across database clients in the same server process, scoped to their endpoint and AWS credentials. The cache holds up to 32 schemas and returns separate models to each client.
+
+Separate server processes have separate caches. Property and relationship discovery still uses bounded samples, so sparse properties and uncommon relationship patterns may be absent.
 
 ## Prerequisites
 
