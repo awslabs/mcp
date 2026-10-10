@@ -408,6 +408,7 @@ def _get_specialized_converter(operation_name: str) -> Optional[str]:
         'sp_explorer_describe_savings_plan_rates': 'records',
         'sp_explorer_describe_savings_plans_offerings': 'records',
         'sp_explorer_describe_savings_plans_offering_rates': 'records',
+        'sp_purchase_analyzer_list_commitment_purchase_analyses': 'records',
     }
 
     if operation_name in converters:
