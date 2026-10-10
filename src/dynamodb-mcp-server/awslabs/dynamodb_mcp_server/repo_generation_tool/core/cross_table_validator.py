@@ -18,6 +18,11 @@ This module provides validation for cross_table_access_patterns in schema.json f
 supporting atomic transactions (TransactWrite, TransactGet) and future operation types.
 """
 
+from awslabs.dynamodb_mcp_server.repo_generation_tool.core.name_validator import (
+    validate_literal_safe,
+    validate_prose_safe,
+    validate_python_identifier,
+)
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.schema_definitions import (
     ParameterType,
     validate_parameter_core,
@@ -125,6 +130,13 @@ class CrossTableValidator:
             'return_type',
         }
         errors.extend(validate_required_fields(pattern, required_fields, path))
+
+        # The pattern name becomes a generated method name in the transaction service, and the
+        # description is written into its docstring, so both are constrained before rendering.
+        if 'name' in pattern:
+            errors.extend(validate_python_identifier(pattern['name'], f'{path}.name'))
+        if isinstance(pattern.get('description'), str):
+            errors.extend(validate_prose_safe(pattern['description'], f'{path}.description'))
 
         # Validate pattern_id uniqueness (global across all patterns)
         if 'pattern_id' in pattern:
@@ -250,6 +262,13 @@ class CrossTableValidator:
                 entity_inv, entity_path, schema, operation, table_map
             )
             errors.extend(entity_errors)
+
+            # The condition is written into comments in the generated transaction service,
+            # where a newline would end the comment and leave the rest as live code.
+            if isinstance(entity_inv, dict) and isinstance(entity_inv.get('condition'), str):
+                errors.extend(
+                    validate_literal_safe(entity_inv['condition'], f'{entity_path}.condition')
+                )
 
         return errors
 
