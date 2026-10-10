@@ -23,6 +23,8 @@ from awslabs.aws_dataprocessing_mcp_server.core.glue_data_catalog.data_catalog_h
 from awslabs.aws_dataprocessing_mcp_server.core.glue_data_catalog.data_catalog_table_manager import (
     DataCatalogTableManager,
 )
+from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import ClientFactory
+from awslabs.aws_dataprocessing_mcp_server.utils.error_helper import create_error_result
 from awslabs.aws_dataprocessing_mcp_server.utils.logging_helper import (
     LogLevel,
     log_with_request_id,
@@ -36,25 +38,32 @@ from typing import Annotated, Any, Dict, List, Optional
 class GlueDataCatalogHandler:
     """Handler for Amazon Glue Data Catalog operations."""
 
-    def __init__(self, mcp, allow_write: bool = False, allow_sensitive_data_access: bool = False):
+    def __init__(
+        self,
+        mcp,
+        allow_write: bool = False,
+        allow_sensitive_data_access: bool = False,
+        client_factory: Optional[ClientFactory] = None,
+    ):
         """Initialize the Glue Data Catalog handler.
 
         Args:
             mcp: The MCP server instance
             allow_write: Whether to enable write access (default: False)
             allow_sensitive_data_access: Whether to allow access to sensitive data (default: False)
+            client_factory: Optional service-aware boto3 client factory
         """
         self.mcp = mcp
         self.allow_write = allow_write
         self.allow_sensitive_data_access = allow_sensitive_data_access
         self.data_catalog_database_manager = DataCatalogDatabaseManager(
-            self.allow_write, self.allow_sensitive_data_access
+            self.allow_write, self.allow_sensitive_data_access, client_factory=client_factory
         )
         self.data_catalog_table_manager = DataCatalogTableManager(
-            self.allow_write, self.allow_sensitive_data_access
+            self.allow_write, self.allow_sensitive_data_access, client_factory=client_factory
         )
         self.data_catalog_manager = DataCatalogManager(
-            self.allow_write, self.allow_sensitive_data_access
+            self.allow_write, self.allow_sensitive_data_access, client_factory=client_factory
         )
 
         # Register tools
@@ -236,10 +245,7 @@ class GlueDataCatalogHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_data_catalog_databases: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def manage_aws_glue_data_catalog_tables(
         self,
@@ -436,10 +442,7 @@ class GlueDataCatalogHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_data_catalog_tables: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def manage_aws_glue_data_catalog_connections(
         self,
@@ -653,10 +656,7 @@ class GlueDataCatalogHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_data_catalog_connections: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def manage_aws_glue_connection_types(
         self,
@@ -755,10 +755,7 @@ class GlueDataCatalogHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_connection_types: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def manage_aws_glue_connection_metadata(
         self,
@@ -956,10 +953,7 @@ class GlueDataCatalogHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_connection_metadata: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def manage_aws_glue_data_catalog_partitions(
         self,
@@ -1157,10 +1151,7 @@ class GlueDataCatalogHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_data_catalog_partitions: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)
 
     async def manage_aws_glue_data_catalog(
         self,
@@ -1310,7 +1301,4 @@ class GlueDataCatalogHandler:
         except Exception as e:
             error_message = f'Error in manage_aws_glue_data_catalog: {str(e)}'
             log_with_request_id(ctx, LogLevel.ERROR, error_message)
-            return CallToolResult(
-                isError=True,
-                content=[TextContent(type='text', text=error_message)],
-            )
+            return create_error_result(e, error_message)

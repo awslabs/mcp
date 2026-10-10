@@ -18,10 +18,11 @@ import pytest
 from awslabs.aws_dataprocessing_mcp_server.core.glue_data_catalog.data_catalog_database_manager import (
     DataCatalogDatabaseManager,
 )
+from awslabs.aws_dataprocessing_mcp_server.utils.aws_helper import AwsHelper
 from botocore.exceptions import ClientError
 from datetime import datetime
 from mcp.types import CallToolResult
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 
 class TestDataCatalogDatabaseManager:
@@ -49,6 +50,82 @@ class TestDataCatalogDatabaseManager:
         ):
             manager = DataCatalogDatabaseManager(allow_write=True)
             return manager
+
+    def test_uses_supplied_client_factory(self, mock_glue_client):
+        """A supplied client factory creates the manager's Glue client."""
+        client_factory = MagicMock(return_value=mock_glue_client)
+
+        manager = DataCatalogDatabaseManager(client_factory=client_factory)
+
+        assert manager.glue_client is mock_glue_client
+        assert manager._provided_client_factory is client_factory
+        client_factory.assert_called_once_with('glue')
+
+    @pytest.mark.asyncio
+    async def test_default_identity_lookup_uses_ambient_cache(
+        self, mock_ctx, mock_glue_client, monkeypatch
+    ):
+        """Default manager identity lookups preserve ambient account and partition caches."""
+        mock_glue_client.get_database.return_value = {
+            'Database': {'Parameters': {'mcp:managed': 'true'}}
+        }
+        monkeypatch.setattr(AwsHelper, '_aws_account_id', '111111111111')
+        monkeypatch.setattr(AwsHelper, '_aws_partition', 'aws-us-gov')
+
+        with (
+            patch.object(AwsHelper, 'create_boto3_client', return_value=mock_glue_client),
+            patch.object(AwsHelper, 'get_or_default_aws_region', return_value='us-gov-west-1'),
+            patch.object(AwsHelper, 'is_resource_mcp_managed', return_value=True) as is_managed,
+            patch('boto3.client') as ambient_boto3_client,
+        ):
+            manager = DataCatalogDatabaseManager(allow_write=True)
+            result = await manager.delete_database(mock_ctx, database_name='test-db')
+
+        assert result.is_error is False
+        assert manager._provided_client_factory is None
+        ambient_boto3_client.assert_not_called()
+        is_managed.assert_called_once_with(
+            mock_glue_client,
+            'arn:aws-us-gov:glue:us-gov-west-1:111111111111:database/test-db',
+            {'mcp:managed': 'true'},
+        )
+
+    @pytest.mark.asyncio
+    async def test_injected_identity_lookup_bypasses_ambient_cache(
+        self, mock_ctx, mock_glue_client, monkeypatch
+    ):
+        """Injected manager identity lookups use factory STS without mutating ambient caches."""
+        mock_glue_client.get_database.return_value = {
+            'Database': {'Parameters': {'mcp:managed': 'true'}}
+        }
+        sts_client = MagicMock()
+        sts_client.get_caller_identity.return_value = {
+            'Account': '222222222222',
+            'Arn': 'arn:aws-us-gov:sts::222222222222:assumed-role/test/session',
+        }
+        clients = {'glue': mock_glue_client, 'sts': sts_client}
+        client_factory = MagicMock(side_effect=lambda service_name: clients[service_name])
+        monkeypatch.setattr(AwsHelper, '_aws_account_id', '111111111111')
+        monkeypatch.setattr(AwsHelper, '_aws_partition', 'aws')
+
+        with (
+            patch.object(AwsHelper, 'get_or_default_aws_region', return_value='us-gov-west-1'),
+            patch.object(AwsHelper, 'is_resource_mcp_managed', return_value=True) as is_managed,
+            patch('boto3.client') as ambient_boto3_client,
+        ):
+            manager = DataCatalogDatabaseManager(allow_write=True, client_factory=client_factory)
+            result = await manager.delete_database(mock_ctx, database_name='test-db')
+
+        assert result.is_error is False
+        assert AwsHelper._aws_account_id == '111111111111'
+        assert AwsHelper._aws_partition == 'aws'
+        ambient_boto3_client.assert_not_called()
+        assert client_factory.call_args_list == [call('glue'), call('sts'), call('sts')]
+        is_managed.assert_called_once_with(
+            mock_glue_client,
+            'arn:aws-us-gov:glue:us-gov-west-1:222222222222:database/test-db',
+            {'mcp:managed': 'true'},
+        )
 
     @pytest.mark.asyncio
     async def test_create_database_success(self, manager, mock_ctx, mock_glue_client):
@@ -110,7 +187,8 @@ class TestDataCatalogDatabaseManager:
         ):
             # Mock the Glue client to raise an exception
             error_response = {
-                'Error': {'Code': 'AlreadyExistsException', 'Message': 'Database already exists'}
+                'Error': {'Code': 'AlreadyExistsException', 'Message': 'Database already exists'},
+                'ResponseMetadata': {'HTTPStatusCode': 400, 'RequestId': 'glue-request-id'},
             }
             mock_glue_client.create_database.side_effect = ClientError(
                 error_response, 'CreateDatabase'
@@ -126,6 +204,15 @@ class TestDataCatalogDatabaseManager:
             assert hasattr(result.content[0], 'text')
             assert 'Failed to create database' in result.content[0].text
             assert 'AlreadyExistsException' in result.content[0].text
+            assert result.structured_content == {
+                'error': {
+                    'code': 'AlreadyExistsException',
+                    'error_type': 'ClientError',
+                    'message': 'Database already exists',
+                    'http_status': 400,
+                    'request_id': 'glue-request-id',
+                }
+            }
 
     @pytest.mark.asyncio
     async def test_delete_database_success(self, manager, mock_ctx, mock_glue_client):
