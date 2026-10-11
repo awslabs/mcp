@@ -87,8 +87,8 @@ async def delete_infrastructure(
 
     # List all stacks to find matching ones
     try:
-        stacks_response = cloudformation.list_stacks(
-            StackStatusFilter=[
+        list_stacks_params = {
+            "StackStatusFilter": [
                 "CREATE_COMPLETE",
                 "CREATE_IN_PROGRESS",
                 "CREATE_FAILED",
@@ -103,9 +103,19 @@ async def delete_infrastructure(
                 "UPDATE_ROLLBACK_FAILED",
                 "UPDATE_ROLLBACK_IN_PROGRESS",
             ]
-        )
+        }
 
-        stacks = stacks_response.get("StackSummaries", [])
+        stacks = []
+        next_token = None
+        while True:
+            if next_token:
+                list_stacks_params["NextToken"] = next_token
+            stacks_response = cloudformation.list_stacks(**list_stacks_params)
+            stacks.extend(stacks_response.get("StackSummaries", []))
+
+            next_token = stacks_response.get("NextToken")
+            if not next_token:
+                break
     except Exception as e:
         logger.error(f"Error listing CloudFormation stacks: {e}")
         return {

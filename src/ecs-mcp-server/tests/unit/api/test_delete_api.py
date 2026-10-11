@@ -78,6 +78,47 @@ async def test_delete_infrastructure_with_stacks(mock_file, mock_get_aws_client)
 @pytest.mark.anyio
 @patch("awslabs.ecs_mcp_server.api.delete.get_aws_client")
 @patch("builtins.open", new_callable=mock_open, read_data='{"test": "template"}')
+async def test_delete_infrastructure_stacks_on_later_page(mock_file, mock_get_aws_client):
+    """Test deleting infrastructure when the stacks are not on the first ListStacks page."""
+    # Mock CloudFormation client
+    mock_cf_client = MagicMock()
+    mock_cf_client.list_stacks.side_effect = [
+        {
+            "StackSummaries": [
+                {"StackName": "other-app-ecs-infrastructure", "StackStatus": "CREATE_COMPLETE"},
+            ],
+            "NextToken": "page-2",
+        },
+        {
+            "StackSummaries": [
+                {"StackName": "test-app-ecr-infrastructure", "StackStatus": "CREATE_COMPLETE"},
+                {"StackName": "test-app-ecs-infrastructure", "StackStatus": "CREATE_COMPLETE"},
+            ]
+        },
+    ]
+    mock_cf_client.get_template.return_value = {"TemplateBody": '{"test": "template"}'}
+    mock_get_aws_client.return_value = mock_cf_client
+
+    # Call the function
+    result = await delete_infrastructure(
+        app_name="test-app",
+        ecr_template_path="/path/to/ecr-template.json",
+        ecs_template_path="/path/to/ecs-template.json",
+    )
+
+    # Verify the result
+    assert result["ecr_stack"]["status"] == "deleting"
+    assert result["ecs_stack"]["status"] == "deleting"
+
+    # Verify every page was requested
+    assert mock_cf_client.list_stacks.call_count == 2
+    assert mock_cf_client.list_stacks.call_args_list[1].kwargs["NextToken"] == "page-2"
+    assert mock_cf_client.delete_stack.call_count == 2
+
+
+@pytest.mark.anyio
+@patch("awslabs.ecs_mcp_server.api.delete.get_aws_client")
+@patch("builtins.open", new_callable=mock_open, read_data='{"test": "template"}')
 async def test_delete_infrastructure_template_mismatch(mock_file, mock_get_aws_client):
     """Test deleting infrastructure when templates don't match."""
     # Mock CloudFormation client
