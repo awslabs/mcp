@@ -739,6 +739,34 @@ class TestVpcConfigHandler:
         assert additional_cidr_blocks[0] == '10.1.0.0/16'
 
     @pytest.mark.asyncio
+    async def test_get_vpc_details_primary_cidr_not_first(self, mock_context, mock_mcp):
+        """Primary CIDR may not be first in CidrBlockAssociationSet (API does not guarantee order)."""
+        mock_ec2_client = MagicMock()
+        # Primary CIDR (10.0.0.0/16) is listed SECOND; an additional CIDR is first.
+        mock_ec2_client.describe_vpcs.return_value = {
+            'Vpcs': [
+                {
+                    'VpcId': 'vpc-12345',
+                    'CidrBlock': '10.0.0.0/16',
+                    'CidrBlockAssociationSet': [
+                        {'CidrBlock': '10.1.0.0/16'},
+                        {'CidrBlock': '10.0.0.0/16'},
+                    ],
+                }
+            ]
+        }
+        handler = VpcConfigHandler(mock_mcp)
+        handler.ec2_client = mock_ec2_client
+
+        cidr_block, additional_cidr_blocks = await handler._get_vpc_details(
+            mock_context, 'vpc-12345'
+        )
+
+        assert cidr_block == '10.0.0.0/16'
+        # The one additional CIDR must be reported, and the primary must NOT appear.
+        assert additional_cidr_blocks == ['10.1.0.0/16']
+
+    @pytest.mark.asyncio
     async def test_get_vpc_details_vpc_not_found(self, mock_context, mock_mcp):
         """Test _get_vpc_details when VPC is not found."""
         # Create mock EC2 client

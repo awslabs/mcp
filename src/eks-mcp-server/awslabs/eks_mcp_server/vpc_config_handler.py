@@ -147,10 +147,15 @@ class VpcConfigHandler:
         # Extract VPC information
         vpc = vpc_response['Vpcs'][0]
         cidr_block = vpc.get('CidrBlock', '')
+        # The EC2 API does not guarantee that the primary CIDR is the first entry
+        # in CidrBlockAssociationSet, so exclude the primary by value rather than
+        # by position (a positional [1:] slice can drop a real additional CIDR and
+        # duplicate the primary).
         additional_cidr_blocks = [
-            cidr_association.get('CidrBlock', '')
-            for cidr_association in vpc.get('CidrBlockAssociationSet', [])[1:]
-            if 'CidrBlock' in cidr_association
+            cidr_association['CidrBlock']
+            for cidr_association in vpc.get('CidrBlockAssociationSet', [])
+            if cidr_association.get('CidrBlock')
+            and cidr_association.get('CidrBlock') != cidr_block
         ]
 
         return cidr_block, additional_cidr_blocks
