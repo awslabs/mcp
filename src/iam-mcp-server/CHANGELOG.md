@@ -5,6 +5,11 @@ All notable changes to the AWS IAM MCP Server will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Corrected the `ctx` parameter type on `list_users`, `get_user`, and `create_user` from `CallToolResult` to the MCP `Context` type. The wrong annotation caused the SDK to expose `ctx` as a required input argument, so every call to these tools failed with a `ctx Field required` validation error.
+
 ## [1.1.0] - 2025-06-23
 
 ### Added
