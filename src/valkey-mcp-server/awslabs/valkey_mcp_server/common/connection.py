@@ -27,8 +27,10 @@ from glide import (
     GlideClientConfiguration,
     GlideClusterClient,
     GlideClusterClientConfiguration,
+    IamAuthConfig,
     NodeAddress,
     ServerCredentials,
+    ServiceType,
 )
 
 
@@ -39,23 +41,85 @@ GlideClientType = GlideClient | GlideClusterClient
 _client: GlideClientType | None = None
 
 
+def _resolve_region() -> str:
+    """Resolve the AWS region used to sign ElastiCache IAM auth tokens.
+
+    Uses AWS_REGION / AWS_DEFAULT_REGION (captured in VALKEY_CFG['region']) and falls
+    back to the boto3 default session (shared config, AWS_PROFILE, and so on).
+    """
+    region = VALKEY_CFG.get('region')
+    if not region:
+        import boto3.session
+
+        region = boto3.session.Session().region_name
+    if not region:
+        raise ValueError(
+            'AWS_REGION is required when VALKEY_IAM_AUTH is enabled '
+            '(set AWS_REGION to the region of the ElastiCache cache)'
+        )
+    return region
+
+
+def _build_credentials() -> ServerCredentials | None:
+    """Build GLIDE server credentials from VALKEY_CFG.
+
+    Two modes:
+    - IAM authentication (VALKEY_IAM_AUTH=true): required for Amazon ElastiCache serverless
+      caches with a public endpoint. GLIDE generates the SigV4 IAM auth token from the
+      default AWS credential chain and refreshes it before the 15-minute expiry, so no token
+      handling is needed here. VALKEY_PWD is ignored in this mode.
+    - Password authentication (default): VALKEY_PWD with optional VALKEY_USERNAME.
+    """
+    username = VALKEY_CFG.get('username')
+
+    if VALKEY_CFG.get('iam_auth', False):
+        cache_name = VALKEY_CFG.get('cache_name')
+        if not username:
+            raise ValueError(
+                'VALKEY_USERNAME (the IAM-enabled ElastiCache user id, e.g. default.iam-user) '
+                'is required when VALKEY_IAM_AUTH is enabled'
+            )
+        if not cache_name:
+            raise ValueError(
+                'VALKEY_CACHE_NAME (the ElastiCache cache name the IAM token is signed for) '
+                'is required when VALKEY_IAM_AUTH is enabled'
+            )
+        if '.' in cache_name:
+            raise ValueError(
+                'Invalid VALKEY_CACHE_NAME: expected the cache name, not an endpoint address'
+            )
+        if VALKEY_CFG.get('password'):
+            logger.warning('VALKEY_PWD is ignored because VALKEY_IAM_AUTH is enabled')
+        return ServerCredentials(
+            username=username,
+            iam_config=IamAuthConfig(
+                cluster_name=cache_name.lower(),
+                service=ServiceType.ELASTICACHE,
+                region=_resolve_region(),
+            ),
+        )
+
+    password = VALKEY_CFG.get('password', '')
+    if password:
+        return ServerCredentials(password, username) if username else ServerCredentials(password)
+    return None
+
+
 def _build_config() -> GlideClientConfiguration | GlideClusterClientConfiguration:
     """Build GLIDE client configuration from VALKEY_CFG."""
     addresses = [NodeAddress(VALKEY_CFG['host'], VALKEY_CFG['port'])]
 
-    password = VALKEY_CFG.get('password', '')
-    username = VALKEY_CFG.get('username')
-    credentials = None
-    if password:
-        credentials = (
-            ServerCredentials(password, username) if username else ServerCredentials(password)
-        )
+    credentials = _build_credentials()
+    iam_auth = VALKEY_CFG.get('iam_auth', False)
+    use_tls = bool(VALKEY_CFG.get('ssl', False)) or iam_auth
+    if iam_auth and not VALKEY_CFG.get('ssl', False):
+        logger.info('TLS enabled automatically because VALKEY_IAM_AUTH is enabled')
 
-    reconnect = BackoffStrategy(num_of_retries=10, factor=500, exponent_base=2)
+    reconnect = BackoffStrategy(num_of_retries=10, factor=500, exponent_base=2, jitter_percent=20)
 
     kwargs: dict = {
         'addresses': addresses,
-        'use_tls': VALKEY_CFG.get('ssl', False),
+        'use_tls': use_tls,
         'request_timeout': 5000,
         'reconnect_strategy': reconnect,
         'client_name': 'valkey-mcp-server',
@@ -64,7 +128,7 @@ def _build_config() -> GlideClientConfiguration | GlideClusterClientConfiguratio
         kwargs['credentials'] = credentials
 
     # Wire TLS certificate config if CA certs path is provided
-    if VALKEY_CFG.get('ssl', False) and VALKEY_CFG.get('ssl_ca_certs'):
+    if use_tls and VALKEY_CFG.get('ssl_ca_certs'):
         from glide_shared.config import TlsAdvancedConfiguration
 
         ca_path = VALKEY_CFG['ssl_ca_certs']

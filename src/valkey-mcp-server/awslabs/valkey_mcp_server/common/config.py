@@ -33,6 +33,9 @@ VALKEY_CFG = {
     'vector_algorithm': os.getenv('VALKEY_VECTOR_ALGORITHM', 'HNSW').upper(),
     'vector_distance_metric': os.getenv('VALKEY_VECTOR_DISTANCE_METRIC', 'COSINE').upper(),
     'glide_log_level': os.getenv('VALKEY_GLIDE_LOG_LEVEL', 'WARN').upper(),
+    'iam_auth': os.getenv('VALKEY_IAM_AUTH', False) in ('true', '1', 't'),
+    'cache_name': os.getenv('VALKEY_CACHE_NAME', None),
+    'region': os.getenv('AWS_REGION') or os.getenv('AWS_DEFAULT_REGION') or None,
 }
 
 
