@@ -22,6 +22,29 @@ from botocore.exceptions import ClientError
 from typing import Any, Dict, Optional, Tuple, Union
 
 
+def _ensure_vpc_cache(serverless_cache: Dict[str, Any], serverless_cache_name: str) -> None:
+    """Reject jump-host operations for serverless caches with ConnectionType 'public'.
+
+    Public-endpoint caches have no VPC endpoint, subnets, or security groups, so jump hosts
+    and SSH tunnels do not apply. A missing ConnectionType field is treated as 'vpc'.
+
+    Args:
+        serverless_cache (Dict[str, Any]): A ServerlessCache entry from describe_serverless_caches
+        serverless_cache_name (str): Name of the cache, used in the error message
+
+    Raises:
+        ValueError: If the cache has a public endpoint
+    """
+    if serverless_cache.get('ConnectionType') == 'public':
+        endpoint = serverless_cache.get('Endpoint', {}).get('Address', '<endpoint>')
+        raise ValueError(
+            f'Serverless cache {serverless_cache_name} has a public endpoint '
+            f'(ConnectionType=public), so a jump host or SSH tunnel is not needed and cannot '
+            f'be configured. Connect directly to {endpoint} over TLS 1.3 using IAM '
+            f'authentication, for example with the Valkey MCP server and VALKEY_IAM_AUTH=true.'
+        )
+
+
 async def _configure_security_groups(
     serverless_cache_name: str,
     instance_id: str,
@@ -51,6 +74,7 @@ async def _configure_security_groups(
     serverless_cache = elasticache_client.describe_serverless_caches(
         ServerlessCacheName=serverless_cache_name
     )['ServerlessCaches'][0]
+    _ensure_vpc_cache(serverless_cache, serverless_cache_name)
 
     # Get cache security groups
     cache_security_groups = serverless_cache['SecurityGroupIds']
@@ -148,6 +172,8 @@ async def connect_jump_host_serverless(
 ) -> Dict[str, Any]:
     """Configures an existing EC2 instance as a jump host to access an ElastiCache serverless cache.
 
+    Not applicable to serverless caches with a public endpoint; returns an error for them.
+
     Args:
         serverless_cache_name (str): Name of the ElastiCache serverless cache to connect to
         instance_id (str): ID of the EC2 instance to use as jump host
@@ -192,6 +218,8 @@ async def get_ssh_tunnel_command_serverless(
 ) -> Dict[str, Union[str, int]]:
     """Generates an SSH tunnel command to connect to an ElastiCache serverless cache through an EC2 jump host.
 
+    Not applicable to serverless caches with a public endpoint; returns an error for them.
+
     Args:
         serverless_cache_name (str): Name of the ElastiCache serverless cache to connect to
         instance_id (str): ID of the EC2 instance to use as jump host
@@ -235,6 +263,7 @@ async def get_ssh_tunnel_command_serverless(
         serverless_cache = elasticache_client.describe_serverless_caches(
             ServerlessCacheName=serverless_cache_name
         )['ServerlessCaches'][0]
+        _ensure_vpc_cache(serverless_cache, serverless_cache_name)
 
         # Get cache endpoint and port
         cache_endpoint = serverless_cache['Endpoint']['Address']
@@ -281,6 +310,8 @@ async def create_jump_host_serverless(
 ) -> Dict[str, Any]:
     """Creates an EC2 jump host instance to access an ElastiCache serverless cache via SSH tunnel.
 
+    Not applicable to serverless caches with a public endpoint; returns an error for them.
+
     Args:
         serverless_cache_name (str): Name of the ElastiCache serverless cache to connect to
         key_name (str): Name of the EC2 key pair to use for SSH access
@@ -324,6 +355,7 @@ async def create_jump_host_serverless(
         serverless_cache = elasticache_client.describe_serverless_caches(
             ServerlessCacheName=serverless_cache_name
         )['ServerlessCaches'][0]
+        _ensure_vpc_cache(serverless_cache, serverless_cache_name)
 
         # Get cache security groups
         cache_security_groups = serverless_cache['SecurityGroupIds']

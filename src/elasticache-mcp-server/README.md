@@ -5,13 +5,15 @@ The official MCP Server for interacting with AWS ElastiCache control plane. In o
 ## Available MCP Tools
 
 ### Serverless Cache Operations
-- `create-serverless-cache` - Create a new ElastiCache serverless cache
+- `create-serverless-cache` - Create a new ElastiCache serverless cache. Pass `connection_type='public'` to create a Valkey 9+ cache with a public endpoint that is reachable over the internet without a VPC (IAM authentication over TLS 1.3, IAM user group required); the default `'vpc'` creates a VPC endpoint
 - `delete-serverless-cache` - Delete a serverless cache
 - `describe-serverless-caches` - Get information about serverless caches
 - `modify-serverless-cache` - Modify settings of a serverless cache
-- `connect-jump-host-serverless-cache` - Configure an EC2 instance as a jump host for serverless cache access
-- `create-jump-host-serverless-cache` - Create an EC2 jump host to access a serverless cache via SSH tunnel
-- `get-ssh-tunnel-command-serverless-cache` - Generate SSH tunnel command for serverless cache access
+- `connect-jump-host-serverless-cache` - Configure an EC2 instance as a jump host for access to a serverless cache with a VPC endpoint
+- `create-jump-host-serverless-cache` - Create an EC2 jump host to access a serverless cache with a VPC endpoint via SSH tunnel
+- `get-ssh-tunnel-command-serverless-cache` - Generate SSH tunnel command for a serverless cache with a VPC endpoint
+
+The jump-host tools apply only to caches with a VPC endpoint. For a cache with a public endpoint they return an error, because the cache is reached directly over the internet with IAM authentication.
 
 ### Replication Group Operations
 - `create-replication-group` - Create an Amazon ElastiCache replication group with specified configuration
@@ -73,6 +75,7 @@ All tools support an optional `region_name` parameter to specify which AWS regio
 2. Install Python using `uv python install 3.10`
 3. Set up AWS credentials with access to AWS services
    - Consider setting up Read-only permission if you don't want the LLM to modify any resources
+4. Creating serverless caches with a public endpoint (`connection_type='public'`) requires `boto3` 1.43.105 or later, which is the minimum version this server declares.
 
 ## Installation
 

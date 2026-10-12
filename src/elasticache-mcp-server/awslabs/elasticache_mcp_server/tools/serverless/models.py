@@ -103,6 +103,18 @@ class CreateServerlessCacheRequest(BaseModel):
         None,
         description="Time range (in UTC) when daily snapshots are taken (e.g., '04:00-05:00')",
     )
+    connection_type: Optional[str] = Field(
+        None,
+        description=(
+            'The connection type for the serverless cache. Must be either vpc | public. Use vpc '
+            'to access the cache through a VPC endpoint, or public to access the cache over the '
+            'internet. If not specified, defaults to vpc. This value cannot be changed after the '
+            'serverless cache is created. Setting this to public requires Valkey 9 or above, a '
+            'user group in which every user uses IAM authentication (e.g. '
+            'default.iam-user-group), and clients that connect with IAM authentication over '
+            'TLS 1.3.'
+        ),
+    )
 
     @field_validator('daily_snapshot_time')
     def validate_snapshot_time(cls, v):
@@ -112,6 +124,13 @@ class CreateServerlessCacheRequest(BaseModel):
 
             if not re.match(r'^([0-1][0-9]|2[0-3]):[0-5][0-9]-([0-1][0-9]|2[0-3]):[0-5][0-9]$', v):
                 raise ValueError('Invalid time range format. Must be in format HH:MM-HH:MM')
+        return v
+
+    @field_validator('connection_type')
+    def validate_connection_type(cls, v):
+        """Validate that connection_type is 'vpc' or 'public'."""
+        if v is not None and v not in ('vpc', 'public'):
+            raise ValueError("connection_type must be 'vpc' or 'public'")
         return v
 
     model_config = ConfigDict(validate_by_name=True, arbitrary_types_allowed=True)

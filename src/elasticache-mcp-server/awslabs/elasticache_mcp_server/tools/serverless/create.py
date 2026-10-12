@@ -70,6 +70,8 @@ async def create_serverless_cache(request: CreateServerlessCacheRequest) -> Dict
         user_group_id (Optional[str]): ID of the user group to associate with the cache.
         snapshot_retention_limit (Optional[int]): Number of days for which ElastiCache retains automatic snapshots.
         daily_snapshot_time (Optional[str]): Time range (in UTC) when daily snapshots are taken (e.g., '04:00-05:00').
+        connection_type (Optional[str]): 'vpc' (default) or 'public'. For 'public', pass engine='valkey',
+            major_engine_version='9', and user_group_id; omit subnet_ids and security_group_ids.
 
     Returns:
         Dict containing information about the created serverless cache.
@@ -113,6 +115,7 @@ async def create_serverless_cache(request: CreateServerlessCacheRequest) -> Dict
         ('MajorEngineVersion', request.major_engine_version),
         ('UserGroupId', request.user_group_id),
         ('DailySnapshotTime', request.daily_snapshot_time),
+        ('ConnectionType', request.connection_type),
     ]:
         if value:
             create_request[param_name] = str(value)
