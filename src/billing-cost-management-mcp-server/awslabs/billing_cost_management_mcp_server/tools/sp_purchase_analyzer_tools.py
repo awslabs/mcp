@@ -21,6 +21,7 @@ from ..utilities.aws_service_base import (
     paginate_aws_response,
 )
 from ..utilities.logging_utils import get_context_logger
+from ..utilities.sql_utils import convert_response_if_needed
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, List, Optional
 
@@ -73,7 +74,12 @@ payment option live inside it. None has a default: each changes the result, and 
 one of the day's analyses on a scenario nobody asked for. A validation error names the nested field
 it rejected rather than the parameter, so read the path in the message. An analysis also carries the
 configuration it was run with, so read AnalysisType from a result rather than assuming which
-scenario it modelled.""",
+scenario it modelled.
+
+A large list_commitment_purchase_analyses result is automatically offloaded to session SQL to save
+tokens: the response carries data_stored=True and a table_name (one row per analysis summary)
+instead of the inline list, and the rows are queried with the session-sql tool. A small result is
+returned inline unchanged.""",
 )
 async def sp_purchase_analyzer(
     ctx: Context,
@@ -338,10 +344,20 @@ async def list_commitment_purchase_analyses(
             max_pages=max_pages,
         )
 
-        return format_response(
-            'success',
+        # A large analysis history is offloaded to session SQL (one row per
+        # analysis summary) instead of returned inline; a small result passes
+        # through unchanged. An offloaded table is queried with the session-sql
+        # tool. The continuation token is Cost Explorer's NextPageToken, not the
+        # lowercase nextToken the Savings Plans service uses.
+        converted = await convert_response_if_needed(
+            ctx,
             {'AnalysisSummaryList': all_analyses, 'pagination': pagination_metadata},
+            'sp_purchase_analyzer_list_commitment_purchase_analyses',
+            pagination_token_key='NextPageToken',
+            pagination=pagination_metadata,
         )
+
+        return format_response('success', converted)
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
