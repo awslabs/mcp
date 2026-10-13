@@ -329,7 +329,8 @@ async def test_coh_real_summaries_reload_identity_decorator(mock_context):
             fake_client,
             group_by='ResourceType',
             max_results=50,
-            filters=parsed,
+            # Key and enum value are folded onto the API's spelling.
+            filters={'implementationEfforts': ['Low'], 'savingsPct': {'gte': 10}},
             next_token=None,
             max_pages=None,
         )
@@ -1457,3 +1458,330 @@ async def test_coh_local_validation_errors_carry_telemetry_fields(
     assert res['message']
     # Rejected locally: no COH API call is made.
     assert not mock_create_client.return_value.method_calls
+
+
+@pytest.mark.parametrize(
+    'filters,expected',
+    [
+        # Enum values fold case and underscores.
+        (
+            {'resourceTypes': ['ec2_instance', 'LAMBDAFUNCTION']},
+            {'resourceTypes': ['Ec2Instance', 'LambdaFunction']},
+        ),
+        ({'actionTypes': ['rightsize']}, {'actionTypes': ['Rightsize']}),
+        ({'implementationEfforts': ['very_low']}, {'implementationEfforts': ['VeryLow']}),
+        # Keys fold case, underscores, and singular/plural.
+        ({'ResourceType': ['Ec2Instance']}, {'resourceTypes': ['Ec2Instance']}),
+        ({'resource_types': ['Ec2Instance']}, {'resourceTypes': ['Ec2Instance']}),
+        # A bare value is wrapped in a list.
+        ({'resourceTypes': 'ebsvolume'}, {'resourceTypes': ['EbsVolume']}),
+        ({'regions': 'us-east-1'}, {'regions': ['us-east-1']}),
+        # Unknown values, non-enum lists, non-string items, booleans, and unknown keys pass through.
+        ({'resourceTypes': ['NotAType', 5]}, {'resourceTypes': ['NotAType', 5]}),
+        ({'accountIds': ['123456789012']}, {'accountIds': ['123456789012']}),
+        ({'tags': [{'key': 'env', 'value': 'prod'}]}, {'tags': [{'key': 'env', 'value': 'prod'}]}),
+        ({'restartNeeded': False}, {'restartNeeded': False}),
+        # Boolean filter keys fold too; their values are left as given.
+        ({'RestartNeeded': True}, {'restartNeeded': True}),
+        ({'rollback_possible': False}, {'rollbackPossible': False}),
+        ({'unknownKey': ['x'], 1: 'y'}, {'unknownKey': ['x'], 1: 'y'}),
+    ],
+)
+def test_normalize_filters(filters, expected):
+    """Filter keys and enum values are folded onto the API's spelling."""
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    normalized, error = coh_mod._normalize_filters('list_recommendations', filters)
+
+    assert error is None
+    assert normalized == expected
+
+
+def test_normalize_filters_non_dict_passes_through():
+    """Filters that are not an object are left for the API to reject."""
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    assert coh_mod._normalize_filters('list_recommendations', None) == (None, None)
+    assert coh_mod._normalize_filters('list_recommendations', ['x']) == (['x'], None)
+
+
+def test_normalize_filters_empty_list_is_rejected():
+    """An empty list filter is rejected locally with the filter's accepted values."""
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    filters = {'resourceTypes': [], 'regions': []}
+    normalized, error = coh_mod._normalize_filters('list_recommendations', filters)
+
+    assert normalized == filters
+    assert error is not None
+    assert error['status'] == 'error'
+    assert error['error_type'] == 'validation_error'
+    assert error['operation'] == 'list_recommendations'
+    assert error['service'] == 'Cost Optimization Hub'
+    assert 'resourceTypes, regions' in error['message']
+    assert error['data']['empty_filters'] == ['resourceTypes', 'regions']
+    assert error['data']['submitted_filters'] == filters
+    # Only enum filters have a value list to offer.
+    assert list(error['data']['valid_filter_values']) == ['resourceTypes']
+    assert 'Ec2Instance' in error['data']['valid_filter_values']['resourceTypes']
+
+
+def test_filter_model_unavailable_skips_normalization():
+    """If the botocore model cannot be loaded, filters are sent unchanged."""
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    coh_mod._filter_members.cache_clear()
+    try:
+        with patch.object(coh_mod.botocore.session, 'get_session', side_effect=Exception('boom')):
+            assert coh_mod._filter_model() == {}
+            filters = {'resourceTypes': []}
+            assert coh_mod._normalize_filters('list_recommendations', filters) == (filters, None)
+    finally:
+        coh_mod._filter_members.cache_clear()
+
+
+def test_add_valid_filter_values():
+    """A ValidationException gets the accepted values of the enum filters that were sent."""
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    error = {'status': 'error', 'error_type': 'ValidationException'}
+    result = coh_mod._add_valid_filter_values(
+        error, {'resourceTypes': ['NotAType'], 'regions': ['us-east-1']}
+    )
+    assert list(result['valid_filter_values']) == ['resourceTypes']
+
+    # No enum filter sent: nothing to add.
+    error = {'status': 'error', 'error_type': 'ValidationException'}
+    assert 'valid_filter_values' not in coh_mod._add_valid_filter_values(
+        error, {'regions': ['us-east-1']}
+    )
+    # Other errors and missing filters are left alone.
+    other = {'status': 'error', 'error_type': 'AccessDeniedException'}
+    assert 'valid_filter_values' not in coh_mod._add_valid_filter_values(
+        other, {'resourceTypes': ['x']}
+    )
+    error = {'status': 'error', 'error_type': 'ValidationException'}
+    assert 'valid_filter_values' not in coh_mod._add_valid_filter_values(error, None)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('operation', ['list_recommendations', 'list_recommendation_summaries'])
+async def test_coh_empty_filter_rejected_before_api_call(mock_context, operation):
+    """An empty list filter returns a validation_error without calling the API."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client'),
+        patch.object(coh_mod, 'list_recommendations', new_callable=AsyncMock) as mock_list,
+        patch.object(
+            coh_mod, 'list_recommendation_summaries', new_callable=AsyncMock
+        ) as mock_summaries,
+    ):
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation=operation,
+            group_by='ResourceType',
+            filters='{"resourceTypes": []}',
+        )
+
+    assert res['error_type'] == 'validation_error'
+    assert res['operation'] == operation
+    assert res['data']['empty_filters'] == ['resourceTypes']
+    mock_list.assert_not_awaited()
+    mock_summaries.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('operation', ['list_recommendations', 'list_recommendation_summaries'])
+async def test_coh_validation_exception_adds_valid_filter_values(mock_context, operation):
+    """A ValidationException from the API carries the accepted filter values."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+    api_error = {
+        'status': 'error',
+        'error_type': 'ValidationException',
+        'message': 'Input validation failed. Please check the field list for more details.',
+    }
+
+    with (
+        patch.object(coh_mod, 'create_aws_client'),
+        patch.object(
+            coh_mod, 'list_recommendations', new_callable=AsyncMock, return_value=dict(api_error)
+        ) as mock_list,
+        patch.object(
+            coh_mod,
+            'list_recommendation_summaries',
+            new_callable=AsyncMock,
+            return_value=dict(api_error),
+        ) as mock_summaries,
+    ):
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation=operation,
+            group_by='ResourceType',
+            filters='{"resourceType": ["ec2instance", "NotAType"]}',
+        )
+
+    called = mock_list if operation == 'list_recommendations' else mock_summaries
+    sent = called.await_args
+    assert sent is not None
+    sent_filters = sent.args[3] if operation == 'list_recommendations' else sent.kwargs['filters']
+    assert sent_filters == {'resourceTypes': ['Ec2Instance', 'NotAType']}
+    assert res['error_type'] == 'ValidationException'
+    assert 'Ec2Instance' in res['valid_filter_values']['resourceTypes']
+
+
+@pytest.mark.parametrize(
+    'filters,expected',
+    [
+        # Tag item field names fold; tag keys and values are kept as given.
+        (
+            {'tags': [{'Key': 'Environment', 'VALUE': 'Prod'}]},
+            {'tags': [{'key': 'Environment', 'value': 'Prod'}]},
+        ),
+        # A single bare tag object is wrapped in a list.
+        (
+            {'Tag': {'key': 'Environment', 'value': 'test'}},
+            {'tags': [{'key': 'Environment', 'value': 'test'}]},
+        ),
+        # Non-object items and unknown fields pass through.
+        (
+            {'tags': ['Environment', {'name': 'x', 1: 'y'}]},
+            {'tags': ['Environment', {'name': 'x', 1: 'y'}]},
+        ),
+    ],
+)
+def test_normalize_tag_filters(filters, expected):
+    """Tag filter items get the API's field names; their keys and values are untouched."""
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    normalized, error = coh_mod._normalize_filters('list_recommendations', filters)
+
+    assert error is None
+    assert normalized == expected
+
+
+def test_filter_item_fields_unavailable():
+    """If the botocore model cannot be loaded, tag items are sent unchanged."""
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    coh_mod._filter_members.cache_clear()
+    try:
+        with patch.object(coh_mod.botocore.session, 'get_session', side_effect=Exception('boom')):
+            assert coh_mod._filter_item_fields() == {}
+            normalized, _ = coh_mod._normalize_filters(
+                'list_recommendations', {'tags': [{'Key': 'Environment', 'Value': 'test'}]}
+            )
+            assert normalized == {'tags': [{'Key': 'Environment', 'Value': 'test'}]}
+    finally:
+        coh_mod._filter_members.cache_clear()
+    assert coh_mod._filter_item_fields() == {'tags': ['key', 'value']}
+
+
+@pytest.mark.parametrize(
+    'group_by,expected',
+    [
+        ('ResourceType', 'ResourceType'),
+        ('TagKey:Environment', 'TagKey:Environment'),
+        # The prefix folds; the tag key keeps its case.
+        ('tagkey:Environment', 'TagKey:Environment'),
+        ('TAGKEY:cost center', 'TagKey:cost center'),
+    ],
+)
+def test_resolve_summaries_group_by(group_by, expected):
+    """Fixed dimensions and TagKey:<tag key> are accepted."""
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    assert coh_mod._resolve_summaries_group_by(group_by) == (expected, None)
+
+
+@pytest.mark.parametrize(
+    'group_by,message',
+    [
+        ('TagKey:', 'needs a tag key'),
+        ('TagKey:  ', 'needs a tag key'),
+        ('Tag:Environment', 'Invalid group_by value'),
+        ('resourcetype', 'Invalid group_by value'),
+    ],
+)
+def test_resolve_summaries_group_by_rejects(group_by, message):
+    """A TagKey without a key, or an unknown dimension, is rejected locally."""
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    resolved, error = coh_mod._resolve_summaries_group_by(group_by)
+
+    assert resolved is None
+    assert error is not None
+    assert error['error_type'] == 'validation_error'
+    assert error['operation'] == 'list_recommendation_summaries'
+    assert message in error['message']
+    assert 'TagKey:<tag key>' in error['data']['valid_group_by_values']
+
+
+@pytest.mark.asyncio
+async def test_coh_summaries_group_by_tag_key(mock_context):
+    """TagKey group_by and a tag filter reach the summaries API in the API's spelling."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client'),
+        patch.object(
+            coh_mod,
+            'list_recommendation_summaries',
+            new_callable=AsyncMock,
+            return_value={'status': 'success', 'data': {}},
+        ) as mock_summaries,
+    ):
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='list_recommendation_summaries',
+            group_by='tagkey:Environment',
+            filters='{"tags": {"Key": "Environment", "Value": "test"}}',
+        )
+
+    assert res['status'] == 'success'
+    sent = mock_summaries.await_args
+    assert sent is not None
+    assert sent.kwargs['group_by'] == 'TagKey:Environment'
+    assert sent.kwargs['filters'] == {'tags': [{'key': 'Environment', 'value': 'test'}]}
+    assert res['data']['operation_parameters']['group_by'] == 'TagKey:Environment'
+
+
+@pytest.mark.asyncio
+async def test_coh_summaries_group_by_tag_key_without_key(mock_context):
+    """TagKey: with no key is rejected without calling the API."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client'),
+        patch.object(
+            coh_mod, 'list_recommendation_summaries', new_callable=AsyncMock
+        ) as mock_summaries,
+    ):
+        res = await real_fn(  # type: ignore
+            mock_context, operation='list_recommendation_summaries', group_by='TagKey:'
+        )
+
+    assert res['error_type'] == 'validation_error'
+    mock_summaries.assert_not_awaited()
