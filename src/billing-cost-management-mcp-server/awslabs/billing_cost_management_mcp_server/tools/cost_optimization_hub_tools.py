@@ -17,6 +17,7 @@
 Updated to use shared utility functions.
 """
 
+import botocore.session
 from ..utilities.aws_service_base import (
     create_aws_client,
     format_response,
@@ -37,6 +38,7 @@ from ..utilities.constants import (
     EFFICIENCY_RANKING_MODE_PERFORMANCE,
     GRANULARITY_DAILY,
     GRANULARITY_MONTHLY,
+    GROUP_BY_TAG_KEY_PREFIX,
     OPERATION_GET_PREFERENCES,
     OPERATION_GET_RECOMMENDATION,
     OPERATION_LIST_EFFICIENCY_METRICS,
@@ -55,7 +57,8 @@ from .cost_optimization_hub_helpers import (
 )
 from datetime import date, datetime, timedelta
 from fastmcp import Context, FastMCP
-from typing import Any, Dict, Optional
+from functools import lru_cache
+from typing import Any, Dict, List, Optional, Tuple
 
 
 def _is_valid_efficiency_date(date_str: Optional[str], granularity: str) -> bool:
@@ -183,6 +186,150 @@ def _error_response(
     )
 
 
+def _filter_key(value: str) -> str:
+    """Fold a filter key or value for matching: case- and underscore-insensitive."""
+    return value.casefold().replace('_', '')
+
+
+@lru_cache(maxsize=1)
+def _filter_members() -> Dict[str, Any]:
+    """Return {filter key: botocore shape} for every member of the API's Filter.
+
+    Read offline from the installed botocore service model. Returns an empty map if
+    the model cannot be loaded (normalization is then skipped).
+    """
+    try:
+        service_model: Any = botocore.session.get_session().get_service_model(
+            'cost-optimization-hub'
+        )
+        return dict(service_model.shape_for('Filter').members)
+    except Exception:
+        return {}
+
+
+def _filter_model() -> Dict[str, Optional[List[str]]]:
+    """Return {filter key: enum values, or None} for the list-valued filter keys."""
+    return {
+        name: (list(shape.member.enum) if getattr(shape.member, 'enum', None) else None)
+        for name, shape in _filter_members().items()
+        if shape.type_name == 'list'
+    }
+
+
+def _filter_item_fields() -> Dict[str, List[str]]:
+    """Return {filter key: field names} for list filters whose items are objects (tags)."""
+    return {
+        name: list(shape.member.members)
+        for name, shape in _filter_members().items()
+        if shape.type_name == 'list' and shape.member.type_name == 'structure'
+    }
+
+
+def _normalize_filters(operation: str, filters: Any) -> Tuple[Any, Optional[Dict[str, Any]]]:
+    """Fold filter keys and enum values onto the spelling the API expects.
+
+    The API is case-sensitive on both. Keys match case-, underscore-, and
+    singular/plural-insensitively (``ResourceType`` -> ``resourceTypes``); enum values
+    match case- and underscore-insensitively (``ec2_instance`` -> ``Ec2Instance``). A
+    single bare value is wrapped in a list. Values that match nothing are passed
+    through unchanged, so the service stays the authority on what is valid.
+
+    Returns:
+        (normalized filters, None), or (original filters, error response) when a list
+        filter is empty, which the API rejects.
+    """
+    model = _filter_model()
+    if not isinstance(filters, dict) or not model:
+        return filters, None
+
+    keys = {_filter_key(name).removesuffix('s'): name for name in _filter_members()}
+    normalized: Dict[str, Any] = {}
+    for key, value in filters.items():
+        name = keys.get(_filter_key(key).removesuffix('s'), key) if isinstance(key, str) else key
+        if name in model:
+            if isinstance(value, (str, dict)):
+                value = [value]
+            enum = model[name]
+            if enum and isinstance(value, list):
+                canonical = {_filter_key(v): v for v in enum}
+                value = [
+                    canonical.get(_filter_key(v), v) if isinstance(v, str) else v for v in value
+                ]
+            fields = {_filter_key(f): f for f in _filter_item_fields().get(name, [])}
+            if fields and isinstance(value, list):
+                # Fold item field names (Key/Value -> key/value); tag keys and values
+                # themselves are case-sensitive and kept as given.
+                value = [
+                    {
+                        (fields.get(_filter_key(k), k) if isinstance(k, str) else k): v
+                        for k, v in item.items()
+                    }
+                    if isinstance(item, dict)
+                    else item
+                    for item in value
+                ]
+        normalized[name] = value
+
+    empty = [name for name, value in normalized.items() if name in model and value == []]
+    if empty:
+        return filters, _error_response(
+            operation,
+            {
+                'submitted_filters': filters,
+                'empty_filters': empty,
+                'valid_filter_values': {name: model[name] for name in empty if model[name]},
+            },
+            f'Filter {", ".join(empty)} is empty; omit it to include all values, '
+            'or pass one or more values.',
+        )
+    return normalized, None
+
+
+def _resolve_summaries_group_by(group_by: Any) -> Tuple[Any, Optional[Dict[str, Any]]]:
+    """Validate list_recommendation_summaries group_by, accepting 'TagKey:<tag key>'.
+
+    The 'TagKey:' prefix is matched case-insensitively and sent in the spelling the API
+    expects; the tag key itself is case-sensitive and kept as given.
+
+    Returns:
+        (group_by to send, None), or (None, error response).
+    """
+    valid = [*COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES, f'{GROUP_BY_TAG_KEY_PREFIX}<tag key>']
+    if isinstance(group_by, str) and group_by.casefold().startswith(
+        GROUP_BY_TAG_KEY_PREFIX.casefold()
+    ):
+        tag_key = group_by[len(GROUP_BY_TAG_KEY_PREFIX) :]
+        if not tag_key.strip():
+            return None, _error_response(
+                OPERATION_LIST_RECOMMENDATION_SUMMARIES,
+                {'provided_group_by': group_by, 'valid_group_by_values': valid},
+                f'group_by {group_by} needs a tag key, e.g. {GROUP_BY_TAG_KEY_PREFIX}Environment.',
+            )
+        return GROUP_BY_TAG_KEY_PREFIX + tag_key, None
+    if group_by not in COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES:
+        return None, _error_response(
+            OPERATION_LIST_RECOMMENDATION_SUMMARIES,
+            {'provided_group_by': group_by, 'valid_group_by_values': valid},
+            f'Invalid group_by value: {group_by}. Must be one of: {", ".join(valid)}.',
+        )
+    return group_by, None
+
+
+def _add_valid_filter_values(result: Dict[str, Any], filters: Any) -> Dict[str, Any]:
+    """On a ValidationException, attach the accepted values of the enum filters sent.
+
+    The API's error message does not say which filter failed, so this gives the caller
+    the values to choose from.
+    """
+    if result.get('error_type') != 'ValidationException' or not isinstance(filters, dict):
+        return result
+    model = _filter_model()
+    valid = {name: model[name] for name in filters if model.get(name)}
+    if valid:
+        result['valid_filter_values'] = valid
+    return result
+
+
 def _validate_order_by(
     order_by: Any, valid_dimensions: list, operation: str
 ) -> Optional[Dict[str, Any]]:
@@ -258,6 +405,9 @@ Supported Operations:
 
 IMPORTANT: 'list_recommendation_summaries' operation REQUIRES a 'group_by' parameter.
 Valid 'group_by' values: AccountId, Region, ActionType, ResourceType, RestartNeeded, RollbackPossible, ImplementationEffort
+Or group by a tag's values with 'TagKey:<tag key>' (e.g. 'TagKey:Environment'). The tag
+key is case-sensitive; recommendations without the tag, or for a key that does not exist,
+are grouped under 'NoTagKey'.
 
 CRITICAL PARAMETER REQUIREMENTS:
 - 'filters' parameter must be passed as JSON string format
@@ -285,13 +435,23 @@ Region, ResourceType, ActionType, ResourceArn, ResourceId, EstimatedSavingsPerce
 ('list_recommendation_summaries' does not support order_by.)
 
 Available Filter Parameters (pass as JSON string):
-- resourceTypes: ['Ec2Instance', 'LambdaFunction', 'EbsVolume', 'EcsService', 'Ec2AutoScalingGroup', 'Ec2InstanceSavingsPlans', 'ComputeSavingsPlans', 'SageMakerSavingsPlans', 'Ec2ReservedInstances', 'RdsReservedInstances', 'OpenSearchReservedInstances', 'RedshiftReservedInstances', 'ElastiCacheReservedInstances', 'RdsDbInstanceStorage', 'RdsDbInstance', 'DynamoDbReservedCapacity', 'MemoryDbReservedInstances']
+- resourceTypes: ['Ec2Instance', 'LambdaFunction', 'EbsVolume', 'EcsService', 'Ec2AutoScalingGroup', 'Ec2InstanceSavingsPlans', 'ComputeSavingsPlans', 'SageMakerSavingsPlans', 'Ec2ReservedInstances', 'RdsReservedInstances', 'OpenSearchReservedInstances', 'RedshiftReservedInstances', 'ElastiCacheReservedInstances', 'RdsDbInstanceStorage', 'RdsDbInstance', 'AuroraDbClusterStorage', 'DynamoDbReservedCapacity', 'MemoryDbReservedInstances', 'NatGateway', 'DynamoDBTable', 'ElastiCacheCluster', 'MemoryDBCluster', 'DocumentDBCluster', 'WorkSpaces', 'SageMakerEndpoint']
 - actionTypes: ['Rightsize', 'Stop', 'Upgrade', 'PurchaseSavingsPlans', 'PurchaseReservedInstances', 'MigrateToGraviton', 'Delete', 'ScaleIn']
 - implementationEfforts: ['VeryLow', 'Low', 'Medium', 'High', 'VeryHigh']
 - regions: AWS region codes (e.g., ["us-east-1", "us-west-2"])
 - accountIds: List of AWS account IDs
 - restartNeeded: boolean
+- tags: List of {"key": ..., "value": ...} objects, e.g.
+  [{"key": "Environment", "value": "prod"}, {"key": "Environment", "value": "staging"},
+  {"key": "Team", "value": "web"}] matches (Environment=prod OR staging) AND Team=web.
+  Values for the same key are ORed; different keys are ANDed. Both key and value are
+  required and matched exactly (case-sensitive, no wildcards). Only tags that appear on
+  the recommendations can match (see 'tags' in get_recommendation).
 - rollbackPossible: boolean
+Filter keys and enum values are matched case- and underscore-insensitively
+(e.g. "ec2_instance" -> "Ec2Instance"); tag keys and values are not. List filters must be non-empty: omit a filter
+to include all values rather than passing []. An empty list is rejected locally, and a
+rejected value returns the accepted values in valid_filter_values.
 
 Cost Optimization Hub provides recommendations across multiple AWS services, including:
 - EC2 instances (right-sizing, Graviton migration)
@@ -335,8 +495,8 @@ async def cost_optimization_hub(
             cap. Combine with ``max_pages`` to bound total fetched results.
         filters: Optional filter expression as JSON string (not supported by list_efficiency_metrics)
         group_by: Optional grouping parameter. For list_recommendation_summaries any
-            of the recommendation dimensions; for list_efficiency_metrics only
-            AccountId or Region.
+            of the recommendation dimensions, or 'TagKey:<tag key>'; for
+            list_efficiency_metrics only AccountId or Region.
         include_all_recommendations: Whether to include all recommendations
         next_token: Pagination token to resume from a previous response.
             Applies to list_recommendations, list_recommendation_summaries, and
@@ -395,19 +555,12 @@ async def cost_optimization_hub(
                 return _error_response(
                     operation,
                     {'valid_group_by_values': COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES},
-                    f'group_by parameter is required for list_recommendation_summaries operation. Must be one of: {", ".join(COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES)}',
+                    f'group_by parameter is required for list_recommendation_summaries operation. Must be one of: {", ".join(COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES)}, or {GROUP_BY_TAG_KEY_PREFIX}<tag key>',
                 )
 
-            # Validate the group_by value is one of the allowed values
-            if group_by not in COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES:
-                return _error_response(
-                    operation,
-                    {
-                        'provided_group_by': group_by,
-                        'valid_group_by_values': COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES,
-                    },
-                    f'Invalid group_by value: {group_by}. Must be one of: {", ".join(COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES)}',
-                )
+            group_by, group_by_error = _resolve_summaries_group_by(group_by)
+            if group_by_error:
+                return group_by_error
 
         elif operation == OPERATION_GET_RECOMMENDATION:
             if not recommendation_id:
@@ -422,6 +575,9 @@ async def cost_optimization_hub(
             try:
                 # Parse filters if provided
                 parsed_filters = parse_json(filters, 'filters') if filters else None
+                parsed_filters, filter_error = _normalize_filters(operation, parsed_filters)
+                if filter_error:
+                    return filter_error
 
                 effective_group_by = str(group_by) if group_by else 'RESOURCE_TYPE'
                 await ctx.info(f'Using group_by: {effective_group_by}')
@@ -435,6 +591,8 @@ async def cost_optimization_hub(
                     next_token=next_token,
                     max_pages=max_pages,
                 )
+
+                result = _add_valid_filter_values(result, parsed_filters)
 
                 # Add the operation parameters to the response for diagnostics
                 if result.get('status') == 'success' and isinstance(result.get('data'), dict):
@@ -460,6 +618,9 @@ async def cost_optimization_hub(
             try:
                 # Parse filters if provided
                 parsed_filters = parse_json(filters, 'filters') if filters else None
+                parsed_filters, filter_error = _normalize_filters(operation, parsed_filters)
+                if filter_error:
+                    return filter_error
                 parsed_order_by = parse_json(order_by, 'order_by') if order_by else None
                 if parsed_order_by is not None:
                     order_by_error = _validate_order_by(
@@ -480,6 +641,8 @@ async def cost_optimization_hub(
                     max_pages=max_pages,
                     order_by=parsed_order_by,
                 )
+
+                result = _add_valid_filter_values(result, parsed_filters)
 
                 # Add the operation parameters to the response for diagnostics
                 if result.get('status') == 'success' and isinstance(result.get('data'), dict):

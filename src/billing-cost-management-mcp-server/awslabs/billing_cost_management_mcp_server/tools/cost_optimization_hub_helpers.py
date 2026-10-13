@@ -278,7 +278,11 @@ async def get_recommendation(
                     'error_code': 'ResourceNotFoundException',
                     'recommendation_id': recommendation_id,
                 },
-                f'Recommendation {recommendation_id} not found in Cost Optimization Hub.',
+                f'Recommendation {recommendation_id} not found in Cost Optimization Hub. The '
+                'ID may be invalid (it must be a Cost Optimization Hub recommendation ID, not a '
+                'resource ID or ARN), or the recommendation may no longer exist: recommendations '
+                'are refreshed daily and removed once they no longer apply. Call '
+                'list_recommendations to check the current recommendations for the resource.',
             )
         return await handle_aws_error(
             ctx, e, OPERATION_GET_RECOMMENDATION, COST_OPTIMIZATION_HUB_SERVICE_NAME

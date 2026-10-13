@@ -697,7 +697,13 @@ class TestGetRecommendationErrorHandling:
                 'error_code': 'ResourceNotFoundException',
                 'recommendation_id': 'i-nonexistent',
             },
-            'message': 'Recommendation i-nonexistent not found in Cost Optimization Hub.',
+            'message': (
+                'Recommendation i-nonexistent not found in Cost Optimization Hub. The ID may be '
+                'invalid (it must be a Cost Optimization Hub recommendation ID, not a resource ID '
+                'or ARN), or the recommendation may no longer exist: recommendations are '
+                'refreshed daily and removed once they no longer apply. Call list_recommendations '
+                'to check the current recommendations for the resource.'
+            ),
         }
 
     async def test_other_client_error_returns_structured_error(
