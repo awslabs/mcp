@@ -298,6 +298,53 @@ class TestGetSavingsPlansPurchaseRecommendation:
         assert result['data']['pagination']['has_more'] is True
         assert result['data']['pagination']['next_token'] == 'more-to-come'
 
+    async def test_empty_string_token_on_last_page_ends_pagination(
+        self, mock_context, mock_ce_client
+    ):
+        """An empty-string token on the final page reads as complete, not as more pages.
+
+        Some AWS APIs return ``NextPageToken: ""`` on the last page rather than omitting it. The
+        loop already stops on a falsy token, so no request is made for an empty page, but the
+        metadata must report the run as complete rather than offering ``""`` as a resume token.
+        """
+
+        def page(detail_id, token):
+            return {
+                'SavingsPlansPurchaseRecommendation': {
+                    'SavingsPlansPurchaseRecommendationDetails': [
+                        {'RecommendationDetailId': detail_id}
+                    ]
+                },
+                'NextPageToken': token,
+            }
+
+        mock_ce_client.get_savings_plans_purchase_recommendation.side_effect = [
+            page('detail-1', 'token-1'),
+            page('detail-2', ''),
+        ]
+
+        result = await get_savings_plans_purchase_recommendation(
+            mock_context,
+            mock_ce_client,
+            'COMPUTE_SP',
+            'ONE_YEAR',
+            'NO_UPFRONT',
+            'THIRTY_DAYS',
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+
+        # The empty-token page is consumed and no further request is made for an empty token.
+        assert mock_ce_client.get_savings_plans_purchase_recommendation.call_count == 2
+        pagination = result['data']['pagination']
+        assert pagination['has_more'] is False
+        assert pagination['next_token'] is None
+        assert pagination['complete_dataset'] is True
+        assert pagination['total_results'] == 2
+
     async def test_a_page_without_details_is_not_treated_as_a_list(
         self, mock_context, mock_ce_client
     ):

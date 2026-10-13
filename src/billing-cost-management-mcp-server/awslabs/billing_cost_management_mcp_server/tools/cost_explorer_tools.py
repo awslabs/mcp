@@ -28,10 +28,11 @@ from .cost_explorer_operations import (
     get_tags,
     get_usage_forecast,
 )
-from botocore.exceptions import ClientError
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
 
+
+COST_EXPLORER_SERVICE_NAME = 'Cost Explorer'
 
 cost_explorer_server = FastMCP(
     name='cost-explorer-tools', instructions='Tools for working with AWS Cost Explorer API'
@@ -209,13 +210,18 @@ async def cost_explorer(
         ce_client = create_aws_client('ce')
     except Exception as client_error:
         await ctx.error(f'Failed to create AWS client: {str(client_error)}')
+        error_message = f'Failed to create AWS client: {str(client_error)}'
         return format_response(
             'error',
             {
                 'error_type': 'client_creation_error',
-                'message': f'Failed to create AWS client: {str(client_error)}',
+                'message': error_message,
                 'details': repr(client_error),
             },
+            error_message,
+            error_type='client_creation_error',
+            operation=operation,
+            service=COST_EXPLORER_SERVICE_NAME,
         )
 
     # Route to the appropriate operation handler
@@ -255,7 +261,11 @@ async def cost_explorer(
         elif operation == 'getDimensionValues':
             if not dimension:
                 return format_response(
-                    'error', {'message': 'dimension is required for getDimensionValues operation'}
+                    'error',
+                    {'message': 'dimension is required for getDimensionValues operation'},
+                    error_type='validation_error',
+                    operation=operation,
+                    service=COST_EXPLORER_SERVICE_NAME,
                 )
 
             return await get_dimension_values(
@@ -276,7 +286,11 @@ async def cost_explorer(
         elif operation == 'getCostForecast':
             if not metric:
                 return format_response(
-                    'error', {'message': 'metric is required for getCostForecast operation'}
+                    'error',
+                    {'message': 'metric is required for getCostForecast operation'},
+                    error_type='validation_error',
+                    operation=operation,
+                    service=COST_EXPLORER_SERVICE_NAME,
                 )
 
             return await get_cost_forecast(
@@ -294,7 +308,11 @@ async def cost_explorer(
         elif operation == 'getUsageForecast':
             if not metric:
                 return format_response(
-                    'error', {'message': 'metric is required for getUsageForecast operation'}
+                    'error',
+                    {'message': 'metric is required for getUsageForecast operation'},
+                    error_type='validation_error',
+                    operation=operation,
+                    service=COST_EXPLORER_SERVICE_NAME,
                 )
 
             return await get_usage_forecast(
@@ -344,11 +362,14 @@ async def cost_explorer(
             )
 
         else:
-            return format_response('error', {'message': f'Unknown operation: {operation}'})
+            return format_response(
+                'error',
+                {'message': f'Unknown operation: {operation}'},
+                error_type='validation_error',
+                operation=operation,
+                service=COST_EXPLORER_SERVICE_NAME,
+            )
 
-    except ClientError as e:
-        # Let the shared handler take care of this
-        return await handle_aws_error(ctx, e, operation, 'Cost Explorer')
     except Exception as e:
-        # For all other exceptions, use the shared error handler
-        return await handle_aws_error(ctx, e, operation, 'Cost Explorer')
+        # The shared handler classifies ClientError and all other exceptions
+        return await handle_aws_error(ctx, e, operation, COST_EXPLORER_SERVICE_NAME)

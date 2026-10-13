@@ -341,3 +341,6 @@ class TestListCostCategoryDefinitions:
 
         assert result['status'] == 'error'
         assert 'Invalid JSON for supported_resource_types parameter' in result['data']['message']
+        assert result['error_type'] == 'validation_error'
+        assert result['operation'] == 'ListCostCategoryDefinitions'
+        assert result['service'] == 'Cost Explorer'

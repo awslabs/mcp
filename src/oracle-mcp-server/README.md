@@ -1,6 +1,6 @@
 # AWS Labs MCP Server for Oracle Database
 
-An AWS Labs Model Context Protocol (MCP) server for Oracle Database on AWS RDS.
+An AWS Labs Model Context Protocol (MCP) server for Oracle Database on AWS RDS and Oracle Database@AWS databases.
 
 ## Features
 
@@ -15,11 +15,16 @@ An AWS Labs Model Context Protocol (MCP) server for Oracle Database on AWS RDS.
 
 - `run_query` — Execute SQL queries against Oracle Database
 - `get_table_schema` — Fetch table column information from ALL_TAB_COLUMNS
-- `connect_to_database` — Connect to an Oracle RDS instance
+- `connect_to_database` — Connect to the Oracle database configured at server startup (no parameters; the target is fixed by the operator's launch flags)
 - `is_database_connected` — Check if a connection exists
 - `get_database_connection_info` — List all cached connections
 
 ## Usage
+
+### AWS RDS for Oracle
+
+`--db_endpoint` is required for RDS (it is not auto-resolved; only ODB Autonomous
+endpoints are).
 
 ```bash
 awslabs.oracle-mcp-server \
@@ -28,8 +33,41 @@ awslabs.oracle-mcp-server \
   --db_endpoint my-instance.xxxx.rds.amazonaws.com \
   --region us-east-1 \
   --database ORCL \
-  --service_name ORCL
+  --service_name ORCL \
+  --port 2484
 ```
+
+> The default `--ssl_encryption require` uses Oracle TCPS, which listens on port
+> `2484` — pass `--port 2484`. The server's own port default is `1521` (plain TCP),
+> so omitting `--port` under the default TLS mode attempts a TCPS handshake against
+> the cleartext port and fails.
+
+### Oracle Database@AWS
+
+**Autonomous (ADB-S / ADB-D)** connect over TCPS on port `1522`. The private endpoint
+DNS name is auto-resolved via `odb:GetAutonomousDatabase`, so `--db_endpoint` is
+optional and the default `--ssl_encryption require` applies. Pass the database as
+`--instance_identifier` (ODB ARN `arn:aws:odb:...:autonomous-database/adb_...` or short
+`adb_...` id); `--service_name` is the `_high`/`_medium`/`_low` service
+(e.g. `<ocid-prefix>_<dbname>_high.adb.oraclecloud.com`):
+
+```bash
+awslabs.oracle-mcp-server \
+  --connection_method ORACLE_PASSWORD \
+  --instance_identifier arn:aws:odb:us-east-1:123456789012:autonomous-database/adb_xxxxxxxxxx \
+  --port 1522 \
+  --service_name gxxxxxxxxxxxxxx_mydbname_high.adb.oraclecloud.com \
+  --secret_arn arn:aws:secretsmanager:us-east-1:123456789012:secret:my-readonly-user-AbCdEf \
+  --region us-east-1 \
+  --ssl_encryption require
+```
+
+For **Exadata Dedicated**, pass the cluster's SCAN DNS name as `--db_endpoint` on port
+`2484` with the PDB service name, e.g.
+`--db_endpoint <cluster-scan>.<subnet-domain>.oraclevcn.com --service_name <pdb-service>.paas.oracle.com --port 2484 --ssl_encryption require`.
+
+> Use `--ssl_encryption noverify` only on a trusted path (SSH/SSM tunnel, or an address
+> that doesn't match the certificate) — it skips certificate/hostname verification.
 
 ## Connection Methods
 
@@ -37,7 +75,8 @@ awslabs.oracle-mcp-server \
 
 ### Using a custom Secrets Manager secret
 
-By default the server discovers the RDS instance's **MasterUserSecret** by calling
+For Oracle Database@AWS you have to provide a secret's ARN. For AWS RDS for Oracle,
+by default the server discovers the RDS instance's **MasterUserSecret** by calling
 `describe_db_instances`. To connect as a different database user, create your own
 secret in AWS Secrets Manager and pass its ARN with `--secret_arn`:
 
@@ -49,8 +88,16 @@ awslabs.oracle-mcp-server \
   --region us-east-1 \
   --database ORCL \
   --service_name ORCL \
+  --port 2484 \
   --secret_arn arn:aws:secretsmanager:us-east-1:123456789012:secret:my-readonly-user-AbCdEf
 ```
+
+### IAM permissions
+
+- `secretsmanager:GetSecretValue` on the secret used for the connection — always required.
+- `rds:DescribeDBInstances` — required when connecting to an RDS instance **without** `--secret_arn` (to discover the `MasterUserSecret`), and used for the multi-tenant (CDB) safety guard. When you pass `--secret_arn`, this permission is **optional**: if it is not granted, the server logs a warning, skips the multi-tenant guard, and connects using the configured secret.
+- `rds:DescribeTenantDatabases` — required when connecting to a tenant database (PDB) via `--tenant_database_name` **without** `--secret_arn` (to discover the tenant's managed secret). When you pass `--secret_arn`, it is **optional**: if not granted, the server logs a warning, skips the tenant lookup, and connects using the configured secret.
+- `odb:GetAutonomousDatabase` — required for ODB Autonomous Databases (endpoint resolution). ODB always requires `--secret_arn`.
 
 The secret must be a JSON object with the following keys (case variations accepted):
 
@@ -89,6 +136,21 @@ only when that instance has no per-target ARN and no bare default is configured.
 By default the server connects with `--ssl_encryption require`, which encrypts the
 connection using Oracle TCPS and validates the server certificate against the system CA
 store.
+
+For Oracle Database@AWS download the client certificate from OCI for Exadata Dedicated Databases
+and from AWS ODB@AWS for Autonomous Serverless databases.
+
+   - **Exadata Dedicated**: Download the client certificate from the OCI Console
+     (PDB Database > More Action > PDB Connection > Download Connection Bundle)
+   - **Autonomous Serverless**: download the wallet with `aws odb create-autonomous-database-wallet`:
+
+```bash
+aws odb create-autonomous-database-wallet \
+  --autonomous-database-id <adb-id> \
+  --wallet-type REGIONAL \
+  --password <your-wallet-password> \
+  --region us-east-1
+```
 
 RDS Oracle certificates are signed by the **Amazon RDS CA**, which is not included
 in the default system trust store. If you see a certificate validation error on first
@@ -180,8 +242,8 @@ awslabs.oracle-mcp-server \
 
 | Value | Behavior |
 |-------|----------|
-| `require` | *(default)* TCPS on port 2484. Encrypts the connection and validates the server certificate against the system CA store. |
-| `noverify` | TCPS on port 2484. Encrypts the connection but skips certificate and hostname verification. Use when connecting via SSH tunnel or when the RDS CA is not installed locally. |
+| `require` | *(default)* TCPS — pass `--port 2484` (the server's own port default is `1521`, so it is not implied by the TLS mode). Encrypts the connection and validates the server certificate against the system CA store. |
+| `noverify` | TCPS — pass `--port 2484`. Encrypts the connection but skips certificate and hostname verification. Use when connecting via SSH tunnel or when the RDS CA is not installed locally. |
 | `off` | Plain TCP on port 1521. No encryption. Use only when the transport is already secured (e.g., SSH tunnel) or in isolated test environments. |
 
 ## Read-Only Mode
@@ -227,6 +289,7 @@ awslabs.oracle-mcp-server \
   --region us-east-1 \
   --database ORCL \
   --service_name ORCL \
+  --port 2484 \
   --allow_write_query
 ```
 
@@ -282,6 +345,7 @@ awslabs.oracle-mcp-server \
   --region us-east-1 \
   --database ORCL \
   --service_name ORCL \
+  --port 2484 \
   --secret_arn arn:aws:secretsmanager:us-east-1:123456789012:secret:mcp/oracle/readonly-AbCdEf
 ```
 
@@ -291,7 +355,7 @@ permissions prevent any mutation even if a query slips past the detector.
 
 ## Notes
 
-- RDS for Oracle does not support the RDS Data API; only direct connections are supported.
+- RDS for Oracle and Oracle Database@AWS do not support the RDS Data API; only direct connections are supported.
 - Uses python-oracledb thin mode — no Oracle Instant Client installation required.
 - Either `--service_name` or `--sid` must be provided (not both).
 - Oracle system catalog stores table names in UPPERCASE. Table names passed to `get_table_schema` are automatically uppercased.

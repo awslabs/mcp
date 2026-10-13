@@ -16,12 +16,15 @@
 
 Provides MCP tool definitions for AWS Billing Conductor operations including
 billing groups, account associations, cost reports, pricing rules/plans,
-and custom line items.
+custom line items, and billing transfer preferences.
 """
 
 from ..utilities.aws_service_base import handle_aws_error
 from .billing_conductor_operations import (
     get_billing_group_cost_report as _get_billing_group_cost_report,
+)
+from .billing_conductor_operations import (
+    get_billing_transfer_preference as _get_billing_transfer_preference,
 )
 from .billing_conductor_operations import (
     list_account_associations as _list_account_associations,
@@ -617,3 +620,67 @@ async def list_pricing_plans_associated_with_pricing_rule(
         return await handle_aws_error(
             ctx, e, 'listPricingPlansAssociatedWithPricingRule', 'Billing Conductor'
         )
+
+
+@billing_conductor_server.tool(
+    name='get-billing-transfer-preference',
+    description="""Retrieves the auto billing group creation preference for an inbound billing transfer.
+
+The preference belongs to one inbound billing transfer (responsibility_transfer_arn): a bill
+source account transferring its bill to the caller's account. In a two-level billing transfer,
+that bill source account also receives bills from its own end customers. When the preference is
+enabled, AWS Billing Conductor automatically creates, in the caller's account, a billing group
+for the indirect relationship with each NEW end customer that transfers its bill to that bill
+source account, using the pricing plan selected in the preference.
+
+How to read the preference:
+- It applies only to two-level transfers. On a one-level transfer it can be enabled but has no
+  effect.
+- It is set per inbound billing transfer and is disabled by default.
+- It applies only to end customers added AFTER it was enabled. It does not create billing groups
+  for indirect transfers accepted before that; those need a billing group created manually.
+- Disabling it, or changing its pricing plan, does not change billing groups it already created;
+  only billing groups created afterward are affected.
+
+The tool returns:
+- responsibility_transfer_arn: the billing transfer the preference applies to
+- auto_billing_transfer_billing_group_creation.enabled: whether billing groups are created
+  automatically for new end customers in this billing transfer
+- auto_billing_transfer_billing_group_creation.pricing_plan_arn: the pricing plan applied to
+  the billing groups it creates
+- last_modified_time: when the preference was last changed (UTC ISO 8601). Absent if the
+  preference has never been set for this billing transfer.
+
+responsibility_transfer_arn (the inbound billing transfer) is required.
+
+The call can fail, for example when the billing transfer doesn't exist, is no longer active,
+belongs to another account, or the caller lacks permission. In that case, report that the
+preference cannot be read for this billing transfer, not that auto creation is disabled.
+
+EXAMPLE OUTPUT:
+
+  {"responsibility_transfer_arn":
+     "arn:aws:organizations::123456789012:transfer/o-exampleorgid/billing/inbound/rt-exampleid",
+   "auto_billing_transfer_billing_group_creation": {"enabled": true,
+     "pricing_plan_arn": "arn:aws:billingconductor::123456789012:pricingplan/abcdef1234"},
+   "last_modified_time": "2026-09-01T12:00:00"}
+
+Example: {"responsibility_transfer_arn": "arn:aws:organizations::123456789012:transfer/o-exampleorgid/billing/inbound/rt-exampleid"}""",
+)
+async def get_billing_transfer_preference(
+    ctx: Context,
+    responsibility_transfer_arn: str,
+) -> Dict[str, Any]:
+    """Retrieve the auto billing group creation preference for a billing transfer.
+
+    Args:
+        ctx: The MCP context object
+        responsibility_transfer_arn: The ARN of the billing transfer. Required.
+
+    Returns:
+        Dict containing the billing transfer preference.
+    """
+    try:
+        return await _get_billing_transfer_preference(ctx, responsibility_transfer_arn)
+    except Exception as e:
+        return await handle_aws_error(ctx, e, 'getBillingTransferPreference', 'Billing Conductor')

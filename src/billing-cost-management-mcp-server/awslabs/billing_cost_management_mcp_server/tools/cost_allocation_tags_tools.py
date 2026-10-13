@@ -99,6 +99,9 @@ async def list_cost_allocation_tags(
                     {
                         'message': f'Invalid JSON for tag_keys parameter: {e}',
                     },
+                    error_type='validation_error',
+                    operation='ListCostAllocationTags',
+                    service='Cost Explorer',
                 )
         if tag_type:
             params['Type'] = tag_type

@@ -532,7 +532,9 @@ async def test_coh_real_summaries_exception_reload_identity_decorator(mock_conte
         )
 
         assert res['status'] == 'error'
-        assert 'Error fetching recommendation summaries' in res['message']
+        assert res['operation'] == 'list_recommendation_summaries'
+        assert res['error_type'] == 'unknown_exception'
+        assert res['message'] == 'Test exception'
 
 
 @pytest.mark.asyncio
@@ -555,7 +557,9 @@ async def test_coh_real_list_recommendations_exception_reload_identity_decorator
         )
 
         assert res['status'] == 'error'
-        assert 'Error fetching recommendations' in res['message']
+        assert res['operation'] == 'list_recommendations'
+        assert res['error_type'] == 'unknown_exception'
+        assert res['message'] == 'Test exception'
 
 
 @pytest.mark.asyncio
@@ -821,7 +825,7 @@ async def test_coh_real_efficiency_metrics_invalid_order_by_reload_identity_deco
 
 @pytest.mark.asyncio
 async def test_coh_real_efficiency_metrics_exception_reload_identity_decorator(mock_context):
-    """A helper exception is caught and surfaced as a friendly error."""
+    """A helper exception is caught and surfaced through handle_aws_error."""
     coh_mod = _reload_coh_with_identity_decorator()
     real_fn = coh_mod.cost_optimization_hub  # type: ignore
 
@@ -840,7 +844,9 @@ async def test_coh_real_efficiency_metrics_exception_reload_identity_decorator(m
         )
 
     assert res['status'] == 'error'
-    assert 'Error fetching efficiency metrics' in res['message']
+    assert res['operation'] == 'list_efficiency_metrics'
+    assert res['error_type'] == 'unknown_exception'
+    assert res['message'] == 'boom'
 
 
 @pytest.mark.asyncio
@@ -1306,3 +1312,148 @@ async def test_coh_real_efficiency_metrics_error_result_skips_operation_paramete
 
     assert res['status'] == 'error'
     assert 'operation_parameters' not in res.get('data', {})
+
+
+@pytest.mark.asyncio
+async def test_coh_real_enrollment_statuses_no_params_reload_identity_decorator(mock_context):
+    """list_enrollment_statuses with no params defaults account_id to None."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client') as mock_create_client,
+        patch.object(
+            coh_mod, 'list_enrollment_statuses', new_callable=AsyncMock
+        ) as mock_list_enroll,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_list_enroll.return_value = {'status': 'success', 'data': {'enrollment_statuses': []}}
+
+        res = await real_fn(mock_context, operation='list_enrollment_statuses')  # type: ignore
+
+        assert res['status'] == 'success'
+        mock_list_enroll.assert_awaited_once_with(mock_context, fake_client, account_id=None)
+
+
+@pytest.mark.asyncio
+async def test_coh_real_enrollment_statuses_account_id_reload_identity_decorator(mock_context):
+    """account_id is forwarded to the helper."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client') as mock_create_client,
+        patch.object(
+            coh_mod, 'list_enrollment_statuses', new_callable=AsyncMock
+        ) as mock_list_enroll,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_list_enroll.return_value = {'status': 'success', 'data': {'enrollment_statuses': []}}
+
+        await real_fn(  # type: ignore
+            mock_context, operation='list_enrollment_statuses', account_id='123456789012'
+        )
+
+        mock_list_enroll.assert_awaited_once_with(
+            mock_context, fake_client, account_id='123456789012'
+        )
+
+
+@pytest.mark.asyncio
+async def test_coh_real_unsupported_operation_lists_enrollment_statuses(mock_context):
+    """The unsupported-operation error advertises list_enrollment_statuses."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with patch.object(coh_mod, 'create_aws_client', return_value=MagicMock()):
+        res = await real_fn(mock_context, operation='definitely_not_supported')  # type: ignore
+
+    assert 'list_enrollment_statuses' in res['data']['supported_operations']
+
+
+@pytest.mark.asyncio
+async def test_coh_real_get_preferences_reload_identity_decorator(mock_context):
+    """get_preferences is dispatched to the helper with no extra params."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with (
+        patch.object(coh_mod, 'create_aws_client') as mock_create_client,
+        patch.object(coh_mod, 'get_preferences', new_callable=AsyncMock) as mock_get_prefs,
+    ):
+        fake_client = MagicMock()
+        mock_create_client.return_value = fake_client
+        mock_get_prefs.return_value = {'status': 'success', 'data': {}}
+
+        res = await real_fn(mock_context, operation='get_preferences')  # type: ignore
+
+        assert res['status'] == 'success'
+        mock_get_prefs.assert_awaited_once_with(mock_context, fake_client)
+
+
+@pytest.mark.asyncio
+async def test_coh_real_unsupported_operation_lists_get_preferences(mock_context):
+    """The unsupported-operation error advertises get_preferences."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with patch.object(coh_mod, 'create_aws_client', return_value=MagicMock()):
+        res = await real_fn(mock_context, operation='definitely_not_supported')  # type: ignore
+
+    assert 'get_preferences' in res['data']['supported_operations']
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'kwargs,expected_error_type',
+    [
+        ({'operation': 'list_recommendation_summaries', 'group_by': ''}, 'validation_error'),
+        ({'operation': 'list_recommendation_summaries', 'group_by': 'Bogus'}, 'validation_error'),
+        ({'operation': 'get_recommendation'}, 'validation_error'),
+        (
+            {'operation': 'list_recommendations', 'order_by': '["not", "a", "dict"]'},
+            'validation_error',
+        ),
+        (
+            {'operation': 'list_recommendations', 'order_by': '{"dimension": "Bogus"}'},
+            'validation_error',
+        ),
+        ({'operation': 'list_efficiency_metrics', 'granularity': 'Hourly'}, 'validation_error'),
+        ({'operation': 'list_efficiency_metrics', 'group_by': 'ServiceName'}, 'validation_error'),
+        ({'operation': 'list_efficiency_metrics', 'start_date': 'not-a-date'}, 'validation_error'),
+        (
+            {
+                'operation': 'list_efficiency_metrics',
+                'order_by': '{"dimension": "Score", "order": "Sideways"}',
+            },
+            'validation_error',
+        ),
+        ({'operation': 'list_efficiency_metrics', 'ranking_mode': 'bogus'}, 'validation_error'),
+        (
+            {'operation': 'list_efficiency_metrics', 'ranking_mode': 'performance'},
+            'validation_error',
+        ),
+        ({'operation': 'definitely_not_supported'}, 'invalid_operation'),
+    ],
+)
+async def test_coh_local_validation_errors_carry_telemetry_fields(
+    mock_context, kwargs, expected_error_type
+):
+    """Local validation errors carry top-level service/operation/error_type for telemetry."""
+    coh_mod = _reload_coh_with_identity_decorator()
+    real_fn = coh_mod.cost_optimization_hub  # type: ignore
+
+    with patch.object(coh_mod, 'create_aws_client') as mock_create_client:
+        res = await real_fn(mock_context, **kwargs)  # type: ignore
+
+    assert res['status'] == 'error'
+    assert res['service'] == 'Cost Optimization Hub'
+    assert res['operation'] == kwargs['operation']
+    assert res['error_type'] == expected_error_type
+    # Legacy payload is preserved.
+    assert 'data' in res
+    assert res['message']
+    # Rejected locally: no COH API call is made.
+    assert not mock_create_client.return_value.method_calls

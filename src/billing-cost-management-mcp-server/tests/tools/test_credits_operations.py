@@ -632,6 +632,34 @@ class TestGetCreditAllocationHistoryPagination:
         assert result['data']['pagination']['complete_dataset'] is True
 
     @pytest.mark.asyncio
+    async def test_empty_string_token_on_last_page_reports_complete(
+        self, mock_context, sample_allocation
+    ):
+        """An empty-string token on the last page reads as complete, not as more pages.
+
+        Some AWS APIs return ``nextToken: ""`` on the final page rather than omitting it. The
+        metadata must treat that as the end of the data rather than offering ``""`` as a resume
+        token the caller cannot use. Every page the paginator yields is consumed, so no extra
+        request is made beyond them.
+        """
+        client = _get_credit_allocation_history_client(
+            [
+                {'creditAllocationHistoryList': [sample_allocation], 'nextToken': 'page-2'},
+                {'creditAllocationHistoryList': [sample_allocation], 'nextToken': ''},
+            ]
+        )
+
+        result = await _call_get_credit_allocation_history(
+            mock_context, client, billing_period='2026-06'
+        )
+
+        pagination = result['data']['pagination']
+        assert pagination['pages_fetched'] == 2
+        assert pagination['has_more'] is False
+        assert pagination['next_token'] is None
+        assert pagination['complete_dataset'] is True
+
+    @pytest.mark.asyncio
     async def test_paging_controls_go_to_the_paginator(self, mock_context, sample_allocation):
         """Paging controls travel in PaginationConfig, not in the operation parameters."""
         client = _get_credit_allocation_history_client(
