@@ -805,12 +805,17 @@ class TestConvertApiResponseToTableAdditional:
 
     def test_record_columns_rejects_unsafe_identifiers(self):
         """Derived column names must be safe SQL identifiers (injection guard)."""
-        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import _record_columns
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _record_column_map,
+        )
 
-        assert _record_columns([{'rule_id': 'r-1', 'name': 'RULE-A'}]) == ['rule_id', 'name']
-        assert _record_columns([]) == ['value']
+        assert _record_column_map([{'rule_id': 'r-1', 'name': 'RULE-A'}]) == {
+            'rule_id': 'rule_id',
+            'name': 'name',
+        }
+        assert _record_column_map([]) == {}
         with pytest.raises(ValueError):
-            _record_columns([{'name); DROP TABLE x;--': 'boom'}])
+            _record_column_map([{'name); DROP TABLE x;--': 'boom'}])
 
 
 class TestConvertResponseIfNeeded:
@@ -2106,3 +2111,635 @@ def test_coerce_for_column_real_branch():
     assert _coerce_for_column(object(), 'REAL') is None
     # Non-REAL column passes the value through unchanged.
     assert _coerce_for_column('kept', 'TEXT') == 'kept'
+
+
+# ---------------------------------------------------------------------------
+# Nested-list converters (RI performance, SP recommendation/analysis,
+# Storage Lens run_query). These exercise convert_api_response_to_table against
+# a REAL temporary SQLite database (no mocked cursor) so the stored rows and
+# columns can be read back and asserted — critical for the run_query trap where
+# a wrong converter silently stores column names instead of data.
+# ---------------------------------------------------------------------------
+
+
+class _ConverterDb:
+    """A real SQLite connection for converter tests whose close() is deferred.
+
+    convert_api_response_to_table closes the connection it is handed in its
+    `finally`. To run the returned sample queries against the resulting table we
+    keep that same connection open (close() is a no-op) and query it directly —
+    the table is committed and in-view, so this avoids any cross-connection or
+    file-flush visibility question. `cleanup()` performs the real close.
+    """
+
+    class _Conn(sqlite3.Connection):
+        def close(self):  # deferred; convert's finally must not drop the table
+            pass
+
+    def __init__(self):
+        self.conn = sqlite3.connect(':memory:', factory=self._Conn)
+        self.conn.execute(
+            'CREATE TABLE IF NOT EXISTS schema_info '
+            '(table_name TEXT PRIMARY KEY, created_at TEXT, operation TEXT, '
+            'query TEXT, row_count INTEGER)'
+        )
+        self.conn.commit()
+
+    def mock_value(self):
+        return (self.conn, self.conn.cursor())
+
+    def patch_conn(self):
+        """Patch get_db_connection in the exact globals convert resolves.
+
+        Another test in this file deletes and reimports the sql_utils module,
+        leaving a divergent module instance in sys.modules. The module-level
+        `convert_api_response_to_table` imported at the top of this file keeps
+        the ORIGINAL module's globals, so a string patch of
+        '...sql_utils.get_db_connection' would patch the wrong (reimported)
+        module and convert would still open a real connection. Patching the
+        function's own __globals__ targets the namespace convert actually uses,
+        regardless of sys.modules churn.
+        """
+        return patch.dict(
+            convert_api_response_to_table.__globals__,
+            {'get_db_connection': MagicMock(return_value=self.mock_value())},
+        )
+
+    def assert_sample_queries_run(self, result):
+        """Every returned sample query executes without error against the table."""
+        cur = self.conn.cursor()
+        for sq in result['sample_queries']:
+            # Placeholder-bearing samples (e.g. '<group>') are illustrative.
+            if '<' in sq['sql']:
+                continue
+            cur.execute(sq['sql'])  # raises if a referenced column is missing
+            cur.fetchall()
+
+    def cleanup(self):
+        try:
+            super(self._Conn, self.conn).close()
+        except Exception:
+            pass
+
+
+class TestNestedListConverters:
+    """convert_api_response_to_table against the 6 nested-list operations."""
+
+    def test_converter_registration(self):
+        """The 6 operation names resolve to their nested converters."""
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _get_specialized_converter,
+        )
+
+        assert _get_specialized_converter('get_reservation_coverage') == 'ri_coverage'
+        assert _get_specialized_converter('get_reservation_utilization') == 'ri_utilization'
+        assert (
+            _get_specialized_converter('get_commitment_purchase_analysis') == 'sp_lookback_metrics'
+        )
+        assert (
+            _get_specialized_converter('get_savings_plan_purchase_recommendation_details')
+            == 'sp_lookback_metrics'
+        )
+        assert (
+            _get_specialized_converter('get_savings_plans_purchase_recommendation')
+            == 'sp_purchase_recommendation'
+        )
+        # storage-lens has no `operation` arg; one underscore key, no aliases.
+        assert _get_specialized_converter('storage_lens_run_query') == 'storage_lens_query'
+        assert _get_specialized_converter('run_query') is None
+
+    async def test_ri_coverage_denormalizes_groups_and_preserves_totals(self):
+        """RI coverage: group rows + per-bucket total row + response-level summary."""
+        mock_context = MagicMock(spec=Context)
+        db = _ConverterDb()
+        response = {
+            'coverages_by_time': [
+                {
+                    'time_period': {'start': '2026-01-01', 'end': '2026-01-02'},
+                    'total': {
+                        'coverage_hours': {'coverage_hours_percentage': '70'},
+                    },
+                    'groups': [
+                        {
+                            'attributes': {'REGION': 'us-east-1'},
+                            'coverage': {
+                                'coverage_hours': {
+                                    'on_demand_hours': '10',
+                                    'reserved_hours': '90',
+                                    'coverage_hours_percentage': '90',
+                                }
+                            },
+                        },
+                        {
+                            'attributes': {'REGION': 'eu-west-1'},
+                            'coverage': {
+                                'coverage_hours': {
+                                    'on_demand_hours': '50',
+                                    'reserved_hours': '50',
+                                    'coverage_hours_percentage': '50',
+                                }
+                            },
+                        },
+                    ],
+                }
+            ],
+            'total': {'coverage_hours': {'coverage_hours_percentage': '70'}},
+        }
+
+        try:
+            with db.patch_conn():
+                result = await convert_api_response_to_table(
+                    mock_context, response, 'get_reservation_coverage'
+                )
+
+            assert result['status'] == 'success'
+            # 2 group rows + 1 per-bucket total row (percentages not derivable
+            # by summing groups, so the total must be preserved).
+            assert result['row_count'] == 3
+            assert 'attr_REGION' in result['schema']
+            assert 'coverage_hours_coverage_hours_percentage' in result['schema']
+            levels = [r['level'] for r in result['preview']]
+            assert levels.count('group') == 2 and levels.count('total') == 1
+            us = next(r for r in result['preview'] if r.get('attr_REGION') == 'us-east-1')
+            assert us['coverage_hours_on_demand_hours'] == '10'
+            # Response-level headline total survives inline in `summary`.
+            assert result['summary']['total_coverage_hours_coverage_hours_percentage'] == '70'
+            db.assert_sample_queries_run(result)
+        finally:
+            db.cleanup()
+
+    async def test_ri_utilization_empty_groups_emits_total_row(self):
+        """A bucket with no groups still yields a total-level row (no data loss)."""
+        mock_context = MagicMock(spec=Context)
+        db = _ConverterDb()
+        response = {
+            'utilizations_by_time': [
+                {
+                    'time_period': {'start': '2026-02-01', 'end': '2026-02-02'},
+                    'total': {'utilization_percentage': '75', 'purchased_hours': '100'},
+                    'groups': [],
+                }
+            ]
+        }
+
+        try:
+            with db.patch_conn():
+                result = await convert_api_response_to_table(
+                    mock_context, response, 'get_reservation_utilization'
+                )
+
+            assert result['row_count'] == 1
+            assert result['preview'][0]['level'] == 'total'
+            assert result['preview'][0]['utilization_percentage'] == '75'
+            db.assert_sample_queries_run(result)
+        finally:
+            db.cleanup()
+
+    async def test_ri_empty_series_falls_through_without_broken_sample(self):
+        """Empty series -> generic table, and the sample query still runs."""
+        mock_context = MagicMock(spec=Context)
+        db = _ConverterDb()
+        response = {'coverages_by_time': [], 'total': {}}
+
+        try:
+            with db.patch_conn():
+                result = await convert_api_response_to_table(
+                    mock_context, response, 'get_reservation_coverage'
+                )
+
+            # Fell through to the generic key/value converter.
+            assert result['schema'] == ['key', 'value']
+            # The RI sample (which references time_period_start) must NOT be
+            # emitted against a key/value table; every emitted sample runs.
+            db.assert_sample_queries_run(result)
+        finally:
+            db.cleanup()
+
+    async def test_sp_recommendation_details_hourly_series(self):
+        """SP recommendation details: one row per MetricsOverLookbackPeriod point."""
+        mock_context = MagicMock(spec=Context)
+        db = _ConverterDb()
+        points = [
+            {
+                'StartTime': f'2026-01-01T{h:02d}:00:00Z',
+                'EstimatedOnDemandCost': str(h),
+                'CurrentCoverage': '0.5',
+            }
+            for h in range(24)
+        ]
+        response = {
+            'RecommendationDetailId': 'rec-123',
+            'RecommendationDetailData': {
+                'AccountId': '111122223333',
+                'EstimatedSavingsAmount': '1234.56',
+                'MetricsOverLookbackPeriod': points,
+            },
+        }
+
+        try:
+            with db.patch_conn():
+                result = await convert_api_response_to_table(
+                    mock_context, response, 'get_savings_plan_purchase_recommendation_details'
+                )
+
+            assert result['row_count'] == 24
+            assert 'StartTime' in result['schema'] and 'EstimatedOnDemandCost' in result['schema']
+            assert result['preview'][0]['EstimatedOnDemandCost'] == '0'
+            # Headline field (not in the series) survives in `summary`.
+            assert (
+                result['summary']['RecommendationDetailData_EstimatedSavingsAmount'] == '1234.56'
+            )
+            db.assert_sample_queries_run(result)
+        finally:
+            db.cleanup()
+
+    async def test_sp_recommendation_details_large_1440_points(self):
+        """Representative large response: a 60-day hourly lookback (1,440 points)."""
+        mock_context = MagicMock(spec=Context)
+        db = _ConverterDb()
+        points = [
+            {'StartTime': f'point-{i}', 'EstimatedOnDemandCost': str(i)} for i in range(1440)
+        ]
+        response = {
+            'RecommendationDetailData': {
+                'AccountId': '111122223333',
+                'MetricsOverLookbackPeriod': points,
+            }
+        }
+
+        try:
+            with db.patch_conn():
+                result = await convert_api_response_to_table(
+                    mock_context, response, 'get_savings_plan_purchase_recommendation_details'
+                )
+
+            assert result['row_count'] == 1440
+            db.assert_sample_queries_run(result)
+        finally:
+            db.cleanup()
+
+    async def test_commitment_analysis_hourly_series_deeply_nested(self):
+        """Commitment analysis nests the series two levels down; finder reaches it."""
+        mock_context = MagicMock(spec=Context)
+        db = _ConverterDb()
+        points = [
+            {'StartTime': f'2026-03-01T{h:02d}:00:00Z', 'EstimatedOnDemandCost': str(h)}
+            for h in range(12)
+        ]
+        response = {
+            'AnalysisId': 'a-1',
+            'AnalysisStatus': 'SUCCEEDED',
+            'AnalysisDetails': {
+                'SavingsPlansPurchaseAnalysisDetails': {
+                    'CurrencyCode': 'USD',
+                    'MetricsOverLookbackPeriod': points,
+                }
+            },
+        }
+
+        try:
+            with db.patch_conn():
+                result = await convert_api_response_to_table(
+                    mock_context, response, 'get_commitment_purchase_analysis'
+                )
+
+            assert result['row_count'] == 12
+            assert result['preview'][0]['StartTime'] == '2026-03-01T00:00:00Z'
+            # AnalysisStatus (outside the series) survives in `summary`.
+            assert result['summary']['AnalysisStatus'] == 'SUCCEEDED'
+            db.assert_sample_queries_run(result)
+        finally:
+            db.cleanup()
+
+    async def test_sp_purchase_recommendation_detail_rows_and_summary(self):
+        """SP purchase recommendation: one row per detail; headline in summary."""
+        mock_context = MagicMock(spec=Context)
+        db = _ConverterDb()
+        response = {
+            'ResponseMetadata': {'RequestId': 'r-1', 'HTTPHeaders': {'date': 'x'}},
+            'SavingsPlansPurchaseRecommendation': {
+                'PaymentOption': 'ALL_UPFRONT',
+                'TermInYears': 'ONE_YEAR',
+                'LookbackPeriodInDays': 'SIXTY_DAYS',
+                'SavingsPlansPurchaseRecommendationSummary': {
+                    'EstimatedTotalCost': '9999',
+                },
+                'SavingsPlansPurchaseRecommendationDetails': [
+                    {'AccountId': '111', 'EstimatedMonthlySavingsAmount': '100'},
+                    {'AccountId': '222', 'EstimatedMonthlySavingsAmount': '250'},
+                ],
+            },
+        }
+
+        try:
+            with db.patch_conn():
+                result = await convert_api_response_to_table(
+                    mock_context, response, 'get_savings_plans_purchase_recommendation'
+                )
+
+            assert result['row_count'] == 2
+            assert 'EstimatedMonthlySavingsAmount' in result['schema']
+            assert {r['AccountId'] for r in result['preview']} == {'111', '222'}
+            # Headline fields (PaymentOption, TermInYears, summary block) survive.
+            summary = result['summary']
+            # boto3 transport metadata is not part of the summary.
+            assert not any(k.startswith('ResponseMetadata') for k in summary)
+            assert summary['SavingsPlansPurchaseRecommendation_PaymentOption'] == 'ALL_UPFRONT'
+            assert summary['SavingsPlansPurchaseRecommendation_TermInYears'] == 'ONE_YEAR'
+            assert (
+                summary[
+                    'SavingsPlansPurchaseRecommendation_'
+                    'SavingsPlansPurchaseRecommendationSummary_EstimatedTotalCost'
+                ]
+                == '9999'
+            )
+            db.assert_sample_queries_run(result)
+        finally:
+            db.cleanup()
+
+    async def test_storage_lens_run_query_stores_rows_not_columns(self):
+        """The trap: run_query must store data rows, not the column-name list.
+
+        The response puts `columns` before `rows`; the generic first-top-level-
+        list rule would build a table of column names. Verify real data rows land
+        in the table and the Athena labels are sanitized into valid identifiers.
+        """
+        mock_context = MagicMock(spec=Context)
+        db = _ConverterDb()
+        response = {
+            'execution_time_ms': 42,
+            'columns': ['bucket_name', 'SUM(storage_bytes)'],
+            'rows': [
+                {'bucket_name': 'logs', 'SUM(storage_bytes)': '1000'},
+                {'bucket_name': 'backups', 'SUM(storage_bytes)': '2000'},
+                {'bucket_name': 'media', 'SUM(storage_bytes)': '3000'},
+            ],
+            'query': 'SELECT ...',
+        }
+
+        try:
+            with db.patch_conn():
+                result = await convert_api_response_to_table(
+                    mock_context, response, 'storage_lens_run_query'
+                )
+
+            # Three DATA rows stored — not 2 column-name rows.
+            assert result['row_count'] == 3
+            schema = result['schema']
+            # Athena label 'SUM(storage_bytes)' sanitized to a valid identifier.
+            assert 'bucket_name' in schema
+            assert 'SUM(storage_bytes)' not in schema
+            sanitized = [c for c in schema if c.startswith('SUM_storage_bytes')]
+            assert sanitized, f'expected a sanitized SUM column, got {schema}'
+            # The stored values are the data, not the header labels.
+            preview = result['preview']
+            assert {r['bucket_name'] for r in preview} == {'logs', 'backups', 'media'}
+            total = sum(int(r[sanitized[0]]) for r in preview)
+            assert total == 6000
+            db.assert_sample_queries_run(result)
+        finally:
+            db.cleanup()
+
+    async def test_storage_lens_case_insensitive_column_labels(self):
+        """Athena labels differing only by case must not collide in CREATE TABLE."""
+        mock_context = MagicMock(spec=Context)
+        db = _ConverterDb()
+        response = {
+            'columns': ['Bucket', 'bucket'],
+            'rows': [{'Bucket': 'a', 'bucket': 'b'}],
+            'query': 'SELECT ...',
+        }
+
+        try:
+            with db.patch_conn():
+                result = await convert_api_response_to_table(
+                    mock_context, response, 'storage_lens_run_query'
+                )
+
+            # Both values preserved under two case-insensitively-distinct columns.
+            assert result['row_count'] == 1
+            schema = result['schema']
+            assert len(schema) == 2
+            assert len({c.lower() for c in schema}) == 2
+            db.assert_sample_queries_run(result)
+        finally:
+            db.cleanup()
+
+    async def test_records_converter_case_variant_keys_not_dropped(self):
+        """Shared records path: case-variant keys across items keep their values."""
+        mock_context = MagicMock(spec=Context)
+        db = _ConverterDb()
+        response = {
+            'automation_rules': [{'Name': 'A'}, {'name': 'b'}],
+            'count': 2,
+        }
+        try:
+            with db.patch_conn():
+                result = await convert_api_response_to_table(
+                    mock_context, response, 'compute_optimizer_automation_list_automation_rules'
+                )
+            assert result['schema'] == ['Name', 'name_2']
+            assert result['preview'] == [
+                {'Name': 'A', 'name_2': None},
+                {'Name': None, 'name_2': 'b'},
+            ]
+            db.assert_sample_queries_run(result)
+        finally:
+            db.cleanup()
+
+    async def test_storage_lens_repeated_identical_label(self):
+        """A repeated label maps to one column holding the value (no NULL base)."""
+        mock_context = MagicMock(spec=Context)
+        db = _ConverterDb()
+        response = {'columns': ['x', 'x'], 'rows': [{'x': '1'}], 'query': 'SELECT ...'}
+        try:
+            with db.patch_conn():
+                result = await convert_api_response_to_table(
+                    mock_context, response, 'storage_lens_run_query'
+                )
+            assert result['schema'] == ['x']
+            assert result['preview'] == [{'x': '1'}]
+            db.assert_sample_queries_run(result)
+        finally:
+            db.cleanup()
+
+    async def test_sp_lookback_sample_query_without_start_time(self):
+        """Hourly points with no StartTime get a LIMIT sample, not ORDER BY StartTime."""
+        mock_context = MagicMock(spec=Context)
+        db = _ConverterDb()
+        response = {
+            'RecommendationDetailData': {
+                'MetricsOverLookbackPeriod': [{'EstimatedOnDemandCost': '1'}],
+            }
+        }
+        try:
+            with db.patch_conn():
+                result = await convert_api_response_to_table(
+                    mock_context, response, 'get_savings_plan_purchase_recommendation_details'
+                )
+            sqls = [sq['sql'] for sq in result['sample_queries']]
+            assert any(sql.endswith('LIMIT 50') for sql in sqls)
+            assert not any('StartTime' in sql for sql in sqls)
+            db.assert_sample_queries_run(result)
+        finally:
+            db.cleanup()
+
+    async def test_sp_purchase_recommendation_sample_without_savings_column(self):
+        """Details lacking EstimatedMonthlySavingsAmount get a COUNT sample instead of SUM."""
+        mock_context = MagicMock(spec=Context)
+        db = _ConverterDb()
+        response = {
+            'SavingsPlansPurchaseRecommendation': {
+                'SavingsPlansPurchaseRecommendationDetails': [{'AccountId': '111'}],
+            }
+        }
+        try:
+            with db.patch_conn():
+                result = await convert_api_response_to_table(
+                    mock_context, response, 'get_savings_plans_purchase_recommendation'
+                )
+            sqls = [sq['sql'] for sq in result['sample_queries']]
+            assert any('COUNT(*) as detail_count' in sql for sql in sqls)
+            assert not any('EstimatedMonthlySavingsAmount' in sql for sql in sqls)
+            db.assert_sample_queries_run(result)
+        finally:
+            db.cleanup()
+
+
+class TestNestedConverterHelpers:
+    """Unit tests for the nested-converter helper functions."""
+
+    def test_sanitize_identifier(self):
+        """Athena labels sanitize to safe identifiers, with readable fallbacks."""
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _sanitize_identifier,
+        )
+
+        assert _sanitize_identifier('SUM(storage_bytes)') == 'SUM_storage_bytes_'
+        assert _sanitize_identifier('bucket.name') == 'bucket_name'
+        # Empty / all-unsafe input falls back to 'col'.
+        assert _sanitize_identifier('') == 'col'
+        assert _sanitize_identifier('()') == 'col'
+        # Leading digit gets a safe prefix.
+        assert _sanitize_identifier('1st').startswith('col_')
+
+    def test_find_nested_list_traverses_lists(self):
+        """The finder descends through lists of dicts and returns [] when absent."""
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _find_nested_list,
+        )
+
+        # Target nested inside a list of dicts (exercises the list branch).
+        obj = {'outer': [{'inner': {'series': [1, 2, 3]}}]}
+        assert _find_nested_list(obj, 'series') == [1, 2, 3]
+        assert _find_nested_list({'a': 1}, 'series') == []
+        # Earlier siblings without the key are skipped in both dicts and lists.
+        obj = {'first': {'x': 1}, 'second': [{'y': 2}, {'series': [9]}]}
+        assert _find_nested_list(obj, 'series') == [9]
+        # A list whose items never contain the key is exhausted and yields [].
+        assert _find_nested_list({'a': [{'b': 1}, {'c': 2}]}, 'series') == []
+
+    def test_flatten_scalars_drop_lists(self):
+        """drop_lists omits list leaves; the default JSON-encodes them."""
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _flatten_scalars,
+        )
+
+        obj = {'a': 1, 'b': {'c': 2}, 'series': [1, 2, 3]}
+        assert _flatten_scalars(obj, drop_lists=True) == {'a': 1, 'b_c': 2}
+        # Default keeps lists as JSON strings (generic/row behavior).
+        assert _flatten_scalars(obj)['series'] == '[1, 2, 3]'
+
+    def test_response_summary_excludes_response_metadata(self):
+        """boto3 ResponseMetadata is excluded from the offload summary."""
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _response_summary,
+        )
+
+        out = _response_summary(
+            {
+                'EstimatedROI': '12.5',
+                'ResponseMetadata': {
+                    'RequestId': 'r-1',
+                    'HTTPHeaders': {'date': 'x'},
+                    'RetryAttempts': 0,
+                },
+            }
+        )
+        assert out == {'EstimatedROI': '12.5'}
+
+    def test_record_columns_case_variants_keep_their_values(self):
+        """Keys differing only by case get distinct columns; no value is lost."""
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _create_and_insert_dict_rows,
+        )
+
+        conn = sqlite3.connect(':memory:')
+        cur = conn.cursor()
+        count = _create_and_insert_dict_rows(cur, 'tbl', [{'Bucket': 'a'}, {'bucket': 'b'}])
+        assert count == 2
+        cur.execute('SELECT * FROM tbl')
+        cols = [d[0] for d in cur.description]
+        assert cols == ['Bucket', 'bucket_2']
+        assert cur.fetchall() == [('a', None), (None, 'b')]
+        conn.close()
+
+    def test_explicit_columns_case_duplicate_raises(self):
+        """Explicit columns colliding case-insensitively raise instead of dropping one."""
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _create_and_insert_dict_rows,
+        )
+
+        conn = sqlite3.connect(':memory:')
+        with pytest.raises(ValueError):
+            _create_and_insert_dict_rows(conn.cursor(), 'tbl', [{'a': 1}], columns=['Col', 'col'])
+        conn.close()
+
+    def test_create_and_insert_dict_rows_rejects_bad_column(self):
+        """An unsafe explicit column name raises ValueError (injection guard)."""
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _create_and_insert_dict_rows,
+        )
+
+        conn = sqlite3.connect(':memory:')
+        with pytest.raises(ValueError):
+            _create_and_insert_dict_rows(conn.cursor(), 'tbl', [{'ok': 1}], columns=['bad-col'])
+        conn.close()
+
+    def test_create_and_insert_dict_rows_non_dict_fallback(self):
+        """Non-dict rows are stored under a single value column."""
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _create_and_insert_dict_rows,
+        )
+
+        conn = sqlite3.connect(':memory:')
+        cur = conn.cursor()
+        # Non-dict rows store the scalar under the 'value' column (rows is
+        # typed List[Any] for exactly this case).
+        count = _create_and_insert_dict_rows(cur, 'tbl', ['x', 'y'])
+        assert count == 2
+        cur.execute('SELECT value FROM tbl ORDER BY value')
+        assert [r[0] for r in cur.fetchall()] == ['x', 'y']
+        conn.close()
+
+    def test_ri_series_rows_skips_non_dict_bucket_and_group(self):
+        """Malformed (non-dict) buckets and groups are skipped."""
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _ri_series_rows,
+        )
+
+        response = {
+            'coverages_by_time': [
+                'not-a-dict',
+                {
+                    'time_period': {'start': 's', 'end': 'e'},
+                    'total': {},
+                    'groups': ['not-a-dict', {'attributes': {}, 'coverage': {'x': '1'}}],
+                },
+            ]
+        }
+        rows = _ri_series_rows(response, 'coverages_by_time', 'coverage')
+        # Only the one valid group row (bad bucket + bad group skipped; empty
+        # total adds no row).
+        assert len(rows) == 1
+        assert rows[0]['level'] == 'group'

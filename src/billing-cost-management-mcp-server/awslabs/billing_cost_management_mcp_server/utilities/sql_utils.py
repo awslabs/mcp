@@ -408,6 +408,18 @@ def _get_specialized_converter(operation_name: str) -> Optional[str]:
         'sp_explorer_describe_savings_plan_rates': 'records',
         'sp_explorer_describe_savings_plans_offerings': 'records',
         'sp_explorer_describe_savings_plans_offering_rates': 'records',
+        # Nested-list operations, keyed by the bare `operation` argument the
+        # offload middleware passes as operation_name (confirmed with garyga,
+        # AIC-2524). See the PR / AIC-2532 for the full middleware contract.
+        'get_reservation_coverage': 'ri_coverage',
+        'get_reservation_utilization': 'ri_utilization',
+        'get_commitment_purchase_analysis': 'sp_lookback_metrics',
+        'get_savings_plan_purchase_recommendation_details': 'sp_lookback_metrics',
+        'get_savings_plans_purchase_recommendation': 'sp_purchase_recommendation',
+        # storage-lens has no `operation` arg; the middleware passes this
+        # underscore name for it (must be a valid SQL identifier, since
+        # table_name is f'{operation_name}_{id}').
+        'storage_lens_run_query': 'storage_lens_query',
     }
 
     if operation_name in converters:
@@ -458,35 +470,87 @@ def _extract_record_list(response: Dict[str, Any]) -> List[Dict[str, Any]]:
     return []
 
 
-def _record_columns(items: List[Dict[str, Any]]) -> List[str]:
-    """Derive the ordered column set for a record list from the union of item keys.
+def _record_column_map(items: List[Any]) -> Dict[str, str]:
+    """Map each distinct item key to a unique SQLite column name.
 
-    Keys are collected in first-seen order across all items so items with
-    differing optional fields (e.g. rules with vs. without `criteria`) all fit
-    one table. Non-dict items fall back to a single `value` column.
-
-    Column names are interpolated into the CREATE/INSERT SQL, so each is validated
-    as a safe identifier (letters, numbers, underscores) — mirroring
-    validate_table_name — to keep the module's injection-prevention model intact.
+    Keys are visited in first-seen order. SQLite column names are
+    case-insensitive, so a key that differs from an earlier one only by case
+    (``'Bucket'`` then ``'bucket'``) gets a suffixed column (``bucket_2``)
+    instead of colliding in CREATE TABLE or being merged into the first
+    spelling's column — which would silently store the second key's values as
+    NULL. Every distinct key therefore keeps its own column and its values.
 
     Args:
         items: The list of items to store.
 
     Returns:
-        The ordered list of column names (defaults to ['value'] if none found).
+        Ordered ``{original_key: column_name}``; empty if no dict items.
 
     Raises:
         ValueError: If an item key is not a safe SQL identifier.
     """
-    columns: List[str] = []
+    key_to_col: Dict[str, str] = {}
+    used_lower: set = set()
     for item in items:
-        if isinstance(item, dict):
-            for key in item:
-                if key not in columns:
-                    if not isinstance(key, str) or not re.match(r'^[a-zA-Z0-9_]+$', key):
-                        raise ValueError(f'Invalid column name for SQL table: {key!r}')
-                    columns.append(key)
-    return columns or ['value']
+        if not isinstance(item, dict):
+            continue
+        for key in item:
+            if key in key_to_col:
+                continue
+            _validate_column_name(key)
+            candidate = key
+            suffix = 1
+            while candidate.lower() in used_lower:
+                suffix += 1
+                candidate = f'{key}_{suffix}'
+            used_lower.add(candidate.lower())
+            key_to_col[key] = candidate
+    return key_to_col
+
+
+def _validate_column_name(name: Any) -> str:
+    """Validate a value is a safe SQL column identifier and return it.
+
+    Column names are interpolated into CREATE/INSERT SQL, so each must match
+    ``^[a-zA-Z0-9_]+$`` (same model as ``validate_table_name``). Shared by
+    ``_record_column_map`` and ``_create_and_insert_dict_rows`` so the injection
+    check lives in one place.
+
+    Args:
+        name: Candidate column name.
+
+    Returns:
+        The name unchanged when valid.
+
+    Raises:
+        ValueError: If the name is not a safe SQL identifier.
+    """
+    if not isinstance(name, str) or not re.match(r'^[a-zA-Z0-9_]+$', name):
+        raise ValueError(f'Invalid column name for SQL table: {name!r}')
+    return name
+
+
+def _response_summary(response: Dict[str, Any]) -> Dict[str, Any]:
+    """Headline scalar fields of a nested-series response, for the offload envelope.
+
+    The nested-series converters store the big list(s) as table rows; this
+    captures everything else — the single-value headline numbers these APIs exist
+    to return (``EstimatedSavingsAmount``, ``EstimatedROI``, coverage/utilization
+    totals and percentages, ``PaymentOption``, ``TermInYears``, ...) — so they
+    survive offload inline rather than being dropped. Lists are omitted, so the
+    summary stays small regardless of series size. boto3's ``ResponseMetadata``
+    (request id, HTTP headers, retry count) is transport noise, not data, and is
+    excluded.
+
+    Args:
+        response: The (inner data) response being offloaded.
+
+    Returns:
+        A flat dict of scalar headline values.
+    """
+    return _flatten_scalars(
+        {k: v for k, v in response.items() if k != 'ResponseMetadata'}, drop_lists=True
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -570,6 +634,237 @@ def _create_and_insert(
         cursor.execute(insert_sql, values)
         count += 1
     return count
+
+
+def _sanitize_identifier(name: str) -> str:
+    """Coerce an arbitrary label into a safe SQL identifier.
+
+    Replaces every character outside ``[A-Za-z0-9_]`` with ``_`` and prefixes
+    the result when it does not start with a letter or underscore. Used for
+    column labels that are not under our control — notably Athena result column
+    labels from storage-lens ``run_query`` (e.g. ``SUM(storage_bytes)`` or
+    ``bucket.name``), which would otherwise be rejected by the identifier
+    validation that protects the CREATE/INSERT SQL.
+
+    Args:
+        name: Raw label.
+
+    Returns:
+        A string matching ``^[A-Za-z_][A-Za-z0-9_]*$``.
+    """
+    safe = re.sub(r'[^a-zA-Z0-9_]', '_', name)
+    # All-unsafe input (e.g. '()' -> '__') has no alphanumeric character; fall
+    # back to a readable default rather than an all-underscore column name.
+    if not re.search(r'[a-zA-Z0-9]', safe):
+        return 'col'
+    if not re.match(r'^[a-zA-Z_]', safe):
+        safe = f'col_{safe}'
+    return safe
+
+
+def _flatten_scalars(
+    obj: Dict[str, Any], parent_key: str = '', sep: str = '_', *, drop_lists: bool = False
+) -> Dict[str, Any]:
+    """Flatten a nested dict into a single-level ``{flat_key: scalar}`` map.
+
+    Nested dicts are recursed with their key path joined by ``sep`` (so
+    ``{'coverage_hours': {'reserved_hours': 1}}`` becomes
+    ``{'coverage_hours_reserved_hours': 1}``) and scalars pass through. Lists
+    are stored as JSON strings, or omitted entirely when ``drop_lists`` is set.
+    This is the single flatten implementation shared by the nested-series
+    converters (row building), the offload ``summary`` (``drop_lists=True``),
+    and the generic key/value fallback.
+
+    Args:
+        obj: The dict to flatten.
+        parent_key: Prefix for recursion (callers pass '').
+        sep: Separator between key path segments.
+        drop_lists: Omit list-valued leaves instead of JSON-encoding them.
+
+    Returns:
+        A flat dict of scalar (or JSON-string) values.
+    """
+    out: Dict[str, Any] = {}
+    for k, v in obj.items():
+        new_key = f'{parent_key}{sep}{k}' if parent_key else str(k)
+        if isinstance(v, dict):
+            out.update(_flatten_scalars(v, new_key, sep=sep, drop_lists=drop_lists))
+        elif isinstance(v, list):
+            if not drop_lists:
+                out[new_key] = json.dumps(v)
+        else:
+            out[new_key] = v
+    return out
+
+
+def _find_nested_list(obj: Any, target_key: str) -> List[Any]:
+    """Depth-first search for the first list stored under ``target_key``.
+
+    The hourly ``MetricsOverLookbackPeriod`` series lives at different parent
+    paths across operations (under ``RecommendationDetailData`` for SP
+    recommendation details, under ``AnalysisDetails.SavingsPlansPurchaseAnalysisDetails``
+    for commitment purchase analysis). Searching by key name rather than a fixed
+    path handles both shapes and is resilient to upstream re-nesting.
+
+    Args:
+        obj: Response fragment to search (dict, list, or scalar).
+        target_key: The dict key whose list value we want.
+
+    Returns:
+        The first list found under ``target_key``, or an empty list.
+    """
+    if isinstance(obj, dict):
+        value = obj.get(target_key)
+        if isinstance(value, list):
+            return value
+        for v in obj.values():
+            found = _find_nested_list(v, target_key)
+            if found:
+                return found
+    elif isinstance(obj, list):
+        for item in obj:
+            found = _find_nested_list(item, target_key)
+            if found:
+                return found
+    return []
+
+
+def _create_and_insert_dict_rows(
+    cursor: sqlite3.Cursor,
+    table_name: str,
+    rows: List[Any],
+    columns: Optional[List[str]] = None,
+) -> int:
+    """Create a TEXT table from already-shaped row dicts and insert them.
+
+    Generalizes the ``records`` converter for the nested-series converters:
+    given a list of flat row dicts, derive the column set (union of keys in
+    first-seen order) or use an explicit ordered ``columns`` list, create a TEXT
+    table, and insert one row per dict. Nested dict/list values are stored as
+    JSON strings (queryable via SQLite ``json_extract``). SQLite's dynamic
+    typing lets numeric strings in TEXT columns aggregate normally (``SUM``,
+    ``AVG``), matching the existing ``records`` converter.
+
+    Column names are validated as safe SQL identifiers and double-quoted so
+    reserved words (``order``, ``group``) are legal and injection is prevented.
+    Callers passing externally-sourced labels (e.g. Athena columns) must
+    sanitize them with ``_sanitize_identifier`` first.
+
+    Args:
+        cursor: SQLite cursor.
+        table_name: Validated table name.
+        rows: Row dicts to store. A non-dict row is stored under a single
+            ``value`` column.
+        columns: Optional explicit ordered column list; derived from ``rows``
+            when omitted or empty.
+
+    Returns:
+        Number of rows inserted.
+
+    Raises:
+        ValueError: If a column name is not a safe SQL identifier.
+    """
+    if not columns:
+        # Derived columns: each distinct key keeps its own column (case variants
+        # are suffixed), and values are read by ORIGINAL key so none are dropped.
+        key_to_col = _record_column_map(rows) or {'value': 'value'}
+    else:
+        # Explicit columns are already-shaped row keys. A case-insensitive
+        # duplicate would collide in CREATE TABLE; fail loudly (convert then
+        # returns the raw response) rather than silently dropping a column.
+        key_to_col = {}
+        seen_lower: set = set()
+        for col in columns:
+            _validate_column_name(col)
+            if col.lower() in seen_lower:
+                raise ValueError(f'Duplicate column name (case-insensitive): {col!r}')
+            seen_lower.add(col.lower())
+            key_to_col[col] = col
+
+    keys = list(key_to_col.keys())
+    quoted_columns = [f'"{key_to_col[k]}"' for k in keys]
+    schema = [f'{col} TEXT' for col in quoted_columns]
+    cursor.execute(create_safe_sql_statement('CREATE', table_name, *schema))
+
+    validate_table_name(table_name)
+    column_list = ', '.join(quoted_columns)
+    placeholders = ', '.join('?' for _ in keys)
+    insert_sql = create_safe_sql_statement(
+        'INSERT', table_name, f'({column_list}) VALUES ({placeholders})'
+    )
+
+    count = 0
+    for row in rows:
+        src = row if isinstance(row, dict) else {'value': row}
+        values = []
+        for key in keys:
+            raw = src.get(key)
+            values.append(json.dumps(raw) if isinstance(raw, (dict, list)) else raw)
+        cursor.execute(insert_sql, values)
+        count += 1
+    return count
+
+
+def _ri_series_rows(
+    response: Dict[str, Any], series_key: str, metric_key: str
+) -> List[Dict[str, Any]]:
+    """Denormalize an RI coverage/utilization response into one row per group.
+
+    Walks the ``<series_key>`` time buckets (``coverages_by_time`` or
+    ``utilizations_by_time``) and emits one flat row per (time period, group),
+    carrying the group's ``attributes`` (prefixed ``attr_``) and its flattened
+    ``<metric_key>`` metrics. Whenever a bucket has groups, its bucket-level
+    ``total`` is ALSO emitted as a ``level='total'`` row, because coverage and
+    utilization percentages cannot be rebuilt by summing the group rows. A bucket
+    with no groups emits only its ``total`` row so empty periods survive offload
+    rather than vanishing — mirroring the ``coh_efficiency_metrics`` no-data
+    handling.
+
+    Args:
+        response: The formatted RI response.
+        series_key: ``coverages_by_time`` or ``utilizations_by_time``.
+        metric_key: ``coverage`` or ``utilization`` (the per-group metric block).
+
+    Returns:
+        Flat row dicts ready for ``_create_and_insert_dict_rows``.
+    """
+    rows: List[Dict[str, Any]] = []
+    for bucket in response.get(series_key, []):
+        if not isinstance(bucket, dict):
+            continue
+        time_period = bucket.get('time_period') or {}
+        start = time_period.get('start')
+        end = time_period.get('end')
+        groups = bucket.get('groups') or []
+        if groups:
+            for group in groups:
+                if not isinstance(group, dict):
+                    continue
+                row: Dict[str, Any] = {
+                    'time_period_start': start,
+                    'time_period_end': end,
+                    'level': 'group',
+                }
+                for attr_key, attr_val in (group.get('attributes') or {}).items():
+                    row[f'attr_{attr_key}'] = attr_val
+                row.update(_flatten_scalars(group.get(metric_key) or {}))
+                rows.append(row)
+            # Preserve the per-bucket total alongside the groups — its
+            # percentages are not derivable by summing the group rows.
+            bucket_total = bucket.get('total') or {}
+            if bucket_total:
+                total_row: Dict[str, Any] = {
+                    'time_period_start': start,
+                    'time_period_end': end,
+                    'level': 'total',
+                }
+                total_row.update(_flatten_scalars(bucket_total))
+                rows.append(total_row)
+        else:
+            row = {'time_period_start': start, 'time_period_end': end, 'level': 'total'}
+            row.update(_flatten_scalars(bucket.get('total') or {}))
+            rows.append(row)
+    return rows
 
 
 def _derive_pagination_envelope(
@@ -716,6 +1011,10 @@ async def convert_api_response_to_table(
 
     try:
         rows_inserted = 0
+        # Headline scalar fields for the nested-series converters, surfaced
+        # inline in the offload envelope so threshold-0 offload does not drop the
+        # top-level numbers these APIs return. None for all other converters.
+        summary_data: Optional[Dict[str, Any]] = None
 
         # Create table and insert data based on response type
         if converter_type == 'pricing_products' and 'PriceList' in response:
@@ -930,36 +1229,11 @@ async def convert_api_response_to_table(
             # derives the columns from the union of item keys, so any uniform list
             # response can be stored with real, queryable columns. Nested dict/list
             # values are stored as JSON strings (query with SQLite's json_extract).
-            items = _extract_record_list(response)
-            columns = _record_columns(items)
-
-            # Double-quote every identifier so column names that are SQL reserved
-            # words (e.g. 'order', 'group') are always valid. Names are already
-            # validated as safe identifiers by _record_columns, so quoting them
-            # cannot introduce injection.
-            quoted_columns = [f'"{col}"' for col in columns]
-
-            schema = [f'{col} TEXT' for col in quoted_columns]
-            sql = create_safe_sql_statement('CREATE', table_name, *schema)
-            cursor.execute(sql)
-
-            # Table name, column list, and INSERT statement are constant across
-            # rows, so build them once rather than per iteration.
-            validate_table_name(table_name)
-            column_list = ', '.join(quoted_columns)
-            placeholders = ', '.join('?' for _ in columns)
-            insert_sql = create_safe_sql_statement(
-                'INSERT', table_name, f'({column_list}) VALUES ({placeholders})'
+            # Delegates to the shared helper so quoting/validation/JSON encoding
+            # live in one place.
+            rows_inserted = _create_and_insert_dict_rows(
+                cursor, table_name, _extract_record_list(response)
             )
-            for item in items:
-                # Non-dict items (fallback 'value' column) store the scalar directly.
-                row = item if isinstance(item, dict) else {'value': item}
-                values = []
-                for col in columns:
-                    raw = row.get(col)
-                    values.append(json.dumps(raw) if isinstance(raw, (dict, list)) else raw)
-                cursor.execute(insert_sql, values)
-                rows_inserted += 1
 
         elif converter_type == 'coh_recommendations' and 'recommendations' in response:
             # Cost Optimization Hub ListRecommendations.
@@ -1013,26 +1287,105 @@ async def convert_api_response_to_table(
                 efficiency_rows,
             )
 
+        elif converter_type == 'ri_coverage' and (
+            ri_rows := _ri_series_rows(response, 'coverages_by_time', 'coverage')
+        ):
+            # Reservation coverage: one row per (time period, group) plus a
+            # per-bucket total row, with the nested coverage metrics flattened
+            # into columns. Response-level headline totals/percentages are kept
+            # in `summary`. Empty series falls through to the generic branch so
+            # the sample query always matches the stored columns.
+            rows_inserted = _create_and_insert_dict_rows(cursor, table_name, ri_rows)
+            summary_data = _response_summary(response)
+
+        elif converter_type == 'ri_utilization' and (
+            ri_rows := _ri_series_rows(response, 'utilizations_by_time', 'utilization')
+        ):
+            # Reservation utilization: same shape as coverage.
+            rows_inserted = _create_and_insert_dict_rows(cursor, table_name, ri_rows)
+            summary_data = _response_summary(response)
+
+        elif converter_type == 'sp_lookback_metrics' and (
+            metric_points := [
+                point
+                for point in _find_nested_list(response, 'MetricsOverLookbackPeriod')
+                if isinstance(point, dict)
+            ]
+        ):
+            # Savings Plans commitment purchase analysis and recommendation
+            # details both nest an hourly MetricsOverLookbackPeriod series (at
+            # different parent paths). Store one row per hourly data point so the
+            # 276-338KB series is queryable rather than a single JSON blob, and
+            # keep the headline fields (EstimatedSavingsAmount, EstimatedROI,
+            # HourlyCommitmentToPurchase, AnalysisStatus, ...) in `summary`.
+            rows_inserted = _create_and_insert_dict_rows(cursor, table_name, metric_points)
+            summary_data = _response_summary(response)
+
+        elif converter_type == 'sp_purchase_recommendation' and (
+            detail_rows := [
+                _flatten_scalars(d)
+                for d in (
+                    (response.get('SavingsPlansPurchaseRecommendation') or {}).get(
+                        'SavingsPlansPurchaseRecommendationDetails'
+                    )
+                    or []
+                )
+                if isinstance(d, dict)
+            ]
+        ):
+            # Savings Plans purchase recommendation: the detail list is nested
+            # two levels down. Store one row per detail; keep the summary block,
+            # TermInYears, PaymentOption and LookbackPeriodInDays in `summary`.
+            rows_inserted = _create_and_insert_dict_rows(cursor, table_name, detail_rows)
+            summary_data = _response_summary(response)
+
+        elif converter_type == 'storage_lens_query' and response.get('rows'):
+            # Storage Lens Athena run_query returns a `columns` list BEFORE the
+            # `rows`, so the generic first-top-level-list rule would build a table
+            # of column *names* and silently drop every data row. Store `rows`
+            # (dicts keyed by column label, per AthenaHandler.get_query_results);
+            # use `columns` for ordering. Athena labels (e.g. 'SUM(storage_bytes)')
+            # are not safe SQL identifiers, so sanitize them and remap the row keys
+            # to match. Labels are de-duplicated first: the rows are dicts, so an
+            # identical repeated label was already merged into one key upstream.
+            # Sanitized names are made unique case-insensitively (SQLite column
+            # names are case-insensitive).
+            raw_rows = response.get('rows') or []
+
+            safe_columns: List[str] = []
+            seen_lower: set = set()
+            label_to_safe: Dict[str, str] = {}
+            for label in dict.fromkeys(response.get('columns') or []):
+                base = _sanitize_identifier(str(label))
+                candidate = base
+                suffix = 1
+                while candidate.lower() in seen_lower:
+                    suffix += 1
+                    candidate = f'{base}_{suffix}'
+                seen_lower.add(candidate.lower())
+                safe_columns.append(candidate)
+                label_to_safe[label] = candidate
+
+            storage_rows = [
+                {label_to_safe.get(k, _sanitize_identifier(str(k))): v for k, v in raw_row.items()}
+                for raw_row in raw_rows
+                if isinstance(raw_row, dict)
+            ]
+            rows_inserted = _create_and_insert_dict_rows(
+                cursor, table_name, storage_rows, columns=safe_columns
+            )
+            summary_data = _response_summary(response)
+
         else:
             # Generic fallback for unknown response types
             schema = ['key TEXT', 'value TEXT']
             sql = create_safe_sql_statement('CREATE', table_name, *schema)
             cursor.execute(sql)
 
-            # Flatten response to key-value pairs
-            def flatten_dict(d, parent_key='', sep='_'):
-                items = []
-                for k, v in d.items():
-                    new_key = f'{parent_key}{sep}{k}' if parent_key else k
-                    if isinstance(v, dict):
-                        items.extend(flatten_dict(v, new_key, sep=sep).items())
-                    elif isinstance(v, list):
-                        items.append((new_key, json.dumps(v)))
-                    else:
-                        items.append((new_key, str(v)))
-                return dict(items)
-
-            flattened = flatten_dict(response)
+            # Flatten response to key-value pairs (lists JSON-encoded) using the
+            # shared helper; str() at insert time preserves the TEXT values this
+            # branch has always produced.
+            flattened = _flatten_scalars(response)
 
             for key, value in flattened.items():
                 # Use validated table name
@@ -1040,7 +1393,7 @@ async def convert_api_response_to_table(
                 insert_sql = create_safe_sql_statement(
                     'INSERT', table_name, '(key, value) VALUES (?, ?)'
                 )
-                cursor.execute(insert_sql, (key, value))
+                cursor.execute(insert_sql, (key, str(value)))
                 rows_inserted += 1
 
         conn.commit()
@@ -1357,6 +1710,72 @@ async def convert_api_response_to_table(
                 }
             )
 
+        elif (
+            converter_type in ('ri_coverage', 'ri_utilization') and 'time_period_start' in columns
+        ):
+            # One row per (time period, group) plus a per-bucket total row.
+            # Guarded on 'time_period_start' so that if an empty series fell
+            # through to the generic key/value table, this sample is skipped
+            # (and the generic sample is used) instead of referencing a column
+            # that was never created.
+            trend_query = (
+                create_safe_sql_statement('SELECT', table_name, '*')
+                + " WHERE level = 'total' ORDER BY time_period_start"
+            )
+            sample_queries.append(
+                {
+                    'name': 'Totals over time',
+                    'description': "Per-period totals (level='total'); drop the WHERE to also see per-group rows, which carry attr_* dimension columns",
+                    'sql': trend_query,
+                }
+            )
+
+        elif converter_type == 'sp_lookback_metrics':
+            # One row per hourly data point. Order by StartTime when present
+            # (guarded so the sample never references a missing column).
+            if 'StartTime' in columns:
+                series_query = (
+                    create_safe_sql_statement('SELECT', table_name, '*') + ' ORDER BY StartTime'
+                )
+            else:
+                series_query = create_safe_sql_statement('SELECT', table_name, '*') + ' LIMIT 50'
+            sample_queries.append(
+                {
+                    'name': 'Hourly series over lookback period',
+                    'description': 'Hourly MetricsOverLookbackPeriod data points; headline totals are in the result `summary`',
+                    'sql': series_query,
+                }
+            )
+
+        elif converter_type == 'sp_purchase_recommendation':
+            # Prefer a savings aggregate when the column is present; else count.
+            if 'EstimatedMonthlySavingsAmount' in columns:
+                agg_query = create_safe_sql_statement(
+                    'SELECT',
+                    table_name,
+                    'COUNT(*) as detail_count, '
+                    'SUM(EstimatedMonthlySavingsAmount) as total_monthly_savings',
+                )
+                description = 'Total estimated monthly savings across all recommendation details'
+            else:
+                agg_query = create_safe_sql_statement(
+                    'SELECT', table_name, 'COUNT(*) as detail_count'
+                )
+                description = 'Counts the Savings Plans purchase recommendation details stored'
+            sample_queries.append(
+                {'name': 'Savings summary', 'description': description, 'sql': agg_query}
+            )
+
+        elif converter_type == 'storage_lens_query':
+            count_query = create_safe_sql_statement('SELECT', table_name, 'COUNT(*) as row_count')
+            sample_queries.append(
+                {
+                    'name': 'Row count',
+                    'description': 'Counts the Storage Lens query result rows stored; use SELECT * to inspect columns',
+                    'sql': count_query,
+                }
+            )
+
         else:
             # Generic key-value pair queries for other types
             key_query = (
@@ -1383,6 +1802,11 @@ async def convert_api_response_to_table(
             'row_count': rows_inserted,
             'sample_queries': sample_queries,
             'preview': preview,
+            # Headline scalar fields the nested-series converters would otherwise
+            # drop (totals, savings, ROI, payment option, ...). Omitted entirely
+            # for converters that don't produce one, so existing envelopes are
+            # unchanged.
+            **({'summary': summary_data} if summary_data else {}),
             **metadata,
         }
 
