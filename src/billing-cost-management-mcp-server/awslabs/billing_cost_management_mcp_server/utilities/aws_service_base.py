@@ -31,7 +31,7 @@ import os
 import re
 from .logging_utils import get_context_logger, get_logger
 from botocore.config import Config
-from botocore.exceptions import BotoCoreError, ClientError
+from botocore.exceptions import BotoCoreError, ClientError, ParamValidationError
 from datetime import datetime, timedelta
 from fastmcp import Context
 from typing import Any, Dict, List, Optional, Tuple
@@ -238,6 +238,25 @@ async def handle_aws_error(
 
         error_response.update(
             {'error_type': error_type, 'message': user_message, 'details': str(error)}
+        )
+
+    elif isinstance(error, ParamValidationError):
+        # ParamValidationError is a client-side botocore validation failure (unknown kwargs,
+        # bad parameter shape, missing required keys, type mismatches). It subclasses
+        # BotoCoreError, but it is a validation failure, not a connection failure — surface
+        # it that way so callers (and skills) see "fix the parameters", not "AWS is
+        # unreachable". Must be matched BEFORE the BotoCoreError branch below.
+        error_type = 'validation_error'
+        user_message = str(error) or 'Invalid parameters'
+        await ctx_logger.warning(f'Validation error (ParamValidationError): {error_context}')
+
+        error_response.update(
+            {
+                'error_type': error_type,
+                'boto_error_type': 'ParamValidationError',
+                'message': user_message,
+                'details': str(error),
+            }
         )
 
     elif isinstance(error, BotoCoreError):

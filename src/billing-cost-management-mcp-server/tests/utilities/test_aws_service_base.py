@@ -330,6 +330,40 @@ class TestHandleAwsError:
         assert result['operation'] == 'Connect'
         assert result['message'] == 'AWS service connection error: BotoCoreError'
 
+    @pytest.mark.asyncio
+    async def test_handle_param_validation_error(self):
+        """Classify ParamValidationError as validation_error, not aws_connection_error.
+
+        ParamValidationError is a client-side botocore validation failure (a BotoCoreError
+        subclass). It must surface as a parameter-shape problem rather than a transient
+        connection failure. The `boto_error_type` field is preserved for diagnostics.
+        """
+        # Setup
+        ctx = AsyncMock()
+        from botocore.exceptions import ParamValidationError
+
+        error = ParamValidationError(
+            report='Unknown parameter in filter.Tags: "MatchValue", must be one of: Key, Values, MatchOptions'
+        )
+
+        # Execute
+        result = await handle_aws_error(ctx, error, 'GetCostAndUsage', 'Cost Explorer')
+
+        # Assert — logged as a warning (validation), not an error (connection)
+        ctx.warning.assert_called_once()
+        warning_msg = ctx.warning.call_args.args[0]
+        assert 'ParamValidationError' in warning_msg
+        assert "Error in Cost Explorer operation 'GetCostAndUsage'" in warning_msg
+
+        # Verify response structure
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['boto_error_type'] == 'ParamValidationError'
+        assert result['service'] == 'Cost Explorer'
+        assert result['operation'] == 'GetCostAndUsage'
+        assert 'Unknown parameter in filter.Tags' in result['message']
+        assert 'MatchValue' in result['details']
+
 
 class TestFormatResponse:
     """Tests for format_response function."""
