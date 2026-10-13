@@ -30,7 +30,10 @@ from awslabs.aws_serverless_mcp_server.tools.webapps.utils.deploy_service import
     DeploymentStatus,
     deploy_application,
 )
-from awslabs.aws_serverless_mcp_server.utils.const import DEPLOYMENT_STATUS_DIR
+from awslabs.aws_serverless_mcp_server.utils.const import (
+    DEPLOYMENT_STATUS_DIR,
+    get_deployment_status_file_path,
+)
 from loguru import logger
 from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
@@ -278,7 +281,7 @@ class DeployWebAppTool(BaseTool):
         """
         try:
             # Check if there's an existing deployment
-            status_file_path = os.path.join(DEPLOYMENT_STATUS_DIR, f'{project_name}.json')
+            status_file_path = get_deployment_status_file_path(project_name)
 
             if not os.path.exists(status_file_path):
                 # No existing deployment, so not destructive

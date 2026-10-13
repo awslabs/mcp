@@ -24,7 +24,10 @@ from awslabs.aws_serverless_mcp_server.utils.cloudformation import (
     get_stack_info,
     map_cloudformation_status,
 )
-from awslabs.aws_serverless_mcp_server.utils.const import DEPLOYMENT_STATUS_DIR
+from awslabs.aws_serverless_mcp_server.utils.const import (
+    DEPLOYMENT_STATUS_DIR,
+    get_deployment_status_file_path,
+)
 from datetime import datetime
 from loguru import logger
 from typing import Any, Dict, List, Optional
@@ -50,9 +53,9 @@ async def initialize_deployment_status(
         framework: Framework used for the deployment
         region: AWS region for the deployment (optional)
     """
-    metadata_file = os.path.join(DEPLOYMENT_STATUS_DIR, f'{project_name}.json')
-
     try:
+        metadata_file = get_deployment_status_file_path(project_name)
+
         # Create the metadata file with minimal information
         metadata = {
             'projectName': project_name,
@@ -79,9 +82,9 @@ async def store_deployment_metadata(project_name: str, metadata: Dict[str, Any])
         project_name: Name of the project
         metadata: Additional metadata to store
     """
-    metadata_file = os.path.join(DEPLOYMENT_STATUS_DIR, f'{project_name}.json')
-
     try:
+        metadata_file = get_deployment_status_file_path(project_name)
+
         # Read existing metadata
         existing_metadata = {}
         try:
@@ -134,7 +137,15 @@ async def get_deployment_status(project_name: str) -> Dict[str, Any]:
     Returns:
         Dict: Deployment status information
     """
-    metadata_file = os.path.join(DEPLOYMENT_STATUS_DIR, f'{project_name}.json')
+    try:
+        metadata_file = get_deployment_status_file_path(project_name)
+    except ValueError as e:
+        logger.warning(f'Rejected invalid project name: {str(e)}')
+        return {
+            'status': DeploymentStatus.NOT_FOUND,
+            'message': f'No deployment found for project: {project_name}',
+            'projectName': project_name,
+        }
 
     try:
         # Check if metadata file exists

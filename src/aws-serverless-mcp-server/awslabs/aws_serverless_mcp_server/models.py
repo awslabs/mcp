@@ -69,7 +69,11 @@ class DeployWebAppRequest(BaseModel):
     deployment_type: Literal['backend', 'frontend', 'fullstack'] = Field(
         ..., description='Type of deployment'
     )
-    project_name: str = Field(..., description='Project name')
+    project_name: str = Field(
+        ...,
+        pattern=r'^[A-Za-z0-9_-]+$',
+        description='Project name. May contain only letters, digits, hyphens, and underscores.',
+    )
     project_root: str = Field(..., description='Absolute path to the project root directory')
     region: Optional[str] = Field(None, description='AWS Region to deploy to (e.g., us-east-1)')
     backend_configuration: Optional[BackendConfiguration] = Field(

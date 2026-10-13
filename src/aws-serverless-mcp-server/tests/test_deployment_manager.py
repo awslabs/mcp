@@ -34,13 +34,78 @@ class TestDeploymentManagerComprehensive:
 
     @pytest.fixture
     def temp_deployment_dir(self):
-        """Create a temporary directory for deployment metadata."""
+        """Create a temporary directory for deployment metadata.
+
+        Patches both the ``const`` copy (used by the validated path helper) and
+        the ``deployment_manager`` copy (used by ``list_deployments``).
+        """
         with tempfile.TemporaryDirectory() as temp_dir:
-            with patch(
-                'awslabs.aws_serverless_mcp_server.utils.deployment_manager.DEPLOYMENT_STATUS_DIR',
-                temp_dir,
+            with (
+                patch(
+                    'awslabs.aws_serverless_mcp_server.utils.const.DEPLOYMENT_STATUS_DIR',
+                    temp_dir,
+                ),
+                patch(
+                    'awslabs.aws_serverless_mcp_server.utils.deployment_manager.DEPLOYMENT_STATUS_DIR',
+                    temp_dir,
+                ),
             ):
                 yield temp_dir
+
+    @pytest.mark.parametrize(
+        'malicious_name',
+        [
+            '../evil',
+            '../../etc/passwd',
+            'foo/bar',
+            '/etc/passwd',
+            '..',
+            'a.b',  # dots are disallowed by the allowlist
+            '',
+        ],
+    )
+    def test_path_helper_rejects_traversal(self, temp_deployment_dir, malicious_name):
+        """The path helper rejects names that could escape the status directory."""
+        from awslabs.aws_serverless_mcp_server.utils.const import (
+            get_deployment_status_file_path,
+        )
+
+        with pytest.raises(ValueError):
+            get_deployment_status_file_path(malicious_name)
+
+    def test_path_helper_allows_valid_name(self, temp_deployment_dir):
+        """A valid name resolves to a file contained in the status directory."""
+        from awslabs.aws_serverless_mcp_server.utils.const import (
+            get_deployment_status_file_path,
+        )
+
+        path = get_deployment_status_file_path('my-project_1')
+        base = os.path.realpath(temp_deployment_dir)
+        assert os.path.commonpath([base, path]) == base
+        assert path.endswith('my-project_1.json')
+
+    def test_path_helper_blocks_symlink_escape(self, temp_deployment_dir):
+        """A symlink inside the status directory cannot redirect reads outside it."""
+        from awslabs.aws_serverless_mcp_server.utils.const import (
+            get_deployment_status_file_path,
+        )
+
+        # Plant a symlink <status_dir>/escape.json -> a file outside the dir.
+        with tempfile.TemporaryDirectory() as outside_dir:
+            target = os.path.join(outside_dir, 'escape.json')
+            with open(target, 'w') as f:
+                f.write('{}')
+            link = os.path.join(temp_deployment_dir, 'escape.json')
+            os.symlink(target, link)
+
+            with pytest.raises(ValueError):
+                get_deployment_status_file_path('escape')
+
+    @pytest.mark.asyncio
+    async def test_get_deployment_status_rejects_traversal(self, temp_deployment_dir):
+        """The read resource treats a traversal name as not found, not a read."""
+        result = await get_deployment_status('../../etc/passwd')
+        assert result['status'] == DeploymentStatus.NOT_FOUND
 
     @pytest.mark.asyncio
     async def test_initialize_deployment_status_with_region(self, temp_deployment_dir):
