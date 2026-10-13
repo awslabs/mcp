@@ -72,6 +72,44 @@ USE THIS TOOL FOR:
 - **Resource-level cost analysis** (last 14 days)
 - **Multi-dimensional cost analysis** with complex grouping
 
+WINDOW LIMITS (per operation — exceeding returns DataUnavailableException):
+- getCostAndUsage, getDimensionValues, getTagsOrValues, getCostCategories,
+  getSavingsPlansUtilization: up to 38 months of history (standard is the last 13 months;
+  the full 38 months is available only when multi-year monthly data is enabled on the account).
+- getCostAndUsageWithResources: last 14 days ONLY — a hard limit. Older ranges return
+  DataUnavailableException with no fallback.
+- getCostForecast, getUsageForecast: start_date must be TODAY or later (never in the past),
+  and the account needs at least 7 months of usage history for the forecast to generate.
+  Maximum horizon: 3 months at DAILY granularity, 12 months at MONTHLY.
+
+FILTER EXPRESSION GRAMMAR (the `filter` argument is a JSON STRING):
+Top-level object has exactly ONE of these keys:
+- Leaf keys: `Dimensions`, `Tags`, `CostCategories`
+- Logical keys: `And`, `Or`, `Not` (take arrays/objects of other filter expressions)
+
+Leaf shape:
+`{"<Dimensions|Tags|CostCategories>": {"Key": "...", "Values": [...], "MatchOptions": [...]}}`
+
+Valid MatchOptions ALLOW-LIST per leaf type (anything else returns
+`ValidationException: MatchOptions contain not allowed match option`):
+- Dimensions:     EQUALS, CASE_SENSITIVE
+- Tags:           EQUALS, ABSENT, CASE_SENSITIVE
+- CostCategories: EQUALS, ABSENT, CASE_SENSITIVE
+
+NOT valid in a Cost Explorer filter: `CASE_INSENSITIVE`, `STARTS_WITH`, `ENDS_WITH`,
+`CONTAINS`. Those options belong to Cost Category RULE definitions (a different grammar used
+by CreateCostCategoryDefinition) — do not reuse them here.
+
+ABSENT means "resources that are missing this tag or cost-category entirely" and takes NO
+`Values` field. Including an empty `Values: []` alongside `ABSENT` returns
+`ValidationException: Expression must not have values set when ABSENT is provided`.
+
+Correct filter examples (remember: the `filter` argument is itself JSON STRING-ENCODED):
+- `{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon Relational Database Service"]}}`
+- `{"Tags": {"Key": "env", "Values": ["prod"]}}`
+- `{"Tags": {"Key": "team", "MatchOptions": ["ABSENT"]}}`
+- `{"And": [{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon Elastic Compute Cloud - Compute"]}}, {"Dimensions": {"Key": "REGION", "Values": ["us-east-1"]}}]}`
+
 ## OPERATIONS
 
 1) getCostAndUsage — account-level historical cost/usage
@@ -82,7 +120,7 @@ USE THIS TOOL FOR:
 2. getCostAndUsageWithResources - Resource-level cost data (limited to last 14 days)
    Required: operation="getCostAndUsageWithResources", filter, granularity, start_date, end_date
    Optional: metrics, group_by, next_token, max_pages, billing_view_arn
-   Notes: RESOURCE_ID must be included in either filter OR group_by parameters. This operation is limited to past 14 days of data from current date. Hourly granularity is only available for EC2-Instances resource-level data. All other resource-level data is available at daily granularity.
+   Notes: RESOURCE_ID must be included in either filter OR group_by parameters. **This operation is limited to the past 14 days of data from the current date — this is a hard limit; older ranges return DataUnavailableException with no fallback.** Hourly granularity is only available for EC2-Instances resource-level data. All other resource-level data is available at daily granularity.
    Example: {"operation": "getCostAndUsageWithResources", "start_date": "2025-08-07", "end_date": "2025-08-21", "granularity": "DAILY", "filter": "{\"Dimensions\": {\"Key\": \"SERVICE\", \"Values\": [\"Amazon Elastic Compute Cloud - Compute\"]}}", "group_by": "[{\"Type\": \"DIMENSION\", \"Key\": \"RESOURCE_ID\"}]"}
    Returns: Cost data with resource-level granularity
 
@@ -97,7 +135,7 @@ USE THIS TOOL FOR:
    Required: operation="getCostForecast", metric, granularity, start_date, end_date
    Optional: filter, prediction_interval_level, billing_view_arn
    Example: {"operation": "getCostForecast", "metric": "UNBLENDED_COST", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22"}
-   Notes: metric value for this operation should be in all caps
+   Notes: `metric` must be ALL CAPS and one of UNBLENDED_COST, BLENDED_COST, AMORTIZED_COST, NET_UNBLENDED_COST, NET_AMORTIZED_COST, USAGE_QUANTITY, NORMALIZED_USAGE_AMOUNT. `start_date` must be today or later. The account needs at least 7 months of usage history for a forecast to generate — otherwise DataUnavailableException. Horizon is up to 3 months (DAILY) or 12 months (MONTHLY).
    Returns: Cost forecast for specified time period and granularity
 
 5. getUsageForecast - Future usage projections
@@ -127,7 +165,7 @@ USE THIS TOOL FOR:
    Required: operation="getSavingsPlansUtilization", start_date, end_date
    Optional: granularity, filter
    Example: {"operation": "getSavingsPlansUtilization", "granularity": "MONTHLY"}
-   Notes: This operation supports only DAILY and MONTHLY granularity
+   Notes: Supports only DAILY and MONTHLY granularity. Data is available for up to the last 38 months (standard 13 months unless multi-year monthly is enabled); older windows return DataUnavailableException. DataUnavailableException on a current-day window usually means no active Savings Plans in the period — report "no Savings Plans data for this window" rather than retrying with a different window.
    Returns: Savings Plans utilization for the specified time period
 
 DIMENSION REFERENCE:
@@ -147,7 +185,7 @@ DIMENSION REFERENCE:
 - PURCHASE_TYPE: Reservation type (e.g., On-Demand, Reserved)
 - REGION: AWS Region
 - SERVICE: AWS service (e.g., Amazon DynamoDB)
-- TAG: Cost allocation tag — only valid as a getDimensionValues dimension in the RESERVATIONS coverage context. NOT a COST_AND_USAGE dimension; to list a tag key's values use operation=getTagsOrValues (with tag_key), and to filter cost/usage by tag use the filter Tags field.
+- TAG: Cost allocation tag — valid as a GroupBy Type (`[{"Type":"TAG","Key":"<tag_key>"}]`) and inside filter `Tags` leaves. As a getDimensionValues dimension it is only valid in the RESERVATIONS coverage context, NOT in COST_AND_USAGE; to list a tag key's values use operation=getTagsOrValues (with tag_key).
 - TENANCY: EC2 tenancy (shared, dedicated)
 - USAGE_TYPE: Usage type (e.g., DataTransfer-In-Bytes)
 - RECORD_TYPE: Charge types (e.g., RI fees, usage costs)
