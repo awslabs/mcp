@@ -63,6 +63,14 @@ readonly_query = True
 # Amazon RDS global bundle (verified against a pinned hash) is used.
 ca_bundle_path: Optional[str] = None
 
+# Operator-supplied Secrets Manager secret ARN. Set by the CLI flag
+# --secret_arn on server start. When provided, credentials are read from this
+# secret instead of the cluster/instance's AWS-managed ``MasterUserSecret``,
+# which lets the server connect as a dedicated least-privilege user rather than
+# the master user. When empty/None, the managed MasterUserSecret ARN is used
+# (the historical default). Not used by the IAM-auth connection method.
+configured_secret_arn: Optional[str] = None
+
 
 class DummyCtx(Context):
     """A dummy context class for error handling in MCP tools."""
@@ -627,6 +635,7 @@ def internal_connect_to_database(
     global db_connection_map
     global readonly_query
     global ca_bundle_path
+    global configured_secret_arn
 
     logger.info(
         f'Enter internal_connect_to_database\n'
@@ -792,6 +801,14 @@ def internal_connect_to_database(
         if existing_conn:
             return (existing_conn, _connected_response())
 
+    # If the operator supplied an explicit --secret_arn, use it instead of the
+    # AWS-managed MasterUserSecret ARN derived above. This restores the ability
+    # (removed in 1.0.21) to connect as a dedicated least-privilege user via a
+    # custom secret, and matches mssql-mcp-server. The IAM-auth method uses no
+    # secret, so it is unaffected (its secret_arn is forced to '' below).
+    if configured_secret_arn:
+        secret_arn = configured_secret_arn
+
     logger.info(
         f'About to create internal DB connections with:'
         f'enable_data_api:{enable_data_api}\n'
@@ -873,6 +890,7 @@ def main():
     global db_connection_map
     global readonly_query
     global ca_bundle_path
+    global configured_secret_arn
 
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for MySQL'
@@ -909,6 +927,20 @@ def main():
             'rotates CAs faster than the package release cadence.'
         ),
     )
+    parser.add_argument(
+        '--secret_arn',
+        default=None,
+        help=(
+            'ARN of an AWS Secrets Manager secret holding the database '
+            'credentials to connect with. When provided, it overrides the '
+            "cluster/instance's AWS-managed MasterUserSecret, letting the "
+            'server connect as a dedicated least-privilege user (e.g. a '
+            'read-only user) instead of the master user. Applies to the '
+            'RDS_API and MYSQL_WIRE_PROTOCOL connection methods; ignored for '
+            'MYSQL_WIRE_IAM_PROTOCOL, which uses IAM authentication and no '
+            'secret.'
+        ),
+    )
     args = parser.parse_args()
 
     logger.info(
@@ -925,6 +957,7 @@ def main():
 
     readonly_query = not args.allow_write_query
     ca_bundle_path = args.ca_bundle
+    configured_secret_arn = args.secret_arn
 
     try:
         if args.db_type:
