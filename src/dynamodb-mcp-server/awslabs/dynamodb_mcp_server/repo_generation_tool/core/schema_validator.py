@@ -28,6 +28,11 @@ from awslabs.dynamodb_mcp_server.repo_generation_tool.core.filter_expression_val
     FilterExpressionValidator,
 )
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.gsi_validator import GSIValidator
+from awslabs.dynamodb_mcp_server.repo_generation_tool.core.identifier_validator import (
+    validate_key_template,
+    validate_python_identifier,
+    validate_string_literal_value,
+)
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.key_template_parser import (
     KeyTemplateParser,
 )
@@ -229,6 +234,15 @@ class SchemaValidator:
                     self.result.errors.append(error)
                     self.result.is_valid = False
 
+        # table_name is interpolated into a quoted string literal in generated code (the
+        # repository __init__ default: table_name: str = "..."); reject break-out values.
+        if 'table_name' in table_config:
+            self.result.add_errors(
+                validate_string_literal_value(
+                    table_config['table_name'], f'{path}.table_name', 'table_name'
+                )
+            )
+
     def _validate_entities(
         self, entities: Any, path: str = 'entities', table_index: int = 0
     ) -> None:
@@ -250,6 +264,13 @@ class SchemaValidator:
 
         # Check for global entity name uniqueness
         for entity_name in entities.keys():
+            # Entity names are interpolated into generated-code identifier positions
+            # (`class {{ entity_name }}` and the `{{ entity_name.upper() }}_CONFIG` constant),
+            # where escaping is not possible, so reject names that are not valid identifiers.
+            self.result.add_errors(
+                validate_python_identifier(entity_name, f'{path}.{entity_name}', 'Entity name')
+            )
+
             if entity_name in self.global_entity_names:
                 self.result.add_error(
                     f'{path}.{entity_name}',
@@ -297,6 +318,24 @@ class SchemaValidator:
                     f"Add '{field}' field using template syntax like 'USER#{{user_id}}' or 'PROFILE#{{id}}#{{timestamp}}'. Parameters are automatically extracted from {{field_name}} placeholders",
                 )
 
+        # entity_type is interpolated into a quoted string literal in generated code
+        # (entity_type="..."); reject values that could break out of the string.
+        if 'entity_type' in entity_config:
+            self.result.add_errors(
+                validate_string_literal_value(
+                    entity_config['entity_type'], f'{path}.entity_type', 'entity_type'
+                )
+            )
+
+        # pk_template is rendered into an f-string key builder; reject break-out characters and
+        # any brace expression that is not a simple {field} placeholder.
+        if 'pk_template' in entity_config:
+            self.result.add_errors(
+                validate_key_template(
+                    entity_config['pk_template'], f'{path}.pk_template', 'pk_template'
+                )
+            )
+
         # Validate sk_template if present (it's optional)
         if 'sk_template' in entity_config:
             if entity_config['sk_template'] is not None:
@@ -306,6 +345,13 @@ class SchemaValidator:
                 for error in field_errors:
                     self.result.errors.append(error)
                     self.result.is_valid = False
+                # sk_template is also rendered into an f-string key builder. The validator
+                # reports a non-string itself, so no type guard is needed here.
+                self.result.add_errors(
+                    validate_key_template(
+                        entity_config['sk_template'], f'{path}.sk_template', 'sk_template'
+                    )
+                )
 
         # Validate fields array and extract field names
         entity_field_names = set()
@@ -367,6 +413,12 @@ class SchemaValidator:
         # Validate field name uniqueness
         if 'name' in field:
             field_name = field['name']
+            # Field names are interpolated into a generated-code identifier position
+            # (`{{ field.name }}: <type>` in the entity class body), where escaping is not
+            # possible, so reject names that are not valid identifiers.
+            self.result.add_errors(
+                validate_python_identifier(field_name, f'{path}.name', 'Field name')
+            )
             if field_name in field_names:
                 self.result.add_error(
                     f'{path}.name',
@@ -450,6 +502,11 @@ class SchemaValidator:
         # Validate pattern name uniqueness within entity
         if 'name' in pattern:
             pattern_name = pattern['name']
+            # The pattern name is emitted as a method identifier in the generated repository
+            # (def {{ pattern.name }}(...)), so it must be a valid Python identifier.
+            self.result.add_errors(
+                validate_python_identifier(pattern_name, f'{path}.name', 'Pattern name')
+            )
             if pattern_name in pattern_names:
                 self.result.add_error(
                     f'{path}.name',
