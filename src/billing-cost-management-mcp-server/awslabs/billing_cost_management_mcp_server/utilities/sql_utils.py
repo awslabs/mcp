@@ -1061,10 +1061,15 @@ async def convert_api_response_to_table(
                 preview_item[col] = row[i]
             preview.append(preview_item)
 
-        # Register table in schema info
+        # Register table in schema info, and commit it before the await below. The INSERT opens a
+        # write transaction; holding it across the await lets a concurrent conversion on the same
+        # event loop block on the lock (sqlite's busy_timeout waits synchronously, so the holder
+        # never resumes) until it fails with "database is locked". Uncommitted, the row would
+        # also be rolled back when the connection closes.
         register_table_in_schema_info(
             cursor, table_name, operation_name, json.dumps(metadata), rows_inserted
         )
+        conn.commit()
 
         await ctx.info(f'Converted {rows_inserted} rows to SQL table: {table_name}')
 

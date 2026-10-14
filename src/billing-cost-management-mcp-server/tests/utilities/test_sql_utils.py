@@ -1251,6 +1251,112 @@ class TestSessionAuthorizer:
             conn.close()
 
 
+def _cost_and_usage_response(groups: int) -> dict:
+    """A Cost Explorer GetCostAndUsage-shaped response with ``groups`` groups per day."""
+    return {
+        'ResultsByTime': [
+            {
+                'TimePeriod': {'Start': f'2026-09-{day:02d}', 'End': f'2026-09-{day + 1:02d}'},
+                'Estimated': False,
+                'Groups': [
+                    {
+                        'Keys': [f'service-{i}'],
+                        'Metrics': {'UnblendedCost': {'Amount': str(i), 'Unit': 'USD'}},
+                    }
+                    for i in range(groups)
+                ],
+            }
+            for day in range(1, 8)
+        ]
+    }
+
+
+def _yielding_context():
+    """An MCP context whose logging calls really yield to the event loop, like a live one."""
+    import asyncio
+
+    async def _yield(*_args, **_kwargs):
+        await asyncio.sleep(0)
+
+    context = MagicMock(spec=Context)
+    context.info = AsyncMock(side_effect=_yield)
+    context.debug = AsyncMock(side_effect=_yield)
+    context.warning = AsyncMock(side_effect=_yield)
+    context.error = AsyncMock(side_effect=_yield)
+    return context
+
+
+def _use_session_db(monkeypatch, session_db, busy_timeout_ms=None):
+    """Point the module that defines convert_api_response_to_table at ``session_db``.
+
+    Patches that function's own module globals: other tests in this file re-import sql_utils
+    via sys.modules, so a fresh ``import sql_utils`` here can be a different module instance.
+    """
+    module_globals = convert_api_response_to_table.__globals__
+    monkeypatch.setitem(module_globals, 'get_session_db_path', lambda: str(session_db))
+    if busy_timeout_ms is not None:
+        monkeypatch.setitem(module_globals, 'BUSY_TIMEOUT_MS', busy_timeout_ms)
+
+
+@pytest.mark.asyncio
+async def test_convert_registers_table_in_schema_info_durably(tmp_path, monkeypatch):
+    """The schema_info row for a converted table is committed, not rolled back on close."""
+    session_db = tmp_path / 'session.db'
+    _use_session_db(monkeypatch, session_db)
+
+    result = await convert_api_response_to_table(
+        _yielding_context(), _cost_and_usage_response(3), 'cost_explorer_get_cost_and_usage'
+    )
+
+    assert result['data_stored'] is True
+    conn = sqlite3.connect(str(session_db))
+    try:
+        rows = conn.execute(
+            'SELECT operation, row_count FROM schema_info WHERE table_name = ?',
+            (result['table_name'],),
+        ).fetchall()
+    finally:
+        conn.close()
+    assert rows == [('cost_explorer_get_cost_and_usage', result['row_count'])]
+
+
+@pytest.mark.asyncio
+async def test_concurrent_conversions_on_one_event_loop_do_not_lock(tmp_path, monkeypatch):
+    """Parallel tool calls convert concurrently on one loop without "database is locked".
+
+    A write transaction held across an ``await`` would block every other conversion on the
+    loop for the full busy timeout (sqlite waits synchronously) and then fail it.
+    """
+    import asyncio
+    import time
+
+    session_db = tmp_path / 'session.db'
+    _use_session_db(monkeypatch, session_db, busy_timeout_ms=2000)
+
+    started = time.monotonic()
+    results = await asyncio.gather(
+        *[
+            convert_api_response_to_table(
+                _yielding_context(),
+                _cost_and_usage_response(5),
+                'cost_explorer_get_cost_and_usage',
+            )
+            for _ in range(3)
+        ],
+        return_exceptions=True,
+    )
+    elapsed = time.monotonic() - started
+
+    assert all(isinstance(r, dict) and r['data_stored'] is True for r in results), results
+    # No conversion waited out a lock.
+    assert elapsed < 2.0
+    conn = sqlite3.connect(str(session_db))
+    try:
+        assert conn.execute('SELECT COUNT(*) FROM schema_info').fetchone()[0] == 3
+    finally:
+        conn.close()
+
+
 class TestGetSpecializedConverter:
     """Test _get_specialized_converter function."""
 
