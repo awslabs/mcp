@@ -34,10 +34,13 @@ from awslabs.aws_healthomics_mcp_server.utils.datetime_utils import (
 from awslabs.aws_healthomics_mcp_server.utils.error_utils import (
     handle_tool_error,
 )
+from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
+    normalize_session_policy,
+)
 from loguru import logger
 from mcp.server.mcpserver import Context
 from pydantic import Field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 
 def _validate_batch_run_settings(batch_run_settings: Dict[str, Any]) -> Optional[str]:
@@ -94,6 +97,15 @@ async def start_run_batch(
     ),
     request_id: Optional[str] = Field(None, description='Idempotency token'),
     tags: Optional[Dict[str, str]] = Field(None, description='Tags for the batch'),
+    session_policy: Optional[Union[str, Dict[str, Any]]] = Field(
+        None,
+        description=(
+            'Optional inline IAM session policy (JSON string or object, max 2048 characters) '
+            'applied to all runs in the batch to scope down the permissions of role_arn. '
+            'The effective permissions are the intersection of the role policy and the '
+            'session policy.'
+        ),
+    ),
     aws_profile: Optional[str] = Field(
         None,
         description='AWS profile name for this operation. Overrides the default credential chain.',
@@ -124,6 +136,8 @@ async def start_run_batch(
         scratch_storage_mode: Optional scratch storage mode (LOCAL or SHARED); defaults to LOCAL
         request_id: Optional idempotency token
         tags: Optional tags for the batch
+        session_policy: Optional inline IAM session policy (JSON string or dict) applied
+            to all runs in the batch
         aws_profile: Optional AWS profile name override
         aws_region: Optional AWS region override
 
@@ -152,6 +166,12 @@ async def start_run_batch(
                 ),
                 'Invalid scratch storage mode',
             )
+
+        # Validate and serialize the session policy before any API call
+        try:
+            effective_session_policy = normalize_session_policy(session_policy)
+        except ValueError as e:
+            return await handle_tool_error(ctx, e, 'Invalid session policy')
 
         client = get_omics_client(region_name=aws_region, profile_name=aws_profile)
 
@@ -188,6 +208,9 @@ async def start_run_batch(
 
         if retention_mode is not None:
             default_run_setting['retentionMode'] = retention_mode
+
+        if effective_session_policy is not None:
+            default_run_setting['sessionPolicy'] = effective_session_policy
 
         # Always inject the effective scratch storage mode so all runs in the batch
         # use the MCP server default (LOCAL) unless the caller overrides it.

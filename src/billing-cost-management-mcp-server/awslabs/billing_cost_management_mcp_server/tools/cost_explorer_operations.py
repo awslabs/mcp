@@ -578,7 +578,8 @@ async def get_tags(
         # Handle pagination
         if next_token or max_pages:
             api_function = ce_client.get_tags
-            result_key = 'Tags' if not tag_key else 'TagValues'
+            # GetTags returns tag values under 'Tags' too when TagKey is set.
+            result_key = 'Tags'
 
             if next_token:
                 request_params['NextPageToken'] = next_token

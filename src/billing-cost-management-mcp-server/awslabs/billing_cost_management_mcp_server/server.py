@@ -97,6 +97,9 @@ from awslabs.billing_cost_management_mcp_server.tools.sp_recommendation_tools im
 )
 from awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools import storage_lens_server
 from awslabs.billing_cost_management_mcp_server.tools.unified_sql_tools import unified_sql_server
+from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+    add_retry_guidance,
+)
 from awslabs.billing_cost_management_mcp_server.utilities.logging_utils import get_logger
 from fastmcp import FastMCP
 from fastmcp.server.middleware import Middleware
@@ -126,6 +129,9 @@ class ErrorSignalingMiddleware(Middleware):
     This middleware intercepts tool results that contain status='error' in their
     response body and returns a result with is_error=True, preserving the original
     content and structured_content for backward compatibility.
+
+    It also adds retry_strategy (and hint, when one applies) derived from error_type,
+    unless the tool already set them (see utilities/error_contract.py).
     """
 
     async def on_call_tool(self, context, call_next):
@@ -136,9 +142,18 @@ class ErrorSignalingMiddleware(Middleware):
             and isinstance(result.structured_content, dict)
             and result.structured_content.get('status') == 'error'
         ):
+            structured_content = add_retry_guidance(result.structured_content)
+            content = result.content
+            # When content is the serialized structured_content (the case for dict
+            # returns), re-derive it so the text the model reads carries the same fields.
+            if (
+                structured_content is not result.structured_content
+                and content == ToolResult(structured_content=result.structured_content).content
+            ):
+                content = ToolResult(structured_content=structured_content).content
             return _ErrorToolResult(
-                content=result.content,
-                structured_content=result.structured_content,
+                content=content,
+                structured_content=structured_content,
                 meta=result.meta,
             )
         return result

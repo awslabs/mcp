@@ -389,6 +389,8 @@ def format_response(
     error_type: Optional[str] = None,
     operation: Optional[str] = None,
     service: Optional[str] = None,
+    retry_strategy: Optional[str] = None,
+    hint: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Format a standard API response.
 
@@ -399,6 +401,9 @@ def format_response(
         error_type: Optional error classification, set at the top level like handle_aws_error
         operation: Optional name of the operation that produced the response
         service: Optional AWS service name
+        retry_strategy: Optional override of the strategy ErrorSignalingMiddleware derives
+            from error_type (see utilities/error_contract.py)
+        hint: Optional fixed recovery guidance for the caller
 
     Returns:
         Dict containing a standardized response format
@@ -415,5 +420,9 @@ def format_response(
         response['operation'] = operation
     if service is not None:
         response['service'] = service
+    if retry_strategy is not None:
+        response['retry_strategy'] = retry_strategy
+    if hint is not None:
+        response['hint'] = hint
 
     return response
