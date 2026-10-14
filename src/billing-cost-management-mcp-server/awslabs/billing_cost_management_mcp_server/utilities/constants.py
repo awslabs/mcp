@@ -52,6 +52,8 @@ GROUP_BY_RESOURCE_TYPE = 'ResourceType'
 GROUP_BY_RESTART_NEEDED = 'RestartNeeded'
 GROUP_BY_ROLLBACK_POSSIBLE = 'RollbackPossible'
 GROUP_BY_IMPLEMENTATION_EFFORT = 'ImplementationEffort'
+# list_recommendation_summaries also groups by a tag's values with 'TagKey:<tag key>'.
+GROUP_BY_TAG_KEY_PREFIX = 'TagKey:'
 
 COST_OPTIMIZATION_HUB_VALID_GROUP_BY_VALUES = [
     GROUP_BY_ACCOUNT_ID,
