@@ -23,47 +23,37 @@ from ..utilities.aws_service_base import (
     paginate_aws_response,
 )
 from ..utilities.constants import (
+    COST_OPTIMIZATION_HUB_SERVICE_NAME,
     EFFICIENCY_PARETO_MAX_PAGES,
     EFFICIENCY_PARETO_PAGE_SIZE,
     EFFICIENCY_PARETO_SPEND_FRACTION,
     EFFICIENCY_RANKING_MODE_PERFORMANCE,
+    OPERATION_GET_PREFERENCES,
+    OPERATION_GET_RECOMMENDATION,
+    OPERATION_LIST_EFFICIENCY_METRICS,
+    OPERATION_LIST_ENROLLMENT_STATUSES,
+    OPERATION_LIST_RECOMMENDATION_SUMMARIES,
+    OPERATION_LIST_RECOMMENDATIONS,
 )
 from ..utilities.logging_utils import get_context_logger
 from ..utilities.sql_utils import convert_response_if_needed
+from ..utilities.time_utils import format_timestamp_to_utc_iso
 from botocore.exceptions import ClientError
-from datetime import datetime
 from fastmcp import Context
 from typing import Any, Dict, Optional
 
 
 def format_timestamp(timestamp: Any) -> Optional[str]:
-    """Format a timestamp to ISO format string.
+    """Format a timestamp to a UTC ISO 8601 string.
 
     Args:
-        timestamp: Timestamp from Cost Optimization Hub API
+        timestamp: Timestamp from Cost Optimization Hub API: a datetime (boto3),
+            epoch seconds, or epoch milliseconds.
 
     Returns:
-        Formatted timestamp string
+        Formatted timestamp string, or None if missing or unconvertible.
     """
-    if not timestamp:
-        return None
-
-    try:
-        # Check if it's already a datetime object
-        if isinstance(timestamp, datetime):
-            return timestamp.isoformat()
-        else:
-            # Assume it's a Unix timestamp in milliseconds
-            from datetime import timezone
-
-            return (
-                datetime.fromtimestamp(timestamp / 1000, tz=timezone.utc)
-                .astimezone()
-                .replace(tzinfo=None)
-                .isoformat()
-            )
-    except Exception as e:
-        return str(f'Error: {e}, Timestamp: {timestamp}')
+    return format_timestamp_to_utc_iso(timestamp)
 
 
 async def list_recommendations(
@@ -188,7 +178,9 @@ async def list_recommendations(
         return format_response('success', offload_or_inline)
 
     except Exception as e:
-        return await handle_aws_error(ctx, e, 'list_recommendations', 'Cost Optimization Hub')
+        return await handle_aws_error(
+            ctx, e, OPERATION_LIST_RECOMMENDATIONS, COST_OPTIMIZATION_HUB_SERVICE_NAME
+        )
 
 
 async def get_recommendation(
@@ -286,9 +278,15 @@ async def get_recommendation(
                     'error_code': 'ResourceNotFoundException',
                     'recommendation_id': recommendation_id,
                 },
-                f'Recommendation {recommendation_id} not found in Cost Optimization Hub.',
+                f'Recommendation {recommendation_id} not found in Cost Optimization Hub. The '
+                'ID may be invalid (it must be a Cost Optimization Hub recommendation ID, not a '
+                'resource ID or ARN), or the recommendation may no longer exist: recommendations '
+                'are refreshed daily and removed once they no longer apply. Call '
+                'list_recommendations to check the current recommendations for the resource.',
             )
-        return await handle_aws_error(ctx, e, 'get_recommendation', 'Cost Optimization Hub')
+        return await handle_aws_error(
+            ctx, e, OPERATION_GET_RECOMMENDATION, COST_OPTIMIZATION_HUB_SERVICE_NAME
+        )
 
 
 async def list_recommendation_summaries(
@@ -410,7 +408,7 @@ async def list_recommendation_summaries(
 
     except Exception as e:
         return await handle_aws_error(
-            ctx, e, 'list_recommendation_summaries', 'Cost Optimization Hub'
+            ctx, e, OPERATION_LIST_RECOMMENDATION_SUMMARIES, COST_OPTIMIZATION_HUB_SERVICE_NAME
         )
 
 
@@ -457,7 +455,9 @@ async def list_enrollment_statuses(
         return format_response('success', {'enrollment_statuses': enrollment_statuses})
 
     except Exception as e:
-        return await handle_aws_error(ctx, e, 'list_enrollment_statuses', 'Cost Optimization Hub')
+        return await handle_aws_error(
+            ctx, e, OPERATION_LIST_ENROLLMENT_STATUSES, COST_OPTIMIZATION_HUB_SERVICE_NAME
+        )
 
 
 async def get_preferences(ctx: Context, coh_client: Any) -> Dict[str, Any]:
@@ -493,7 +493,9 @@ async def get_preferences(ctx: Context, coh_client: Any) -> Dict[str, Any]:
         )
 
     except Exception as e:
-        return await handle_aws_error(ctx, e, 'get_preferences', 'Cost Optimization Hub')
+        return await handle_aws_error(
+            ctx, e, OPERATION_GET_PREFERENCES, COST_OPTIMIZATION_HUB_SERVICE_NAME
+        )
 
 
 def _latest_efficiency_point(metrics_by_time: list) -> Optional[Dict[str, Any]]:
@@ -803,4 +805,6 @@ async def list_efficiency_metrics(
         return format_response('success', offload_or_inline)
 
     except Exception as e:
-        return await handle_aws_error(ctx, e, 'list_efficiency_metrics', 'Cost Optimization Hub')
+        return await handle_aws_error(
+            ctx, e, OPERATION_LIST_EFFICIENCY_METRICS, COST_OPTIMIZATION_HUB_SERVICE_NAME
+        )

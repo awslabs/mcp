@@ -232,6 +232,120 @@ class TestDescribeSavingsPlans:
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.sp_explorer_tools.paginate_aws_response'
     )
+    async def test_small_result_is_returned_inline(
+        self, mock_paginate, mock_context, mock_sp_client, sample_savings_plan
+    ):
+        """Below the SQL threshold, inventory stays inline with no offload."""
+        mock_paginate.return_value = ([sample_savings_plan], PAGINATION_COMPLETE)
+
+        result = await describe_savings_plans(
+            mock_context, mock_sp_client, None, None, None, None, None, None, None
+        )
+
+        # The small-response shape is unchanged by the offload gate.
+        assert result['data']['savingsPlans'] == [sample_savings_plan]
+        assert result['data']['pagination'] == PAGINATION_COMPLETE
+        assert 'data_stored' not in result['data']
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.sp_explorer_tools.convert_response_if_needed'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.sp_explorer_tools.paginate_aws_response'
+    )
+    async def test_large_result_is_offloaded_to_sql(
+        self, mock_paginate, mock_convert, mock_context, mock_sp_client, sample_savings_plan
+    ):
+        """A large inventory is offloaded to session SQL instead of inline."""
+        plans = [sample_savings_plan]
+        mock_paginate.return_value = (plans, PAGINATION_COMPLETE)
+        mock_convert.return_value = {
+            'data_stored': True,
+            'table_name': 'sp_explorer_describe_savings_plans_abcd1234',
+            'row_count': 1,
+        }
+
+        result = await describe_savings_plans(
+            mock_context, mock_sp_client, None, None, None, None, None, None, None
+        )
+
+        assert result['status'] == 'success'
+        assert result['data']['data_stored'] is True
+        assert 'table_name' in result['data']
+        assert 'savingsPlans' not in result['data']
+
+        mock_convert.assert_called_once()
+        call_args = mock_convert.call_args[0]
+        # The inline shape is handed to the offloader, and the api_name routes it
+        # to the per-row 'records' converter registered in sql_utils.
+        assert call_args[1] == {'savingsPlans': plans, 'pagination': PAGINATION_COMPLETE}
+        assert call_args[2] == 'sp_explorer_describe_savings_plans'
+        # Pagination is passed explicitly so has_more/next_token survive the
+        # offload and reach the stored-table sentinel.
+        assert mock_convert.call_args[1]['pagination'] == PAGINATION_COMPLETE
+
+    @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_db_connection')
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.sp_explorer_tools.paginate_aws_response'
+    )
+    async def test_large_result_offload_real_path_stores_rows_and_pagination(
+        self, mock_paginate, mock_get_conn, mock_context, mock_sp_client
+    ):
+        """The unpatched offload path stores one row per plan and keeps pagination.
+
+        Runs convert_response_if_needed for real (threshold lowered to force the
+        offload) so the plan items (each with a productTypes list and a tags dict)
+        land in a session-SQL table and the has_more/next_token markers survive on
+        the sentinel via the explicit pagination kwarg from the fix.
+        """
+        plans = [
+            {
+                'savingsPlanId': f'577d4a65-{i}',
+                'savingsPlanArn': f'arn:aws:savingsplans::123456789012:savingsplan/577d4a65-{i}',
+                'offeringId': '7fb303ac-60fa-44c3-bb28-e847aa8073ac',
+                'start': '2025-12-19T12:12:12.000Z',
+                'end': '2026-12-19T12:12:11.000Z',
+                'state': 'active',
+                'region': 'us-east-1',
+                'ec2InstanceFamily': 'm5',
+                'savingsPlanType': 'Compute',
+                'paymentOption': 'All Upfront',
+                'productTypes': ['Fargate', 'EC2', 'Lambda'],
+                'currency': 'USD',
+                'commitment': '0.00100000',
+                'upfrontPaymentAmount': '8.76000000',
+                'recurringPaymentAmount': '0.00000000',
+                'termDurationInSeconds': 31536000,
+                'tags': {'team': 'infra'},
+            }
+            for i in range(3)
+        ]
+        mock_paginate.return_value = (plans, PAGINATION_MORE)
+
+        conn = _in_memory_session_db()
+        mock_get_conn.return_value = (conn, conn.cursor())
+
+        # Threshold lowered to 0 so the real convert_response_if_needed path runs
+        # instead of returning the small result inline.
+        with patch.object(sql_utils, 'SQL_CONVERSION_THRESHOLD', 0):
+            result = await describe_savings_plans(
+                mock_context, mock_sp_client, None, None, None, None, None, None, None
+            )
+
+        data = result['data']
+        assert result['status'] == 'success'
+        # The plan items were stored one row each, not returned inline.
+        assert data['data_stored'] is True
+        assert data['table_name'].startswith('sp_explorer_describe_savings_plans_')
+        assert data['row_count'] == len(plans)
+        assert 'savingsPlans' not in data
+        # has_more/next_token survive the offload on the sentinel.
+        assert data['pagination']['has_more'] is True
+        assert data['pagination']['next_token'] == 'next-page-token'
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.sp_explorer_tools.paginate_aws_response'
+    )
     async def test_error(self, mock_paginate, mock_context, mock_sp_client):
         """A client failure is reported rather than raised."""
         mock_paginate.side_effect = Exception('AccessDeniedException')
@@ -291,6 +405,128 @@ class TestDescribeSavingsPlanRates:
         assert request_params['filters'] == [{'name': 'instanceType', 'values': ['c6i.large']}]
         assert request_params['maxResults'] == 5
         assert request_params['nextToken'] == 'resume-here'
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.sp_explorer_tools.paginate_aws_response'
+    )
+    async def test_small_result_is_returned_inline(
+        self, mock_paginate, mock_context, mock_sp_client
+    ):
+        """Below the SQL threshold, rates stay inline with the plan id and no offload."""
+        rates = mock_sp_client.describe_savings_plan_rates.return_value['searchResults']
+        mock_paginate.return_value = (rates, PAGINATION_COMPLETE)
+
+        result = await describe_savings_plan_rates(
+            mock_context, mock_sp_client, '577d4a65', None, None, None, None
+        )
+
+        # The small-response shape is unchanged by the offload gate.
+        assert result['data']['savingsPlanId'] == '577d4a65'
+        assert result['data']['searchResults'] == rates
+        assert result['data']['pagination'] == PAGINATION_COMPLETE
+        assert 'data_stored' not in result['data']
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.sp_explorer_tools.convert_response_if_needed'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.sp_explorer_tools.paginate_aws_response'
+    )
+    async def test_large_result_is_offloaded_to_sql(
+        self, mock_paginate, mock_convert, mock_context, mock_sp_client
+    ):
+        """A large rate list is offloaded to session SQL instead of inline."""
+        rates = mock_sp_client.describe_savings_plan_rates.return_value['searchResults']
+        mock_paginate.return_value = (rates, PAGINATION_COMPLETE)
+        mock_convert.return_value = {
+            'data_stored': True,
+            'table_name': 'sp_explorer_describe_savings_plan_rates_abcd1234',
+            'row_count': 1,
+            'savingsPlanId': '577d4a65',
+        }
+
+        result = await describe_savings_plan_rates(
+            mock_context, mock_sp_client, '577d4a65', None, None, None, None
+        )
+
+        assert result['status'] == 'success'
+        assert result['data']['data_stored'] is True
+        assert 'table_name' in result['data']
+        assert 'searchResults' not in result['data']
+
+        mock_convert.assert_called_once()
+        call_args = mock_convert.call_args[0]
+        # The inline shape is handed to the offloader, and the api_name routes it
+        # to the per-row 'records' converter registered in sql_utils.
+        assert call_args[1] == {
+            'savingsPlanId': '577d4a65',
+            'searchResults': rates,
+            'pagination': PAGINATION_COMPLETE,
+        }
+        assert call_args[2] == 'sp_explorer_describe_savings_plan_rates'
+        # Pagination is passed explicitly so has_more/next_token survive the
+        # offload. savingsPlanId rides along as metadata because the records
+        # converter keeps only the first list field (searchResults).
+        assert mock_convert.call_args[1]['pagination'] == PAGINATION_COMPLETE
+        assert mock_convert.call_args[1]['savingsPlanId'] == '577d4a65'
+
+    @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_db_connection')
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.sp_explorer_tools.paginate_aws_response'
+    )
+    async def test_large_result_offload_real_path_stores_rows_and_keeps_plan_id(
+        self, mock_paginate, mock_get_conn, mock_context, mock_sp_client
+    ):
+        """The unpatched offload path stores one row per rate and keeps plan id + pagination.
+
+        Runs convert_response_if_needed for real (threshold lowered to force the
+        offload) so the nested rate items (each with a properties list) land in a
+        session-SQL table. savingsPlanId and the has_more/next_token markers survive
+        on the sentinel via the explicit metadata kwargs from the fix.
+        """
+        rates = [
+            {
+                'rate': f'0.0646{i}',
+                'currency': 'USD',
+                'unit': 'Hrs',
+                'productType': 'EC2',
+                'serviceCode': 'AmazonEC2',
+                'usageType': 'USE1-BoxUsage:m5.large',
+                'operation': 'RunInstances',
+                'properties': [
+                    {'name': 'region', 'value': 'us-east-1'},
+                    {'name': 'instanceType', 'value': 'm5.large'},
+                    {'name': 'productDescription', 'value': 'Linux/UNIX'},
+                    {'name': 'tenancy', 'value': 'shared'},
+                ],
+            }
+            for i in range(3)
+        ]
+        mock_paginate.return_value = (rates, PAGINATION_MORE)
+
+        conn = _in_memory_session_db()
+        mock_get_conn.return_value = (conn, conn.cursor())
+
+        # Threshold lowered to 0 so the real convert_response_if_needed path runs
+        # instead of returning the small result inline.
+        with patch.object(sql_utils, 'SQL_CONVERSION_THRESHOLD', 0):
+            result = await describe_savings_plan_rates(
+                mock_context, mock_sp_client, '9355d9d7', None, None, None, None
+            )
+
+        data = result['data']
+        assert result['status'] == 'success'
+        # The nested rate items were stored one row each, not returned inline.
+        assert data['data_stored'] is True
+        assert data['table_name'].startswith('sp_explorer_describe_savings_plan_rates_')
+        assert data['row_count'] == len(rates)
+        assert 'searchResults' not in data
+        # The records converter keeps only the first list field, so the plan id
+        # has to survive as metadata on the sentinel.
+        assert data['savingsPlanId'] == '9355d9d7'
+        # has_more/next_token survive the offload on the sentinel.
+        assert data['pagination']['has_more'] is True
+        assert data['pagination']['next_token'] == 'next-page-token'
 
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.sp_explorer_tools.paginate_aws_response'

@@ -20,6 +20,7 @@ from awslabs.aws_documentation_mcp_server.models import (
     TableResult,
 )
 from awslabs.aws_documentation_mcp_server.util import (
+    DocumentationToolError,
     UnreadablePageError,
     enforce_redirect_allowlist,
     extract_content_from_html,
@@ -67,6 +68,9 @@ DEFAULT_USER_AGENT = (
 )
 
 
+_USE_SEARCH = 'Use search_documentation.'
+
+
 # - '/a/index.html' 301s to '/a/' everywhere on the site
 # - a missing page gets a 302 to '/a/' instead
 _DIRECTORY_INDEX_FILENAME = 'index.html'
@@ -104,13 +108,14 @@ class Page:
         """Build from a completed response, stripping query parameters from both URLs."""
         return cls(_without_query(url_str), _without_query(str(response.url)))
 
+    @property
+    def substituted(self) -> bool:
+        """Whether the page that answered is a different page from the one asked for."""
+        return _page_identity(self.served) != _page_identity(self.requested)
+
     def message(self, *parts: str) -> str:
         """Join a substitution note and any reasons into one sentence run."""
-        note = (
-            f'Requested {self.requested}; served {self.served}.'
-            if _page_identity(self.served) != _page_identity(self.requested)
-            else ''
-        )
+        note = f'Requested {self.requested}; served {self.served}.' if self.substituted else ''
         return ' '.join(part for part in (note, *parts) if part)
 
 
@@ -147,17 +152,18 @@ async def read_documentation_impl(
             error_msg = f'Failed to fetch {url_str}: {str(e)}'
             logger.error(error_msg)
             await ctx.error(error_msg)
-            raise ValueError(error_msg) from e
+            raise DocumentationToolError(error_msg) from e
 
         page = Page.of(url_str, response)
 
         if response.status_code >= 400:
             error_msg = page.message(
-                f'Failed to fetch {page.served} - status code {response.status_code}'
+                f'Failed to fetch {page.served} - status code {response.status_code}.',
+                _USE_SEARCH,
             )
             logger.error(error_msg)
             await ctx.error(error_msg)
-            raise ValueError(error_msg)
+            raise DocumentationToolError(error_msg)
 
         page_raw = response.text
         content_type = response.headers.get('content-type', '')
@@ -166,10 +172,13 @@ async def read_documentation_impl(
         try:
             content = extract_content_from_html(page_raw)
         except UnreadablePageError as e:
-            error_msg = page.message(f'{page.served} could not be read: {e}')
+            error_msg = page.message(
+                f'{page.served} could not be read: {e}',
+                _USE_SEARCH if page.substituted else '',
+            )
             logger.error(error_msg)
             await ctx.error(error_msg)
-            raise ValueError(error_msg) from e
+            raise DocumentationToolError(error_msg) from e
         content = truncate_large_tables(content, url=page.served)
     else:
         content = page_raw
@@ -263,17 +272,18 @@ async def read_sections_impl(
             error_msg = f'Failed to fetch {url_str}: {str(e)}'
             logger.error(error_msg)
             await ctx.error(error_msg)
-            raise ValueError(error_msg) from e
+            raise DocumentationToolError(error_msg) from e
 
         page = Page.of(url_str, response)
 
         if response.status_code >= 400:
             error_msg = page.message(
-                f'Failed to fetch {page.served} - status code {response.status_code}'
+                f'Failed to fetch {page.served} - status code {response.status_code}.',
+                _USE_SEARCH,
             )
             logger.error(error_msg)
             await ctx.error(error_msg)
-            raise ValueError(error_msg)
+            raise DocumentationToolError(error_msg)
 
         page_raw = response.text
         content_type = response.headers.get('content-type', '')
@@ -283,29 +293,35 @@ async def read_sections_impl(
         error_msg = page.message(non_html_msg)
         logger.error(error_msg)
         await ctx.error(error_msg)
-        raise ValueError(error_msg)
+        raise DocumentationToolError(error_msg)
 
     try:
         filtered_content = extract_sections_from_html(page_raw, section_titles)
     except UnreadablePageError as e:
-        error_msg = page.message(f'{page.served} could not be read: {e}')
+        error_msg = page.message(
+            f'{page.served} could not be read: {e}',
+            _USE_SEARCH if page.substituted else '',
+        )
         logger.error(error_msg)
         await ctx.error(error_msg)
-        raise ValueError(error_msg) from e
+        raise DocumentationToolError(error_msg) from e
     except ValueError as e:
         error_msg = page.message(str(e))
         logger.error(error_msg)
         await ctx.error(error_msg)
-        raise ValueError(error_msg) from e
+        raise DocumentationToolError(error_msg) from e
 
     try:
         markdown = extract_content_from_html(filtered_content)
         markdown = truncate_large_tables(markdown, url=page.served)
     except UnreadablePageError as e:
-        error_msg = page.message(f'{page.served} could not be read: {e}')
+        error_msg = page.message(
+            f'{page.served} could not be read: {e}',
+            _USE_SEARCH if page.substituted else '',
+        )
         logger.error(error_msg)
         await ctx.error(error_msg)
-        raise ValueError(error_msg) from e
+        raise DocumentationToolError(error_msg) from e
     except Exception as e:
         error_msg = str(e)
         logger.error(error_msg)
@@ -361,17 +377,18 @@ async def search_table_impl(
             error_msg = f'Failed to fetch {url_str}: {str(e)}'
             logger.error(error_msg)
             await ctx.error(error_msg)
-            raise ValueError(error_msg) from e
+            raise DocumentationToolError(error_msg) from e
 
         page = Page.of(url_str, response)
 
         if response.status_code >= 400:
             error_msg = page.message(
-                f'Failed to fetch {page.served} - status code {response.status_code}'
+                f'Failed to fetch {page.served} - status code {response.status_code}.',
+                _USE_SEARCH,
             )
             logger.error(error_msg)
             await ctx.error(error_msg)
-            raise ValueError(error_msg)
+            raise DocumentationToolError(error_msg)
 
         page_raw = response.text
         content_type = response.headers.get('content-type', '')
@@ -381,15 +398,18 @@ async def search_table_impl(
         error_msg = page.message(non_html_msg)
         logger.error(error_msg)
         await ctx.error(error_msg)
-        raise ValueError(error_msg)
+        raise DocumentationToolError(error_msg)
 
     try:
         table_data = parse_html_tables(page_raw, section_title if section_title else None)
     except UnreadablePageError as e:
-        error_msg = page.message(f'{page.served} could not be read: {e}')
+        error_msg = page.message(
+            f'{page.served} could not be read: {e}',
+            _USE_SEARCH if page.substituted else '',
+        )
         logger.error(error_msg)
         await ctx.error(error_msg)
-        raise ValueError(error_msg) from e
+        raise DocumentationToolError(error_msg) from e
 
     if table_data is None:
         return SearchTableResponse(

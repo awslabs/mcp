@@ -14,17 +14,20 @@
 
 """Unit tests for the billing_conductor_operations module."""
 
+import boto3
 import json
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_operations import (
     _format_billing_group_cost_report_results,
     _format_billing_group_cost_reports,
     _format_billing_groups,
+    _format_billing_transfer_preference,
     _format_custom_line_items,
     _format_linked_accounts,
     _format_pricing_plans,
     _format_pricing_rules,
     get_billing_group_cost_report,
+    get_billing_transfer_preference,
     list_account_associations,
     list_billing_group_cost_reports,
     list_billing_groups,
@@ -37,6 +40,7 @@ from awslabs.billing_cost_management_mcp_server.tools.billing_conductor_operatio
     list_resources_associated_to_custom_line_item,
 )
 from botocore.exceptions import ClientError
+from botocore.stub import Stubber
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -1795,6 +1799,146 @@ class TestListAccountAssociations:
         mock_create_client.return_value = mock_client
 
         result = await list_account_associations(mock_ctx, None, None, 10, None)
+
+        assert result['status'] == STATUS_ERROR
+        assert result['error_type'] == ERROR_ACCESS_DENIED
+
+
+# --- Billing Transfer Preference Tests ---
+
+
+class TestFormatBillingTransferPreference:
+    """Tests for the _format_billing_transfer_preference function."""
+
+    def test_format_all_fields(self):
+        """Test formatting a preference with every field set."""
+        result = _format_billing_transfer_preference(
+            {
+                'ResponsibilityTransferArn': RESPONSIBILITY_TRANSFER_ARN,
+                'AutoBillingTransferBillingGroupCreation': {
+                    'Enabled': True,
+                    'PricingPlanArn': PRICING_PLAN_ARN_1,
+                },
+                'LastModifiedTime': 1700000000,
+            }
+        )
+
+        assert result == {
+            'responsibility_transfer_arn': RESPONSIBILITY_TRANSFER_ARN,
+            'auto_billing_transfer_billing_group_creation': {
+                'enabled': True,
+                'pricing_plan_arn': PRICING_PLAN_ARN_1,
+            },
+            'last_modified_time': '2023-11-14T22:13:20',
+        }
+
+    def test_format_never_set_preference_omits_last_modified_time(self):
+        """A preference that was never set has no LastModifiedTime, so none is reported."""
+        result = _format_billing_transfer_preference(
+            {
+                'ResponsibilityTransferArn': RESPONSIBILITY_TRANSFER_ARN,
+                'AutoBillingTransferBillingGroupCreation': {'Enabled': False},
+            }
+        )
+
+        assert 'last_modified_time' not in result
+        assert result['auto_billing_transfer_billing_group_creation'] == {
+            'enabled': False,
+            'pricing_plan_arn': None,
+        }
+
+    def test_format_missing_auto_creation_block(self):
+        """A response without the auto creation block does not invent one."""
+        result = _format_billing_transfer_preference(
+            {'ResponsibilityTransferArn': RESPONSIBILITY_TRANSFER_ARN}
+        )
+
+        assert result == {'responsibility_transfer_arn': RESPONSIBILITY_TRANSFER_ARN}
+
+
+class TestGetBillingTransferPreference:
+    """Tests for the get_billing_transfer_preference operation function."""
+
+    @patch(PATCH_BC_CLIENT)
+    async def test_get_billing_transfer_preference_success(self, mock_create_client, mock_ctx):
+        """Test successful retrieval of a billing transfer preference."""
+        mock_client = MagicMock()
+        mock_client.get_billing_transfer_preference.return_value = {
+            'ResponsibilityTransferArn': RESPONSIBILITY_TRANSFER_ARN,
+            'AutoBillingTransferBillingGroupCreation': {
+                'Enabled': True,
+                'PricingPlanArn': PRICING_PLAN_ARN_1,
+            },
+            'LastModifiedTime': 1700000000,
+        }
+        mock_create_client.return_value = mock_client
+
+        result = await get_billing_transfer_preference(mock_ctx, RESPONSIBILITY_TRANSFER_ARN)
+
+        mock_client.get_billing_transfer_preference.assert_called_once_with(
+            ResponsibilityTransferArn=RESPONSIBILITY_TRANSFER_ARN
+        )
+        assert result['status'] == STATUS_SUCCESS
+        assert result['data']['responsibility_transfer_arn'] == RESPONSIBILITY_TRANSFER_ARN
+        assert result['data']['auto_billing_transfer_billing_group_creation']['enabled'] is True
+
+    async def test_request_and_response_match_the_api_model(self, mock_ctx):
+        """Stub a real client so the request and response validate against the API model."""
+        client = boto3.Session(
+            aws_access_key_id='a', aws_secret_access_key='b', region_name='us-east-1'
+        ).client('billingconductor')
+        stubber = Stubber(client)
+        stubber.add_response(
+            'get_billing_transfer_preference',
+            {
+                'ResponsibilityTransferArn': RESPONSIBILITY_TRANSFER_ARN,
+                'AutoBillingTransferBillingGroupCreation': {
+                    'Enabled': True,
+                    'PricingPlanArn': PRICING_PLAN_ARN_1,
+                },
+                'LastModifiedTime': 1700000000,
+            },
+            {'ResponsibilityTransferArn': RESPONSIBILITY_TRANSFER_ARN},
+        )
+        stubber.activate()
+
+        with patch(PATCH_BC_CLIENT, return_value=client):
+            result = await get_billing_transfer_preference(mock_ctx, RESPONSIBILITY_TRANSFER_ARN)
+
+        stubber.assert_no_pending_responses()
+        assert result['status'] == STATUS_SUCCESS
+        assert result['data']['last_modified_time'] == '2023-11-14T22:13:20'
+
+    @patch(PATCH_BC_CLIENT)
+    async def test_get_billing_transfer_preference_not_found(self, mock_create_client, mock_ctx):
+        """A billing transfer that does not exist is reported as an error, not an empty preference."""
+        mock_client = MagicMock()
+        mock_client.get_billing_transfer_preference.side_effect = ClientError(
+            _make_client_error_response(
+                code='ResourceNotFoundException',
+                message='The request references a resource that does not exist',
+                http_status=404,
+            ),
+            'GetBillingTransferPreference',
+        )
+        mock_create_client.return_value = mock_client
+
+        result = await get_billing_transfer_preference(mock_ctx, RESPONSIBILITY_TRANSFER_ARN)
+
+        assert result['status'] == STATUS_ERROR
+        assert result['error_type'] == 'ResourceNotFoundException'
+
+    @patch(PATCH_BC_CLIENT)
+    async def test_get_billing_transfer_preference_aws_error(self, mock_create_client, mock_ctx):
+        """Test handling of AWS service errors."""
+        mock_client = MagicMock()
+        mock_client.get_billing_transfer_preference.side_effect = ClientError(
+            _make_client_error_response(),
+            'GetBillingTransferPreference',
+        )
+        mock_create_client.return_value = mock_client
+
+        result = await get_billing_transfer_preference(mock_ctx, RESPONSIBILITY_TRANSFER_ARN)
 
         assert result['status'] == STATUS_ERROR
         assert result['error_type'] == ERROR_ACCESS_DENIED

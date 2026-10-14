@@ -33,6 +33,13 @@ from typing import Any, Dict, Optional
 DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S UTC'
 UTC_TIMEZONE_OFFSET = '+00:00'
 BCM_PRICING_CALCULATOR_SERVICE_NAME = 'BCM Pricing Calculator'
+# The operations this tool supports, in the order presented to callers.
+VALID_OPERATIONS = [
+    'get_workload_estimate',
+    'list_workload_estimates',
+    'list_workload_estimate_usage',
+    'get_preferences',
+]
 PREFERENCES_NOT_CONFIGURED_ERROR = 'BCM Pricing Calculator preferences are not configured. Please configure preferences before using this service.'
 
 bcm_pricing_calculator_server = FastMCP(
@@ -116,16 +123,14 @@ async def bcm_pricing_calc_core(
         await ctx.info(f'Received BCM Pricing Calculator operation: {operation}')
 
         # Check if the operation is valid
-        if operation not in [
-            'get_workload_estimate',
-            'list_workload_estimates',
-            'list_workload_estimate_usage',
-            'get_preferences',
-        ]:
+        if operation not in VALID_OPERATIONS:
             return format_response(
                 'error',
                 {'invalid_parameter': 'operation'},
-                f'Invalid operation: {operation}. Valid operations are: get_workload_estimates, get_preferences, describe_workload_estimates',
+                f'Invalid operation: {operation}. Valid operations are: {", ".join(VALID_OPERATIONS)}',
+                error_type='validation_error',
+                operation=operation,
+                service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
             )
 
         # Call the appropriate operation
@@ -172,7 +177,13 @@ async def bcm_pricing_calc_core(
                     },
                 )
         else:
-            return format_response('error', {'message': f'Unknown operation: {operation}'})
+            return format_response(
+                'error',
+                {'message': f'Unknown operation: {operation}'},
+                error_type='validation_error',
+                operation=operation,
+                service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
+            )
 
     except Exception as e:
         # Use shared error handler for consistent error handling
@@ -562,6 +573,9 @@ async def get_workload_estimate(
                     'error': 'Identifier is required when calling get_workload_estimate',
                     'error_code': 'MISSING_PARAMETER',
                 },
+                error_type='validation_error',
+                operation='get_workload_estimate',
+                service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
             )
 
         # Log the request
@@ -653,6 +667,9 @@ async def list_workload_estimate_usage(
                     'error': 'workload_estimate_id is required when calling list_workload_estimate_usage',
                     'error_code': 'MISSING_PARAMETER',
                 },
+                error_type='validation_error',
+                operation='list_workload_estimate_usage',
+                service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
             )
 
         # Log the request

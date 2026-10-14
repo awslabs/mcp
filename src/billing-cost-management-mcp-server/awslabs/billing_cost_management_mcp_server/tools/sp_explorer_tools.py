@@ -62,11 +62,10 @@ Tags come back on each plan in describe_savings_plans, so there is no separate t
 IMPORTANT: the vocabulary here differs from Cost Explorer's, so values carried over from a Cost
 Explorer response or recommendation will be rejected. See the individual parameter descriptions.
 
-The offering catalog is large, so a big describe_savings_plans_offerings or
-describe_savings_plans_offering_rates result is automatically offloaded to session SQL to save
-tokens: the response carries data_stored=True and a table_name (one row per offering or rate)
-instead of an inline searchResults list, and the rows are queried with the session-sql tool. A
-small result is returned inline unchanged.""",
+A large result from any of these operations is automatically offloaded to session SQL to save
+tokens: the response carries data_stored=True and a table_name (one row per plan, rate, or
+offering) instead of the inline list, and the rows are queried with the session-sql tool. A small
+result is returned inline unchanged.""",
 )
 async def sp_explorer(
     ctx: Context,
@@ -276,10 +275,18 @@ async def describe_savings_plans(
             max_pages=max_pages,
         )
 
-        return format_response(
-            'success',
+        # A large inventory is offloaded to session SQL (one row per plan)
+        # instead of returned inline; a small result passes through unchanged.
+        # An offloaded table is queried with the session-sql tool.
+        converted = await convert_response_if_needed(
+            ctx,
             {'savingsPlans': all_plans, 'pagination': pagination_metadata},
+            'sp_explorer_describe_savings_plans',
+            pagination_token_key='nextToken',
+            pagination=pagination_metadata,
         )
+
+        return format_response('success', converted)
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
@@ -339,14 +346,26 @@ async def describe_savings_plan_rates(
 
         # savingsPlanId is echoed at the top level of each page. Carry it through
         # so the merged result still says which plan these rates belong to.
-        return format_response(
-            'success',
+        #
+        # A large rate list is offloaded to session SQL (one row per rate)
+        # instead of returned inline; a small result passes through unchanged.
+        # An offloaded table is queried with the session-sql tool. The records
+        # converter keeps the first list field (searchResults), so savingsPlanId
+        # is passed as metadata to stay on the offloaded sentinel too.
+        converted = await convert_response_if_needed(
+            ctx,
             {
                 'savingsPlanId': savings_plan_id,
                 'searchResults': all_rates,
                 'pagination': pagination_metadata,
             },
+            'sp_explorer_describe_savings_plan_rates',
+            pagination_token_key='nextToken',
+            pagination=pagination_metadata,
+            savingsPlanId=savings_plan_id,
         )
+
+        return format_response('success', converted)
 
     except Exception as e:
         # Use shared error handler for consistent error reporting

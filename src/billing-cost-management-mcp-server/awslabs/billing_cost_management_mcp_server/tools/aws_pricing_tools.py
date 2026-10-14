@@ -102,6 +102,9 @@ async def aws_pricing(
                 return format_response(
                     'error',
                     {'message': 'service_code is required for get_service_attributes operation'},
+                    error_type='validation_error',
+                    operation=operation,
+                    service=AWS_PRICING_SERVICE_NAME,
                 )
             return await get_service_attributes(ctx, service_code)
 
@@ -112,6 +115,9 @@ async def aws_pricing(
                     {
                         'message': 'service_code and attribute_name are required for get_attribute_values operation'
                     },
+                    error_type='validation_error',
+                    operation=operation,
+                    service=AWS_PRICING_SERVICE_NAME,
                 )
             return await get_attribute_values(
                 ctx, service_code, attribute_name, max_results=max_results
@@ -122,6 +128,9 @@ async def aws_pricing(
                 return format_response(
                     'error',
                     {'message': 'service_code is required for get_pricing_from_api operation'},
+                    error_type='validation_error',
+                    operation=operation,
+                    service=AWS_PRICING_SERVICE_NAME,
                 )
             return await get_pricing_from_api(ctx, service_code, filters, max_results=max_results)
 
@@ -131,6 +140,9 @@ async def aws_pricing(
                 {
                     'message': f'Unknown operation: {operation}. Supported operations: get_service_codes, get_service_attributes, get_attribute_values, get_pricing_from_api'
                 },
+                error_type='validation_error',
+                operation=operation,
+                service=AWS_PRICING_SERVICE_NAME,
             )
 
     except Exception as e:

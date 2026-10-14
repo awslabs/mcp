@@ -35,6 +35,7 @@ from awslabs.billing_cost_management_mcp_server.tools.recommendation_details_too
     process_recommendation,
     recommendation_details_server,
 )
+from datetime import datetime, timezone
 from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
@@ -287,19 +288,19 @@ def mock_compute_optimizer_client():
         ]
     }
 
-    # Set up mock response for get_rds_instance_recommendations
-    mock_client.get_rds_instance_recommendations.return_value = {
-        'instanceRecommendations': [
+    # Set up mock response for get_rds_database_recommendations
+    mock_client.get_rds_database_recommendations.return_value = {
+        'rdsDBRecommendations': [
             {
-                'instanceArn': 'arn:aws:rds:us-east-1:123456789012:db:test-db',
+                'resourceArn': 'arn:aws:rds:us-east-1:123456789012:db:test-db',
                 'accountId': '123456789012',
-                'instanceName': 'test-db',
-                'currentInstanceType': 'db.m5.large',
-                'finding': 'OVER_PROVISIONED',
+                'engine': 'mysql',
+                'currentDBInstanceClass': 'db.m5.large',
+                'instanceFinding': 'Overprovisioned',
                 'utilizationMetrics': [
                     {
                         'name': 'CPU',
-                        'statistic': 'MAXIMUM',
+                        'statistic': 'Maximum',
                         'value': 25.0,
                     }
                 ],
@@ -334,18 +335,37 @@ def mock_compute_optimizer_client():
 
 def test_format_timestamp():
     """Test format_timestamp function."""
-    # Test with a valid timestamp
-    timestamp = 1632825600000
-    result = format_timestamp(timestamp)
-    assert result and '2021-09-28' in result
+    # Epoch milliseconds
+    assert format_timestamp(1632825600000) == '2021-09-28T10:40:00'
 
     # Test with None
-    result = format_timestamp(None)
-    assert result is None
+    assert format_timestamp(None) is None
 
-    # Test with invalid timestamp
-    result = format_timestamp(None)
-    assert result is None
+
+def test_format_timestamp_accepts_boto3_datetime():
+    """boto3 returns datetime; it must format, not fail on datetime / int."""
+    assert format_timestamp(datetime(2021, 9, 28, 10, 40)) == '2021-09-28T10:40:00'
+
+
+def test_format_timestamp_accepts_epoch_seconds():
+    """Epoch seconds (AWS JSON wire form) are not divided by 1000 into 1970."""
+    assert format_timestamp(1632825600) == '2021-09-28T10:40:00'
+
+
+def test_format_timestamp_never_returns_error_text():
+    """An unconvertible value yields None rather than an 'Error: ...' string."""
+    assert format_timestamp(object()) is None
+
+
+def test_format_base_recommendation_with_boto3_datetime():
+    """The rec-details last_refresh_timestamp is a real timestamp for boto3 input."""
+    result = format_base_recommendation(
+        {
+            'recommendationId': 'rec-1',
+            'lastRefreshTimestamp': datetime(2026, 9, 1, 12, 0, tzinfo=timezone.utc),
+        }
+    )
+    assert result['last_refresh_timestamp'] == '2026-09-01T12:00:00'
 
 
 def test_format_base_recommendation():
@@ -900,10 +920,76 @@ class TestGetComputeOptimizerData:
         result = await get_compute_optimizer_data(mock_context, recommendation)
 
         # Assert
-        mock_compute_optimizer_client.get_rds_instance_recommendations.assert_called_once_with(
-            instanceArns=['arn:aws:rds:us-east-1:123456789012:db:test-db']
+        mock_compute_optimizer_client.get_rds_database_recommendations.assert_called_once_with(
+            resourceArns=['arn:aws:rds:us-east-1:123456789012:db:test-db']
         )
-        assert 'instanceRecommendations' in result
+        assert result['rdsDBRecommendations'][0]['currentDBInstanceClass'] == 'db.m5.large'
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.recommendation_details_tools.create_aws_client'
+    )
+    async def test_get_compute_optimizer_data_rds_instance_real_client(
+        self, mock_create_aws_client, mock_context
+    ):
+        """The RDS call matches the real boto3 compute-optimizer API (stubbed)."""
+        import boto3
+        from botocore.stub import Stubber
+
+        client = boto3.client(
+            'compute-optimizer',
+            region_name='us-east-1',
+            aws_access_key_id='a',
+            aws_secret_access_key='b',
+        )
+        arn = 'arn:aws:rds:us-east-1:123456789012:db:test-db'
+        expected = {
+            'rdsDBRecommendations': [
+                {
+                    'resourceArn': arn,
+                    'currentDBInstanceClass': 'db.r5.xlarge',
+                    'instanceFinding': 'Overprovisioned',
+                }
+            ]
+        }
+        mock_create_aws_client.return_value = client
+        recommendation = {
+            'actionType': 'Modify',
+            'currentResourceType': 'RdsDbInstance',
+            'resourceArn': arn,
+            'region': 'us-east-1',
+        }
+
+        with Stubber(client) as stubber:
+            stubber.add_response(
+                'get_rds_database_recommendations', expected, {'resourceArns': [arn]}
+            )
+            result = await get_compute_optimizer_data(mock_context, recommendation)
+            stubber.assert_no_pending_responses()
+
+        assert result['rdsDBRecommendations'] == expected['rdsDBRecommendations']
+        assert not hasattr(client, 'get_rds_instance_recommendations')
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.recommendation_details_tools.create_aws_client'
+    )
+    async def test_get_compute_optimizer_data_rds_instance_error(
+        self, mock_create_aws_client, mock_context, mock_compute_optimizer_client
+    ):
+        """An RDS API failure is reported as an error, not raised."""
+        mock_create_aws_client.return_value = mock_compute_optimizer_client
+        mock_compute_optimizer_client.get_rds_database_recommendations.side_effect = Exception(
+            'boom'
+        )
+        recommendation = {
+            'actionType': 'Modify',
+            'currentResourceType': 'RdsDbInstance',
+            'resourceArn': 'arn:aws:rds:us-east-1:123456789012:db:test-db',
+            'region': 'us-east-1',
+        }
+
+        result = await get_compute_optimizer_data(mock_context, recommendation)
+
+        assert 'Error getting Compute Optimizer data' in result['error']
 
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.recommendation_details_tools.create_aws_client'

@@ -67,6 +67,13 @@ def _client_factory(mock_client, mock_sts):
     return _factory
 
 
+def _assert_validation_error(result):
+    """Local validation failures carry the same top-level classification as AWS errors."""
+    assert result['error_type'] == 'validation_error'
+    assert result['operation'] == 'ListInvoiceSummaries'
+    assert result['service'] == 'Invoicing'
+
+
 class TestListInvoiceSummariesSelector:
     """Selector resolution and account auto-detection."""
 
@@ -131,6 +138,7 @@ class TestListInvoiceSummariesSelector:
 
         assert result['status'] == 'error'
         assert 'not both' in result['data']['message']
+        _assert_validation_error(result)
 
     @pytest.mark.asyncio
     async def test_sts_exception_returns_error(self, mock_context):
@@ -203,6 +211,7 @@ class TestListInvoiceSummariesFilter:
 
         assert result['status'] == 'error'
         assert 'mutually' in result['data']['message'].lower()
+        _assert_validation_error(result)
 
     @pytest.mark.asyncio
     async def test_start_date_without_end_date(self, mock_context):
@@ -213,6 +222,7 @@ class TestListInvoiceSummariesFilter:
 
         assert result['status'] == 'error'
         assert 'together' in result['data']['message'].lower()
+        _assert_validation_error(result)
 
     @pytest.mark.asyncio
     async def test_invalid_billing_period_format(self, mock_context):
@@ -221,6 +231,16 @@ class TestListInvoiceSummariesFilter:
 
         assert result['status'] == 'error'
         assert 'YYYY-MM' in result['data']['message']
+        _assert_validation_error(result)
+
+    @pytest.mark.asyncio
+    async def test_non_numeric_billing_period(self, mock_context):
+        """A billing_period with non-numeric parts returns a YYYY-MM error."""
+        result = await list_invoice_summaries(mock_context, billing_period='2026-ab')
+
+        assert result['status'] == 'error'
+        assert 'YYYY-MM' in result['data']['message']
+        _assert_validation_error(result)
 
     @pytest.mark.asyncio
     async def test_invalid_billing_period_month(self, mock_context):
@@ -229,6 +249,7 @@ class TestListInvoiceSummariesFilter:
 
         assert result['status'] == 'error'
         assert 'month' in result['data']['message'].lower()
+        _assert_validation_error(result)
 
     @pytest.mark.asyncio
     async def test_invalid_date_format(self, mock_context):
@@ -242,6 +263,7 @@ class TestListInvoiceSummariesFilter:
 
         assert result['status'] == 'error'
         assert 'YYYY-MM-DD' in result['data']['message']
+        _assert_validation_error(result)
 
     @pytest.mark.asyncio
     async def test_account_selector_requires_time_filter(self, mock_context):
@@ -256,6 +278,7 @@ class TestListInvoiceSummariesFilter:
         assert result['status'] == 'error'
         assert 'time filter is required' in result['data']['message']
         assert 'one call per month' in result['data']['message']
+        _assert_validation_error(result)
         mock_create.assert_not_called()
 
     @pytest.mark.asyncio
@@ -288,6 +311,7 @@ class TestListInvoiceSummariesFilter:
 
         assert result['status'] == 'error'
         assert 'at most one month' in result['data']['message']
+        _assert_validation_error(result)
         assert result['data']['suggested_date_ranges'] == [
             {'start_date': '2026-05-14', 'end_date': '2026-06-01'},
             {'start_date': '2026-06-01', 'end_date': '2026-07-01'},
@@ -357,6 +381,7 @@ class TestListInvoiceSummariesFilter:
         assert allowed['status'] == 'success'
         assert rejected['status'] == 'error'
         assert '28 here' in rejected['data']['message']
+        _assert_validation_error(rejected)
 
     @pytest.mark.asyncio
     async def test_long_start_month_allows_a_31_day_span(self, mock_context, sample_summary):
@@ -426,6 +451,7 @@ class TestListInvoiceSummariesFilter:
         for result in (reversed_range, empty_range):
             assert result['status'] == 'error'
             assert 'later than start_date' in result['data']['message']
+            _assert_validation_error(result)
         mock_create.assert_not_called()
 
     @pytest.mark.asyncio
@@ -608,6 +634,9 @@ class TestListInvoiceSummariesResponse:
             )
 
         assert result['status'] == 'error'
+        assert result['error_type'] == 'AccessDeniedException'
+        assert result['operation'] == 'ListInvoiceSummaries'
+        assert result['service'] == 'Invoicing'
 
 
 class TestInvoicingServer:

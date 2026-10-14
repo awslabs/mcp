@@ -74,6 +74,9 @@ SCRATCH_STORAGE_MODES = [SCRATCH_STORAGE_MODE_LOCAL, SCRATCH_STORAGE_MODE_SHARED
 # MCP server default scratch storage mode (diverges from the HealthOmics API default of SHARED)
 DEFAULT_SCRATCH_STORAGE_MODE = SCRATCH_STORAGE_MODE_LOCAL
 
+# Session policy (inline IAM policy JSON scoping down the run role)
+SESSION_POLICY_MAX_LENGTH = 2048
+
 # Run log levels (controls engine log capture to CloudWatch)
 RUN_LOG_LEVEL_OFF = 'OFF'
 RUN_LOG_LEVEL_FATAL = 'FATAL'
@@ -229,6 +232,7 @@ ERROR_INVALID_STORAGE_TYPE = 'Invalid storage type. Must be one of: {}'
 ERROR_INVALID_CACHE_BEHAVIOR = 'Invalid cache behavior. Must be one of: {}'
 ERROR_INVALID_SCRATCH_STORAGE_MODE = "Invalid scratch storage mode '{}'. Must be one of: {}"
 ERROR_INVALID_RUN_LOG_LEVEL = 'Invalid log level. Must be one of: {}'
+ERROR_INVALID_SESSION_POLICY = 'Invalid session policy: {}'
 ERROR_INVALID_RUN_STATUS = 'Invalid run status. Must be one of: {}'
 ERROR_STATIC_STORAGE_REQUIRES_CAPACITY = (
     'Storage capacity is required when using STATIC storage type'

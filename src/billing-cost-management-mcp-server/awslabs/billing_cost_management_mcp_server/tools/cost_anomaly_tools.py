@@ -237,12 +237,18 @@ async def cost_anomaly(
                 f'Cost Anomaly Detection validation error for 2024 data: {error_message}. '
                 f'Note that cost anomalies may not be available yet for very recent data. '
                 f'Try querying a date range that ends at least 24-48 hours in the past.',
+                error_type=error_code,
+                operation='cost_anomaly',
+                service='Cost Explorer',
             )
         elif error_code == 'ValidationException':
             return format_response(
                 'error',
                 {'error_code': error_code},
                 f'Cost Anomaly Detection validation error: {error_message}',
+                error_type=error_code,
+                operation='cost_anomaly',
+                service='Cost Explorer',
             )
         else:
             # Use shared error handler for other AWS errors

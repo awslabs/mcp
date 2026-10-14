@@ -177,7 +177,7 @@ TOOLS:
 - sp-recommendation: Get Savings Plans purchase recommendations, the hourly data-points behind one, and the recommendation generation history
 - sp-purchase-analyzer: Run Savings Plans Purchase Analyzer what-if analyses (max savings, custom commitment, target average coverage) and retrieve their results
 - session-sql: Execute SQL queries on the session database
-- billing-conductor: AWS Billing Conductor tools for AWS Proforma billing (billing groups and associated accounts and cost reports, pricing rules/plans, custom line items)
+- billing-conductor: AWS Billing Conductor tools for AWS Proforma billing (billing groups and associated accounts and cost reports, pricing rules/plans, custom line items, billing transfer preferences)
 - billing-view: AWS Billing View tools for managing and querying billing views (get-billing-view, list-billing-views, list-source-views-for-billing-view, get-resource-policy, list-billing-view-segments)
 - cost-allocation-tags: List cost allocation tags and backfill history (list-cost-allocation-tags, list-cost-allocation-tag-backfill-history)
 - cost-category: Describe and list cost category definitions (describe-cost-category-definition, list-cost-category-definitions)
@@ -289,6 +289,7 @@ def setup():
         'list-custom-line-items',
         'list-custom-line-item-versions',
         'list-resources-associated-to-custom-line-item',
+        'get-billing-transfer-preference',
         'get-billing-view',
         'list-billing-views',
         'list-source-views-for-billing-view',
