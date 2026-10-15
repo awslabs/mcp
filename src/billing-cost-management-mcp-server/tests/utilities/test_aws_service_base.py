@@ -149,6 +149,18 @@ class TestParseJson:
 
         assert 'Invalid JSON format for test_param parameter' in str(excinfo.value)
 
+    def test_parse_list_passthrough(self):
+        """Test that an already-parsed list is returned unchanged."""
+        value = [{'Type': 'DIMENSION', 'Key': 'SERVICE'}]
+
+        assert parse_json(value, 'test_param') is value
+
+    def test_parse_dict_passthrough(self):
+        """Test that an already-parsed dict is returned unchanged."""
+        value = {'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon S3']}}
+
+        assert parse_json(value, 'test_param') is value
+
 
 class TestDateFunctions:
     """Tests for date-related functions."""

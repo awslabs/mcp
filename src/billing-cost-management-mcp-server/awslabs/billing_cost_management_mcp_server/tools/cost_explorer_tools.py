@@ -29,7 +29,7 @@ from .cost_explorer_operations import (
     get_usage_forecast,
 )
 from fastmcp import Context, FastMCP
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Union
 
 
 COST_EXPLORER_SERVICE_NAME = 'Cost Explorer'
@@ -159,9 +159,9 @@ async def cost_explorer(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     granularity: str = 'DAILY',
-    metrics: Optional[str] = None,
-    group_by: Optional[str] = None,
-    filter: Optional[str] = None,
+    metrics: Optional[Union[str, List[str]]] = None,
+    group_by: Optional[Union[str, List[Dict[str, Any]]]] = None,
+    filter: Optional[Union[str, Dict[str, Any]]] = None,
     dimension: Optional[str] = None,
     search_string: Optional[str] = None,
     max_results: Optional[int] = None,
@@ -185,9 +185,9 @@ async def cost_explorer(
         start_date: Start date for cost data in YYYY-MM-DD format
         end_date: End date for cost data in YYYY-MM-DD format (exclusive)
         granularity: Granularity of the returned data (DAILY, MONTHLY, etc.)
-        metrics: Metrics to include in the response
-        group_by: How to group the results
-        filter: Filter to apply to the results
+        metrics: Metrics to include in the response, as a list or a JSON string
+        group_by: How to group the results, as a list of objects or a JSON string
+        filter: Filter to apply to the results, as an object or a JSON string
         dimension: Dimension to get values for (getDimensionValues)
         search_string: Search string to filter dimension values
         max_results: Maximum number of results to return
