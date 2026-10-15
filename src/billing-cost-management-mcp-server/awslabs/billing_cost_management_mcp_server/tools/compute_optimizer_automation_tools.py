@@ -30,6 +30,7 @@ region. With no `regions`, a single call targets the AWS_REGION env var or us-ea
 import asyncio
 import botocore.session
 from ..utilities.aws_service_base import format_response, handle_aws_error, parse_json
+from ..utilities.error_contract import classify_error, combine_guidance
 from ..utilities.regional_fanout import (
     collect_regional_pages,
     encode_regional_next_token,
@@ -178,6 +179,24 @@ def _multi_region_error_type(
         if error_type:
             return error_type
     return _MULTI_REGION_ERROR_TYPE
+
+
+def _multi_region_guidance(
+    region_errors: Dict[str, Dict[str, Any]], regions_not_found: List[str]
+) -> Tuple[str, Optional[str]]:
+    """Return the (retry_strategy, hint) for a failure in which no queried region succeeded.
+
+    Derived from each region's own error_type and http_status, which stay nested in
+    region_errors, so the top-level multi_region_error or a promoted type alone would
+    lose them (e.g. throttled in one region and a 5xx in another is still transient).
+    """
+    guidance = [
+        classify_error(error.get('error_type'), error.get('http_status'))
+        for error in region_errors.values()
+    ]
+    if regions_not_found:
+        guidance.append(classify_error(_RESOURCE_NOT_FOUND_ERROR_TYPE))
+    return combine_guidance(guidance)
 
 
 compute_optimizer_automation_server = FastMCP(
@@ -690,6 +709,7 @@ async def _run_multi_region_list(
             )
         else:
             message = f'All {len(region_errors)} region(s) failed for {operation}.'
+        retry_strategy, hint = _multi_region_guidance(region_errors, regions_not_found)
         return format_response(
             'error',
             data,
@@ -697,6 +717,8 @@ async def _run_multi_region_list(
             error_type=_multi_region_error_type(region_errors, regions_not_found),
             operation=operation,
             service=_SERVICE_NAME,
+            retry_strategy=retry_strategy,
+            hint=hint,
         )
 
     return await _finalize_multi_region_list_response(
@@ -782,6 +804,7 @@ async def _get_automation_event_multi_region(
     if region_errors:
         data['region_errors'] = region_errors
         data['regions_not_found'] = regions_not_found
+        retry_strategy, hint = _multi_region_guidance(region_errors, regions_not_found)
         return format_response(
             'error',
             data,
@@ -791,6 +814,8 @@ async def _get_automation_event_multi_region(
             error_type=_multi_region_error_type(region_errors, regions_not_found),
             operation='get_automation_event',
             service=_SERVICE_NAME,
+            retry_strategy=retry_strategy,
+            hint=hint,
         )
     return format_response(
         'error',

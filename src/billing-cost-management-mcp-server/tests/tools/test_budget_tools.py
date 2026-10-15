@@ -29,6 +29,7 @@ from awslabs.billing_cost_management_mcp_server.tools.budget_tools import (
     format_budgets,
     get_aws_account_id,
 )
+from botocore.exceptions import ClientError
 from datetime import datetime
 from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -148,17 +149,18 @@ class TestGetAwsAccountId:
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.create_aws_client')
     async def test_get_aws_account_id_error(self, mock_create_aws_client, mock_context):
-        """Test get_aws_account_id handles errors properly."""
+        """STS errors propagate unwrapped so handle_aws_error keeps the AWS error code."""
         # Setup
-        error = Exception('Failed to get caller identity')
-        mock_create_aws_client.side_effect = error
+        error = ClientError(
+            {'Error': {'Code': 'Throttling', 'Message': 'Rate exceeded'}}, 'GetCallerIdentity'
+        )
+        mock_create_aws_client.return_value.get_caller_identity.side_effect = error
 
         # Execute and Assert
-        with pytest.raises(Exception) as excinfo:
+        with pytest.raises(ClientError) as excinfo:
             await get_aws_account_id(mock_context)
 
-        assert 'Failed to retrieve AWS account ID' in str(excinfo.value)
-        assert str(error) in str(excinfo.value)
+        assert excinfo.value is error
 
 
 class TestFormatBudgets:

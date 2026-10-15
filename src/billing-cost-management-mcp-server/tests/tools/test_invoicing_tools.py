@@ -72,6 +72,8 @@ def _assert_validation_error(result):
     assert result['error_type'] == 'validation_error'
     assert result['operation'] == 'ListInvoiceSummaries'
     assert result['service'] == 'Invoicing'
+    # The text lives in data['message'] at the call site; it must also be top level.
+    assert result['message'] == result['data']['message']
 
 
 class TestListInvoiceSummariesSelector:

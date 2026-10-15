@@ -49,6 +49,20 @@ IMPORTANT USAGE GUIDELINES:
 - Choose DAILY granularity for periods <3 months, MONTHLY for longer periods
 - Start with high-level dimensions (SERVICE, LINKED_ACCOUNT) before detailed ones
 - Always remember that the end_date is exclusive
+- Never filter on a dimension value you are guessing; group_by that dimension instead and read
+  the exact values back with their costs
+
+REPORTING $0:
+An empty result is indistinguishable from a genuine zero, so a wrong filter value or a wrong
+filter KEY returns no rows, reads as $0, and the miss is silent: "Amazon RDS" returns nothing
+because the value is "Amazon Relational Database Service", and AWS Marketplace spend returns
+nothing when filtered on LEGAL_ENTITY_NAME because the key for it is BILLING_ENTITY.
+1. If you FILTERED, the filter was probably wrong. Confirm the value exists by calling
+   getDimensionValues (purpose-built for this, lighter than a full breakdown), and confirm the
+   KEY carries the concept you asked about (see DIMENSION REFERENCE). It returns only values
+   with usage in the period, so absence is not proof the value is invalid. If you also need the
+   spend, re-run grouped by that dimension to get the value and its cost in one call.
+2. If you GROUPED and the line genuinely shows $0, report "$0.00", not "no data found".
 
 USE THIS TOOL FOR:
 - **Historical cost trends** and spending analysis (any time period)
@@ -118,10 +132,15 @@ USE THIS TOOL FOR:
 
 DIMENSION REFERENCE:
 - AZ: The Availability Zone (e.g., us-east-1a)
+- BILLING_ENTITY: Who bills the charge - "AWS" for AWS services, "AWS Marketplace" for
+  third-party Marketplace purchases. This is the key for Marketplace spend, NOT LEGAL_ENTITY_NAME
 - DATABASE_ENGINE: The Amazon RDS database (e.g., Aurora, MySQL)
 - DEPLOYMENT_OPTION: RDS deployment scope (SingleAZ, MultiAZ)
 - INSTANCE_TYPE: The EC2 instance type (e.g., m4.xlarge)
 - INSTANCE_TYPE_FAMILY: Family of instances (e.g., Compute Optimized, Memory Optimized)
+- INVOICING_ENTITY: The AWS entity that issued the invoice (e.g., Amazon Web Services, Inc.)
+- LEGAL_ENTITY_NAME: The AWS seller of record (e.g., Amazon Web Services, Inc.); it does not
+  separate Marketplace from AWS charges
 - LINKED_ACCOUNT: AWS member accounts
 - OPERATING_SYSTEM: OS type (e.g., Windows, Linux)
 - PLATFORM: EC2 operating system

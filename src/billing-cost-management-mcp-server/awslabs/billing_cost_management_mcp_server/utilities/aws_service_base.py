@@ -214,7 +214,7 @@ async def handle_aws_error(
         # Get AWS error details
         aws_error = error.response.get('Error', {})
         error_code = aws_error.get('Code', 'UnknownError')
-        aws_message = aws_error.get('Message', 'No error message provided')
+        aws_message = aws_error.get('Message') or 'No error message provided'
         request_id = error.response.get('ResponseMetadata', {}).get('RequestId', 'Unknown')
         http_status = error.response.get('ResponseMetadata', {}).get('HTTPStatusCode', 0)
 
@@ -402,7 +402,8 @@ def format_response(
     Args:
         status: Response status ("success" or "error")
         data: Response data payload
-        message: Optional message to include
+        message: Optional message to include. For errors, defaults to a string
+            data['message'] so the documented top-level message is set
         error_type: Optional error classification, set at the top level like handle_aws_error
         operation: Optional name of the operation that produced the response
         service: Optional AWS service name
@@ -414,6 +415,13 @@ def format_response(
         Dict containing a standardized response format
     """
     response = {'status': status, 'data': data}
+
+    # Many error sites put their text in data['message'] instead of passing message.
+    # Lift it (data is left unchanged) so the error carries the top-level message.
+    if not message and status == 'error' and isinstance(data, dict):
+        nested = data.get('message')
+        if isinstance(nested, str):
+            message = nested
 
     if message:
         response['message'] = message
