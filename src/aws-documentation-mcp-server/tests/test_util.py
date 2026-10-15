@@ -1210,6 +1210,7 @@ class TestSectionIndex:
         """Not a boundary does not mean removed from the content."""
         markdown, anchors = extract_content_and_anchors(self.HTML)
         section = anchor_section(markdown, anchors, 'second')
+        assert section is not None
         assert '###### Note' in section
         assert 'a nested callout' in section
         assert 'third body' not in section
@@ -1243,9 +1244,12 @@ class TestSectionIndex:
 class TestAnchorSection:
     """Trimming is bounded by heading level, not by the next heading of any level."""
 
-    def _resolve(self, html, fragment):
+    def _resolve(self, html, fragment) -> str:
+        """Resolve a fragment to its section, requiring that one came back."""
         markdown, anchors = extract_content_and_anchors(html)
-        return anchor_section(markdown, anchors, fragment)
+        section = anchor_section(markdown, anchors, fragment)
+        assert section is not None
+        return section
 
     def test_a_section_stops_at_the_next_sibling(self):
         """The following h2 ends an h2's section."""
@@ -1276,7 +1280,8 @@ class TestAnchorSection:
 
     def test_an_unknown_fragment_returns_none(self):
         """None lets the caller serve the whole page instead of raising."""
-        assert self._resolve(TestSectionIndex.HTML, 'no-such-anchor') is None
+        markdown, anchors = extract_content_and_anchors(TestSectionIndex.HTML)
+        assert anchor_section(markdown, anchors, 'no-such-anchor') is None
 
     def test_a_repeated_heading_is_told_apart_by_its_anchor(self):
         """The case a section title cannot address, which is why anchors are worth honouring.
@@ -1294,7 +1299,7 @@ class TestAnchorSection:
         assert 'about the response' in response and 'about the request' not in response
 
     def test_an_anchor_below_h2_resolves(self):
-        """Only 63 of 267 sampled anchors sit on an h2, so the deeper levels are the common case."""
+        """Most anchors sit below h2, so the deeper levels are the common case."""
         html = """<main>
           <h2 id="syntax">Request Syntax</h2><p>syntax body</p>
           <h3 id="uri-parameters">URI Parameters</h3><p>parameter body</p>
@@ -1308,7 +1313,7 @@ class TestAnchorSection:
         assert 'syntax body' not in section
 
     def test_a_heading_inside_a_wrapper_is_still_bounded(self):
-        """The sibling walk the title path uses found no body for 47 of 176 anchored headings.
+        """A heading wrapped in a div is still bounded.
 
         Markdown is flat, so nesting the heading inside a div changes nothing here.
         """
@@ -1408,6 +1413,7 @@ class TestSectionIndexTitleLookup:
         by_anchor = anchor_section(markdown, index, 'response')
         by_title = section_markdown(markdown, index, index.positions_for_title('Response')[0])
         assert by_anchor == by_title
+        assert by_anchor is not None
         assert 'response body' in by_anchor
 
 
@@ -1503,6 +1509,7 @@ class TestEmptyHeadings:
         markdown, index = extract_content_and_anchors(self.HTML)
         assert index.position_for_anchor('getatt-alias') == index.position_for_anchor('getatt')
         section = anchor_section(markdown, index, 'getatt-alias')
+        assert section is not None
         assert section.startswith('### Fn::GetAtt')
         assert 'getatt body' in section
         assert 'examples body' not in section
@@ -1511,6 +1518,7 @@ class TestEmptyHeadings:
         """Being dropped from the table means it cannot cut the section short either."""
         markdown, index = extract_content_and_anchors(self.HTML)
         section = anchor_section(markdown, index, 'getatt')
+        assert section is not None
         assert 'getatt body' in section
 
     def test_a_named_anchor_before_a_heading_still_attaches_forwards(self):
