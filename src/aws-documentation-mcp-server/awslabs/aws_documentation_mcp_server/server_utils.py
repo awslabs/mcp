@@ -96,6 +96,25 @@ def _without_query(url: str) -> str:
     return url.split('?', 1)[0]
 
 
+def _md_variant(url_str: str) -> Optional[str]:
+    """Map a `.html` doc page URL to its `.md` variant, e.g. `.../page.html` -> `.../page.md`.
+
+    AWS docs publish a canonical markdown variant beside every `.html` guide and API-reference page.
+    Returns None for URLs that don't end in `.html` (directory URLs, assets, already-`.md`), which keep
+    the existing HTML path. Query/session params are stripped from the derived URL; the caller re-adds
+    its own. Note the mapping is replace-extension: `.html.md` 301-redirects, so use `<base>.md`.
+    """
+    base = url_str.split('?', 1)[0]
+    if base.endswith('.html'):
+        return base[: -len('.html')] + '.md'
+    return None
+
+
+# A `.md` response must be a real markdown page, not a 404 body or an HTML error, before we trust it
+# over the HTML path. Guards: 2xx, a markdown content-type, and a non-trivial body.
+_MIN_MARKDOWN_BYTES = 200
+
+
 @dataclass(frozen=True)
 class Page:
     """The page asked for and the page that answered."""
@@ -136,6 +155,47 @@ async def read_documentation_impl(
     if query_id:
         url_with_session += f'&query_id={query_id}'
         logger.debug(f'Using query_id {query_id}')
+
+    # The docs platform publishes a canonical `.md` beside every `.html` guide/API-reference page —
+    # the markdown this tool otherwise reconstructs from HTML. Fetch it directly when available (fewer
+    # bytes, no client-side HTML->markdown conversion), and fall back to the HTML path below whenever
+    # it's missing or not usable (e.g. CLI/SDK reference, which has no `.md`), so behavior is never
+    # worse than today.
+    md_url = _md_variant(url_str)
+    if md_url:
+        md_url_with_session = f'{md_url}?session={session_uuid}'
+        if query_id:
+            md_url_with_session += f'&query_id={query_id}'
+        async with _docs_client(allowed_domain_regexes) as client:
+            try:
+                md_response = await client.get(
+                    md_url_with_session,
+                    follow_redirects=True,
+                    headers={
+                        'User-Agent': DEFAULT_USER_AGENT,
+                        'X-MCP-Session-Id': session_uuid,
+                    },
+                    timeout=30,
+                )
+            except httpx.HTTPError:
+                md_response = None  # network trouble on the .md -> fall back to HTML
+        if md_response is not None and md_response.status_code < 400:
+            md_ctype = md_response.headers.get('content-type', '')
+            md_text = md_response.text
+            if 'text/markdown' in md_ctype and len(md_text) >= _MIN_MARKDOWN_BYTES:
+                md_page = Page.of(url_str, md_response)
+                content = truncate_large_tables(md_text, url=md_page.served)
+                result = format_documentation_result(
+                    md_page.served, content, start_index, max_length
+                )
+                if note := md_page.message():
+                    result = f'<e>{note}</e>\n\n{result}'
+                if len(content) > start_index + max_length:
+                    logger.debug(
+                        f'Content truncated at {start_index + max_length} of {len(content)} characters'
+                    )
+                return result
+            # not markdown / too short -> fall through to the HTML path
 
     async with _docs_client(allowed_domain_regexes) as client:
         try:
