@@ -247,6 +247,9 @@ async def compute_optimizer(
                             'aws_region': region or os.environ.get('AWS_REGION', 'us-east-1'),
                         },
                         'Compute Optimizer is not active. Please activate the service in the AWS Console first.',
+                        error_type='enrollment_error',
+                        operation=operation,
+                        service=_CO_SERVICE_NAME,
                     )
 
         except ClientError as e:
@@ -335,6 +338,9 @@ async def compute_optimizer(
                     ],
                 },
                 f"Unsupported operation: {operation}. Use 'get_ec2_instance_recommendations', 'get_auto_scaling_group_recommendations', 'get_ebs_volume_recommendations', 'get_lambda_function_recommendations', 'get_rds_recommendations', 'get_ecs_service_recommendations' or 'get_idle_recommendations'.",
+                error_type='invalid_operation',
+                operation=operation,
+                service=_CO_SERVICE_NAME,
             )
 
     except ClientError as e:

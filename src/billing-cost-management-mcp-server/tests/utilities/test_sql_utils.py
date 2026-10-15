@@ -502,6 +502,7 @@ class TestExecuteSessionSql:
         # a manually constructed sqlite3.Error (no sqlite_errorname), so it falls
         # back to the exception-class name ('Error').
         assert result['error_type'] == 'Error'
+        assert result['retry_strategy'] == 'modify_request'  # change the query
         assert result['operation'] == 'session_sql'
         assert result['service'] == 'SQL'
 
@@ -518,6 +519,7 @@ class TestExecuteSessionSql:
         assert result['status'] == 'error'
         assert 'Error executing SQL query' in result['message']
         assert result['error_type'] == 'OperationalError'
+        assert result['retry_strategy'] == 'modify_request'  # change the query
         assert result['operation'] == 'session_sql'
         assert result['service'] == 'SQL'
 
@@ -538,6 +540,7 @@ class TestExecuteSessionSql:
         assert result['status'] == 'error'
         assert 'Error executing SQL query' in result['message']
         assert result['error_type'] == 'ValueError'
+        assert result['retry_strategy'] == 'modify_request'  # change the query
         assert result['operation'] == 'session_sql'
         assert result['service'] == 'SQL'
 

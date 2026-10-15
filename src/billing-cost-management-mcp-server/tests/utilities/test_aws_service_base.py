@@ -260,6 +260,19 @@ class TestHandleAwsError:
         assert result['message'] == 'Resource not found'
 
     @pytest.mark.asyncio
+    async def test_handle_client_error_with_empty_message(self):
+        """An empty AWS Message falls back to the default text rather than ''."""
+        from botocore.exceptions import ClientError
+
+        error = ClientError(
+            {'Error': {'Code': 'InternalErrorException', 'Message': ''}}, 'DescribeBudgets'
+        )
+
+        result = await handle_aws_error(AsyncMock(), error, 'DescribeBudgets', 'Budgets')
+
+        assert result['message'] == 'No error message provided'
+
+    @pytest.mark.asyncio
     async def test_handle_value_error(self):
         """Test handling ValueError."""
         # Setup

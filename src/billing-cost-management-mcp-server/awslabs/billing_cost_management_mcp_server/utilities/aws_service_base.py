@@ -209,7 +209,7 @@ async def handle_aws_error(
         # Get AWS error details
         aws_error = error.response.get('Error', {})
         error_code = aws_error.get('Code', 'UnknownError')
-        aws_message = aws_error.get('Message', 'No error message provided')
+        aws_message = aws_error.get('Message') or 'No error message provided'
         request_id = error.response.get('ResponseMetadata', {}).get('RequestId', 'Unknown')
         http_status = error.response.get('ResponseMetadata', {}).get('HTTPStatusCode', 0)
 

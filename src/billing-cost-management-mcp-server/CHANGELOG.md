@@ -50,6 +50,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added an optional `context` parameter to the Cost Explorer `get_dimension_values` operation, so `SAVINGS_PLANS` returns values scoped to the plans an account owns rather than to its usage
 
 ### Fixed
+- Fixed tool errors that told the caller not to retry when a retry or a changed request would succeed:
+  - `budgets`, `budget-actions`, `budget-notifications`: STS errors while looking up the account ID are no longer wrapped in a generic exception, so throttling and connection errors keep their AWS error code.
+  - `storage-lens`: S3 and Athena errors are no longer wrapped, so they keep their AWS error code. A query that times out is now retryable, and a failed query or a missing table reference is a `validation_error`.
+  - `session-sql`: invalid or rejected queries are `modify_request`.
+  - `compute-optimizer-automation`: when every region fails, `retry_strategy` is combined from each region's error (e.g. throttling in one region and a 5xx in another is retryable).
+  - `compute-optimizer`: the unsupported-operation and not-enrolled errors set `error_type` at the top level, and its `throttling_error`, `service_unavailable`, `resource_not_found` and `opt_in_required` types are now mapped.
+  - Mapped `NotFoundException`, `ExpiredNextTokenException`, `InvalidRequestException`, `InternalErrorException` and `not_found`, used by Budgets, Pricing, Athena and `enterprise-support`.
+  - An AWS error with an empty message now gets the default message instead of an empty string.
 - Error responses from `aws-pricing`, `bcm-pricing-calc`, `cost-allocation-tags`, `cost-category`, `cost-explorer`, `credits`, `enterprise-support`, `invoice-units`, `invoicing`, and `procurement-preferences` validation paths now carry the documented top-level `message`. They previously put the text only in `data.message` (or `data.error` for `bcm-pricing-calc`), which is still present.
 - Fixed the `rec-details` tool returning an error instead of AWS Compute Optimizer details for RDS recommendations. It called `get_rds_instance_recommendations`, which does not exist in boto3; it now calls `get_rds_database_recommendations` with `resourceArns`.
 - Fixed the `compute-optimizer-automation` tool rejecting `start_time`/`end_time` values that end in the ISO 8601 UTC designator `Z` (e.g. `2026-07-10T00:00:00Z`). A single trailing `Z` is now accepted; the values were already interpreted as UTC.

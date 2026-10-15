@@ -399,11 +399,11 @@ Tool errors are returned with `isError: true` and a JSON body that includes:
 
 | `retry_strategy` | `error_type` values |
 |------------------|---------------------|
-| `retry_same_request` | Throttling (`ThrottlingException`, `Throttling`, `ThrottledException`, `TooManyRequestsException`, `RequestLimitExceeded`, `LimitExceededException`), `aws_connection_error`, server-side errors (`InternalServerException`, `ServiceUnavailable`, ...), and any otherwise unmapped AWS error with an HTTP 5xx status |
-| `modify_request` | `validation_error`, `invalid_operation`, `invalid_parameter_value`, `ValidationException`, `InvalidParameter*`, `InvalidInputException`, `InvalidNextTokenException`, `BadRequestException`, `BillExpirationException`, `RequestChangedException`, `no_results`, `ResourceNotFoundException` |
-| `do_not_retry` | `AccessDenied*`, `access_denied`, `UnauthorizedOperation`, `UnauthorizedException`, `AuthFailure`, `OptInRequiredException`, `enrollment_error`, `DataUnavailableException`, and any missing or unrecognized `error_type` |
+| `retry_same_request` | Throttling (`ThrottlingException`, `Throttling`, `ThrottledException`, `TooManyRequestsException`, `RequestLimitExceeded`, `LimitExceededException`, `throttling_error`), `aws_connection_error`, server-side errors (`InternalServerException`, `InternalErrorException`, `ServiceUnavailable`, `service_unavailable`, ...), timeouts (`unknown_timeouterror`), and any otherwise unmapped AWS error with an HTTP 5xx status |
+| `modify_request` | `validation_error`, `invalid_operation`, `invalid_parameter_value`, `ValidationException`, `InvalidParameter*`, `InvalidInputException`, `InvalidNextTokenException`, `ExpiredNextTokenException`, `InvalidRequestException`, `BadRequestException`, `BillExpirationException`, `RequestChangedException`, `no_results`, `ResourceNotFoundException`, `resource_not_found`, `NotFoundException`, `not_found` |
+| `do_not_retry` | `AccessDenied*`, `access_denied`, `UnauthorizedOperation`, `UnauthorizedException`, `AuthFailure`, `OptInRequiredException`, `opt_in_required`, `enrollment_error`, `DataUnavailableException`, and any missing or unrecognized `error_type` |
 
-A tool can override the mapping for a specific error by passing `retry_strategy=` and `hint=` to `format_response`. The full mapping is in `utilities/error_contract.py`.
+A tool can override the mapping for a specific error by passing `retry_strategy=` and `hint=` to `format_response`. Session SQL errors from invalid queries are `modify_request`, and when every region of a multi-region call fails, `retry_strategy` is combined from each region's own error. The full mapping is in `utilities/error_contract.py`.
 
 ## Supported AWS Services
 

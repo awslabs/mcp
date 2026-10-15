@@ -24,7 +24,7 @@ The strategy is derived from the existing ``error_type`` values, which are left
 unchanged. Unknown or missing types get ``do_not_retry``.
 """
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Iterable, Optional, Tuple
 
 
 RETRY_SAME_REQUEST = 'retry_same_request'
@@ -56,6 +56,7 @@ _ERROR_TYPE_GUIDANCE: Dict[str, Tuple[str, Optional[str]]] = {
     'TooManyRequestsException': (RETRY_SAME_REQUEST, _HINT_THROTTLED),
     'RequestLimitExceeded': (RETRY_SAME_REQUEST, _HINT_THROTTLED),
     'LimitExceededException': (RETRY_SAME_REQUEST, _HINT_THROTTLED),
+    'throttling_error': (RETRY_SAME_REQUEST, _HINT_THROTTLED),
     # Transient service and connection failures
     'aws_connection_error': (RETRY_SAME_REQUEST, _HINT_TRANSIENT),
     'InternalServerException': (RETRY_SAME_REQUEST, _HINT_TRANSIENT),
@@ -65,6 +66,10 @@ _ERROR_TYPE_GUIDANCE: Dict[str, Tuple[str, Optional[str]]] = {
     'ServiceUnavailableException': (RETRY_SAME_REQUEST, _HINT_TRANSIENT),
     'RequestTimeout': (RETRY_SAME_REQUEST, _HINT_TRANSIENT),
     'RequestTimeoutException': (RETRY_SAME_REQUEST, _HINT_TRANSIENT),
+    'InternalErrorException': (RETRY_SAME_REQUEST, _HINT_TRANSIENT),
+    # A builtin TimeoutError reaching handle_aws_error (e.g. polling an Athena query)
+    'unknown_timeouterror': (RETRY_SAME_REQUEST, _HINT_TRANSIENT),
+    'service_unavailable': (RETRY_SAME_REQUEST, _HINT_TRANSIENT),
     # Invalid arguments
     'validation_error': (MODIFY_REQUEST, _HINT_INVALID),
     'invalid_operation': (MODIFY_REQUEST, _HINT_INVALID),
@@ -72,18 +77,24 @@ _ERROR_TYPE_GUIDANCE: Dict[str, Tuple[str, Optional[str]]] = {
     'ValidationException': (MODIFY_REQUEST, _HINT_INVALID),
     'InvalidInputException': (MODIFY_REQUEST, _HINT_INVALID),
     'InvalidNextTokenException': (MODIFY_REQUEST, _HINT_INVALID),
+    'ExpiredNextTokenException': (MODIFY_REQUEST, _HINT_INVALID),
+    'InvalidRequestException': (MODIFY_REQUEST, _HINT_INVALID),
     'BadRequestException': (MODIFY_REQUEST, _HINT_INVALID),
     'BillExpirationException': (MODIFY_REQUEST, _HINT_INVALID),
     'RequestChangedException': (MODIFY_REQUEST, _HINT_INVALID),
     # Nothing matched
     'no_results': (MODIFY_REQUEST, _HINT_NOT_FOUND),
     'ResourceNotFoundException': (MODIFY_REQUEST, _HINT_NOT_FOUND),
+    'resource_not_found': (MODIFY_REQUEST, _HINT_NOT_FOUND),
+    'NotFoundException': (MODIFY_REQUEST, _HINT_NOT_FOUND),
+    'not_found': (MODIFY_REQUEST, _HINT_NOT_FOUND),
     # Permissions and account state
     'access_denied': (DO_NOT_RETRY, _HINT_ACCESS),
     'UnauthorizedOperation': (DO_NOT_RETRY, _HINT_ACCESS),
     'UnauthorizedException': (DO_NOT_RETRY, _HINT_ACCESS),
     'AuthFailure': (DO_NOT_RETRY, _HINT_ACCESS),
     'OptInRequiredException': (DO_NOT_RETRY, _HINT_OPT_IN),
+    'opt_in_required': (DO_NOT_RETRY, _HINT_OPT_IN),
     'enrollment_error': (DO_NOT_RETRY, _HINT_OPT_IN),
     'DataUnavailableException': (DO_NOT_RETRY, None),
 }
@@ -115,6 +126,29 @@ def classify_error(
                 return guidance
     if isinstance(http_status, int) and http_status >= 500:
         return RETRY_SAME_REQUEST, _HINT_TRANSIENT
+    return DEFAULT_RETRY_STRATEGY, None
+
+
+def combine_guidance(guidance: Iterable[Tuple[str, Optional[str]]]) -> Tuple[str, Optional[str]]:
+    """Combine the (retry_strategy, hint) of several failures, e.g. one per region.
+
+    Identical guidance is kept as is. Otherwise do_not_retry wins (some part cannot
+    succeed during this run), then retry_same_request (a transient part may succeed on
+    retry), then modify_request, with no hint since none fits every failure.
+
+    Args:
+        guidance: (retry_strategy, hint) pairs, as returned by classify_error
+
+    Returns:
+        Tuple of the combined retry_strategy and an optional hint
+    """
+    unique = set(guidance)
+    if len(unique) == 1:
+        return unique.pop()
+    strategies = {retry_strategy for retry_strategy, _ in unique}
+    for retry_strategy in (DO_NOT_RETRY, RETRY_SAME_REQUEST, MODIFY_REQUEST):
+        if retry_strategy in strategies:
+            return retry_strategy, None
     return DEFAULT_RETRY_STRATEGY, None
 
 
