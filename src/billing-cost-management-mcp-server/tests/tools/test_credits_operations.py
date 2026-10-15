@@ -496,6 +496,7 @@ class TestGetCreditAllocationHistoryWindow:
         )
 
         assert result['status'] == 'error'
+        assert 'YYYY-MM' in result['message']
         client.get_paginator.assert_not_called()
 
     @pytest.mark.asyncio
