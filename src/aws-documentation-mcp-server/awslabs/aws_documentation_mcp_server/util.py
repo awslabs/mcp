@@ -18,6 +18,7 @@ import markdownify
 import re
 from awslabs.aws_documentation_mcp_server.models import RecommendationResult
 from dataclasses import dataclass, replace
+from mcp.server.mcpserver.exceptions import ToolError
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 from urllib.parse import quote_plus, unquote, urljoin
 
@@ -51,7 +52,20 @@ def _unwrap_broken_links(root) -> None:
             anchor.unwrap()
 
 
-class UnreadablePageError(ValueError):
+class DocumentationToolError(ToolError, ValueError):
+    """An anticipated failure whose message is meant for the caller.
+
+    The MCP SDK forwards a ``ToolError``'s message to the client and withholds the text of any
+    other exception, keeping crash details off the wire (python-sdk#3314). Every failure the read
+    path raises deliberately already builds a message for the caller, so those messages have to
+    travel as a ``ToolError`` to arrive at all.
+
+    ``ValueError`` stays in the bases because that is what these paths raised before, and callers
+    and tests catch it.
+    """
+
+
+class UnreadablePageError(DocumentationToolError):
     """Raised when a page carries no extractable content, only markup."""
 
 
@@ -189,7 +203,7 @@ def _to_markdown(main_content) -> str:
     )
 
     if not content.strip():
-        raise UnreadablePageError('Page failed to be simplified from HTML')
+        raise UnreadablePageError('Page failed to be simplified from HTML.')
 
     return content
 
@@ -207,14 +221,14 @@ def extract_content_from_html(html: str) -> str:
         UnreadablePageError: the page carries no extractable content
     """
     if not html:
-        raise UnreadablePageError('Empty HTML content')
+        raise UnreadablePageError('Empty HTML content.')
 
     try:
         return _to_markdown(_clean_main_content(html))
     except UnreadablePageError:
         raise
     except Exception as e:
-        raise UnreadablePageError(f'Error converting HTML to Markdown: {str(e)}') from e
+        raise UnreadablePageError(f'Error converting HTML to Markdown: {str(e)}.') from e
 
 
 def normalize_title(text: str) -> str:
@@ -393,7 +407,7 @@ def extract_content_and_anchors(html: str) -> Tuple[str, SectionIndex]:
         UnreadablePageError: the page carries no extractable content
     """
     if not html:
-        raise UnreadablePageError('Empty HTML content')
+        raise UnreadablePageError('Empty HTML content.')
 
     try:
         main_content = _clean_main_content(html)
@@ -401,7 +415,7 @@ def extract_content_and_anchors(html: str) -> Tuple[str, SectionIndex]:
     except UnreadablePageError:
         raise
     except Exception as e:
-        raise UnreadablePageError(f'Error converting HTML to Markdown: {str(e)}') from e
+        raise UnreadablePageError(f'Error converting HTML to Markdown: {str(e)}.') from e
 
 
 _ATX_HEADING_RE = re.compile(rf'^(#{{1,{len(SECTION_HEADING_TAGS)}}})\s+(\S.*)$')
@@ -652,10 +666,10 @@ def extract_sections_from_html(html: str, section_titles: List[str]) -> str:
         if available:
             available_list = ', '.join(f'"{section}"' for section in available)
             error_msg = f'No matching sections were found: {section_list}. Available sections: {available_list}. Please retry with one or more of these sections or use the read_documentation tool instead to get the full document content.'
-            raise ValueError(error_msg)
+            raise DocumentationToolError(error_msg)
         else:
             error_msg = 'This document does not contain subsections. Please use the read_documentation tool instead to get the full document content.'
-            raise ValueError(error_msg)
+            raise DocumentationToolError(error_msg)
 
     sections = [section_markdown(markdown, index, position) for position in wanted_positions]
     result = '\n\n'.join(section for section in sections if section)
@@ -663,7 +677,7 @@ def extract_sections_from_html(html: str, section_titles: List[str]) -> str:
     if not result:
         # The titles named headings the page has, but malformed markup collapsed them into one
         # another, so no section boundary survived the conversion to cut on.
-        raise ValueError(
+        raise DocumentationToolError(
             'The requested sections could not be separated from the rest of the page. '
             'Please use the read_documentation tool instead to get the full document content.'
         )

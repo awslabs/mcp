@@ -55,6 +55,7 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 - **Detailed cost breakdowns**: Get billing group cost reports broken down by service name or billing period
 - **Pricing rules and plans**: List pricing rules (MARKUP, DISCOUNT, TIERING) and pricing plans with their associations
 - **Custom line items**: List custom cost allocations including support fees, shared service costs, taxes, credits, and RI/SP distribution
+- **Billing transfer preferences**: Check whether billing groups are created automatically for new end customers in a two-level billing transfer, and which pricing plan they use
 
 ### Cost Allocation Tags
 
@@ -345,6 +346,7 @@ AWS Billing Conductor:
 - billingconductor:ListCustomLineItems
 - billingconductor:ListCustomLineItemVersions
 - billingconductor:ListResourcesAssociatedToCustomLineItem
+- billingconductor:GetBillingTransferPreference
 
 AWS Invoicing:
 - invoicing:ListInvoiceSummaries
@@ -380,6 +382,28 @@ The server uses these key environment variables:
   "AWS_REGION": "us-east-1"
 }
 ```
+
+## Error responses
+
+Tool errors are returned with `isError: true` and a JSON body that includes:
+
+| Field | Description |
+|-------|-------------|
+| `status` | Always `error` |
+| `error_type` | Stable classification. AWS API errors pass the AWS error code through (`ThrottlingException`, `AccessDeniedException`, ...); local errors use lowercase values (`validation_error`, `no_results`, `invalid_operation`, ...) |
+| `message` | Human-readable explanation |
+| `retry_strategy` | What the caller should do next: `retry_same_request`, `modify_request`, or `do_not_retry` |
+| `hint` | Optional fixed recovery guidance |
+
+`retry_strategy` is derived from `error_type`:
+
+| `retry_strategy` | `error_type` values |
+|------------------|---------------------|
+| `retry_same_request` | Throttling (`ThrottlingException`, `Throttling`, `ThrottledException`, `TooManyRequestsException`, `RequestLimitExceeded`, `LimitExceededException`), `aws_connection_error`, server-side errors (`InternalServerException`, `ServiceUnavailable`, ...), and any otherwise unmapped AWS error with an HTTP 5xx status |
+| `modify_request` | `validation_error`, `invalid_operation`, `invalid_parameter_value`, `ValidationException`, `InvalidParameter*`, `InvalidInputException`, `InvalidNextTokenException`, `BadRequestException`, `BillExpirationException`, `RequestChangedException`, `no_results`, `ResourceNotFoundException` |
+| `do_not_retry` | `AccessDenied*`, `access_denied`, `UnauthorizedOperation`, `UnauthorizedException`, `AuthFailure`, `OptInRequiredException`, `enrollment_error`, `DataUnavailableException`, and any missing or unrecognized `error_type` |
+
+A tool can override the mapping for a specific error by passing `retry_strategy=` and `hint=` to `format_response`. The full mapping is in `utilities/error_contract.py`.
 
 ## Supported AWS Services
 
@@ -471,6 +495,7 @@ The server currently supports the following AWS services
    - list_custom_line_items
    - list_custom_line_item_versions
    - list_resources_associated_to_custom_line_item
+   - get_billing_transfer_preference
 
 11. **Cost Allocation Tags**
     - list_cost_allocation_tags

@@ -12,7 +12,7 @@ dependencies = [
     "boto3>=1.43.55",
     "botocore>=1.43.55",
     "loguru>=0.7.0",
-    "mcp[cli]>=2.0.0,<3.0.0",
+    "mcp[cli]>=2.1.0,<3.0.0",
     "pydantic>=2.10.6",
     # Guard correctness depends on sqlglot's internal AST classes/parse behavior; pin to the validated 29.x line. Bumping the major requires re-verifying the deny-list->AST mapping + guard suite.
     "sqlglot>=29.0.1,<30.0.0",
@@ -56,6 +56,8 @@ dev = [
     "pytest-asyncio>=0.26.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.12.0",
+    # Read by the e2e harness's config loader; tomllib is 3.11+ and this floors at 3.10.
+    "tomli>=2.0.1; python_version < '3.11'",
 ]
 
 [build-system]
@@ -104,7 +106,7 @@ line-ending = "auto"
 docstring-code-format = true
 
 [tool.pyright]
-include = ["awslabs", "tests"]
+include = ["awslabs", "tests", "e2e_tests"]
 exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
 
 [tool.commitizen]
