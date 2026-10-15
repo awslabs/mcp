@@ -881,7 +881,9 @@ async def test_cost_explorer_get_dimension_values_tag_reservations_context_allow
     assert res['status'] == 'success'
     # The guard let it through to the real handler, which received dimension=TAG.
     mock_impl.assert_awaited_once()
-    assert mock_impl.await_args.args[2] == 'TAG'
+    await_args = mock_impl.await_args
+    assert await_args is not None
+    assert await_args.args[2] == 'TAG'
 
 
 @pytest.mark.asyncio
