@@ -1698,3 +1698,99 @@ async def test_ce_real_client_creation_error_is_classified(mock_context):
     assert res['message'] == 'Failed to create AWS client: no credentials'
     # Legacy nested payload is preserved
     assert res['data']['error_type'] == 'client_creation_error'
+
+
+def _reload_ce_with_registered_tools():
+    """Reload cost_explorer_tools with the real FastMCP.tool decorator.
+
+    Undoes _reload_ce_with_identity_decorator so the server has its tools registered again.
+    """
+    from awslabs.billing_cost_management_mcp_server.tools import cost_explorer_tools as ce_mod
+
+    return importlib.reload(ce_mod)
+
+
+STRUCTURED_METRICS = ['UnblendedCost']
+STRUCTURED_GROUP_BY = [{'Type': 'DIMENSION', 'Key': 'SERVICE'}]
+STRUCTURED_FILTER = {'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon S3']}}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'metrics, group_by, filter_value',
+    [
+        (STRUCTURED_METRICS, STRUCTURED_GROUP_BY, STRUCTURED_FILTER),
+        (
+            '["UnblendedCost"]',
+            '[{"Type": "DIMENSION", "Key": "SERVICE"}]',
+            '{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon S3"]}}',
+        ),
+    ],
+    ids=['structured', 'json_string'],
+)
+async def test_mcp_call_accepts_structured_and_json_string_params(metrics, group_by, filter_value):
+    """metrics, group_by, and filter reach boto3 as list/dict whether sent structured or as JSON strings (#4553)."""
+    ce_mod = _reload_ce_with_registered_tools()
+    ce_client = MagicMock()
+    ce_client.get_cost_and_usage.return_value = {'ResultsByTime': []}
+
+    with patch.object(ce_mod, 'create_aws_client', return_value=ce_client):
+        async with fastmcp.Client(ce_mod.cost_explorer_server) as client:
+            result = await client.call_tool(
+                'cost-explorer',
+                {
+                    'operation': 'getCostAndUsage',
+                    'start_date': '2026-09-01',
+                    'end_date': '2026-09-02',
+                    'metrics': metrics,
+                    'group_by': group_by,
+                    'filter': filter_value,
+                },
+            )
+
+    assert not result.is_error
+    kwargs = ce_client.get_cost_and_usage.call_args.kwargs
+    assert kwargs['Metrics'] == STRUCTURED_METRICS
+    assert kwargs['GroupBy'] == STRUCTURED_GROUP_BY
+    assert kwargs['Filter'] == STRUCTURED_FILTER
+
+
+@pytest.mark.asyncio
+async def test_mcp_call_accepts_structured_filter_for_forecast():
+    """A structured filter is accepted by operations that only take filter (#4553)."""
+    ce_mod = _reload_ce_with_registered_tools()
+    ce_client = MagicMock()
+    ce_client.get_cost_forecast.return_value = {'Total': {}, 'ForecastResultsByTime': []}
+
+    with patch.object(ce_mod, 'create_aws_client', return_value=ce_client):
+        async with fastmcp.Client(ce_mod.cost_explorer_server) as client:
+            result = await client.call_tool(
+                'cost-explorer',
+                {
+                    'operation': 'getCostForecast',
+                    'start_date': '2099-01-01',
+                    'end_date': '2099-02-01',
+                    'granularity': 'MONTHLY',
+                    'metric': 'UNBLENDED_COST',
+                    'filter': STRUCTURED_FILTER,
+                },
+            )
+
+    assert not result.is_error
+    assert ce_client.get_cost_forecast.call_args.kwargs['Filter'] == STRUCTURED_FILTER
+
+
+@pytest.mark.asyncio
+async def test_tool_schema_publishes_structured_types():
+    """The tool schema advertises array/object types for metrics, group_by, and filter (#4553)."""
+    ce_mod = _reload_ce_with_registered_tools()
+    async with fastmcp.Client(ce_mod.cost_explorer_server) as client:
+        tools = await client.list_tools()
+    properties = next(t for t in tools if t.name == 'cost-explorer').input_schema['properties']
+
+    def types(name):
+        return {option.get('type') for option in properties[name]['anyOf']}
+
+    assert types('metrics') == {'string', 'array', 'null'}
+    assert types('group_by') == {'string', 'array', 'null'}
+    assert types('filter') == {'string', 'object', 'null'}

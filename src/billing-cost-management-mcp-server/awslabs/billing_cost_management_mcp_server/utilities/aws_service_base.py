@@ -34,7 +34,7 @@ from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 from datetime import datetime, timedelta
 from fastmcp import Context
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 
 # Configure logger for this module
@@ -103,11 +103,13 @@ def create_aws_client(service_name: str, region_name: Optional[str] = None) -> A
     return session.client(service_name, config=config)
 
 
-def parse_json(json_str: Optional[str], parameter_name: str) -> Any:
+def parse_json(
+    json_str: Optional[Union[str, List[Any], Dict[str, Any]]], parameter_name: str
+) -> Any:
     """Parse a JSON string into a Python object.
 
     Args:
-        json_str: JSON string to parse
+        json_str: JSON string to parse, or an already-parsed list or dict (returned as-is)
         parameter_name: Name of the parameter (for error messages)
 
     Returns:
@@ -118,6 +120,9 @@ def parse_json(json_str: Optional[str], parameter_name: str) -> Any:
     """
     if not json_str:
         return None
+
+    if isinstance(json_str, (list, dict)):
+        return json_str
 
     try:
         return json.loads(json_str)
