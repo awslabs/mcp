@@ -213,5 +213,8 @@ class TestErrorSignalingEndToEnd:
             result = await client.call_tool('failing_tool', raise_on_error=False)
 
         assert result.is_error is True
+        assert result.structured_content is not None
         assert result.structured_content['retry_strategy'] == 'retry_same_request'
-        assert json.loads(result.content[0].text) == result.structured_content
+        content = result.content[0]
+        assert isinstance(content, TextContent)
+        assert json.loads(content.text) == result.structured_content

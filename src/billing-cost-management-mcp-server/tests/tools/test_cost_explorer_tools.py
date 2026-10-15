@@ -827,6 +827,66 @@ async def test_cost_explorer_missing_dimension():
 
 
 @pytest.mark.asyncio
+async def test_cost_explorer_get_dimension_values_tag_default_context_blocked(mock_context):
+    """GetDimensionValues(dimension=TAG) in the default COST_AND_USAGE context is rejected pre-call."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client', return_value=MagicMock()),
+        patch.object(ce_mod, 'get_dimension_values', new_callable=AsyncMock) as mock_impl,
+    ):
+        res = await real_fn(  # type: ignore
+            mock_context, operation='getDimensionValues', dimension='TAG'
+        )
+
+    assert res['status'] == 'error'
+    assert 'getTagsOrValues' in res['data']['message']
+    assert 'COST_AND_USAGE' in res['data']['message']
+    assert res['error_type'] == 'validation_error'
+    # Explicit, operation-specific hint set at the tool layer (survives middleware enrichment).
+    assert 'getTagsOrValues' in res['hint']
+    # Middleware derivation: validation_error -> modify_request, and our explicit hint is kept.
+    from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+        add_retry_guidance,
+    )
+
+    enriched = add_retry_guidance(res)
+    assert enriched['retry_strategy'] == 'modify_request'
+    assert enriched['hint'] == res['hint']
+    # Guard fires before the AWS GetDimensionValues round-trip (the real handler is never called).
+    mock_impl.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_cost_explorer_get_dimension_values_tag_reservations_context_allowed(mock_context):
+    """TAG is valid in the RESERVATIONS coverage context, so the guard must not block it."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(ce_mod, 'get_dimension_values', new_callable=AsyncMock) as mock_impl,
+    ):
+        mock_create_client.return_value = MagicMock()
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getDimensionValues',
+            dimension='TAG',
+            context='RESERVATIONS',
+        )
+
+    assert res['status'] == 'success'
+    # The guard let it through to the real handler, which received dimension=TAG.
+    mock_impl.assert_awaited_once()
+    await_args = mock_impl.await_args
+    assert await_args is not None
+    assert await_args.args[2] == 'TAG'
+
+
+@pytest.mark.asyncio
 async def test_cost_explorer_missing_metric_forecast():
     """Test getCostForecast without metric."""
     ctx = AsyncMock()
