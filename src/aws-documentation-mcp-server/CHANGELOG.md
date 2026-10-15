@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `search_documentation` and `recommend` now raise on failure instead of returning the error as a result. Both built a `SearchResult`/`RecommendationResult` with an empty `url` and the error text in `title`, so a transport failure, a 4xx or 5xx, or an unparseable body all arrived as a well-formed single-result response. A model could present `Error searching AWS docs - status code 503` to a user as a documentation title, and had no signal to retry. They now raise `DocumentationToolError`, matching the read path.
 - Recoverable read-path failures now name a next step. A 4xx, and a redirect that landed on a page with nothing to read, both add "Use search_documentation.", in the same spirit as the existing missing-subsections message. A page that returned content at the URL asked for but could not be parsed, and a transport failure, do not - the page answered, so a search is not the remedy.
 - Read-path failures now reach the client with their message. Anticipated failures raise `DocumentationToolError`, a `ToolError` subclass, because MCP SDK 2.1.0 and later forward only a `ToolError`'s text and replace everything else with a bare `Error executing tool <name>`. This affected `read_documentation`, `read_sections` and `search_table`: a moved page, a 4xx response, an unreadable index shell or a rejected URL all arrived at the model with no reason and no suggested next step. Unexpected exceptions are deliberately left unconverted, so crash details stay off the wire.
 
