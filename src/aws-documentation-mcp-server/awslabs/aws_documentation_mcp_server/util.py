@@ -258,8 +258,8 @@ def heading_match_text(text: str) -> str:
 
 
 # Markdownify indents a heading nested in one of these under the list or quote marker, or folds
-# it into a table cell, so it never begins a line and cannot be matched. 17 h3 headings in the
-# sample sit inside a blockquote.
+# it into a table cell, so it never begins a line and cannot be matched. A heading inside a
+# blockquote is the common case.
 NON_SECTION_ANCESTORS = frozenset({'blockquote', 'li', 'dd', 'dt', 'td', 'th', 'a'})
 
 
@@ -356,10 +356,10 @@ class SectionIndex:
     conversion: ``#automatically-created-buckets`` is heading 7 of 16, and heading 7 of the
     markdown is the same heading.
 
-    Position also addresses a heading that a title cannot. Over 9 sampled pages carrying 267
-    anchors, heading text repeated on 6 of the 9 - "Note", "Important" and "Warning" being the
-    usual culprits - and markdown may render a heading differently from its source text, since
-    a ``<code>`` element inside one comes back wrapped in backticks.
+    Position also addresses a heading that a title cannot. Heading text repeats within a page -
+    "Note", "Important" and "Warning" being the usual culprits - and markdown may render a
+    heading differently from its source text, since a ``<code>`` element inside one comes back
+    wrapped in backticks.
     """
 
     headings: Tuple[Heading, ...]
@@ -428,7 +428,7 @@ _ALIGNMENT_LOOKAHEAD = 4
 def markdown_heading_candidates(markdown: str) -> List[Tuple[int, int]]:
     """List the (level, character offset) of every line that looks like an ATX heading.
 
-    Candidates only. A '# ' inside a fenced code block is a comment in the sample rather than a
+    Candidates only. A '# ' inside a fenced code block is usually a comment rather than a
     heading, and this does not try to tell the difference - ``locate_headings`` does, by matching
     against the headings the page actually has.
     """

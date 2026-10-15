@@ -359,10 +359,8 @@ class TestReadSections:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.url = url
-        # The h1 used to be written '<h1>This is a page<h1/>', which never closes, so the parser
-        # nested the headings and swallowed the page into one of them. Closed properly here so
-        # the test exercises title normalisation rather than malformed-markup recovery, which
-        # TestUnseparableSections now covers on its own.
+        # Well-formed markup, so this exercises title normalisation rather than malformed-markup
+        # recovery; TestUnseparableSections covers that.
         mock_response.text = '<html><body><h1>This is a page</h1><h2>Best practices</h2><p>Content here.</p></body></html>'
         mock_response.headers = {'content-type': 'text/html'}
 
@@ -1392,8 +1390,8 @@ class TestReadDocumentationAnchors:
         return response
 
     @pytest.mark.asyncio
-    async def test_a_fragment_no_longer_fails_validation(self):
-        """'....html#anchor' does not end in .html, so this used to raise before fetching."""
+    async def test_a_fragment_passes_validation(self):
+        """A '#anchor' is split off before the .html check, so the URL validates and is fetched."""
         url = 'https://docs.aws.amazon.com/AmazonS3/latest/userguide/test.html#general'
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = self._response(url.split('#')[0])

@@ -17,6 +17,7 @@ import httpx
 import os
 import pytest
 from awslabs.aws_documentation_mcp_server.util import (
+    DocumentationToolError,
     Heading,
     SectionIndex,
     UnreadablePageError,
@@ -1115,10 +1116,10 @@ class TestMarkdownHeadingOffsets:
     def test_candidates_include_lines_inside_code(self):
         """Deliberately unfiltered: this cannot tell code from prose, so it does not try.
 
-        An earlier version tracked fenced blocks here. markdownify indents a fence nested in a
-        list or definition list, which desynchronised the open/close pairing and swallowed whole
+        Tracking fenced blocks here is unreliable: markdownify indents a fence nested in a list
+        or definition list, which desynchronises the open/close pairing and swallows whole
         regions of the page - 11 real headings on the IAM condition-operators page, including
-        "Date condition operators", were read as code comments.
+        "Date condition operators", get read as code comments.
         """
         markdown = '# Real\n\n```\n# just a comment\n```\n\n## Also real\n'
         assert [level for level, _ in markdown_heading_candidates(markdown)] == [1, 1, 2]
@@ -1327,12 +1328,10 @@ class TestAnchorSection:
         assert 'why' in section
 
     def test_a_dropped_heading_only_costs_its_own_section(self):
-        """A heading missing from the markdown must not strand the ones around it.
+        """A heading missing from the markdown must cost only its own section.
 
-        An earlier version compared heading counts and refused to slice at all when they
-        disagreed. Counts disagreed on 5 of 9 sampled real pages, so anchors silently fell back
-        to the whole page on the majority of them. Matching each heading by level and text
-        instead confines the loss to the heading actually missing.
+        Matching each heading by level and text, rather than by counting them, confines the loss
+        to the heading actually missing instead of stranding every heading after it.
         """
         index = SectionIndex(
             (
@@ -1467,11 +1466,11 @@ class TestUnseparableSections:
     def test_an_unclosed_heading_is_reported_not_returned_empty(self):
         """The h1 never closes, so the parser folds the whole page into it.
 
-        The section cannot be separated from the page. Saying so beats returning a header with
-        nothing underneath it, which is what an earlier version of this did.
+        The section cannot be separated from the page, so say so rather than return a header
+        with nothing underneath it.
         """
         html = '<html><body><h1>Page<h1/><h2>Best practices</h2><p>Content.</p></body></html>'
-        with pytest.raises(ValueError, match='could not be separated'):
+        with pytest.raises(DocumentationToolError, match='could not be separated'):
             extract_sections_from_html(html, ['Best practices'])
 
 
