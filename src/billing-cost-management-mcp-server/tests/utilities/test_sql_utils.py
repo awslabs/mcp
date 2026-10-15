@@ -546,6 +546,21 @@ class TestExecuteSessionSql:
 
     @patch('sqlite3.connect')
     @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
+    async def test_execute_non_query_error_leaves_retry_strategy_to_mapping(
+        self, mock_get_path, mock_connect, mock_context
+    ):
+        """A failure unrelated to the query sets no retry_strategy, so the mapping decides."""
+        mock_get_path.return_value = '/mock/path/session.db'
+        mock_connect.side_effect = OSError('disk unavailable')
+
+        result = await execute_session_sql(mock_context, 'SELECT 1')
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'OSError'
+        assert 'retry_strategy' not in result
+
+    @patch('sqlite3.connect')
+    @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
     async def test_execute_query_write_operation(self, mock_get_path, mock_connect, mock_context):
         """Test executing a write operation query."""
         # Setup
