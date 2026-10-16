@@ -52,7 +52,7 @@ def _positive_int_env(name: str, default: int) -> int:
 # and returns a partial result with the service's own next_token, so the caller can continue.
 # The first page is always returned. There is no size limit: large results are stored for SQL
 # queries rather than returned into the agent's context.
-PAGINATION_MAX_SECONDS = _positive_int_env('BCM_MCP_PAGINATION_MAX_SECONDS', 60)
+PAGINATION_MAX_SECONDS = _positive_int_env('BCM_MCP_PAGINATION_MAX_SECONDS', 300)
 
 # ===== Cost Optimization Hub =====
 # Service name reported in error responses (top-level ``service``).

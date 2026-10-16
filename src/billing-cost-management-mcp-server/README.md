@@ -399,7 +399,7 @@ One call also stops paging, on a page boundary, when it reaches the server's tim
 
 | Environment variable | Default | Limit |
 |---|---|---|
-| `BCM_MCP_PAGINATION_MAX_SECONDS` | `60` | Seconds one call spends paging |
+| `BCM_MCP_PAGINATION_MAX_SECONDS` | `300` | Seconds one call spends paging |
 
 A rejected or expired `next_token` returns `error_type: invalid_next_token`; call again without `next_token` to restart.
 
