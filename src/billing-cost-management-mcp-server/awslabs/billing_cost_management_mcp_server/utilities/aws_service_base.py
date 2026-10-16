@@ -26,10 +26,13 @@ These functions focus on common operations like:
 """
 
 import boto3
+import inspect
 import json
 import os
 import re
-from .error_contract import DO_NOT_RETRY
+import time
+from . import constants
+from .error_contract import DO_NOT_RETRY, InvalidNextTokenError
 from .logging_utils import get_context_logger, get_logger
 from botocore.config import Config
 from botocore.exceptions import (
@@ -42,9 +45,10 @@ from botocore.exceptions import (
     ProfileNotFound,
     UnknownServiceError,
 )
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from fastmcp import Context
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, FrozenSet, List, Optional, Sequence, Tuple, Union
 
 
 # Configure logger for this module
@@ -265,6 +269,19 @@ async def handle_aws_error(
         else:
             await ctx_logger.error(error_context, exc_info=True)
 
+    elif isinstance(error, InvalidNextTokenError):
+        # Retry guidance (restart without next_token) comes from error_contract.
+        error_response.update(
+            {
+                'error_type': 'invalid_next_token',
+                'message': (
+                    f'The next_token was rejected ({error.error_code}). It is expired or no '
+                    'longer matches the request.'
+                ),
+            }
+        )
+        await ctx_logger.warning(error_context)
+
     elif isinstance(error, ValueError):
         error_type = 'validation_error'
         user_message = str(error)
@@ -342,6 +359,130 @@ async def handle_aws_error(
     return error_response
 
 
+# Error codes meaning the caller's next_token can no longer be used. AWS Pricing raises
+# ExpiredNextTokenException for an expired token. CE raises
+# RequestChangedException when any request parameter differs from the first call and
+# BillExpirationException when the bill updated between pages.
+TOKEN_ERROR_CODES: FrozenSet[str] = frozenset(
+    {
+        'InvalidNextTokenException',
+        'ExpiredNextTokenException',
+        'RequestChangedException',
+        'BillExpirationException',
+    }
+)
+
+
+@dataclass(frozen=True)
+class PageSpec:
+    """How one AWS operation pages.
+
+    Attributes:
+        result_key: Response key holding the page's items, or a tuple path to a
+            nested list (e.g. ``('SavingsPlansPurchaseRecommendation', 'Details')``).
+        token_param: Request field that carries the continuation token.
+        token_key: Response field that returns the continuation token.
+        page_max: Largest number of items one page can hold.
+        page_size_param: Request field that sets the page size, or None when the
+            service chooses the page size.
+        page_min: Smallest page size the service accepts.
+        fixed_page_size: Always request ``page_max``. For services whose token is bound
+            to the page size, so a continuation must repeat it.
+        items_per_page_unit: Items each unit of page size can return. For APIs whose
+            page size counts a parent object (e.g. budgets, each with up to 10
+            notifications), so one unit can hold several items.
+        count_items: Counts the items in one page's result list.
+        token_error_codes: Error codes meaning a token is no longer usable, on any page.
+            On the first request they map to ``invalid_next_token``; on a later page they
+            end the call as partial and drop the token.
+        caller_token_error_codes: Codes that mean a rejected token only on the first
+            request of a continuation, i.e. when the caller's own next_token was sent.
+            For services that report a bad token with a generic code (e.g.
+            ``InternalServerException``); on a later page that code is an ordinary failure.
+    """
+
+    result_key: Union[str, Tuple[str, ...]]
+    token_param: str
+    token_key: str
+    page_max: int
+    page_size_param: Optional[str] = None
+    page_min: int = 1
+    fixed_page_size: bool = False
+    items_per_page_unit: int = 1
+    count_items: Callable[[List[Any]], int] = len
+    token_error_codes: FrozenSet[str] = field(default=TOKEN_ERROR_CODES)
+    caller_token_error_codes: FrozenSet[str] = frozenset()
+
+
+def partial_data_warning(items_returned: int) -> str:
+    """Build the warning attached to a result that stopped before the last page."""
+    return (
+        f'Partial data: returned {items_returned} items and more remain. Totals, counts and '
+        'top-N computed from this result undercount the real data. Call again with a larger '
+        'max_items, continue with next_token, or state in the answer that the result is '
+        'partial. Do not report the number of items returned as a total count.'
+    )
+
+
+def failure_warning(items_returned: int, error_code: str, restart: bool) -> str:
+    """Build the warning for a result cut short by a failed page."""
+    next_step = (
+        'The continuation token is no longer valid; call again without next_token to restart.'
+        if restart
+        else 'Continue with next_token to retry from the failed page.'
+    )
+    return (
+        f'Partial data: returned {items_returned} items, then the service failed with '
+        f'{error_code}. Totals and counts computed from this result undercount the real '
+        f'data. {next_step}'
+    )
+
+
+def paging_limit_warning(items_returned: int, limit: str) -> str:
+    """Build the warning for a result stopped by the server's time or size limit."""
+    return (
+        f"Partial data: returned {items_returned} items, then paging stopped at the server's "
+        f'{limit} limit and more remain. Totals and counts computed from this result undercount '
+        'the real data. Continue with next_token, or pass max_items or narrow the filters, or '
+        'state in the answer that the result is partial.'
+    )
+
+
+def paging_limit_reached(started: float) -> Optional[str]:
+    """Name the paging limit a call has reached, or None."""
+    if time.monotonic() - started >= constants.PAGINATION_MAX_SECONDS:
+        return f'{constants.PAGINATION_MAX_SECONDS}-second'
+    return None
+
+
+def _error_code(error: Exception) -> str:
+    if isinstance(error, ClientError):
+        return error.response.get('Error', {}).get('Code', 'UnknownError')
+    return type(error).__name__
+
+
+def _items_of(response: Dict[str, Any], result_key: Union[str, Tuple[str, ...]]) -> List[Any]:
+    path = (result_key,) if isinstance(result_key, str) else result_key
+    value: Any = response
+    for key in path:
+        if not isinstance(value, dict):
+            return []
+        value = value.get(key)
+    return value if isinstance(value, list) else []
+
+
+def _page_size(spec: PageSpec, max_items: Optional[int], collected: int) -> Optional[int]:
+    """Choose the page size to request, or None when the service chooses it."""
+    if spec.page_size_param is None:
+        return None
+    unit = spec.items_per_page_unit
+    largest = max(spec.page_max // unit, spec.page_min)
+    if spec.fixed_page_size or max_items is None:
+        return largest
+    return max(min(largest, (max_items - collected) // unit), spec.page_min)
+
+
+# Superseded by paginate_aws_items; kept until every tool has moved to it.
 async def paginate_aws_response(
     ctx: Context,
     operation_name: str,
@@ -437,6 +578,169 @@ async def paginate_aws_response(
     )
 
     return all_results, pagination_metadata
+
+
+async def paginate_aws_items(
+    ctx: Context,
+    operation: str,
+    api_call: Callable[..., Any],
+    request_params: Dict[str, Any],
+    spec: PageSpec,
+    *,
+    max_items: Optional[int] = None,
+    next_token: Optional[str] = None,
+) -> Tuple[List[Any], List[Dict[str, Any]], Dict[str, Any]]:
+    """Fetch pages until the data ends or the next page could exceed ``max_items``.
+
+    Every request repeats ``request_params`` unchanged, apart from the token and,
+    where the API allows, the page size: several services bind their token to the
+    whole request.
+
+    Args:
+        ctx: The MCP context object.
+        operation: Operation name, for logging.
+        api_call: Calls the API with keyword arguments. May return an awaitable.
+        request_params: Request parameters, without token or page size.
+        spec: How the operation pages.
+        max_items: Most items to return. None fetches every page.
+        next_token: The caller's token from a previous response.
+
+    Returns:
+        ``(items, pages, pagination)``: every kept item, the raw responses the items
+        came from (for merging fields outside the result list), and the pagination
+        block (see ``with_pagination``).
+
+    Raises:
+        ValueError: ``max_items`` is less than 1.
+        InvalidNextTokenError: The first page failed because ``next_token`` was rejected.
+        Exception: Any other failure on the first page, unchanged.
+    """
+    if max_items is not None and max_items < 1:
+        raise ValueError('max_items must be at least 1. Omit it to fetch every page.')
+    ctx_logger = get_context_logger(ctx, __name__)
+
+    items: List[Any] = []
+    pages: List[Dict[str, Any]] = []
+    collected = 0
+    token = next_token
+    seen_tokens = {next_token} if next_token else set()
+    failure: Optional[Tuple[str, bool]] = None
+    limit_reached: Optional[str] = None
+    started = time.monotonic()
+
+    while True:
+        if max_items is not None and pages and collected >= max_items:
+            break
+        if pages:
+            limit_reached = paging_limit_reached(started)
+            if limit_reached:
+                await ctx_logger.warning(
+                    f'{operation} stopped at the {limit_reached} paging limit'
+                )
+                break
+
+        size = _page_size(spec, max_items, collected)
+        worst_case = size * spec.items_per_page_unit if size is not None else spec.page_max
+        if max_items is not None and pages and collected + worst_case > max_items:
+            break
+
+        params = dict(request_params)
+        if token:
+            params[spec.token_param] = token
+        if size is not None and spec.page_size_param is not None:
+            params[spec.page_size_param] = size
+
+        await ctx_logger.info(f'Fetching {operation} page {len(pages) + 1}')
+        try:
+            response = api_call(**params)
+            if inspect.isawaitable(response):
+                response = await response
+        except Exception as error:
+            code = _error_code(error)
+            is_token_error = bool(token) and code in spec.token_error_codes
+            if not pages:
+                if next_token and (is_token_error or code in spec.caller_token_error_codes):
+                    raise InvalidNextTokenError(operation, code) from error
+                raise
+            # Keep what was fetched. The token that requested the failed page lets a
+            # continuation retry exactly that page, unless the token itself was rejected.
+            await ctx_logger.warning(
+                f'{operation} stopped after {collected} items: {type(error).__name__} ({code})'
+            )
+            failure = (code, is_token_error)
+            if is_token_error:
+                token = None
+            break
+
+        page_items = _items_of(response, spec.result_key)
+        count = spec.count_items(page_items)
+        if count > spec.page_max or (size is not None and count > size * spec.items_per_page_unit):
+            # The bound was wrong. The call is already paid for, so keep the page.
+            await ctx_logger.warning(
+                f'{operation} returned {count} items in one page, above its page_max of '
+                f'{spec.page_max}'
+            )
+        items.extend(page_items)
+        pages.append(response)
+        collected += count
+
+        token = response.get(spec.token_key) or None
+        if token is None:
+            break
+        if token in seen_tokens:
+            # The service returned a token it already used, so paging would never end, and
+            # continuing with that token would repeat the same pages.
+            await ctx_logger.warning(f'{operation} returned a repeated continuation token')
+            failure = ('RepeatedNextToken', True)
+            token = None
+            break
+        seen_tokens.add(token)
+
+    # has_more means a call with next_token can continue. A token failure leaves the
+    # result partial with no token, so complete_dataset alone reports that.
+    has_more = token is not None
+    pagination: Dict[str, Any] = {
+        'complete_dataset': not has_more and failure is None,
+        'has_more': has_more,
+        'next_token': token,
+        'items_returned': collected,
+    }
+    if failure is not None:
+        pagination['warning'] = failure_warning(collected, failure[0], restart=failure[1])
+    elif limit_reached and has_more:
+        pagination['warning'] = paging_limit_warning(collected, limit_reached)
+    elif has_more:
+        pagination['warning'] = partial_data_warning(collected)
+    return items, pages, pagination
+
+
+def with_pagination(data: Dict[str, Any], pagination: Dict[str, Any]) -> Dict[str, Any]:
+    """Attach the pagination block to a tool's response data.
+
+    The block goes under lowercase ``pagination``, ahead of the data, so a reader (or a
+    trim of an oversized result) sees whether the result is complete and the token to
+    continue before the data itself. A partial result also leads with
+    ``complete_dataset: false`` and ``warning``.
+
+    Args:
+        data: The tool's response data.
+        pagination: The pagination block from ``paginate_aws_items``.
+
+    Returns:
+        The response data with the pagination block attached.
+    """
+    block = {key: value for key, value in pagination.items() if key != 'warning'}
+    lead: Dict[str, Any] = {}
+    if not pagination.get('complete_dataset', True):
+        lead = {'complete_dataset': False, 'warning': pagination.get('warning')}
+    rest = {key: value for key, value in data.items() if key != 'pagination'}
+    return {**lead, 'pagination': block, **rest}
+
+
+def first_page_fields(pages: Sequence[Dict[str, Any]], keys: Sequence[str]) -> Dict[str, Any]:
+    """Return fields that only the first page carries (e.g. totals, group definitions)."""
+    first = pages[0] if pages else {}
+    return {key: first[key] for key in keys if key in first}
 
 
 def format_response(
