@@ -85,3 +85,10 @@ class TestGetMemoryGuide:
         assert 'Prerequisites' in MEMORY_GUIDE
         assert 'agentcore-cli' in MEMORY_GUIDE or 'agentcore' in MEMORY_GUIDE
         assert 'do NOT need the CLI' in MEMORY_GUIDE
+
+    def test_guide_has_no_git_conflict_markers(self):
+        """Guide text must not ship unresolved merge conflict markers (#4633)."""
+        for marker in ('<<<<<<<', '=======', '>>>>>>>'):
+            assert marker not in MEMORY_GUIDE, f'found conflict marker {marker!r}'
+        assert MEMORY_GUIDE.count('npm install -g @aws/agentcore-cli') == 1
+        assert '@anthropic-ai/agentcore-cli' not in MEMORY_GUIDE
