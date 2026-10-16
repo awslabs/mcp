@@ -25,6 +25,7 @@ These tests verify the functionality of the AWS Budgets API tools, including:
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.budget_tools import (
     budget_server,
+    budgets,
     describe_budgets,
     format_budgets,
     get_aws_account_id,
@@ -1008,6 +1009,26 @@ class TestBudgetsPaginationContract:
         assert first['NextToken'] == 'caller-token'
         assert second['NextToken'] == 't2'
         assert _strip_paging(first) == _strip_paging(second) == {'AccountId': ACCOUNT}
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.budget_tools.get_aws_account_id')
+    @patch(PATCH_BUDGETS_CLIENT)
+    async def test_budgets_tool_resolves_account_and_forwards_paging(
+        self, mock_create, mock_get_id, mock_context
+    ):
+        """The budgets tool resolves the account and passes max_items and next_token through."""
+        mock_get_id.return_value = ACCOUNT
+        client = MagicMock()
+        client.describe_budgets.return_value = _budgets_page(2, token='t3')
+        mock_create.return_value = client
+
+        result = await budgets(mock_context, max_items=2, next_token='caller-token')
+
+        client.describe_budgets.assert_called_once_with(
+            AccountId=ACCOUNT, NextToken='caller-token', MaxResults=2
+        )
+        assert [b['budget_name'] for b in result['data']['budgets']] == ['b0', 'b1']
+        assert result['data']['complete_dataset'] is False
+        assert result['data']['pagination']['next_token'] == 't3'
 
     @pytest.mark.parametrize(
         'budget_name,method',
