@@ -35,6 +35,7 @@ This MCP server provides tools to discover, explore, and query Amazon Redshift c
 ### AWS Client Requirements
 
 1. **Credentials**: Configure AWS credentials via AWS CLI, or environment variables
+   - Keys in the shared credentials file (`~/.aws/credentials`) are read again every 15 seconds, so keys rewritten there, for example by `aws configure` or any other tool that writes the file, take effect without restarting the server. SSO, assume-role and other temporary credentials already refresh on their own. Keys in environment variables cannot change while the server runs
 2. **Region**: Configure AWS region using one of the following (in order of precedence):
    - `AWS_REGION` environment variable (highest priority)
    - `AWS_DEFAULT_REGION` environment variable
