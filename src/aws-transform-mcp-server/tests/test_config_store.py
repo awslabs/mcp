@@ -244,13 +244,14 @@ class TestPersistence:
             assert data['auth_mode'] == 'cookie'
             assert data['session_cookie'] == 'aws-transform-session=abc'
 
-            # Directory permissions should be 0o700 (owner only)
-            dir_mode = os.stat(str(tmp_path)).st_mode
-            assert dir_mode & 0o777 == 0o700
+            # Directory and file permissions should be owner-only. POSIX-only: a
+            # platform without permission bits has nothing to read back here.
+            if os.name == 'posix':
+                dir_mode = os.stat(str(tmp_path)).st_mode
+                assert dir_mode & 0o777 == 0o700
 
-            # File permissions should be 0o600 (owner read/write only)
-            file_mode = os.stat(str(config_file)).st_mode
-            assert file_mode & 0o777 == 0o600
+                file_mode = os.stat(str(config_file)).st_mode
+                assert file_mode & 0o777 == 0o600
 
             # Load it back
             clear_config()
