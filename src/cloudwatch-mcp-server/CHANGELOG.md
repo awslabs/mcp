@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+
+- Split CloudWatch Logs Insights batch chunks only when the returned row count reaches the 10,000-record output cap, instead of when `recordsMatched` does. `recordsMatched` counts matched log events, so aggregation queries that matched many events but returned few rows were being split needlessly, producing repeated partial rows, extra `StartQuery` calls and extra data-scanned cost.
+
 ## [0.3.0] - 2026-09-15
 
 ### Security
