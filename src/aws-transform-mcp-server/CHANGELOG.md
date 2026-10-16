@@ -38,6 +38,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- AWS GovCloud (`us-gov-west-1`) can now authenticate. Both discovery fan-outs
+  (the startup credential probe and the SSO `ListAvailableProfiles` sweep) ran
+  over a hardcoded list of nine commercial regions, so a GovCloud caller found
+  no profile in any region and every tool reported `NOT_CONFIGURED` or
+  `NO_PROFILES` even though the account was fine. The region list is now chosen
+  from the caller's partition — the resolved AWS region for credential auth,
+  the Identity Center region for SSO — so neither partition probes the other.
+- `configure(authMode="cookie")` now accepts a GovCloud application URL. The
+  origin parser's region group matched only two-word region ids, so
+  `us-gov-west-1` was rejected with `INVALID_APPLICATION_URL`.
 - Artifact uploads and downloads now use transfer-specific HTTP timeouts instead
   of HTTPX's five-second default, preventing large pre-signed S3 transfers from
   failing while data is still being sent or received.
