@@ -172,6 +172,24 @@ Correct filter examples (remember: the `filter` argument is itself JSON STRING-E
    Notes: Supports only DAILY and MONTHLY granularity. start_date must be within the last 13 months, and end_date must be before the current date.
    Returns: Savings Plans utilization for the specified time period
 
+FILTER EXPRESSION REFERENCE (getCostAndUsage, getCostAndUsageWithResources, getUsageForecast, getCostForecast):
+The filter parameter is a JSON-encoded Expression. A leaf Expression targets exactly one of
+Dimensions, Tags, or CostCategories, each shaped as {"Key": "<key>", "Values": [...], "MatchOptions": [...]}.
+Leaf expressions combine via "And"/"Or"/"Not" wrappers, e.g. {"And": [<expr>, <expr>]}.
+- Dimensions: allowed MatchOptions are EQUALS, CASE_SENSITIVE. Values is required.
+- Tags / CostCategories: allowed MatchOptions are EQUALS, ABSENT, CASE_SENSITIVE. When MatchOptions
+  is ["ABSENT"], Values MUST be omitted or empty — ABSENT means "this tag/cost-category key is not
+  present on the line item" and does not take a value to compare against.
+- Do not invent other MatchOptions values (e.g. MatchValue, CONTAINS, STARTS_WITH are not valid for
+  these operations) and do not guess the Expression shape from memory for a new filter — reuse this
+  reference. Example filters:
+  {"Tags": {"Key": "Environment", "Values": ["prod"], "MatchOptions": ["EQUALS"]}}
+  {"Tags": {"Key": "CostCenter", "MatchOptions": ["ABSENT"]}}
+  {"And": [{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon Elastic Compute Cloud - Compute"], "MatchOptions": ["EQUALS"]}}, {"CostCategories": {"Key": "Team", "MatchOptions": ["ABSENT"]}}]}
+- If a filter call still fails with a ValidationException after following this reference, do not
+  retry without the filter — fix the filter shape (or look up valid dimension values with
+  getDimensionValues) and retry with a corrected filter.
+
 DIMENSION REFERENCE:
 - AZ: The Availability Zone (e.g., us-east-1a)
 - BILLING_ENTITY: Who bills the charge - "AWS" for AWS services, "AWS Marketplace" for

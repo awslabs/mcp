@@ -32,6 +32,7 @@ import re
 from .error_contract import DO_NOT_RETRY
 from .logging_utils import get_context_logger, get_logger
 from botocore.config import Config
+from botocore.exceptions import BotoCoreError, ClientError, ParamValidationError
 from botocore.exceptions import (
     BotoCoreError,
     ClientError,
@@ -275,19 +276,19 @@ async def handle_aws_error(
         )
 
     elif isinstance(error, ParamValidationError):
-        # ParamValidationError is a client-side botocore validation failure (unknown kwargs,
-        # bad parameter shape, missing required keys, type mismatches). It subclasses
-        # BotoCoreError, but it is a validation failure, not a connection failure — surface
-        # it that way so callers (and skills) see "fix the parameters", not "AWS is
-        # unreachable". Must be matched BEFORE the BotoCoreError branch below.
+        # ParamValidationError is a BotoCoreError subclass (client-side request
+        # shape rejection, e.g. a malformed filter expression), not a connection
+        # failure. Must be checked before the BotoCoreError branch below, or it
+        # gets mislabeled as aws_connection_error and the agent is steered toward
+        # retrying/reconnecting instead of fixing the request.
         error_type = 'validation_error'
-        user_message = str(error) or 'Invalid parameters'
-        await ctx_logger.warning(f'Validation error (ParamValidationError): {error_context}')
+        user_message = str(error)
+        await ctx_logger.warning(f'Validation error: {error_context}')
 
         error_response.update(
             {
                 'error_type': error_type,
-                'boto_error_type': 'ParamValidationError',
+                'boto_error_type': error.__class__.__name__,
                 'message': user_message,
                 'details': str(error),
             }
