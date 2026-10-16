@@ -315,7 +315,7 @@ async def test_coh_real_summaries_reload_identity_decorator(mock_context):
             mock_context,
             operation='list_recommendation_summaries',
             group_by='ResourceType',
-            max_results=50,
+            max_items=50,
             filters=filters_str,
         )
 
@@ -328,11 +328,10 @@ async def test_coh_real_summaries_reload_identity_decorator(mock_context):
             mock_context,
             fake_client,
             group_by='ResourceType',
-            max_results=50,
+            max_items=50,
             # Key and enum value are folded onto the API's spelling.
             filters={'implementationEfforts': ['Low'], 'savingsPct': {'gte': 10}},
             next_token=None,
-            max_pages=None,
         )
 
 
@@ -358,7 +357,7 @@ async def test_coh_real_list_recommendations_reload_identity_decorator(mock_cont
         res = await real_fn(  # type: ignore
             mock_context,
             operation='list_recommendations',
-            max_results=25,
+            max_items=25,
             filters=filters_str,
             include_all_recommendations=True,
         )
@@ -375,7 +374,6 @@ async def test_coh_real_list_recommendations_reload_identity_decorator(mock_cont
             parsed,
             True,
             next_token=None,
-            max_pages=None,
             order_by=None,
         )
 
@@ -473,7 +471,7 @@ async def test_coh_real_list_recommendations_no_filters_reload_identity_decorato
         res = await real_fn(  # type: ignore
             mock_context,
             operation='list_recommendations',
-            # No filters, no max_results, no next_token, no include_all_recommendations
+            # No filters, no max_items, no next_token, no include_all_recommendations
         )
 
         assert res['status'] == 'success'
@@ -485,11 +483,10 @@ async def test_coh_real_list_recommendations_no_filters_reload_identity_decorato
         mock_list_recs.assert_awaited_once_with(
             mock_context,
             fake_client,
-            None,  # max_results
+            None,  # max_items
             None,  # filters
             None,  # include_all_recommendations
             next_token=None,
-            max_pages=None,
             order_by=None,
         )
 
@@ -637,7 +634,6 @@ async def test_coh_real_list_recommendations_order_by_reload_identity_decorator(
             None,
             None,
             next_token=None,
-            max_pages=None,
             order_by=parsed_order_by,
         )
 
@@ -694,7 +690,7 @@ async def test_coh_real_efficiency_metrics_reload_identity_decorator(mock_contex
             end_date='2026-08',
             group_by='Region',
             order_by=order_by_str,
-            max_results=25,
+            max_items=25,
         )
 
         assert res['status'] == 'success'
@@ -710,9 +706,8 @@ async def test_coh_real_efficiency_metrics_reload_identity_decorator(mock_contex
             end_date='2026-08',
             group_by='Region',
             order_by=parsed_order_by,
-            max_results=25,
+            max_items=25,
             next_token=None,
-            max_pages=None,
             ranking_mode=None,
         )
 
@@ -753,9 +748,8 @@ async def test_coh_real_efficiency_metrics_defaults_reload_identity_decorator(mo
             end_date='2026-08',
             group_by=None,
             order_by=None,
-            max_results=None,
+            max_items=None,
             next_token=None,
-            max_pages=None,
             ranking_mode=None,
         )
 
@@ -897,9 +891,8 @@ async def test_coh_real_efficiency_metrics_daily_passthrough_reload_identity_dec
             end_date='2026-05-31',
             group_by=None,
             order_by=None,
-            max_results=None,
+            max_items=None,
             next_token=None,
-            max_pages=None,
             ranking_mode=None,
         )
 
@@ -1012,9 +1005,8 @@ async def test_coh_real_efficiency_metrics_monthly_truncates_daily_format_date(m
         end_date='2026-08',
         group_by=None,
         order_by=None,
-        max_results=None,
+        max_items=None,
         next_token=None,
-        max_pages=None,
         ranking_mode=None,
     )
 

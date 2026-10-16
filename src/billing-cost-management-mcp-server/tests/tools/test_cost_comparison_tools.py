@@ -111,6 +111,8 @@ def mock_context():
     context = MagicMock(spec=Context)
     context.info = AsyncMock()
     context.error = AsyncMock()
+    context.warning = AsyncMock()
+    context.debug = AsyncMock()
     return context
 
 
@@ -227,7 +229,8 @@ class TestGetCostAndUsageComparisons:
             metric_for_comparison,
             None,  # group_by
             None,  # filter_expr
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             None,  # billing_view_arn
         )
 
@@ -244,7 +247,7 @@ class TestGetCostAndUsageComparisons:
         assert call_kwargs['ComparisonTimePeriod']['End'] == comparison_end_date
 
         assert call_kwargs['MetricForComparison'] == metric_for_comparison
-        assert call_kwargs['MaxResults'] == 10  # default value
+        assert call_kwargs['MaxResults'] == 2000  # largest page without max_items
 
         assert result['status'] == 'success'
         assert 'cost_and_usage_comparisons' in result['data']
@@ -274,7 +277,8 @@ class TestGetCostAndUsageComparisons:
             metric_for_comparison,
             group_by,
             None,  # filter_expr
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             None,  # billing_view_arn
         )
 
@@ -306,7 +310,8 @@ class TestGetCostAndUsageComparisons:
             metric_for_comparison,
             None,  # group_by
             filter_expr,
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             None,  # billing_view_arn
         )
 
@@ -316,17 +321,17 @@ class TestGetCostAndUsageComparisons:
         assert call_kwargs['Filter']['Dimensions']['Key'] == 'SERVICE'
         assert 'Amazon EC2' in call_kwargs['Filter']['Dimensions']['Values']
 
-    async def test_get_cost_and_usage_comparisons_with_max_results(
+    async def test_get_cost_and_usage_comparisons_with_max_items(
         self, mock_context, mock_ce_client
     ):
-        """Test get_cost_and_usage_comparisons with max_results parameter."""
+        """Test get_cost_and_usage_comparisons with max_items below the page maximum."""
         # Setup
         baseline_start_date = '2023-01-01'
         baseline_end_date = '2023-02-01'
         comparison_start_date = '2023-02-01'
         comparison_end_date = '2023-03-01'
         metric_for_comparison = 'BlendedCost'
-        max_results = 50
+        max_items = 5
 
         # Execute
         await get_cost_and_usage_comparisons(
@@ -339,14 +344,14 @@ class TestGetCostAndUsageComparisons:
             metric_for_comparison,
             None,  # group_by
             None,  # filter_expr
-            max_results,
+            max_items,
+            None,  # next_token
             None,  # billing_view_arn
         )
 
         # Assert
         call_kwargs = mock_ce_client.get_cost_and_usage_comparisons.call_args[1]
-        assert 'MaxResults' in call_kwargs
-        assert call_kwargs['MaxResults'] == 50
+        assert call_kwargs['MaxResults'] == 5
 
     async def test_get_cost_and_usage_comparisons_with_billing_view_arn(
         self, mock_context, mock_ce_client
@@ -371,7 +376,8 @@ class TestGetCostAndUsageComparisons:
             metric_for_comparison,
             None,  # group_by
             None,  # filter_expr
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             billing_view_arn,
         )
 
@@ -419,7 +425,8 @@ class TestGetCostAndUsageComparisons:
             metric_for_comparison,
             None,  # group_by
             None,  # filter_expr
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             None,  # billing_view_arn
         )
 
@@ -427,10 +434,89 @@ class TestGetCostAndUsageComparisons:
         assert mock_ce_client.get_cost_and_usage_comparisons.call_count == 2
         assert len(result['data']['cost_and_usage_comparisons']) == 2
 
-        # Check second call includes NextPageToken
-        second_call_kwargs = mock_ce_client.get_cost_and_usage_comparisons.call_args_list[1][1]
-        assert 'NextPageToken' in second_call_kwargs
-        assert second_call_kwargs['NextPageToken'] == 'page2token'
+        # The second call repeats the request and adds the token.
+        calls = [c.kwargs for c in mock_ce_client.get_cost_and_usage_comparisons.call_args_list]
+        assert calls[1] == {**calls[0], 'NextPageToken': 'page2token'}
+        assert 'NextPageToken' not in calls[0]
+        # The total comes from the first page.
+        assert (
+            result['data']['total_cost_and_usage']['BlendedCost']['baseline_time_period_amount']
+            == '100.0'
+        )
+        assert 'complete_dataset' not in result['data']
+        assert result['data']['pagination']['complete_dataset'] is True
+        assert result['data']['pagination']['items_returned'] == 2
+
+    async def test_get_cost_and_usage_comparisons_max_items_stop_and_continue(
+        self, mock_context, mock_ce_client
+    ):
+        """max_items stops with the service token; the continuation resends the request."""
+        mock_ce_client.get_cost_and_usage_comparisons.side_effect = [
+            {
+                'CostAndUsageComparisons': [{'CostAndUsageSelector': {'a': 1}}],
+                'TotalCostAndUsage': {'BlendedCost': {'Difference': '5'}},
+                'NextPageToken': 't1',
+            },
+            {'CostAndUsageComparisons': [{'CostAndUsageSelector': {'b': 2}}]},
+        ]
+        args = (
+            mock_context,
+            mock_ce_client,
+            '2023-01-01',
+            '2023-02-01',
+            '2023-02-01',
+            '2023-03-01',
+            'BlendedCost',
+            '[{"Type": "DIMENSION", "Key": "SERVICE"}]',
+            None,
+        )
+
+        first = await get_cost_and_usage_comparisons(*args, 1, None, None)
+        token = first['data']['pagination']['next_token']
+        second = await get_cost_and_usage_comparisons(*args, 1, token, None)
+
+        assert list(first['data'])[:2] == ['complete_dataset', 'warning']
+        assert first['data']['pagination'] == {
+            'complete_dataset': False,
+            'has_more': True,
+            'next_token': 't1',
+            'items_returned': 1,
+        }
+        assert second['data']['pagination']['complete_dataset'] is True
+        # The continuation's first page carries no total, so none is reported.
+        assert 'total_cost_and_usage' not in second['data']
+        calls = [c.kwargs for c in mock_ce_client.get_cost_and_usage_comparisons.call_args_list]
+        assert calls[0]['MaxResults'] == 1
+        assert calls[1] == {**calls[0], 'NextPageToken': 't1'}
+
+    async def test_get_cost_and_usage_comparisons_invalid_next_token(
+        self, mock_context, mock_ce_client
+    ):
+        """A rejected caller token maps to invalid_next_token."""
+        from botocore.exceptions import ClientError
+
+        mock_ce_client.get_cost_and_usage_comparisons.side_effect = ClientError(
+            {'Error': {'Code': 'RequestChangedException', 'Message': 'changed'}},
+            'GetCostAndUsageComparisons',
+        )
+
+        result = await get_cost_and_usage_comparisons(
+            mock_context,
+            mock_ce_client,
+            '2023-01-01',
+            '2023-02-01',
+            '2023-02-01',
+            '2023-03-01',
+            'BlendedCost',
+            None,
+            None,
+            None,
+            'stale',
+            None,
+        )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'invalid_next_token'
 
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.cost_comparison_tools.handle_aws_error'
@@ -461,7 +547,8 @@ class TestGetCostAndUsageComparisons:
             metric_for_comparison,
             None,  # group_by
             None,  # filter_expr
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             None,  # billing_view_arn
         )
 
@@ -497,7 +584,8 @@ class TestGetCostComparisonDrivers:
             metric_for_comparison,
             None,  # group_by
             None,  # filter_expr
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             None,  # billing_view_arn
         )
 
@@ -514,7 +602,7 @@ class TestGetCostComparisonDrivers:
         assert call_kwargs['ComparisonTimePeriod']['End'] == comparison_end_date
 
         assert call_kwargs['MetricForComparison'] == metric_for_comparison
-        assert call_kwargs['MaxResults'] == 10  # default value
+        assert call_kwargs['MaxResults'] == 10  # largest page without max_items
 
         assert result['status'] == 'success'
         assert 'cost_comparison_drivers' in result['data']
@@ -543,7 +631,8 @@ class TestGetCostComparisonDrivers:
             metric_for_comparison,
             group_by,
             None,  # filter_expr
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             None,  # billing_view_arn
         )
 
@@ -575,7 +664,8 @@ class TestGetCostComparisonDrivers:
             metric_for_comparison,
             None,  # group_by
             filter_expr,
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             None,  # billing_view_arn
         )
 
@@ -585,17 +675,15 @@ class TestGetCostComparisonDrivers:
         assert call_kwargs['Filter']['Dimensions']['Key'] == 'SERVICE'
         assert 'Amazon EC2' in call_kwargs['Filter']['Dimensions']['Values']
 
-    async def test_get_cost_comparison_drivers_with_max_results(
-        self, mock_context, mock_ce_client
-    ):
-        """Test get_cost_comparison_drivers with max_results parameter."""
+    async def test_get_cost_comparison_drivers_with_max_items(self, mock_context, mock_ce_client):
+        """Test get_cost_comparison_drivers with max_items below the page maximum."""
         # Setup
         baseline_start_date = '2023-01-01'
         baseline_end_date = '2023-02-01'
         comparison_start_date = '2023-02-01'
         comparison_end_date = '2023-03-01'
         metric_for_comparison = 'BlendedCost'
-        max_results = 50
+        max_items = 5
 
         # Execute
         await get_cost_comparison_drivers(
@@ -608,14 +696,14 @@ class TestGetCostComparisonDrivers:
             metric_for_comparison,
             None,  # group_by
             None,  # filter_expr
-            max_results,
+            max_items,
+            None,  # next_token
             None,  # billing_view_arn
         )
 
         # Assert
         call_kwargs = mock_ce_client.get_cost_comparison_drivers.call_args[1]
-        assert 'MaxResults' in call_kwargs
-        assert call_kwargs['MaxResults'] == 50
+        assert call_kwargs['MaxResults'] == 5
 
     async def test_get_cost_comparison_drivers_with_billing_view_arn(
         self, mock_context, mock_ce_client
@@ -640,7 +728,8 @@ class TestGetCostComparisonDrivers:
             metric_for_comparison,
             None,  # group_by
             None,  # filter_expr
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             billing_view_arn,
         )
 
@@ -685,7 +774,8 @@ class TestGetCostComparisonDrivers:
             metric_for_comparison,
             None,  # group_by
             None,  # filter_expr
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             None,  # billing_view_arn
         )
 
@@ -693,10 +783,67 @@ class TestGetCostComparisonDrivers:
         assert mock_ce_client.get_cost_comparison_drivers.call_count == 2
         assert len(result['data']['cost_comparison_drivers']) == 2
 
-        # Check second call includes NextPageToken
-        second_call_kwargs = mock_ce_client.get_cost_comparison_drivers.call_args_list[1][1]
-        assert 'NextPageToken' in second_call_kwargs
-        assert second_call_kwargs['NextPageToken'] == 'page2token'
+        # The second call repeats the request and adds the token.
+        calls = [c.kwargs for c in mock_ce_client.get_cost_comparison_drivers.call_args_list]
+        assert calls[1] == {**calls[0], 'NextPageToken': 'page2token'}
+        assert result['data']['pagination']['complete_dataset'] is True
+
+    async def test_get_cost_comparison_drivers_max_items_stops(self, mock_context, mock_ce_client):
+        """max_items sizes the last page to the remainder and stops with the token."""
+        mock_ce_client.get_cost_comparison_drivers.side_effect = [
+            {'CostComparisonDrivers': [{'CostSelector': {}}] * 10, 'NextPageToken': 't1'},
+            {'CostComparisonDrivers': [{'CostSelector': {}}] * 5, 'NextPageToken': 't2'},
+        ]
+
+        result = await get_cost_comparison_drivers(
+            mock_context,
+            mock_ce_client,
+            '2023-01-01',
+            '2023-02-01',
+            '2023-02-01',
+            '2023-03-01',
+            'BlendedCost',
+            None,
+            None,
+            15,
+            None,
+            None,
+        )
+
+        calls = [c.kwargs for c in mock_ce_client.get_cost_comparison_drivers.call_args_list]
+        assert [c['MaxResults'] for c in calls] == [10, 5]
+        assert calls[1]['NextPageToken'] == 't1'
+        assert len(result['data']['cost_comparison_drivers']) == 15
+        assert result['data']['complete_dataset'] is False
+        assert result['data']['pagination']['next_token'] == 't2'
+        assert result['data']['pagination']['items_returned'] == 15
+
+    async def test_get_cost_comparison_drivers_continuation_sends_caller_token(
+        self, mock_context, mock_ce_client
+    ):
+        """A continuation sends the caller's token and otherwise identical params."""
+        await get_cost_comparison_drivers(
+            mock_context,
+            mock_ce_client,
+            '2023-01-01',
+            '2023-02-01',
+            '2023-02-01',
+            '2023-03-01',
+            'BlendedCost',
+            None,
+            None,
+            None,
+            'caller-token',
+            None,
+        )
+
+        mock_ce_client.get_cost_comparison_drivers.assert_called_once_with(
+            BaselineTimePeriod={'Start': '2023-01-01', 'End': '2023-02-01'},
+            ComparisonTimePeriod={'Start': '2023-02-01', 'End': '2023-03-01'},
+            MetricForComparison='BlendedCost',
+            MaxResults=10,
+            NextPageToken='caller-token',
+        )
 
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.cost_comparison_tools.handle_aws_error'
@@ -727,7 +874,8 @@ class TestGetCostComparisonDrivers:
             metric_for_comparison,
             None,  # group_by
             None,  # filter_expr
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             None,  # billing_view_arn
         )
 
@@ -788,7 +936,7 @@ class TestCostComparison:
             metric_for_comparison='BlendedCost',
             group_by='[{"Type": "DIMENSION", "Key": "SERVICE"}]',
             filter='{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon EC2"]}}',
-            max_results=50,
+            max_items=50,
             billing_view_arn='arn:aws:ce::123456789012:billingview/view-1',
         )
 
@@ -832,3 +980,46 @@ def test_cost_comparison_server_initialization():
     assert (
         'Tools for working with AWS Cost Comparison API' in instructions if instructions else False
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'operation,handler',
+    [
+        ('getCostAndUsageComparisons', 'get_cost_and_usage_comparisons'),
+        ('getCostComparisonDrivers', 'get_cost_comparison_drivers'),
+    ],
+)
+async def test_cost_comparison_tool_passes_pagination_params(mock_context, operation, handler):
+    """The tool passes max_items and next_token through to the operation handler."""
+    import fastmcp
+    import importlib
+    from awslabs.billing_cost_management_mcp_server.tools import cost_comparison_tools as mod
+
+    def _identity_tool(self, *args, **kwargs):
+        return lambda fn: fn
+
+    with patch.object(fastmcp.FastMCP, 'tool', _identity_tool):
+        importlib.reload(mod)
+    try:
+        mock_handler = AsyncMock(return_value={'status': 'success', 'data': {}})
+        with (
+            patch.object(mod, 'create_aws_client', return_value=MagicMock()),
+            patch.object(mod, handler, mock_handler),
+        ):
+            result = await mod.cost_comparison(  # type: ignore[reportCallIssue]
+                mock_context,
+                operation=operation,
+                baseline_start_date='2023-01-01',
+                baseline_end_date='2023-02-01',
+                comparison_start_date='2023-02-01',
+                comparison_end_date='2023-03-01',
+                metric_for_comparison='BlendedCost',
+                max_items=7,
+                next_token='tok',
+            )
+    finally:
+        importlib.reload(mod)
+
+    assert result['status'] == 'success'
+    assert mock_handler.call_args.args[9:11] == (7, 'tok')

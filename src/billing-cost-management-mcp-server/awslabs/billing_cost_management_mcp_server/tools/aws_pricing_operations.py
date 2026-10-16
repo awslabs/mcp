@@ -21,10 +21,13 @@ Updated to use shared utility functions.
 import json
 import os
 from ..utilities.aws_service_base import (
+    PageSpec,
     create_aws_client,
     format_response,
     handle_aws_error,
+    paginate_aws_response,
     parse_json,
+    with_pagination,
 )
 from ..utilities.logging_utils import get_context_logger
 from ..utilities.sql_utils import convert_response_if_needed
@@ -77,17 +80,30 @@ def create_pricing_client() -> Any:
     return create_aws_client('pricing', get_pricing_region())
 
 
-async def get_service_codes(ctx: Context, max_results: Optional[int] = None) -> Dict[str, Any]:
-    """Retrieve all available service codes from AWS Price List API.
+# DescribeServices (no ServiceCode) lists every service, up to 100 per page.
+DESCRIBE_SERVICES_PAGE_SPEC = PageSpec(
+    result_key='Services',
+    token_param='NextToken',
+    token_key='NextToken',
+    page_max=100,
+    page_size_param='MaxResults',
+)
+
+
+async def get_service_codes(
+    ctx: Context, max_items: Optional[int] = None, next_token: Optional[str] = None
+) -> Dict[str, Any]:
+    """Retrieve the service codes from AWS Price List API.
 
     Uses shared utilities for client creation and response formatting.
 
     Args:
         ctx: MCP context
-        max_results: Maximum number of results to return
+        max_items: Most service codes to return. None fetches every page.
+        next_token: Continuation token from a previous response.
 
     Returns:
-        Dict containing service codes
+        Dict containing service codes and a ``pagination`` block
     """
     try:
         await ctx.info('Retrieving AWS service codes from Price List API')
@@ -95,51 +111,31 @@ async def get_service_codes(ctx: Context, max_results: Optional[int] = None) -> 
         # Create pricing client using shared utility
         pricing_client = create_pricing_client()
 
-        # Initialize collection variables
-        service_codes = []
-        next_token = None
-        page_count = 0
+        services, _, pagination = await paginate_aws_response(
+            ctx,
+            'DescribeServices',
+            pricing_client.describe_services,
+            {},
+            DESCRIBE_SERVICES_PAGE_SPEC,
+            max_items=max_items,
+            next_token=next_token,
+        )
+        service_codes = [service['ServiceCode'] for service in services]
 
-        # Fetch all pages
-        while True:
-            page_count += 1
-
-            # Prepare request parameters
-            params: Dict[str, Any] = {}
-            if next_token:
-                params['NextToken'] = next_token
-            if max_results:
-                params['MaxResults'] = int(max_results)
-
-            # Make API call
-            await ctx.info(f'Fetching service codes page {page_count}')
-            response = pricing_client.describe_services(**params)
-
-            # Process results
-            page_services = response.get('Services', [])
-            for service in page_services:
-                service_codes.append(service['ServiceCode'])
-
-            await ctx.info(
-                f'Retrieved {len(page_services)} services (total: {len(service_codes)})'
-            )
-
-            # Check for more pages
-            next_token = response.get('NextToken')
-            if not next_token:
-                break
-
-        # Sort for consistent output
+        # Sort the returned slice only, so a continuation picks up in service order
         sorted_codes = sorted(service_codes)
 
         # Use shared format_response utility
         return format_response(
             'success',
-            {
-                'service_codes': sorted_codes,
-                'total_count': len(sorted_codes),
-                'message': f'Successfully retrieved {len(sorted_codes)} AWS service codes',
-            },
+            with_pagination(
+                {
+                    'service_codes': sorted_codes,
+                    'total_count': len(sorted_codes),
+                    'message': f'Successfully retrieved {len(sorted_codes)} AWS service codes',
+                },
+                pagination,
+            ),
         )
 
     except Exception as e:
@@ -216,19 +212,34 @@ async def get_service_attributes(ctx: Context, service_code: str) -> Dict[str, A
         return classified
 
 
+# GetAttributeValues returns up to 10,000 values per page.
+GET_ATTRIBUTE_VALUES_PAGE_SPEC = PageSpec(
+    result_key='AttributeValues',
+    token_param='NextToken',
+    token_key='NextToken',
+    page_max=10000,
+    page_size_param='MaxResults',
+)
+
+
 async def get_attribute_values(
-    ctx: Context, service_code: str, attribute_name: str, max_results: Optional[int] = None
+    ctx: Context,
+    service_code: str,
+    attribute_name: str,
+    max_items: Optional[int] = None,
+    next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Retrieve all possible values for a specific attribute of an AWS service.
+    """Retrieve the possible values for a specific attribute of an AWS service.
 
     Args:
         ctx: MCP context
         service_code: AWS service code
         attribute_name: Service attribute name
-        max_results: Maximum number of results to return
+        max_items: Most values to return. None fetches every page.
+        next_token: Continuation token from a previous response.
 
     Returns:
-        Dict containing attribute values
+        Dict containing attribute values and a ``pagination`` block
     """
     try:
         await ctx.info(
@@ -238,57 +249,33 @@ async def get_attribute_values(
         # Create pricing client using shared utility
         pricing_client = create_pricing_client()
 
-        # Initialize collection variables
-        values = []
-        next_token = None
-        page_count = 0
+        attribute_values, _, pagination = await paginate_aws_response(
+            ctx,
+            'GetAttributeValues',
+            pricing_client.get_attribute_values,
+            {'ServiceCode': service_code, 'AttributeName': attribute_name},
+            GET_ATTRIBUTE_VALUES_PAGE_SPEC,
+            max_items=max_items,
+            next_token=next_token,
+        )
+        values = [item['Value'] for item in attribute_values if 'Value' in item]
 
-        # Fetch all pages
-        while True:
-            page_count += 1
-
-            # Prepare request parameters
-            params: Dict[str, Any] = {'ServiceCode': service_code, 'AttributeName': attribute_name}
-            if next_token:
-                params['NextToken'] = next_token
-            if max_results is not None:
-                params['MaxResults'] = max_results
-
-            # Make API call
-            await ctx.info(f'Fetching attribute values page {page_count}')
-            response = pricing_client.get_attribute_values(**params)
-
-            # Process results
-            page_values = response.get('AttributeValues', [])
-            for attr_value in page_values:
-                if 'Value' in attr_value:
-                    values.append(attr_value['Value'])
-
-            await ctx.info(f'Retrieved {len(page_values)} values (total: {len(values)})')
-
-            # Check for more pages
-            next_token = response.get('NextToken')
-            if not next_token:
-                break
-
-            # Stop if max_results is specified and we've reached it
-            if max_results is not None and len(values) >= max_results:
-                await ctx.info(f'Reached maximum results limit: {max_results}')
-                break
-
-        # Sort for consistent output
+        # Sort the returned slice only, so a continuation picks up in service order
         sorted_values = sorted(values)
 
         # Use shared format_response utility
         return format_response(
             'success',
-            {
-                'service_code': service_code,
-                'attribute_name': attribute_name,
-                'values': sorted_values,
-                'total_count': len(sorted_values),
-                'message': f'Successfully retrieved {len(sorted_values)} values for attribute {attribute_name} of service {service_code}',
-            },
+            with_pagination(
+                {
+                    'service_code': service_code,
+                    'attribute_name': attribute_name,
+                    'values': sorted_values,
+                    'total_count': len(sorted_values),
+                    'message': f'Successfully retrieved {len(sorted_values)} values for attribute {attribute_name} of service {service_code}',
+                },
+                pagination,
+            ),
         )
 
     except Exception as e:
@@ -304,11 +291,22 @@ async def get_attribute_values(
         return classified
 
 
+# GetProducts returns up to 100 products per page.
+GET_PRODUCTS_PAGE_SPEC = PageSpec(
+    result_key='PriceList',
+    token_param='NextToken',
+    token_key='NextToken',
+    page_max=100,
+    page_size_param='MaxResults',
+)
+
+
 async def get_pricing_from_api(
     ctx: Context,
     service_code: str,
     filters: Optional[str] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
+    next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Get pricing information from AWS Price List API.
 
@@ -316,10 +314,11 @@ async def get_pricing_from_api(
         ctx: MCP context
         service_code: AWS service code
         filters: Optional filters as JSON string
-        max_results: Maximum number of results to return
+        max_items: Most products to return. None fetches every page.
+        next_token: Continuation token from a previous response.
 
     Returns:
-        Dict containing pricing data
+        Dict containing pricing data and a ``pagination`` block
     """
     try:
         await ctx.info(f"Retrieving pricing data for service '{service_code}'")
@@ -341,48 +340,24 @@ async def get_pricing_from_api(
 
                 await ctx.info(f'Applied {len(api_filters)} filters')
 
-        # Initialize collection variables
-        all_price_list = []
-        next_token = None
-        page_count = 0
-
-        # Fetch all pages
-        while True:
-            page_count += 1
-
-            # Prepare request parameters
-            params: Dict[str, Any] = {'ServiceCode': service_code, 'Filters': api_filters}
-            if max_results:
-                params['MaxResults'] = int(max_results)
-            if next_token:
-                params['NextToken'] = next_token
-
-            # Make API call
-            await ctx.info(f'Fetching pricing data page {page_count}')
-            response = pricing_client.get_products(**params)
-
-            # Process results
-            price_list = response.get('PriceList', [])
-            all_price_list.extend(price_list)
-
-            await ctx.info(f'Retrieved {len(price_list)} products (total: {len(all_price_list)})')
-
-            # Check for more pages
-            next_token = response.get('NextToken')
-            if not next_token:
-                break
-
-            # Stop if max_results is specified and we've reached it
-            if max_results is not None and len(all_price_list) >= max_results:
-                await ctx.info(f'Reached maximum results limit: {max_results}')
-                break
+        all_price_list, _, pagination = await paginate_aws_response(
+            ctx,
+            'GetProducts',
+            pricing_client.get_products,
+            {'ServiceCode': service_code, 'Filters': api_filters},
+            GET_PRODUCTS_PAGE_SPEC,
+            max_items=max_items,
+            next_token=next_token,
+        )
 
         # Handle no results. This is a genuine "no data" case rather than an
         # exception, but it is still an error response: emit a top-level
         # error_type + operation (consistent structured error shape) while
         # keeping the legacy `data` payload (message + examples) for
-        # backward compatibility.
-        if not all_price_list:
+        # backward compatibility. A partial result (a later page failed) is not
+        # "no data", so it falls through with its pagination block.
+        # A continuation (next_token) that reaches an empty last page is not a bad service code.
+        if not all_price_list and pagination['complete_dataset'] and not next_token:
             message = f'The service code "{service_code}" did not return any pricing data. AWS service codes typically follow patterns like "AmazonS3", "AmazonEC2", "AmazonES", etc. Please check the exact service code and try again.'
             examples = {
                 'OpenSearch': 'AmazonES',
@@ -399,12 +374,15 @@ async def get_pricing_from_api(
             }
 
         # Create response with raw data
-        raw_response = {
-            'service_code': service_code,
-            'filter_count': len(api_filters),
-            'total_products_found': len(all_price_list),
-            'PriceList': all_price_list,
-        }
+        raw_response = with_pagination(
+            {
+                'service_code': service_code,
+                'filter_count': len(api_filters),
+                'total_products_found': len(all_price_list),
+                'PriceList': all_price_list,
+            },
+            pagination,
+        )
 
         # Offload large responses to SQLite via the size gate; small responses
         # fall through to the human-readable processing below.
@@ -416,10 +394,9 @@ async def get_pricing_from_api(
         if isinstance(table_response, dict) and 'data_stored' in table_response:
             return format_response('success', table_response)
 
-        # Process the pricing data for easier consumption
-        display_limit = min(
-            len(all_price_list), max_results if max_results else 100
-        )  # Limit to 100 by default
+        # Process the pricing data for easier consumption. max_items already bounds
+        # what was fetched, so every fetched product is returned.
+        display_limit = len(all_price_list)
         processed_products = []
 
         # Get context logger for consistent logging
@@ -428,7 +405,7 @@ async def get_pricing_from_api(
         # Keep track of products that fail to parse
         failed_products = 0
 
-        for i, product_json in enumerate(all_price_list[:display_limit]):
+        for i, product_json in enumerate(all_price_list):
             try:
                 # Wrap the JSON parsing in a try-except block
                 product = json.loads(product_json)
@@ -508,7 +485,7 @@ async def get_pricing_from_api(
             )
 
         # Use shared format_response utility
-        result = {
+        result: Dict[str, Any] = {
             'service_code': service_code,
             'filter_count': len(api_filters),
             'total_products_found': len(all_price_list),
@@ -523,7 +500,7 @@ async def get_pricing_from_api(
                 f'{((display_limit - failed_products) / display_limit) * 100:.1f}%'
             )
 
-        return format_response('success', result)
+        return format_response('success', with_pagination(result, pagination))
 
     except Exception as e:
         # Route through the shared handler so the response carries a top-level

@@ -80,7 +80,6 @@ def mock_co_client():
                 ],
             }
         ],
-        'nextToken': 'next-token-123',
     }
 
     mock_client.get_auto_scaling_group_recommendations.return_value = {
@@ -178,7 +177,6 @@ def mock_co_client():
                 ],
             }
         ],
-        'nextToken': 'next-token-lambda',
     }
 
     mock_client.get_rds_database_recommendations.return_value = {
@@ -214,7 +212,6 @@ def mock_co_client():
                 'lookbackPeriodInDays': 14.0,
             }
         ],
-        'nextToken': 'next-token-rds',
     }
 
     mock_client.get_rds_instance_recommendations.return_value = {
@@ -241,7 +238,6 @@ def mock_co_client():
                 ],
             }
         ],
-        'nextToken': 'next-token-rds',
     }
 
     mock_client.get_idle_recommendations.return_value = {
@@ -281,7 +277,6 @@ def mock_co_client():
             }
         ],
         'errors': [],
-        'nextToken': 'next-token-idle',
     }
 
     return mock_client
@@ -307,14 +302,14 @@ class TestGetEC2InstanceRecommendations:
         # Setup
         filters = '[{"Name":"Finding","Values":["OVERPROVISIONED"]}]'
         account_ids = '["123456789012"]'
-        max_results = 10
+        max_items = 10
         next_token = 'token-123'
 
         # Execute
         result = await get_ec2_instance_recommendations(
             mock_context,
             mock_co_client,
-            max_results,
+            max_items,
             filters,
             account_ids,
             next_token,
@@ -334,7 +329,8 @@ class TestGetEC2InstanceRecommendations:
         assert result['status'] == 'success'
         assert 'recommendations' in result['data']
         assert len(result['data']['recommendations']) == 1
-        assert result['data']['next_token'] == 'next-token-123'
+        assert result['data']['pagination']['next_token'] is None
+        assert result['data']['pagination']['complete_dataset'] is True
 
         recommendation = result['data']['recommendations'][0]
         assert recommendation['current_instance']['instance_type'] == 't3.micro'
@@ -355,7 +351,7 @@ class TestGetAutoScalingGroupRecommendations:
         result = await get_auto_scaling_group_recommendations(
             mock_context,
             mock_co_client,
-            max_results=10,
+            max_items=10,
             filters=None,
             account_ids=None,
             next_token=None,
@@ -405,7 +401,7 @@ class TestGetAutoScalingGroupRecommendations:
             await get_auto_scaling_group_recommendations(
                 mock_context,
                 mock_co_client,
-                max_results=10,
+                max_items=10,
                 filters=filters,
                 account_ids=account_ids,
                 next_token='next-page',
@@ -427,7 +423,7 @@ class TestGetEBSVolumeRecommendations:
         result = await get_ebs_volume_recommendations(
             mock_context,
             mock_co_client,
-            max_results=10,
+            max_items=10,
             filters=None,
             account_ids=None,
             next_token=None,
@@ -468,7 +464,7 @@ class TestGetEBSVolumeRecommendations:
             await get_ebs_volume_recommendations(
                 mock_context,
                 mock_co_client,
-                max_results=10,
+                max_items=10,
                 filters=filters,
                 account_ids=account_ids,
                 next_token='next-page',
@@ -490,7 +486,7 @@ class TestGetLambdaFunctionRecommendations:
         result = await get_lambda_function_recommendations(
             mock_context,
             mock_co_client,
-            max_results=10,
+            max_items=10,
             filters=None,
             account_ids=None,
             next_token=None,
@@ -550,7 +546,7 @@ class TestGetLambdaFunctionRecommendations:
             await get_lambda_function_recommendations(
                 mock_context,
                 mock_co_client,
-                max_results=10,
+                max_items=10,
                 filters=filters,
                 account_ids=account_ids,
                 next_token='next-page',
@@ -590,7 +586,7 @@ class TestGetLambdaFunctionRecommendations:
         result = await get_lambda_function_recommendations(
             mock_context,
             mock_co_client,
-            max_results=10,
+            max_items=10,
             filters=None,
             account_ids=None,
             next_token=None,
@@ -610,7 +606,7 @@ class TestGetRDSRecommendations:
         result = await get_rds_recommendations(
             mock_context,
             mock_co_client,
-            max_results=10,
+            max_items=10,
             filters=None,
             account_ids=None,
             next_token=None,
@@ -665,7 +661,7 @@ class TestGetRDSRecommendations:
             await get_rds_recommendations(
                 mock_context,
                 mock_co_client,
-                max_results=10,
+                max_items=10,
                 filters=filters,
                 account_ids=account_ids,
                 next_token='next-page-rds',
@@ -690,7 +686,7 @@ class TestGetIdleRecommendations:
         result = await get_idle_recommendations(
             mock_context,
             mock_co_client,
-            max_results=10,
+            max_items=10,
             filters=None,
             account_ids=None,
             next_token=None,
@@ -705,7 +701,7 @@ class TestGetIdleRecommendations:
         assert result['status'] == 'success'
         assert 'recommendations' in result['data']
         assert result['data']['errors'] == []
-        assert result['data']['next_token'] == 'next-token-idle'
+        assert result['data']['pagination']['next_token'] is None
 
         recommendations = result['data']['recommendations']
         assert len(recommendations) == 1
@@ -753,7 +749,7 @@ class TestGetIdleRecommendations:
             await get_idle_recommendations(
                 mock_context,
                 mock_co_client,
-                max_results=10,
+                max_items=10,
                 filters=filters,
                 account_ids=account_ids,
                 next_token='next-page-idle',
@@ -779,7 +775,7 @@ class TestGetIdleRecommendations:
         result = await get_idle_recommendations(
             mock_context,
             mock_co_client,
-            max_results=None,
+            max_items=None,
             filters=filters,
             account_ids=None,
             next_token=None,
@@ -1048,7 +1044,7 @@ class TestComputeOptimizerFastMCP:
             res = await real_fn(
                 mock_context,
                 operation='get_ec2_instance_recommendations',
-                max_results=100,
+                max_items=100,
                 filters='[{"Name":"Finding","Values":["OVERPROVISIONED"]}]',
                 account_ids='["123456789012"]',
             )
@@ -1081,7 +1077,7 @@ class TestComputeOptimizerFastMCP:
             mock_impl.return_value = {'status': 'success', 'data': {'recommendations': []}}
 
             res = await real_fn(
-                mock_context, operation='get_auto_scaling_group_recommendations', max_results=50
+                mock_context, operation='get_auto_scaling_group_recommendations', max_items=50
             )
             assert res['status'] == 'success'
             mock_impl.assert_awaited_once()
@@ -1111,7 +1107,7 @@ class TestComputeOptimizerFastMCP:
             mock_impl.return_value = {'status': 'success', 'data': {'recommendations': []}}
 
             res = await real_fn(
-                mock_context, operation='get_ebs_volume_recommendations', max_results=50
+                mock_context, operation='get_ebs_volume_recommendations', max_items=50
             )
             assert res['status'] == 'success'
             mock_impl.assert_awaited_once()
@@ -1141,7 +1137,7 @@ class TestComputeOptimizerFastMCP:
             mock_impl.return_value = {'status': 'success', 'data': {'recommendations': []}}
 
             res = await real_fn(
-                mock_context, operation='get_lambda_function_recommendations', max_results=50
+                mock_context, operation='get_lambda_function_recommendations', max_items=50
             )
             assert res['status'] == 'success'
             mock_impl.assert_awaited_once()
@@ -1166,7 +1162,7 @@ class TestComputeOptimizerFastMCP:
             mock_create_client.return_value = mock_client
             mock_impl.return_value = {'status': 'success', 'data': {'recommendations': []}}
 
-            res = await real_fn(mock_context, operation='get_rds_recommendations', max_results=50)
+            res = await real_fn(mock_context, operation='get_rds_recommendations', max_items=50)
             assert res['status'] == 'success'
             mock_impl.assert_awaited_once()
 
@@ -1190,7 +1186,7 @@ class TestComputeOptimizerFastMCP:
             mock_create_client.return_value = mock_client
             mock_impl.return_value = {'status': 'success', 'data': {'recommendations': []}}
 
-            res = await real_fn(mock_context, operation='get_idle_recommendations', max_results=50)
+            res = await real_fn(mock_context, operation='get_idle_recommendations', max_items=50)
             assert res['status'] == 'success'
             mock_impl.assert_awaited_once()
 
@@ -1779,11 +1775,11 @@ class TestComputeOptimizerCoverageGaps:
 
 
 @pytest.mark.asyncio
-class TestComputeOptimizerNoMaxResults:
-    """Verify the functions handle a falsy max_results (no maxResults sent)."""
+class TestComputeOptimizerNoMaxItems:
+    """Verify the functions request the largest page when max_items is omitted."""
 
-    async def test_recommendations_without_max_results(self, mock_context, mock_co_client):
-        """Each recommendation function omits maxResults when max_results is None."""
+    async def test_recommendations_without_max_items(self, mock_context, mock_co_client):
+        """Each recommendation function sends maxResults=1000 when max_items is None."""
         funcs = [
             (
                 get_auto_scaling_group_recommendations,
@@ -1801,14 +1797,15 @@ class TestComputeOptimizerNoMaxResults:
             result = await func(
                 mock_context,
                 mock_co_client,
-                max_results=None,
+                max_items=None,
                 filters=None,
                 account_ids=None,
                 next_token=None,
             )
             assert result['status'] == 'success'
-            # maxResults must NOT be sent when max_results is falsy
-            assert 'maxResults' not in client_method.call_args[1]
+            # Without max_items every page is fetched, each at the API's largest page size.
+            assert client_method.call_args[1]['maxResults'] == 1000
+            assert result['data']['pagination']['complete_dataset'] is True
 
 
 @pytest.mark.asyncio
@@ -1875,7 +1872,7 @@ class TestGetECSServiceRecommendations:
         result = await get_ecs_service_recommendations(
             mock_context,
             mock_co_client,
-            max_results=10,
+            max_items=10,
             filters=None,
             account_ids=None,
             next_token=None,
@@ -1950,7 +1947,7 @@ class TestGetECSServiceRecommendations:
             await get_ecs_service_recommendations(
                 mock_context,
                 mock_co_client,
-                max_results=10,
+                max_items=10,
                 filters=filters,
                 account_ids=account_ids,
                 next_token='next-token',
@@ -2180,7 +2177,7 @@ class TestComputeOptimizerFilterNormalization:
 
         client = MagicMock()
         getattr(client, client_method).return_value = {}
-        args = {'max_results': None, 'filters': None, 'account_ids': None, 'next_token': None}
+        args = {'max_items': None, 'filters': None, 'account_ids': None, 'next_token': None}
         args.update(kwargs)
         result = await getattr(compute_optimizer_tools, func_name)(mock_context, client, **args)
         return result, getattr(client, client_method)
@@ -2374,19 +2371,23 @@ class TestComputeOptimizerFilterNormalization:
             'GetEC2InstanceRecommendations',
         )
 
-        result = await get_ec2_instance_recommendations(
-            mock_context,
-            client,
-            None,
-            json.dumps([{'name': 'Finding', 'values': ['Optimized']}]),
-            None,
-            'bogus-token',
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            InvalidNextTokenError,
         )
 
-        assert result['error_type'] == 'InvalidParameterValueException'
-        assert 'pagination token' in result['message']
-        assert 'valid_filters' not in result['data']
-        assert 'compare submitted_filters' not in result['message']
+        # A caller token rejected with InvalidParameterValueException is a rejected token, not
+        # a filter problem; the tool's error handling reports it as invalid_next_token.
+        with pytest.raises(InvalidNextTokenError) as raised:
+            await get_ec2_instance_recommendations(
+                mock_context,
+                client,
+                None,
+                json.dumps([{'name': 'Finding', 'values': ['Optimized']}]),
+                None,
+                'bogus-token',
+            )
+
+        assert raised.value.error_code == 'InvalidParameterValueException'
 
     async def test_other_client_errors_still_raise(self, mock_context):
         """Errors other than InvalidParameterValue reach the dispatcher's handling."""
@@ -2415,25 +2416,21 @@ class TestComputeOptimizerFilterNormalization:
         assert result['data']['provided_account_ids'] == ['111111111111', '222222222222']
 
     @pytest.mark.parametrize(
-        'func_name,client_method,ok,too_many',
+        'func_name,client_method,page_max',
         [
-            ('get_ec2_instance_recommendations', 'get_ec2_instance_recommendations', 1000, 1001),
-            ('get_idle_recommendations', 'get_idle_recommendations', 100, 101),
+            ('get_ec2_instance_recommendations', 'get_ec2_instance_recommendations', 1000),
+            ('get_idle_recommendations', 'get_idle_recommendations', 100),
         ],
     )
-    async def test_max_results_limit(self, mock_context, func_name, client_method, ok, too_many):
-        """max_results is capped at 1000, or 100 for idle."""
-        result, method = await self._call(mock_context, func_name, client_method, max_results=ok)
-        assert result['status'] == 'success'
-        assert method.call_args[1]['maxResults'] == ok
-
-        method.reset_mock()
+    async def test_page_size_capped_at_page_max(
+        self, mock_context, func_name, client_method, page_max
+    ):
+        """A max_items above one page requests the API's largest page (1000, or 100 for idle)."""
         result, method = await self._call(
-            mock_context, func_name, client_method, max_results=too_many
+            mock_context, func_name, client_method, max_items=page_max + 1
         )
-        method.assert_not_called()
-        assert result['error_type'] == 'validation_error'
-        assert result['data']['max_allowed'] == ok
+        assert result['status'] == 'success'
+        assert method.call_args[1]['maxResults'] == page_max
 
 
 def _populated_response(api_name):
@@ -2531,8 +2528,10 @@ class TestComputeOptimizerResponseFields:
         client = MagicMock()
         getattr(client, client_method).return_value = response
 
+        # max_items=1 stops after the one populated page, so its nextToken is surfaced. The
+        # mock returns the same token on every call, which paging would treat as a loop.
         result = await getattr(compute_optimizer_tools, func_name)(
-            mock_context, client, None, None, None, None
+            mock_context, client, 1, None, None, None
         )
         output = json.dumps(result, default=str)
 
@@ -2700,8 +2699,8 @@ class TestComputeOptimizerReviewFixes:
         assert result['operation'] == 'get_ec2_instance_recommendations'
 
     @pytest.mark.parametrize('func_name,client_method', OPS)
-    async def test_max_results_limit_every_operation(self, mock_context, func_name, client_method):
-        """Each operation rejects one over its documented page limit."""
+    async def test_page_size_limit_every_operation(self, mock_context, func_name, client_method):
+        """Each operation never requests more than its documented page limit."""
         from awslabs.billing_cost_management_mcp_server.tools import compute_optimizer_tools
 
         limit = 100 if func_name == 'get_idle_recommendations' else 1000
@@ -2709,11 +2708,9 @@ class TestComputeOptimizerReviewFixes:
         getattr(client, client_method).return_value = {}
         func = getattr(compute_optimizer_tools, func_name)
 
-        ok = await func(mock_context, client, limit, None, None, None)
-        assert ok['status'] == 'success'
-        too_many = await func(mock_context, client, limit + 1, None, None, None)
-        assert too_many['error_type'] == 'validation_error'
-        assert too_many['data']['max_allowed'] == limit
+        result = await func(mock_context, client, limit + 1, None, None, None)
+        assert result['status'] == 'success'
+        assert getattr(client, client_method).call_args[1]['maxResults'] == limit
 
     @pytest.mark.parametrize(
         'operation,helper',
@@ -2823,7 +2820,7 @@ class TestComputeOptimizerReviewFixes:
         )
 
         assert 'errors' not in result['data']
-        assert 'next_token' in result['data']
+        assert 'pagination' in result['data']
 
     @pytest.mark.parametrize(
         'func_name,client_method',
@@ -3346,3 +3343,191 @@ class TestComputeOptimizerHelperEdgeCases:
                 )
         finally:
             compute_optimizer_tools._model_filter_names.cache_clear()
+
+
+PAGINATED_OPS = [
+    (
+        'get_ec2_instance_recommendations',
+        'get_ec2_instance_recommendations',
+        'instanceRecommendations',
+        1000,
+    ),
+    (
+        'get_auto_scaling_group_recommendations',
+        'get_auto_scaling_group_recommendations',
+        'autoScalingGroupRecommendations',
+        1000,
+    ),
+    (
+        'get_ebs_volume_recommendations',
+        'get_ebs_volume_recommendations',
+        'volumeRecommendations',
+        1000,
+    ),
+    (
+        'get_lambda_function_recommendations',
+        'get_lambda_function_recommendations',
+        'lambdaFunctionRecommendations',
+        1000,
+    ),
+    ('get_rds_recommendations', 'get_rds_database_recommendations', 'rdsDBRecommendations', 1000),
+    (
+        'get_ecs_service_recommendations',
+        'get_ecs_service_recommendations',
+        'ecsServiceRecommendations',
+        1000,
+    ),
+    ('get_idle_recommendations', 'get_idle_recommendations', 'idleRecommendations', 100),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('func_name,client_method,result_key,page_max', PAGINATED_OPS)
+class TestComputeOptimizerPagination:
+    """max_items / next_token behavior for every get_*_recommendations operation."""
+
+    async def _call(self, mock_context, func_name, client, **kwargs):
+        from awslabs.billing_cost_management_mcp_server.tools import compute_optimizer_tools
+
+        args = {'max_items': None, 'filters': None, 'account_ids': None, 'next_token': None}
+        args.update(kwargs)
+        return await getattr(compute_optimizer_tools, func_name)(mock_context, client, **args)
+
+    async def test_no_max_items_fetches_every_page(
+        self, mock_context, func_name, client_method, result_key, page_max
+    ):
+        """Without max_items every page is fetched at the largest page size."""
+        client = MagicMock()
+        method = getattr(client, client_method)
+        method.side_effect = [
+            {result_key: [{}, {}], 'nextToken': 'page-2'},
+            {result_key: [{}]},
+        ]
+
+        result = await self._call(mock_context, func_name, client)
+
+        assert method.call_count == 2
+        first, second = (c.kwargs for c in method.call_args_list)
+        assert first['maxResults'] == second['maxResults'] == page_max
+        assert 'nextToken' not in first
+        assert second['nextToken'] == 'page-2'
+        assert result['status'] == 'success'
+        assert len(result['data']['recommendations']) == 3
+        assert 'complete_dataset' not in result['data']
+        assert 'warning' not in result['data']
+        assert result['data']['pagination'] == {
+            'complete_dataset': True,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 3,
+        }
+
+    async def test_max_items_stops_and_returns_service_token(
+        self, mock_context, func_name, client_method, result_key, page_max
+    ):
+        """max_items sizes the page and stops once reached, returning the service token."""
+        client = MagicMock()
+        method = getattr(client, client_method)
+        method.return_value = {result_key: [{}, {}], 'nextToken': 'service-token'}
+
+        result = await self._call(mock_context, func_name, client, max_items=2)
+
+        method.assert_called_once()
+        assert method.call_args.kwargs['maxResults'] == 2
+        data = result['data']
+        assert list(data)[:2] == ['complete_dataset', 'warning']
+        assert data['complete_dataset'] is False
+        assert len(data['recommendations']) == 2
+        assert data['pagination']['next_token'] == 'service-token'
+        assert data['pagination']['has_more'] is True
+
+    async def test_continuation_sends_caller_token_and_same_params(
+        self, mock_context, func_name, client_method, result_key, page_max
+    ):
+        """A next_token call repeats every other request parameter unchanged."""
+        client = MagicMock()
+        method = getattr(client, client_method)
+        method.return_value = {result_key: []}
+        account_ids = '["123456789012"]'
+
+        await self._call(mock_context, func_name, client, max_items=5, account_ids=account_ids)
+        fresh = dict(method.call_args.kwargs)
+        await self._call(
+            mock_context,
+            func_name,
+            client,
+            max_items=5,
+            account_ids=account_ids,
+            next_token='caller-token',
+        )
+        continued = dict(method.call_args.kwargs)
+
+        assert continued.pop('nextToken') == 'caller-token'
+        assert continued == fresh
+        assert fresh['maxResults'] == 5
+
+
+@pytest.mark.asyncio
+class TestComputeOptimizerPaginationEdgeCases:
+    """Pagination details beyond the per-operation contract."""
+
+    async def test_errors_concatenated_across_pages(self, mock_context):
+        """Response-level errors from every page are kept."""
+        client = MagicMock()
+        client.get_ec2_instance_recommendations.side_effect = [
+            {'instanceRecommendations': [{}], 'errors': [{'code': 'A'}], 'nextToken': 't'},
+            {'instanceRecommendations': [{}], 'errors': [{'code': 'B'}]},
+        ]
+
+        result = await get_ec2_instance_recommendations(
+            mock_context, client, None, None, None, None
+        )
+
+        assert result['data']['errors'] == [{'code': 'A'}, {'code': 'B'}]
+
+    async def test_idle_order_by_sent_on_every_fetched_page(self, mock_context):
+        """The idle orderBy is part of the request, so the helper resends it on page 2."""
+        client = MagicMock()
+        client.get_idle_recommendations.side_effect = [
+            {'idleRecommendations': [{}], 'nextToken': 't'},
+            {'idleRecommendations': [{}]},
+        ]
+
+        await get_idle_recommendations(
+            mock_context, client, None, None, None, None, order_by='{"order": "Asc"}'
+        )
+
+        orders = [c.kwargs['orderBy'] for c in client.get_idle_recommendations.call_args_list]
+        assert orders == [{'dimension': 'SavingsValueAfterDiscount', 'order': 'Asc'}] * 2
+
+    async def test_invalid_parameter_on_first_page_returns_structured_error(self, mock_context):
+        """InvalidParameterValueException still maps to the structured error via the helper."""
+        from botocore.exceptions import ClientError
+
+        client = MagicMock()
+        client.get_ebs_volume_recommendations.side_effect = ClientError(
+            {'Error': {'Code': 'InvalidParameterValueException', 'Message': 'bad'}},
+            'GetEBSVolumeRecommendations',
+        )
+
+        result = await get_ebs_volume_recommendations(mock_context, client, None, None, None, None)
+
+        assert result['error_type'] == 'InvalidParameterValueException'
+
+    async def test_failure_after_first_page_returns_partial(self, mock_context):
+        """A later page failing keeps the fetched items and the token that failed."""
+        from botocore.exceptions import ClientError
+
+        client = MagicMock()
+        client.get_lambda_function_recommendations.side_effect = [
+            {'lambdaFunctionRecommendations': [{}], 'nextToken': 'retry-me'},
+            ClientError({'Error': {'Code': 'ThrottlingException'}}, 'GetLambda'),
+        ]
+
+        result = await get_lambda_function_recommendations(
+            mock_context, client, None, None, None, None
+        )
+
+        assert result['data']['complete_dataset'] is False
+        assert result['data']['pagination']['next_token'] == 'retry-me'
+        assert len(result['data']['recommendations']) == 1

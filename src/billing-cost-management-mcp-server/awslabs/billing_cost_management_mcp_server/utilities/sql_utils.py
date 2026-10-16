@@ -31,6 +31,7 @@ import os
 import re
 import sqlite3
 import uuid
+from .aws_service_base import partial_data_warning
 from .constants import (
     COST_OPTIMIZATION_HUB_EFFICIENCY_METRICS_COLUMNS,
     COST_OPTIMIZATION_HUB_EFFICIENCY_ORDER_DIMENSION_TO_COLUMN,
@@ -573,77 +574,57 @@ def _create_and_insert(
     return count
 
 
-def _derive_pagination_envelope(
-    response: Dict[str, Any], token_key: str = 'NextPageToken'
-) -> Dict[str, Any]:
-    """Extract pagination metadata from a response so it survives SQL offload.
+def _derive_pagination_envelope(response: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract the pagination block from a response so it survives SQL offload.
 
-    Recognizes two shapes produced upstream:
-
-    - Multi-page wrapper built by callers after `paginate_aws_response`:
-      ``{'<ResultsKey>': [...], 'Pagination': {next_token, has_more, pages_fetched, ...}}``
-    - Single-page raw boto3 response with a continuation-token field (e.g.
-      ``NextPageToken``).
+    Reads the lowercase ``pagination`` block attached by
+    ``aws_service_base.with_pagination``. A partial result's ``warning`` sits at the top
+    level of the response.
 
     Args:
-        response: The API response (or paginated wrapper) being offloaded.
-        token_key: Name of the continuation-token field in the single-page
-            boto3 response. Defaults to ``NextPageToken`` (used by Cost
-            Explorer ops); pass e.g. ``NextToken`` for AWS Pricing.
+        response: The tool response being offloaded.
 
     Returns:
-        Dict with ``next_page_token``, ``has_more``, ``pages_fetched`` keys.
-        Empty dict if the response carries no pagination markers (e.g. a
-        forecast response), so unrelated APIs aren't polluted with bogus
-        pagination metadata.
+        ``{'complete_dataset', 'warning' (partial only), 'pagination': {...}}``, in that
+        order so the partial-data signal leads. Empty dict if the response carries no
+        pagination block (e.g. a forecast response).
     """
-    if 'Pagination' in response and isinstance(response['Pagination'], dict):
-        pag_meta = response['Pagination']
-        return {
-            'next_page_token': pag_meta.get('next_token'),
-            'has_more': pag_meta.get('has_more', False),
-            'pages_fetched': pag_meta.get('pages_fetched'),
-        }
-    if token_key in response:
-        token = response.get(token_key)
-        return {
-            'next_page_token': token,
-            'has_more': bool(token),
-            'pages_fetched': 1,
-        }
-    return {}
+    block = response.get('pagination')
+    if not isinstance(block, dict):
+        return {}
+    has_more = bool(block.get('has_more', False))
+    envelope: Dict[str, Any] = {'complete_dataset': not has_more}
+    if has_more:
+        envelope['warning'] = response.get('warning') or partial_data_warning(
+            block.get('items_returned') or 0
+        )
+    envelope['pagination'] = dict(block)
+    return envelope
 
 
 async def convert_response_if_needed(
     ctx: Context,
     response: Dict[str, Any],
     api_name: str,
-    pagination_token_key: str = 'NextPageToken',
     **metadata,
 ) -> Dict[str, Any]:
     """Offload an API response to SQL if it exceeds the size threshold.
 
-    Auto-derives pagination metadata (`next_page_token`, `has_more`,
-    `pages_fetched`) from the response shape so callers don't have to
-    pass it explicitly. Explicit kwargs in `metadata` override the
-    derived values.
+    The response's ``pagination`` block (and a partial result's ``warning``) is carried
+    into the offload sentinel, so the sentinel has the same pagination fields as an
+    inline result. Explicit kwargs in ``metadata`` override the derived values.
 
-    Return contract — always returns something the caller can pass
-    straight through to `format_response`:
-    - Offload happened: the offload sentinel dict (with `data_stored=True`,
-      `table_name`, sample queries, etc.).
-    - No offload (size below threshold): the original `response`.
-    - Conversion errored: log + return the original `response`.
-
-    The original response is returned on no-offload and on error so
-    callers don't need to unwrap a size-meta or error envelope.
+    Return contract — always returns something the caller can pass straight through
+    to ``format_response``:
+    - Offload happened: the offload sentinel dict (with ``data_stored=True``,
+      ``table_name``, sample queries, etc.).
+    - No offload (size below threshold), or the offload failed: the original
+      ``response``, led by ``complete_dataset: false`` and ``warning`` when partial.
 
     Args:
         ctx: MCP context
         response: API response data
         api_name: Name of the API operation (e.g. 'aws_pricing_get_products')
-        pagination_token_key: Name of the continuation-token field in
-            single-page boto3 responses. Defaults to 'NextPageToken'.
         **metadata: Additional metadata to include in the offload sentinel.
 
     Returns:
@@ -654,29 +635,45 @@ async def convert_response_if_needed(
 
     # Pull pagination markers out of the response so they survive offload —
     # caller-provided metadata still wins on key conflict.
-    metadata = {**_derive_pagination_envelope(response, pagination_token_key), **metadata}
+    metadata = {**_derive_pagination_envelope(response), **metadata}
+
+    # Inline results lead with the partial-data signal too, so it is read before the data.
+    inline_response = response
+    if metadata.get('complete_dataset') is False:
+        inline_response = {
+            'complete_dataset': False,
+            'warning': metadata.get('warning'),
+            **response,
+        }
 
     try:
         response_size = len(json.dumps(response).encode('utf-8'))
-
-        if not should_convert_to_sql(response_size):
-            await ctx_logger.debug(
-                f'Response size {response_size / 1024:.2f}KB below threshold, returning directly'
-            )
-            return response
-
-        await ctx_logger.info(
-            f'Response size {response_size / 1024:.2f}KB exceeds threshold, converting to SQL'
+    except (TypeError, ValueError) as e:
+        # Not JSON-serializable, so neither offload nor size check applies; return as is.
+        await ctx_logger.error(
+            f'Error processing response for {api_name}: {type(e).__name__}', exc_info=False
         )
+        return inline_response
+
+    if not should_convert_to_sql(response_size):
+        await ctx_logger.debug(
+            f'Response size {response_size / 1024:.2f}KB below threshold, returning directly'
+        )
+        return inline_response
+
+    await ctx_logger.info(
+        f'Response size {response_size / 1024:.2f}KB exceeds threshold, converting to SQL'
+    )
+    try:
         return await convert_api_response_to_table(ctx, response, api_name, **metadata)
     except Exception as e:
-        # Offload is an optimization — if it fails, fall back to the original
-        # response rather than propagating an error envelope the caller would
-        # have to unwrap anyway.
+        # Offload is an optimization: if it fails, return what was fetched inline rather
+        # than an error. The pagination block leads the response, so a client that trims
+        # an oversized result still sees whether it is complete and how to continue.
         await ctx_logger.error(
             f'Error processing response for {api_name}: {str(e)}', exc_info=True
         )
-        return response
+        return inline_response
 
 
 async def convert_api_response_to_table(
@@ -734,7 +731,11 @@ async def convert_api_response_to_table(
             # Insert pricing data
             price_list = response.get('PriceList', [])
             for product_json in price_list:
-                product = json.loads(product_json)
+                try:
+                    product = json.loads(product_json)
+                except (TypeError, ValueError):
+                    # One malformed product must not fail the whole offload.
+                    product = {}
 
                 # Use validated table name
                 validate_table_name(table_name)
@@ -1377,11 +1378,29 @@ async def convert_api_response_to_table(
                 }
             )
 
+        # A partial table leads with the signal, and its aggregates are labeled as undercounts.
+        # The pagination block goes under the same lowercase key as an inline result.
+        partial: Dict[str, Any] = {}
+        pagination_block = metadata.pop('pagination', None)
+        complete = metadata.pop('complete_dataset', None)
+        warning = metadata.pop('warning', None)
+        if complete is False:
+            partial = {'complete_dataset': False, 'warning': warning}
+            # The generic key/value flatten stores fields, not items, so its row count
+            # says nothing about how much data was retrieved.
+            if converter_type is not None:
+                partial['rows_retrieved'] = rows_inserted
+            for query in sample_queries:
+                query['description'] = f'PARTIAL DATA, undercounts: {query["description"]}'
+        if pagination_block is not None:
+            partial['pagination'] = pagination_block
+
         # Return info about the stored data
         db_path = get_session_db_path()
 
         return {
             'status': 'success',
+            **partial,
             'data_stored': True,
             'session_db': db_path,
             'table_name': table_name,

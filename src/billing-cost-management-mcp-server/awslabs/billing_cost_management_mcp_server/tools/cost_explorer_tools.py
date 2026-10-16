@@ -64,6 +64,12 @@ nothing when filtered on LEGAL_ENTITY_NAME because the key for it is BILLING_ENT
    spend, re-run grouped by that dimension to get the value and its cost in one call.
 2. If you GROUPED and the line genuinely shows $0, report "$0.00", not "no data found".
 
+PAGINATION (max_items, next_token: getCostAndUsage, getCostAndUsageWithResources, getDimensionValues, getTagsOrValues, getCostCategories only; the other operations take neither):
+- max_items is the total number of items returned (getCostAndUsage: one item per group per period, or per period without group_by). Omit it to fetch every page (no limit). Pass it, or narrow the time range, filter or group_by, for queries that can be large (e.g. daily data grouped by RESOURCE_ID, USAGE_TYPE or LINKED_ACCOUNT).
+- These operations don't support ordering, so max_items returns the first items the service sends, not the top N. For a top-N, fetch the full result (or a narrower one) and rank it.
+- If the result has complete_dataset: false, it is partial: totals and counts undercount. Call again with a larger max_items, continue with next_token (same parameters otherwise; pass explicit start_date and end_date, since defaults are computed from today and a changed date range invalidates the token), or state that the result is partial. Never report a page size or the number of returned items as a total count.
+- Fields from the first page only (GroupDefinitions, TotalSize) aren't repeated on continuation calls.
+
 USE THIS TOOL FOR:
 - **Historical cost trends** and spending analysis (any time period)
 - **Usage pattern analysis** over time
@@ -76,21 +82,21 @@ USE THIS TOOL FOR:
 
 1) getCostAndUsage — account-level historical cost/usage
    Required: operation="getCostAndUsage", start_date, end_date, granularity, metrics
-   Optional: group_by, filter, next_token, max_pages, billing_view_arn
+   Optional: group_by, filter, max_items, next_token, billing_view_arn
    Example: {"operation": "getCostAndUsage", "start_date": "2024-01-01", "end_date": "2024-02-01", "granularity": "DAILY", "metrics": [\"UnblendedCost\"], "group_by": "[{\"Type\": \"DIMENSION\", \"Key\": \"SERVICE\"}]"}
 
 2. getCostAndUsageWithResources - Resource-level cost data (limited to last 14 days)
    Required: operation="getCostAndUsageWithResources", filter, granularity, start_date, end_date
-   Optional: metrics, group_by, next_token, max_pages, billing_view_arn
+   Optional: metrics, group_by, max_items, next_token, billing_view_arn
    Notes: RESOURCE_ID must be included in either filter OR group_by parameters. This operation is limited to past 14 days of data from current date. Hourly granularity is only available for EC2-Instances resource-level data. All other resource-level data is available at daily granularity.
    Example: {"operation": "getCostAndUsageWithResources", "start_date": "2025-08-07", "end_date": "2025-08-21", "granularity": "DAILY", "filter": "{\"Dimensions\": {\"Key\": \"SERVICE\", \"Values\": [\"Amazon Elastic Compute Cloud - Compute\"]}}", "group_by": "[{\"Type\": \"DIMENSION\", \"Key\": \"RESOURCE_ID\"}]"}
    Returns: Cost data with resource-level granularity
 
 3. getDimensionValues - List of available values for specified dimension
    Required: operation="getDimensionValues", dimension, start_date, end_date
-   Optional: context, search_string, filter, max_results, billing_view_arn
+   Optional: context, search_string, filter, max_items, next_token, billing_view_arn
    Example: {"operation": "getDimensionValues", "dimension": "SERVICE", "start_date": "2024-01-01", "end_date": "2024-02-01"}
-   Returns: List of values for specified dimension with automatic pagination
+   Returns: List of values for specified dimension (see PAGINATION)
    Notes: TAG is not a dimension here in the default COST_AND_USAGE context — to list a cost-allocation tag key's values use operation=getTagsOrValues (with tag_key); passing dimension=TAG is rejected. TAG is only valid as a dimension when context=RESERVATIONS (coverage).
 
 4. getCostForecast - Future cost projections
@@ -111,17 +117,17 @@ USE THIS TOOL FOR:
 
 6. getTagsOrValues - Available cost allocation tags or values
    Required: operation="getTagsOrValues"
-   Optional: start_date, end_date, search_string, next_token, max_pages, billing_view_arn
+   Optional: start_date, end_date, tag_key, search_string, max_items, next_token, billing_view_arn
    Example 1: {"operation": "getTagsOrValues"}
    Example 2: {"operation": "getTagsOrValues", "tag_key": "Environment"}
-   Returns: List of available cost allocation tags with automatic pagination. If tag values for a particular key are needed, pass the tag key as a parameter.
+   Returns: List of available cost allocation tags (see PAGINATION). If tag values for a particular key are needed, pass the tag key as a parameter. The tag key list holds at most 5,000 keys in total.
 
 7. getCostCategories - Available cost categories or values inside a category
    Required: operation="getCostCategories", start_date, end_date
-   Optional: cost_category_name, search_string, next_token, max_pages, billing_view_arn
+   Optional: cost_category_name, search_string, max_items, next_token, billing_view_arn
    Example 1 (list category names): {"operation": "getCostCategories", "start_date": "2024-01-01", "end_date": "2024-08-01"}
    Example 2 (list values inside a category): {"operation": "getCostCategories", "cost_category_name": "CostCenters", "start_date": "2024-01-01", "end_date": "2024-08-01"}
-   Notes: Without cost_category_name the response contains CostCategoryNames. With cost_category_name set the response contains CostCategoryValues for that category. Pagination is automatic.
+   Notes: Without cost_category_name the response contains CostCategoryNames. With cost_category_name set the response contains CostCategoryValues for that category. The category name list holds at most 5,000 names in total. See PAGINATION.
 
 8. getSavingsPlansUtilization - Savings Plans utilization data
    Required: operation="getSavingsPlansUtilization", start_date, end_date
@@ -183,9 +189,8 @@ async def cost_explorer(
     filter: Optional[Union[str, Dict[str, Any]]] = None,
     dimension: Optional[str] = None,
     search_string: Optional[str] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
     metric: Optional[str] = None,
     prediction_interval_level: int = 80,
     tag_key: Optional[str] = None,
@@ -209,9 +214,10 @@ async def cost_explorer(
         filter: Filter to apply to the results, as an object or a JSON string
         dimension: Dimension to get values for (getDimensionValues)
         search_string: Search string to filter dimension values
-        max_results: Maximum number of results to return
-        next_token: Pagination token
-        max_pages: Maximum number of pages to retrieve
+        max_items: Most items to return, for the paginated operations only. Omit to fetch
+            every page.
+        next_token: Continuation token from a previous response, for the paginated
+            operations only
         metric: Metric for cost forecasts
         prediction_interval_level: Confidence level for forecasts
         tag_key: Tag key to get values for
@@ -259,7 +265,7 @@ async def cost_explorer(
                 group_by,
                 filter,
                 next_token,
-                max_pages,
+                max_items,
                 billing_view_arn,
             )
 
@@ -274,7 +280,7 @@ async def cost_explorer(
                 group_by,
                 filter,
                 next_token,
-                max_pages,
+                max_items,
                 billing_view_arn,
             )
 
@@ -321,9 +327,8 @@ async def cost_explorer(
                 end_date,
                 search_string,
                 filter,
-                max_results,
                 next_token,
-                max_pages,
+                max_items,
                 billing_view_arn,
                 context,
             )
@@ -381,7 +386,7 @@ async def cost_explorer(
                 search_string,
                 tag_key,
                 next_token,
-                max_pages,
+                max_items,
                 billing_view_arn,
             )
 
@@ -397,13 +402,13 @@ async def cost_explorer(
                 search_string,
                 cost_category_name,
                 next_token,
-                max_pages,
+                max_items,
                 billing_view_arn,
             )
 
         elif operation == 'getSavingsPlansUtilization':
             return await get_savings_plans_utilization(
-                ctx, ce_client, start_date, end_date, granularity, filter, next_token, max_pages
+                ctx, ce_client, start_date, end_date, granularity, filter
             )
 
         else:
