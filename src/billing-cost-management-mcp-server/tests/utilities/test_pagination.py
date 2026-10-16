@@ -398,6 +398,16 @@ class TestFailures:
 
         api.assert_not_called()
 
+    @pytest.mark.parametrize('next_token', ['', '  '])
+    async def test_empty_next_token_is_rejected(self, ctx, next_token):
+        """An empty token must not silently restart from page 1 as if it continued."""
+        api = MagicMock()
+
+        with pytest.raises(ValueError, match='non-empty token'):
+            await paginate_aws_items(ctx, 'op', api, {}, SERVER_SIZED, next_token=next_token)
+
+        api.assert_not_called()
+
     async def test_rejected_caller_token_raises_invalid_next_token(self, ctx):
         """A token error on the caller's token maps to invalid_next_token."""
         api = MagicMock(side_effect=_client_error('BillExpirationException'))

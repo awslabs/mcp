@@ -611,12 +611,19 @@ async def paginate_aws_items(
         block (see ``with_pagination``).
 
     Raises:
-        ValueError: ``max_items`` is less than 1.
+        ValueError: ``max_items`` is less than 1, or ``next_token`` is empty.
         InvalidNextTokenError: The first page failed because ``next_token`` was rejected.
         Exception: Any other failure on the first page, unchanged.
     """
     if max_items is not None and max_items < 1:
         raise ValueError('max_items must be at least 1. Omit it to fetch every page.')
+    if next_token is not None and not next_token.strip():
+        # An empty token would silently restart from page 1 while the caller
+        # believes the result continues a previous one.
+        raise ValueError(
+            'next_token must be a non-empty token from a previous response. '
+            'Omit it to start from the first page.'
+        )
     ctx_logger = get_context_logger(ctx, __name__)
 
     items: List[Any] = []
