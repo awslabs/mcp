@@ -29,9 +29,19 @@ import boto3
 import json
 import os
 import re
+from .error_contract import DO_NOT_RETRY
 from .logging_utils import get_context_logger, get_logger
 from botocore.config import Config
-from botocore.exceptions import BotoCoreError, ClientError
+from botocore.exceptions import (
+    BotoCoreError,
+    ClientError,
+    NoCredentialsError,
+    NoRegionError,
+    ParamValidationError,
+    PartialCredentialsError,
+    ProfileNotFound,
+    UnknownServiceError,
+)
 from datetime import datetime, timedelta
 from fastmcp import Context
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -39,6 +49,25 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 # Configure logger for this module
 logger = get_logger(__name__)
+
+# BotoCoreError subclasses that report a credential or configuration problem rather
+# than a connection failure. Retrying the same request cannot fix them during the run,
+# so handle_aws_error keeps error_type='aws_connection_error' (stable for callers) but
+# sets retry_strategy='do_not_retry' explicitly; ErrorSignalingMiddleware keeps a
+# retry_strategy that is already set. Real connection failures (EndpointConnectionError,
+# ConnectTimeoutError, ReadTimeoutError, ConnectionClosedError) stay retryable.
+_NON_RETRYABLE_BOTOCORE_ERRORS = (
+    NoCredentialsError,
+    PartialCredentialsError,
+    NoRegionError,
+    ProfileNotFound,
+    UnknownServiceError,
+)
+
+_HINT_AWS_CONFIGURATION = (
+    'AWS credentials or client configuration are missing or invalid. Do not retry; '
+    'ask the user to fix the AWS profile, credentials, or region.'
+)
 
 
 # Version for user agent tracking
@@ -245,6 +274,25 @@ async def handle_aws_error(
             {'error_type': error_type, 'message': user_message, 'details': str(error)}
         )
 
+    elif isinstance(error, ParamValidationError):
+        # ParamValidationError is a client-side botocore validation failure (unknown kwargs,
+        # bad parameter shape, missing required keys, type mismatches). It subclasses
+        # BotoCoreError, but it is a validation failure, not a connection failure — surface
+        # it that way so callers (and skills) see "fix the parameters", not "AWS is
+        # unreachable". Must be matched BEFORE the BotoCoreError branch below.
+        error_type = 'validation_error'
+        user_message = str(error) or 'Invalid parameters'
+        await ctx_logger.warning(f'Validation error (ParamValidationError): {error_context}')
+
+        error_response.update(
+            {
+                'error_type': error_type,
+                'boto_error_type': 'ParamValidationError',
+                'message': user_message,
+                'details': str(error),
+            }
+        )
+
     elif isinstance(error, BotoCoreError):
         error_type = 'aws_connection_error'
         error_code = error.__class__.__name__
@@ -259,6 +307,11 @@ async def handle_aws_error(
                 'details': str(error),
             }
         )
+
+        if isinstance(error, _NON_RETRYABLE_BOTOCORE_ERRORS):
+            # Credential/configuration failure: same error_type, but not retryable.
+            error_response['retry_strategy'] = DO_NOT_RETRY
+            error_response['hint'] = _HINT_AWS_CONFIGURATION
 
     else:
         error_type = 'unknown_error'
