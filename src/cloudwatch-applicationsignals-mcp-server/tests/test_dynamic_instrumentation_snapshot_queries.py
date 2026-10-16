@@ -24,15 +24,15 @@ from unittest.mock import MagicMock, patch
 
 
 TIME = 'awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.snapshot_queries.time'
-LOGS_CLIENT = 'awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.snapshot_queries.aws_clients.logs_client'
+LOGS_CLIENT = 'awslabs.cloudwatch_applicationsignals_mcp_server.dynamic_instrumentation.snapshot_queries.aws_clients.get_client'
 
 
 def _stub_logs():
-    """Patch the shared parent logs_client with a stubbed client for the test."""
+    """Patch the client factory to return a stubbed logs client for the test."""
     client = boto3.client('logs', region_name='us-east-1')
     stubber = Stubber(client)
     stubber.activate()
-    patcher = patch(LOGS_CLIENT, client)
+    patcher = patch(LOGS_CLIENT, return_value=client)
     patcher.start()
     return stubber, patcher
 
@@ -155,7 +155,7 @@ class TestExecuteCloudwatchQuery:
 
     def test_start_query_unexpected_exception(self):
         """An unexpected (non-ClientError) start exception is captured."""
-        with patch(LOGS_CLIENT, _RaisingClient(start_exc=RuntimeError('unexpected'))):
+        with patch(LOGS_CLIENT, return_value=_RaisingClient(start_exc=RuntimeError('unexpected'))):
             result = _execute_cloudwatch_query(
                 'fields @timestamp', 1000, 2000, log_group_name='/test/log-group'
             )
@@ -164,7 +164,7 @@ class TestExecuteCloudwatchQuery:
 
     def test_start_query_missing_query_id(self):
         """A start response without a queryId is reported as an error."""
-        with patch(LOGS_CLIENT, _FakeClient(start_response={})):
+        with patch(LOGS_CLIENT, return_value=_FakeClient(start_response={})):
             result = _execute_cloudwatch_query(
                 'fields @timestamp', 1000, 2000, log_group_name='/test/log-group'
             )
