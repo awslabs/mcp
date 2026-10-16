@@ -34,6 +34,14 @@ from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
+PAGINATION_COMPLETE = {
+    'complete_dataset': True,
+    'has_more': False,
+    'next_token': None,
+    'items_returned': 1,
+}
+
+
 # Create a mock implementation for testing
 async def sp_performance(ctx, operation, **kwargs):
     """Mock implementation of sp_performance for testing."""
@@ -248,7 +256,7 @@ class TestGetSavingsPlansUtilizationDetails:
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
     @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_response'
+        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_items'
     )
     async def test_get_savings_plans_utilization_details_basic(
         self, mock_paginate_response, mock_get_date_range, mock_context, mock_ce_client
@@ -260,7 +268,8 @@ class TestGetSavingsPlansUtilizationDetails:
             mock_ce_client.get_savings_plans_utilization_details.return_value[
                 'SavingsPlansUtilizationDetails'
             ],
-            {'NextToken': None},
+            [],
+            PAGINATION_COMPLETE,
         )
 
         # Execute
@@ -270,26 +279,28 @@ class TestGetSavingsPlansUtilizationDetails:
             '2023-01-01',
             '2023-01-31',
             None,  # filter_expr
-            None,  # max_results
+            None,  # max_items
         )
 
         # Assert
         mock_get_date_range.assert_called_once_with('2023-01-01', '2023-01-31')
         mock_paginate_response.assert_called_once()
-        call_kwargs = mock_paginate_response.call_args[1]
+        call_args = mock_paginate_response.call_args[0]
 
-        assert call_kwargs['operation_name'] == 'GetSavingsPlansUtilizationDetails'
-        assert call_kwargs['result_key'] == 'SavingsPlansUtilizationDetails'
+        assert call_args[1] == 'GetSavingsPlansUtilizationDetails'
+        assert call_args[4].result_key == 'SavingsPlansUtilizationDetails'
 
-        request_params = call_kwargs['request_params']
+        request_params = call_args[3]
         assert request_params['TimePeriod']['Start'] == '2023-01-01'
         assert request_params['TimePeriod']['End'] == '2023-01-31'
-        assert request_params['MaxResults'] == 20  # Default value
+        # Page size and token are the helper's to set.
+        assert 'MaxResults' not in request_params
 
         assert result['status'] == 'success'
         assert 'savings_plans_utilization_details' in result['data']
         assert len(result['data']['savings_plans_utilization_details']) == 2
-        assert result['data']['total_count'] == 2
+        # The item count is reported as pagination.items_returned, never as a total.
+        assert 'total_count' not in result['data']
 
         # Rows come back as the API sent them, so the nested blocks and the
         # decimal-string precision of every monetary value are preserved.
@@ -324,7 +335,7 @@ class TestGetSavingsPlansUtilizationDetails:
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
     @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_response'
+        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_items'
     )
     async def test_utilization_and_savings_are_not_zeroed(
         self, mock_paginate_response, mock_get_date_range, mock_context, mock_ce_client
@@ -363,7 +374,8 @@ class TestGetSavingsPlansUtilizationDetails:
                     },
                 }
             ],
-            {'NextToken': None},
+            [],
+            PAGINATION_COMPLETE,
         )
 
         # Execute
@@ -382,7 +394,7 @@ class TestGetSavingsPlansUtilizationDetails:
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
     @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_response'
+        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_items'
     )
     async def test_rows_without_a_percentage_pass_through(
         self, mock_paginate_response, mock_get_date_range, mock_context, mock_ce_client
@@ -401,7 +413,7 @@ class TestGetSavingsPlansUtilizationDetails:
             {'Utilization': {}},
             {},
         ]
-        mock_paginate_response.return_value = (rows, {'NextToken': None})
+        mock_paginate_response.return_value = (rows, [], PAGINATION_COMPLETE)
 
         # Execute
         result = await get_savings_plans_utilization_details(
@@ -411,11 +423,11 @@ class TestGetSavingsPlansUtilizationDetails:
         # Assert
         assert result['status'] == 'success'
         assert result['data']['savings_plans_utilization_details'] == rows
-        assert result['data']['total_count'] == 4
+        assert len(result['data']['savings_plans_utilization_details']) == 4
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
     @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_response'
+        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_items'
     )
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.parse_json')
     async def test_get_savings_plans_utilization_details_with_filter(
@@ -433,7 +445,8 @@ class TestGetSavingsPlansUtilizationDetails:
             mock_ce_client.get_savings_plans_utilization_details.return_value[
                 'SavingsPlansUtilizationDetails'
             ],
-            {'NextToken': None},
+            [],
+            PAGINATION_COMPLETE,
         )
 
         mock_filter = {'Dimensions': {'Key': 'REGION', 'Values': ['us-east-1']}}
@@ -446,13 +459,13 @@ class TestGetSavingsPlansUtilizationDetails:
             '2023-01-01',
             '2023-01-31',
             'filter_json',  # filter_expr
-            None,  # max_results
+            None,  # max_items
         )
 
         # Assert
         mock_parse_json.assert_called_once_with('filter_json', 'filter')
 
-        request_params = mock_paginate_response.call_args[1]['request_params']
+        request_params = mock_paginate_response.call_args[0][3]
         assert 'Filter' in request_params
         assert request_params['Filter'] == mock_filter
 
@@ -460,19 +473,20 @@ class TestGetSavingsPlansUtilizationDetails:
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
     @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_response'
+        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_items'
     )
-    async def test_get_savings_plans_utilization_details_with_max_results(
+    async def test_get_savings_plans_utilization_details_with_max_items(
         self, mock_paginate_response, mock_get_date_range, mock_context, mock_ce_client
     ):
-        """Test get_savings_plans_utilization_details with max_results parameter."""
+        """max_items and next_token go to the pagination helper, not into the request."""
         # Setup
         mock_get_date_range.return_value = ('2023-01-01', '2023-01-31')
         mock_paginate_response.return_value = (
             mock_ce_client.get_savings_plans_utilization_details.return_value[
                 'SavingsPlansUtilizationDetails'
             ],
-            {'NextToken': None},
+            [],
+            PAGINATION_COMPLETE,
         )
 
         # Execute
@@ -482,13 +496,18 @@ class TestGetSavingsPlansUtilizationDetails:
             '2023-01-01',
             '2023-01-31',
             None,  # filter_expr
-            50,  # max_results
+            50,  # max_items
+            'caller-token',  # next_token
         )
 
         # Assert
-        request_params = mock_paginate_response.call_args[1]['request_params']
-        assert 'MaxResults' in request_params
-        assert request_params['MaxResults'] == 50
+        request_params = mock_paginate_response.call_args[0][3]
+        assert 'MaxResults' not in request_params
+        assert 'NextToken' not in request_params
+        assert mock_paginate_response.call_args[1] == {
+            'max_items': 50,
+            'next_token': 'caller-token',
+        }
 
         assert result['status'] == 'success'
 
@@ -513,7 +532,7 @@ class TestGetSavingsPlansUtilizationDetails:
             '2023-01-01',
             '2023-01-31',
             None,  # filter_expr
-            None,  # max_results
+            None,  # max_items
         )
 
         # Assert
@@ -706,7 +725,7 @@ class TestGetSavingsPlansCoverage:
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
     @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_response'
+        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_items'
     )
     async def test_get_savings_plans_coverage_basic(
         self, mock_paginate_response, mock_get_date_range, mock_context, mock_ce_client
@@ -714,9 +733,11 @@ class TestGetSavingsPlansCoverage:
         """Test get_savings_plans_coverage with basic parameters."""
         # Setup
         mock_get_date_range.return_value = ('2023-01-01', '2023-01-31')
+        first_page = mock_ce_client.get_savings_plans_coverage.return_value
         mock_paginate_response.return_value = (
-            mock_ce_client.get_savings_plans_coverage.return_value['SavingsPlansCoverages'],
-            {'NextToken': None},
+            first_page['SavingsPlansCoverages'],
+            [first_page],
+            PAGINATION_COMPLETE,
         )
 
         # Execute
@@ -734,12 +755,12 @@ class TestGetSavingsPlansCoverage:
         # Assert
         mock_get_date_range.assert_called_once_with('2023-01-01', '2023-01-31')
         mock_paginate_response.assert_called_once()
-        call_kwargs = mock_paginate_response.call_args[1]
+        call_args = mock_paginate_response.call_args[0]
 
-        assert call_kwargs['operation_name'] == 'GetSavingsPlansCoverage'
-        assert call_kwargs['result_key'] == 'SavingsPlansCoverages'
+        assert call_args[1] == 'GetSavingsPlansCoverage'
+        assert call_args[4].result_key == 'SavingsPlansCoverages'
 
-        request_params = call_kwargs['request_params']
+        request_params = call_args[3]
         assert request_params['TimePeriod']['Start'] == '2023-01-01'
         assert request_params['TimePeriod']['End'] == '2023-01-31'
         assert request_params['Granularity'] == 'DAILY'
@@ -749,14 +770,15 @@ class TestGetSavingsPlansCoverage:
         assert 'savings_plans_coverages' in result['data']
         assert len(result['data']['savings_plans_coverages']) == 1
 
-        # Check total coverage
+        # Check total coverage: it comes from the first page, with no extra request.
+        mock_ce_client.get_savings_plans_coverage.assert_not_called()
         assert 'total' in result['data']
         assert result['data']['total']['SpendCoveredBySavingsPlans'] == '75.0'
         assert result['data']['total']['CoveragePercentage'] == '75.0'
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
     @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_response'
+        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_items'
     )
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.parse_json')
     async def test_get_savings_plans_coverage_with_options(
@@ -772,7 +794,8 @@ class TestGetSavingsPlansCoverage:
         mock_get_date_range.return_value = ('2023-01-01', '2023-01-31')
         mock_paginate_response.return_value = (
             mock_ce_client.get_savings_plans_coverage.return_value['SavingsPlansCoverages'],
-            {'NextToken': None},
+            [],
+            PAGINATION_COMPLETE,
         )
 
         mock_metrics = ['SpendCoveredBySavingsPlans']
@@ -798,7 +821,7 @@ class TestGetSavingsPlansCoverage:
         mock_parse_json.assert_any_call('group_by_json', 'group_by')
         mock_parse_json.assert_any_call('filter_json', 'filter')
 
-        request_params = mock_paginate_response.call_args[1]['request_params']
+        request_params = mock_paginate_response.call_args[0][3]
         assert request_params['Metrics'] == mock_metrics
         assert request_params['GroupBy'] == mock_group_by
         assert request_params['Filter'] == mock_filter
@@ -1070,7 +1093,7 @@ class TestCoverageGaps:
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
     @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_response'
+        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_items'
     )
     async def test_savings_plans_utilization_details_empty_data(
         self, mock_paginate, mock_get_date_range, mock_context_async
@@ -1079,7 +1102,7 @@ class TestCoverageGaps:
         mock_ce_client = MagicMock()
 
         mock_get_date_range.return_value = ('2023-01-01', '2023-01-31')
-        mock_paginate.return_value = ([], {'NextToken': None})
+        mock_paginate.return_value = ([], [], PAGINATION_COMPLETE)
 
         with patch(
             'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_context_logger'
@@ -1095,13 +1118,13 @@ class TestCoverageGaps:
 
             assert result['status'] == 'success'
             assert result['data']['savings_plans_utilization_details'] == []
-            assert result['data']['total_count'] == 0
+            assert len(result['data']['savings_plans_utilization_details']) == 0
             assert 'No Savings Plans utilization details found' in result['data']['message']
             mock_logger_instance.warning.assert_called_once()
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
     @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_response'
+        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_items'
     )
     async def test_savings_plans_utilization_details_malformed_data(
         self, mock_paginate, mock_get_date_range, mock_context_async
@@ -1125,7 +1148,7 @@ class TestCoverageGaps:
             },
         ]
 
-        mock_paginate.return_value = (malformed_details, {'NextToken': None})
+        mock_paginate.return_value = (malformed_details, [], PAGINATION_COMPLETE)
 
         with patch(
             'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_context_logger'
@@ -1142,7 +1165,7 @@ class TestCoverageGaps:
             # Rows are passed through untouched and nothing raises.
             assert result['status'] == 'success'
             assert result['data']['savings_plans_utilization_details'] == malformed_details
-            assert result['data']['total_count'] == 2
+            assert len(result['data']['savings_plans_utilization_details']) == 2
 
             # Malformed rows reach the caller intact; no derived statistic is
             # fabricated from them.
@@ -1151,7 +1174,7 @@ class TestCoverageGaps:
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
     @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_response'
+        'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.paginate_aws_items'
     )
     async def test_savings_plans_utilization_details_with_valid_attributes(
         self, mock_paginate, mock_get_date_range, mock_context_async
@@ -1188,7 +1211,7 @@ class TestCoverageGaps:
             }
         ]
 
-        mock_paginate.return_value = (details_data, {'NextToken': None})
+        mock_paginate.return_value = (details_data, [], PAGINATION_COMPLETE)
 
         with patch(
             'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_context_logger'
@@ -1212,7 +1235,7 @@ class TestCoverageGaps:
             # The figures are reported once, on the row, in the shape and
             # precision the API sent them.
             assert detail['Utilization']['UtilizationPercentage'] == '95.0'
-            assert result['data']['total_count'] == 1
+            assert len(result['data']['savings_plans_utilization_details']) == 1
             assert 'average_utilization_percentage' not in result['data']
             assert 'total_savings_plans' not in result['data']
 
@@ -1245,3 +1268,101 @@ class TestCoverageGaps:
         assert 'total' not in result['data']
         assert 'message' not in result['data']
         assert len(result['data']['savings_plans_utilizations']) == 1
+
+
+# (function, boto3 method, result key, response key) for the two paginated operations.
+SP_PAGED_OPERATIONS = [
+    (
+        get_savings_plans_coverage,
+        'get_savings_plans_coverage',
+        'SavingsPlansCoverages',
+        'savings_plans_coverages',
+    ),
+    (
+        get_savings_plans_utilization_details,
+        'get_savings_plans_utilization_details',
+        'SavingsPlansUtilizationDetails',
+        'savings_plans_utilization_details',
+    ),
+]
+
+
+async def _call_paged(function, client, ctx, max_items=None, next_token=None):
+    if function is get_savings_plans_coverage:
+        return await function(
+            ctx,
+            client,
+            '2023-01-01',
+            '2023-01-31',
+            'DAILY',
+            None,
+            None,
+            None,
+            max_items,
+            next_token,
+        )
+    return await function(ctx, client, '2023-01-01', '2023-01-31', None, max_items, next_token)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('function,method,result_key,response_key', SP_PAGED_OPERATIONS)
+class TestSpPerformancePagination:
+    """The real pagination helper drives coverage and utilization details."""
+
+    async def test_no_max_items_fetches_every_page_and_takes_total_from_page_one(
+        self, mock_context, function, method, result_key, response_key
+    ):
+        """Every page is fetched at MaxResults=10000; Total comes from page 1, no extra call."""
+        client = MagicMock()
+        getattr(client, method).side_effect = [
+            {result_key: [{'n': 1}], 'Total': {'page': 1}, 'NextToken': 't1'},
+            {result_key: [{'n': 2}], 'Total': {'page': 2}},
+        ]
+
+        result = await _call_paged(function, client, mock_context)
+
+        data = result['data']
+        assert result['status'] == 'success'
+        assert data[response_key] == [{'n': 1}, {'n': 2}]
+        assert data['total'] == {'page': 1}
+        assert 'complete_dataset' not in data
+        assert data['pagination']['items_returned'] == 2
+        calls = getattr(client, method).call_args_list
+        # Exactly the two pages: the old code made a third call for Total.
+        assert len(calls) == 2
+        assert calls[0].kwargs['MaxResults'] == 10000
+        assert calls[1].kwargs['NextToken'] == 't1'
+
+    async def test_max_items_stops_and_returns_the_token(
+        self, mock_context, function, method, result_key, response_key
+    ):
+        """max_items sizes the page and the service token is returned for continuation."""
+        client = MagicMock()
+        getattr(client, method).return_value = {
+            result_key: [{'n': 1}, {'n': 2}],
+            'NextToken': 'more',
+        }
+
+        result = await _call_paged(function, client, mock_context, max_items=2)
+
+        data = result['data']
+        assert data['complete_dataset'] is False
+        assert 'Partial data' in data['warning']
+        assert data['pagination']['next_token'] == 'more'
+        getattr(client, method).assert_called_once()
+        assert getattr(client, method).call_args.kwargs['MaxResults'] == 2
+
+    async def test_continuation_sends_caller_token_and_identical_params(
+        self, mock_context, function, method, result_key, response_key
+    ):
+        """A continuation repeats the first call's parameters plus the caller's token."""
+        client = MagicMock()
+        getattr(client, method).return_value = {result_key: [{'n': 1}]}
+
+        await _call_paged(function, client, mock_context)
+        first = dict(getattr(client, method).call_args.kwargs)
+        await _call_paged(function, client, mock_context, next_token='caller-token')
+        second = dict(getattr(client, method).call_args.kwargs)
+
+        assert second.pop('NextToken') == 'caller-token'
+        assert second == first

@@ -15,10 +15,12 @@
 """AWS Savings Plans inventory and offering tools for the AWS Billing and Cost Management MCP server."""
 
 from ..utilities.aws_service_base import (
+    PageSpec,
     create_aws_client,
     format_response,
     handle_aws_error,
-    paginate_aws_response,
+    paginate_aws_items,
+    with_pagination,
 )
 from ..utilities.logging_utils import get_context_logger
 from ..utilities.sql_utils import convert_response_if_needed
@@ -62,6 +64,13 @@ Tags come back on each plan in describe_savings_plans, so there is no separate t
 IMPORTANT: the vocabulary here differs from Cost Explorer's, so values carried over from a Cost
 Explorer response or recommendation will be rejected. See the individual parameter descriptions.
 
+PAGINATION (all four operations):
+- max_items is the total number of items returned. Omit it to fetch every page (no limit). Pass it,
+  or narrow the filters, for queries that can be large (an unfiltered offering or offering-rate
+  query runs to thousands of entries).
+- If the response has complete_dataset: false, call again with a larger max_items, continue with
+  next_token, or state in the answer that the result is partial.
+
 A large result from any of these operations is automatically offloaded to session SQL to save
 tokens: the response carries data_stored=True and a table_name (one row per plan, rate, or
 offering) instead of the inline list, and the rows are queried with the session-sql tool. A small
@@ -86,9 +95,8 @@ async def sp_explorer(
     usage_types: Optional[List[str]] = None,
     operations: Optional[List[str]] = None,
     filters: Optional[List[Dict[str, Any]]] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_results: Optional[int] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Tool that describes Savings Plans inventory and purchasable offerings.
 
@@ -134,10 +142,10 @@ async def sp_explorer(
             describe_savings_plans_offerings takes region and instanceFamily; and
             describe_savings_plans_offering_rates takes region, instanceFamily, instanceType,
             productDescription, tenancy, and productId.
-        next_token: The token for the next page of results. Paging is handled for you, so this is
-            only needed to resume from a token a previous call returned.
-        max_results: The maximum number of results to return with a single call.
-        max_pages: The maximum number of pages to fetch. Omitting it fetches every page.
+        max_items: Total number of items to return across all pages. Omit it to fetch every
+            page.
+        next_token: The pagination.next_token from a previous response; continue with otherwise
+            identical parameters.
 
     Returns:
         Dict containing the Savings Plans inventory, rates, or offerings
@@ -156,13 +164,12 @@ async def sp_explorer(
                 savings_plan_ids,
                 states,
                 filters,
+                max_items,
                 next_token,
-                max_results,
-                max_pages,
             )
         elif operation == 'describe_savings_plan_rates':
             return await describe_savings_plan_rates(
-                ctx, sp_client, savings_plan_id, filters, next_token, max_results, max_pages
+                ctx, sp_client, savings_plan_id, filters, max_items, next_token
             )
         elif operation == 'describe_savings_plans_offerings':
             return await describe_savings_plans_offerings(
@@ -179,9 +186,8 @@ async def sp_explorer(
                 usage_types,
                 operations,
                 filters,
+                max_items,
                 next_token,
-                max_results,
-                max_pages,
             )
         elif operation == 'describe_savings_plans_offering_rates':
             return await describe_savings_plans_offering_rates(
@@ -195,9 +201,8 @@ async def sp_explorer(
                 usage_types,
                 operations,
                 filters,
+                max_items,
                 next_token,
-                max_results,
-                max_pages,
             )
         else:
             return format_response(
@@ -214,6 +219,15 @@ async def sp_explorer(
         return await handle_aws_error(ctx, e, 'sp_explorer', 'Savings Plans')
 
 
+SP_DESCRIBE_SAVINGS_PLANS = PageSpec(
+    result_key='savingsPlans',
+    token_param='nextToken',
+    token_key='nextToken',
+    page_max=1000,
+    page_size_param='maxResults',
+)
+
+
 async def describe_savings_plans(
     ctx: Context,
     sp_client: Any,
@@ -221,9 +235,8 @@ async def describe_savings_plans(
     savings_plan_ids: Optional[List[str]],
     states: Optional[List[str]],
     filters: Optional[List[Dict[str, Any]]],
+    max_items: Optional[int],
     next_token: Optional[str],
-    max_results: Optional[int],
-    max_pages: Optional[int],
 ) -> Dict[str, Any]:
     """Describes the specified Savings Plans.
 
@@ -234,9 +247,8 @@ async def describe_savings_plans(
         savings_plan_ids: The Savings Plan IDs as a list.
         states: The current states of the Savings Plans as a list.
         filters: The filters as a list.
-        next_token: The token for the next page of results.
-        max_results: The maximum number of results to return with a single call.
-        max_pages: The maximum number of pages to fetch. None fetches every page.
+        max_items: Total number of items to return. None fetches every page.
+        next_token: The token from a previous response.
 
     Returns:
         Dict containing the Savings Plans
@@ -259,20 +271,15 @@ async def describe_savings_plans(
             request_params['states'] = states
         if filters:
             request_params['filters'] = filters
-        if next_token:
-            request_params['nextToken'] = next_token
-        if max_results:
-            request_params['maxResults'] = max_results
 
-        all_plans, pagination_metadata = await paginate_aws_response(
-            ctx=ctx,
-            operation_name='DescribeSavingsPlans',
-            api_function=sp_client.describe_savings_plans,
-            request_params=request_params,
-            result_key='savingsPlans',
-            token_param='nextToken',
-            token_key='nextToken',
-            max_pages=max_pages,
+        all_plans, _, pagination = await paginate_aws_items(
+            ctx,
+            'DescribeSavingsPlans',
+            sp_client.describe_savings_plans,
+            request_params,
+            SP_DESCRIBE_SAVINGS_PLANS,
+            max_items=max_items,
+            next_token=next_token,
         )
 
         # A large inventory is offloaded to session SQL (one row per plan)
@@ -280,10 +287,8 @@ async def describe_savings_plans(
         # An offloaded table is queried with the session-sql tool.
         converted = await convert_response_if_needed(
             ctx,
-            {'savingsPlans': all_plans, 'pagination': pagination_metadata},
+            with_pagination({'savingsPlans': all_plans}, pagination),
             'sp_explorer_describe_savings_plans',
-            pagination_token_key='nextToken',
-            pagination=pagination_metadata,
         )
 
         return format_response('success', converted)
@@ -293,14 +298,22 @@ async def describe_savings_plans(
         return await handle_aws_error(ctx, e, 'describe_savings_plans', 'Savings Plans')
 
 
+SP_DESCRIBE_SAVINGS_PLAN_RATES = PageSpec(
+    result_key='searchResults',
+    token_param='nextToken',
+    token_key='nextToken',
+    page_max=1000,
+    page_size_param='maxResults',
+)
+
+
 async def describe_savings_plan_rates(
     ctx: Context,
     sp_client: Any,
     savings_plan_id: Optional[str],
     filters: Optional[List[Dict[str, Any]]],
+    max_items: Optional[int],
     next_token: Optional[str],
-    max_results: Optional[int],
-    max_pages: Optional[int],
 ) -> Dict[str, Any]:
     """Describes the rates for a specific, existing Savings Plan.
 
@@ -309,9 +322,8 @@ async def describe_savings_plan_rates(
         sp_client: Savings Plans client
         savings_plan_id: The ID of the Savings Plan.
         filters: The filters as a list.
-        next_token: The token for the next page of results.
-        max_results: The maximum number of results to return with a single call.
-        max_pages: The maximum number of pages to fetch. None fetches every page.
+        max_items: Total number of items to return. None fetches every page.
+        next_token: The token from a previous response.
 
     Returns:
         Dict containing the Savings Plan rates
@@ -328,20 +340,15 @@ async def describe_savings_plan_rates(
         # Add optional parameters if provided
         if filters:
             request_params['filters'] = filters
-        if next_token:
-            request_params['nextToken'] = next_token
-        if max_results:
-            request_params['maxResults'] = max_results
 
-        all_rates, pagination_metadata = await paginate_aws_response(
-            ctx=ctx,
-            operation_name='DescribeSavingsPlanRates',
-            api_function=sp_client.describe_savings_plan_rates,
-            request_params=request_params,
-            result_key='searchResults',
-            token_param='nextToken',
-            token_key='nextToken',
-            max_pages=max_pages,
+        all_rates, _, pagination = await paginate_aws_items(
+            ctx,
+            'DescribeSavingsPlanRates',
+            sp_client.describe_savings_plan_rates,
+            request_params,
+            SP_DESCRIBE_SAVINGS_PLAN_RATES,
+            max_items=max_items,
+            next_token=next_token,
         )
 
         # savingsPlanId is echoed at the top level of each page. Carry it through
@@ -354,14 +361,10 @@ async def describe_savings_plan_rates(
         # is passed as metadata to stay on the offloaded sentinel too.
         converted = await convert_response_if_needed(
             ctx,
-            {
-                'savingsPlanId': savings_plan_id,
-                'searchResults': all_rates,
-                'pagination': pagination_metadata,
-            },
+            with_pagination(
+                {'savingsPlanId': savings_plan_id, 'searchResults': all_rates}, pagination
+            ),
             'sp_explorer_describe_savings_plan_rates',
-            pagination_token_key='nextToken',
-            pagination=pagination_metadata,
             savingsPlanId=savings_plan_id,
         )
 
@@ -370,6 +373,15 @@ async def describe_savings_plan_rates(
     except Exception as e:
         # Use shared error handler for consistent error reporting
         return await handle_aws_error(ctx, e, 'describe_savings_plan_rates', 'Savings Plans')
+
+
+SP_DESCRIBE_SAVINGS_PLANS_OFFERINGS = PageSpec(
+    result_key='searchResults',
+    token_param='nextToken',
+    token_key='nextToken',
+    page_max=1000,
+    page_size_param='maxResults',
+)
 
 
 async def describe_savings_plans_offerings(
@@ -386,9 +398,8 @@ async def describe_savings_plans_offerings(
     usage_types: Optional[List[str]],
     operations: Optional[List[str]],
     filters: Optional[List[Dict[str, Any]]],
+    max_items: Optional[int],
     next_token: Optional[str],
-    max_results: Optional[int],
-    max_pages: Optional[int],
 ) -> Dict[str, Any]:
     """Describes the offerings for the specified Savings Plans.
 
@@ -406,9 +417,8 @@ async def describe_savings_plans_offerings(
         usage_types: The usage types as a list.
         operations: The operations as a list.
         filters: The filters as a list.
-        next_token: The token for the next page of results.
-        max_results: The maximum number of results to return with a single call.
-        max_pages: The maximum number of pages to fetch. None fetches every page.
+        max_items: Total number of items to return. None fetches every page.
+        next_token: The token from a previous response.
 
     Returns:
         Dict containing the Savings Plans offerings
@@ -445,24 +455,19 @@ async def describe_savings_plans_offerings(
             request_params['operations'] = operations
         if filters:
             request_params['filters'] = filters
-        if next_token:
-            request_params['nextToken'] = next_token
-        if max_results:
-            request_params['maxResults'] = max_results
 
         # The offering catalog runs to thousands of entries for an unfiltered
         # query. Page through it here: the token key is lowercase `nextToken` on
         # this service and `NextToken` or `NextPageToken` on Cost Explorer, and a
         # caller that threads the wrong one silently re-reads the first page.
-        all_offerings, pagination_metadata = await paginate_aws_response(
-            ctx=ctx,
-            operation_name='DescribeSavingsPlansOfferings',
-            api_function=sp_client.describe_savings_plans_offerings,
-            request_params=request_params,
-            result_key='searchResults',
-            token_param='nextToken',
-            token_key='nextToken',
-            max_pages=max_pages,
+        all_offerings, _, pagination = await paginate_aws_items(
+            ctx,
+            'DescribeSavingsPlansOfferings',
+            sp_client.describe_savings_plans_offerings,
+            request_params,
+            SP_DESCRIBE_SAVINGS_PLANS_OFFERINGS,
+            max_items=max_items,
+            next_token=next_token,
         )
 
         # A large offering catalog is offloaded to session SQL (one row per
@@ -470,10 +475,8 @@ async def describe_savings_plans_offerings(
         # unchanged. An offloaded table is queried with the session-sql tool.
         converted = await convert_response_if_needed(
             ctx,
-            {'searchResults': all_offerings, 'pagination': pagination_metadata},
+            with_pagination({'searchResults': all_offerings}, pagination),
             'sp_explorer_describe_savings_plans_offerings',
-            pagination_token_key='nextToken',
-            pagination=pagination_metadata,
         )
 
         return format_response('success', converted)
@@ -481,6 +484,15 @@ async def describe_savings_plans_offerings(
     except Exception as e:
         # Use shared error handler for consistent error reporting
         return await handle_aws_error(ctx, e, 'describe_savings_plans_offerings', 'Savings Plans')
+
+
+SP_DESCRIBE_SAVINGS_PLANS_OFFERING_RATES = PageSpec(
+    result_key='searchResults',
+    token_param='nextToken',
+    token_key='nextToken',
+    page_max=1000,
+    page_size_param='maxResults',
+)
 
 
 async def describe_savings_plans_offering_rates(
@@ -494,9 +506,8 @@ async def describe_savings_plans_offering_rates(
     usage_types: Optional[List[str]],
     operations: Optional[List[str]],
     filters: Optional[List[Dict[str, Any]]],
+    max_items: Optional[int],
     next_token: Optional[str],
-    max_results: Optional[int],
-    max_pages: Optional[int],
 ) -> Dict[str, Any]:
     """Describes the offering rates for Savings Plans you might want to purchase.
 
@@ -511,9 +522,8 @@ async def describe_savings_plans_offering_rates(
         usage_types: The usage types as a list.
         operations: The operations as a list.
         filters: The filters as a list.
-        next_token: The token for the next page of results.
-        max_results: The maximum number of results to return with a single call.
-        max_pages: The maximum number of pages to fetch. None fetches every page.
+        max_items: Total number of items to return. None fetches every page.
+        next_token: The token from a previous response.
 
     Returns:
         Dict containing the Savings Plans offering rates
@@ -547,20 +557,15 @@ async def describe_savings_plans_offering_rates(
             request_params['operations'] = operations
         if filters:
             request_params['filters'] = filters
-        if next_token:
-            request_params['nextToken'] = next_token
-        if max_results:
-            request_params['maxResults'] = max_results
 
-        all_rates, pagination_metadata = await paginate_aws_response(
-            ctx=ctx,
-            operation_name='DescribeSavingsPlansOfferingRates',
-            api_function=sp_client.describe_savings_plans_offering_rates,
-            request_params=request_params,
-            result_key='searchResults',
-            token_param='nextToken',
-            token_key='nextToken',
-            max_pages=max_pages,
+        all_rates, _, pagination = await paginate_aws_items(
+            ctx,
+            'DescribeSavingsPlansOfferingRates',
+            sp_client.describe_savings_plans_offering_rates,
+            request_params,
+            SP_DESCRIBE_SAVINGS_PLANS_OFFERING_RATES,
+            max_items=max_items,
+            next_token=next_token,
         )
 
         # A large offering-rate result is offloaded to session SQL (one row per
@@ -568,10 +573,8 @@ async def describe_savings_plans_offering_rates(
         # unchanged. An offloaded table is queried with the session-sql tool.
         converted = await convert_response_if_needed(
             ctx,
-            {'searchResults': all_rates, 'pagination': pagination_metadata},
+            with_pagination({'searchResults': all_rates}, pagination),
             'sp_explorer_describe_savings_plans_offering_rates',
-            pagination_token_key='nextToken',
-            pagination=pagination_metadata,
         )
 
         return format_response('success', converted)
