@@ -385,11 +385,9 @@ The server uses these key environment variables:
 
 ## Pagination
 
-Cost Explorer (`cost-explorer`, `cost-comparison`, `cost-anomaly`, `list-cost-category-definitions`, `list-cost-allocation-tags`, `list-cost-allocation-tag-backfill-history`), Savings Plans and Reserved Instances (`ri-performance`, `sp-performance`, `sp-recommendation`, `sp-purchase-analyzer`, `sp-explorer`), `free-tier-usage`, `invoicing`, `invoice-units`, `enterprise-support`, `procurement-preferences`, `get-billing-preferences` and the billing view tools page as described here; the other list tools keep their current paging parameters until they move to it.
+List tools take `max_items` (the total number of items to return) and `next_token`. Without `max_items` a tool fetches every page; with it, the tool stops before a page that could take the result past `max_items` (the first page is always returned). `next_token` in a response is the AWS service's own continuation token: pass it back, with every other parameter unchanged, to get the next items.
 
-These tools take `max_items` (the total number of items to return) and `next_token`. Without `max_items` a tool fetches every page; with it, the tool stops before a page that could take the result past `max_items` (the first page is always returned). `next_token` in a response is the AWS service's own continuation token: pass it back, with every other parameter unchanged, to get the next items.
-
-A response that stops before the end of the data leads with `complete_dataset: false` and a `warning`, and every response from these tools carries a `pagination` block:
+A response that stops before the end of the data leads with `complete_dataset: false` and a `warning`, and every paginated response carries a `pagination` block:
 
 ```json
 {"complete_dataset": false, "warning": "Partial data: ...", "pagination": {"complete_dataset": false, "has_more": true, "next_token": "<service token>", "items_returned": 5000}, "...": "data"}
