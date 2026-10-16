@@ -579,8 +579,8 @@ class TestListBillingViews:
         result = await list_billing_views(mock_ctx)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 3
-        assert 'next_token' not in result['data']
+        assert result['data']['pagination']['items_returned'] == 3
+        assert result['data']['pagination']['next_token'] is None
 
     @patch(PATCH_BVS_CLIENT)
     async def test_list_billing_views_with_billing_view_types(
@@ -596,7 +596,7 @@ class TestListBillingViews:
         result = await list_billing_views(mock_ctx, billing_view_types=json.dumps(['PRIMARY']))
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 1
+        assert result['data']['pagination']['items_returned'] == 1
         call_kwargs = mock_client.list_billing_views.call_args[1]
         assert call_kwargs['billingViewTypes'] == ['PRIMARY']
 
@@ -679,15 +679,15 @@ class TestListBillingViews:
         result = await list_billing_views(mock_ctx)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 2
+        assert result['data']['pagination']['items_returned'] == 2
         assert mock_client.list_billing_views.call_count == 2
-        assert 'next_token' not in result['data']
+        assert result['data']['pagination']['next_token'] is None
 
     @patch(PATCH_BVS_CLIENT)
-    async def test_list_billing_views_max_pages_stops_pagination(
+    async def test_list_billing_views_max_items_stops_pagination(
         self, mock_create_client, mock_ctx, sample_billing_view_list_elements
     ):
-        """Test that max_pages limits the number of API calls and returns next_token."""
+        """Test that max_items stops paging and returns the service next_token."""
         mock_client = MagicMock()
         mock_client.list_billing_views.return_value = {
             'billingViews': [sample_billing_view_list_elements[0]],
@@ -695,11 +695,11 @@ class TestListBillingViews:
         }
         mock_create_client.return_value = mock_client
 
-        result = await list_billing_views(mock_ctx, max_pages=1)
+        result = await list_billing_views(mock_ctx, max_items=1)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 1
-        assert result['data']['next_token'] == NEXT_TOKEN_MORE
+        assert result['data']['pagination']['items_returned'] == 1
+        assert result['data']['pagination']['next_token'] == NEXT_TOKEN_MORE
 
     @patch(PATCH_BVS_CLIENT)
     async def test_list_billing_views_empty_result(self, mock_create_client, mock_ctx):
@@ -711,7 +711,7 @@ class TestListBillingViews:
         result = await list_billing_views(mock_ctx)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 0
+        assert result['data']['pagination']['items_returned'] == 0
         assert result['data']['billing_views'] == []
 
     @patch(PATCH_BVS_CLIENT)
@@ -750,17 +750,17 @@ class TestListBillingViews:
         assert call_kwargs['sourceAccountId'] == ACCOUNT_ID_PRIMARY_2
 
     @patch(PATCH_BVS_CLIENT)
-    async def test_list_billing_views_with_max_results(
+    async def test_list_billing_views_with_max_items(
         self, mock_create_client, mock_ctx, sample_billing_view_list_elements
     ):
-        """Test listing billing views with max_results parameter."""
+        """Test listing billing views with max_items below the page maximum."""
         mock_client = MagicMock()
         mock_client.list_billing_views.return_value = {
             'billingViews': [sample_billing_view_list_elements[0]],
         }
         mock_create_client.return_value = mock_client
 
-        result = await list_billing_views(mock_ctx, max_results=50)
+        result = await list_billing_views(mock_ctx, max_items=50)
 
         assert result['status'] == STATUS_SUCCESS
         call_kwargs = mock_client.list_billing_views.call_args[1]
@@ -823,8 +823,8 @@ class TestListSourceViewsForBillingView:
         result = await list_source_views_for_billing_view(mock_ctx, BILLING_VIEW_ARN_CUSTOM)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 2
-        assert 'next_token' not in result['data']
+        assert result['data']['pagination']['items_returned'] == 2
+        assert result['data']['pagination']['next_token'] is None
 
     @patch(PATCH_BVS_CLIENT)
     async def test_list_source_views_passes_arn(self, mock_create_client, mock_ctx):
@@ -841,15 +841,15 @@ class TestListSourceViewsForBillingView:
         assert call_kwargs['arn'] == BILLING_VIEW_ARN_CUSTOM
 
     @patch(PATCH_BVS_CLIENT)
-    async def test_list_source_views_with_max_results(self, mock_create_client, mock_ctx):
-        """Test listing source views with max_results parameter."""
+    async def test_list_source_views_with_max_items(self, mock_create_client, mock_ctx):
+        """Test listing source views with max_items below the page maximum."""
         mock_client = MagicMock()
         mock_client.list_source_views_for_billing_view.return_value = {
             'sourceViews': [BILLING_VIEW_ARN_PRIMARY],
         }
         mock_create_client.return_value = mock_client
 
-        await list_source_views_for_billing_view(mock_ctx, BILLING_VIEW_ARN_CUSTOM, max_results=5)
+        await list_source_views_for_billing_view(mock_ctx, BILLING_VIEW_ARN_CUSTOM, max_items=5)
 
         call_kwargs = mock_client.list_source_views_for_billing_view.call_args[1]
         assert call_kwargs['maxResults'] == 5
@@ -872,14 +872,14 @@ class TestListSourceViewsForBillingView:
         result = await list_source_views_for_billing_view(mock_ctx, BILLING_VIEW_ARN_CUSTOM)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 2
+        assert result['data']['pagination']['items_returned'] == 2
         assert mock_client.list_source_views_for_billing_view.call_count == 2
 
     @patch(PATCH_BVS_CLIENT)
-    async def test_list_source_views_max_pages_stops_pagination(
+    async def test_list_source_views_max_items_stops_pagination(
         self, mock_create_client, mock_ctx
     ):
-        """Test that max_pages limits the number of API calls."""
+        """Test that max_items stops paging."""
         mock_client = MagicMock()
         mock_client.list_source_views_for_billing_view.return_value = {
             'sourceViews': [BILLING_VIEW_ARN_PRIMARY],
@@ -888,12 +888,12 @@ class TestListSourceViewsForBillingView:
         mock_create_client.return_value = mock_client
 
         result = await list_source_views_for_billing_view(
-            mock_ctx, BILLING_VIEW_ARN_CUSTOM, max_pages=1
+            mock_ctx, BILLING_VIEW_ARN_CUSTOM, max_items=1
         )
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 1
-        assert result['data']['next_token'] == NEXT_TOKEN_MORE
+        assert result['data']['pagination']['items_returned'] == 1
+        assert result['data']['pagination']['next_token'] == NEXT_TOKEN_MORE
 
     @patch(PATCH_BVS_CLIENT)
     async def test_list_source_views_empty_result(self, mock_create_client, mock_ctx):
@@ -907,7 +907,7 @@ class TestListSourceViewsForBillingView:
         result = await list_source_views_for_billing_view(mock_ctx, BILLING_VIEW_ARN_CUSTOM)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['total_count'] == 0
+        assert result['data']['pagination']['items_returned'] == 0
 
     @patch(PATCH_BVS_CLIENT)
     async def test_list_source_views_access_denied(self, mock_create_client, mock_ctx):
@@ -1153,7 +1153,7 @@ class TestListBillingViewSegments:
         result = await list_billing_view_segments(mock_ctx)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['pagination']['total_results'] == 1
+        assert result['data']['pagination']['items_returned'] == 1
         assert result['data']['segments'][0]['domain'] == 'BILLABLE'
         assert result['data']['pagination']['has_more'] is False
 
@@ -1230,8 +1230,8 @@ class TestListBillingViewSegments:
         assert result['status'] == STATUS_ERROR
 
     @patch(PATCH_BVS_CLIENT)
-    async def test_list_segments_with_max_results(self, mock_create_client, mock_ctx):
-        """Test listing segments with max_results parameter."""
+    async def test_list_segments_with_max_items(self, mock_create_client, mock_ctx):
+        """Test listing segments with max_items below the page maximum."""
         mock_client = MagicMock()
         mock_client.list_billing_view_segments.return_value = {
             'items': [
@@ -1246,7 +1246,7 @@ class TestListBillingViewSegments:
         }
         mock_create_client.return_value = mock_client
 
-        await list_billing_view_segments(mock_ctx, max_results=50)
+        await list_billing_view_segments(mock_ctx, max_items=50)
 
         call_kwargs = mock_client.list_billing_view_segments.call_args[1]
         assert call_kwargs['maxResults'] == 50
@@ -1286,15 +1286,15 @@ class TestListBillingViewSegments:
         result = await list_billing_view_segments(mock_ctx)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['pagination']['total_results'] == 2
+        assert result['data']['pagination']['items_returned'] == 2
         assert mock_client.list_billing_view_segments.call_count == 2
         assert result['data']['segments'][0]['domain'] == 'BILLABLE'
         assert result['data']['segments'][1]['domain'] == 'PRO_FORMA'
         assert result['data']['pagination']['has_more'] is False
 
     @patch(PATCH_BVS_CLIENT)
-    async def test_list_segments_max_pages_stops_pagination(self, mock_create_client, mock_ctx):
-        """Test that max_pages limits the number of API calls and returns next_token."""
+    async def test_list_segments_max_items_stops_pagination(self, mock_create_client, mock_ctx):
+        """Test that max_items stops paging and returns the service next_token."""
         mock_client = MagicMock()
         mock_client.list_billing_view_segments.return_value = {
             'items': [
@@ -1310,10 +1310,10 @@ class TestListBillingViewSegments:
         }
         mock_create_client.return_value = mock_client
 
-        result = await list_billing_view_segments(mock_ctx, max_pages=1)
+        result = await list_billing_view_segments(mock_ctx, max_items=1)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['pagination']['total_results'] == 1
+        assert result['data']['pagination']['items_returned'] == 1
         assert result['data']['pagination']['has_more'] is True
         assert result['data']['pagination']['next_token'] == NEXT_TOKEN_MORE
 
@@ -1327,7 +1327,7 @@ class TestListBillingViewSegments:
         result = await list_billing_view_segments(mock_ctx)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['pagination']['total_results'] == 0
+        assert result['data']['pagination']['items_returned'] == 0
         assert result['data']['segments'] == []
 
     @patch(PATCH_BVS_CLIENT)
@@ -1396,7 +1396,7 @@ class TestListBillingViewSegments:
         result = await list_billing_view_segments(mock_ctx)
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['pagination']['total_results'] == 2
+        assert result['data']['pagination']['items_returned'] == 2
         assert result['data']['segments'][0]['domain'] == 'BILLABLE'
         assert result['data']['segments'][1]['domain'] == 'PRO_FORMA'
         assert 'billing_group_primary_account_id' not in result['data']['segments'][0]
@@ -1425,10 +1425,9 @@ class TestListBillingViewSegments:
         result = await list_billing_view_segments(
             mock_ctx,
             arn=BILLING_VIEW_ARN_PRIMARY,
-            max_results=50,
+            max_items=50,
             begin_date_inclusive='2024-09-01',
             end_date_exclusive='2024-10-01',
-            max_pages=5,
             next_token='tok123',
         )
 
@@ -1450,3 +1449,157 @@ class TestListBillingViewSegments:
 
         call_kwargs = mock_client.list_billing_view_segments.call_args[1]
         assert 'arn' not in call_kwargs
+
+
+# --- Pagination contract: max_items / next_token ---
+
+# (operation, required kwargs, client method, response result key, data key, filter kwargs)
+_BVS_LIST_OPS = [
+    (
+        list_billing_views,
+        {},
+        'list_billing_views',
+        'billingViews',
+        'billing_views',
+        {'owner_account_id': ACCOUNT_ID_PRIMARY},
+    ),
+    (
+        list_source_views_for_billing_view,
+        {'arn': BILLING_VIEW_ARN_CUSTOM},
+        'list_source_views_for_billing_view',
+        'sourceViews',
+        'source_views',
+        {},
+    ),
+    (
+        list_billing_view_segments,
+        {},
+        'list_billing_view_segments',
+        'items',
+        'segments',
+        {'begin_date_inclusive': '2024-09-01', 'end_date_exclusive': '2024-10-01'},
+    ),
+]
+_BVS_LIST_OP_IDS = [op[2] for op in _BVS_LIST_OPS]
+
+
+def _bvs_page(result_key, count, token=None, start=0):
+    """Build one API page holding ``count`` items of the shape the result key carries."""
+    if result_key == 'sourceViews':
+        items = [f'{BVS_ARN_PREFIX}:billingview/source-{i}' for i in range(start, start + count)]
+    else:
+        items = [
+            {'arn': f'{BVS_ARN_PREFIX}:billingview/v-{i}'} for i in range(start, start + count)
+        ]
+    page = {result_key: items}
+    if token:
+        page['nextToken'] = token
+    return page
+
+
+@pytest.mark.asyncio
+class TestBvsPaginationContract:
+    """Each BVS list op follows the shared max_items / next_token contract."""
+
+    @pytest.mark.parametrize(
+        'operation,kwargs,method,result_key,data_key,filters', _BVS_LIST_OPS, ids=_BVS_LIST_OP_IDS
+    )
+    @patch(PATCH_BVS_CLIENT)
+    async def test_no_max_items_fetches_every_page(
+        self,
+        mock_create_client,
+        mock_ctx,
+        operation,
+        kwargs,
+        method,
+        result_key,
+        data_key,
+        filters,
+    ):
+        """Without max_items every page is fetched with maxResults=100."""
+        mock_client = MagicMock()
+        getattr(mock_client, method).side_effect = [
+            _bvs_page(result_key, 2, token='t2'),
+            _bvs_page(result_key, 1, start=2),
+        ]
+        mock_create_client.return_value = mock_client
+
+        result = await operation(mock_ctx, **kwargs)
+
+        data = result['data']
+        assert len(data[data_key]) == 3
+        assert data['pagination'] == {
+            'complete_dataset': True,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 3,
+        }
+        assert 'warning' not in data
+        calls = getattr(mock_client, method).call_args_list
+        assert [c.kwargs['maxResults'] for c in calls] == [100, 100]
+
+    @pytest.mark.parametrize(
+        'operation,kwargs,method,result_key,data_key,filters', _BVS_LIST_OPS, ids=_BVS_LIST_OP_IDS
+    )
+    @patch(PATCH_BVS_CLIENT)
+    async def test_max_items_stops_and_returns_service_token(
+        self,
+        mock_create_client,
+        mock_ctx,
+        operation,
+        kwargs,
+        method,
+        result_key,
+        data_key,
+        filters,
+    ):
+        """max_items asks for the remainder and stops once reached, with the service token."""
+        mock_client = MagicMock()
+        getattr(mock_client, method).side_effect = [
+            _bvs_page(result_key, 100, token='t2'),
+            _bvs_page(result_key, 20, token='t3', start=100),
+        ]
+        mock_create_client.return_value = mock_client
+
+        result = await operation(mock_ctx, **kwargs, max_items=120)
+
+        data = result['data']
+        calls = getattr(mock_client, method).call_args_list
+        assert [c.kwargs['maxResults'] for c in calls] == [100, 20]
+        assert len(data[data_key]) == 120
+        assert list(data)[:2] == ['complete_dataset', 'warning']
+        assert data['pagination']['next_token'] == 't3'
+        assert data['pagination']['has_more'] is True
+
+    @pytest.mark.parametrize(
+        'operation,kwargs,method,result_key,data_key,filters', _BVS_LIST_OPS, ids=_BVS_LIST_OP_IDS
+    )
+    @patch(PATCH_BVS_CLIENT)
+    async def test_continuation_sends_caller_token_and_identical_params(
+        self,
+        mock_create_client,
+        mock_ctx,
+        operation,
+        kwargs,
+        method,
+        result_key,
+        data_key,
+        filters,
+    ):
+        """A continuation sends the caller's token first and otherwise identical params."""
+        mock_client = MagicMock()
+        getattr(mock_client, method).side_effect = [
+            _bvs_page(result_key, 1, token='svc-2'),
+            _bvs_page(result_key, 1, start=1),
+        ]
+        mock_create_client.return_value = mock_client
+
+        await operation(mock_ctx, **kwargs, **filters, next_token='caller-token')
+
+        first, second = (c.kwargs for c in getattr(mock_client, method).call_args_list)
+        assert first['nextToken'] == 'caller-token'
+        assert second['nextToken'] == 'svc-2'
+        strip = {'nextToken', 'maxResults'}
+        assert {k: v for k, v in first.items() if k not in strip} == {
+            k: v for k, v in second.items() if k not in strip
+        }

@@ -48,7 +48,9 @@ Parameters:
 - features: the single feature to retrieve (required).
 - filters: JSON, PREFERENCE_KEY only, and accepted for CREDIT_PREFERENCE_OPTIONS alone, where values must
   match `credit/{creditId}`.
-- max_results: rows per page, 1-50 (default 50). max_pages: pages to auto-fetch (default 5).
+- max_items: total number of rows to return. Omit it to fetch every page (no limit); pass it
+  when the organization is large.
+- next_token: `pagination.next_token` from a previous partial response, to continue.
 
 Returns `data.billing_preferences`, the AWS rows unchanged: `feature`, `key`, `value` (ENABLED|DISABLED),
 plus `accountId`/`accountName` on account rows and `billingPeriod` on history rows.
@@ -71,11 +73,11 @@ RI_SHARING_HISTORY prefixes the key with a period and adds `billingPeriod`:
 
 `data.pagination` accompanies every response:
 
-  {"complete_dataset": true, "pages_fetched": 1, "total_results": 13, "has_more": false,
-   "next_token": null}
+  {"complete_dataset": true, "has_more": false, "next_token": null, "items_returned": 13}
 
-When `has_more` is true the list is TRUNCATED — say so, and pass `next_token` back or raise `max_pages`
-rather than presenting it as complete.
+A partial result leads with `complete_dataset: false` and a `warning`: call again with a larger
+`max_items`, continue by passing `pagination.next_token` back as `next_token`, or say in the answer that
+the result is partial. `items_returned` counts the rows in this response, not every row that exists.
 
 Example 1: {"features": "RI_SHARING"}
 Example 2 (history): {"features": "RI_SHARING_HISTORY"}
@@ -87,9 +89,8 @@ async def get_billing_preferences(
     ctx: Context,
     features: Union[str, List[str]],
     filters: Optional[str] = None,
-    max_results: Optional[int] = 50,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = 5,
 ) -> Dict[str, Any]:
     """FastMCP wrapper for the AWS Billing GetBillingPreferences operation.
 
@@ -97,9 +98,8 @@ async def get_billing_preferences(
         ctx: The MCP context object.
         features: The single billing feature to retrieve (required).
         filters: Filters as a JSON string.
-        max_results: Maximum number of results per page (1-50).
+        max_items: Optional total number of rows to return. Omit it to fetch every page.
         next_token: Pagination token from a previous response.
-        max_pages: Maximum pages to auto-paginate through.
 
     Returns:
         Dict containing the billing preferences.
@@ -108,7 +108,6 @@ async def get_billing_preferences(
         ctx,
         features=features,
         filters=filters,
-        max_results=max_results,
+        max_items=max_items,
         next_token=next_token,
-        max_pages=max_pages,
     )

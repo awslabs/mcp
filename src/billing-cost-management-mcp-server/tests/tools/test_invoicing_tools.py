@@ -530,95 +530,128 @@ class TestListInvoiceSummariesResponse:
         assert summary['IssuedDate'] == '2025-05-02T00:00:00'
         assert summary['DueDate'] == '2025-06-02T00:00:00'
 
+    @staticmethod
+    async def _list(mock_client, mock_context, **kwargs):
+        """Call list_invoice_summaries for one account and billing period."""
+        with patch(CREATE_CLIENT_PATH) as mock_create:
+            mock_create.return_value = mock_client
+            return await list_invoice_summaries(
+                mock_context, account_id='123456789012', billing_period='2026-05', **kwargs
+            )
+
     @pytest.mark.asyncio
-    async def test_pagination_across_pages(self, mock_context, sample_summary):
-        """Multiple pages are aggregated and pagination metadata is accurate."""
+    async def test_no_max_items_fetches_every_page(self, mock_context, sample_summary):
+        """Without max_items every page is fetched at the largest page size."""
         mock_client = MagicMock()
         mock_client.list_invoice_summaries.side_effect = [
             {'InvoiceSummaries': [sample_summary], 'NextToken': 'page-2'},
+            {'InvoiceSummaries': [sample_summary], 'NextToken': 'page-3'},
             {'InvoiceSummaries': [sample_summary]},
         ]
 
-        with patch(CREATE_CLIENT_PATH) as mock_create:
-            mock_create.return_value = mock_client
-            result = await list_invoice_summaries(
-                mock_context, account_id='123456789012', billing_period='2026-05'
-            )
+        result = await self._list(mock_client, mock_context)
 
         assert result['status'] == 'success'
-        assert mock_client.list_invoice_summaries.call_count == 2
-        pagination = result['data']['pagination']
-        assert pagination['total_results'] == 2
-        assert pagination['has_more'] is False
+        calls = mock_client.list_invoice_summaries.call_args_list
+        assert len(calls) == 3
+        assert all(call.kwargs['MaxResults'] == 100 for call in calls)
+        assert [call.kwargs.get('NextToken') for call in calls] == [None, 'page-2', 'page-3']
+        assert len(result['data']['invoice_summaries']) == 3
+        assert result['data']['pagination'] == {
+            'complete_dataset': True,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 3,
+        }
+        assert 'warning' not in result['data']
 
     @pytest.mark.asyncio
-    async def test_max_pages_limit(self, mock_context, sample_summary):
-        """max_pages caps the number of pages fetched and reports has_more."""
+    async def test_max_items_stops_before_exceeding(self, mock_context, sample_summary):
+        """max_items sizes the page and stops once reached, returning the service token."""
         mock_client = MagicMock()
         mock_client.list_invoice_summaries.return_value = {
-            'InvoiceSummaries': [sample_summary],
+            'InvoiceSummaries': [sample_summary] * 3,
             'NextToken': 'always-more',
         }
 
-        with patch(CREATE_CLIENT_PATH) as mock_create:
-            mock_create.return_value = mock_client
-            result = await list_invoice_summaries(
-                mock_context, account_id='123456789012', billing_period='2026-05', max_pages=2
-            )
+        result = await self._list(mock_client, mock_context, max_items=3)
 
         assert result['status'] == 'success'
-        assert mock_client.list_invoice_summaries.call_count == 2
-        assert result['data']['pagination']['has_more'] is True
-        assert result['data']['pagination']['next_token'] == 'always-more'
+        assert mock_client.list_invoice_summaries.call_count == 1
+        assert mock_client.list_invoice_summaries.call_args.kwargs['MaxResults'] == 3
+        data = result['data']
+        assert list(data)[:2] == ['complete_dataset', 'warning']
+        assert data['complete_dataset'] is False
+        assert data['pagination']['has_more'] is True
+        assert data['pagination']['next_token'] == 'always-more'
+        assert data['pagination']['items_returned'] == 3
 
     @pytest.mark.asyncio
-    async def test_initial_next_token_forwarded(self, mock_context, sample_summary):
-        """A caller-supplied next_token is forwarded on the first API call."""
-        mock_client = MagicMock()
-        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+    async def test_continuation_sends_token_and_identical_params(
+        self, mock_context, sample_summary
+    ):
+        """A continuation sends the caller's token and otherwise the same request."""
+        first = MagicMock()
+        first.list_invoice_summaries.return_value = {
+            'InvoiceSummaries': [sample_summary],
+            'NextToken': 'page-2',
+        }
+        await self._list(first, mock_context, max_items=1, invoicing_entity='AWS Inc')
+        resumed = MagicMock()
+        resumed.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+        result = await self._list(
+            resumed, mock_context, max_items=1, invoicing_entity='AWS Inc', next_token='page-2'
+        )
 
-        with patch(CREATE_CLIENT_PATH) as mock_create:
-            mock_create.return_value = mock_client
-            result = await list_invoice_summaries(
-                mock_context,
-                account_id='123456789012',
-                billing_period='2026-05',
-                next_token='resume-here',
-            )
-
-        assert result['status'] == 'success'
-        assert mock_client.list_invoice_summaries.call_args.kwargs['NextToken'] == 'resume-here'
+        first_call = first.list_invoice_summaries.call_args.kwargs
+        resumed_call = resumed.list_invoice_summaries.call_args.kwargs
+        assert resumed_call['NextToken'] == 'page-2'
+        assert 'NextToken' not in first_call
+        assert {k: v for k, v in resumed_call.items() if k != 'NextToken'} == first_call
+        assert result['data']['pagination']['complete_dataset'] is True
 
     @pytest.mark.asyncio
-    async def test_max_results_forwarded(self, mock_context, sample_summary):
-        """max_results is forwarded as the MaxResults request parameter."""
+    async def test_failure_after_first_page_is_partial(self, mock_context, sample_summary):
+        """A later page failing keeps the earlier rows and returns the retry token."""
         mock_client = MagicMock()
-        mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': [sample_summary]}
+        mock_client.list_invoice_summaries.side_effect = [
+            {'InvoiceSummaries': [sample_summary], 'NextToken': 'page-2'},
+            ClientError({'Error': {'Code': 'ThrottlingException'}}, 'ListInvoiceSummaries'),
+        ]
 
-        with patch(CREATE_CLIENT_PATH) as mock_create:
-            mock_create.return_value = mock_client
-            result = await list_invoice_summaries(
-                mock_context, account_id='123456789012', billing_period='2026-05', max_results=25
-            )
+        result = await self._list(mock_client, mock_context)
 
         assert result['status'] == 'success'
-        assert mock_client.list_invoice_summaries.call_args.kwargs['MaxResults'] == 25
+        assert result['data']['complete_dataset'] is False
+        assert 'ThrottlingException' in result['data']['warning']
+        assert result['data']['pagination']['next_token'] == 'page-2'
+
+    @pytest.mark.asyncio
+    async def test_rejected_token_is_invalid_next_token(self, mock_context):
+        """A token the service rejects maps to invalid_next_token."""
+        mock_client = MagicMock()
+        mock_client.list_invoice_summaries.side_effect = ClientError(
+            {'Error': {'Code': 'InvalidNextTokenException', 'Message': 'bad'}},
+            'ListInvoiceSummaries',
+        )
+
+        result = await self._list(mock_client, mock_context, next_token='stale')
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'invalid_next_token'
 
     @pytest.mark.asyncio
     async def test_empty_results(self, mock_context):
-        """An empty result set returns success with zero total_results."""
+        """An empty result set returns success with zero items_returned."""
         mock_client = MagicMock()
         mock_client.list_invoice_summaries.return_value = {'InvoiceSummaries': []}
 
-        with patch(CREATE_CLIENT_PATH) as mock_create:
-            mock_create.return_value = mock_client
-            result = await list_invoice_summaries(
-                mock_context, account_id='123456789012', billing_period='2026-05'
-            )
+        result = await self._list(mock_client, mock_context)
 
         assert result['status'] == 'success'
         assert result['data']['invoice_summaries'] == []
-        assert result['data']['pagination']['total_results'] == 0
+        assert result['data']['pagination']['items_returned'] == 0
+        assert result['data']['pagination']['complete_dataset'] is True
 
     @pytest.mark.asyncio
     async def test_api_client_error(self, mock_context):

@@ -937,7 +937,7 @@ async def test_ce_real_get_cost_and_usage_passes_all_args_reload_identity_decora
             group_by='[{"Type":"DIMENSION","Key":"SERVICE"}]',
             filter='{"Dimensions":{"Key":"SERVICE","Values":["AmazonEC2"]}}',
             next_token='tok',
-            max_pages=3,
+            max_items=3,
         )
 
         assert res['status'] == 'success'
@@ -1025,9 +1025,8 @@ async def test_ce_real_get_dimension_values_passes_args_reload_identity_decorato
             end_date='2023-03-31',
             search_string='Amazon',
             filter='{}',
-            max_results=25,
             next_token='abc',
-            max_pages=2,
+            max_items=2,
         )
 
         assert res['status'] == 'success'
@@ -1040,7 +1039,6 @@ async def test_ce_real_get_dimension_values_passes_args_reload_identity_decorato
             '2023-03-31',
             'Amazon',
             '{}',
-            25,
             'abc',
             2,
             None,
@@ -1222,7 +1220,7 @@ async def test_ce_real_get_tags_and_values_routing_reload_identity_decorator(moc
             end_date='2023-01-31',
             search_string='Env',
             next_token='n1',
-            max_pages=2,
+            max_items=2,
         )
         assert res1['status'] == 'success'
 
@@ -1235,7 +1233,7 @@ async def test_ce_real_get_tags_and_values_routing_reload_identity_decorator(moc
             search_string='Env',
             tag_key='Environment',
             next_token='n2',
-            max_pages=3,
+            max_items=3,
         )
         assert res2['status'] == 'success'
 
@@ -1289,7 +1287,7 @@ async def test_ce_real_get_cost_categories_and_values_routing_reload_identity_de
             end_date='2023-01-31',
             search_string='Dept',
             next_token='p1',
-            max_pages=2,
+            max_items=2,
         )
         assert res1['status'] == 'success'
 
@@ -1304,7 +1302,7 @@ async def test_ce_real_get_cost_categories_and_values_routing_reload_identity_de
             search_string='Dept',
             cost_category_name='Department',
             next_token='p2',
-            max_pages=4,
+            max_items=4,
         )
         assert res2['status'] == 'success'
 
@@ -1357,9 +1355,10 @@ async def test_ce_real_get_savings_plans_utilization_passes_args_reload_identity
             granularity='MONTHLY',
             filter='{}',
             next_token='tkn',
-            max_pages=5,
+            max_items=5,
         )
 
+        # The API is not paginated, so next_token and max_items are not passed on.
         assert res['status'] == 'success'
         mock_create_client.assert_called_once_with('ce')
         mock_impl.assert_awaited_once_with(
@@ -1369,8 +1368,6 @@ async def test_ce_real_get_savings_plans_utilization_passes_args_reload_identity
             '2023-01-31',
             'MONTHLY',
             '{}',
-            'tkn',
-            5,
         )
 
 
@@ -1487,7 +1484,6 @@ async def test_ce_real_get_dimension_values_with_billing_view_arn(
             mock_context,
             fake_client,
             'SERVICE',
-            None,
             None,
             None,
             None,
@@ -1794,3 +1790,28 @@ async def test_tool_schema_publishes_structured_types():
     assert types('metrics') == {'string', 'array', 'null'}
     assert types('group_by') == {'string', 'array', 'null'}
     assert types('filter') == {'string', 'object', 'null'}
+
+
+def test_description_documents_max_items_paging():
+    """The description explains max_items and no longer mentions the removed paging params."""
+    import ast
+    import inspect
+    from awslabs.billing_cost_management_mcp_server.tools import cost_explorer_tools
+
+    # Read the decorator argument from source: other tests reload the module with an
+    # identity decorator, which drops the registered tool's metadata.
+    tree = ast.parse(inspect.getsource(cost_explorer_tools))
+    description = next(
+        keyword.value.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        for keyword in node.keywords
+        if keyword.arg == 'description' and isinstance(keyword.value, ast.Constant)
+    )
+    assert isinstance(description, str)
+    assert 'max_items' in description
+    assert 'Omit it to fetch every page' in description
+    assert 'complete_dataset: false' in description
+    assert 'next_token' in description
+    for removed in ('max_pages', 'max_results', 'automatic pagination', 'Pagination is automatic'):
+        assert removed not in description

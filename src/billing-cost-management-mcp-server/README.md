@@ -383,6 +383,28 @@ The server uses these key environment variables:
 }
 ```
 
+## Pagination
+
+List tools take `max_items` (the total number of items to return) and `next_token`. Without `max_items` a tool fetches every page; with it, the tool stops before a page that could take the result past `max_items` (the first page is always returned). `next_token` in a response is the AWS service's own continuation token: pass it back, with every other parameter unchanged, to get the next items.
+
+A response that stops before the end of the data leads with `complete_dataset: false` and a `warning`, and every paginated response carries a `pagination` block:
+
+```json
+{"complete_dataset": false, "warning": "Partial data: ...", "pagination": {"complete_dataset": false, "has_more": true, "next_token": "<service token>", "items_returned": 5000}, "...": "data"}
+```
+
+The `pagination` block comes before the data, so it is read before the data itself.
+
+`has_more` is true only when `next_token` can continue the result. A result can be partial with `has_more: false`, for example when a page failed in a way that invalidates the token or when one region of a multi-region call failed; the `warning` then says how to recover.
+
+One call also stops paging, on a page boundary, when it reaches the server's time limit. The result is then partial and continues with `next_token`.
+
+| Environment variable | Default | Limit |
+|---|---|---|
+| `BCM_MCP_PAGINATION_MAX_SECONDS` | `300` | Seconds one call spends paging |
+
+A rejected or expired `next_token` returns `error_type: invalid_next_token`; call again without `next_token` to restart.
+
 ## Error responses
 
 Tool errors are returned with `isError: true` and a JSON body that includes:
@@ -400,7 +422,7 @@ Tool errors are returned with `isError: true` and a JSON body that includes:
 | `retry_strategy` | `error_type` values |
 |------------------|---------------------|
 | `retry_same_request` | Throttling (`ThrottlingException`, `Throttling`, `ThrottledException`, `TooManyRequestsException`, `RequestLimitExceeded`, `LimitExceededException`, `throttling_error`), `aws_connection_error`, server-side errors (`InternalServerException`, `InternalErrorException`, `ServiceUnavailable`, `service_unavailable`, ...), timeouts (`unknown_timeouterror`), and any otherwise unmapped AWS error with an HTTP 5xx status |
-| `modify_request` | `validation_error`, `invalid_operation`, `invalid_parameter_value`, `ValidationException`, `InvalidParameter*`, `InvalidInputException`, `InvalidNextTokenException`, `ExpiredNextTokenException`, `InvalidRequestException`, `BadRequestException`, `BillExpirationException`, `RequestChangedException`, `no_results`, `ResourceNotFoundException`, `resource_not_found`, `NotFoundException`, `not_found` |
+| `modify_request` | `validation_error`, `invalid_operation`, `invalid_parameter_value`, `ValidationException`, `InvalidParameter*`, `InvalidInputException`, `InvalidNextTokenException`, `ExpiredNextTokenException`, `InvalidRequestException`, `BadRequestException`, `BillExpirationException`, `RequestChangedException`, `invalid_next_token`, `no_results`, `ResourceNotFoundException`, `resource_not_found`, `NotFoundException`, `not_found` |
 | `do_not_retry` | `AccessDenied*`, `access_denied`, `UnauthorizedOperation`, `UnauthorizedException`, `AuthFailure`, `OptInRequiredException`, `opt_in_required`, `enrollment_error`, `DataUnavailableException`, and any missing or unrecognized `error_type` |
 
 A tool can override the mapping for a specific error by passing `retry_strategy=` and `hint=` to `format_response`. Session SQL errors from invalid queries are `modify_request`, and when every region of a multi-region call fails, `retry_strategy` is combined from each region's own error. A botocore `ParamValidationError` (malformed request parameters, rejected before any request is sent) is a `validation_error`. Credential and configuration errors (`NoCredentialsError`, `PartialCredentialsError`, `NoRegionError`, `ProfileNotFound`, `UnknownServiceError`) keep `error_type: aws_connection_error` but are `do_not_retry`. The full mapping is in `utilities/error_contract.py`.
