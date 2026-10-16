@@ -466,6 +466,34 @@ class TestGetAnomalies:
         assert result['status'] == 'error'
         assert result['error_type'] == 'invalid_next_token'
 
+    async def test_get_anomalies_empty_next_token_tells_caller_to_omit_it(
+        self, mock_context, mock_ce_client
+    ):
+        """An empty next_token fails before any request, with guidance to omit it."""
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            add_retry_guidance,
+        )
+
+        result = await get_anomalies(
+            mock_context,
+            mock_ce_client,
+            '2023-01-01',
+            '2023-01-31',
+            None,
+            None,
+            None,
+            '',
+            None,
+            None,
+            None,
+        )
+
+        mock_ce_client.get_anomalies.assert_not_called()
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert 'Omit it to start from the first page' in result['message']
+        assert add_retry_guidance(result)['retry_strategy'] == 'modify_request'
+
     @patch('awslabs.billing_cost_management_mcp_server.tools.cost_anomaly_tools.handle_aws_error')
     async def test_get_anomalies_error_handling(
         self, mock_handle_aws_error, mock_context, mock_ce_client
