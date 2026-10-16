@@ -210,7 +210,6 @@ class TestAwsPricing:
             'status': 'success',
             'data': {
                 'service_codes': ['AmazonEC2', 'AmazonS3'],
-                'total_count': 2,
                 'message': 'Successfully retrieved 2 AWS service codes',
             },
         }
@@ -977,6 +976,7 @@ class TestGetServiceCodesAdditional:
             'next_token': None,
             'items_returned': 4,
         }
+        assert 'total_count' not in result['data']
         assert 'warning' not in result['data']
 
     @patch(
@@ -997,6 +997,8 @@ class TestGetServiceCodesAdditional:
         assert mock_client.describe_services.call_args.kwargs == {'MaxResults': 2}
         data = result['data']
         assert data['service_codes'] == ['AService', 'ZService']
+        assert 'total_count' not in data
+        assert data['pagination']['items_returned'] == 2
         assert list(data)[:2] == ['complete_dataset', 'warning']
         assert data['pagination']['next_token'] == 'page2token'
         assert data['pagination']['has_more'] is True
@@ -1056,7 +1058,7 @@ class TestGetServiceAttributesAdditional:
 
         assert result['status'] == 'success'
         assert result['data']['attributes'] == []
-        assert result['data']['total_count'] == 0
+        assert 'total_count' not in result['data']
 
 
 @pytest.mark.asyncio
@@ -1082,6 +1084,8 @@ class TestGetAttributeValuesAdditional:
 
         assert result['status'] == 'success'
         assert len(result['data']['values']) == 100
+        assert 'total_count' not in result['data']
+        assert result['data']['pagination']['items_returned'] == 100
         calls = mock_client.get_attribute_values.call_args_list
         base = {'ServiceCode': 'AmazonEC2', 'AttributeName': 'instanceType', 'MaxResults': 10000}
         assert [call.kwargs for call in calls] == [base, {**base, 'NextToken': 'page2token'}]
@@ -1106,6 +1110,8 @@ class TestGetAttributeValuesAdditional:
         assert mock_client.get_attribute_values.call_args.kwargs['MaxResults'] == 3
         data = result['data']
         assert data['values'] == ['a', 'm', 'z']
+        assert 'total_count' not in data
+        assert data['pagination']['items_returned'] == 3
         assert data['complete_dataset'] is False
         assert data['pagination']['next_token'] == 'page2token'
 

@@ -71,7 +71,7 @@ ARGS:
 
 PAGINATION:
 - A partial result has `complete_dataset: false` and a warning. Call again with a larger max_items, continue with next_token, or state in the answer that the result is partial.
-- Counts in a response (total_count, total_products_found) cover only the items in that response, not earlier or later pages. get_service_codes and get_attribute_values sort only the returned items.
+- total_products_found counts only the products in that response, not earlier or later pages. get_service_codes and get_attribute_values sort only the returned items.
 - get_service_attributes is not paginated and ignores max_items and next_token.
 
 RETURNS:

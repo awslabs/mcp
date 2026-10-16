@@ -131,7 +131,6 @@ async def get_service_codes(
             with_pagination(
                 {
                     'service_codes': sorted_codes,
-                    'total_count': len(sorted_codes),
                     'message': f'Successfully retrieved {len(sorted_codes)} AWS service codes',
                 },
                 pagination,
@@ -194,7 +193,6 @@ async def get_service_attributes(ctx: Context, service_code: str) -> Dict[str, A
             {
                 'service_code': service_code,
                 'attributes': sorted_attributes,
-                'total_count': len(sorted_attributes),
                 'message': f'Successfully retrieved {len(sorted_attributes)} attributes for {service_code}',
             },
         )
@@ -271,7 +269,6 @@ async def get_attribute_values(
                     'service_code': service_code,
                     'attribute_name': attribute_name,
                     'values': sorted_values,
-                    'total_count': len(sorted_values),
                     'message': f'Successfully retrieved {len(sorted_values)} values for attribute {attribute_name} of service {service_code}',
                 },
                 pagination,
