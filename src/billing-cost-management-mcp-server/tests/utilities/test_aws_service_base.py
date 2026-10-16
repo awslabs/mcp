@@ -355,6 +355,33 @@ class TestHandleAwsError:
         assert result['operation'] == 'Connect'
         assert result['message'] == 'AWS service connection error: BotoCoreError'
 
+    @pytest.mark.asyncio
+    async def test_handle_param_validation_error(self):
+        """Test handling ParamValidationError (a BotoCoreError subclass).
+
+        Must be classified as validation_error, not aws_connection_error, even
+        though ParamValidationError subclasses BotoCoreError. Regression test
+        for the getCostAndUsage bug-bash finding where a malformed filter
+        expression surfaced as a connection error instead of a validation error.
+        """
+        # Setup
+        ctx = AsyncMock()
+        from botocore.exceptions import ParamValidationError
+
+        error = ParamValidationError(report='Invalid type for parameter Filter')
+
+        # Execute
+        result = await handle_aws_error(ctx, error, 'GetCostAndUsage', 'Cost Explorer')
+
+        # Assert
+        ctx.warning.assert_called_once()
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['boto_error_type'] == 'ParamValidationError'
+        assert result['service'] == 'Cost Explorer'
+        assert result['operation'] == 'GetCostAndUsage'
+        assert 'Invalid type for parameter Filter' in result['message']
+
 
 class TestFormatResponse:
     """Tests for format_response function."""

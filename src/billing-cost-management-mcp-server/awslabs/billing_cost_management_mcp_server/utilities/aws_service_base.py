@@ -31,7 +31,7 @@ import os
 import re
 from .logging_utils import get_context_logger, get_logger
 from botocore.config import Config
-from botocore.exceptions import BotoCoreError, ClientError
+from botocore.exceptions import BotoCoreError, ClientError, ParamValidationError
 from datetime import datetime, timedelta
 from fastmcp import Context
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -243,6 +243,25 @@ async def handle_aws_error(
 
         error_response.update(
             {'error_type': error_type, 'message': user_message, 'details': str(error)}
+        )
+
+    elif isinstance(error, ParamValidationError):
+        # ParamValidationError is a BotoCoreError subclass (client-side request
+        # shape rejection, e.g. a malformed filter expression), not a connection
+        # failure. Must be checked before the BotoCoreError branch below, or it
+        # gets mislabeled as aws_connection_error and the agent is steered toward
+        # retrying/reconnecting instead of fixing the request.
+        error_type = 'validation_error'
+        user_message = str(error)
+        await ctx_logger.warning(f'Validation error: {error_context}')
+
+        error_response.update(
+            {
+                'error_type': error_type,
+                'boto_error_type': error.__class__.__name__,
+                'message': user_message,
+                'details': str(error),
+            }
         )
 
     elif isinstance(error, BotoCoreError):
