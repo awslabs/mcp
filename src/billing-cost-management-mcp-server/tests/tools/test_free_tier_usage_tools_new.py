@@ -29,7 +29,8 @@ from awslabs.billing_cost_management_mcp_server.tools.free_tier_usage_tools impo
     get_free_tier_usage_data,
 )
 from fastmcp import Context
-from unittest.mock import AsyncMock, MagicMock
+from fastmcp.tools import FunctionTool
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 # Create a mock implementation for testing
@@ -509,6 +510,28 @@ async def test_free_tier_usage_tool_takes_max_items_and_next_token():
     assert 'max_results' not in properties
     assert 'max_items' in (tool.description or '')
     assert 'complete_dataset' in (tool.description or '')
+
+
+async def test_free_tier_usage_tool_forwards_max_items_and_next_token(mock_context):
+    """The tool sends the caller's next_token and sizes the page from max_items."""
+    tool = await free_tier_usage_server.get_tool('free-tier-usage')
+    assert isinstance(tool, FunctionTool)
+    mock_client = MagicMock()
+    mock_client.get_free_tier_usage.return_value = {
+        'freeTierUsages': [{'service': 'EC2'}],
+        'nextToken': 'page3',
+    }
+
+    with patch(
+        'awslabs.billing_cost_management_mcp_server.tools.free_tier_usage_tools.create_aws_client',
+        return_value=mock_client,
+    ):
+        result = await tool.fn(mock_context, max_items=1, next_token='page2')
+
+    mock_client.get_free_tier_usage.assert_called_once_with(nextToken='page2', maxResults=1)
+    assert result['status'] == 'success'
+    assert result['data']['pagination']['next_token'] == 'page3'
+    assert result['data']['complete_dataset'] is False
 
 
 def test_free_tier_usage_server_initialization():

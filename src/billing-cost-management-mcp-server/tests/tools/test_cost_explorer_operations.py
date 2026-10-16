@@ -577,6 +577,29 @@ class TestGetCostAndUsage:
 
         assert result['data']['DimensionValueAttributes'] == [attribute]
 
+    async def test_dimension_value_attributes_without_value_are_all_kept(
+        self, mock_context, mock_ce_client
+    ):
+        """Only entries with a Value are deduplicated; entries without one are kept as is."""
+        unnamed = {'Attributes': {'description': 'no value'}}
+        mock_ce_client.get_cost_and_usage.side_effect = [
+            {
+                'ResultsByTime': [{'Groups': [{'Keys': ['111']}]}],
+                'DimensionValueAttributes': [unnamed, 'raw'],
+                'NextPageToken': 'page2',
+            },
+            {
+                'ResultsByTime': [{'Groups': [{'Keys': ['222']}]}],
+                'DimensionValueAttributes': [unnamed, 'raw'],
+            },
+        ]
+
+        result = await get_cost_and_usage(
+            mock_context, mock_ce_client, start_date='2023-01-01', end_date='2023-01-31'
+        )
+
+        assert result['data']['DimensionValueAttributes'] == [unnamed, 'raw', unnamed, 'raw']
+
     async def test_partial_offload_flags_partial_ahead_of_preview(
         self, mock_context, mock_ce_client
     ):
