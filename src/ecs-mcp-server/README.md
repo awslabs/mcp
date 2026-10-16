@@ -4,7 +4,7 @@
 
 An MCP server for containerizing applications, deploying applications to Amazon Elastic Container Service (ECS), troubleshooting ECS deployments, and managing ECS resources. This server enables AI assistants to help users with the full lifecycle of containerized applications on AWS.
 
-> **Note:** AWS offers a fully managed Amazon ECS MCP server that provides enterprise-grade capabilities including automatic updates, centralized security through IAM integration, comprehensive audit logging via CloudTrail, and the proven scalability and reliability of AWS. The managed service eliminates the need for local installation and maintenance. [Learn more about the managed Amazon ECS MCP server](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-mcp-introduction.html).
+> **Recommended:** Use the [Agent Toolkit for AWS](https://docs.aws.amazon.com/agent-toolkit/latest/userguide/what-is-agent-toolkit.html) with the hosted Amazon ECS MCP server installed alongside it. The Agent Toolkit provides the AWS MCP Server and the `aws-containers` skill for containerization, deployment, and troubleshooting; the hosted ECS MCP server adds dedicated ECS tools, with automatic updates and enterprise-grade security through AWS IAM integration. See the [Agent Toolkit getting started guide](https://docs.aws.amazon.com/agent-toolkit/latest/userguide/quick-start.html) and the [Amazon ECS MCP Server documentation](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-mcp-introduction.html).
 
 ## Features
 
@@ -27,15 +27,16 @@ Customers can list and view their ECS resources (clusters, services, tasks, task
 
 ## Installation
 
-### Option 1 (Recommended): Hosted MCP Server
+### Option 1 (Recommended): Agent Toolkit for AWS with the hosted ECS MCP Server
 
-Use the AWS-managed ECS MCP Server for simplified setup and automatic updates. The hosted service eliminates local installation requirements and provides enterprise-grade security through AWS IAM integration.
+Install both together:
 
-For complete setup instructions, configuration examples, and IAM permissions, see the [Amazon ECS MCP Server documentation](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-mcp-getting-started.html).
+1. **Agent Toolkit for AWS** — its `aws-core` plugin bundles the AWS MCP Server and a curated set of agent skills, including the `aws-containers` skill for ECS containerization, deployment, and troubleshooting. Follow the [Agent Toolkit for AWS getting started guide](https://docs.aws.amazon.com/agent-toolkit/latest/userguide/quick-start.html) for Kiro, Claude Code, Codex, and other MCP-compatible agents.
+2. **Hosted Amazon ECS MCP Server** — the AWS-managed server adds dedicated ECS tools with simplified setup, automatic updates, and enterprise-grade security through AWS IAM integration. For setup instructions, configuration examples, and IAM permissions, see the [Amazon ECS MCP Server documentation](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-mcp-getting-started.html).
 
-### Option 2: Local MCP Server (Legacy)
+### Option 2: Local MCP Server
 
-> **Note**: This is the legacy local installation method that will no longer receive updates. We recommend using [Option 1 (Hosted MCP Server)](#option-1-recommended-hosted-mcp-server) instead.
+> **Note**: We recommend [Option 1 (Agent Toolkit for AWS with the hosted ECS MCP Server)](#option-1-recommended-agent-toolkit-for-aws-with-the-hosted-ecs-mcp-server) over the local installation below.
 
 #### Prerequisites
 
