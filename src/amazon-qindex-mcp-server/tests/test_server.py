@@ -25,6 +25,11 @@ from awslabs.amazon_qindex_mcp_server.server import (
     mcp,
 )
 
+# SDK v2 removed `MCPServer.get_context()`; build the Context directly instead. These tests
+# only assert that a Context can be constructed for the server, which is what the removed
+# helper did outside a live request.
+from mcp.server.mcpserver import Context
+
 
 class TestMCPServer:
     """Tests for the MCP server configuration."""
@@ -252,7 +257,9 @@ class TestServerErrorHandling:
 
         with pytest.raises(ValueError):
             await search_relevant_content(
-                application_id=None, query_text='test', qbuiness_region='us-east-1'
+                application_id=None,  # pyright: ignore[reportArgumentType]
+                query_text='test',
+                qbuiness_region='us-east-1',
             )
 
     @pytest.mark.asyncio
@@ -285,7 +292,7 @@ class TestClientConfiguration:
 
     def test_context_initialization(self):
         """Test context initialization."""
-        context = mcp.get_context()
+        context = Context(mcp_server=mcp)
         assert context is not None
 
     @pytest.mark.asyncio
@@ -293,12 +300,12 @@ class TestClientConfiguration:
         """Test context handling."""
         mock_session = mocker.Mock()
         mocker.patch('boto3.Session', return_value=mock_session)
-        context = mcp.get_context()
+        context = Context(mcp_server=mcp)
         assert context is not None
 
     def test_context_error_handling(self):
         """Test context error handling."""
-        context = mcp.get_context()
+        context = Context(mcp_server=mcp)
         assert context is not None
 
 

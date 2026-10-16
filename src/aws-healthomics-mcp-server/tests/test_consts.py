@@ -253,6 +253,37 @@ class TestScratchStorageErrorTemplate:
         assert 'SHARED' in message
 
 
+class TestRunLogLevelConstants:
+    """Test cases for run log level constants.
+
+    Feature: run-log-level
+    Validates: Exposing and validating the run logLevel value
+    """
+
+    def test_run_log_level_constants(self):
+        """Test individual run log level constants."""
+        assert consts.RUN_LOG_LEVEL_OFF == 'OFF'
+        assert consts.RUN_LOG_LEVEL_FATAL == 'FATAL'
+        assert consts.RUN_LOG_LEVEL_ERROR == 'ERROR'
+        assert consts.RUN_LOG_LEVEL_ALL == 'ALL'
+
+    def test_run_log_levels_list(self):
+        """Test RUN_LOG_LEVELS contains exactly the four levels in order."""
+        assert consts.RUN_LOG_LEVELS == ['OFF', 'FATAL', 'ERROR', 'ALL']
+        assert consts.RUN_LOG_LEVEL_OFF in consts.RUN_LOG_LEVELS
+        assert consts.RUN_LOG_LEVEL_FATAL in consts.RUN_LOG_LEVELS
+        assert consts.RUN_LOG_LEVEL_ERROR in consts.RUN_LOG_LEVELS
+        assert consts.RUN_LOG_LEVEL_ALL in consts.RUN_LOG_LEVELS
+        assert len(consts.RUN_LOG_LEVELS) == 4
+
+    def test_invalid_run_log_level_error_template(self):
+        """Test the error template exposes a placeholder for the allowed list."""
+        assert isinstance(consts.ERROR_INVALID_RUN_LOG_LEVEL, str)
+        assert consts.ERROR_INVALID_RUN_LOG_LEVEL.count('{}') == 1
+        message = consts.ERROR_INVALID_RUN_LOG_LEVEL.format(consts.RUN_LOG_LEVELS)
+        assert str(consts.RUN_LOG_LEVELS) in message
+
+
 class TestConstantsIntegration:
     """Integration tests for constants."""
 

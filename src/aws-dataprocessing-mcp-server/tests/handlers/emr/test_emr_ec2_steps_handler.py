@@ -26,7 +26,7 @@ from awslabs.aws_dataprocessing_mcp_server.handlers.emr.emr_ec2_steps_handler im
     EMREc2StepsHandler,
 )
 from botocore.exceptions import ClientError
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from unittest.mock import MagicMock, patch
 
 
@@ -112,7 +112,7 @@ class TestWriteOperationsPermissions:
             ctx=mock_context, operation=operation, cluster_id='j-12345ABCDEF'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert any(
             f'Operation {operation} is not allowed without write access' in content.text
             for content in result.content
@@ -139,12 +139,12 @@ class TestWriteOperationsPermissions:
                 )
 
             # Check that the operation completed without permission errors
-            if result.isError:
+            if result.is_error:
                 # If there's an error, it shouldn't be about write access
                 error_text = ' '.join(content.text for content in result.content)
                 assert 'not allowed without write access' not in error_text
             else:
-                assert result.isError is False
+                assert result.is_error is False
 
 
 class TestAddSteps:
@@ -181,7 +181,7 @@ class TestAddSteps:
                 JobFlowId='j-12345ABCDEF', Steps=steps
             )
 
-            assert result.isError is False
+            assert result.is_error is False
             assert len(result.content) == 2
 
             # Parse JSON data from the second content item
@@ -219,7 +219,7 @@ class TestAddSteps:
                 ExecutionRoleArn='arn:aws:iam::123456789012:role/EMRStepRole',
             )
 
-            assert result.isError is False
+            assert result.is_error is False
 
     async def test_add_steps_missing_steps_parameter(
         self, steps_handler_with_write_access, mock_context
@@ -261,7 +261,7 @@ class TestCancelSteps:
                 ClusterId='j-12345ABCDEF', StepIds=['s-12345ABCDEF']
             )
 
-            assert result.isError is False
+            assert result.is_error is False
             assert len(result.content) == 2
 
             # Parse JSON data from the second content item
@@ -286,7 +286,7 @@ class TestCancelSteps:
                 step_ids=['s-12345ABCDEF'],
             )
 
-            assert result.isError
+            assert result.is_error
             assert 'eed to be mcp managed tag' in result.content[0].text
 
     async def test_cancel_steps_with_cancellation_option(
@@ -314,7 +314,7 @@ class TestCancelSteps:
                 StepCancellationOption='TERMINATE_PROCESS',
             )
 
-            assert result.isError is False
+            assert result.is_error is False
 
     async def test_cancel_steps_missing_step_ids(
         self, steps_handler_with_write_access, mock_context
@@ -365,7 +365,7 @@ class TestDescribeStep:
                 ClusterId='j-12345ABCDEF', StepId='s-12345ABCDEF'
             )
 
-            assert result.isError is False
+            assert result.is_error is False
             assert len(result.content) == 2
 
             # Parse JSON data from the second content item
@@ -382,7 +382,7 @@ class TestDescribeStep:
                 ctx=mock_context, operation='describe-step', cluster_id='j-12345ABCDEF'
             )
 
-            assert result.isError is True
+            assert result.is_error is True
             error_text = ' '.join(content.text for content in result.content)
             assert (
                 'step_id is required for describe-step operation' in error_text
@@ -409,7 +409,7 @@ class TestListSteps:
             )
 
             # Verify results without checking mock calls
-            assert result.isError is False
+            assert result.is_error is False
             assert len(result.content) == 2
 
             # Parse JSON data from the second content item
@@ -439,7 +439,7 @@ class TestListSteps:
                 Marker='prev-marker',
             )
 
-            assert result.isError is False
+            assert result.is_error is False
 
     async def test_list_steps_invalid_step_state(
         self, steps_handler_with_write_access, mock_context
@@ -453,7 +453,7 @@ class TestListSteps:
                 step_states=[123],  # Invalid non-string state
             )
 
-            assert result.isError is True
+            assert result.is_error is True
             error_text = ' '.join(content.text for content in result.content)
             assert (
                 'Invalid step state: 123. Must be a string.' in error_text
@@ -473,7 +473,7 @@ class TestErrorHandling:
             ctx=mock_context, operation='invalid-operation', cluster_id='j-12345ABCDEF'
         )
 
-        assert result.isError is True
+        assert result.is_error is True
         assert any('Invalid operation' in content.text for content in result.content)
 
     async def test_aws_client_error(self, steps_handler_with_write_access, mock_context):
@@ -490,7 +490,7 @@ class TestErrorHandling:
                 ctx=mock_context, operation='list-steps', cluster_id='j-12345ABCDEF'
             )
 
-            assert result.isError is True
+            assert result.is_error is True
             error_text = ' '.join(content.text for content in result.content)
             # Check for either error message format
             assert (

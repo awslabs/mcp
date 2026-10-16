@@ -29,6 +29,7 @@ from awslabs.billing_cost_management_mcp_server.utilities.aws_service_base impor
     format_response,
     get_date_range,
     handle_aws_error,
+    paginate_aws_response,
     parse_json,
     validate_date_format,
 )
@@ -148,6 +149,18 @@ class TestParseJson:
 
         assert 'Invalid JSON format for test_param parameter' in str(excinfo.value)
 
+    def test_parse_list_passthrough(self):
+        """Test that an already-parsed list is returned unchanged."""
+        value = [{'Type': 'DIMENSION', 'Key': 'SERVICE'}]
+
+        assert parse_json(value, 'test_param') is value
+
+    def test_parse_dict_passthrough(self):
+        """Test that an already-parsed dict is returned unchanged."""
+        value = {'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon S3']}}
+
+        assert parse_json(value, 'test_param') is value
+
 
 class TestDateFunctions:
     """Tests for date-related functions."""
@@ -257,6 +270,19 @@ class TestHandleAwsError:
         assert result['service'] == 'DynamoDB'
         assert result['operation'] == 'ListItems'
         assert result['message'] == 'Resource not found'
+
+    @pytest.mark.asyncio
+    async def test_handle_client_error_with_empty_message(self):
+        """An empty AWS Message falls back to the default text rather than ''."""
+        from botocore.exceptions import ClientError
+
+        error = ClientError(
+            {'Error': {'Code': 'InternalErrorException', 'Message': ''}}, 'DescribeBudgets'
+        )
+
+        result = await handle_aws_error(AsyncMock(), error, 'DescribeBudgets', 'Budgets')
+
+        assert result['message'] == 'No error message provided'
 
     @pytest.mark.asyncio
     async def test_handle_value_error(self):
@@ -376,3 +402,144 @@ class TestFormatResponse:
         assert result['data'] == data
         assert result['message'] == message
         assert len(result.keys()) == 3  # status, data, and message keys should be present
+
+    def test_format_error_response_with_classification(self):
+        """Test error_type/operation/service are added at the top level."""
+        result = format_response(
+            'error',
+            {'error_details': 'Invalid input'},
+            'Operation failed',
+            error_type='validation_error',
+            operation='getCostAndUsage',
+            service='Cost Explorer',
+        )
+
+        assert result == {
+            'status': 'error',
+            'data': {'error_details': 'Invalid input'},
+            'message': 'Operation failed',
+            'error_type': 'validation_error',
+            'operation': 'getCostAndUsage',
+            'service': 'Cost Explorer',
+        }
+
+    def test_error_lifts_data_message_to_top_level_message(self):
+        """Test an error whose text is only in data['message'] still gets a top-level message."""
+        data = {'message': 'billing_period must be in YYYY-MM format', 'error_code': 'X'}
+
+        result = format_response('error', data, error_type='validation_error')
+
+        assert result['message'] == 'billing_period must be in YYYY-MM format'
+        assert result['data'] == data  # left unchanged for existing readers
+
+    def test_error_does_not_lift_data_error(self):
+        """Test only data['message'] is lifted, not other keys such as data['error']."""
+        result = format_response('error', {'error': 'some text'})
+
+        assert 'message' not in result
+
+    def test_error_explicit_message_wins_over_nested(self):
+        """Test an explicit message is not replaced by the nested text."""
+        result = format_response('error', {'message': 'nested'}, 'explicit')
+
+        assert result['message'] == 'explicit'
+
+    @pytest.mark.parametrize(
+        'data',
+        [{'message': {'not': 'a string'}}, {'details': 'x'}, ['message'], 'message', None],
+    )
+    def test_error_without_nested_string_text_has_no_message(self, data):
+        """Test non-dict data or non-string nested text adds no message."""
+        result = format_response('error', data)
+
+        assert 'message' not in result
+
+    def test_success_does_not_lift_nested_message(self):
+        """Test success responses keep their shape when data has a message key."""
+        result = format_response('success', {'message': 'No results'})
+
+        assert result == {'status': 'success', 'data': {'message': 'No results'}}
+
+
+class TestPaginateAwsResponse:
+    """Tests for paginate_aws_response pagination metadata."""
+
+    @pytest.mark.asyncio
+    async def test_last_page_empty_string_token(self):
+        """Test that an empty-string token on the last page reports no more pages."""
+        # Setup
+        ctx = AsyncMock()
+        # Some AWS APIs (e.g. Savings Plans DescribeSavingsPlansOfferingRates)
+        # return an empty-string token on the final page rather than omitting it.
+        api_function = MagicMock(return_value={'Items': [1, 2, 3], 'NextToken': ''})
+
+        # Execute
+        results, metadata = await paginate_aws_response(
+            ctx,
+            'TestOperation',
+            api_function,
+            {},
+            'Items',
+        )
+
+        # Assert
+        assert results == [1, 2, 3]
+        assert metadata['has_more'] is False
+        assert metadata['complete_dataset'] is True
+        assert metadata['next_token'] is None
+        assert metadata['pages_fetched'] == 1
+        assert metadata['total_results'] == 3
+
+    @pytest.mark.asyncio
+    async def test_max_pages_hit_with_token(self):
+        """Test that hitting max_pages with a real token still reports more pages."""
+        # Setup
+        ctx = AsyncMock()
+        api_function = MagicMock(
+            side_effect=[
+                {'Items': [1, 2], 'NextToken': 'token-1'},
+                {'Items': [3, 4], 'NextToken': 'token-2'},
+            ]
+        )
+
+        # Execute
+        results, metadata = await paginate_aws_response(
+            ctx,
+            'TestOperation',
+            api_function,
+            {},
+            'Items',
+            max_pages=2,
+        )
+
+        # Assert
+        assert results == [1, 2, 3, 4]
+        assert metadata['has_more'] is True
+        assert metadata['complete_dataset'] is False
+        assert metadata['next_token'] == 'token-2'
+        assert metadata['pages_fetched'] == 2
+        assert metadata['total_results'] == 4
+
+    @pytest.mark.asyncio
+    async def test_missing_token_key(self):
+        """Test that a missing token key reports no more pages (unchanged behavior)."""
+        # Setup
+        ctx = AsyncMock()
+        api_function = MagicMock(return_value={'Items': [1, 2, 3]})
+
+        # Execute
+        results, metadata = await paginate_aws_response(
+            ctx,
+            'TestOperation',
+            api_function,
+            {},
+            'Items',
+        )
+
+        # Assert
+        assert results == [1, 2, 3]
+        assert metadata['has_more'] is False
+        assert metadata['complete_dataset'] is True
+        assert metadata['next_token'] is None
+        assert metadata['pages_fetched'] == 1
+        assert metadata['total_results'] == 3

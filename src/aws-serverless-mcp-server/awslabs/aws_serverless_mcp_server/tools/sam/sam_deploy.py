@@ -15,7 +15,7 @@
 from awslabs.aws_serverless_mcp_server.tools.common.base_tool import BaseTool
 from awslabs.aws_serverless_mcp_server.utils.process import run_command
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Any, Dict, List, Literal, Optional
 
@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Literal, Optional
 class SamDeployTool(BaseTool):
     """Tool to deploy AWS Serverless Application Model (SAM) applications using the 'sam deploy' command."""
 
-    def __init__(self, mcp: FastMCP, allow_write: bool):
+    def __init__(self, mcp: MCPServer, allow_write: bool):
         """Initialize the SAM deploy tool."""
         super().__init__(allow_write=allow_write)
         mcp.tool(name='sam_deploy')(self.handle_sam_deploy)

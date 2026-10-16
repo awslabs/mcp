@@ -19,7 +19,7 @@ import os
 import sys
 from awslabs.amazon_qindex_mcp_server.clients import QBusinessClient, QBusinessClientError
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Any, Dict, List, Optional
 
@@ -33,7 +33,7 @@ class SearchRelevantContentResponse(BaseModel):
     """Wrapper model for SearchRelevantContent response compatible with Pydantic.
 
     This replaces the mypy_boto3_qbusiness TypedDict which uses NotRequired,
-    which is incompatible with Pydantic v2 and FastMCP schema generation.
+    which is incompatible with Pydantic v2 and MCPServer schema generation.
     """
 
     model_config = ConfigDict(extra='allow')
@@ -114,7 +114,7 @@ AttributeFilter.model_rebuild()
 
 
 # Initialize MCP server
-mcp = FastMCP(
+mcp = MCPServer(
     'awslabs.amazon-qindex-mcp-server',
     instructions="Amazon Q index for ISVs MCP server provides access to your customers' enterprise data into your applications.",
     dependencies=[

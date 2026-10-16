@@ -21,7 +21,7 @@ from awslabs.aws_transform_mcp_server.server import (
     _register_handlers,
     create_server,
 )
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from unittest.mock import MagicMock, patch
 
 
@@ -33,7 +33,7 @@ class TestCreateServer:
 
     def test_returns_fastmcp_instance(self):
         mcp = create_server()
-        assert isinstance(mcp, FastMCP)
+        assert isinstance(mcp, MCPServer)
 
     def test_server_name(self):
         mcp = create_server()
@@ -94,7 +94,7 @@ class TestRegisterHandlers:
 
     def test_all_handlers_instantiated(self):
         """Each handler class must be instantiated exactly once with the mcp object."""
-        mcp = MagicMock(spec=FastMCP)
+        mcp = MagicMock(spec=MCPServer)
         mocks = {}
         patches = []
         for cls_name, module_path in _HANDLER_MODULES.items():
@@ -130,7 +130,7 @@ class TestMain:
     @patch('awslabs.aws_transform_mcp_server.server.argparse.ArgumentParser')
     def test_main_wiring(self, mock_argparse, mock_asyncio_run, mock_create, mock_register):
         """main() must load config, create server, register handlers, and run."""
-        mock_mcp = MagicMock(spec=FastMCP)
+        mock_mcp = MagicMock(spec=MCPServer)
         mock_create.return_value = mock_mcp
         mock_parser = MagicMock()
         mock_argparse.return_value = mock_parser

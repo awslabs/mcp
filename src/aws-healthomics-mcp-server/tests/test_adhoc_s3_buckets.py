@@ -24,9 +24,10 @@ from awslabs.aws_healthomics_mcp_server.search.genomics_search_orchestrator impo
     GenomicsSearchOrchestrator,
 )
 from awslabs.aws_healthomics_mcp_server.utils.validation_utils import validate_adhoc_s3_buckets
+from botocore.exceptions import ClientError
 from datetime import datetime
 from pydantic import ValidationError
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 class TestAdhocS3Buckets:
@@ -112,10 +113,31 @@ class TestAdhocS3Buckets:
 
     @pytest.mark.asyncio
     async def test_validate_adhoc_s3_buckets_access_denied(self):
-        """Test validate_adhoc_s3_buckets with access denied buckets."""
-        # This will fail with actual AWS calls, but should return empty list gracefully
-        result = await validate_adhoc_s3_buckets(['s3://non-existent-bucket/'])
+        """Test validate_adhoc_s3_buckets returns [] when bucket access is denied.
+
+        The S3 client is fully mocked so the graceful-degradation path is exercised
+        deterministically without resolving real credentials or making any network
+        call: ``head_bucket`` raises an AccessDenied ``ClientError``, which
+        ``validate_bucket_access`` treats as an inaccessible bucket.
+        """
+        mock_session = MagicMock()
+        mock_s3_client = MagicMock()
+        mock_session.client.return_value = mock_s3_client
+        mock_s3_client.head_bucket.side_effect = ClientError(
+            error_response={'Error': {'Code': 'AccessDenied', 'Message': 'Access Denied'}},
+            operation_name='HeadBucket',
+        )
+
+        # validate_bucket_access builds its client via get_aws_session in s3_utils;
+        # patch it there so no real session/credentials/network are involved.
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.utils.s3_utils.get_aws_session',
+            return_value=mock_session,
+        ):
+            result = await validate_adhoc_s3_buckets(['s3://non-existent-bucket/'])
+
         assert result == []  # Should return empty list when validation fails
+        mock_s3_client.head_bucket.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_orchestrator_get_all_s3_bucket_paths_no_adhoc(self):

@@ -1,5 +1,6 @@
 import json
 import pytest
+from awslabs.aws_api_mcp_server.core.aws.driver import translate_cli_to_ir
 from awslabs.aws_api_mcp_server.core.aws.service import (
     check_security_policy,
 )
@@ -822,3 +823,65 @@ def test_determine_policy_effect_require_mutation_consent():
         # Non-read-only operation should require elicitation
         decision = policy.determine_policy_effect('ec2', 'terminate_instances', False)
         assert decision == PolicyDecision.ELICIT
+
+
+@pytest.mark.parametrize(
+    'cli_command,policy_entry',
+    [
+        ('aws s3api delete-object --bucket b --key k', 'aws s3api delete-object'),
+        ('aws deploy delete-application --application-name a', 'aws deploy delete-application'),
+        (
+            'aws configservice delete-config-rule --config-rule-name r',
+            'aws configservice delete-config-rule',
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    'list_name,supports_elicitation,expected',
+    [
+        ('denyList', True, PolicyDecision.DENY),
+        ('elicitList', True, PolicyDecision.ELICIT),
+        ('elicitList', False, PolicyDecision.DENY),
+    ],
+)
+def test_check_security_policy_matches_cli_service_name(
+    tmp_path, cli_command, policy_entry, list_name, supports_elicitation, expected
+):
+    """Policy entries use the CLI service name, which differs from the SDK name for these services."""
+    policy_dir = tmp_path / '.aws' / 'aws-api-mcp'
+    policy_dir.mkdir(parents=True)
+    (policy_dir / 'mcp-security-policy.json').write_text(
+        json.dumps({'policy': {list_name: [policy_entry]}})
+    )
+    ir = translate_cli_to_ir(cli_command)
+
+    with patch.object(Path, 'home', return_value=tmp_path):
+        decision = check_security_policy(
+            ir, Mock(has=Mock(return_value=False)), create_mock_ctx(supports_elicitation)
+        )
+
+    assert decision == expected
+
+
+def test_customization_keys_are_valid_cli_commands():
+    """Each customization key must name a real CLI command, otherwise its rules never apply."""
+    from awslabs.aws_api_mcp_server.core.parser.parser import command_table
+    from awslabs.aws_api_mcp_server.core.security import policy
+
+    path = Path(policy.__file__).parent / 'aws_api_customization.json'
+    customizations = json.loads(path.read_text())['customizations']
+
+    def operations(service):
+        cmd = command_table.get(service)
+        if cmd is None:
+            return {}
+        # Service commands expose a command table; customizations like `s3` a subcommand table
+        return (
+            cmd._get_command_table()
+            if hasattr(cmd, '_get_command_table')
+            else cmd.subcommand_table
+        )
+
+    invalid = [key for key in customizations if key.split()[1] not in operations(key.split()[0])]
+
+    assert invalid == []

@@ -24,16 +24,23 @@ from awslabs.aws_documentation_mcp_server.server_aws import (
     search_documentation,
     search_table,
 )
+from awslabs.aws_documentation_mcp_server.util import UnreadablePageError
+from mcp.server.mcpserver import Context
+from typing import Any, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.parse import parse_qs, unquote, urlparse
 
 
-class MockContext:
+class MockContext(Context):
     """Mock context for testing."""
 
-    async def error(self, message):
+    def __init__(self) -> None:
+        """Initialize with no request context; nothing here needs one."""
+        super().__init__()
+
+    async def error(self, data: Any, *, logger_name: Optional[str] = None):
         """Mock error method."""
-        print(f'Error: {message}')
+        print(f'Error: {data}')
 
 
 class TestReadDocumentation:
@@ -47,6 +54,7 @@ class TestReadDocumentation:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = '<html><body><h1>Test</h1><p>This is a test.</p></body></html>'
         mock_response.headers = {'content-type': 'text/html'}
 
@@ -75,6 +83,7 @@ class TestReadDocumentation:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = '<html><body><h1>Test</h1><p>This is a test.</p></body></html>'
         mock_response.headers = {'content-type': 'text/html'}
 
@@ -106,10 +115,8 @@ class TestReadDocumentation:
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
             mock_get.side_effect = httpx.HTTPError('Connection error')
 
-            result = await read_documentation(ctx, url=url, max_length=10000, start_index=0)
-
-            assert 'Failed to fetch' in result
-            assert 'Connection error' in result
+            with pytest.raises(ValueError, match='Connection error'):
+                await read_documentation(ctx, url=url, max_length=10000, start_index=0)
             mock_get.assert_called_once()
 
     @pytest.mark.asyncio
@@ -143,6 +150,7 @@ class TestReadSections:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = """<html><body>
             <h2>Introduction</h2>
             <p>This is the introduction.</p>
@@ -188,6 +196,7 @@ class TestReadSections:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = (
             '<html><body><h2>Getting Started</h2><p>Neuron content.</p></body></html>'
         )
@@ -212,10 +221,8 @@ class TestReadSections:
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
             mock_get.side_effect = httpx.HTTPError('Connection error')
 
-            result = await read_sections(ctx, url=url, section_titles=section_titles)
-
-            assert 'Failed to fetch' in result
-            assert 'Connection error' in result
+            with pytest.raises(ValueError, match='Connection error'):
+                await read_sections(ctx, url=url, section_titles=section_titles)
             mock_get.assert_called_once()
 
     @pytest.mark.asyncio
@@ -227,6 +234,7 @@ class TestReadSections:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         # Only h1, no h2 sections
         mock_response.text = (
             '<html><body><h1>Other Section</h1><p>Different content.</p></body></html>'
@@ -248,6 +256,7 @@ class TestReadSections:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         # One h2 section exists, one doesn't
         mock_response.text = '<html><body><h2>Found Section</h2><p>Content here.</p></body></html>'
         mock_response.headers = {'content-type': 'text/html'}
@@ -304,6 +313,7 @@ class TestReadSections:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = """<html><body>
             <h2>C++ & C# Programming</h2>
             <p>Programming content.</p>
@@ -348,6 +358,7 @@ class TestReadSections:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = '<html><body><h1>This is a page<h1/><h2>Best practices</h2><p>Content here.</p></body></html>'
         mock_response.headers = {'content-type': 'text/html'}
 
@@ -368,6 +379,7 @@ class TestReadSections:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = 'Plain text content without HTML'
         mock_response.headers = {'content-type': 'text/plain'}
 
@@ -378,10 +390,11 @@ class TestReadSections:
             ) as mock_is_html:
                 mock_is_html.return_value = False
 
-                result = await read_sections(ctx, url=url, section_titles=section_titles)
-
-                assert 'Cannot extract sections from non-HTML content' in result
-                assert 'read_documentation tool instead' in result
+                with pytest.raises(
+                    ValueError, match='Cannot extract sections from non-HTML content'
+                ) as excinfo:
+                    await read_sections(ctx, url=url, section_titles=section_titles)
+                assert 'read_documentation tool instead' in str(excinfo.value)
                 mock_get.assert_called_once()
 
     @pytest.mark.asyncio
@@ -397,10 +410,8 @@ class TestReadSections:
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_response
 
-            result = await read_sections(ctx, url=url, section_titles=section_titles)
-
-            assert 'Failed to fetch' in result
-            assert 'status code 500' in result
+            with pytest.raises(ValueError, match='status code 500'):
+                await read_sections(ctx, url=url, section_titles=section_titles)
             mock_get.assert_called_once()
 
     @pytest.mark.asyncio
@@ -412,6 +423,7 @@ class TestReadSections:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = '<html><body><h2>Test Section</h2><p>Content.</p></body></html>'
         mock_response.headers = {'content-type': 'text/html'}
 
@@ -420,10 +432,10 @@ class TestReadSections:
             with patch(
                 'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html'
             ) as mock_extract:
-                # Simulate extract_content_from_html returning an error
-                mock_extract.return_value = '<e>Failed to convert HTML to markdown</e>'
+                # Simulate extraction refusing the page
+                mock_extract.side_effect = UnreadablePageError('Page failed to be simplified')
 
-                with pytest.raises(ValueError, match='Failed to convert HTML to markdown'):
+                with pytest.raises(ValueError, match='could not be read'):
                     await read_sections(ctx, url=url, section_titles=section_titles)
 
     @pytest.mark.asyncio
@@ -435,6 +447,7 @@ class TestReadSections:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = """<html><body>
             <div class="main-content">
                 <h1>S3 Bucket Guide</h1>
@@ -1089,13 +1102,14 @@ class TestRecommend:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.json.return_value = {
-            'highlyRated': {
+            'new': {
                 'items': [
                     {
                         'url': 'https://docs.aws.amazon.com/rec1',
                         'assetTitle': 'Recommendation 1',
-                        'abstract': 'This is recommendation 1.',
+                        'dateCreated': '2026-01-01',
                     }
                 ]
             },
@@ -1118,7 +1132,7 @@ class TestRecommend:
             assert len(results) == 2
             assert results[0].url == 'https://docs.aws.amazon.com/rec1'
             assert results[0].title == 'Recommendation 1'
-            assert results[0].context == 'This is recommendation 1.'
+            assert results[0].context == 'New content added on 2026-01-01'
             assert results[1].url == 'https://docs.aws.amazon.com/rec2'
             assert results[1].title == 'Recommendation 2'
             assert results[1].context == 'This is recommendation 2.'
@@ -1174,6 +1188,7 @@ class TestRecommend:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.json.side_effect = json.JSONDecodeError('Invalid JSON', '', 0)
 
         with patch('httpx.AsyncClient.get', new_callable=AsyncMock) as mock_get:
@@ -1198,6 +1213,7 @@ class TestSearchTable:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = """<html><body>
             <h2>Service quotas</h2>
             <table><thead><tr><th>Name</th><th>Value</th></tr></thead>
@@ -1266,6 +1282,7 @@ class TestSearchTable:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = """<html><body>
             <h2>Quotas</h2>
             <table><thead><tr><th>Name</th></tr></thead>
@@ -1291,6 +1308,7 @@ class TestSearchTable:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = """<html><body>
             <h2>Real Section</h2>
             <table><thead><tr><th>A</th></tr></thead>
@@ -1315,6 +1333,7 @@ class TestSearchTable:
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.url = url
         mock_response.text = """<html><body>
             <h2>Section A</h2>
             <table><thead><tr><th>Name</th></tr></thead>

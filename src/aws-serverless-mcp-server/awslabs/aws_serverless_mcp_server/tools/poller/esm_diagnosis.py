@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Any, Dict, Literal, Optional
 
@@ -25,11 +25,11 @@ class EsmDiagnosisTool:
     and network connectivity problems to pinpoint root causes and provide targeted resolution strategies.
     """
 
-    def __init__(self, mcp: FastMCP):
+    def __init__(self, mcp: MCPServer):
         """Initialize the ESM diagnosis tool and register diagnostic capabilities.
 
         Args:
-            mcp: FastMCP instance for tool registration
+            mcp: MCPServer instance for tool registration
         """
         # Register Kafka-specific diagnostic tools
         mcp.tool(name='esm_kafka_diagnosis')(self.esm_kafka_diagnosis_tool)

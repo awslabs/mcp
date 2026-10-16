@@ -19,7 +19,7 @@ import pytest
 from awslabs.cloudtrail_mcp_server.models import EventDataStore, QueryResult, QueryStatus
 from awslabs.cloudtrail_mcp_server.tools import CloudTrailTools
 from datetime import datetime, timezone
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from unittest.mock import AsyncMock, Mock, call, patch
 
 

@@ -287,6 +287,9 @@ class TestListCostAllocationTags:
 
         assert result['status'] == 'error'
         assert 'Invalid JSON for tag_keys parameter' in result['data']['message']
+        assert result['error_type'] == 'validation_error'
+        assert result['operation'] == 'ListCostAllocationTags'
+        assert result['service'] == 'Cost Explorer'
 
 
 @pytest.mark.asyncio

@@ -21,7 +21,7 @@ import botocore.exceptions
 import os
 import sys
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Dict, Optional
 
@@ -30,8 +30,8 @@ from typing import Dict, Optional
 logger.remove()
 logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
 
-# Initialize FastMCP server
-mcp = FastMCP(
+# Initialize MCPServer server
+mcp = MCPServer(
     'awslabs.aws-location-mcp-server',
     instructions="""
     # Amazon Location Service MCP Server (geo-places)

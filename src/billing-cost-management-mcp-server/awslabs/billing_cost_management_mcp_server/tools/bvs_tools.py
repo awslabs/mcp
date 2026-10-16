@@ -27,6 +27,9 @@ from .bvs_operations import (
     get_resource_policy as _get_resource_policy,
 )
 from .bvs_operations import (
+    list_billing_view_segments as _list_billing_view_segments,
+)
+from .bvs_operations import (
     list_billing_views as _list_billing_views,
 )
 from .bvs_operations import (
@@ -289,3 +292,81 @@ async def get_resource_policy(
         return await _get_resource_policy(ctx, resource_arn)
     except Exception as e:
         return await handle_aws_error(ctx, e, 'getResourcePolicy', 'Billing')
+
+
+@bvs_server.tool(
+    name='list-billing-view-segments',
+    description="""Lists the segments of a billing view over a given time period. Each segment identifies
+the billing domain (PRO_FORMA or BILLABLE) and the account relationships that apply during its time range.
+
+A billing view segment represents a time range during which the billing domain and account relationships
+for a billing view remained unchanged. If a mid-period change occurs (for example, an account joins or
+leaves a billing group), the response includes multiple segments, each with its own time range. Hidden
+segments are omitted, so the returned segments might not cover the entire requested time period.
+
+Use this tool to:
+- Determine whether an account's costs are BILLABLE (real charges owed to AWS) or PRO_FORMA (shaped by
+  AWS Billing Conductor, not final charges)
+- Identify mid-period changes in billing relationships (e.g., an account moving between billing groups)
+- Audit the billing group or billing transfer account relationships that applied during a specific period
+- Understand the management account hierarchy for organization member accounts
+
+Parameters:
+- arn: Optional billing view ARN. If omitted, the caller's PRIMARY billing view is used.
+  Must reference a primary billing view; custom billing views are not supported.
+- begin_date_inclusive / end_date_exclusive: Optional UTC time range for the billing period.
+  Format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS (UTC). Both must be provided together.
+  If omitted, the current billing period (calendar month in UTC) is used.
+- max_results: Segments per page, 1-100 (default 100).
+- max_pages: Pages to auto-fetch (default 10).
+- next_token: Pagination token from a previous response.
+
+Each segment in `data.segments` contains:
+- domain: BILLABLE or PRO_FORMA
+- management_account_id: The management account of the organization (for org member accounts)
+- billing_group_primary_account_id: The billing group primary account (for billing group members)
+- billing_transfer_account_id: The billing transfer account (only for billing transfer source accounts)
+- time_range: begin_date_inclusive and end_date_exclusive in UTC ISO format
+
+Example 1 (current billing period, caller's PRIMARY view): {}
+Example 2 (specific billing view): {"arn": "arn:aws:billing::123456789012:billingview/primary"}
+Example 3 (specific time range): {"begin_date_inclusive": "2024-09-01", "end_date_exclusive": "2024-10-01"}
+Example 4 (with pagination): {"max_results": 10, "max_pages": 5}""",
+)
+async def list_billing_view_segments(
+    ctx: Context,
+    arn: Optional[str] = None,
+    max_results: Optional[int] = None,
+    begin_date_inclusive: Optional[str] = None,
+    end_date_exclusive: Optional[str] = None,
+    max_pages: int = 10,
+    next_token: Optional[str] = None,
+) -> Dict[str, Any]:
+    """FastMCP wrapper for the AWS Billing ListBillingViewSegments operation.
+
+    Args:
+        ctx: The MCP context object.
+        arn: Optional billing view ARN. If omitted, the caller's PRIMARY billing view is used.
+        max_results: Optional maximum number of segments per page (1-100).
+        begin_date_inclusive: Optional UTC datetime string for the inclusive start of the
+            billing period. Format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS.
+        end_date_exclusive: Optional UTC datetime string for the exclusive end of the
+            billing period. Format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS.
+        max_pages: Maximum pages to auto-paginate through.
+        next_token: Pagination token from a previous response.
+
+    Returns:
+        Dict containing the billing view segments.
+    """
+    try:
+        return await _list_billing_view_segments(
+            ctx,
+            arn=arn,
+            max_results=max_results,
+            begin_date_inclusive=begin_date_inclusive,
+            end_date_exclusive=end_date_exclusive,
+            max_pages=max_pages,
+            next_token=next_token,
+        )
+    except Exception as e:
+        return await handle_aws_error(ctx, e, 'listBillingViewSegments', 'Billing')

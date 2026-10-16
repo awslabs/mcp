@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Removed the `ListPlanUpdates` call from the `plan` resource in `get_resource`
+  and `list_resources`. The call hard-coded `planVersion='1'`, which the service
+  rejects with a `ValidationException` for any job whose latest plan version is
+  not exactly 1 — every job that has no plan yet (version 0) and every re-planned
+  job (version 2 and up). The service exposes no way for a client to read the
+  current plan version, and the server only ever requested a full snapshot
+  (`timestamp=0`), which `ListJobPlanSteps` already provides without a version
+  parameter. `get_resource(plan)` now auto-paginates `ListJobPlanSteps` (a
+  filtered page can be empty yet carry a `nextToken`, so single-page reads could
+  truncate large plans); `list_resources(plan)` keeps manual pagination via
+  `stepsNextToken`. The `planUpdates`/`updatesNextToken` output fields and the
+  `updatesNextToken` parameter are gone; a job with no plan yet returns
+  `NOT_FOUND` instead of a validation error.
+
+- Trimmed the vendored `elasticgumbyfrontendservice` service model to the
+  operations available through this server (and pruned their now-unused shapes):
+  the plan operations `CreatePlan`, `UpdatePlan`, `GetPlan`, and `ListPlans`; the
+  dashboard operations `CreateDashboard` and `GetDashboard`;
+  `ListIamRoleAssignments`; the `SendMessageStreaming` streaming operation; and
+  the internal test operations `TestReleaseTraitPreProd` and
+  `TestReleaseTraitProd`.
 - Removed the legacy `jobType` parameter from the `create_job` tool and the
   `CreateJobRequest` model. AWS Transform no longer honors `jobType` on
   `CreateJob`; callers must use `orchestratorAgent` instead. The
@@ -17,6 +38,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Artifact uploads and downloads now use transfer-specific HTTP timeouts instead
+  of HTTPX's five-second default, preventing large pre-signed S3 transfers from
+  failing while data is still being sent or received.
 - `load_instructions` now discovers instruction documents stored inside
   artifact-store folders. Customer uploads (the `upload_artifact` tool and the
   AWS Transform web console) are stored under the store's `User Uploads/`

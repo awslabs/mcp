@@ -39,9 +39,9 @@ def register_create_graphql_api_tool(mcp):
         """,
         annotations=ToolAnnotations(
             title='Create GraphQL API',
-            readOnlyHint=False,
-            destructiveHint=False,
-            openWorldHint=False,
+            read_only_hint=False,
+            destructive_hint=False,
+            open_world_hint=False,
         ),
     )
     @write_operation

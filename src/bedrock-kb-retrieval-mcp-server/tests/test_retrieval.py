@@ -155,7 +155,7 @@ class TestQueryKnowledgeBase:
             )
 
         # Check that the error message is correct
-        assert 'Reranking is not supported in region eu-west-1' in str(excinfo.value)
+        assert 'reranking model is not available in region eu-west-1' in str(excinfo.value)
 
         # Check that the client methods were not called
         mock_bedrock_agent_runtime_client.retrieve.assert_not_called()

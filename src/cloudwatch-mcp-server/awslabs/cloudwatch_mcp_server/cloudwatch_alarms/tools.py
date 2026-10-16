@@ -28,7 +28,7 @@ from awslabs.cloudwatch_mcp_server.cloudwatch_alarms.models import (
 )
 from datetime import datetime, timedelta
 from loguru import logger
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from pydantic import Field
 from typing import Annotated, Any, Dict, List, Union
 

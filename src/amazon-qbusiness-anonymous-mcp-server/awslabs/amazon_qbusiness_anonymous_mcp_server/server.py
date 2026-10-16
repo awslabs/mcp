@@ -15,7 +15,7 @@
 """awslabs amazon-qbusiness-anonymous MCP Server implementation."""
 
 from awslabs.amazon_qbusiness_anonymous_mcp_server.clients import get_qbiz_client, make_query
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 
 
@@ -36,7 +36,7 @@ AWS Credentials:
 
 """
 
-mcp = FastMCP(
+mcp = MCPServer(
     'awslabs.amazon-qbusiness-anonymous-mcp-server',
     instructions='Use this MCP server to query the Amazon Q Business application created using anonymous mode to get responses based on the content you have ingested in it.',
     dependencies=['pydantic', 'loguru', 'boto3'],

@@ -33,8 +33,8 @@ from awslabs.aws_for_sap_management_mcp_server.ssm_sap_applications.models impor
 )
 from botocore.exceptions import ClientError
 from loguru import logger
-from mcp.server.fastmcp import Context
-from mcp.shared.exceptions import McpError
+from mcp.server.mcpserver import Context
+from mcp.shared.exceptions import MCPError
 from mcp.types import METHOD_NOT_FOUND
 from pydantic import BaseModel, Field
 from typing import Annotated, Any, Dict, List
@@ -643,7 +643,7 @@ class SSMSAPApplicationTools:
                         application_id=application_id,
                     )
                 cascade_stop = elicitation_result.data.stop_associated_apps_first  # type: ignore[attr-defined]
-            except McpError as e:
+            except MCPError as e:
                 if e.error.code == METHOD_NOT_FOUND:
                     return StartStopApplicationResponse(
                         status='error',

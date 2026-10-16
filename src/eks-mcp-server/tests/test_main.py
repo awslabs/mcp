@@ -65,7 +65,7 @@ class TestMain:
 
     def test_create_server(self):
         """Test that create_server creates a FastMCP instance with the correct parameters."""
-        with patch('awslabs.eks_mcp_server.server.FastMCP') as mock_fastmcp:
+        with patch('awslabs.eks_mcp_server.server.MCPServer') as mock_fastmcp:
             # Call create_server
             create_server()
 

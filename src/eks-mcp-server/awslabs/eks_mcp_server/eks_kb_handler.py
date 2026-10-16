@@ -86,7 +86,7 @@ class EKSKnowledgeBaseHandler:
             response.raise_for_status()
 
             return CallToolResult(
-                isError=False,
+                is_error=False,
                 content=[
                     TextContent(
                         type='text',
@@ -97,7 +97,7 @@ class EKSKnowledgeBaseHandler:
         except Exception as e:
             logger.error(f'Error in search_eks_troubleshoot_guide: {str(e)}')
             return CallToolResult(
-                isError=True,
+                is_error=True,
                 content=[
                     TextContent(
                         type='text',

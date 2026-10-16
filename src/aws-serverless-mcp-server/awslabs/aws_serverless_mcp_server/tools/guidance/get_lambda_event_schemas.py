@@ -15,7 +15,7 @@
 import base64
 from awslabs.aws_serverless_mcp_server.utils.github import fetch_github_content
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Any, Dict
 
@@ -133,7 +133,7 @@ EVENT_SOURCE_SCHEMAS = {
 class GetLambdaEventSchemasTool:
     """Tool to get AWS Lambda event schemas for different event sources and programming languages."""
 
-    def __init__(self, mcp: FastMCP):
+    def __init__(self, mcp: MCPServer):
         """Initialize the GetLambdaEventSchemas tool."""
         mcp.tool(name='get_lambda_event_schemas')(self.get_lambda_event_schemas)
 

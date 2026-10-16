@@ -1,30 +1,24 @@
-## Skill Aliases
+## Deprecated Compatibility Aliases
 
-The following folders are aliases for `dsql-skill` for more accurate domain
-representation.
+The standalone DSQL skill in `awslabs/mcp` is deprecated. The canonical skill
+is now
+[`plugins/databases-on-aws/skills/dsql`](https://github.com/awslabs/agent-plugins/tree/main/plugins/databases-on-aws/skills/dsql)
+in `awslabs/agent-plugins`.
+
+These directories remain only as deprecated compatibility aliases:
 
 | Folder | Skill Name |
 |--------|-----------|
-| `dsql-skill` | `dsql` (source of truth) |
+| `dsql-skill` | `dsql` |
 | `aurora-dsql-skill` | `aurora dsql` |
 | `amazon-aurora-dsql-skill` | `amazon aurora dsql` |
 | `aws-dsql-skill` | `aws dsql` |
 | `distributed-sql-skill` | `distributed sql` |
 | `distributed-postgres-skill` | `distributed postgres` |
 
-Each alias folder contains:
-- Its own `SKILL.md` with only the `name` field changed
-- Symlinks for `mcp/`, `references/`, and `scripts/` pointing back to `dsql-skill/`
+Each directory contains only a redirect `SKILL.md`. The redirects preserve the
+legacy names, point agents to the canonical skill, and require user approval
+before installation or configuration changes.
 
-### Keeping aliases in sync
-
-A pre-commit hook in `src/aurora-dsql-mcp-server/.pre-commit-config.yaml` keeps alias
-SKILL.md files in sync when `dsql-skill/SKILL.md` changes. CI enforces this automatically
-via the repo's `pre-commit.yml` workflow.
-
-To run locally:
-
-```bash
-cd src/aurora-dsql-mcp-server
-pre-commit run sync-dsql-skill-aliases --all-files
-```
+The package pre-commit hooks keep the six redirect files synchronized and
+verify that no standalone skill content is reintroduced.

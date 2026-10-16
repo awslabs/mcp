@@ -782,7 +782,7 @@ class TestDeprecatedAliasEquivalence:
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_definition_sources,
         )
-        from mcp.server.fastmcp import Context
+        from mcp.server.mcpserver import Context
         from unittest.mock import AsyncMock
 
         mock_ctx = AsyncMock(spec=Context)
@@ -864,7 +864,7 @@ class TestDefinitionSourcePrecedence:
         from awslabs.aws_healthomics_mcp_server.utils.validation_utils import (
             validate_definition_sources,
         )
-        from mcp.server.fastmcp import Context
+        from mcp.server.mcpserver import Context
         from unittest.mock import AsyncMock
 
         a, b = values

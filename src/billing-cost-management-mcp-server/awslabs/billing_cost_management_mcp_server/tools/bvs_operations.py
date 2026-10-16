@@ -22,9 +22,11 @@ from ..utilities.aws_service_base import (
     create_aws_client,
     format_response,
     handle_aws_error,
+    paginate_aws_response,
     parse_json,
 )
 from ..utilities.constants import REGION_US_EAST_1
+from ..utilities.sql_utils import convert_response_if_needed
 from ..utilities.time_utils import (
     timestamp_to_utc_iso_string,
     utc_datetime_string_to_epoch_seconds,
@@ -323,6 +325,137 @@ async def get_resource_policy(
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'getResourcePolicy', 'Billing')
+
+
+async def list_billing_view_segments(
+    ctx: Context,
+    arn: Optional[str] = None,
+    max_results: Optional[int] = None,
+    begin_date_inclusive: Optional[str] = None,
+    end_date_exclusive: Optional[str] = None,
+    max_pages: int = 10,
+    next_token: Optional[str] = None,
+) -> Dict[str, Any]:
+    """List the segments of a billing view over a given time period.
+
+    Each segment identifies the billing domain (PRO_FORMA or BILLABLE) and the account
+    relationships that apply during its time range.
+
+    If you don't provide an ARN, the response includes segments for the caller's
+    PRIMARY billing view. If a mid-period change occurs, the response includes multiple
+    segments, each with its own time range.
+
+    Args:
+        ctx: The MCP context object.
+        arn: Optional ARN that uniquely identifies the billing view.
+            If not provided, the caller's PRIMARY billing view is used.
+            Must reference a primary billing view; custom billing views are not supported.
+        max_results: Optional maximum number of segments per page.
+            Valid range: 1-100. Default is 100.
+        begin_date_inclusive: Optional UTC datetime string for the inclusive start of the
+            billing period. Format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS (UTC).
+            Must be provided together with end_date_exclusive.
+            If omitted, the current billing period (calendar month in UTC) is used.
+        end_date_exclusive: Optional UTC datetime string for the exclusive end of the
+            billing period. Format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS (UTC).
+            Must be provided together with begin_date_inclusive.
+            If omitted, the current billing period (calendar month in UTC) is used.
+        max_pages: Maximum number of API pages to fetch. Each page returns up to
+            max_results results. Defaults to 10.
+        next_token: Optional pagination token to continue from a previous response.
+
+    Returns:
+        Dict containing the list of billing view segments.
+    """
+    try:
+        request_params: Dict[str, Any] = {}
+
+        if arn:
+            request_params['arn'] = arn
+
+        if max_results is not None:
+            request_params['maxResults'] = max_results
+
+        if begin_date_inclusive or end_date_exclusive:
+            if not begin_date_inclusive or not end_date_exclusive:
+                raise ValueError(
+                    'Both begin_date_inclusive and end_date_exclusive must be provided '
+                    'together when specifying a time range.'
+                )
+            request_params['timeRange'] = {
+                'beginDateInclusive': utc_datetime_string_to_epoch_seconds(begin_date_inclusive),
+                'endDateExclusive': utc_datetime_string_to_epoch_seconds(end_date_exclusive),
+            }
+
+        if next_token:
+            request_params['nextToken'] = next_token
+
+        bvs_client = _create_bvs_client()
+
+        segments, pagination = await paginate_aws_response(
+            ctx,
+            'ListBillingViewSegments',
+            bvs_client.list_billing_view_segments,
+            request_params,
+            'items',
+            token_param='nextToken',
+            token_key='nextToken',
+            max_pages=max_pages,
+        )
+
+        await ctx.info(f'Successfully retrieved {len(segments)} billing view segments')
+
+        formatted_segments = [_format_billing_view_segment(segment) for segment in segments]
+
+        converted = await convert_response_if_needed(
+            ctx,
+            {'segments': formatted_segments, 'pagination': pagination},
+            'bvs_list_billing_view_segments',
+            pagination_token_key='nextToken',
+            pagination=pagination,
+        )
+        return format_response('success', converted)
+
+    except Exception as e:
+        return await handle_aws_error(ctx, e, 'listBillingViewSegments', 'Billing')
+
+
+def _format_billing_view_segment(segment: Dict[str, Any]) -> Dict[str, Any]:
+    """Format a billing view segment element from the ListBillingViewSegments API response.
+
+    Args:
+        segment: A BillingViewSegmentsListElement object from the AWS API.
+
+    Returns:
+        Dict with formatted billing view segment fields.
+    """
+    formatted: Dict[str, Any] = {
+        'domain': segment.get('domain'),
+    }
+
+    if 'managementAccountId' in segment:
+        formatted['management_account_id'] = segment['managementAccountId']
+
+    if 'billingGroupPrimaryAccountId' in segment:
+        formatted['billing_group_primary_account_id'] = segment['billingGroupPrimaryAccountId']
+
+    if 'billingTransferAccountId' in segment:
+        formatted['billing_transfer_account_id'] = segment['billingTransferAccountId']
+
+    if 'timeRange' in segment:
+        time_range = segment['timeRange']
+        formatted_time_range: Dict[str, Any] = {}
+        if 'beginDateInclusive' in time_range:
+            formatted_time_range['begin_date_inclusive'] = timestamp_to_utc_iso_string(
+                time_range['beginDateInclusive']
+            )
+        if 'endDateExclusive' in time_range:
+            formatted_time_range['end_date_exclusive'] = timestamp_to_utc_iso_string(
+                time_range['endDateExclusive']
+            )
+        formatted['time_range'] = formatted_time_range
+
+    return formatted
 
 
 def _format_billing_view_common(billing_view: Dict[str, Any]) -> Dict[str, Any]:

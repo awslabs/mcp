@@ -26,8 +26,8 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 
 - **Reserved Instance planning**: Analyze RI coverage and receive purchase recommendations
 - **Savings Plans performance**: Analyze how much eligible spend existing plans cover and how much of their commitment is consumed over a lookback window
-- **Savings Plans inventory**: Describe the plans an account owns with their state, term, payment option, commitment, and expiry, including the queued, returned, and payment-failed plans that Cost Explorer does not report
-- **Savings Plans rates and offerings**: Look up the rates locked in on plans already owned, and the offerings available to purchase with their rates, to compare terms and payment options against real numbers
+- **Savings Plans inventory**: Describe the plans an account owns with their state, term, payment option, commitment, and expiry, including the queued, returned, and payment-failed plans that Cost Explorer does not report; a large inventory is offloaded to session SQL to save tokens
+- **Savings Plans rates and offerings**: Look up the rates locked in on plans already owned, and the offerings available to purchase with their rates, to compare terms and payment options against real numbers. A large result from any of these describe operations is offloaded to session SQL (queryable with the `session-sql` tool) to save tokens
 - **Savings Plans recommendations**: Get personalized purchase recommendations based on usage patterns, the hourly data-points behind a recommendation, and the history of when recommendations were generated
 - **Savings Plans purchase analysis**: Run Purchase Analyzer what-if analyses — maximum savings, a specific commitment, or a target average coverage — and retrieve the projected cost, coverage, and utilization once an analysis completes
 
@@ -55,6 +55,7 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 - **Detailed cost breakdowns**: Get billing group cost reports broken down by service name or billing period
 - **Pricing rules and plans**: List pricing rules (MARKUP, DISCOUNT, TIERING) and pricing plans with their associations
 - **Custom line items**: List custom cost allocations including support fees, shared service costs, taxes, credits, and RI/SP distribution
+- **Billing transfer preferences**: Check whether billing groups are created automatically for new end customers in a two-level billing transfer, and which pricing plan they use
 
 ### Cost Allocation Tags
 
@@ -71,6 +72,17 @@ MCP server for accessing AWS Billing and Cost Management capabilities.
 - **Invoice summaries**: List invoice-level details (invoice ID, type, billing period, issued/due dates, issuing entity, and amounts with discount/tax/fee breakdowns across base, tax, and payment currencies) for an account or a single invoice, filtered by month or date range
 - **Invoice units**: List and retrieve invoice unit definitions (groups of accounts that receive a separate invoice, with their receiver account and linked-account rules), filtered by name, receiver, or member account; and fetch invoice receiver profiles (legal name, address, tax registration number) for a set of accounts
 - **Procurement portal preferences**: List and retrieve procurement portal connections (SAP Business Network, Coupa) and e-invoice delivery / purchase-order retrieval settings
+
+### AWS Billing Preferences
+
+- **Discount sharing configuration**: Retrieve which member accounts participate in the Reserved Instance / Savings Plans discount pool and in credit sharing, whether newly created accounts join automatically, and whether sharing is open — the authoritative answer to "is this account excluded from commitment sharing", which cannot be inferred from RI/SP coverage data
+- **Sharing history**: The per-billing-period record of those settings, for reconciling a closed billing period against the sharing state that was actually in force at the time
+- **Billing alerts**: Whether billing alerts are enabled
+### AWS Enterprise Support
+
+- **Enterprise Support charge summary**: Retrieve a billing period's Enterprise Support charge with the Support-eligible spend it was calculated from, the effective pricing plan, and any applied discounts
+- **Support contract details**: Review the contract terms that govern how a billing period's charge is allocated, including the allocation method, Reserved Instance and Savings Plan treatment, and the payer accounts covered
+- **Per-account charge breakdown**: Break a billing period's charge down by linked account with prorated Support-eligible spend, subscription periods, and per-service spend
 
 ### Specialized Cost Optimization Prompts
 
@@ -250,6 +262,9 @@ Cost Optimization Hub:
 - cost-optimization-hub:GetRecommendation
 - cost-optimization-hub:ListRecommendations
 - cost-optimization-hub:ListRecommendationSummaries
+- cost-optimization-hub:ListEfficiencyMetrics
+- cost-optimization-hub:ListEnrollmentStatuses
+- cost-optimization-hub:GetPreferences
 
 Compute Optimizer:
 - compute-optimizer:GetAutoScalingGroupRecommendations
@@ -331,6 +346,7 @@ AWS Billing Conductor:
 - billingconductor:ListCustomLineItems
 - billingconductor:ListCustomLineItemVersions
 - billingconductor:ListResourcesAssociatedToCustomLineItem
+- billingconductor:GetBillingTransferPreference
 
 AWS Invoicing:
 - invoicing:ListInvoiceSummaries
@@ -341,8 +357,17 @@ AWS Invoicing:
 - invoicing:GetProcurementPortalPreference
 
 AWS Billing:
+- billing:GetBillingView
+- billing:ListBillingViews
+- billing:ListSourceViewsForBillingView
+- billing:GetResourcePolicy
 - billing:GetCredits
 - billing:GetCreditAllocationHistory
+- billing:GetBillingPreferences
+- billing:GetEnterpriseSupportChargeSummary
+- billing:GetEnterpriseSupportContractDetails
+- billing:ListEnterpriseSupportLinkedAccountCharges
+- billing:ListBillingViewSegments
 
 #### Configuration
 
@@ -357,6 +382,28 @@ The server uses these key environment variables:
   "AWS_REGION": "us-east-1"
 }
 ```
+
+## Error responses
+
+Tool errors are returned with `isError: true` and a JSON body that includes:
+
+| Field | Description |
+|-------|-------------|
+| `status` | Always `error` |
+| `error_type` | Stable classification. AWS API errors pass the AWS error code through (`ThrottlingException`, `AccessDeniedException`, ...); local errors use lowercase values (`validation_error`, `no_results`, `invalid_operation`, ...) |
+| `message` | Human-readable explanation |
+| `retry_strategy` | What the caller should do next: `retry_same_request`, `modify_request`, or `do_not_retry` |
+| `hint` | Optional fixed recovery guidance |
+
+`retry_strategy` is derived from `error_type`:
+
+| `retry_strategy` | `error_type` values |
+|------------------|---------------------|
+| `retry_same_request` | Throttling (`ThrottlingException`, `Throttling`, `ThrottledException`, `TooManyRequestsException`, `RequestLimitExceeded`, `LimitExceededException`, `throttling_error`), `aws_connection_error`, server-side errors (`InternalServerException`, `InternalErrorException`, `ServiceUnavailable`, `service_unavailable`, ...), timeouts (`unknown_timeouterror`), and any otherwise unmapped AWS error with an HTTP 5xx status |
+| `modify_request` | `validation_error`, `invalid_operation`, `invalid_parameter_value`, `ValidationException`, `InvalidParameter*`, `InvalidInputException`, `InvalidNextTokenException`, `ExpiredNextTokenException`, `InvalidRequestException`, `BadRequestException`, `BillExpirationException`, `RequestChangedException`, `no_results`, `ResourceNotFoundException`, `resource_not_found`, `NotFoundException`, `not_found` |
+| `do_not_retry` | `AccessDenied*`, `access_denied`, `UnauthorizedOperation`, `UnauthorizedException`, `AuthFailure`, `OptInRequiredException`, `opt_in_required`, `enrollment_error`, `DataUnavailableException`, and any missing or unrecognized `error_type` |
+
+A tool can override the mapping for a specific error by passing `retry_strategy=` and `hint=` to `format_response`. Session SQL errors from invalid queries are `modify_request`, and when every region of a multi-region call fails, `retry_strategy` is combined from each region's own error. The full mapping is in `utilities/error_contract.py`.
 
 ## Supported AWS Services
 
@@ -399,6 +446,9 @@ The server currently supports the following AWS services
    - get_recommendation
    - list_recommendations
    - list_recommendation_summaries
+   - list_efficiency_metrics
+   - list_enrollment_statuses
+   - get_preferences
 
 6. **Compute Optimizer**
    - get_auto_scaling_group_recommendations
@@ -408,7 +458,6 @@ The server currently supports the following AWS services
    - get_rds_database_recommendations
    - get_lambda_function_recommendations
    - get_idle_recommendations
-   - get_enrollment_status
 
 7. **Compute Optimizer Automation**
    - get_automation_event
@@ -446,6 +495,7 @@ The server currently supports the following AWS services
    - list_custom_line_items
    - list_custom_line_item_versions
    - list_resources_associated_to_custom_line_item
+   - get_billing_transfer_preference
 
 11. **Cost Allocation Tags**
     - list_cost_allocation_tags
@@ -455,10 +505,23 @@ The server currently supports the following AWS services
     - describe_cost_category_definition
     - list_cost_category_definitions
 
-12. **AWS Invoicing**
+13. **AWS Invoicing**
     - `invoicing` tool: list_invoice_summaries
     - `invoice-units` tool: list_invoice_units, get_invoice_unit, batch_get_invoice_profile
     - `procurement-preferences` tool: list_procurement_portal_preferences, get_procurement_portal_preference
 
-13. **AWS Credits**
+14. **AWS Credits**
     - `credits` tool: get_credits, get_credit_allocation_history
+
+15. **AWS Billing Preferences**
+    - get-billing-preferences
+
+16. **AWS Enterprise Support**
+    - `enterprise-support` tool: get_charge_summary, get_contract_details, list_linked_account_charges
+
+17. **AWS Billing Views**
+    - `get-billing-view`: retrieve metadata for a specific billing view
+    - `list-billing-views`: list billing views available for a given time period
+    - `list-source-views-for-billing-view`: list source views that a custom billing view is built from
+    - `get-resource-policy`: retrieve the resource-based policy attached to a billing view
+    - `list-billing-view-segments`: list billing view segments over a time period to determine billing domain (BILLABLE vs PRO_FORMA) and account relationships

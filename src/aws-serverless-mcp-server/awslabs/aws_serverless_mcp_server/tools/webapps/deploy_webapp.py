@@ -32,7 +32,7 @@ from awslabs.aws_serverless_mcp_server.tools.webapps.utils.deploy_service import
 )
 from awslabs.aws_serverless_mcp_server.utils.const import DEPLOYMENT_STATUS_DIR
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Any, Dict, Literal, Optional
 
@@ -40,8 +40,8 @@ from typing import Any, Dict, Literal, Optional
 class DeployWebAppTool(BaseTool):
     """Tool for deploying web applications to AWS serverless infrastructure."""
 
-    def __init__(self, mcp: FastMCP, allow_write):
-        """Initialize the DeployWebAppTool with a FastMCP instance."""
+    def __init__(self, mcp: MCPServer, allow_write):
+        """Initialize the DeployWebAppTool with a MCPServer instance."""
         super().__init__(allow_write=allow_write)
         mcp.tool(name='deploy_webapp')(self.deploy_webapp)
         self.allow_write = allow_write

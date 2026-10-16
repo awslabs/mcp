@@ -19,13 +19,13 @@ from awslabs.aws_dataprocessing_mcp_server.handlers.athena.athena_workgroup_hand
     AthenaWorkGroupHandler,
 )
 from botocore.exceptions import ClientError
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from unittest.mock import Mock, patch
 
 
 def parse_response_data(response):
     """Helper function to parse the data from CallToolResult content."""
-    if response.isError:
+    if response.is_error:
         return None
     # The second content item contains the JSON data
     if len(response.content) > 1:
@@ -97,7 +97,7 @@ async def test_create_work_group_success(handler, mock_athena_client):
         tags={'Owner': 'TestTeam'},
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = parse_response_data(response)
     assert data['work_group_name'] == 'test-workgroup'
     assert data['operation'] == 'create-work-group'
@@ -120,7 +120,7 @@ async def test_create_work_group_without_write_permission(read_only_handler):
         ctx, operation='create-work-group', name='test-workgroup', description='Test workgroup'
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'not allowed without write access' in response.content[0].text
 
 
@@ -135,7 +135,7 @@ async def test_delete_work_group_success(handler, mock_athena_client, mock_aws_h
         ctx, operation='delete-work-group', name='test-workgroup', recursive_delete_option=True
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = parse_response_data(response)
     assert data['work_group_name'] == 'test-workgroup'
     assert data['operation'] == 'delete-work-group'
@@ -160,7 +160,7 @@ async def test_delete_work_group_without_write_permission(read_only_handler):
         ctx, operation='delete-work-group', name='test-workgroup'
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'not allowed without write access' in response.content[0].text
 
 
@@ -178,7 +178,7 @@ async def test_delete_work_group_not_mcp_managed(handler, mock_aws_helper):
         ctx, operation='delete-work-group', name='test-workgroup'
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'not managed by the MCP server' in response.content[0].text
 
 
@@ -199,7 +199,7 @@ async def test_get_work_group_success(handler, mock_athena_client):
         ctx, operation='get-work-group', name='test-workgroup'
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = parse_response_data(response)
     assert data['work_group']['Name'] == 'test-workgroup'
     assert data['operation'] == 'get-work-group'
@@ -231,7 +231,7 @@ async def test_list_work_groups_success(handler, mock_athena_client):
         ctx, operation='list-work-groups', max_results=10, next_token='token'
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = parse_response_data(response)
     assert len(data['work_groups']) == 2
     assert data['count'] == 2
@@ -256,7 +256,7 @@ async def test_update_work_group_success(handler, mock_athena_client, mock_aws_h
         state='DISABLED',
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = parse_response_data(response)
     assert data['work_group_name'] == 'test-workgroup'
     assert data['operation'] == 'update-work-group'
@@ -287,7 +287,7 @@ async def test_update_work_group_without_write_permission(read_only_handler):
         description='Updated description',
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'not allowed without write access' in response.content[0].text
 
 
@@ -308,7 +308,7 @@ async def test_update_work_group_not_mcp_managed(handler, mock_aws_helper):
         description='Updated description',
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'not managed by the MCP server' in response.content[0].text
 
 
@@ -318,7 +318,7 @@ async def test_invalid_work_group_operation(handler):
     ctx = Mock()
     response = await handler.manage_aws_athena_workgroups(ctx, operation='invalid-operation')
 
-    assert response.isError
+    assert response.is_error
     assert 'Invalid operation' in response.content[0].text
 
 
@@ -336,7 +336,7 @@ async def test_work_group_client_error_handling(handler, mock_athena_client):
         ctx, operation='get-work-group', name='test-workgroup'
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'Error in manage_aws_athena_workgroups' in response.content[0].text
 
 
@@ -352,7 +352,7 @@ async def test_delete_work_group_empty_tags(handler, mock_aws_helper):
         ctx, operation='delete-work-group', name='test-workgroup'
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'not managed by the MCP server' in response.content[0].text
 
 
@@ -371,7 +371,7 @@ async def test_update_work_group_empty_tags(handler, mock_aws_helper):
         description='Updated description',
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'not managed by the MCP server' in response.content[0].text
 
 
@@ -408,7 +408,7 @@ async def test_create_work_group_with_minimal_parameters(handler, mock_athena_cl
         ctx, operation='create-work-group', name='test-workgroup'
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = parse_response_data(response)
     assert data['work_group_name'] == 'test-workgroup'
     assert data['operation'] == 'create-work-group'
@@ -432,7 +432,7 @@ async def test_delete_work_group_without_recursive_option(handler, mock_athena_c
         ctx, operation='delete-work-group', name='test-workgroup'
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = parse_response_data(response)
     assert data['work_group_name'] == 'test-workgroup'
     mock_athena_client.delete_work_group.assert_called_once_with(WorkGroup='test-workgroup')
@@ -449,7 +449,7 @@ async def test_list_work_groups_with_minimal_parameters(handler, mock_athena_cli
     ctx = Mock()
     response = await handler.manage_aws_athena_workgroups(ctx, operation='list-work-groups')
 
-    assert not response.isError
+    assert not response.is_error
     data = parse_response_data(response)
     assert len(data['work_groups']) == 1
     assert data['count'] == 1
@@ -467,7 +467,7 @@ async def test_update_work_group_with_minimal_parameters(handler, mock_athena_cl
         ctx, operation='update-work-group', name='test-workgroup'
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = parse_response_data(response)
     assert data['work_group_name'] == 'test-workgroup'
     mock_athena_client.update_work_group.assert_called_once_with(WorkGroup='test-workgroup')
@@ -486,7 +486,7 @@ async def test_update_work_group_with_only_description(handler, mock_athena_clie
         description='Updated description',
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = parse_response_data(response)
     assert data['work_group_name'] == 'test-workgroup'
     mock_athena_client.update_work_group.assert_called_once_with(
@@ -505,7 +505,7 @@ async def test_update_work_group_with_only_configuration(handler, mock_athena_cl
         ctx, operation='update-work-group', name='test-workgroup', configuration=config
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = parse_response_data(response)
     assert data['work_group_name'] == 'test-workgroup'
     mock_athena_client.update_work_group.assert_called_once_with(
@@ -523,7 +523,7 @@ async def test_update_work_group_with_only_state(handler, mock_athena_client):
         ctx, operation='update-work-group', name='test-workgroup', state='DISABLED'
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = parse_response_data(response)
     assert data['work_group_name'] == 'test-workgroup'
     mock_athena_client.update_work_group.assert_called_once_with(
@@ -542,5 +542,5 @@ async def test_get_work_group_error_handling(handler, mock_athena_client):
         ctx, operation='get-work-group', name='test-workgroup'
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'Error in manage_aws_athena_workgroups' in response.content[0].text

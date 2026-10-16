@@ -17,6 +17,7 @@
 import botocore.exceptions
 import copy as _copy
 import inspect as _inspect
+import json
 import pytest
 from awslabs.aws_healthomics_mcp_server.consts import DEFAULT_SCRATCH_STORAGE_MODE
 from awslabs.aws_healthomics_mcp_server.tools import workflow_execution as _workflow_execution
@@ -808,6 +809,110 @@ async def test_list_runs_with_both_date_filters():
     # Should return only run-2 (created between the two dates)
     assert len(result['runs']) == 1
     assert result['runs'][0]['id'] == 'run-2'
+
+
+@pytest.mark.asyncio
+async def test_list_runs_date_filter_truncation_emits_next_token():
+    """Test that truncating date-filtered results still signals continuation.
+
+    When client-side date filtering leaves more matching runs than max_results,
+    and the upstream API still has more pages available, the response must
+    include a nextToken so callers know the page is not the complete result set.
+    """
+    base_time = datetime(2023, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+
+    # 15 runs all created after the created_after filter, fetched in a single
+    # upstream batch that itself still has more pages (nextToken present).
+    items = []
+    for i in range(15):
+        items.append(
+            {
+                'id': f'run-{i}',
+                'name': f'run-{i}',
+                'status': 'COMPLETED',
+                'workflowId': f'wfl-{i}',
+                'workflowType': 'WDL',
+                'creationTime': base_time + timedelta(days=i),
+            }
+        )
+
+    mock_response = {
+        'items': items,
+        'nextToken': 'upstream-token-abc',
+    }
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.list_runs.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await list_runs(
+            ctx=mock_ctx,
+            max_results=10,
+            next_token=None,
+            status=None,
+            created_after='2023-06-10T00:00:00Z',
+            created_before=None,
+            run_group_id=None,
+        )
+
+    # Truncated to max_results, but more matching runs exist upstream.
+    assert len(result['runs']) == 10
+    assert 'nextToken' in result, (
+        'truncated date-filtered page must carry a continuation token so the '
+        'caller does not treat a partial result as complete'
+    )
+    assert result['nextToken'] == 'upstream-token-abc'
+
+
+@pytest.mark.asyncio
+async def test_list_runs_date_filter_truncation_no_upstream_token():
+    """Test truncated date-filtered results with no further upstream pages.
+
+    When the upstream API has no more pages (no nextToken), there is no valid
+    resume point to hand back even though the filtered set was truncated. The
+    response must omit nextToken rather than fabricate one.
+    """
+    base_time = datetime(2023, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
+
+    items = [
+        {
+            'id': f'run-{i}',
+            'name': f'run-{i}',
+            'status': 'COMPLETED',
+            'workflowId': f'wfl-{i}',
+            'workflowType': 'WDL',
+            'creationTime': base_time + timedelta(days=i),
+        }
+        for i in range(15)
+    ]
+
+    # No nextToken: this is the final upstream page.
+    mock_response = {'items': items}
+
+    mock_ctx = AsyncMock()
+    mock_client = MagicMock()
+    mock_client.list_runs.return_value = mock_response
+
+    with patch(
+        'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+        return_value=mock_client,
+    ):
+        result = await list_runs(
+            ctx=mock_ctx,
+            max_results=10,
+            next_token=None,
+            status=None,
+            created_after='2023-06-10T00:00:00Z',
+            created_before=None,
+            run_group_id=None,
+        )
+
+    assert len(result['runs']) == 10
+    assert 'nextToken' not in result
 
 
 @pytest.mark.asyncio
@@ -2613,3 +2718,361 @@ class TestGetRunPassesScratchStorageModeThrough:
         else:
             # When the API response omits scratchStorageMode, the result omits it entirely.
             assert 'scratchStorageMode' not in result
+
+
+# Feature: run-log-level, Property: start_run forwards logLevel only when provided
+class TestStartRunLogLevel:
+    """start_run handling of the optional log_level parameter.
+
+    - When log_level is None (default), no logLevel key is forwarded to the HealthOmics
+      start_run API, preserving backward-compatible behavior and the API default.
+    - When log_level is a valid enum value (OFF, FATAL, ERROR, ALL), it is forwarded to
+      the API and reflected in the response.
+    - When log_level is invalid, a validation error is returned and the API is not called.
+    """
+
+    _base_params = {
+        'workflow_id': 'wfl-12345',
+        'role_arn': 'arn:aws:iam::123456789012:role/HealthOmicsRole',
+        'name': 'test-run',
+        'output_uri': 's3://my-bucket/outputs/',
+        'parameters': {'param1': 'value1'},
+    }
+
+    _api_response = {
+        'id': 'run-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:run/run-12345',
+        'status': 'PENDING',
+        'name': 'test-run',
+        'workflowId': 'wfl-12345',
+        'uuid': 'uuid-abc-123',
+        'tags': {},
+    }
+
+    @pytest.mark.asyncio
+    async def test_start_run_omits_log_level_when_none(self):
+        """log_level=None => no logLevel key in the params passed to the API."""
+        mock_ctx = AsyncMock()
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        wrapper = MCPToolTestWrapper(start_run)
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+            return_value=mock_client,
+        ):
+            result = await wrapper.call(
+                ctx=mock_ctx,
+                **self._base_params,
+                log_level=None,
+            )
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        mock_client.start_run.assert_called_once()
+        call_kwargs = mock_client.start_run.call_args.kwargs
+        assert 'logLevel' not in call_kwargs, (
+            'logLevel must not be forwarded when the caller omits it'
+        )
+        # Response still surfaces the (None) effective value for observability.
+        assert result['logLevel'] is None
+
+    @pytest.mark.parametrize('log_level', ['OFF', 'FATAL', 'ERROR', 'ALL'])
+    @pytest.mark.asyncio
+    async def test_start_run_forwards_valid_log_level(self, log_level):
+        """Each valid enum value is forwarded to the API and reflected in the response."""
+        mock_ctx = AsyncMock()
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        wrapper = MCPToolTestWrapper(start_run)
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+            return_value=mock_client,
+        ):
+            result = await wrapper.call(
+                ctx=mock_ctx,
+                **self._base_params,
+                log_level=log_level,
+            )
+
+        assert 'error' not in result, f'Unexpected error for log_level={log_level!r}: {result}'
+        mock_client.start_run.assert_called_once()
+        call_kwargs = mock_client.start_run.call_args.kwargs
+        assert call_kwargs['logLevel'] == log_level
+        assert result['logLevel'] == log_level
+
+    @pytest.mark.asyncio
+    async def test_start_run_invalid_log_level_returns_error(self):
+        """An invalid log_level returns a validation error and never calls the API."""
+        mock_ctx = AsyncMock()
+        mock_client = MagicMock()
+
+        wrapper = MCPToolTestWrapper(start_run)
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+            return_value=mock_client,
+        ):
+            result = await wrapper.call(
+                ctx=mock_ctx,
+                **self._base_params,
+                log_level='INVALID',
+            )
+
+        assert 'error' in result
+        mock_client.start_run.assert_not_called()
+
+
+class TestStartRunTags:
+    """start_run handling of the optional tags parameter.
+
+    - When tags is omitted (None), no tags key is forwarded to the HealthOmics API.
+    - When tags are provided (including an empty dict), they are forwarded unchanged.
+    """
+
+    _base_params = {
+        'workflow_id': 'wfl-12345',
+        'role_arn': 'arn:aws:iam::123456789012:role/HealthOmicsRole',
+        'name': 'test-run',
+        'output_uri': 's3://my-bucket/outputs/',
+        'parameters': {'param1': 'value1'},
+    }
+
+    _api_response = {
+        'id': 'run-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:run/run-12345',
+        'status': 'PENDING',
+        'uuid': 'uuid-abc-123',
+    }
+
+    async def _call(self, mock_client, **kwargs):
+        wrapper = MCPToolTestWrapper(start_run)
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+            return_value=mock_client,
+        ):
+            return await wrapper.call(ctx=AsyncMock(), **self._base_params, **kwargs)
+
+    @pytest.mark.asyncio
+    async def test_start_run_forwards_tags(self):
+        """Provided tags are forwarded to the API and reflected in the response."""
+        tags = {'project': 'genomics', 'cost-center': '1234'}
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = {**self._api_response, 'tags': tags}
+
+        result = await self._call(mock_client, tags=tags)
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        mock_client.start_run.assert_called_once()
+        assert mock_client.start_run.call_args.kwargs['tags'] == tags
+        assert result['tags'] == tags
+
+    @pytest.mark.asyncio
+    async def test_start_run_forwards_empty_tags(self):
+        """An explicit empty tags dict is forwarded, matching CreateAHORunGroup."""
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        result = await self._call(mock_client, tags={})
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        assert mock_client.start_run.call_args.kwargs['tags'] == {}
+
+    @pytest.mark.asyncio
+    async def test_start_run_omits_tags_when_not_provided(self):
+        """tags=None => no tags key in the params passed to the API."""
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        result = await self._call(mock_client, tags=None)
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        mock_client.start_run.assert_called_once()
+        assert 'tags' not in mock_client.start_run.call_args.kwargs
+        assert result['tags'] == {}
+
+    @pytest.mark.asyncio
+    async def test_start_run_omits_tags_when_called_directly_without_tags(self):
+        """Calling start_run directly (unresolved Field default) does not forward tags."""
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+            return_value=mock_client,
+        ):
+            result = await start_run(
+                AsyncMock(),
+                workflow_version_name=None,
+                storage_type='DYNAMIC',
+                storage_capacity=None,
+                cache_id=None,
+                cache_behavior=None,
+                run_group_id=None,
+                networking_mode=None,
+                configuration_name=None,
+                scratch_storage_mode='LOCAL',
+                log_level=None,
+                aws_profile=None,
+                aws_region=None,
+                **self._base_params,
+            )
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        assert 'tags' not in mock_client.start_run.call_args.kwargs
+
+
+class TestStartRunSessionPolicy:
+    """start_run handling of the optional session_policy parameter."""
+
+    _base_params = {
+        'workflow_id': 'wfl-12345',
+        'role_arn': 'arn:aws:iam::123456789012:role/HealthOmicsRole',
+        'name': 'test-run',
+        'output_uri': 's3://my-bucket/outputs/',
+        'parameters': {'param1': 'value1'},
+    }
+
+    _api_response = {
+        'id': 'run-12345',
+        'arn': 'arn:aws:omics:us-east-1:123456789012:run/run-12345',
+        'status': 'PENDING',
+        'uuid': 'uuid-abc-123',
+    }
+
+    _policy = {
+        'Version': '2012-10-17',
+        'Statement': [
+            {'Effect': 'Allow', 'Action': 's3:GetObject', 'Resource': 'arn:aws:s3:::my-bucket/*'}
+        ],
+    }
+
+    async def _call(self, mock_client, **kwargs):
+        wrapper = MCPToolTestWrapper(start_run)
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+            return_value=mock_client,
+        ):
+            return await wrapper.call(ctx=AsyncMock(), **self._base_params, **kwargs)
+
+    @pytest.mark.asyncio
+    async def test_start_run_forwards_session_policy_string(self):
+        """A minified JSON string policy is forwarded to the API unchanged."""
+        policy_str = json.dumps(self._policy, separators=(',', ':'))
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        result = await self._call(mock_client, session_policy=policy_str)
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        assert mock_client.start_run.call_args.kwargs['sessionPolicy'] == policy_str
+
+    @pytest.mark.asyncio
+    async def test_start_run_serializes_session_policy_dict(self):
+        """A dict policy is serialized to a JSON string before being forwarded."""
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        result = await self._call(mock_client, session_policy=self._policy)
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        forwarded = mock_client.start_run.call_args.kwargs['sessionPolicy']
+        assert isinstance(forwarded, str)
+        assert json.loads(forwarded) == self._policy
+
+    @pytest.mark.asyncio
+    async def test_start_run_omits_session_policy_when_not_provided(self):
+        """session_policy=None => no sessionPolicy key in the params passed to the API."""
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        result = await self._call(mock_client, session_policy=None)
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        assert 'sessionPolicy' not in mock_client.start_run.call_args.kwargs
+
+    @pytest.mark.parametrize('session_policy', ['not json', '[1, 2]', '{}', 'x' * 3000])
+    @pytest.mark.asyncio
+    async def test_start_run_invalid_session_policy_returns_error(self, session_policy):
+        """An invalid session policy returns an error and never calls the API."""
+        mock_client = MagicMock()
+
+        result = await self._call(mock_client, session_policy=session_policy)
+
+        assert 'error' in result
+        assert 'Invalid session policy' in result['error']
+        mock_client.start_run.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_start_run_omits_session_policy_when_called_directly(self):
+        """Calling start_run directly (unresolved Field default) does not forward it."""
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+            return_value=mock_client,
+        ):
+            result = await start_run(
+                AsyncMock(),
+                workflow_version_name=None,
+                storage_type='DYNAMIC',
+                storage_capacity=None,
+                cache_id=None,
+                cache_behavior=None,
+                run_group_id=None,
+                networking_mode=None,
+                configuration_name=None,
+                scratch_storage_mode='LOCAL',
+                log_level=None,
+                tags=None,
+                aws_profile=None,
+                aws_region=None,
+                **self._base_params,
+            )
+
+        assert 'error' not in result, f'Unexpected error: {result}'
+        assert 'sessionPolicy' not in mock_client.start_run.call_args.kwargs
+
+    @pytest.mark.asyncio
+    async def test_get_run_surfaces_session_policy(self):
+        """get_run includes sessionPolicy when the API returns it."""
+        policy_str = json.dumps(self._policy)
+        mock_client = MagicMock()
+        mock_client.get_run.return_value = {
+            'id': 'run-12345',
+            'status': 'RUNNING',
+            'sessionPolicy': policy_str,
+        }
+
+        with patch(
+            'awslabs.aws_healthomics_mcp_server.tools.workflow_execution.get_omics_client',
+            return_value=mock_client,
+        ):
+            result = await get_run(AsyncMock(), run_id='run-12345')
+
+        assert result['sessionPolicy'] == policy_str
+
+    @pytest.mark.asyncio
+    async def test_start_run_params_validate_against_botocore_model(self):
+        """The forwarded params, including sessionPolicy, satisfy the real StartRun shape."""
+        import botocore.session
+        from botocore.validate import ParamValidator
+
+        mock_client = MagicMock()
+        mock_client.start_run.return_value = dict(self._api_response)
+
+        await self._call(mock_client, session_policy=self._policy)
+
+        input_shape = (
+            botocore.session.get_session()
+            .get_service_model('omics')
+            .operation_model('StartRun')
+            .input_shape
+        )
+        # requestId is an idempotency token that boto3 auto-populates on real clients
+        params = {'requestId': 'test-token', **mock_client.start_run.call_args.kwargs}
+        report = ParamValidator().validate(params, input_shape)
+        assert not report.has_errors(), report.generate_report()

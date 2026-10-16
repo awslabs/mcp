@@ -15,7 +15,7 @@
 import base64
 from awslabs.aws_serverless_mcp_server.utils.github import fetch_github_content
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Any, Dict, Optional
 
@@ -23,7 +23,7 @@ from typing import Any, Dict, Optional
 class GetServerlessTemplatesTool:
     """Tool to fetch example serverless templates from the Serverless Land GitHub repository."""
 
-    def __init__(self, mcp: FastMCP):
+    def __init__(self, mcp: MCPServer):
         """Initialize the GetServerlessTemplates tool."""
         mcp.tool(name='get_serverless_templates')(self.get_serverless_templates)
         self.repo_tree = None

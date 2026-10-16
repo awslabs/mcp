@@ -2,6 +2,8 @@
 Unit tests for the utils.py module.
 """
 
+import copy
+import json
 from unittest import mock
 
 import pytest
@@ -18,6 +20,7 @@ from awslabs.ecs_mcp_server.api.troubleshooting_tools.utils import (
     find_task_definitions,
     get_cloudformation_stack_if_exists,
 )
+from awslabs.ecs_mcp_server.utils.security import REDACTED
 from tests.unit.utils.async_test_utils import (
     AsyncIterator,
 )
@@ -760,6 +763,121 @@ class TestFindTaskDefinitions(TestUtilsBase):
 
             # Should return empty list on exception
             assert result == []
+
+    @pytest.mark.anyio
+    async def test_find_task_definitions_with_client_error(self, mock_aws_clients):
+        """Test AWS ClientError handling in find_task_definitions."""
+        mock_ecs = mock_aws_clients["ecs"]
+
+        with mock.patch(
+            "awslabs.ecs_mcp_server.api.troubleshooting_tools.utils._get_task_definitions_by_stack",
+            side_effect=ClientError(
+                {"Error": {"Code": "AccessDeniedException", "Message": "Access denied"}},
+                "DescribeStackResources",
+            ),
+        ):
+            with self.mock_aws_clients({"ecs": mock_ecs}):
+                result = await find_task_definitions(stack_name="test-stack")
+
+            # Should return empty list on AWS client error
+            assert result == []
+
+
+class TestFindTaskDefinitionsSensitiveData(TestUtilsBase):
+    """Test that find_task_definitions honours ALLOW_SENSITIVE_DATA on every lookup path."""
+
+    TASK_DEFINITION = {
+        "taskDefinitionArn": "arn:aws:ecs:us-west-2:123456789012:task-definition/test-app:1",
+        "containerDefinitions": [
+            {
+                "name": "app",
+                "image": "123456789012.dkr.ecr.us-west-2.amazonaws.com/test-app:latest",
+                "environment": [{"name": "DB_PASSWORD", "value": "super-secret-password"}],
+                "secrets": [
+                    {
+                        "name": "API_KEY",
+                        "valueFrom": (
+                            "arn:aws:secretsmanager:us-west-2:123456789012:secret:prod/api-key"
+                        ),
+                    }
+                ],
+            }
+        ],
+    }
+
+    # (helper patched, keyword arguments) for each supported lookup mode
+    LOOKUP_MODES = [
+        pytest.param(
+            "_get_task_definition_by_service",
+            {"cluster_name": "test-cluster", "service_name": "test-service"},
+            id="by_service",
+        ),
+        pytest.param(
+            "_get_task_definition_by_task",
+            {"cluster_name": "test-cluster", "task_id": "1234567890abcdef"},
+            id="by_task",
+        ),
+        pytest.param(
+            "_get_task_definitions_by_stack",
+            {"stack_name": "test-stack"},
+            id="by_stack",
+        ),
+        pytest.param(
+            "_get_task_definitions_by_family_prefix",
+            {"family_prefix": "test-app"},
+            id="by_family_prefix",
+        ),
+    ]
+
+    async def _find(self, helper_name, kwargs, mock_aws_clients):
+        with mock.patch(
+            f"awslabs.ecs_mcp_server.api.troubleshooting_tools.utils.{helper_name}",
+            return_value=[copy.deepcopy(self.TASK_DEFINITION)],
+        ):
+            with self.mock_aws_clients({"ecs": mock_aws_clients["ecs"]}):
+                return await find_task_definitions(**kwargs)
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("helper_name,kwargs", LOOKUP_MODES)
+    async def test_redacts_by_default(self, helper_name, kwargs, mock_aws_clients, monkeypatch):
+        """With ALLOW_SENSITIVE_DATA unset, values and secret references are redacted."""
+        monkeypatch.delenv("ALLOW_SENSITIVE_DATA", raising=False)
+
+        result = await self._find(helper_name, kwargs, mock_aws_clients)
+
+        assert len(result) == 1
+        container = result[0]["containerDefinitions"][0]
+        assert container["environment"] == [{"name": "DB_PASSWORD", "value": REDACTED}]
+        assert container["secrets"] == [{"name": "API_KEY", "valueFrom": REDACTED}]
+        # Fields the troubleshooting tools rely on are still present
+        assert result[0]["taskDefinitionArn"] == self.TASK_DEFINITION["taskDefinitionArn"]
+        assert container["image"] == self.TASK_DEFINITION["containerDefinitions"][0]["image"]
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("helper_name,kwargs", LOOKUP_MODES)
+    async def test_redacts_when_explicitly_disabled(
+        self, helper_name, kwargs, mock_aws_clients, monkeypatch
+    ):
+        """ALLOW_SENSITIVE_DATA=false behaves the same as unset."""
+        monkeypatch.setenv("ALLOW_SENSITIVE_DATA", "false")
+
+        result = await self._find(helper_name, kwargs, mock_aws_clients)
+
+        serialized = json.dumps(result)
+        assert "super-secret-password" not in serialized
+        assert "secretsmanager" not in serialized
+
+    @pytest.mark.anyio
+    @pytest.mark.parametrize("helper_name,kwargs", LOOKUP_MODES)
+    async def test_returns_full_task_definition_when_enabled(
+        self, helper_name, kwargs, mock_aws_clients, monkeypatch
+    ):
+        """With ALLOW_SENSITIVE_DATA=true the task definition is returned unchanged."""
+        monkeypatch.setenv("ALLOW_SENSITIVE_DATA", "true")
+
+        result = await self._find(helper_name, kwargs, mock_aws_clients)
+
+        assert result == [self.TASK_DEFINITION]
 
 
 class TestGetTaskDefinitionByService(TestUtilsBase):

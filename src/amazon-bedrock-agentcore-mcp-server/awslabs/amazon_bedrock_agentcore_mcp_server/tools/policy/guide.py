@@ -15,7 +15,7 @@
 """Static guide tool for AgentCore Policy."""
 
 from .models import PolicyGuideResponse
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 
 
 POLICY_GUIDE = """

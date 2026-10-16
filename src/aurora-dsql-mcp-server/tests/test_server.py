@@ -44,6 +44,7 @@ from awslabs.aurora_dsql_mcp_server.server import (
 )
 from unittest.mock import AsyncMock, MagicMock, call, patch
 from psycopg.errors import ReadOnlySqlTransaction
+from typing import Any, List
 
 
 ctx = AsyncMock()
@@ -385,7 +386,7 @@ async def test_transact_commit_on_success(mocker):
 
     sql1 = 'select 1'
     sql2 = 'select 2'
-    sql_list = (sql1, sql2)
+    sql_list = [sql1, sql2]
 
     result = await transact(sql_list, ctx)
 
@@ -414,7 +415,7 @@ async def test_transact_rollback_on_failure(mocker):
 
     sql1 = 'select 1'
     sql2 = 'select 2'
-    sql_list = (sql1, sql2)
+    sql_list = [sql1, sql2]
 
     with pytest.raises(Exception) as excinfo:
         await transact(sql_list, ctx)
@@ -440,7 +441,7 @@ async def test_transact_error_on_failed_begin(mocker):
 
     sql = 'select 1'
     with pytest.raises(Exception) as excinfo:
-        await transact((sql), ctx)
+        await transact([sql], ctx)
     assert ERROR_BEGIN_TRANSACTION in str(excinfo.value)
 
     mock_execute_query.assert_called_once_with(ctx, mock_conn, BEGIN_TRANSACTION_SQL)
@@ -1024,7 +1025,9 @@ class TestTransactParamsList:
             "INSERT INTO t (id, name) VALUES (%s, %s)",
             "INSERT INTO t (id, name) VALUES (%s, %s)",
         ]
-        params_list = [['id1', 'Widget'], ['id2', 'Gadget']]
+        # Annotated because List is invariant: a bare list[list[str]] is not assignable to
+        # transact's List[List[Any] | None] | None parameter.
+        params_list: List[List[Any] | None] | None = [['id1', 'Widget'], ['id2', 'Gadget']]
 
         await transact(sql_list, ctx, params_list=params_list)
 

@@ -16,7 +16,7 @@
 
 from botocore.client import BaseClient
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Dict, Optional
 
@@ -29,8 +29,8 @@ class SearchSchemaTool:
     that consume events from EventBridge.
     """
 
-    def __init__(self, mcp: FastMCP, schemas_client: BaseClient):
-        """Initialize the SearchSchemaTool with a FastMCP instance."""
+    def __init__(self, mcp: MCPServer, schemas_client: BaseClient):
+        """Initialize the SearchSchemaTool with a MCPServer instance."""
         mcp.tool(name='search_schema')(self.search_schema_impl)
         self.schemas_client = schemas_client
 

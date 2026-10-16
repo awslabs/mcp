@@ -17,7 +17,7 @@
 import json
 import pytest
 from awslabs.eks_mcp_server.iam_handler import IAMHandler
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from unittest.mock import MagicMock, patch
 
 
@@ -153,7 +153,7 @@ async def test_get_policies_for_role(mock_create_client):
     result = await handler.get_policies_for_role(mock_ctx, role_name='test-role')
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved details for IAM role: test-role' in result.content[0].text
@@ -214,7 +214,7 @@ async def test_add_inline_policy_existing_policy(mock_create_client):
     )
 
     # Verify the result indicates an error because the policy already exists
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert 'Policy test-inline-policy already exists in role test-role' in result.content[0].text
@@ -258,7 +258,7 @@ async def test_add_inline_policy_new_policy(mock_create_client):
     )
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert (
@@ -320,7 +320,7 @@ async def test_add_inline_policy_multiple_statements(mock_create_client):
     )
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert (
@@ -369,7 +369,7 @@ async def test_get_policies_for_role_error(mock_create_client):
     result = await handler.get_policies_for_role(mock_ctx, role_name='non-existent-role')
 
     # Verify the result indicates an error
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert 'Failed to describe IAM role' in result.content[0].text
@@ -419,7 +419,7 @@ async def test_get_policies_for_role_string_policy_document(mock_create_client):
     result = await handler.get_policies_for_role(mock_ctx, role_name='test-role')
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved details for IAM role: test-role' in result.content[0].text
@@ -522,7 +522,7 @@ async def test_get_managed_policies_error(mock_create_client):
     result = await handler.get_policies_for_role(mock_ctx, role_name='test-role')
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved details for IAM role: test-role' in result.content[0].text
@@ -596,7 +596,7 @@ async def test_get_inline_policies_error(mock_create_client):
     result = await handler.get_policies_for_role(mock_ctx, role_name='test-role')
 
     # Verify the result indicates an error
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert 'Failed to describe IAM role' in result.content[0].text
@@ -633,7 +633,7 @@ async def test_add_inline_policy_write_access_disabled(mock_create_client):
     )
 
     # Verify the result indicates an error because write access is disabled
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert 'Adding inline policies requires --allow-write flag' in result.content[0].text
@@ -675,7 +675,7 @@ async def test_add_inline_policy_general_error(mock_create_client):
     )
 
     # Verify the result indicates an error
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert 'Failed to create inline policy' in result.content[0].text

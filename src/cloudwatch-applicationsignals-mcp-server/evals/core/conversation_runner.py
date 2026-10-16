@@ -56,7 +56,7 @@ def convert_mcp_tools_to_bedrock(mcp_tools) -> List[Dict[str, Any]]:
             'toolSpec': {
                 'name': tool.name,
                 'description': tool.description or '',
-                'inputSchema': {'json': tool.inputSchema},
+                'inputSchema': {'json': tool.input_schema},
             }
         }
         bedrock_tools.append(bedrock_tool)

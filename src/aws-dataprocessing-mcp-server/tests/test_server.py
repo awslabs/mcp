@@ -25,7 +25,7 @@ from awslabs.aws_dataprocessing_mcp_server.handlers.glue.crawler_handler import 
 from awslabs.aws_dataprocessing_mcp_server.handlers.glue.data_catalog_handler import (
     GlueDataCatalogHandler,
 )
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from unittest.mock import MagicMock, patch
 
 
@@ -33,7 +33,7 @@ from unittest.mock import MagicMock, patch
 sys.modules['pytest'] = MagicMock()
 
 
-# Mock mcp.server.fastmcp
+# Mock mcp.server.mcpserver
 class MockContext:
     """Mock Context class for testing."""
 
@@ -67,15 +67,15 @@ class MockCallToolResult:
             content (list, optional): The content of the result. Defaults to None.
             **kwargs: Additional attributes to set on the result.
         """
-        self.isError = isError
+        self.is_error = isError
         self.content = content or []
         for key, value in kwargs.items():
             setattr(self, key, value)
 
 
 # Set up mocks before importing any modules that use them
-sys.modules['mcp.server.fastmcp'] = MagicMock()
-sys.modules['mcp.server.fastmcp'].Context = MockContext
+sys.modules['mcp.server.mcpserver'] = MagicMock()
+sys.modules['mcp.server.mcpserver'].Context = MockContext
 sys.modules['mcp.types'] = MagicMock()
 sys.modules['mcp.types'].TextContent = MockTextContent
 sys.modules['mcp.types'].CallToolResult = MockCallToolResult
@@ -94,7 +94,9 @@ async def test_server_initialization():
     mock_fastmcp.dependencies = ['pydantic', 'loguru', 'boto3', 'requests', 'pyyaml', 'cachetools']
 
     # Patch the FastMCP class to return our mock
-    with patch('awslabs.aws_dataprocessing_mcp_server.server.FastMCP', return_value=mock_fastmcp):
+    with patch(
+        'awslabs.aws_dataprocessing_mcp_server.server.MCPServer', return_value=mock_fastmcp
+    ):
         # Create a server instance
         server = create_server()
 

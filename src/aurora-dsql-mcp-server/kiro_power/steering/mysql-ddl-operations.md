@@ -9,49 +9,14 @@ Migration patterns for specific MySQL DDL operations to DSQL-compatible equivale
 
 ## Table Recreation Pattern Overview
 
-MUST follow this sequence with user verification at each step:
-
-1. **Plan & Confirm** - MUST present migration plan and obtain user approval to proceed
-2. **Validate** - Check data compatibility with new structure; MUST report findings to user
-3. **Create** - Create new table with desired structure; MUST verify with user before execution
-4. **Migrate** - Copy data (batched for tables > 3,000 rows); MUST report progress to user
-5. **Verify** - Confirm row counts match; MUST present comparison to user
-6. **Swap** - CRITICAL: MUST obtain explicit user confirmation before DROP TABLE
-7. **Re-index** - Recreate indexes using ASYNC; MUST confirm completion with user
-
-### Transaction Rules
-
-- **MUST batch** migrations exceeding 3,000 row mutations
-- **PREFER batches of 500-1,000 rows** for optimal throughput
-- **MUST respect** 10 MiB data size per transaction
-- **MUST respect** 5-minute transaction duration
-
----
+**MUST** follow the canonical
+[Table Recreation Pattern](../ddl-migrations/overview.md#table-recreation-pattern-overview),
+including foreign-key inventory, write fencing, relationship restoration, and recovery.
 
 ## Common Verify & Swap Pattern
 
-All migrations end with this pattern (referenced in examples below).
-
-**CRITICAL: MUST obtain explicit user confirmation before DROP TABLE step.**
-
-```sql
--- MUST verify counts match
-readonly_query("SELECT COUNT(*) FROM target_table")
-readonly_query("SELECT COUNT(*) FROM target_table_new")
-
--- CHECKPOINT: MUST present count comparison to user and obtain confirmation
--- Agent MUST display: "Original table has X rows, new table has Y rows.
--- Proceeding will DROP the original table. This action is IRREVERSIBLE.
--- Do you want to proceed? (yes/no)"
--- MUST NOT proceed without explicit "yes" confirmation
-
--- MUST swap tables (DESTRUCTIVE - requires user confirmation above)
-transact(["DROP TABLE target_table"])
-transact(["ALTER TABLE target_table_new RENAME TO target_table"])
-
--- MUST recreate indexes
-transact(["CREATE INDEX ASYNC idx_target_tenant ON target_table(tenant_id)"])
-```
+Use the canonical
+[Common Verify & Swap Pattern](../ddl-migrations/overview.md#common-verify--swap-pattern).
 
 ---
 

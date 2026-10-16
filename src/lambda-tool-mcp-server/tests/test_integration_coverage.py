@@ -2,7 +2,7 @@
 
 import json
 import pytest
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -101,7 +101,7 @@ class TestToolFunctionalityCoverage:
         }
 
         # Create a mock MCP server
-        mock_mcp = MagicMock(spec=FastMCP)
+        mock_mcp = MagicMock(spec=MCPServer)
 
         # Create a mock tool function
         async def mock_tool_function(parameters, ctx):

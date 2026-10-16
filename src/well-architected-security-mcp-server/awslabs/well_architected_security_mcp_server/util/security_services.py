@@ -19,7 +19,7 @@ import json
 from typing import Any, Dict, List, Optional
 
 import boto3
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 
 from awslabs.well_architected_security_mcp_server.consts import USER_AGENT_CONFIG
 

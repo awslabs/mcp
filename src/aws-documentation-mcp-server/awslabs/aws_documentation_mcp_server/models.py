@@ -129,5 +129,4 @@ class SearchTableResponse(BaseModel):
     tables_searched: int
     tables_with_matches: int
     results: List[TableResult]
-    error: Optional[str] = None
     hint: Optional[str] = None

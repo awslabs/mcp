@@ -36,9 +36,9 @@ def register_create_domain_name_tool(mcp):
         """,
         annotations=ToolAnnotations(
             title='Create Domain Name',
-            readOnlyHint=False,
-            destructiveHint=False,
-            openWorldHint=False,
+            read_only_hint=False,
+            destructive_hint=False,
+            open_world_hint=False,
         ),
     )
     @write_operation

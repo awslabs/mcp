@@ -37,11 +37,12 @@ from awslabs.aws_documentation_mcp_server.server_utils import (
 
 # Import utility functions
 from awslabs.aws_documentation_mcp_server.util import (
+    DocumentationToolError,
     add_search_intent_to_search_request,
     parse_recommendation_results,
 )
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import BaseModel, Field, ValidationError
 from typing import Any, Dict, List, Optional, Type, TypeVar
 
@@ -80,7 +81,7 @@ SEARCH_TERM_DOMAIN_MODIFIERS = [
 ]
 
 
-mcp = FastMCP(
+mcp = MCPServer(
     'awslabs.aws-documentation-mcp-server',
     instructions="""
     # AWS Documentation MCP Server
@@ -187,10 +188,10 @@ async def read_documentation(
 
     if not any(re.match(domain_regex, url_str) for domain_regex in supported_domains_regex):
         await ctx.error(f'Invalid URL: {url_str}. URL must be from list of supported domains')
-        raise ValueError('URL must be from list of supported domains')
+        raise DocumentationToolError('URL must be from list of supported domains')
     if not url_str.endswith('.html'):
         await ctx.error(f'Invalid URL: {url_str}. URL must end with .html')
-        raise ValueError('URL must end with .html')
+        raise DocumentationToolError('URL must end with .html')
 
     return await read_documentation_impl(ctx, url_str, max_length, start_index, SESSION_UUID)
 
@@ -263,14 +264,14 @@ async def read_sections(
 
     if not any(re.match(domain_regex, url_str) for domain_regex in supported_domains_regex):
         await ctx.error(f'Invalid URL: {url_str}. URL must be from list of supported domains')
-        raise ValueError('URL must be from list of supported domains')
+        raise DocumentationToolError('URL must be from list of supported domains')
     if not url_str.endswith('.html'):
         await ctx.error(f'Invalid URL: {url_str}. URL must end with .html')
-        raise ValueError('URL must end with .html')
+        raise DocumentationToolError('URL must end with .html')
 
     if not section_titles:
         await ctx.error('section_titles parameter cannot be empty')
-        raise ValueError('section_titles parameter cannot be empty')
+        raise DocumentationToolError('section_titles parameter cannot be empty')
 
     return await read_sections_impl(ctx, url_str, section_titles, SESSION_UUID)
 
@@ -338,7 +339,6 @@ async def search_table(
     - tables_searched: Number of tables searched
     - tables_with_matches: Number of tables containing matching rows
     - hint: Guidance message when no matches found, section not found, or no tables on page
-    - error: Error message on HTTP/transport failures only
     - results: Array of table result objects, each with:
         - table_heading: The sub-heading above the table (if any)
         - columns: Column headers for that table
@@ -368,14 +368,14 @@ async def search_table(
 
     if not any(re.match(domain_regex, url_str) for domain_regex in supported_domains_regex):
         await ctx.error(f'Invalid URL: {url_str}. URL must be from list of supported domains')
-        raise ValueError('URL must be from list of supported domains')
+        raise DocumentationToolError('URL must be from list of supported domains')
     if not url_str.endswith('.html'):
         await ctx.error(f'Invalid URL: {url_str}. URL must end with .html')
-        raise ValueError('URL must end with .html')
+        raise DocumentationToolError('URL must end with .html')
 
     if not query or not query.strip():
         await ctx.error('query parameter cannot be empty')
-        raise ValueError('query parameter cannot be empty')
+        raise DocumentationToolError('query parameter cannot be empty')
 
     return await search_table_impl(ctx, url_str, section_title, query, max_rows, SESSION_UUID)
 
@@ -659,19 +659,17 @@ async def recommend(
 
     ## Recommendation Types
 
-    The recommendations include four categories:
+    The recommendations include three categories:
 
-    1. **Highly Rated**: Popular pages within the same AWS service
-    2. **New**: Recently added pages within the same AWS service - useful for finding newly released features
-    3. **Similar**: Pages covering similar topics to the current page
-    4. **Journey**: Pages commonly viewed next by other users
+    1. **New**: Recently added pages within the same AWS service - useful for finding newly released features
+    2. **Similar**: Pages covering similar topics to the current page
+    3. **Journey**: Pages commonly viewed next by other users
 
     ## When to Use
 
     - After reading a documentation page to find related content
     - When exploring a new AWS service to discover important pages
     - To find alternative explanations of complex concepts
-    - To discover the most popular pages for a service
     - To find newly released information by using a service's welcome page URL and checking the **New** recommendations
 
     ## Finding New Features

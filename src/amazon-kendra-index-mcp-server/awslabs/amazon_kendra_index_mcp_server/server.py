@@ -16,11 +16,11 @@
 
 import os
 from awslabs.amazon_kendra_index_mcp_server.util import get_kendra_client
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from typing import Any, Dict, Optional
 
 
-mcp = FastMCP(
+mcp = MCPServer(
     'awslabs.amazon-kendra-index-mcp-server',
     instructions='Using the users kendra index id as a parameter, query Amazon Kendra with the provided search query',
     dependencies=[

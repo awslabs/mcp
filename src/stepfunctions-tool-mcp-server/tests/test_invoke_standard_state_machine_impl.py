@@ -2,7 +2,7 @@
 
 import json
 import pytest
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from unittest.mock import AsyncMock, MagicMock, patch
 
 

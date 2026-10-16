@@ -33,12 +33,42 @@ from typing import Any, Dict, Optional
 DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S UTC'
 UTC_TIMEZONE_OFFSET = '+00:00'
 BCM_PRICING_CALCULATOR_SERVICE_NAME = 'BCM Pricing Calculator'
+# The operations this tool supports, in the order presented to callers.
+VALID_OPERATIONS = [
+    'get_workload_estimate',
+    'list_workload_estimates',
+    'list_workload_estimate_usage',
+    'get_preferences',
+]
 PREFERENCES_NOT_CONFIGURED_ERROR = 'BCM Pricing Calculator preferences are not configured. Please configure preferences before using this service.'
 
 bcm_pricing_calculator_server = FastMCP(
     name='bcm-pricing-calc-tools',
     instructions=f'{BCM_PRICING_CALCULATOR_SERVICE_NAME} tools for working with AWS Billing and Cost Management Pricing Calculator API',
 )
+
+
+def _preferences_error_response(preferences_result: Dict[str, Any]) -> Dict[str, Any]:
+    """Build the error response for a failed get_preferences check.
+
+    Keeps the legacy data payload and adds top-level error_type, operation, and
+    service, so an AWS failure (e.g. AccessDenied) is not reported only as
+    PREFERENCES_NOT_CONFIGURED.
+
+    Args:
+        preferences_result: The dict returned by get_preferences on failure.
+
+    Returns:
+        Dict containing the error response
+    """
+    return format_response(
+        'error',
+        {'error': preferences_result['error'], 'error_code': 'PREFERENCES_NOT_CONFIGURED'},
+        preferences_result['error'],
+        error_type=preferences_result.get('error_type', 'PREFERENCES_NOT_CONFIGURED'),
+        operation='get_preferences',
+        service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
+    )
 
 
 async def bcm_pricing_calc_core(
@@ -93,16 +123,14 @@ async def bcm_pricing_calc_core(
         await ctx.info(f'Received BCM Pricing Calculator operation: {operation}')
 
         # Check if the operation is valid
-        if operation not in [
-            'get_workload_estimate',
-            'list_workload_estimates',
-            'list_workload_estimate_usage',
-            'get_preferences',
-        ]:
+        if operation not in VALID_OPERATIONS:
             return format_response(
                 'error',
                 {'invalid_parameter': 'operation'},
-                f'Invalid operation: {operation}. Valid operations are: get_workload_estimates, get_preferences, describe_workload_estimates',
+                f'Invalid operation: {operation}. Valid operations are: {", ".join(VALID_OPERATIONS)}',
+                error_type='validation_error',
+                operation=operation,
+                service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
             )
 
         # Call the appropriate operation
@@ -139,11 +167,7 @@ async def bcm_pricing_calc_core(
         elif operation == 'get_preferences':
             preferences_result = await get_preferences(ctx)
             if 'error' in preferences_result:
-                return format_response(
-                    'error',
-                    {'error': preferences_result['error']},
-                    preferences_result['error'],
-                )
+                return _preferences_error_response(preferences_result)
             else:
                 return format_response(
                     'success',
@@ -153,20 +177,30 @@ async def bcm_pricing_calc_core(
                     },
                 )
         else:
-            return format_response('error', {'message': f'Unknown operation: {operation}'})
+            return format_response(
+                'error',
+                {'message': f'Unknown operation: {operation}'},
+                error_type='validation_error',
+                operation=operation,
+                service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
+            )
 
     except Exception as e:
         # Use shared error handler for consistent error handling
         error_response = await handle_aws_error(
-            ctx, e, operation, 'AWS Billing and Cost Management Pricing Calculator'
+            ctx, e, operation, BCM_PRICING_CALCULATOR_SERVICE_NAME
         )
-        await ctx.error(
-            f'Failed to process AWS Billing and Cost Management Pricing Calculator request: {error_response.get("data", {}).get("error", str(e))}'
-        )
+        # handle_aws_error puts the message and classification at the top level.
+        error_message = error_response.get('message', str(e))
+        full_message = f'Failed to process AWS Billing and Cost Management Pricing Calculator request: {error_message}'
+        await ctx.error(full_message)
         return format_response(
             'error',
-            {'error': error_response.get('data', {}).get('error', str(e))},
-            f'Failed to process AWS Billing and Cost Management Pricing Calculator request: {error_response.get("data", {}).get("error", str(e))}',
+            {'error': error_message},
+            full_message,
+            error_type=error_response.get('error_type', 'unknown_error'),
+            operation=operation,
+            service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
         )
 
 
@@ -227,7 +261,40 @@ async def bcm_pricing_calc(
     max_results: Optional[int] = None,
     max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """FastMCP tool wrapper for BCM Pricing Calculator operations."""
+    """FastMCP tool wrapper for BCM Pricing Calculator operations.
+
+    Args:
+        ctx: The MCP context object.
+        operation: The operation to perform. One of: get_workload_estimate,
+            list_workload_estimates, list_workload_estimate_usage, get_preferences.
+        identifier: The workload estimate identifier. Required for get_workload_estimate
+            and list_workload_estimate_usage.
+        created_after: Filter estimates created after this timestamp
+            (ISO format: YYYY-MM-DDTHH:MM:SS).
+        created_before: Filter estimates created before this timestamp
+            (ISO format: YYYY-MM-DDTHH:MM:SS).
+        expires_after: Filter estimates expiring after this timestamp
+            (ISO format: YYYY-MM-DDTHH:MM:SS).
+        expires_before: Filter estimates expiring before this timestamp
+            (ISO format: YYYY-MM-DDTHH:MM:SS).
+        status_filter: Filter by status (UPDATING, VALID, INVALID, ACTION_NEEDED).
+        name_filter: Filter by name (supports partial matching).
+        name_match_option: Match option for the name filter
+            (EQUALS, STARTS_WITH, CONTAINS). Defaults to CONTAINS.
+        usage_account_id_filter: Filter usage lines by AWS account ID.
+        service_code_filter: Filter usage lines by AWS service code
+            (e.g. AmazonEC2, AmazonS3).
+        usage_type_filter: Filter usage lines by usage type.
+        operation_filter: Filter usage lines by operation name.
+        location_filter: Filter usage lines by location/region.
+        usage_group_filter: Filter usage lines by usage group.
+        next_token: Token for pagination.
+        max_results: Maximum number of results to return.
+        max_pages: Maximum number of API calls (pages) to make.
+
+    Returns:
+        Dict containing the response data.
+    """
     # need this wrapper to improve code coverage as FastMCP decorated methods cannot be tested directly.
     return await bcm_pricing_calc_core(
         ctx,
@@ -298,9 +365,12 @@ async def get_preferences(ctx: Context) -> dict:
         error_response = await handle_aws_error(
             ctx, e, 'get_preferences', BCM_PRICING_CALCULATOR_SERVICE_NAME
         )
-        error_msg = f'Failed to check BCM Pricing Calculator preferences: {error_response.get("data", {}).get("error", str(e))}'
+        error_msg = f'Failed to check BCM Pricing Calculator preferences: {error_response.get("message", str(e))}'
         await ctx.error(error_msg)
-        return {'error': error_msg}
+        return {
+            'error': error_msg,
+            'error_type': error_response.get('error_type', 'unknown_error'),
+        }
 
 
 async def list_workload_estimates(
@@ -350,13 +420,7 @@ async def list_workload_estimates(
         # Check preferences before proceeding
         preferences_result = await get_preferences(ctx)
         if 'error' in preferences_result:
-            return format_response(
-                'error',
-                {
-                    'error': preferences_result['error'],
-                    'error_code': 'PREFERENCES_NOT_CONFIGURED',
-                },
-            )
+            return _preferences_error_response(preferences_result)
 
         request_params: Dict[str, Any] = {}
         # Build request parameters
@@ -509,6 +573,10 @@ async def get_workload_estimate(
                     'error': 'Identifier is required when calling get_workload_estimate',
                     'error_code': 'MISSING_PARAMETER',
                 },
+                'Identifier is required when calling get_workload_estimate',
+                error_type='validation_error',
+                operation='get_workload_estimate',
+                service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
             )
 
         # Log the request
@@ -520,13 +588,7 @@ async def get_workload_estimate(
         # Check preferences before proceeding
         preferences_result = await get_preferences(ctx)
         if 'error' in preferences_result:
-            return format_response(
-                'error',
-                {
-                    'error': preferences_result['error'],
-                    'error_code': 'PREFERENCES_NOT_CONFIGURED',
-                },
-            )
+            return _preferences_error_response(preferences_result)
 
         # Build request parameters
         request_params: Dict[str, Any] = {'identifier': identifier}
@@ -606,6 +668,10 @@ async def list_workload_estimate_usage(
                     'error': 'workload_estimate_id is required when calling list_workload_estimate_usage',
                     'error_code': 'MISSING_PARAMETER',
                 },
+                'workload_estimate_id is required when calling list_workload_estimate_usage',
+                error_type='validation_error',
+                operation='list_workload_estimate_usage',
+                service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
             )
 
         # Log the request
@@ -620,13 +686,7 @@ async def list_workload_estimate_usage(
         # Check preferences before proceeding
         preferences_result = await get_preferences(ctx)
         if 'error' in preferences_result:
-            return format_response(
-                'error',
-                {
-                    'error': preferences_result['error'],
-                    'error_code': 'PREFERENCES_NOT_CONFIGURED',
-                },
-            )
+            return _preferences_error_response(preferences_result)
 
         request_params: Dict[str, Any] = {}
         # Build request parameters

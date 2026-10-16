@@ -25,7 +25,7 @@ from .models import (
     RuntimeSummary,
     UpdateRuntimeResponse,
 )
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from pydantic import Field
 from typing import Annotated, Callable, Optional, Union
 

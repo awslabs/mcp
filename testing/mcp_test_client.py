@@ -47,7 +47,7 @@ class StdioMcpClient:
             # Initialize the session
             init_result = await self.session.initialize()
             self._capabilities = (
-                init_result.serverInfo.model_dump() if init_result.serverInfo else {}
+                init_result.server_info.model_dump() if init_result.server_info else {}
             )
 
             logger.info('Successfully connected to MCP server')

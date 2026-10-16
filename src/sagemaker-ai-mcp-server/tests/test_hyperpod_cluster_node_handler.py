@@ -31,7 +31,7 @@ from awslabs.sagemaker_ai_mcp_server.sagemaker_hyperpod.models import (
     ListClustersResponse,
     UpdateClusterSoftwareResponse,
 )
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from mcp.types import TextContent
 from unittest.mock import ANY, MagicMock, patch
 

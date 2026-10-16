@@ -50,11 +50,36 @@ class TestHealthOmicsSearchEngine:
 
     @pytest.fixture
     def search_engine(self, search_config):
-        """Create a test HealthOmics search engine."""
-        engine = HealthOmicsSearchEngine(search_config)
-        engine.omics_client = MagicMock()
-        engine._get_partition = MagicMock(return_value='aws')
-        return engine
+        """Create a test HealthOmics search engine.
+
+        The omics client is mocked, and the AWS identity/region/partition helper
+        functions are patched at their source (``utils.aws_utils``) for the
+        fixture's lifetime so the engine never resolves real credentials or makes a
+        network call. In particular ``_get_account_id`` would otherwise perform a
+        real STS ``get_caller_identity`` lookup while building resource ARNs and
+        HealthOmics URIs.
+
+        The helper functions are patched (rather than the engine's ``_get_*``
+        methods) so tests that exercise those methods directly still run the real
+        method against a patched, network-free backend.
+        """
+        with (
+            patch(
+                'awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_account_id',
+                return_value='123456789012',
+            ),
+            patch(
+                'awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_region',
+                return_value='us-east-1',
+            ),
+            patch(
+                'awslabs.aws_healthomics_mcp_server.utils.aws_utils.get_partition',
+                return_value='aws',
+            ),
+        ):
+            engine = HealthOmicsSearchEngine(search_config)
+            engine.omics_client = MagicMock()
+            yield engine
 
     @pytest.mark.asyncio
     async def test_list_read_sets_client_error(self, search_engine):

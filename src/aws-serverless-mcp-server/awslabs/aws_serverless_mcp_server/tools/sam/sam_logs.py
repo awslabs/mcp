@@ -17,7 +17,7 @@
 from awslabs.aws_serverless_mcp_server.tools.common.base_tool import BaseTool
 from awslabs.aws_serverless_mcp_server.utils.process import run_command
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Any, Dict, List, Optional
 
@@ -25,7 +25,7 @@ from typing import Any, Dict, List, Optional
 class SamLogsTool(BaseTool):
     """Tool to fetch logs from AWS SAM applications using the 'sam logs' command."""
 
-    def __init__(self, mcp: FastMCP, allow_sensitive_data_access):
+    def __init__(self, mcp: MCPServer, allow_sensitive_data_access):
         """Initialize the SAM logs tool."""
         super().__init__(allow_sensitive_data_access=allow_sensitive_data_access)
         mcp.tool(name='sam_logs')(self.handle_sam_logs)

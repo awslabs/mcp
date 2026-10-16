@@ -2,13 +2,13 @@ import json
 import pytest
 from awslabs.aws_dataprocessing_mcp_server.handlers.glue.glue_etl_handler import GlueEtlJobsHandler
 from botocore.exceptions import ClientError
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from unittest.mock import Mock, patch
 
 
 def extract_response_data(response):
     """Helper function to extract data from CallToolResult content."""
-    if response.isError:
+    if response.is_error:
         return {}
     # Find the JSON content in the response
     for content_item in response.content:
@@ -80,7 +80,7 @@ async def test_create_job_success(handler, mock_glue_client):
         },
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert data.get('job_name') == 'test-job'
     mock_glue_client.create_job.assert_called_once()
@@ -105,7 +105,7 @@ async def test_delete_job_success(handler, mock_glue_client):
     ctx = Mock()
     response = await handler.manage_aws_glue_jobs(ctx, operation='delete-job', job_name='test-job')
 
-    assert not response.isError
+    assert not response.is_error
     mock_glue_client.delete_job.assert_called_once_with(JobName='test-job')
 
 
@@ -118,7 +118,7 @@ async def test_get_job_success(handler, mock_glue_client):
     ctx = Mock()
     response = await handler.manage_aws_glue_jobs(ctx, operation='get-job', job_name='test-job')
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert data.get('job_details') == {'Name': 'test-job'}
 
@@ -137,7 +137,7 @@ async def test_get_jobs_success(handler, mock_glue_client):
         ctx, operation='get-jobs', max_results=10, next_token='token'
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert len(data.get('jobs', [])) == 2
     assert data.get('next_token') == 'token123'
@@ -159,7 +159,7 @@ async def test_start_job_run_success(handler, mock_glue_client):
         number_of_workers=2,
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert data.get('job_run_id') == 'run123'
 
@@ -174,7 +174,7 @@ async def test_stop_job_run_success(handler, mock_glue_client):
         ctx, operation='stop-job-run', job_name='test-job', job_run_id='run123'
     )
 
-    assert not response.isError
+    assert not response.is_error
     mock_glue_client.batch_stop_job_run.assert_called_once()
 
 
@@ -190,7 +190,7 @@ async def test_create_job_operation_without_write_permission(handler):
         job_name='test-job',
     )
 
-    assert response.isError
+    assert response.is_error
 
 
 @pytest.mark.asyncio
@@ -205,7 +205,7 @@ async def test_delete_job_operation_without_write_permission(handler):
         job_name='test-job',
     )
 
-    assert response.isError
+    assert response.is_error
 
 
 @pytest.mark.asyncio
@@ -308,7 +308,7 @@ async def test_start_job_run_operation_without_write_permission(handler):
         job_name='test-job',
     )
 
-    assert response.isError
+    assert response.is_error
 
 
 @pytest.mark.asyncio
@@ -323,7 +323,7 @@ async def test_stop_job_run_operation_without_write_permission(handler):
         job_name='test-job',
     )
 
-    assert response.isError
+    assert response.is_error
 
 
 @pytest.mark.asyncio
@@ -338,7 +338,7 @@ async def test_batch_stop_job_run_operation_without_write_permission(handler):
         job_name='test-job',
     )
 
-    assert response.isError
+    assert response.is_error
 
 
 @pytest.mark.asyncio
@@ -351,7 +351,7 @@ async def test_update_job_operation_without_write_permission(handler):
         ctx, operation='update-job', job_name='test-job', job_definition={}
     )
 
-    assert response.isError
+    assert response.is_error
 
 
 @pytest.mark.asyncio
@@ -362,7 +362,7 @@ async def test_invalid_operation(handler):
         ctx, operation='invalid-operation', job_name='test-job'
     )
 
-    assert response.isError
+    assert response.is_error
 
 
 @pytest.mark.asyncio
@@ -376,7 +376,7 @@ async def test_client_error_handling(handler, mock_glue_client):
     ctx = Mock()
     response = await handler.manage_aws_glue_jobs(ctx, operation='get-job', job_name='test-job')
 
-    assert response.isError
+    assert response.is_error
 
 
 @pytest.mark.asyncio
@@ -392,7 +392,7 @@ async def test_update_job_does_not_exist(handler, mock_glue_client):
         ctx, operation='update-job', job_name='test-job', job_definition={}
     )
 
-    assert response.isError
+    assert response.is_error
 
 
 @pytest.mark.asyncio
@@ -423,7 +423,7 @@ async def test_update_job_non_mcp_managed(handler, mock_glue_client, mock_aws_he
         Mock(), operation='update-job', job_name='test-job', job_definition={'Role': 'new-role'}
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'not managed by the MCP server' in response.content[0].text
 
 
@@ -491,7 +491,7 @@ async def test_get_job_bookmark_success(handler, mock_glue_client):
         Mock(), operation='get-job-bookmark', job_name='test-job'
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert data.get('bookmark_details', {}).get('JobName') == 'test-job'
 
@@ -505,7 +505,7 @@ async def test_reset_job_bookmark_with_run_id(handler, mock_glue_client):
         Mock(), operation='reset-job-bookmark', job_name='test-job', job_run_id='run123'
     )
 
-    assert not response.isError
+    assert not response.is_error
     mock_glue_client.reset_job_bookmark.assert_called_with(JobName='test-job', RunId='run123')
 
 
@@ -523,7 +523,7 @@ async def test_batch_stop_job_run_multiple_ids(handler, mock_glue_client):
         Mock(), operation='batch-stop-job-run', job_name='test-job', job_run_ids=['run1', 'run2']
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert len(data.get('successful_submissions', [])) == 2
     assert len(data.get('failed_submissions', [])) == 0
@@ -542,7 +542,7 @@ async def test_batch_stop_job_run_with_failures(handler, mock_glue_client):
         Mock(), operation='batch-stop-job-run', job_name='test-job', job_run_ids=['run1', 'run2']
     )
 
-    assert not response.isError
+    assert not response.is_error
     data = extract_response_data(response)
     assert len(data.get('successful_submissions', [])) == 1
     assert len(data.get('failed_submissions', [])) == 1
@@ -561,7 +561,7 @@ async def test_get_job_runs_with_client_error(handler, mock_glue_client):
         Mock(), operation='get-job-runs', job_name='test-job'
     )
 
-    assert response.isError
+    assert response.is_error
     assert 'Error in manage_aws_glue_jobs_and_runs' in response.content[0].text
 
 
@@ -628,4 +628,4 @@ async def test_invalid_execution_class(handler, mock_glue_client):
         Mock(), operation='start-job-run', job_name='test-job', execution_class='INVALID'
     )
 
-    assert response.isError
+    assert response.is_error

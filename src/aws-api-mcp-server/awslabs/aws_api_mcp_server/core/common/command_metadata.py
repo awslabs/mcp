@@ -23,3 +23,4 @@ class CommandMetadata:
     service_full_sdk_name: str | None
     operation_sdk_name: str
     has_streaming_output: bool = False
+    service_cli_name: str | None = None

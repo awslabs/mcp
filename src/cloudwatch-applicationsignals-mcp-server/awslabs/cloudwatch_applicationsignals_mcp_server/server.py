@@ -74,7 +74,7 @@ from .trace_tools import get_xray_trace, list_slis, search_transaction_spans
 from .utils import parse_timestamp
 from datetime import datetime, timedelta, timezone
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from pydantic import Field
 from time import perf_counter as timer
 from typing import Optional
@@ -85,8 +85,8 @@ BATCH_SIZE_THRESHOLD = 5
 
 RUN_STATES = {'RUNNING': 'RUNNING', 'PASSED': 'PASSED', 'FAILED': 'FAILED'}
 
-# Initialize FastMCP server
-mcp = FastMCP('cloudwatch-applicationsignals')
+# Initialize MCPServer server
+mcp = MCPServer('cloudwatch-applicationsignals')
 
 # Configure logging
 log_level = os.environ.get('MCP_CLOUDWATCH_APPLICATION_SIGNALS_LOG_LEVEL', 'INFO').upper()

@@ -17,7 +17,7 @@
 from awslabs.aws_serverless_mcp_server.tools.common.base_tool import BaseTool
 from awslabs.aws_serverless_mcp_server.utils.aws_client_helper import get_aws_client
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 from typing import Any, Dict, List, Optional
 
@@ -25,8 +25,8 @@ from typing import Any, Dict, List, Optional
 class ConfigureDomainTool(BaseTool):
     """Implementation of the configure_domain tool for AWS Serverless MCP Server."""
 
-    def __init__(self, mcp: FastMCP, allow_write: bool):
-        """Initialize the ConfigureDomainTool with a FastMCP instance."""
+    def __init__(self, mcp: MCPServer, allow_write: bool):
+        """Initialize the ConfigureDomainTool with a MCPServer instance."""
         super().__init__(allow_write=allow_write)
         mcp.tool(name='configure_domain')(self.configure_domain)
         self.allow_write = allow_write

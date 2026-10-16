@@ -36,7 +36,7 @@ from .handlers import (
     handle_purge_queue,
     handle_shovel,
 )
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from typing import Any, Callable
 
 
@@ -47,7 +47,7 @@ BOTO3_CLIENT_GETTER = Callable[[str], Any]
 class RabbitMQModule:
     """A module that contains RabbitMQ API."""
 
-    def __init__(self, mcp: FastMCP, mq_client_getter: BOTO3_CLIENT_GETTER):
+    def __init__(self, mcp: MCPServer, mq_client_getter: BOTO3_CLIENT_GETTER):
         """Initialize the RabbitMQ module."""
         self.mcp = mcp
         self.mq_client_getter = mq_client_getter

@@ -2461,34 +2461,22 @@ class TestGenomicsSearchOrchestrator:
     async def test_search_paginated_with_invalid_continuation_token(
         self, orchestrator, sample_search_request
     ):
-        """Test paginated search with invalid continuation token."""
-        # Set invalid continuation token in the search request
+        """Test paginated search with an invalid continuation token raises an actionable error.
+
+        An unparseable continuation_token must not be silently swallowed
+        into a fresh search: that would look like a normal first page to
+        the agent, with no signal that its cursor was rejected.
+        """
         sample_search_request.continuation_token = 'invalid_token_format'
         sample_search_request.enable_storage_pagination = True
 
-        # Mock the search engines
-        orchestrator.s3_engine.search_buckets_paginated = AsyncMock(
-            return_value=StoragePaginationResponse(
-                results=[], has_more_results=False, next_continuation_token=None
-            )
-        )
-        orchestrator.healthomics_engine.search_sequence_stores_paginated = AsyncMock(
-            return_value=StoragePaginationResponse(
-                results=[], has_more_results=False, next_continuation_token=None
-            )
-        )
-        orchestrator.healthomics_engine.search_reference_stores_paginated = AsyncMock(
-            return_value=StoragePaginationResponse(
-                results=[], has_more_results=False, next_continuation_token=None
-            )
-        )
+        with pytest.raises(ValueError) as exc_info:
+            await orchestrator.search_paginated(sample_search_request)
 
-        # Should handle invalid token gracefully and start fresh search
-        result = await orchestrator.search_paginated(sample_search_request)
-
-        assert result is not None
-        assert hasattr(result, 'enhanced_response')
-        assert 'results' in result.enhanced_response
+        message = str(exc_info.value)
+        assert 'invalid_token_format' in message
+        assert 'no continuation_token' in message
+        assert 'pagination block' in message
 
     @pytest.mark.asyncio
     async def test_search_paginated_with_score_threshold_filtering(
@@ -3010,9 +2998,15 @@ class TestGenomicsSearchOrchestrator:
     ):
         """Test S3 search when engine is None."""
         # Create orchestrator with no S3 engine
-        with patch(
-            'awslabs.aws_healthomics_mcp_server.search.healthomics_search_engine.HealthOmicsSearchEngine.__init__',
-            return_value=None,
+        with (
+            patch(
+                'awslabs.aws_healthomics_mcp_server.search.healthomics_search_engine.HealthOmicsSearchEngine.__init__',
+                return_value=None,
+            ),
+            patch(
+                'awslabs.aws_healthomics_mcp_server.search.genomics_search_orchestrator.S3SearchEngine.from_environment',
+                return_value=None,
+            ),
         ):
             orchestrator = GenomicsSearchOrchestrator(mock_config, s3_engine=None)
 
@@ -3028,9 +3022,15 @@ class TestGenomicsSearchOrchestrator:
     ):
         """Test S3 paginated search when engine is None."""
         # Create orchestrator with no S3 engine
-        with patch(
-            'awslabs.aws_healthomics_mcp_server.search.healthomics_search_engine.HealthOmicsSearchEngine.__init__',
-            return_value=None,
+        with (
+            patch(
+                'awslabs.aws_healthomics_mcp_server.search.healthomics_search_engine.HealthOmicsSearchEngine.__init__',
+                return_value=None,
+            ),
+            patch(
+                'awslabs.aws_healthomics_mcp_server.search.genomics_search_orchestrator.S3SearchEngine.from_environment',
+                return_value=None,
+            ),
         ):
             orchestrator = GenomicsSearchOrchestrator(mock_config, s3_engine=None)
 
@@ -3048,9 +3048,15 @@ class TestGenomicsSearchOrchestrator:
     ):
         """Test S3 paginated search when engine is None."""
         # Create orchestrator with no S3 engine
-        with patch(
-            'awslabs.aws_healthomics_mcp_server.search.healthomics_search_engine.HealthOmicsSearchEngine.__init__',
-            return_value=None,
+        with (
+            patch(
+                'awslabs.aws_healthomics_mcp_server.search.healthomics_search_engine.HealthOmicsSearchEngine.__init__',
+                return_value=None,
+            ),
+            patch(
+                'awslabs.aws_healthomics_mcp_server.search.genomics_search_orchestrator.S3SearchEngine.from_environment',
+                return_value=None,
+            ),
         ):
             orchestrator = GenomicsSearchOrchestrator(mock_config, s3_engine=None)
 
@@ -3239,9 +3245,15 @@ class TestGenomicsSearchOrchestrator:
         # Disable S3 by setting no bucket paths and no engine
         mock_config.s3_bucket_paths = []
 
-        with patch(
-            'awslabs.aws_healthomics_mcp_server.search.healthomics_search_engine.HealthOmicsSearchEngine.__init__',
-            return_value=None,
+        with (
+            patch(
+                'awslabs.aws_healthomics_mcp_server.search.healthomics_search_engine.HealthOmicsSearchEngine.__init__',
+                return_value=None,
+            ),
+            patch(
+                'awslabs.aws_healthomics_mcp_server.search.genomics_search_orchestrator.S3SearchEngine.from_environment',
+                return_value=None,
+            ),
         ):
             orchestrator = GenomicsSearchOrchestrator(mock_config, s3_engine=None)
 
@@ -3317,9 +3329,15 @@ class TestGenomicsSearchOrchestrator:
     ):
         """Test parallel searches when S3 engine is None."""
         # Create orchestrator with S3 engine as None
-        with patch(
-            'awslabs.aws_healthomics_mcp_server.search.healthomics_search_engine.HealthOmicsSearchEngine.__init__',
-            return_value=None,
+        with (
+            patch(
+                'awslabs.aws_healthomics_mcp_server.search.healthomics_search_engine.HealthOmicsSearchEngine.__init__',
+                return_value=None,
+            ),
+            patch(
+                'awslabs.aws_healthomics_mcp_server.search.genomics_search_orchestrator.S3SearchEngine.from_environment',
+                return_value=None,
+            ),
         ):
             orchestrator = GenomicsSearchOrchestrator(mock_config, s3_engine=None)
 

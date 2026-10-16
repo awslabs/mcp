@@ -45,11 +45,13 @@ class TestKnowledgeBase:
         knowledge_base = KnowledgeBase(
             name='Test Knowledge Base',
             description='A test knowledge base',
+            type='VECTOR',
             data_sources=data_sources,
         )
 
         assert knowledge_base['name'] == 'Test Knowledge Base'
         assert knowledge_base['description'] == 'A test knowledge base'
+        assert knowledge_base['type'] == 'VECTOR'
         assert len(knowledge_base['data_sources']) == 2
         assert knowledge_base['data_sources'][0]['id'] == 'ds-12345'
         assert knowledge_base['data_sources'][0]['name'] == 'Test Data Source'
@@ -68,11 +70,13 @@ class TestKnowledgeBaseMapping:
         kb1 = KnowledgeBase(
             name='Test Knowledge Base',
             description='First test knowledge base',
+            type='VECTOR',
             data_sources=data_sources1,
         )
         kb2 = KnowledgeBase(
             name='Another Knowledge Base',
             description='Second test knowledge base',
+            type='MANAGED',
             data_sources=data_sources2,
         )
 

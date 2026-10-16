@@ -18,6 +18,8 @@ import asyncio
 import pytest
 from awslabs.mssql_mcp_server.connection.db_connection_map import DBConnectionMap
 from awslabs.mssql_mcp_server.connection.pymssql_pool_connection import PymssqlPoolConnection
+from mcp.server.mcpserver import Context
+from typing import Any, Optional
 
 
 class MockPymssqlConnection:
@@ -57,10 +59,14 @@ class MockPymssqlCursor:
         return self._rows
 
 
-class DummyCtx:
+class DummyCtx(Context):
     """Dummy context for testing."""
 
-    async def error(self, message):
+    def __init__(self) -> None:
+        """Initialize with no request context; nothing here needs one."""
+        super().__init__()
+
+    async def error(self, data: Any, *, logger_name: Optional[str] = None):
         """No-op error handler."""
         pass
 

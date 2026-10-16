@@ -283,19 +283,29 @@ All other statements (including `INSERT`, `UPDATE`, `DELETE`, `CREATE`, `DROP`, 
 
 #### `--allow-sensitive-data-access` (optional)
 
-Enables access to operations that expose sensitive user data. When disabled (default), the following operations are restricted:
+Enables access to sensitive user data. When disabled (default), the flag is enforced two ways, depending on what the operation returns.
 
-**CRITICAL - Database Credentials:**
-* `get-connection` and `list-connections`: Automatically enforces `hide_password=True` to prevent exposure of plaintext database passwords in connection properties
+**Refused outright**, because the response is itself customer data and filtering would leave nothing meaningful:
 
-**HIGH - User Data:**
-* `get-query-results` (Athena): Blocks retrieval of actual query result data
-* `get-statement` (Glue Interactive Sessions): Blocks retrieval of statement execution outputs
-* `get-entity-records` (Data Catalog): Blocks retrieval of preview data from connected sources
+* `get-query-results` (Athena): query result data
+* `get-entity-records` (Data Catalog): preview data from connected sources
 
-**MEDIUM - Job Outputs and Logs:**
-* `get-job-run` (Glue ETL & EMR Serverless): Blocks access to job run details that may contain sensitive arguments and error messages
-* `describe-step` (EMR EC2): Blocks access to step configurations and error details
+**Answered with sensitive fields omitted**, so the operation stays usable for discovery and monitoring while the sensitive fields are withheld:
+
+| Operations | Omitted without the flag | Still returned |
+| --- | --- | --- |
+| `describe-step`, `list-steps` (EMR EC2) | `Config.Args`, `Config.Properties`, `Status.StateChangeReason.Message`, `Status.FailureDetails` | step id, name, state, timeline, jar, execution role |
+| `get-job-run`, `get-job-runs` (Glue ETL) | `Arguments`, `ErrorMessage`, `StateDetail` | run id, job name, state, timings, capacity, worker config |
+| `get-statement`, `list-statements` (Glue Interactive Sessions) | `Code`, `Output.Data`, `Output.ErrorValue`, `Output.Traceback` | statement id, state, progress, timings |
+| `get-job-run`, `list-job-runs` (EMR Serverless) | `jobDriver`, `configurationOverrides`, `tags`, `stateDetails` | run id, application id, state, timings, execution role |
+
+**Redacted by the AWS API:**
+
+* `get-connection` and `list-connections`: enforces `hide_password=True` so plaintext passwords are never returned in connection properties
+
+When fields are omitted, the response message names them and points at this flag, so a caller can tell the difference between a field that was empty and one that was withheld.
+
+Both the singular and list form of an operation are treated identically, because the AWS APIs behind them return the same records: Glue `GetJobRuns` returns full `JobRun` entries, Glue `ListStatements` returns full `Statement` entries including output data, and EMR `ListSteps` returns step arguments and state-change messages. Filtering only the singular form would make the flag mean different things depending on which form was called. Operations returning only identifiers, such as Athena `list-query-executions`, are unaffected.
 
 * Default: false (Access to sensitive data is restricted by default)
 * Security Note: Only enable this flag in trusted environments when you need access to actual data
@@ -378,7 +388,7 @@ Controls whether the MCP server adds and verifies MCP-managed tags on resources.
 | Tool Name | Description | Key Operations | Requirements |
 |-----------|-------------|----------------|--------------|
 | manage_aws_glue_sessions | Manage AWS Glue Interactive Sessions for Spark and Ray workloads | create-session, delete-session, get-session, list-sessions, stop-session | --allow-write flag for create/delete/stop operations, appropriate AWS permissions |
-| manage_aws_glue_statements | Execute and manage code statements within Glue Interactive Sessions | run-statement, cancel-statement, get-statement, list-statements | --allow-write flag for run/cancel operations, active session required |
+| manage_aws_glue_statements | Execute and manage code statements within Glue Interactive Sessions | run-statement, cancel-statement, get-statement, list-statements | --allow-write flag for run/cancel operations, --allow-sensitive-data-access flag to receive statement code and execution output from get-statement and list-statements, active session required |
 
 ### Glue Workflows and Triggers Handler Tools
 
@@ -404,14 +414,14 @@ Controls whether the MCP server adds and verifies MCP-managed tags on resources.
 
 | Tool Name | Description | Key Operations | Requirements |
 |-----------|-------------|----------------|--------------|
-| manage_aws_emr_ec2_steps | Manage Amazon EMR steps for processing data on EMR clusters | add-steps, cancel-steps, describe-step, list-steps | --allow-write flag for add/cancel operations, appropriate AWS permissions |
+| manage_aws_emr_ec2_steps | Manage Amazon EMR steps for processing data on EMR clusters | add-steps, cancel-steps, describe-step, list-steps | --allow-write flag for add/cancel operations, --allow-sensitive-data-access flag to receive step arguments and failure text from describe-step and list-steps, appropriate AWS permissions |
 
 ### EMR Serverless Handler Tools
 
 | Tool Name | Description | Key Operations | Requirements |
 |-----------|-------------|----------------|--------------|
 | manage_aws_emr_serverless_applications | Manage Amazon EMR Serverless applications with comprehensive lifecycle control | create-application, get-application, update-application, delete-application, list-applications, start-application, stop-application | --allow-write flag for create/update/delete/start/stop operations, appropriate AWS permissions |
-| manage_aws_emr_serverless_job_runs | Manage Amazon EMR Serverless job runs for executing data processing workloads | start-job-run, get-job-run, cancel-job-run, list-job-runs, get-dashboard-for-job-run | --allow-write flag for start/cancel operations, application must exist, appropriate AWS permissions |
+| manage_aws_emr_serverless_job_runs | Manage Amazon EMR Serverless job runs for executing data processing workloads | start-job-run, get-job-run, cancel-job-run, list-job-runs, get-dashboard-for-job-run | --allow-write flag for start/cancel operations, --allow-sensitive-data-access flag to receive job driver, overrides, tags and failure details from get-job-run and list-job-runs, application must exist, appropriate AWS permissions |
 
 ### Athena Query Handler Tools
 
@@ -447,7 +457,7 @@ Controls whether the MCP server adds and verifies MCP-managed tags on resources.
 
 | Tool Name | Description | Key Operations | Requirements |
 |-----------|-------------|----------------|--------------|
-| manage_aws_glue_jobs | Manage AWS Glue ETL jobs and job runs | create-job, delete-job, get-job, get-jobs, update-job, start-job-run, stop-job-run, get-job-run, get-job-runs, batch-stop-job-run, get-job-bookmark, reset-job-bookmark | --allow-write flag for create/delete/update/start/stop operations, appropriate AWS permissions |
+| manage_aws_glue_jobs | Manage AWS Glue ETL jobs and job runs | create-job, delete-job, get-job, get-jobs, update-job, start-job-run, stop-job-run, get-job-run, get-job-runs, batch-stop-job-run, get-job-bookmark, reset-job-bookmark | --allow-write flag for create/delete/update/start/stop operations, --allow-sensitive-data-access flag to receive job arguments and error messages from get-job-run and get-job-runs, appropriate AWS permissions |
 
 ### Glue Crawler Handler Tools
 

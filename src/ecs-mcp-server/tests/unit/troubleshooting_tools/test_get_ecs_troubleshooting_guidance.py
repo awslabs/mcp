@@ -2,6 +2,7 @@
 Unit tests for the get_ecs_troubleshooting_guidance tool.
 """
 
+import json
 from unittest import mock
 
 import pytest
@@ -16,6 +17,7 @@ from awslabs.ecs_mcp_server.api.troubleshooting_tools.get_ecs_troubleshooting_gu
     validate_container_images,
     validate_image,
 )
+from awslabs.ecs_mcp_server.utils.security import REDACTED
 from tests.unit.utils.async_test_utils import (
     AsyncIterator,
     create_sample_cluster_data,
@@ -667,6 +669,95 @@ class TestComprehensiveSystem(TestGuidanceBase):
         assert len(result["raw_data"]["task_definitions"]) == 1
         assert len(result["raw_data"]["image_check_results"]) == 1
         assert result["raw_data"]["image_check_results"][0]["repository_type"] == "external"
+
+    def _setup_service_with_sensitive_task_definition(self, mock_ecs):
+        """Configure the ECS mock with a service whose task definition carries secrets."""
+        mock_ecs.describe_clusters.return_value = {
+            "clusters": [create_sample_cluster_data("test-cluster")]
+        }
+        mock_ecs.describe_services.return_value = {
+            "services": [
+                {
+                    "serviceName": "test-service",
+                    "status": "ACTIVE",
+                    "taskDefinition": (
+                        "arn:aws:ecs:us-west-2:123456789012:task-definition/test-service:1"
+                    ),
+                }
+            ]
+        }
+        mock_ecs.describe_task_definition.return_value = {
+            "taskDefinition": {
+                "taskDefinitionArn": (
+                    "arn:aws:ecs:us-west-2:123456789012:task-definition/test-service:1"
+                ),
+                "containerDefinitions": [
+                    {
+                        "name": "app",
+                        "image": "nginx:latest",
+                        "environment": [
+                            {"name": "DB_PASSWORD", "value": "super-secret-password"},
+                        ],
+                        "secrets": [
+                            {
+                                "name": "API_KEY",
+                                "valueFrom": (
+                                    "arn:aws:secretsmanager:us-west-2:123456789012:"
+                                    "secret:prod/api-key"
+                                ),
+                            }
+                        ],
+                    }
+                ],
+            }
+        }
+
+    @pytest.mark.anyio
+    async def test_task_definition_secrets_redacted_by_default(self, mock_aws_clients, monkeypatch):
+        """With ALLOW_SENSITIVE_DATA unset, raw task definitions carry no secret values."""
+        monkeypatch.delenv("ALLOW_SENSITIVE_DATA", raising=False)
+        mock_ecs = mock_aws_clients["ecs"]
+        self._setup_service_with_sensitive_task_definition(mock_ecs)
+
+        with self.mock_aws_clients({"ecs": mock_ecs, "ecr": mock_aws_clients["ecr"]}):
+            result = await get_ecs_troubleshooting_guidance(
+                cluster_name="test-cluster",
+                service_name="test-service",
+            )
+
+        assert result["status"] == "success"
+        container = result["raw_data"]["task_definitions"][0]["containerDefinitions"][0]
+        assert container["environment"] == [{"name": "DB_PASSWORD", "value": REDACTED}]
+        assert container["secrets"] == [{"name": "API_KEY", "valueFrom": REDACTED}]
+
+        serialized = json.dumps(result)
+        assert "super-secret-password" not in serialized
+        assert "secretsmanager" not in serialized
+
+        # Redaction must not degrade the assessment or the image checks
+        assert "1 task definition" in result["assessment"]
+        assert len(result["raw_data"]["image_check_results"]) == 1
+        assert result["raw_data"]["image_check_results"][0]["image"] == "nginx:latest"
+
+    @pytest.mark.anyio
+    async def test_task_definition_secrets_returned_when_allowed(
+        self, mock_aws_clients, monkeypatch
+    ):
+        """With ALLOW_SENSITIVE_DATA=true the full task definition is returned."""
+        monkeypatch.setenv("ALLOW_SENSITIVE_DATA", "true")
+        mock_ecs = mock_aws_clients["ecs"]
+        self._setup_service_with_sensitive_task_definition(mock_ecs)
+
+        with self.mock_aws_clients({"ecs": mock_ecs, "ecr": mock_aws_clients["ecr"]}):
+            result = await get_ecs_troubleshooting_guidance(
+                cluster_name="test-cluster",
+                service_name="test-service",
+            )
+
+        assert result["status"] == "success"
+        container = result["raw_data"]["task_definitions"][0]["containerDefinitions"][0]
+        assert container["environment"][0]["value"] == "super-secret-password"
+        assert container["secrets"][0]["valueFrom"].startswith("arn:aws:secretsmanager:")
 
     @pytest.mark.anyio
     async def test_service_with_task_definition_error(self, mock_aws_clients):

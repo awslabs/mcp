@@ -228,22 +228,19 @@ async def get_aws_account_id(ctx: Context) -> str:
         str: The AWS account ID.
 
     Raises:
-        Exception: If unable to retrieve the AWS account ID.
+        ClientError, BotoCoreError: If STS fails. They propagate unwrapped so
+            handle_aws_error keeps the AWS error code (e.g. throttling is retryable).
     """
-    try:
-        # Create an STS client using shared utility
-        sts_client = create_aws_client('sts')
+    # Create an STS client using shared utility
+    sts_client = create_aws_client('sts')
 
-        await ctx.info('Retrieving AWS account ID from STS')
+    await ctx.info('Retrieving AWS account ID from STS')
 
-        # Call get-caller-identity to retrieve the account ID
-        response = sts_client.get_caller_identity()
+    # Call get-caller-identity to retrieve the account ID
+    response = sts_client.get_caller_identity()
 
-        # Extract and return the account ID
-        return response['Account']
-    except Exception as e:
-        # Proper error handling - raise the exception with a clear message
-        raise Exception(f'Failed to retrieve AWS account ID: {str(e)}')
+    # Extract and return the account ID
+    return response['Account']
 
 
 # =============================================================================

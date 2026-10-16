@@ -17,8 +17,60 @@ import httpx
 import markdownify
 import re
 from awslabs.aws_documentation_mcp_server.models import RecommendationResult
+from mcp.server.mcpserver.exceptions import ToolError
 from typing import Any, Dict, List, Sequence
 from urllib.parse import quote_plus, urljoin
+
+
+# An unresolved cross-reference leaves an href with no filename, e.g. './.html#anchor'.
+_EMPTY_TARGET_FILENAMES = frozenset({'.html', '.htm'})
+
+
+def has_empty_link_target(href: str) -> bool:
+    """Report whether an href points at a path with no filename."""
+    path = href.split('#', 1)[0].split('?', 1)[0].strip()
+    if not path:
+        return False  # fragment-only link; resolves to the current page
+    return path.rsplit('/', 1)[-1].casefold() in _EMPTY_TARGET_FILENAMES
+
+
+def _unwrap_broken_links(root) -> None:
+    """Replace links whose target has no filename with their own text."""
+    for anchor in root.find_all('a'):
+        href = anchor.get('href')
+        if isinstance(href, str) and has_empty_link_target(href):
+            anchor.unwrap()
+
+
+class DocumentationToolError(ToolError, ValueError):
+    """An anticipated failure whose message is meant for the caller.
+
+    The MCP SDK forwards a ``ToolError``'s message to the client and withholds the text of any
+    other exception, keeping crash details off the wire (python-sdk#3314). Every failure the read
+    path raises deliberately already builds a message for the caller, so those messages have to
+    travel as a ``ToolError`` to arrive at all.
+
+    ``ValueError`` stays in the bases because that is what these paths raised before, and callers
+    and tests catch it.
+    """
+
+
+class UnreadablePageError(DocumentationToolError):
+    """Raised when a page carries no extractable content, only markup."""
+
+
+def has_readable_text(soup) -> bool:
+    """Report whether a parsed document has body text outside scripts and styles."""
+    from bs4 import Comment
+
+    body = soup.body or soup
+    return any(
+        text.strip()
+        for text in body.find_all(string=True)
+        # comments are markup; <noscript> prose can be nested several levels down
+        if not isinstance(text, Comment)
+        and text.find_parent(['script', 'style', 'noscript']) is None
+    )
 
 
 def extract_content_from_html(html: str) -> str:
@@ -29,9 +81,12 @@ def extract_content_from_html(html: str) -> str:
 
     Returns:
         Simplified markdown version of the content
+
+    Raises:
+        UnreadablePageError: the page carries no extractable content
     """
     if not html:
-        return '<e>Empty HTML content</e>'
+        raise UnreadablePageError('Empty HTML content.')
 
     try:
         # First use BeautifulSoup to clean up the HTML
@@ -86,6 +141,13 @@ def extract_content_from_html(html: str) -> str:
             for element in main_content.select(selector):
                 element.decompose()
 
+        # strip= keeps a tag's text, so remove these outright
+        for selector in ('script', 'style'):
+            for element in main_content.select(selector):
+                element.decompose()
+
+        _unwrap_broken_links(main_content)
+
         # Define tags to strip - these are elements we don't want in the output
         tags_to_strip = [
             'script',
@@ -128,20 +190,22 @@ def extract_content_from_html(html: str) -> str:
         content = markdownify.markdownify(
             str(main_content),
             heading_style=markdownify.ATX,
-            autolinks=True,
-            default_title=True,
+            autolinks=False,  # markdownify gates this on default_title; keep [url](url)
+            default_title=False,  # would repeat the href as the title: [text](url "url")
             escape_asterisks=True,
             escape_underscores=True,
             newline_style='SPACES',
             strip=tags_to_strip,
         )
 
-        if not content:
-            return '<e>Page failed to be simplified from HTML</e>'
+        if not content.strip():
+            raise UnreadablePageError('Page failed to be simplified from HTML.')
 
         return content
+    except UnreadablePageError:
+        raise
     except Exception as e:
-        return f'<e>Error converting HTML to Markdown: {str(e)}</e>'
+        raise UnreadablePageError(f'Error converting HTML to Markdown: {str(e)}.') from e
 
 
 def is_html_content(page_raw: str, content_type: str) -> bool:
@@ -240,6 +304,9 @@ def extract_sections_from_html(html: str, section_titles: List[str]) -> str:
 
     soup = BeautifulSoup(html, 'html.parser')
 
+    if not has_readable_text(soup):
+        raise UnreadablePageError('The page carries no readable content.')
+
     normalized_titles = {}
     for title in section_titles:
         normalized_key = ' '.join(title.strip().lower().split())
@@ -251,10 +318,10 @@ def extract_sections_from_html(html: str, section_titles: List[str]) -> str:
     found_sections = set()
 
     for h2 in h2_tags:
-        h2_text = h2.get_text(strip=True)
+        h2_text = ' '.join(h2.get_text().split())
         available_level2_sections.append(h2_text)
 
-        normalized_h2 = ' '.join(h2_text.lower().split())
+        normalized_h2 = h2_text.lower()
 
         if normalized_h2 in normalized_titles:
             section_content = [h2]
@@ -274,10 +341,10 @@ def extract_sections_from_html(html: str, section_titles: List[str]) -> str:
         if available_level2_sections:
             available_list = ', '.join(f'"{section}"' for section in available_level2_sections)
             error_msg = f'No matching sections were found: {section_list}. Available sections: {available_list}. Please retry with one or more of these sections or use the read_documentation tool instead to get the full document content.'
-            raise ValueError(error_msg)
+            raise DocumentationToolError(error_msg)
         else:
             error_msg = 'This document does not contain subsections. Please use the read_documentation tool instead to get the full document content.'
-            raise ValueError(error_msg)
+            raise DocumentationToolError(error_msg)
 
     result_html = ''.join(matched_sections_html)
 
@@ -375,17 +442,6 @@ def parse_recommendation_results(data: Dict[str, Any]) -> List[RecommendationRes
         List of recommendation results
     """
     results = []
-
-    # Process highly rated recommendations
-    if 'highlyRated' in data and 'items' in data['highlyRated']:
-        for item in data['highlyRated']['items']:
-            context = item.get('abstract') if 'abstract' in item else None
-
-            results.append(
-                RecommendationResult(
-                    url=item.get('url', ''), title=item.get('assetTitle', ''), context=context
-                )
-            )
 
     # Process journey recommendations (organized by intent)
     if 'journey' in data and 'items' in data['journey']:

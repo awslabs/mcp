@@ -17,7 +17,7 @@
 These tests exercise the full MCP protocol stack in-process using
 ``create_connected_server_and_client_session`` from the MCP SDK.
 No subprocess, no network — bidirectional memory streams connect
-a real FastMCP server to a real ClientSession.
+a real MCPServer server to a real ClientSession.
 
 What's tested:
 - Tool discovery (list_tools) with default, opt-out, and opt-in configs
@@ -35,12 +35,49 @@ Run with: uv run pytest tests/browser/test_integ_mcp_protocol.py -v
 
 from __future__ import annotations
 
+import anyio
 import pytest
-from mcp.server.fastmcp import FastMCP
-from mcp.shared.memory import create_connected_server_and_client_session
+from contextlib import asynccontextmanager
+from mcp import ClientSession
+from mcp.server.mcpserver import MCPServer
+from mcp.shared.memory import create_client_server_memory_streams
 from mcp.types import TextContent
-from typing import Any, Callable
+from typing import Any, AsyncGenerator, Callable
 from unittest.mock import AsyncMock, MagicMock, patch
+
+
+@asynccontextmanager
+async def create_connected_server_and_client_session(
+    server: MCPServer,
+) -> AsyncGenerator[ClientSession, None]:
+    """Connect a real ClientSession to `server` over in-memory streams.
+
+    SDK v1 shipped this as `mcp.shared.memory.create_connected_server_and_client_session`.
+    v2 removed it and kept only the lower-level `create_client_server_memory_streams`, so
+    this reproduces the v1 behavior on top of that primitive. The private attribute holding
+    the low-level server was also renamed `_mcp_server` -> `_lowlevel_server` in v2.
+    """
+    lowlevel = server._lowlevel_server
+    async with create_client_server_memory_streams() as (client_streams, server_streams):
+        client_read, client_write = client_streams
+        server_read, server_write = server_streams
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(
+                lambda: lowlevel.run(
+                    server_read,
+                    server_write,
+                    lowlevel.create_initialization_options(),
+                    raise_exceptions=False,
+                )
+            )
+            try:
+                async with ClientSession(
+                    read_stream=client_read, write_stream=client_write
+                ) as client_session:
+                    await client_session.initialize()
+                    yield client_session
+            finally:
+                tg.cancel_scope.cancel()
 
 
 # ---------------------------------------------------------------------------
@@ -253,8 +290,8 @@ _ALL_SERVICES = 'browser,runtime,memory,identity,gateway,policy'
 # ---------------------------------------------------------------------------
 
 
-def _build_server(*, disable: str | None = None, enable: str | None = None) -> FastMCP:
-    """Build a fresh FastMCP server mirroring server.py registration.
+def _build_server(*, disable: str | None = None, enable: str | None = None) -> MCPServer:
+    """Build a fresh MCPServer server mirroring server.py registration.
 
     Creates an isolated server instance with env-var-driven
     opt-in/opt-out, without touching the module-level singleton.
@@ -274,7 +311,7 @@ def _build_server(*, disable: str | None = None, enable: str | None = None) -> F
         if enable is not None:
             os.environ['AGENTCORE_ENABLE_TOOLS'] = enable
 
-        server = FastMCP(
+        server = MCPServer(
             'test-agentcore-mcp',
             instructions=AGENTCORE_MCP_INSTRUCTIONS,
         )
@@ -451,7 +488,7 @@ class TestToolSchemas:
                 if tool.name in session_lifecycle_tools:
                     continue
 
-                schema = tool.inputSchema
+                schema = tool.input_schema
                 required = schema.get('required', [])
                 properties = schema.get('properties', {})
                 assert 'session_id' in properties, f'Browser tool {tool.name} missing session_id'
@@ -466,7 +503,7 @@ class TestToolSchemas:
             result = await client.list_tools()
 
             start_tool = next(t for t in result.tools if t.name == 'start_browser_session')
-            props = start_tool.inputSchema.get('properties', {})
+            props = start_tool.input_schema.get('properties', {})
             assert 'viewport_width' in props
             assert 'viewport_height' in props
             assert 'timeout_seconds' in props
@@ -490,7 +527,7 @@ class TestToolSchemas:
                 if tool.name in exempt:
                     continue
 
-                schema = tool.inputSchema
+                schema = tool.input_schema
                 required = schema.get('required', [])
                 assert 'memory_id' in required, f'Memory tool {tool.name} should require memory_id'
 
@@ -523,7 +560,7 @@ class TestToolSchemas:
             }
             for tool in identity_tools:
                 if tool.name in name_required_tools:
-                    required = tool.inputSchema.get('required', [])
+                    required = tool.input_schema.get('required', [])
                     assert 'name' in required, f'{tool.name} should require "name"'
 
             arn_required_tools = {
@@ -533,7 +570,7 @@ class TestToolSchemas:
             }
             for tool in identity_tools:
                 if tool.name in arn_required_tools:
-                    required = tool.inputSchema.get('required', [])
+                    required = tool.input_schema.get('required', [])
                     assert 'resource_arn' in required, f'{tool.name} should require "resource_arn"'
 
     @pytest.mark.skipif(
@@ -559,7 +596,7 @@ class TestToolSchemas:
                 if tool.name not in target_tools:
                     continue
 
-                schema = tool.inputSchema
+                schema = tool.input_schema
                 required = schema.get('required', [])
                 properties = schema.get('properties', {})
                 assert 'gateway_identifier' in properties, (
@@ -589,7 +626,7 @@ class TestToolSchemas:
                 if tool.name not in rp_tools:
                     continue
 
-                schema = tool.inputSchema
+                schema = tool.input_schema
                 required = schema.get('required', [])
                 assert 'resource_arn' in required, f'{tool.name} should require resource_arn'
 
@@ -615,7 +652,7 @@ class TestToolSchemas:
                 if tool.name in exempt:
                     continue
 
-                schema = tool.inputSchema
+                schema = tool.input_schema
                 required = schema.get('required', [])
                 properties = schema.get('properties', {})
                 assert 'policy_engine_id' in properties, f'{tool.name} missing policy_engine_id'
@@ -634,8 +671,8 @@ class TestToolSchemas:
             result = await client.list_tools()
 
             tool = next(t for t in result.tools if t.name == 'policy_engine_create')
-            props = tool.inputSchema.get('properties', {})
-            required = tool.inputSchema.get('required', [])
+            props = tool.input_schema.get('properties', {})
+            required = tool.input_schema.get('required', [])
 
             assert 'name' in required
             assert 'description' in props
@@ -837,7 +874,7 @@ class TestGracefulDegradation:
 
     async def test_server_works_without_browser_import(self):
         """If browser import fails, server still serves base tools."""
-        server = FastMCP('test-degraded')
+        server = MCPServer('test-degraded')
         from awslabs.amazon_bedrock_agentcore_mcp_server.tools import (
             docs,
         )

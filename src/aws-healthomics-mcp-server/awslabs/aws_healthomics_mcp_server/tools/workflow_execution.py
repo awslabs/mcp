@@ -21,6 +21,7 @@ from awslabs.aws_healthomics_mcp_server.consts import (
     ERROR_CONFIGURATION_NAME_REQUIRES_VPC_MODE,
     ERROR_INVALID_CACHE_BEHAVIOR,
     ERROR_INVALID_NETWORKING_MODE,
+    ERROR_INVALID_RUN_LOG_LEVEL,
     ERROR_INVALID_RUN_STATUS,
     ERROR_INVALID_SCRATCH_STORAGE_MODE,
     ERROR_INVALID_STORAGE_TYPE,
@@ -29,6 +30,7 @@ from awslabs.aws_healthomics_mcp_server.consts import (
     NETWORKING_MODE_RESTRICTED,
     NETWORKING_MODE_VPC,
     NETWORKING_MODES,
+    RUN_LOG_LEVELS,
     RUN_STATUSES,
     SCRATCH_STORAGE_MODES,
     STORAGE_TYPE_STATIC,
@@ -37,11 +39,12 @@ from awslabs.aws_healthomics_mcp_server.consts import (
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_omics_client
 from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
 from awslabs.aws_healthomics_mcp_server.utils.s3_utils import ensure_s3_uri_ends_with_slash
+from awslabs.aws_healthomics_mcp_server.utils.validation_utils import normalize_session_policy
 from datetime import datetime
 from loguru import logger
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from pydantic import Field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 
 def parse_iso_datetime(iso_string: str) -> datetime:
@@ -190,6 +193,27 @@ async def start_run(
             'API default is SHARED).'
         ),
     ),
+    log_level: Optional[str] = Field(
+        None,
+        description=(
+            'Log level for the run. Allowed values: OFF, FATAL, ERROR, ALL. '
+            'Controls how much engine output (STDOUT/STDERR/Nextflow logs) is captured '
+            'to CloudWatch. When omitted, the HealthOmics API default applies. '
+            'Set to ALL to capture full engine logs for debugging.'
+        ),
+    ),
+    tags: Optional[Dict[str, str]] = Field(
+        None,
+        description='Optional tags (key-value pairs) to apply to the run',
+    ),
+    session_policy: Optional[Union[str, Dict[str, Any]]] = Field(
+        None,
+        description=(
+            'Optional inline IAM session policy (JSON string or object, max 2048 characters) '
+            'that scopes down the permissions of role_arn for this run. The effective '
+            'permissions are the intersection of the role policy and the session policy.'
+        ),
+    ),
     aws_profile: Optional[str] = Field(
         None,
         description='AWS profile name for this operation. Overrides the default credential chain.',
@@ -222,6 +246,12 @@ async def start_run(
         networking_mode: Optional networking mode (RESTRICTED or VPC)
         configuration_name: Optional configuration name (required when networking_mode is VPC)
         scratch_storage_mode: Optional scratch storage mode (LOCAL or SHARED); defaults to LOCAL
+        log_level: Optional log level for the run (OFF, FATAL, ERROR, or ALL).
+            Controls engine log capture to CloudWatch. Defaults to the HealthOmics API
+            default when omitted.
+        tags: Optional tags (key-value pairs) to apply to the run
+        session_policy: Optional inline IAM session policy (JSON string or dict) that
+            scopes down the permissions of role_arn for this run
         aws_profile: Optional AWS profile name override
         aws_region: Optional AWS region override
 
@@ -301,6 +331,27 @@ async def start_run(
             'Invalid scratch storage mode',
         )
 
+    # Normalize log_level: only treat a real string as provided (guards against an
+    # unresolved Field default leaking through when called outside the MCP framework)
+    effective_log_level = log_level if isinstance(log_level, str) else None
+
+    # Validate log level
+    if effective_log_level is not None and effective_log_level not in RUN_LOG_LEVELS:
+        return await handle_tool_error(
+            ctx,
+            ValueError(ERROR_INVALID_RUN_LOG_LEVEL.format(RUN_LOG_LEVELS)),
+            'Invalid log level',
+        )
+
+    # Normalize tags the same way (guards against an unresolved Field default)
+    effective_tags = tags if isinstance(tags, dict) else None
+
+    # Validate and serialize the session policy
+    try:
+        effective_session_policy = normalize_session_policy(session_policy)
+    except ValueError as e:
+        return await handle_tool_error(ctx, e, 'Invalid session policy')
+
     # Ensure output URI ends with a slash
     try:
         output_uri = ensure_s3_uri_ends_with_slash(output_uri)
@@ -338,6 +389,16 @@ async def start_run(
         params['networkingMode'] = networking_mode
         params['configurationName'] = configuration_name
 
+    # Only set logLevel when provided, to preserve the HealthOmics API default otherwise
+    if effective_log_level is not None:
+        params['logLevel'] = effective_log_level
+
+    if effective_tags is not None:
+        params['tags'] = effective_tags
+
+    if effective_session_policy is not None:
+        params['sessionPolicy'] = effective_session_policy
+
     try:
         response = client.start_run(**params)
 
@@ -356,6 +417,7 @@ async def start_run(
             if networking_mode is not None
             else NETWORKING_MODE_RESTRICTED,
             'scratchStorageMode': effective_scratch_storage_mode,
+            'logLevel': effective_log_level,
         }
     except Exception as e:
         return await handle_tool_error(ctx, e, 'Error starting run')
@@ -517,14 +579,32 @@ async def list_runs(
 
             result = {'runs': result_runs}
 
-            # If we have more filtered results than max_results, we could implement
-            # a custom pagination token, but for simplicity we'll omit nextToken
-            # when client-side filtering is applied
-            if len(filtered_runs) > max_results:
-                logger.info(
-                    f'Client-side filtering returned {len(filtered_runs)} results, '
-                    f'truncated to {max_results}. Pagination not supported with date filters.'
-                )
+            # If the filtered set was truncated to max_results, signal that more
+            # matching runs may exist rather than silently returning a short page.
+            # The upstream token (if any) is a best-effort resume point, not a fully
+            # correct cursor: resuming with it fetches upstream pages after the
+            # batches already scanned, so it skips the excess matches that were
+            # already fetched into this batch but discarded here by truncation.
+            if len(filtered_runs) >= max_results:
+                if current_token:
+                    result['nextToken'] = current_token
+                    logger.info(
+                        f'Client-side filtering returned {len(filtered_runs)} results, '
+                        f'truncated to {max_results}. Returning upstream nextToken so '
+                        'the caller can continue pagination.'
+                    )
+                elif len(filtered_runs) > max_results:
+                    # Matching runs were discarded by the max_results slice above and
+                    # upstream is exhausted, so there is no token to hand back at all.
+                    # Raise the pagination.has_more flag the wrapper's nested-pagination
+                    # idiom already recognizes, so it reports this page as incomplete
+                    # instead of fabricating a COMPLETE result.
+                    result['pagination'] = {'has_more': True}
+                    logger.info(
+                        f'Client-side filtering returned {len(filtered_runs)} results, '
+                        f'truncated to {max_results}. No further upstream pages are '
+                        'available, so no nextToken can be issued for the remaining matches.'
+                    )
 
             return result
         else:
@@ -608,6 +688,7 @@ async def get_run(
             'failureReason',
             'workflowVersionName',
             'scratchStorageMode',
+            'sessionPolicy',
         ]:
             if field in response:
                 result[field] = response[field]

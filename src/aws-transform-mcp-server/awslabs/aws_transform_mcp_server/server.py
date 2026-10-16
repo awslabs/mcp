@@ -14,7 +14,7 @@
 
 """Entry point for the AWS Transform MCP server.
 
-Creates a FastMCP instance with full guidance instructions and registers
+Creates a MCPServer instance with full guidance instructions and registers
 all tool handlers.
 """
 
@@ -50,7 +50,7 @@ from awslabs.aws_transform_mcp_server.tools.load_instructions import LoadInstruc
 from awslabs.aws_transform_mcp_server.tools.workspace import WorkspaceHandler
 from awslabs.aws_transform_mcp_server.transform_api_client import call_fes_direct_sigv4
 from loguru import logger
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from pathlib import Path
 
 
@@ -131,19 +131,19 @@ may still be generating.
 """
 
 
-def create_server() -> FastMCP:
-    """Create and return a configured FastMCP server instance.
+def create_server() -> MCPServer:
+    """Create and return a configured MCPServer server instance.
 
     Separated from main() for testability.
     """
-    return FastMCP(
+    return MCPServer(
         'awslabs.aws-transform-mcp-server',
         instructions=INSTRUCTIONS,
         dependencies=['boto3', 'botocore[crt]', 'pydantic', 'loguru', 'httpx'],
     )
 
 
-def _register_handlers(mcp: FastMCP) -> None:
+def _register_handlers(mcp: MCPServer) -> None:
     """Import and instantiate all tool handler classes on *mcp*.
 
     All tools are registered at startup regardless of auth state.

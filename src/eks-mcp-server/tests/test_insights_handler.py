@@ -18,7 +18,7 @@ import json
 import pytest
 from awslabs.eks_mcp_server.insights_handler import InsightsHandler
 from datetime import datetime
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from mcp.types import TextContent
 from unittest.mock import MagicMock, patch
 
@@ -127,7 +127,7 @@ class TestInsightsHandler:
         mock_eks_client.list_insights.assert_called_once_with(clusterName='test-cluster')
         mock_eks_client.describe_insight.assert_not_called()
 
-        assert not result.isError
+        assert not result.is_error
         data = json.loads(result.content[1].text)
         assert data['detail_mode'] is False
         assert len(data['insights']) == 1
@@ -159,7 +159,7 @@ class TestInsightsHandler:
         mock_eks_client.list_insights.assert_called_once_with(clusterName='test-cluster')
 
         # Verify the result
-        assert not result.isError
+        assert not result.is_error
 
         # Parse JSON data from content
         data = json.loads(result.content[1].text)
@@ -211,7 +211,7 @@ class TestInsightsHandler:
         )
 
         # Verify the result
-        assert not result.isError
+        assert not result.is_error
 
         # Parse JSON data from content
         data = json.loads(result.content[1].text)
@@ -270,7 +270,7 @@ class TestInsightsHandler:
         )
 
         # Verify the result
-        assert not result.isError
+        assert not result.is_error
 
         # Parse JSON data from content
         data = json.loads(result.content[1].text)
@@ -314,7 +314,7 @@ class TestInsightsHandler:
         )
 
         # Verify the result
-        assert not result.isError
+        assert not result.is_error
 
         # Parse JSON data from content
         data = json.loads(result.content[1].text)
@@ -344,7 +344,7 @@ class TestInsightsHandler:
         mock_eks_client.list_insights.assert_called_once_with(clusterName='test-cluster')
 
         # Verify error response
-        assert result.isError
+        assert result.is_error
         assert isinstance(result.content[0], TextContent)
         assert 'Error listing insights' in result.content[0].text
         assert 'Test API error' in result.content[0].text
@@ -371,7 +371,7 @@ class TestInsightsHandler:
         mock_eks_client.list_insights.assert_called_once_with(clusterName='test-cluster')
 
         # Verify appropriate empty response (not an error)
-        assert not result.isError
+        assert not result.is_error
 
         # Parse JSON data from content
         data = json.loads(result.content[1].text)
@@ -414,7 +414,7 @@ class TestInsightsHandler:
         )
 
         # Verify error response
-        assert result.isError
+        assert result.is_error
         assert isinstance(
             result.content[0], TextContent
         )  # Ensure it's TextContent before accessing .text
@@ -445,7 +445,7 @@ class TestInsightsHandler:
         mock_eks_client.list_insights.assert_called_once_with(clusterName='test-cluster')
 
         # Verify the result
-        assert not result.isError
+        assert not result.is_error
 
         # Parse JSON data from content
         data = json.loads(result.content[1].text)
@@ -469,7 +469,7 @@ class TestInsightsHandler:
         )
 
         # Verify the result
-        assert not result.isError
+        assert not result.is_error
 
         # Parse JSON data from content
         data = json.loads(result.content[1].text)
@@ -498,7 +498,7 @@ class TestInsightsHandler:
             )
 
         # Verify error response
-        assert result.isError
+        assert result.is_error
         assert isinstance(result.content[0], TextContent)
         assert 'Error processing EKS insights request' in result.content[0].text
         assert 'Test general exception' in result.content[0].text
@@ -525,7 +525,7 @@ class TestInsightsHandler:
         )
 
         # Verify error response
-        assert result.isError
+        assert result.is_error
         assert isinstance(result.content[0], TextContent)
         assert 'Error retrieving insight details' in result.content[0].text
         assert 'Test detail API error' in result.content[0].text

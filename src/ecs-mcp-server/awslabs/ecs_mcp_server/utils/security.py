@@ -16,12 +16,14 @@
 Security utilities for the ECS MCP Server.
 """
 
+import copy
 import functools
 import json
 import logging
 import re
 from typing import Any, Awaitable, Callable, Dict, Literal, Optional, Set
 
+from awslabs.ecs_mcp_server.utils.config import get_config
 from awslabs.ecs_mcp_server.utils.path_validation import validate_path
 
 logger = logging.getLogger(__name__)
@@ -33,6 +35,9 @@ PERMISSION_NONE = "none"
 
 # Define permission type
 PermissionType = Literal["write", "sensitive-data", "none"]
+
+# Placeholder written in place of a sensitive value when ALLOW_SENSITIVE_DATA is disabled.
+REDACTED = "[REDACTED]"
 
 
 class SecurityError(Exception):
@@ -180,6 +185,80 @@ def check_permission(config: Dict[str, Any], permission_type: PermissionType) ->
         )
 
     return True
+
+
+# Typed ECS API fields whose value is a secret or a reference to stored credentials, wherever
+# they appear in a response:
+# - valueFrom: Secret (container secrets and log driver secretOptions)
+# - credentialsParameter: private registry and FSx volume credentials
+# - tokenValue: ExecuteCommand session token
+_REFERENCE_FIELDS = frozenset({"valueFrom", "credentialsParameter", "tokenValue"})
+
+# List fields whose string items are credential references (credential spec ARNs).
+_REFERENCE_LIST_FIELDS = frozenset({"credentialSpecs"})
+
+# List fields whose items carry a sensitive "value": environment variables (KeyValuePair) and
+# environment files (S3 ARN). "value" is redacted only under these keys, so tags, attributes and
+# resource requirements keep theirs.
+_VALUE_LIST_FIELDS = frozenset({"environment", "environmentFiles"})
+
+
+def _redact_in_place(node: Any, parent_key: Optional[str] = None) -> None:
+    """Redacts the typed sensitive fields anywhere inside an ECS API structure, in place."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key in _REFERENCE_FIELDS or (key == "value" and parent_key in _VALUE_LIST_FIELDS):
+                node[key] = REDACTED
+            elif key in _REFERENCE_LIST_FIELDS and isinstance(value, list):
+                node[key] = [REDACTED for _ in value]
+            else:
+                _redact_in_place(value, key)
+    elif isinstance(node, list):
+        for item in node:
+            _redact_in_place(item, parent_key)
+
+
+def redact_sensitive_fields(data: Any) -> Any:
+    """
+    Returns a deep copy of an ECS API response or fragment with its sensitive fields redacted.
+
+    Covers the typed fields the ECS API uses for configuration values and credentials:
+    environment variable values, environment file locations, secret references (``valueFrom``),
+    credential references (``credentialsParameter``, ``credentialSpecs``) and ExecuteCommand
+    session tokens, wherever they occur. Names are kept, so the structure stays useful for
+    troubleshooting. Free-form fields such as ``command``, ``entryPoint``, ``dockerLabels`` and
+    log driver ``options`` are not inspected.
+
+    Args:
+        data: An ECS API response, or any fragment of one (a task definition, a service, a list)
+
+    Returns:
+        Any: A deep copy with sensitive values replaced by "[REDACTED]"
+    """
+    redacted = copy.deepcopy(data)
+    _redact_in_place(redacted)
+    return redacted
+
+
+def redact_unless_sensitive_data_allowed(data: Any, config: Optional[Dict[str, Any]] = None) -> Any:
+    """
+    Applies the ALLOW_SENSITIVE_DATA policy to an ECS API response or fragment.
+
+    Returns the data unchanged when sensitive data access is enabled, otherwise a redacted
+    deep copy (see redact_sensitive_fields).
+
+    Args:
+        data: An ECS API response, or any fragment of one
+        config: Server configuration; loaded with get_config() when omitted
+
+    Returns:
+        Any: The original data, or a redacted copy
+    """
+    if config is None:
+        config = get_config()
+    if config.get("allow-sensitive-data", False):
+        return data
+    return redact_sensitive_fields(data)
 
 
 class ResponseSanitizer:

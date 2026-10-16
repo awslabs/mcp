@@ -22,7 +22,7 @@ from typing import Dict, List, Optional
 
 import boto3
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import Field
 
 from awslabs.well_architected_security_mcp_server.consts import INSTRUCTIONS
@@ -59,7 +59,7 @@ logger.remove()
 logger.add(sys.stderr, level=os.getenv("FASTMCP_LOG_LEVEL", "DEBUG"))
 
 # Initialize MCP Server
-mcp = FastMCP(
+mcp = MCPServer(
     "well-architected-security-mcp-server",
     instructions=INSTRUCTIONS,
     dependencies=[
@@ -1156,8 +1156,10 @@ def main():
     # Run server with appropriate transport
     if args.sse:
         logger.info(f"Running MCP server with SSE transport on port {args.port}")
-        mcp.settings.port = args.port
-        mcp.run(transport="sse")
+        # SDK v2 moved the transport settings (port, host, paths) off the `Settings` model and
+        # onto `run()`, which forwards them to `run_sse_async`. Assigning `mcp.settings.port`
+        # now raises a pydantic ValueError because the field no longer exists.
+        mcp.run(transport="sse", port=args.port)
     else:
         logger.info("Running MCP server with default transport")
         mcp.run()

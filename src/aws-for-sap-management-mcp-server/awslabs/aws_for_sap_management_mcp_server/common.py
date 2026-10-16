@@ -56,7 +56,7 @@ async def request_consent(operation_description: str, acknowledgment_text: str, 
         acknowledgment_text: Text the user must acknowledge.
         ctx: MCP context object supporting elicitation.
     """
-    from mcp.shared.exceptions import McpError
+    from mcp.shared.exceptions import MCPError
     from mcp.types import METHOD_NOT_FOUND
     from pydantic import BaseModel, Field
 
@@ -80,7 +80,7 @@ async def request_consent(operation_description: str, acknowledgment_text: str, 
 
         if elicitation_result.action != 'accept' or not elicitation_result.data.acknowledge:
             raise ValueError('User rejected the operation.')
-    except McpError as e:
+    except MCPError as e:
         if e.error.code == METHOD_NOT_FOUND:
             raise ValueError(
                 'Client does not support elicitation. '

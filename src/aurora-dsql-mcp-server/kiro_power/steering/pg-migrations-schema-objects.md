@@ -58,8 +58,8 @@ CREATE TABLE tickets (
 );
 ```
 
-**Important:** Define CHECK constraints at CREATE TABLE time in DSQL. Use the Table Recreation
-Pattern to add CHECK constraints to existing tables.
+**Important:** Define CHECK constraints inline for new tables. For existing tables, use
+`ALTER TABLE ... ADD CONSTRAINT ... CHECK (...) NOT VALID`, then validate asynchronously.
 
 **Conversion steps:**
 

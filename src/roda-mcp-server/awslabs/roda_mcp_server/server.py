@@ -219,6 +219,102 @@ async def fetch_datasets() -> list[dict[str, Any]]:
             return datasets
 
 
+# Common English stop words plus generic dataset filler. Removed from queries
+# so multi-word natural-language searches narrow the result set instead of
+# matching nearly everything via substring.
+_STOP_WORDS = frozenset(
+    {
+        'data',
+        'dataset',
+        'datasets',
+        'a',
+        'an',
+        'the',
+        'and',
+        'or',
+        'of',
+        'for',
+        'with',
+        'to',
+        'in',
+        'on',
+        'is',
+        'are',
+        'be',
+        'by',
+        'from',
+        'as',
+        'at',
+        'that',
+        'this',
+        'these',
+        'those',
+        'it',
+        'its',
+        'i',
+        'we',
+        'you',
+        'my',
+        'our',
+        'your',
+        'me',
+        'about',
+        'into',
+        'over',
+        'under',
+        'any',
+        'all',
+        'some',
+        'show',
+        'find',
+        'get',
+        'give',
+        'want',
+        'need',
+        'looking',
+        'related',
+        'available',
+    }
+)
+
+
+def _word_match(term: str, text: str) -> bool:
+    """Return True if term appears as a whole word in text."""
+    return re.search(r'\b' + re.escape(term) + r'\b', text) is not None
+
+
+def _relevance_score(
+    name: str, description: str, tags: list[str], query_terms: list[str]
+) -> float:
+    """Score a dataset's relevance to the query terms.
+
+    Weights field and match type so datasets centrally about a term (exact tag,
+    name) rank above ones that merely mention it in prose, and rewards covering
+    more of the distinct query terms. All inputs are expected lower-cased.
+    """
+    score = 0.0
+    matched_terms = 0
+    for term in query_terms:
+        term_score = 0.0
+        if term in tags:
+            term_score = 6.0  # exact tag match — strongest signal
+        elif any(term in tag for tag in tags):
+            term_score = 3.0
+        if _word_match(term, name):
+            term_score = max(term_score, 5.0)
+        elif term in name:
+            term_score = max(term_score, 2.5)
+        if _word_match(term, description):
+            term_score = max(term_score, 1.5)
+        elif term in description:
+            term_score = max(term_score, 0.5)
+        if term_score > 0:
+            matched_terms += 1
+            score += term_score
+    # Coverage bonus: reward datasets that match more of the distinct terms.
+    return score + matched_terms
+
+
 @mcp.tool()
 async def search_datasets(
     query: str,
@@ -253,9 +349,9 @@ async def search_datasets(
     limit = max(1, min(limit, 20))
     query_lower = query.lower()
 
-    # Split query into individual terms and filter out generic noise words
-    IGNORED_TERMS = {'data', 'dataset', 'datasets'}
-    query_terms = [term for term in query_lower.split() if term not in IGNORED_TERMS]
+    # Split query into terms and drop stop words so multi-word natural-language
+    # queries narrow the result set instead of matching nearly everything.
+    query_terms = [term for term in query_lower.split() if term not in _STOP_WORDS]
     if not query_terms:
         query_terms = [query_lower]
 
@@ -309,11 +405,16 @@ async def search_datasets(
                 'tags': dataset.get('Tags') or [],
                 'managed_by': dataset.get('ManagedBy') or '',
                 'license': dataset.get('License') or 'Not specified',
+                'score': _relevance_score(name, description, dtags, query_terms),
             }
         )
         all_tags.extend(dataset.get('Tags') or [])
 
     total_count = len(all_matches)
+
+    # Rank by relevance so the best match rises to the top; the provider
+    # diversification below then applies within relevance order.
+    all_matches.sort(key=lambda m: m['score'], reverse=True)
 
     # Top 5 categories from matched results
     tag_counts = Counter(all_tags)
@@ -329,7 +430,7 @@ async def search_datasets(
         provider = match['managed_by']
         slug = match['slug']
         if provider not in provider_counts and slug not in seen_slugs:
-            result_copy = {k: v for k, v in match.items() if k != 'tags'}
+            result_copy = {k: v for k, v in match.items() if k not in ('tags', 'score')}
             results.append(result_copy)
             seen_slugs.add(slug)
             provider_counts[provider] = 1
@@ -340,7 +441,7 @@ async def search_datasets(
         for match in all_matches:
             slug = match['slug']
             if slug not in seen_slugs:
-                result_copy = {k: v for k, v in match.items() if k != 'tags'}
+                result_copy = {k: v for k, v in match.items() if k not in ('tags', 'score')}
                 results.append(result_copy)
                 seen_slugs.add(slug)
                 if len(results) >= limit:

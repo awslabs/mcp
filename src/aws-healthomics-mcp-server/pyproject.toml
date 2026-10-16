@@ -1,14 +1,14 @@
 [project]
 name = "awslabs.aws-healthomics-mcp-server"
-version = "0.0.44"
+version = "0.1.5"
 description = "An AWS Labs Model Context Protocol (MCP) server for AWS HealthOmics"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "boto3>=1.43.36",
-    "botocore>=1.43.36",
+    "boto3>=1.43.90",
+    "botocore>=1.43.90",
     "loguru>=0.7.0",
-    "mcp[cli]>=1.23.0,<2.0.0",
+    "mcp[cli]>=2.0.0,<3.0.0",
     "pydantic>=2.10.6",
     "miniwdl>=1.12.0",
     "cwltool[deps]>=3.1.0",
@@ -49,7 +49,6 @@ changelog = "https://github.com/awslabs/mcp/blob/main/src/aws-healthomics-mcp-se
 
 [dependency-groups]
 dev = [
-    "commitizen>=4.2.2",
     "pre-commit>=4.1.0",
     "ruff>=0.9.7",
     "pyright>=1.1.398",
@@ -111,21 +110,11 @@ docstring-code-format = true
 include = ["awslabs", "tests"]
 exclude = ["**/__pycache__", "**/.venv", "**/node_modules", "**/dist", "**/build"]
 
-[tool.commitizen]
-name = "cz_conventional_commits"
-version = "0.0.0"
-tag_format = "v$version"
-version_files = [
-    "pyproject.toml:version",
-    "awslabs/aws_healthomics_mcp_server/__init__.py:__version__"
-]
-update_changelog_on_bump = true
-
 [tool.hatch.build.targets.wheel]
 packages = ["awslabs"]
 
 [tool.bandit]
-exclude_dirs = ["venv", ".venv", "tests"]
+exclude_dirs = ["venv", ".venv", "tests", "integration"]
 
 [tool.pytest.ini_options]
 python_files = "test_*.py"
@@ -135,7 +124,8 @@ testpaths = [ "tests"]
 asyncio_mode = "auto"
 markers = [
     "live: marks tests that make live API calls (deselect with '-m \"not live\"')",
-    "asyncio: marks tests that use asyncio"
+    "asyncio: marks tests that use asyncio",
+    "integration: marks opt-in remote-deployment integration tests under integration/ (deselect with '-m \"not integration\"')"
 ]
 
 [tool.coverage.report]

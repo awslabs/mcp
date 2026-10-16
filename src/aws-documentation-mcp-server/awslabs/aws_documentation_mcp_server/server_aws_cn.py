@@ -22,6 +22,7 @@ from awslabs.aws_documentation_mcp_server.server_utils import (
 
 # Import utility functions
 from awslabs.aws_documentation_mcp_server.util import (
+    UnreadablePageError,
     enforce_redirect_allowlist,
     extract_content_from_html,
     format_documentation_result,
@@ -29,7 +30,7 @@ from awslabs.aws_documentation_mcp_server.util import (
     url_matches_allowlist,
 )
 from loguru import logger
-from mcp.server.fastmcp import Context, FastMCP
+from mcp.server.mcpserver import Context, MCPServer
 from pydantic import AnyUrl, Field
 from typing import Union
 
@@ -39,7 +40,7 @@ SESSION_UUID = str(uuid.uuid4())
 # China partition domain allowlist
 CN_ALLOWED_DOMAIN_REGEXES = (r'^https?://docs\.amazonaws\.cn/',)
 
-mcp = FastMCP(
+mcp = MCPServer(
     'awslabs.aws-documentation-mcp-server',
     instructions="""
     # AWS China Documentation MCP Server
@@ -234,7 +235,12 @@ async def get_available_services(
         )
 
     if is_html_content(page_raw, content_type):
-        content = extract_content_from_html(page_raw)
+        try:
+            content = extract_content_from_html(page_raw)
+        except UnreadablePageError as e:
+            logger.error(f'Failed to read {url_str}: {e}')
+            await ctx.error(f'Failed to read {url_str}: {e}')
+            content = f'Note: {e}'
     else:
         content = page_raw
 

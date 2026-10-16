@@ -3,7 +3,7 @@
 import pytest
 from awslabs.healthimaging_mcp_server.server import app
 from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 from unittest.mock import MagicMock, patch
 
 
@@ -11,8 +11,8 @@ class TestHealthImagingServer:
     """Test the HealthImaging MCP server tools."""
 
     def test_app_is_fastmcp_instance(self):
-        """Test that app is a FastMCP instance."""
-        assert isinstance(app, FastMCP)
+        """Test that app is a MCPServer instance."""
+        assert isinstance(app, MCPServer)
 
     def test_create_datastore_success(self):
         """Test successful datastore creation."""

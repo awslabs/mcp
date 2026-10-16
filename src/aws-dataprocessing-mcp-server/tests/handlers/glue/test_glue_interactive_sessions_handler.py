@@ -16,7 +16,7 @@ from awslabs.aws_dataprocessing_mcp_server.handlers.glue.interactive_sessions_ha
     GlueInteractiveSessionsHandler,
 )
 from botocore.exceptions import ClientError
-from mcp.server.fastmcp import Context
+from mcp.server.mcpserver import Context
 from tests.test_utils import CallToolResultWrapper
 from unittest.mock import MagicMock, patch
 
@@ -106,7 +106,7 @@ async def test_create_session_success(mock_prepare_tags, mock_create_client):
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully created session test-session' in result.content[0].text
@@ -166,7 +166,7 @@ async def test_create_session_no_write_access(mock_create_client):
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result indicates an error due to no write access
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert 'Operation create-session is not allowed without write access' in result.content[0].text
@@ -223,7 +223,7 @@ async def test_delete_session_success(
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully deleted session test-session' in result.content[0].text
@@ -286,7 +286,7 @@ async def test_delete_session_not_mcp_managed(
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result indicates an error because the session is not MCP managed
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert (
@@ -333,7 +333,7 @@ async def test_get_session_success(mock_create_client):
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved session test-session' in result.content[0].text
@@ -386,7 +386,7 @@ async def test_list_sessions_success(mock_create_client):
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved sessions' in result.content[0].text
@@ -456,7 +456,7 @@ async def test_stop_session_success(
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully stopped session test-session' in result.content[0].text
@@ -500,7 +500,7 @@ async def test_session_not_found(mock_create_client):
     )
 
     # Verify the result indicates an error because the session was not found
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert 'Session test-session not found' in result.content[0].text
@@ -535,7 +535,7 @@ async def test_session_invalid_operation(mock_create_client):
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result indicates an error due to invalid operation
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert (
@@ -581,7 +581,7 @@ async def test_run_statement_success(mock_create_client):
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully ran statement in session test-session' in result.content[0].text
@@ -626,7 +626,7 @@ async def test_run_statement_no_write_access(mock_create_client):
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result indicates an error due to no write access
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert 'Operation run-statement is not allowed without write access' in result.content[0].text
@@ -664,7 +664,7 @@ async def test_cancel_statement_success(mock_create_client):
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully canceled statement 1 in session test-session' in result.content[0].text
@@ -718,7 +718,7 @@ async def test_get_statement_success(mock_create_client):
     result = CallToolResultWrapper(raw_result)
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved statement 1 in session test-session' in result.content[0].text
@@ -766,7 +766,7 @@ async def test_list_statements_success(mock_create_client):
     )
 
     # Verify the result
-    assert not result.isError
+    assert not result.is_error
     assert len(result.content) == 2
     assert result.content[0].type == 'text'
     assert 'Successfully retrieved statements for session test-session' in result.content[0].text
@@ -814,7 +814,7 @@ async def test_statement_invalid_operation(mock_create_client):
     )
 
     # Verify the result indicates an error due to invalid operation
-    assert result.isError
+    assert result.is_error
     assert len(result.content) == 1
     assert result.content[0].type == 'text'
     assert (
@@ -1003,7 +1003,7 @@ async def test_delete_session_no_write_access(mock_create_client):
         mock_ctx, operation='delete-session', session_id='test-session'
     )
 
-    assert result.isError
+    assert result.is_error
     assert 'Operation delete-session is not allowed without write access' in result.content[0].text
 
 
@@ -1024,7 +1024,7 @@ async def test_stop_session_no_write_access(mock_create_client):
         mock_ctx, operation='stop-session', session_id='test-session'
     )
 
-    assert result.isError
+    assert result.is_error
     assert 'Operation stop-session is not allowed without write access' in result.content[0].text
 
 
@@ -1066,7 +1066,7 @@ async def test_create_session_with_all_optional_params(mock_prepare_tags, mock_c
         request_origin='test-origin',
     )
 
-    assert not result.isError
+    assert not result.is_error
     args, kwargs = mock_glue_client.create_session.call_args
     assert kwargs['Description'] == 'Test description'
     assert kwargs['Timeout'] == 120
@@ -1108,7 +1108,7 @@ async def test_create_session_without_user_tags(mock_prepare_tags, mock_create_c
         command={'Name': 'glueetl'},
     )
 
-    assert not result.isError
+    assert not result.is_error
     args, kwargs = mock_glue_client.create_session.call_args
     assert kwargs['Tags'] == {'ManagedBy': 'MCP'}
 
@@ -1142,7 +1142,7 @@ async def test_delete_session_client_error(
         mock_ctx, operation='delete-session', session_id='test-session'
     )
 
-    assert result.isError
+    assert result.is_error
     assert 'Error in manage_aws_glue_sessions' in result.content[0].text
 
 
@@ -1168,7 +1168,7 @@ async def test_get_session_with_request_origin(mock_create_client):
         request_origin='test-origin',
     )
 
-    assert not result.isError
+    assert not result.is_error
     args, kwargs = mock_glue_client.get_session.call_args
     assert kwargs['RequestOrigin'] == 'test-origin'
 
@@ -1195,7 +1195,7 @@ async def test_list_sessions_with_tags(mock_create_client):
         tags={'Environment': 'Test'},
     )
 
-    assert not result.isError
+    assert not result.is_error
     args, kwargs = mock_glue_client.list_sessions.call_args
     assert kwargs['Tags'] == {'Environment': 'Test'}
 
@@ -1227,7 +1227,7 @@ async def test_stop_session_client_error(mock_get_account_id, mock_get_region, m
         mock_ctx, operation='stop-session', session_id='test-session'
     )
 
-    assert result.isError
+    assert result.is_error
     assert 'Error in manage_aws_glue_sessions' in result.content[0].text
 
 
@@ -1265,7 +1265,7 @@ async def test_stop_session_with_request_origin(
         request_origin='test-origin',
     )
 
-    assert not result.isError
+    assert not result.is_error
     get_args, get_kwargs = mock_glue_client.get_session.call_args
     assert get_kwargs['RequestOrigin'] == 'test-origin'
     stop_args, stop_kwargs = mock_glue_client.stop_session.call_args
@@ -1287,7 +1287,7 @@ async def test_invalid_session_operation(mock_create_client):
         mock_ctx, operation='invalid-operation', session_id='test-session'
     )
 
-    assert result.isError
+    assert result.is_error
     assert (
         'Operation invalid-operation is not allowed without write access' in result.content[0].text
     )
@@ -1310,7 +1310,7 @@ async def test_cancel_statement_no_write_access(mock_create_client):
         mock_ctx, operation='cancel-statement', session_id='test-session', statement_id=1
     )
 
-    assert result.isError
+    assert result.is_error
     assert (
         'Operation cancel-statement is not allowed without write access' in result.content[0].text
     )
@@ -1339,7 +1339,7 @@ async def test_run_statement_with_request_origin(mock_create_client):
         request_origin='test-origin',
     )
 
-    assert not result.isError
+    assert not result.is_error
     args, kwargs = mock_glue_client.run_statement.call_args
     assert kwargs['RequestOrigin'] == 'test-origin'
 
@@ -1365,7 +1365,7 @@ async def test_cancel_statement_with_request_origin(mock_create_client):
         request_origin='test-origin',
     )
 
-    assert not result.isError
+    assert not result.is_error
     args, kwargs = mock_glue_client.cancel_statement.call_args
     assert kwargs['RequestOrigin'] == 'test-origin'
 
@@ -1391,7 +1391,7 @@ async def test_get_statement_with_request_origin(mock_create_client):
         request_origin='test-origin',
     )
 
-    assert not result.isError
+    assert not result.is_error
     args, kwargs = mock_glue_client.get_statement.call_args
     assert kwargs['RequestOrigin'] == 'test-origin'
 
@@ -1420,7 +1420,7 @@ async def test_list_statements_with_pagination(mock_create_client):
         next_token='token',
     )
 
-    assert not result.isError
+    assert not result.is_error
     args, kwargs = mock_glue_client.list_statements.call_args
     assert kwargs['MaxResults'] == '10'
     assert kwargs['NextToken'] == 'token'
@@ -1448,7 +1448,7 @@ async def test_list_statements_with_request_origin(mock_create_client):
         request_origin='test-origin',
     )
 
-    assert not result.isError
+    assert not result.is_error
     args, kwargs = mock_glue_client.list_statements.call_args
     assert kwargs['RequestOrigin'] == 'test-origin'
 
@@ -1468,7 +1468,7 @@ async def test_invalid_statement_operation(mock_create_client):
         mock_ctx, operation='invalid-operation', session_id='test-session', statement_id=1
     )
 
-    assert result.isError
+    assert result.is_error
     assert (
         'Operation invalid-operation is not allowed without write access' in result.content[0].text
     )
@@ -1490,7 +1490,7 @@ async def test_statements_general_exception(mock_create_client):
         mock_ctx, operation='get-statement', session_id='test-session', statement_id=1
     )
 
-    assert result.isError
+    assert result.is_error
     assert 'Error in manage_aws_glue_statements: Test exception' in result.content[0].text
 
 
@@ -1523,7 +1523,7 @@ async def test_stop_session_not_mcp_managed(
         mock_ctx, operation='stop-session', session_id='test-session'
     )
 
-    assert result.isError
+    assert result.is_error
     assert (
         'Cannot stop session test-session - it is not managed by the MCP server'
         in result.content[0].text
@@ -1558,7 +1558,7 @@ async def test_stop_session_not_found(mock_get_account_id, mock_get_region, mock
         mock_ctx, operation='stop-session', session_id='test-session'
     )
 
-    assert result.isError
+    assert result.is_error
     assert 'Session test-session not found' in result.content[0].text
 
 
@@ -1732,7 +1732,7 @@ async def test_delete_session_entity_not_found(
         mock_ctx, operation='delete-session', session_id='test-session'
     )
 
-    assert result.isError
+    assert result.is_error
     assert 'Session test-session not found' in result.content[0].text
 
 
@@ -1755,7 +1755,7 @@ async def test_get_session_without_request_origin(mock_create_client):
         mock_ctx, operation='get-session', session_id='test-session'
     )
 
-    assert not result.isError
+    assert not result.is_error
 
 
 @pytest.mark.asyncio
@@ -1776,7 +1776,7 @@ async def test_list_sessions_without_optional_params(mock_create_client):
 
     result = await handler.manage_aws_glue_sessions(mock_ctx, operation='list-sessions')
 
-    assert not result.isError
+    assert not result.is_error
 
 
 @pytest.mark.asyncio
@@ -1810,7 +1810,7 @@ async def test_stop_session_without_request_origin(
         mock_ctx, operation='stop-session', session_id='test-session'
     )
 
-    assert not result.isError
+    assert not result.is_error
 
 
 @pytest.mark.asyncio
@@ -1832,7 +1832,7 @@ async def test_run_statement_without_request_origin(mock_create_client):
         mock_ctx, operation='run-statement', session_id='test-session', code='print("hello")'
     )
 
-    assert not result.isError
+    assert not result.is_error
 
 
 @pytest.mark.asyncio
@@ -1852,7 +1852,7 @@ async def test_get_statement_without_request_origin(mock_create_client):
         mock_ctx, operation='get-statement', session_id='test-session', statement_id=1
     )
 
-    assert not result.isError
+    assert not result.is_error
 
 
 @pytest.mark.asyncio
@@ -1874,7 +1874,7 @@ async def test_list_statements_without_optional_params(mock_create_client):
         mock_ctx, operation='list-statements', session_id='test-session'
     )
 
-    assert not result.isError
+    assert not result.is_error
 
 
 @pytest.mark.asyncio
@@ -1894,7 +1894,7 @@ async def test_cancel_statement_without_request_origin(mock_create_client):
         mock_ctx, operation='cancel-statement', session_id='test-session', statement_id=1
     )
 
-    assert not result.isError
+    assert not result.is_error
 
 
 @pytest.mark.asyncio
@@ -1957,7 +1957,7 @@ async def test_sessions_general_exception(mock_create_client):
         mock_ctx, operation='get-session', session_id='test-session'
     )
 
-    assert result.isError is True
+    assert result.is_error is True
     assert 'Error in manage_aws_glue_sessions: Test exception' in result.content[0].text
 
 
@@ -1988,7 +1988,7 @@ async def test_create_session_minimal_params(mock_prepare_tags, mock_create_clie
         command={'Name': 'glueetl'},
     )
 
-    assert result.isError is False
+    assert result.is_error is False
     # Just verify the call was made with required parameters
     mock_glue_client.create_session.assert_called_once()
     args, kwargs = mock_glue_client.create_session.call_args
@@ -2014,7 +2014,7 @@ async def test_session_no_write_access_fallback(mock_create_client):
         mock_ctx, operation='unknown-operation', session_id='test-session'
     )
 
-    assert result.isError is True
+    assert result.is_error is True
     assert (
         'Operation unknown-operation is not allowed without write access' in result.content[0].text
     )
@@ -2037,5 +2037,5 @@ async def test_statement_no_write_access_fallback(mock_create_client):
         mock_ctx, operation='run-statement', session_id='test-session'
     )
 
-    assert result.isError is True
+    assert result.is_error is True
     assert 'Operation run-statement is not allowed without write access' in result.content[0].text
