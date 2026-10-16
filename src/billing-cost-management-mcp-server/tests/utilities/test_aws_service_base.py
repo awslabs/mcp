@@ -389,6 +389,88 @@ class TestHandleAwsError:
         assert 'Unknown parameter in filter.Tags' in result['message']
         assert 'MatchValue' in result['details']
 
+    @pytest.mark.asyncio
+    async def test_param_validation_error_is_modify_request(self):
+        """ParamValidationError maps to modify_request, so the caller fixes the request."""
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            MODIFY_REQUEST,
+            add_retry_guidance,
+        )
+        from botocore.exceptions import ParamValidationError
+
+        error = ParamValidationError(report='Missing required parameter in input: "TimePeriod"')
+        result = await handle_aws_error(AsyncMock(), error, 'GetCostAndUsage', 'Cost Explorer')
+
+        assert 'retry_strategy' not in result
+        assert add_retry_guidance(result)['retry_strategy'] == MODIFY_REQUEST
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'error_factory',
+        [
+            lambda e: e.NoCredentialsError(),
+            lambda e: e.PartialCredentialsError(provider='env', cred_var='AWS_SECRET_ACCESS_KEY'),
+            lambda e: e.NoRegionError(),
+            lambda e: e.ProfileNotFound(profile='missing'),
+            lambda e: e.UnknownServiceError(service_name='nope', known_service_names='ce'),
+        ],
+        ids=[
+            'NoCredentialsError',
+            'PartialCredentialsError',
+            'NoRegionError',
+            'ProfileNotFound',
+            'UnknownServiceError',
+        ],
+    )
+    async def test_configuration_botocore_errors_are_do_not_retry(self, error_factory):
+        """Credential/configuration BotoCoreErrors keep error_type but are not retryable."""
+        import botocore.exceptions as boto_exceptions
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            DO_NOT_RETRY,
+            add_retry_guidance,
+        )
+
+        error = error_factory(boto_exceptions)
+        result = await handle_aws_error(AsyncMock(), error, 'GetCostAndUsage', 'Cost Explorer')
+
+        # error_type stays stable; retry_strategy is set explicitly and survives the middleware
+        assert result['error_type'] == 'aws_connection_error'
+        assert result['boto_error_type'] == type(error).__name__
+        assert result['retry_strategy'] == DO_NOT_RETRY
+        assert 'Do not retry' in result['hint']
+        assert add_retry_guidance(result)['retry_strategy'] == DO_NOT_RETRY
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'error_factory',
+        [
+            lambda e: e.EndpointConnectionError(endpoint_url='https://ce.us-east-1.amazonaws.com'),
+            lambda e: e.ConnectTimeoutError(endpoint_url='https://ce.us-east-1.amazonaws.com'),
+            lambda e: e.ReadTimeoutError(endpoint_url='https://ce.us-east-1.amazonaws.com'),
+            lambda e: e.ConnectionClosedError(endpoint_url='https://ce.us-east-1.amazonaws.com'),
+        ],
+        ids=[
+            'EndpointConnectionError',
+            'ConnectTimeoutError',
+            'ReadTimeoutError',
+            'ConnectionClosedError',
+        ],
+    )
+    async def test_connection_botocore_errors_stay_retryable(self, error_factory):
+        """Real connection failures are still retry_same_request."""
+        import botocore.exceptions as boto_exceptions
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            RETRY_SAME_REQUEST,
+            add_retry_guidance,
+        )
+
+        error = error_factory(boto_exceptions)
+        result = await handle_aws_error(AsyncMock(), error, 'GetCostAndUsage', 'Cost Explorer')
+
+        assert result['error_type'] == 'aws_connection_error'
+        assert 'retry_strategy' not in result
+        assert add_retry_guidance(result)['retry_strategy'] == RETRY_SAME_REQUEST
+
 
 class TestFormatResponse:
     """Tests for format_response function."""

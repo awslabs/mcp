@@ -29,9 +29,19 @@ import boto3
 import json
 import os
 import re
+from .error_contract import DO_NOT_RETRY
 from .logging_utils import get_context_logger, get_logger
 from botocore.config import Config
-from botocore.exceptions import BotoCoreError, ClientError, ParamValidationError
+from botocore.exceptions import (
+    BotoCoreError,
+    ClientError,
+    NoCredentialsError,
+    NoRegionError,
+    ParamValidationError,
+    PartialCredentialsError,
+    ProfileNotFound,
+    UnknownServiceError,
+)
 from datetime import datetime, timedelta
 from fastmcp import Context
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -39,6 +49,25 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 # Configure logger for this module
 logger = get_logger(__name__)
+
+# BotoCoreError subclasses that report a credential or configuration problem rather
+# than a connection failure. Retrying the same request cannot fix them during the run,
+# so handle_aws_error keeps error_type='aws_connection_error' (stable for callers) but
+# sets retry_strategy='do_not_retry' explicitly; ErrorSignalingMiddleware keeps a
+# retry_strategy that is already set. Real connection failures (EndpointConnectionError,
+# ConnectTimeoutError, ReadTimeoutError, ConnectionClosedError) stay retryable.
+_NON_RETRYABLE_BOTOCORE_ERRORS = (
+    NoCredentialsError,
+    PartialCredentialsError,
+    NoRegionError,
+    ProfileNotFound,
+    UnknownServiceError,
+)
+
+_HINT_AWS_CONFIGURATION = (
+    'AWS credentials or client configuration are missing or invalid. Do not retry; '
+    'ask the user to fix the AWS profile, credentials, or region.'
+)
 
 
 # Version for user agent tracking
@@ -278,6 +307,11 @@ async def handle_aws_error(
                 'details': str(error),
             }
         )
+
+        if isinstance(error, _NON_RETRYABLE_BOTOCORE_ERRORS):
+            # Credential/configuration failure: same error_type, but not retryable.
+            error_response['retry_strategy'] = DO_NOT_RETRY
+            error_response['hint'] = _HINT_AWS_CONFIGURATION
 
     else:
         error_type = 'unknown_error'
