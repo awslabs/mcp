@@ -177,6 +177,30 @@ class TestFetchAll:
 
         assert items == [1, 2, 3]
 
+    async def test_nested_result_key_with_missing_parent_counts_no_items(self, ctx):
+        """A page without the parent object holds no items, and paging still follows its token."""
+        api = MagicMock(
+            side_effect=[
+                {'Metadata': {}, 'NextPageToken': 't1'},
+                {'Rec': None, 'NextPageToken': 't2'},
+                {'Rec': {'Details': [1]}},
+            ]
+        )
+        spec = PageSpec(
+            result_key=('Rec', 'Details'),
+            token_param='NextPageToken',
+            token_key='NextPageToken',
+            page_max=10,
+        )
+
+        items, pages, pagination = await paginate_aws_items(ctx, 'op', api, {}, spec)
+
+        assert api.call_count == 3
+        assert items == [1]
+        assert len(pages) == 3
+        assert pagination['items_returned'] == 1
+        assert pagination['complete_dataset'] is True
+
 
 @pytest.mark.asyncio
 class TestMaxItems:

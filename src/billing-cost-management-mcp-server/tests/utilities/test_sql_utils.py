@@ -911,6 +911,33 @@ class TestConvertResponseIfNeeded:
         assert 'next_token' not in result
         assert all(q['description'].startswith('PARTIAL DATA') for q in result['sample_queries'])
 
+    @pytest.mark.asyncio
+    async def test_partial_generic_offload_omits_rows_retrieved(self):
+        """The generic key/value flatten stores fields, not items, so it reports no rows_retrieved."""
+        mock_context = MagicMock(spec=Context)
+        mock_context.info = AsyncMock()
+        pagination = {
+            'complete_dataset': False,
+            'has_more': True,
+            'next_token': 'page2',
+            'items_returned': 2,
+            'warning': 'Partial data: custom',
+        }
+        response = with_pagination({'Things': [{'a': 1}, {'a': 2}]}, pagination)
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.should_convert_to_sql',
+            return_value=True,
+        ):
+            result = await convert_response_if_needed(mock_context, response, 'unmapped_api')
+
+        assert result['data_stored'] is True
+        assert list(result)[:3] == ['status', 'complete_dataset', 'warning']
+        assert 'rows_retrieved' not in result
+        assert result['pagination']['next_token'] == 'page2'
+        assert result['sample_queries']
+        assert all(q['description'].startswith('PARTIAL DATA') for q in result['sample_queries'])
+
 
 class TestDerivePaginationEnvelope:
     """Tests for _derive_pagination_envelope auto-derivation from response shape."""
@@ -1687,6 +1714,44 @@ class TestConvertApiResponseToTableSpecificTypes:
         assert result['row_count'] == 1
         assert 'table_name' in result
         assert 'sample_queries' in result
+
+    async def test_convert_pricing_products_malformed_entry_does_not_fail_offload(
+        self, mock_context
+    ):
+        """A product that is not valid JSON is stored as an empty row; the rest still land."""
+        conn = sqlite3.connect(':memory:')
+        conn.execute(
+            'CREATE TABLE IF NOT EXISTS schema_info '
+            '(table_name TEXT PRIMARY KEY, created_at TEXT, operation TEXT, '
+            'query TEXT, row_count INTEGER)'
+        )
+        response = {
+            'PriceList': [
+                '{"product": {"productFamily": "Compute Instance", "sku": "SKU123"}}',
+                '{not json',
+                None,
+            ]
+        }
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_db_connection',
+            return_value=(conn, conn.cursor()),
+        ):
+            result = await convert_api_response_to_table(
+                mock_context, response, 'aws_pricing_get_products', service_code='AmazonEC2'
+            )
+
+        assert result['status'] == 'success'
+        assert result['row_count'] == 3
+        preview = result['preview']
+        assert preview[0]['sku'] == 'SKU123'
+        assert preview[0]['product_family'] == 'Compute Instance'
+        for row in preview[1:]:
+            assert row['service_code'] == 'AmazonEC2'
+            assert row['sku'] is None
+            assert row['product_family'] is None
+            assert row['attributes'] == '{}'
+            assert row['pricing_terms'] == '{}'
 
     @patch('sqlite3.connect')
     @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
