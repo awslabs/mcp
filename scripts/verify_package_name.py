@@ -215,13 +215,14 @@ def find_package_references_in_readme(
         # But allow package names that look like they could be valid (contain hyphens)
         if '.' not in ref and '@' not in ref and '-' not in ref:
             continue
-        # Skip common false positives in code examples (word@something where word is not a package name)
-        if '@' in ref and '.' not in ref:
-            # Extract the part before @
-            prefix = ref.split('@')[0].lower()
-            # Different scenarios where the prefix is not a package name
-            if prefix in ['asset', 'model', 'property', 'hierarchy']:
-                continue
+        # Skip the one known code-sample false positive in the SiteWise README:
+        # create_asset("asset@invalid", "model-id") demonstrates input
+        # validation, not an install instruction. Matched by exact literal
+        # value (not a word-prefix list) so we don't silently hide real
+        # "word@version" package references that happen to start with the
+        # same word (e.g. a hypothetical "asset-manager@latest").
+        if ref.lower() == 'asset@invalid':
+            continue
         filtered_references.append((ref, line_num))
 
     return filtered_references
