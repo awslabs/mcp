@@ -1,0 +1,510 @@
+{
+  "metadata": {
+    "apiVersion": "2026-07-06",
+    "auth": [
+      "aws.auth#sigv4"
+    ],
+    "endpointPrefix": "transform",
+    "jsonVersion": "1.0",
+    "protocol": "json",
+    "protocols": [
+      "json"
+    ],
+    "serviceFullName": "AWS Transform Streaming Service",
+    "serviceId": "TransformStreaming",
+    "signatureVersion": "v4",
+    "signingName": "transform",
+    "targetPrefix": "AWSTransformStreamingService",
+    "uid": "transformstreaming-2026-07-06"
+  },
+  "operations": {
+    "GetArtifact": {
+      "errors": [
+        {
+          "shape": "ConflictException"
+        },
+        {
+          "shape": "ValidationException"
+        },
+        {
+          "shape": "InternalServerException"
+        },
+        {
+          "shape": "ResourceNotFoundException"
+        },
+        {
+          "shape": "AccessDeniedException"
+        },
+        {
+          "shape": "DryRunOperationException"
+        },
+        {
+          "shape": "ThrottlingException"
+        }
+      ],
+      "http": {
+        "method": "POST",
+        "requestUri": "/"
+      },
+      "input": {
+        "shape": "GetArtifactRequest"
+      },
+      "name": "GetArtifact",
+      "output": {
+        "shape": "GetArtifactResponse"
+      }
+    }
+  },
+  "shapes": {
+    "AccessDeniedException": {
+      "documentation": "<p>Returns HTTP status code 403</p>",
+      "exception": true,
+      "members": {
+        "message": {
+          "shape": "String"
+        },
+        "reason": {
+          "shape": "AccessDeniedReason"
+        }
+      },
+      "type": "structure"
+    },
+    "AccessDeniedReason": {
+      "enum": [
+        "NOT_ALLOWLISTED",
+        "INVALID_SESSION",
+        "MISSING_SUBSCRIPTION",
+        "UNAUTHORIZED",
+        "ACCOUNT_MISMATCH"
+      ],
+      "type": "string"
+    },
+    "Artifact": {
+      "members": {
+        "artifactCreatedTimestamp": {
+          "shape": "Timestamp"
+        },
+        "artifactExpiryTimestamp": {
+          "shape": "Timestamp"
+        },
+        "artifactId": {
+          "shape": "ArtifactIdentifier"
+        },
+        "artifactType": {
+          "shape": "ArtifactType"
+        },
+        "engagementId": {
+          "shape": "EngagementId"
+        },
+        "fileMetadata": {
+          "shape": "FileMetadata"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "planStepId": {
+          "shape": "StepId"
+        },
+        "sizeInBytes": {
+          "shape": "Long"
+        },
+        "storedInAtxBucket": {
+          "documentation": "<p>Whether the artifact is stored in an ATX-managed bucket</p>",
+          "shape": "Boolean"
+        }
+      },
+      "required": [
+        "artifactId",
+        "artifactType",
+        "artifactCreatedTimestamp",
+        "artifactExpiryTimestamp"
+      ],
+      "type": "structure"
+    },
+    "ArtifactIdentifier": {
+      "documentation": "<p>Identifies an artifact by either a UUID or an S3 object key</p>",
+      "max": 1024,
+      "min": 1,
+      "pattern": ".*[^/]",
+      "type": "string"
+    },
+    "ArtifactScope": {
+      "members": {
+        "connectorScope": {
+          "shape": "ConnectorScope"
+        },
+        "jobScope": {
+          "shape": "JobScope"
+        },
+        "userScope": {
+          "shape": "UserScope"
+        },
+        "workspaceScope": {
+          "shape": "WorkspaceScope"
+        }
+      },
+      "type": "structure",
+      "union": true
+    },
+    "ArtifactType": {
+      "members": {
+        "categoryType": {
+          "shape": "CategoryType"
+        },
+        "fileType": {
+          "shape": "FileType"
+        },
+        "schemaType": {
+          "shape": "SchemaType"
+        }
+      },
+      "required": [
+        "categoryType",
+        "fileType"
+      ],
+      "type": "structure"
+    },
+    "AssetKey": {
+      "documentation": "<p>A connector-managed asset's S3 object key in the customer bucket</p>",
+      "max": 1024,
+      "min": 1,
+      "pattern": "([a-zA-Z0-9._()!*' $@=;:+,?&-]+)(/[a-zA-Z0-9._()!*' $@=;:+,?&-]+)*",
+      "type": "string"
+    },
+    "BinaryMetadataEvent": {
+      "event": true,
+      "members": {
+        "artifact": {
+          "shape": "Artifact"
+        },
+        "contentLengthBytes": {
+          "shape": "Long"
+        },
+        "fileName": {
+          "shape": "BinaryMetadataEventFileNameString"
+        }
+      },
+      "required": [
+        "fileName"
+      ],
+      "type": "structure"
+    },
+    "BinaryMetadataEventFileNameString": {
+      "max": 1024,
+      "min": 1,
+      "type": "string"
+    },
+    "BinaryPayloadEvent": {
+      "event": true,
+      "members": {
+        "bytes": {
+          "eventpayload": true,
+          "shape": "Blob"
+        }
+      },
+      "required": [
+        "bytes"
+      ],
+      "type": "structure"
+    },
+    "Blob": {
+      "type": "blob"
+    },
+    "Boolean": {
+      "box": true,
+      "type": "boolean"
+    },
+    "CategoryType": {
+      "documentation": "<p>The categoryType refers to the context or purpose of the data within a workflow</p>",
+      "enum": [
+        "CUSTOMER_OUTPUT",
+        "HITL_FROM_USER",
+        "CUSTOMER_INPUT",
+        "PLAN_STEP_SUMMARY"
+      ],
+      "type": "string"
+    },
+    "ConflictException": {
+      "documentation": "<p>Returns HTTP status code 409</p>",
+      "exception": true,
+      "members": {
+        "message": {
+          "shape": "String"
+        }
+      },
+      "type": "structure"
+    },
+    "ConnectorScope": {
+      "members": {
+        "assetKey": {
+          "shape": "AssetKey"
+        },
+        "connectorId": {
+          "shape": "UUID"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "jobId",
+        "connectorId",
+        "assetKey"
+      ],
+      "type": "structure"
+    },
+    "DryRunOperationException": {
+      "documentation": "<p>Returns HTTP status code 400</p>",
+      "exception": true,
+      "members": {
+        "message": {
+          "shape": "String"
+        }
+      },
+      "type": "structure"
+    },
+    "EngagementId": {
+      "max": 256,
+      "min": 1,
+      "type": "string"
+    },
+    "FileMetadata": {
+      "members": {
+        "description": {
+          "shape": "FileMetadataDescriptionString"
+        },
+        "path": {
+          "shape": "FilePath"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "type": "structure"
+    },
+    "FileMetadataDescriptionString": {
+      "max": 4000,
+      "min": 1,
+      "pattern": "[^@#$%^&*<>]*",
+      "type": "string"
+    },
+    "FilePath": {
+      "documentation": "<p>Complete file path including directory and filename. Accepts any valid UTF-8 string per S3 object key constraints. Max length is constrained to satisfy 1024 S3 character limit with consideration for the internal file path structure</p>",
+      "max": 838,
+      "min": 1,
+      "pattern": ".*[^/]",
+      "type": "string"
+    },
+    "FileType": {
+      "enum": [
+        "JSON",
+        "ZIP",
+        "PDF",
+        "HTML",
+        "TXT",
+        "MARKDOWN",
+        "CSV",
+        "PPTX",
+        "XLSX",
+        "OTHER"
+      ],
+      "type": "string"
+    },
+    "GetArtifactOutput": {
+      "eventstream": true,
+      "members": {
+        "binaryMetadataEvent": {
+          "shape": "BinaryMetadataEvent"
+        },
+        "binaryPayloadEvent": {
+          "shape": "BinaryPayloadEvent"
+        },
+        "streamErrorEvent": {
+          "shape": "StreamErrorEvent"
+        }
+      },
+      "type": "structure"
+    },
+    "GetArtifactRequest": {
+      "members": {
+        "artifactScope": {
+          "shape": "ArtifactScope"
+        }
+      },
+      "required": [
+        "artifactScope"
+      ],
+      "type": "structure"
+    },
+    "GetArtifactResponse": {
+      "members": {
+        "stream": {
+          "shape": "GetArtifactOutput"
+        }
+      },
+      "required": [
+        "stream"
+      ],
+      "type": "structure"
+    },
+    "InternalServerException": {
+      "documentation": "<p>Returns HTTP status code 500</p>",
+      "exception": true,
+      "fault": true,
+      "members": {
+        "message": {
+          "shape": "String"
+        }
+      },
+      "type": "structure"
+    },
+    "JobScope": {
+      "members": {
+        "artifactId": {
+          "shape": "ArtifactIdentifier"
+        },
+        "jobId": {
+          "shape": "UUID"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "jobId",
+        "artifactId"
+      ],
+      "type": "structure"
+    },
+    "Long": {
+      "box": true,
+      "type": "long"
+    },
+    "ResourceNotFoundException": {
+      "documentation": "<p>Returns HTTP status code 404</p>",
+      "exception": true,
+      "members": {
+        "message": {
+          "shape": "String"
+        }
+      },
+      "type": "structure"
+    },
+    "SchemaType": {
+      "max": 100,
+      "min": 0,
+      "type": "string"
+    },
+    "StepId": {
+      "max": 41,
+      "min": 1,
+      "pattern": "[a-zA-Z0-9-]+",
+      "type": "string"
+    },
+    "StreamErrorCode": {
+      "enum": [
+        "STORAGE_READ_ERROR",
+        "STREAM_ERROR",
+        "CUSTOMER_BUCKET_ACCESS_DENIED"
+      ],
+      "type": "string"
+    },
+    "StreamErrorEvent": {
+      "event": true,
+      "members": {
+        "code": {
+          "shape": "StreamErrorCode"
+        },
+        "message": {
+          "shape": "StreamErrorEventMessageString"
+        }
+      },
+      "required": [
+        "message",
+        "code"
+      ],
+      "sensitive": true,
+      "type": "structure"
+    },
+    "StreamErrorEventMessageString": {
+      "max": 8000,
+      "min": 1,
+      "type": "string"
+    },
+    "String": {
+      "type": "string"
+    },
+    "ThrottlingException": {
+      "documentation": "<p>Returns HTTP status code 429</p>",
+      "exception": true,
+      "members": {
+        "message": {
+          "shape": "String"
+        }
+      },
+      "type": "structure"
+    },
+    "Timestamp": {
+      "type": "timestamp"
+    },
+    "UUID": {
+      "pattern": "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+      "type": "string"
+    },
+    "UserScope": {
+      "members": {
+        "artifactId": {
+          "shape": "ArtifactIdentifier"
+        }
+      },
+      "required": [
+        "artifactId"
+      ],
+      "type": "structure"
+    },
+    "ValidationException": {
+      "documentation": "<p>Returns HTTP status code 400</p>",
+      "exception": true,
+      "members": {
+        "errorCode": {
+          "shape": "ValidationExceptionErrorCode"
+        },
+        "message": {
+          "shape": "String"
+        }
+      },
+      "type": "structure"
+    },
+    "ValidationExceptionErrorCode": {
+      "enum": [
+        "CONNECTOR_INCOMPATIBLE_SOURCE_TARGET_ACCOUNTS",
+        "CONNECTOR_WORKSPACE_CONNECTOR_LIMIT_BREACHED",
+        "CONNECTOR_UNSUPPORTED_CONNECTOR_TYPE",
+        "CONNECTOR_UNSUPPORTED_CONNECTOR_PROPERTY",
+        "CONNECTOR_MISSING_REQUIRED_CONNECTOR_PROPERTY"
+      ],
+      "type": "string"
+    },
+    "WorkspaceScope": {
+      "members": {
+        "artifactId": {
+          "shape": "ArtifactIdentifier"
+        },
+        "workspaceId": {
+          "shape": "UUID"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "artifactId"
+      ],
+      "type": "structure"
+    }
+  },
+  "version": "2.0"
+}

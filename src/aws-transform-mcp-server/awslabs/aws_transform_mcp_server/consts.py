@@ -33,6 +33,12 @@ CLIENT_APP_ID = 'atx-mcp'
 # ── FES SigV4 ───────────────────────────────────────────────────────────
 FES_SERVICE = 'elasticgumbyfrontendservice'
 
+# ── Transform Streaming Service (event-stream ops: GetArtifact, ConverseStream) ──
+# Distinct Coral service from FES: separate targetPrefix and SigV4 signing name.
+# Served on the same api.transform.<region>.on.aws endpoint.
+STREAMING_SERVICE = 'transformstreaming'
+STREAMING_TARGET_BEARER = 'AWSTransformStreamingService'
+
 # ── HTTP retry / timeout ─────────────────────────────────────────────────
 TIMEOUT_SECONDS: float = 60.0
 STARTUP_TIMEOUT_SECONDS: float = 5.0
