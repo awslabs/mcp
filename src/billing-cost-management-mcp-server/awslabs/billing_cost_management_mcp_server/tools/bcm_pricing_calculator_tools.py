@@ -238,7 +238,7 @@ USE THIS TOOL FOR:
 1) list_workload_estimates - list of available workload estimates
    Required: operation="list_workload_estimates"
    Optional: created_after, created_before, expires_after, expires_before, status_filter, name_filter, name_match_option, max_items, next_token
-   Returns: `data.workload_estimates` and `data.pagination`.
+   Returns: List of all workload estimates for the account (see PAGINATION).
 
 2) get_workload_estimate - get details of a workload estimate
    Required: operation="get_workload_estimate", identifier
@@ -247,7 +247,7 @@ USE THIS TOOL FOR:
 3) list_workload_estimate_usage - list of modeled usage lines within a workload estimate
    Required: operation="list_workload_estimate_usage", identifier
    Optional: usage_account_id_filter, service_code_filter, usage_type_filter, operation_filter, location_filter, usage_group_filter, max_items, next_token
-   Returns: `data.usage_items`, `data.workload_estimate_id` and `data.pagination`.
+   Returns: List of usage associated with a workload estimate (see PAGINATION).
 
 4) get_preferences - get the rate preferences available to an account
    Required: operation="get_preferences"
