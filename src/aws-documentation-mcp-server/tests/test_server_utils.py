@@ -22,6 +22,7 @@ from awslabs.aws_documentation_mcp_server.server_utils import (
     SEARCH_RESULT_CACHE,
     Page,
     _docs_client,
+    _md_variant,
     add_search_result_cache_item,
     get_query_id_from_cache,
     read_documentation_impl,
@@ -82,8 +83,9 @@ class TestReadDocumentationImpl:
                 # Verify the result
                 assert result == 'AWS Documentation from URL: # Test\n\nContent'
 
-                # Verify the mock was called correctly
-                mock_client.get.assert_called_once_with(
+                # The .md probe fires first (returns text/html here -> not usable), then the HTML
+                # fetch runs. Verify the HTML fetch happened with the right params.
+                mock_client.get.assert_any_call(
                     f'{url}?session=test-uuid',
                     follow_redirects=True,
                     headers={
@@ -407,8 +409,9 @@ class TestReadDocumentationImpl:
                 # Verify the result
                 assert result == 'AWS Documentation from URL: # Test\n\nContent'
 
-                # Verify the mock was called correctly
-                mock_client.get.assert_called_once_with(
+                # The .md probe fires first (returns text/html here -> not usable), then the HTML
+                # fetch runs. Verify the HTML fetch happened with the right params.
+                mock_client.get.assert_any_call(
                     f'{url}?session=test-uuid&query_id=test-query-id',
                     follow_redirects=True,
                     headers={
@@ -2067,3 +2070,230 @@ class TestRecoverableFailuresNameANextStep:
         finally:
             patcher.stop()
         assert 'search_documentation' not in str(excinfo.value)
+
+
+class TestMarkdownVariant:
+    """Tests for fetching the `.md` variant with HTML fallback on read_documentation."""
+
+    @pytest.mark.parametrize(
+        'url_in, expected',
+        [
+            (
+                'https://docs.aws.amazon.com/lambda/latest/dg/foo.html',
+                'https://docs.aws.amazon.com/lambda/latest/dg/foo.md',
+            ),
+            (
+                'https://docs.aws.amazon.com/lambda/latest/dg/foo.html?session=x',
+                'https://docs.aws.amazon.com/lambda/latest/dg/foo.md',
+            ),
+            ('https://docs.aws.amazon.com/lambda/latest/dg/', None),  # directory URL
+            ('https://docs.aws.amazon.com/lambda/latest/dg/foo.json', None),
+            ('https://docs.aws.amazon.com/lambda/latest/dg/foo.md', None),  # already markdown
+        ],
+    )
+    def test_md_variant_derivation(self, url_in, expected):
+        """`.html` page URLs map to `.md`; everything else keeps the existing path (None)."""
+        assert _md_variant(url_in) == expected
+
+    @staticmethod
+    def _resp(status, text, content_type):
+        r = MagicMock()
+        r.status_code = status
+        r.text = text
+        r.headers = {'content-type': content_type}
+        r.url = 'https://docs.aws.amazon.com/x/foo.html'
+        return r
+
+    def _client_returning(self, responses):
+        """Build a mocked AsyncClient whose .get returns the given responses in order."""
+        mock_client = MagicMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+        mock_client.get = AsyncMock(side_effect=list(responses))
+        return mock_client
+
+    @pytest.mark.asyncio
+    async def test_reads_md_when_available(self):
+        """Return a usable `.md` verbatim, skipping the HTML fetch and conversion.
+
+        Usable means 200 + text/markdown + a non-trivial body.
+        """
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/x/foo.html'
+        md_body = '# Title\n\n' + ('real markdown body. ' * 20)
+        md_resp = self._resp(200, md_body, 'text/markdown; charset=utf-8')
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = self._client_returning([md_resp])
+            mock_client_class.return_value = mock_client
+            with patch(
+                'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html'
+            ) as mock_convert:
+                result = await read_documentation_impl(ctx, url, 5000, 0, 'uuid')
+
+        assert '# Title' in result
+        assert 'real markdown body.' in result
+        mock_convert.assert_not_called()  # no HTML conversion when .md is used
+        assert mock_client.get.call_count == 1  # only the .md fetch
+        # the single call was to the .md URL
+        assert (
+            mock_client.get.call_args_list[0]
+            .args[0]
+            .startswith('https://docs.aws.amazon.com/x/foo.md')
+        )
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_html_on_md_404(self):
+        """CLI/SDK-reference case: `.md` 404 -> fetch `.html` and convert, result unchanged from today."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/cli/latest/reference/s3/cp.html'
+        md_404 = self._resp(404, 'Not Found', 'text/html')
+        html_ok = self._resp(
+            200,
+            '<html><body><main><h1>cp</h1><p>Copy objects.</p></main></body></html>',
+            'text/html',
+        )
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = self._client_returning([md_404, html_ok])
+            mock_client_class.return_value = mock_client
+            with (
+                patch(
+                    'awslabs.aws_documentation_mcp_server.server_utils.is_html_content',
+                    return_value=True,
+                ),
+                patch(
+                    'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html',
+                    return_value='# cp\n\nCopy objects.',
+                ),
+            ):
+                result = await read_documentation_impl(ctx, url, 5000, 0, 'uuid')
+
+        assert 'cp' in result and 'Copy objects.' in result
+        assert mock_client.get.call_count == 2  # .md (404) then .html
+        assert (
+            mock_client.get.call_args_list[0]
+            .args[0]
+            .startswith('https://docs.aws.amazon.com/cli/latest/reference/s3/cp.md')
+        )
+        assert (
+            mock_client.get.call_args_list[1]
+            .args[0]
+            .startswith('https://docs.aws.amazon.com/cli/latest/reference/s3/cp.html')
+        )
+
+    @pytest.mark.asyncio
+    async def test_falls_back_when_md_wrong_content_type(self):
+        """A `.md` that returns 200 but non-markdown (e.g. an HTML soft-404) must not win over HTML."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/x/foo.html'
+        md_html = self._resp(200, '<html><body>oops</body></html>', 'text/html')
+        html_ok = self._resp(
+            200, '<html><body><main><p>real content here</p></main></body></html>', 'text/html'
+        )
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = self._client_returning([md_html, html_ok])
+            mock_client_class.return_value = mock_client
+            with (
+                patch(
+                    'awslabs.aws_documentation_mcp_server.server_utils.is_html_content',
+                    return_value=True,
+                ),
+                patch(
+                    'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html',
+                    return_value='real content here',
+                ),
+            ):
+                result = await read_documentation_impl(ctx, url, 5000, 0, 'uuid')
+
+        assert 'real content here' in result
+        assert mock_client.get.call_count == 2  # fell back to .html
+
+    @pytest.mark.asyncio
+    async def test_falls_back_when_md_too_short(self):
+        """A stub `.md` (markdown type but tiny body) falls back to the HTML path."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/x/foo.html'
+        md_stub = self._resp(200, '# x', 'text/markdown')  # under _MIN_MARKDOWN_BYTES
+        html_ok = self._resp(
+            200, '<html><body><main><p>the real content</p></main></body></html>', 'text/html'
+        )
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = self._client_returning([md_stub, html_ok])
+            mock_client_class.return_value = mock_client
+            with (
+                patch(
+                    'awslabs.aws_documentation_mcp_server.server_utils.is_html_content',
+                    return_value=True,
+                ),
+                patch(
+                    'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html',
+                    return_value='the real content',
+                ),
+            ):
+                result = await read_documentation_impl(ctx, url, 5000, 0, 'uuid')
+
+        assert 'the real content' in result
+        assert mock_client.get.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_falls_back_when_md_network_error(self):
+        """A network error on the `.md` fetch falls back to the HTML path (never worse than today)."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/x/foo.html'
+        html_ok = self._resp(
+            200, '<html><body><main><p>html content</p></main></body></html>', 'text/html'
+        )
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = self._client_returning([httpx.ConnectError('boom'), html_ok])
+            mock_client_class.return_value = mock_client
+            with (
+                patch(
+                    'awslabs.aws_documentation_mcp_server.server_utils.is_html_content',
+                    return_value=True,
+                ),
+                patch(
+                    'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html',
+                    return_value='html content',
+                ),
+            ):
+                result = await read_documentation_impl(ctx, url, 5000, 0, 'uuid')
+
+        assert 'html content' in result
+        assert mock_client.get.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_non_html_url_skips_md_attempt(self):
+        """A non-`.html` URL (e.g. a directory) makes no `.md` attempt — one fetch, the existing path."""
+        ctx = MagicMock(spec=Context)
+        ctx.error = AsyncMock()
+        url = 'https://docs.aws.amazon.com/lambda/latest/dg/'
+        html_ok = self._resp(
+            200, '<html><body><main><p>dir index</p></main></body></html>', 'text/html'
+        )
+
+        with patch('httpx.AsyncClient') as mock_client_class:
+            mock_client = self._client_returning([html_ok])
+            mock_client_class.return_value = mock_client
+            with (
+                patch(
+                    'awslabs.aws_documentation_mcp_server.server_utils.is_html_content',
+                    return_value=True,
+                ),
+                patch(
+                    'awslabs.aws_documentation_mcp_server.server_utils.extract_content_from_html',
+                    return_value='dir index',
+                ),
+            ):
+                result = await read_documentation_impl(ctx, url, 5000, 0, 'uuid')
+
+        assert 'dir index' in result
+        assert mock_client.get.call_count == 1  # no .md attempt for a non-.html URL
