@@ -188,7 +188,8 @@ class ManifestHandler:
             return manifest_content
         except Exception as e:
             await self.ctx.error(f'Failed to read manifest file at s3://{bucket}/{key}: {str(e)}')
-            raise Exception(f'Failed to read manifest file at s3://{bucket}/{key}: {str(e)}')
+            # Re-raise unwrapped so handle_aws_error keeps the AWS error code
+            raise
 
     async def _find_latest_manifest(self, bucket: str, key: str) -> Dict[str, Any]:
         """Find the latest manifest.json file in the specified S3 location.
@@ -223,7 +224,7 @@ class ManifestHandler:
                             manifest_files.append(manifest_file)
 
             if not manifest_files:
-                raise Exception(f'No manifest.json files found at s3://{bucket}/{key}')
+                raise ValueError(f'No manifest.json files found at s3://{bucket}/{key}')
 
             # Sort by last modified date to get the latest
             latest_manifest = sorted(
@@ -243,7 +244,8 @@ class ManifestHandler:
             await self.ctx.error(
                 f'Failed to locate manifest file in s3://{bucket}/{key}: {str(e)}'
             )
-            raise Exception(f'Failed to locate manifest file in s3://{bucket}/{key}: {str(e)}')
+            # Re-raise unwrapped so handle_aws_error keeps the AWS error code
+            raise
 
     def extract_data_location(self, manifest: Dict[str, Any]) -> str:
         """Extract the S3 location of the data files from the manifest.
@@ -257,7 +259,7 @@ class ManifestHandler:
         report_files = manifest.get('reportFiles', [])
 
         if not report_files:
-            raise Exception('No report files found in manifest')
+            raise ValueError('No report files found in manifest')
 
         # Determine the S3 location of the report files
         sample_file = report_files[0]['key']
@@ -487,8 +489,8 @@ class AthenaHandler:
 
         except Exception as e:
             await self.ctx.error(f'Error starting Athena query: {str(e)}')
-            # Use shared error handler
-            raise Exception(f'Error starting Athena query: {str(e)}')
+            # Re-raise unwrapped so handle_aws_error keeps the AWS error code
+            raise
 
     async def wait_for_query_completion(
         self, query_execution_id: str, max_retries: int = ATHENA_MAX_RETRIES
@@ -521,7 +523,8 @@ class AthenaHandler:
                         'StateChangeReason', 'Unknown error'
                     )
                     await self.ctx.error(f'Query failed: {reason}')
-                    raise Exception(f'Query failed: {reason}')
+                    # A failed Athena query is almost always the query itself
+                    raise ValueError(f'Query failed: {reason}')
                 elif state == 'SUCCEEDED':
                     await self.ctx.info(f'Query succeeded after {retries} retries')
                     return response['QueryExecution']
@@ -532,7 +535,7 @@ class AthenaHandler:
 
             if retries >= max_retries:
                 await self.ctx.error(f'Query timed out after {max_retries} retries')
-                raise Exception('Query timed out')
+                raise TimeoutError('Query timed out')
 
             # This should never be reached due to the exception above, but return empty dict for type safety
             return {'status': 'ERROR', 'message': 'Query timed out'}
@@ -666,7 +669,7 @@ class StorageLensQueryTool:
                         ' from ', f' FROM {database_name}.{table_name} '
                     )
                 else:
-                    raise Exception(
+                    raise ValueError(
                         'Query must either contain {table} placeholder or explicitly reference the table.'
                     )
 

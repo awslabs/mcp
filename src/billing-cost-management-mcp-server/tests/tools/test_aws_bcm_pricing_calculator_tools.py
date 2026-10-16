@@ -451,6 +451,7 @@ class TestGetWorkloadEstimate:
         # Assert
         assert result['status'] == 'error'
         assert 'Identifier is required' in result['data']['error']
+        assert result['message'] == result['data']['error']
         assert result['data']['error_code'] == 'MISSING_PARAMETER'
         assert result['error_type'] == 'validation_error'
         assert result['operation'] == 'get_workload_estimate'
@@ -536,6 +537,7 @@ class TestListWorkloadEstimateUsage:
         # Assert
         assert result['status'] == 'error'
         assert 'workload_estimate_id is required' in result['data']['error']
+        assert result['message'] == result['data']['error']
         assert result['data']['error_code'] == 'MISSING_PARAMETER'
         assert result['error_type'] == 'validation_error'
         assert result['operation'] == 'list_workload_estimate_usage'

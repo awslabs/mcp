@@ -28,7 +28,7 @@ from ..utilities.aws_service_base import (
 from ..utilities.sql_utils import convert_response_if_needed
 from datetime import datetime, timedelta
 from fastmcp import Context
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Union
 
 
 async def get_cost_and_usage(
@@ -37,9 +37,9 @@ async def get_cost_and_usage(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     granularity: str = 'DAILY',
-    metrics: Optional[str] = None,
-    group_by: Optional[str] = None,
-    filter_expr: Optional[str] = None,
+    metrics: Optional[Union[str, List[str]]] = None,
+    group_by: Optional[Union[str, List[Dict[str, Any]]]] = None,
+    filter_expr: Optional[Union[str, Dict[str, Any]]] = None,
     next_token: Optional[str] = None,
     max_pages: Optional[int] = None,
     billing_view_arn: Optional[str] = None,
@@ -54,9 +54,9 @@ async def get_cost_and_usage(
         start_date: Start date in YYYY-MM-DD format
         end_date: End date in YYYY-MM-DD format (exclusive)
         granularity: Time granularity (DAILY, MONTHLY, HOURLY)
-        metrics: List of metrics as JSON string
-        group_by: Optional grouping as JSON string
-        filter_expr: Optional filters as JSON string
+        metrics: List of metrics, as a list or JSON string
+        group_by: Optional grouping, as a list or JSON string
+        filter_expr: Optional filters, as an object or JSON string
         next_token: Pagination token
         max_pages: Maximum number of pages to fetch
         billing_view_arn: Optional ARN of a billing view to scope the query.
@@ -150,9 +150,9 @@ async def get_cost_and_usage_with_resources(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     granularity: str = 'DAILY',
-    metrics: Optional[str] = None,
-    group_by: Optional[str] = None,
-    filter_expr: Optional[str] = None,
+    metrics: Optional[Union[str, List[str]]] = None,
+    group_by: Optional[Union[str, List[Dict[str, Any]]]] = None,
+    filter_expr: Optional[Union[str, Dict[str, Any]]] = None,
     next_token: Optional[str] = None,
     max_pages: Optional[int] = None,
     billing_view_arn: Optional[str] = None,
@@ -167,9 +167,9 @@ async def get_cost_and_usage_with_resources(
         start_date: Start date in YYYY-MM-DD format (last 14 days max)
         end_date: End date in YYYY-MM-DD format (exclusive)
         granularity: Time granularity (DAILY, MONTHLY, HOURLY)
-        metrics: List of metrics as JSON string
-        group_by: Optional grouping as JSON string
-        filter_expr: Optional filters as JSON string
+        metrics: List of metrics, as a list or JSON string
+        group_by: Optional grouping, as a list or JSON string
+        filter_expr: Optional filters, as an object or JSON string
         next_token: Pagination token
         max_pages: Maximum number of pages to fetch
         billing_view_arn: Optional ARN of a billing view to scope the query.
@@ -262,7 +262,7 @@ async def get_dimension_values(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     search_string: Optional[str] = None,
-    filter_expr: Optional[str] = None,
+    filter_expr: Optional[Union[str, Dict[str, Any]]] = None,
     max_results: Optional[int] = None,
     next_token: Optional[str] = None,
     max_pages: Optional[int] = None,
@@ -278,7 +278,7 @@ async def get_dimension_values(
         start_date: Start date in YYYY-MM-DD format
         end_date: End date in YYYY-MM-DD format (exclusive)
         search_string: Optional string to filter results
-        filter_expr: Optional filters as JSON string
+        filter_expr: Optional filters, as an object or JSON string
         max_results: Maximum number of results per page
         next_token: Pagination token
         max_pages: Maximum number of pages to fetch
@@ -364,7 +364,7 @@ async def get_cost_forecast(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     granularity: str = 'MONTHLY',
-    filter_expr: Optional[str] = None,
+    filter_expr: Optional[Union[str, Dict[str, Any]]] = None,
     prediction_interval_level: int = 80,
     billing_view_arn: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -377,7 +377,7 @@ async def get_cost_forecast(
         start_date: Start date in YYYY-MM-DD format
         end_date: End date in YYYY-MM-DD format (exclusive)
         granularity: Time granularity (DAILY, MONTHLY)
-        filter_expr: Optional filters as JSON string
+        filter_expr: Optional filters, as an object or JSON string
         prediction_interval_level: Confidence interval (70-99)
         billing_view_arn: Optional ARN of a billing view to scope the query.
             If not provided, defaults to the account's primary billing view.
@@ -450,7 +450,7 @@ async def get_usage_forecast(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     granularity: str = 'MONTHLY',
-    filter_expr: Optional[str] = None,
+    filter_expr: Optional[Union[str, Dict[str, Any]]] = None,
     prediction_interval_level: int = 80,
     billing_view_arn: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -463,7 +463,7 @@ async def get_usage_forecast(
         start_date: Start date in YYYY-MM-DD format
         end_date: End date in YYYY-MM-DD format (exclusive)
         granularity: Time granularity (DAILY, MONTHLY)
-        filter_expr: Optional filters as JSON string
+        filter_expr: Optional filters, as an object or JSON string
         prediction_interval_level: Confidence interval (70-99)
         billing_view_arn: Optional ARN of a billing view to scope the query.
             If not provided, defaults to the account's primary billing view.
@@ -722,7 +722,7 @@ async def get_savings_plans_utilization(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     granularity: str = 'MONTHLY',
-    filter_expr: Optional[str] = None,
+    filter_expr: Optional[Union[str, Dict[str, Any]]] = None,
     next_token: Optional[str] = None,
     max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
@@ -734,7 +734,7 @@ async def get_savings_plans_utilization(
         start_date: Start date in YYYY-MM-DD format
         end_date: End date in YYYY-MM-DD format (exclusive)
         granularity: Time granularity (DAILY, MONTHLY)
-        filter_expr: Optional filters as JSON string
+        filter_expr: Optional filters, as an object or JSON string
         next_token: Pagination token
         max_pages: Maximum number of pages to fetch
 

@@ -34,7 +34,7 @@ from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 from datetime import datetime, timedelta
 from fastmcp import Context
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 
 # Configure logger for this module
@@ -103,11 +103,13 @@ def create_aws_client(service_name: str, region_name: Optional[str] = None) -> A
     return session.client(service_name, config=config)
 
 
-def parse_json(json_str: Optional[str], parameter_name: str) -> Any:
+def parse_json(
+    json_str: Optional[Union[str, List[Any], Dict[str, Any]]], parameter_name: str
+) -> Any:
     """Parse a JSON string into a Python object.
 
     Args:
-        json_str: JSON string to parse
+        json_str: JSON string to parse, or an already-parsed list or dict (returned as-is)
         parameter_name: Name of the parameter (for error messages)
 
     Returns:
@@ -118,6 +120,9 @@ def parse_json(json_str: Optional[str], parameter_name: str) -> Any:
     """
     if not json_str:
         return None
+
+    if isinstance(json_str, (list, dict)):
+        return json_str
 
     try:
         return json.loads(json_str)
@@ -209,7 +214,7 @@ async def handle_aws_error(
         # Get AWS error details
         aws_error = error.response.get('Error', {})
         error_code = aws_error.get('Code', 'UnknownError')
-        aws_message = aws_error.get('Message', 'No error message provided')
+        aws_message = aws_error.get('Message') or 'No error message provided'
         request_id = error.response.get('ResponseMetadata', {}).get('RequestId', 'Unknown')
         http_status = error.response.get('ResponseMetadata', {}).get('HTTPStatusCode', 0)
 
@@ -397,7 +402,8 @@ def format_response(
     Args:
         status: Response status ("success" or "error")
         data: Response data payload
-        message: Optional message to include
+        message: Optional message to include. For errors, defaults to a string
+            data['message'] so the documented top-level message is set
         error_type: Optional error classification, set at the top level like handle_aws_error
         operation: Optional name of the operation that produced the response
         service: Optional AWS service name
@@ -409,6 +415,13 @@ def format_response(
         Dict containing a standardized response format
     """
     response = {'status': status, 'data': data}
+
+    # Many error sites put their text in data['message'] instead of passing message.
+    # Lift it (data is left unchanged) so the error carries the top-level message.
+    if not message and status == 'error' and isinstance(data, dict):
+        nested = data.get('message')
+        if isinstance(nested, str):
+            message = nested
 
     if message:
         response['message'] = message

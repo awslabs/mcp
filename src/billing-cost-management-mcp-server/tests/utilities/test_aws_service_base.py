@@ -149,6 +149,18 @@ class TestParseJson:
 
         assert 'Invalid JSON format for test_param parameter' in str(excinfo.value)
 
+    def test_parse_list_passthrough(self):
+        """Test that an already-parsed list is returned unchanged."""
+        value = [{'Type': 'DIMENSION', 'Key': 'SERVICE'}]
+
+        assert parse_json(value, 'test_param') is value
+
+    def test_parse_dict_passthrough(self):
+        """Test that an already-parsed dict is returned unchanged."""
+        value = {'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon S3']}}
+
+        assert parse_json(value, 'test_param') is value
+
 
 class TestDateFunctions:
     """Tests for date-related functions."""
@@ -258,6 +270,19 @@ class TestHandleAwsError:
         assert result['service'] == 'DynamoDB'
         assert result['operation'] == 'ListItems'
         assert result['message'] == 'Resource not found'
+
+    @pytest.mark.asyncio
+    async def test_handle_client_error_with_empty_message(self):
+        """An empty AWS Message falls back to the default text rather than ''."""
+        from botocore.exceptions import ClientError
+
+        error = ClientError(
+            {'Error': {'Code': 'InternalErrorException', 'Message': ''}}, 'DescribeBudgets'
+        )
+
+        result = await handle_aws_error(AsyncMock(), error, 'DescribeBudgets', 'Budgets')
+
+        assert result['message'] == 'No error message provided'
 
     @pytest.mark.asyncio
     async def test_handle_value_error(self):
@@ -397,6 +422,43 @@ class TestFormatResponse:
             'operation': 'getCostAndUsage',
             'service': 'Cost Explorer',
         }
+
+    def test_error_lifts_data_message_to_top_level_message(self):
+        """Test an error whose text is only in data['message'] still gets a top-level message."""
+        data = {'message': 'billing_period must be in YYYY-MM format', 'error_code': 'X'}
+
+        result = format_response('error', data, error_type='validation_error')
+
+        assert result['message'] == 'billing_period must be in YYYY-MM format'
+        assert result['data'] == data  # left unchanged for existing readers
+
+    def test_error_does_not_lift_data_error(self):
+        """Test only data['message'] is lifted, not other keys such as data['error']."""
+        result = format_response('error', {'error': 'some text'})
+
+        assert 'message' not in result
+
+    def test_error_explicit_message_wins_over_nested(self):
+        """Test an explicit message is not replaced by the nested text."""
+        result = format_response('error', {'message': 'nested'}, 'explicit')
+
+        assert result['message'] == 'explicit'
+
+    @pytest.mark.parametrize(
+        'data',
+        [{'message': {'not': 'a string'}}, {'details': 'x'}, ['message'], 'message', None],
+    )
+    def test_error_without_nested_string_text_has_no_message(self, data):
+        """Test non-dict data or non-string nested text adds no message."""
+        result = format_response('error', data)
+
+        assert 'message' not in result
+
+    def test_success_does_not_lift_nested_message(self):
+        """Test success responses keep their shape when data has a message key."""
+        result = format_response('success', {'message': 'No results'})
+
+        assert result == {'status': 'success', 'data': {'message': 'No results'}}
 
 
 class TestPaginateAwsResponse:

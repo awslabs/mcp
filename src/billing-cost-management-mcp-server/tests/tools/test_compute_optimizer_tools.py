@@ -1216,6 +1216,7 @@ class TestComputeOptimizerFastMCP:
             res = await real_fn(mock_context, operation='definitely_not_supported')
             assert res['status'] == 'error'
             assert res['data']['error_type'] == 'invalid_operation'
+            assert res['error_type'] == 'invalid_operation'  # top level, read by the retry mapping
             assert 'Unsupported operation' in res['message']
 
     async def test_co_real_enrollment_error_reload_identity_decorator(self, mock_context):
@@ -1240,6 +1241,7 @@ class TestComputeOptimizerFastMCP:
             res = await real_fn(mock_context, operation='get_ec2_instance_recommendations')
             assert res['status'] == 'error'
             assert res['data']['error_type'] == 'enrollment_error'
+            assert res['error_type'] == 'enrollment_error'  # top level, read by the retry mapping
             assert 'not active' in res['message']
 
     async def test_co_real_resource_not_enrolled_error_reload_identity_decorator(

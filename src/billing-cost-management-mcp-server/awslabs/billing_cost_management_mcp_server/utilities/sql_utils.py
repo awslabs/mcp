@@ -38,6 +38,7 @@ from .constants import (
     COST_OPTIMIZATION_HUB_RECOMMENDATION_COLUMNS,
     ColumnSpec,
 )
+from .error_contract import MODIFY_REQUEST
 from .logging_utils import get_context_logger, get_logger
 from datetime import datetime
 from fastmcp import Context
@@ -1508,13 +1509,19 @@ async def execute_session_sql(
         # Add a structured error_type/operation/service so failures are
         # classifiable. error_type is the exception class name only (e.g.
         # 'OperationalError').
-        return {
+        response = {
             'status': 'error',
             'service': 'SQL',
             'operation': 'session_sql',
             'error_type': type(e).__name__,
             'message': error_message,
         }
+        # Rejected or invalid SQL (ValueError from validation, sqlite3 syntax errors,
+        # unknown tables or columns) is fixed by changing the query. The class names
+        # are too generic for the shared error_type mapping, so it is set here.
+        if isinstance(e, (ValueError, sqlite3.Error)):
+            response['retry_strategy'] = MODIFY_REQUEST
+        return response
 
     finally:
         # Close connection only if it was successfully opened
