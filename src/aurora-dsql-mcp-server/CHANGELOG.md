@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Require `dsql-lint` 0.2.17 or newer so lint fixes preserve supported foreign keys and add `NOT VALID` to post-creation constraints.
 - Add `ALTER TABLE ASYNC ... VALIDATE CONSTRAINT` guidance to DSQL steering. CHECK constraints can now be added with `NOT VALID` and validated asynchronously, following the same async DDL pattern as `CREATE INDEX ASYNC`.
 
+### Fixed
+
+- Allow the `replace()` string function in `readonly_query` and read-only `transact`. `REPLACE` was in the bare mutating-keyword list, so reads such as `SELECT replace(name, ' ', '_') FROM users` were rejected. PostgreSQL has no `REPLACE` statement, and `CREATE OR REPLACE` is still blocked through `CREATE`.
+
 ### Security
 
 - Add a subsequent `pglast` policy layer after the existing SQL heuristics, so function and read-only checks use PostgreSQL-decoded quoted and Unicode-escaped identifiers. The parser guard matches psycopg parameter handling and supports Aurora DSQL asynchronous DDL and AWS IAM syntax during validation.
