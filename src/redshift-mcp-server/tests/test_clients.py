@@ -15,18 +15,30 @@
 
 """Tests for the AWS clients."""
 
+import json
 import os
 import pytest
 import threading
+import time
+from awslabs.redshift_mcp_server import clients
 from awslabs.redshift_mcp_server.clients import RedshiftClientManager, client_manager
+from awslabs.redshift_mcp_server.consts import CLIENT_RETRIES
+from botocore.awsrequest import AWSResponse
 from botocore.config import Config
+from botocore.exceptions import ClientError, CredentialRetrievalError
 
 
 @pytest.fixture(autouse=True)
-def _no_ambient_aws_environment(monkeypatch):
-    """Clear every AWS_* variable, since each client reads the environment when it is built."""
+def _no_ambient_aws_environment(monkeypatch, tmp_path):
+    """Clear every AWS_* variable, since each client reads the environment when it is built.
+
+    And point botocore at files that do not exist, since building a client reads them too, so the
+    developer's own ~/.aws never reaches a test.
+    """
     for name in [name for name in os.environ if name.startswith('AWS_')]:
         monkeypatch.delenv(name)
+    monkeypatch.setenv('AWS_CONFIG_FILE', str(tmp_path / 'absent-config'))
+    monkeypatch.setenv('AWS_SHARED_CREDENTIALS_FILE', str(tmp_path / 'absent-credentials'))
 
 
 def test_two_clients_built_at_once_both_survive_the_scrub(monkeypatch, mocker):
@@ -88,7 +100,9 @@ class TestRedshiftClientManagerRedshiftClient:
         assert client == mock_client
 
         # Verify boto3.Session was called with correct parameters
-        mock_boto3_session.assert_called_once_with(profile_name=None, region_name=None)
+        mock_boto3_session.assert_called_once_with(
+            botocore_session=mocker.ANY, profile_name=None, region_name=None
+        )
         mock_boto3_session.return_value.client.assert_called_once_with('redshift', config=config)
 
     def test_redshift_client_creation_error(self, mocker):
@@ -137,7 +151,9 @@ class TestRedshiftClientManagerServerlessClient:
         assert client == mock_client
 
         # Verify boto3.Session was called with correct parameters
-        mock_boto3_session.assert_called_once_with(profile_name=None, region_name=None)
+        mock_boto3_session.assert_called_once_with(
+            botocore_session=mocker.ANY, profile_name=None, region_name=None
+        )
         mock_boto3_session.return_value.client.assert_called_once_with(
             'redshift-serverless', config=config
         )
@@ -188,7 +204,9 @@ class TestRedshiftClientManagerDataClient:
         assert client == mock_client
 
         # Verify boto3.Session was called with correct parameters
-        mock_boto3_session.assert_called_once_with(profile_name=None, region_name=None)
+        mock_boto3_session.assert_called_once_with(
+            botocore_session=mocker.ANY, profile_name=None, region_name=None
+        )
         mock_boto3_session.return_value.client.assert_called_once_with(
             'redshift-data', config=config
         )
@@ -313,3 +331,149 @@ class TestTheServersClientsReadTheEnvironment:
         monkeypatch.setenv('AWS_DEFAULT_REGION', 'eu-central-1')
 
         assert client_manager.redshift_data_client().meta.region_name == 'eu-central-1'
+
+
+class _Body:
+    """The raw body botocore reads an answer from."""
+
+    def __init__(self, payload: dict):
+        self._content = json.dumps(payload).encode()
+
+    def stream(self, **kwargs):
+        yield self._content
+
+
+class TestKeysRewrittenInTheSharedCredentialsFile:
+    """Checked on real clients, which sign every call, answered locally so nothing is sent.
+
+    Botocore read these keys once and signed with them for the life of the process, so keys
+    rewritten by `aws configure` or any other tool went unseen until a restart, and every call
+    meanwhile failed with ExpiredToken.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _hermetic_files(self, tmp_path, monkeypatch):
+        """A config and credentials file of the test's own, and instance metadata off."""
+        self.credentials = tmp_path / 'credentials'
+        self.config = tmp_path / 'config'
+        self.config.write_text('[default]\nregion = eu-west-1\n')
+        self._write_keys('first-key')
+        monkeypatch.setenv('AWS_CONFIG_FILE', str(self.config))
+        monkeypatch.setenv('AWS_SHARED_CREDENTIALS_FILE', str(self.credentials))
+        monkeypatch.setenv('AWS_EC2_METADATA_DISABLED', 'true')
+
+    def _write_keys(self, access_key, profile='default'):
+        self.credentials.write_text(
+            f'[{profile}]\naws_access_key_id = {access_key}\naws_secret_access_key = secret\n'
+        )
+
+    def _client(self, answer=None):
+        """A Data API client, retrying as the server's does, whose calls record their key.
+
+        Args:
+            answer: The error code to answer every call with; a success when None.
+        """
+        client = RedshiftClientManager(Config(retries=CLIENT_RETRIES)).redshift_data_client()
+        self.signed_with: list[str] = []
+
+        def send(request, **kwargs):
+            authorization = request.headers['Authorization'].decode()
+            self.signed_with.append(authorization.split('Credential=')[1].split('/')[0])
+            if answer is None:
+                return AWSResponse(request.url, 200, {}, _Body({}))
+            return AWSResponse(request.url, 400, {}, _Body({'__type': answer, 'message': answer}))
+
+        client.meta.events.register('before-send', send)
+        return client
+
+    def test_the_same_client_signs_with_the_new_keys_once_the_ttl_passes(self, monkeypatch):
+        """Read again under botocore's refresh lock, so the client is never rebuilt."""
+        monkeypatch.setattr(clients, 'CREDENTIAL_REFRESH_TTL', 0.2)
+        client = self._client()
+        client.describe_statement(Id='statement-id')
+
+        self._write_keys('second-key')
+        time.sleep(0.3)
+        client.describe_statement(Id='statement-id')
+
+        assert self.signed_with == ['first-key', 'second-key']
+
+    def test_the_file_is_not_read_again_within_the_ttl(self):
+        """Read once a TTL, not once a call."""
+        client = self._client()
+        client.describe_statement(Id='statement-id')
+
+        self._write_keys('second-key')
+        client.describe_statement(Id='statement-id')
+
+        assert self.signed_with == ['first-key', 'first-key']
+
+    def test_keys_gone_from_the_file_fail_the_call_unsent_until_they_return(self, monkeypatch):
+        """Signing with keys the file no longer holds would hide that the operator removed them."""
+        monkeypatch.setattr(clients, 'CREDENTIAL_REFRESH_TTL', 0.2)
+        client = self._client()
+        client.describe_statement(Id='statement-id')
+
+        self.credentials.write_text('[default]\n')
+        time.sleep(0.3)
+        with pytest.raises(CredentialRetrievalError, match='no longer in the shared credentials'):
+            client.describe_statement(Id='statement-id')
+        assert self.signed_with == ['first-key']
+
+        self._write_keys('second-key')
+        client.describe_statement(Id='statement-id')
+
+        assert self.signed_with == ['first-key', 'second-key']
+
+    def test_a_named_profile_is_read_again_too(self, monkeypatch):
+        """The profile read again is the one the session was built for."""
+        monkeypatch.setattr(clients, 'CREDENTIAL_REFRESH_TTL', 0.2)
+        monkeypatch.setenv('AWS_PROFILE', 'named')
+        self.config.write_text('[profile named]\nregion = eu-north-1\n')
+        self._write_keys('first-key', profile='named')
+        client = self._client()
+        client.describe_statement(Id='statement-id')
+
+        self._write_keys('second-key', profile='named')
+        time.sleep(0.3)
+        client.describe_statement(Id='statement-id')
+
+        assert self.signed_with == ['first-key', 'second-key']
+
+    def test_keys_in_the_environment_still_come_first(self, monkeypatch):
+        """With no profile named, botocore's order stands, and the file is never consulted."""
+        monkeypatch.setenv('AWS_ACCESS_KEY_ID', 'env-key')
+        monkeypatch.setenv('AWS_SECRET_ACCESS_KEY', 'env-secret')
+        client = self._client()
+        client.describe_statement(Id='statement-id')
+
+        assert self.signed_with == ['env-key']
+        assert client._request_signer._credentials.method == 'env'
+
+    def test_a_profile_without_keys_in_the_file_is_left_to_the_rest_of_the_chain(self):
+        """Keys in the config file are found as botocore found them."""
+        self.credentials.write_text('[default]\n')
+        self.config.write_text(
+            '[default]\nregion = eu-west-1\n'
+            'aws_access_key_id = config-key\naws_secret_access_key = config-secret\n'
+        )
+        client = self._client()
+        client.describe_statement(Id='statement-id')
+
+        assert self.signed_with == ['config-key']
+        assert client._request_signer._credentials.method == 'config-file'
+
+    def test_an_expired_token_is_sent_once_and_never_again(self):
+        """Botocore does not retry ExpiredToken, and nothing here does either.
+
+        Which is why the keys have to be read again before the call, and why a submit is never
+        sent twice: the first answer is the one the caller gets.
+        """
+        client = self._client(answer='ExpiredTokenException')
+
+        with pytest.raises(ClientError, match='ExpiredTokenException'):
+            client.batch_execute_statement(
+                Sqls=['SELECT 1'], Database='dev', ClusterIdentifier='cluster'
+            )
+
+        assert self.signed_with == ['first-key']

@@ -28,6 +28,11 @@ CLIENT_CONNECT_TIMEOUT = 60
 CLIENT_READ_TIMEOUT = 600
 CLIENT_RETRIES = {'max_attempts': 5, 'mode': 'adaptive'}
 CLIENT_USER_AGENT_NAME = 'awslabs/mcp/redshift-mcp-server'
+# How old keys from the shared credentials file may get before botocore reads the file again, in
+# seconds. Botocore otherwise reads them once, so keys rewritten in place, by `aws configure` or
+# any other tool, went unseen until a restart. Short, so a call retried after the rewrite is
+# unlikely to sign with the old keys; one small file read per client per period is what it costs.
+CREDENTIAL_REFRESH_TTL = 15
 LOG_LEVEL_DEFAULT = 'WARNING'
 QUERY_TIMEOUT = 3600
 QUERY_POLL_INTERVAL = 1
