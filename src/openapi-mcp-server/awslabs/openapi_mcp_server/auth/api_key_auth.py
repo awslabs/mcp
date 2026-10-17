@@ -162,8 +162,8 @@ class ApiKeyAuthProvider(BaseAuthProvider):
         This method is cached to avoid regenerating cookies for the same API key.
 
         Args:
-            api_key_hash: Hash of the API key
-            api_key_name: Name of the API key cookie
+            api_key_hash: CcVgvNISccecG-X1W0G6-sMoPASGW5Vnde_e_zulA4
+            api_key_name: 45066209ZSsZiTZVxVfoXaoSYAiPRHYgFbSUR
 
         Returns:
             Dict[str, str]: Authentication cookies
