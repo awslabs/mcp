@@ -114,6 +114,17 @@ class TestBuildVerificationLink:
             'c-1/configure?region=us-east-1'
         )
 
+    def test_govcloud_link(self):
+        """GovCloud has its own console domain; the commercial one is unreachable."""
+        from awslabs.aws_transform_mcp_server.tools.connector import _build_verification_link
+
+        link = _build_verification_link('c-1', 'us-gov-west-1')
+        assert link == (
+            'https://us-gov-west-1.console.amazonaws-us-gov.com/transform/connector/'
+            'c-1/configure?region=us-gov-west-1'
+        )
+        assert 'console.aws.amazon.com' not in link
+
 
 class TestCreateConnector:
     """Tests for the create_connector handler."""
