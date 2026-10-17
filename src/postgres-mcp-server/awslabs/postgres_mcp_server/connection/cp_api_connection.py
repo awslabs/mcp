@@ -130,6 +130,74 @@ def internal_get_cluster_valid_endpoints(
     return endpoints
 
 
+def find_proxy_for_instance(db_instance_id: str, region: str) -> Optional[str]:
+    """Check if an RDS Proxy fronts the given DB instance and return its endpoint.
+
+    Iterates all available RDS Proxies in the region, then inspects each proxy's
+    targets to see if any reference the given DBInstanceIdentifier.
+
+    Args:
+        db_instance_id: The RDS DB instance identifier to look up.
+        region: AWS region (e.g., 'us-east-1').
+
+    Returns:
+        The proxy endpoint string if a proxy is found for the instance, or None.
+    """
+    logger.info(f"Looking for RDS Proxy fronting instance '{db_instance_id}' in region '{region}'")
+
+    try:
+        rds_client = internal_create_rds_client(region=region)
+
+        # Paginate through all proxies in the region
+        proxy_paginator = rds_client.get_paginator('describe_db_proxies')
+        for proxy_page in proxy_paginator.paginate():
+            for proxy in proxy_page.get('DBProxies', []):
+                proxy_name = proxy.get('DBProxyName', '')
+                proxy_status = proxy.get('Status', '')
+
+                if proxy_status != 'available':
+                    logger.debug(f"Skipping proxy '{proxy_name}' with status '{proxy_status}'")
+                    continue
+
+                # Check if this proxy targets our instance
+                try:
+                    targets_paginator = rds_client.get_paginator('describe_db_proxy_targets')
+                    for targets_page in targets_paginator.paginate(DBProxyName=proxy_name):
+                        for target in targets_page.get('Targets', []):
+                            target_id = target.get('RdsResourceId', '')
+                            if target_id == db_instance_id:
+                                proxy_endpoint = proxy.get('Endpoint', '')
+                                logger.info(
+                                    f"Found RDS Proxy '{proxy_name}' "
+                                    f'(endpoint: {proxy_endpoint}) '
+                                    f"fronting instance '{db_instance_id}'"
+                                )
+                                return proxy_endpoint
+                except ClientError as e:
+                    logger.warning(
+                        f"Failed to describe targets for proxy '{proxy_name}': "
+                        f'{e.response["Error"]["Code"]} - {e.response["Error"]["Message"]}'
+                    )
+                    continue
+
+        logger.info(f"No RDS Proxy found for instance '{db_instance_id}' in region '{region}'")
+        return None
+
+    except ClientError as e:
+        logger.warning(
+            f"Failed to look up RDS Proxies in region '{region}': "
+            f'{e.response["Error"]["Code"]} - {e.response["Error"]["Message"]}. '
+            f'Falling back to direct instance connection.'
+        )
+        return None
+    except Exception as e:
+        logger.warning(
+            f"Unexpected error during RDS Proxy lookup in region '{region}': "
+            f'{type(e).__name__}: {e}. Falling back to direct instance connection.'
+        )
+        return None
+
+
 def internal_get_instance_properties(target_endpoint: str, region: str) -> Dict[str, Any]:
     """Retrieve RDS instance properties from AWS."""
     rds_client = internal_create_rds_client(region=region)

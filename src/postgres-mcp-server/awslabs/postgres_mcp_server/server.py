@@ -22,6 +22,7 @@ import threading
 from awslabs.postgres_mcp_server.connection.abstract_db_connection import AbstractDBConnection
 from awslabs.postgres_mcp_server.connection.cp_api_connection import (
     DEFAULT_POSTGRES_PORT,
+    find_proxy_for_instance,
     internal_create_express_cluster,
     internal_create_serverless_cluster,
     internal_get_cluster_properties,
@@ -981,6 +982,7 @@ def internal_create_connection(
         connection_method, cluster_identifier, db_endpoint, database, port
     )
     if existing_conn:
+        # No 'proxy_endpoint' key on this path
         llm_response = json.dumps(
             {
                 'connection_method': connection_method,
@@ -1003,6 +1005,12 @@ def internal_create_connection(
     # always populate MasterUsername.
     metadata_secret_arn: str = ''
     metadata_master_username: str = ''
+    # The RDS Proxy fronting this target, when there is one (RPG instance-only path).
+    # Deliberately kept separate from db_endpoint, which stays the
+    # AWS-resolved *instance* endpoint for the whole function, because
+    # db_endpoint serves as the target's identity: it keys the per-target
+    # Secrets Manager override map, keys the connection map, and is echoed back to the caller.
+    proxy_endpoint: Optional[str] = None
 
     enable_data_api: bool = False
     cluster_arn: str = ''
@@ -1080,6 +1088,24 @@ def internal_create_connection(
         if resolved_port:
             port = resolved_port
 
+        # Check whether an RDS Proxy fronts this instance. The result is kept
+        # separate from db_endpoint rather than overwriting it -- see the
+        # proxy_endpoint declaration above for why that distinction matters.
+        db_instance_id = instance_properties.get('DBInstanceIdentifier', '')
+        if db_instance_id:
+            proxy_endpoint = find_proxy_for_instance(db_instance_id, region)
+            if proxy_endpoint:
+                logger.info(
+                    f"RDS Proxy '{proxy_endpoint}' fronts instance '{db_instance_id}'; "
+                    f'the connection will be opened against the proxy while '
+                    f"'{db_endpoint}' remains the target's identity"
+                )
+            else:
+                logger.info(
+                    f"No RDS Proxy detected for instance '{db_instance_id}'; "
+                    f"connecting directly to '{db_endpoint}'"
+                )
+
     # Resolve the Secrets Manager ARN. Per-target override map wins,
     # then the bare default ARN, then the cluster/instance MasterUserSecret.
     # IAM-only clusters (Aurora express) advertise no MasterUserSecret,
@@ -1091,7 +1117,9 @@ def internal_create_connection(
     if cluster_identifier:
         target_key = cluster_identifier
     else:
-        target_key = db_endpoint  # already overwritten with the AWS-resolved host above
+        # The AWS-resolved instance host. Never the RDS Proxy endpoint.
+        target_key = db_endpoint
+
     per_target_secret_arn = configured_secret_arns.get(target_key, '')
     effective_secret_arn = (
         per_target_secret_arn or configured_default_secret_arn or metadata_secret_arn or ''
@@ -1111,6 +1139,12 @@ def internal_create_connection(
                 f'by Secrets Manager (ManageMasterUserPassword=True).'
             )
 
+    # Where the socket actually goes: the RDS Proxy when one fronts this
+    # instance, otherwise the instance itself. Only the PsycopgPoolConnection
+    # host below reads this; everything that identifies the target keeps using
+    # db_endpoint.
+    connect_host = proxy_endpoint or db_endpoint
+
     logger.debug(
         f'About to create internal DB connections with:'
         f'enable_data_api:{enable_data_api}\n'
@@ -1118,6 +1152,8 @@ def internal_create_connection(
         f'effective_secret_arn:{effective_secret_arn}\n'
         f'metadata_master_username:{metadata_master_username}\n'
         f'db_endpoint:{db_endpoint}\n'
+        f'connect_host:{connect_host}\n'
+        f'proxy_endpoint:{proxy_endpoint}\n'
         f'port:{port}\n'
         f'region:{region}\n'
         f'readonly:{readonly_query}'
@@ -1148,7 +1184,7 @@ def internal_create_connection(
             )
 
         db_connection = PsycopgPoolConnection(
-            host=db_endpoint,
+            host=connect_host,
             port=port,
             database=database,
             readonly=readonly_query,
@@ -1171,7 +1207,7 @@ def internal_create_connection(
     else:
         # must be connection_method == ConnectionMethod.PG_WIRE_PROTOCOL
         db_connection = PsycopgPoolConnection(
-            host=db_endpoint,
+            host=connect_host,
             port=port,
             database=database,
             readonly=readonly_query,
@@ -1191,6 +1227,11 @@ def internal_create_connection(
         # key to evict a specific connection — use
         # db_connection_map.remove_connection(conn) instead. Tracked for a
         # broader key-normalization fix (see connection-map follow-up issue).
+        #
+        # It is, however, the *instance* endpoint even when the connection was
+        # opened through an RDS Proxy — the proxy host lives in connect_host and
+        # never reaches this key. Callers therefore look this connection up with
+        # the same endpoint they passed in.
         db_connection_map.set(
             connection_method, cluster_identifier, db_endpoint, database, db_connection
         )
@@ -1199,6 +1240,10 @@ def internal_create_connection(
                 'connection_method': connection_method,
                 'cluster_identifier': cluster_identifier,
                 'db_endpoint': db_endpoint,
+                # Present only when an RDS Proxy fronts the target. Reported so
+                # the routing is visible, but it is NOT the handle for this
+                # connection: subsequent calls keep using db_endpoint.
+                'proxy_endpoint': proxy_endpoint,
                 'database': database,
                 'port': port,
             },
