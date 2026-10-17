@@ -339,6 +339,10 @@ class BrowserSessionTools:
             int,
             Field(description='Maximum number of sessions to return'),
         ] = 20,
+        next_token: Annotated[
+            str | None,
+            Field(description='Pagination token from a previous response'),
+        ] = None,
         region: Annotated[
             str,
             Field(description='AWS region for AgentCore APIs'),
@@ -348,6 +352,8 @@ class BrowserSessionTools:
 
         Returns a summary of all browser sessions for the specified
         browser resource, including session IDs, status, and creation times.
+        When more sessions are available, has_more is True and next_token
+        can be passed to a subsequent call to fetch the next page.
         """
         logger.info(f'Listing browser sessions: browser={browser_identifier}')
 
@@ -356,6 +362,7 @@ class BrowserSessionTools:
             response = client.list_sessions(
                 browser_id=browser_identifier,
                 max_results=max_results,
+                next_token=next_token,
             )
 
             sessions_data = response.get('items', [])
@@ -368,9 +375,12 @@ class BrowserSessionTools:
                 for s in sessions_data[:max_results]
             ]
 
+            response_next_token = response.get('nextToken')
+
             return SessionListResponse(
                 sessions=sessions,
-                has_more=len(sessions_data) > max_results,
+                has_more=bool(response_next_token) or len(sessions_data) > max_results,
+                next_token=response_next_token,
                 message=f'Found {len(sessions)} session(s).',
             )
 

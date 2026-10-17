@@ -368,26 +368,86 @@ class TestListBrowserSessions:
 
         assert len(result.sessions) == 0
         assert result.has_more is False
+        assert result.next_token is None
 
     async def test_list_sessions_respects_max_results(
         self, session_tools, mock_ctx, mock_browser_client
     ):
-        """List sessions truncates to max_results and sets has_more."""
+        """List sessions passes max_results to the API and signals more pages via nextToken."""
+        # The service caps each page at maxResults and returns nextToken when more remain.
         sessions_data = [
             {'sessionId': f'session-{i}', 'status': 'ACTIVE', 'createdAt': '2025-01-01T00:00:00Z'}
-            for i in range(5)
+            for i in range(3)
         ]
         mock_browser_client.list_sessions.return_value = {
             'items': sessions_data,
+            'nextToken': 'page-2-token',
         }
 
         result = await session_tools.list_browser_sessions(
             ctx=mock_ctx,
+            browser_identifier='aws.browser.v1',
             max_results=3,
         )
 
+        mock_browser_client.list_sessions.assert_called_once_with(
+            browser_id='aws.browser.v1',
+            max_results=3,
+            next_token=None,
+        )
         assert len(result.sessions) == 3
         assert result.has_more is True
+
+    async def test_list_sessions_has_more_when_next_token_returned(
+        self, session_tools, mock_ctx, mock_browser_client
+    ):
+        """has_more is True and next_token is returned when the service returns nextToken."""
+        mock_browser_client.list_sessions.return_value = {
+            'items': [
+                {
+                    'sessionId': 'session-1',
+                    'status': 'READY',
+                    'createdAt': '2025-01-01T00:00:00Z',
+                },
+            ],
+            'nextToken': 'page-2-token',
+        }
+
+        result = await session_tools.list_browser_sessions(ctx=mock_ctx, max_results=1)
+
+        assert len(result.sessions) == 1
+        assert result.has_more is True
+        assert result.next_token == 'page-2-token'
+
+    async def test_list_sessions_forwards_next_token(
+        self, session_tools, mock_ctx, mock_browser_client
+    ):
+        """next_token from a previous response is passed through to the API."""
+        mock_browser_client.list_sessions.return_value = {
+            'items': [
+                {
+                    'sessionId': 'session-2',
+                    'status': 'READY',
+                    'createdAt': '2025-01-01T00:00:00Z',
+                },
+            ],
+        }
+
+        result = await session_tools.list_browser_sessions(
+            ctx=mock_ctx,
+            browser_identifier='aws.browser.v1',
+            max_results=1,
+            next_token='page-2-token',
+        )
+
+        mock_browser_client.list_sessions.assert_called_once_with(
+            browser_id='aws.browser.v1',
+            max_results=1,
+            next_token='page-2-token',
+        )
+        assert result.sessions[0].session_id == 'session-2'
+        assert result.has_more is False
+        assert result.next_token is None
 
     async def test_list_sessions_api_error(self, session_tools, mock_ctx, mock_browser_client):
         """List sessions raises on API error."""

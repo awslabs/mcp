@@ -54,4 +54,5 @@ class SessionListResponse(BaseModel):
         default_factory=list, description='List of browser session summaries'
     )
     has_more: bool = Field(default=False, description='Whether more sessions are available')
+    next_token: str | None = Field(default=None, description='Pagination token for next page')
     message: str | None = Field(default=None, description='Informational message')
