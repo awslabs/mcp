@@ -78,5 +78,32 @@ FES_REGIONS: List[str] = [
     'ca-central-1',
 ]
 
+# ── FES deployed GovCloud regions ────────────────────────────────────────
+FES_GOV_REGIONS: List[str] = [
+    'us-gov-west-1',
+]
+
+GOV_REGION_PREFIX: str = 'us-gov-'
+
+
+def fes_regions_for(region: str) -> List[str]:
+    """Return the FES regions to fan out over, scoped to ``region``'s partition.
+
+    GovCloud is a separate partition: neither IAM credentials nor Identity
+    Center tokens cross it, so probing the other partition's regions can only
+    ever fail. Each list is fanned out on its own.
+
+    Args:
+        region: Any region in the caller's partition (the resolved AWS region
+            for credential auth, or the Identity Center region for SSO).
+
+    Returns:
+        The FES regions for that partition.
+    """
+    if region.startswith(GOV_REGION_PREFIX):
+        return list(FES_GOV_REGIONS)
+    return list(FES_REGIONS)
+
+
 # ── Fan-out timeout for profile discovery (seconds per region) ──────────
 PROFILE_DISCOVERY_TIMEOUT_SECONDS: float = 5.0

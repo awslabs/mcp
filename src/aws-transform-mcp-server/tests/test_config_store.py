@@ -114,6 +114,18 @@ class TestExtractRegionFromOrigin:
             == 'eu-central-1'
         )
 
+    def test_govcloud_url(self):
+        assert (
+            extract_region_from_origin('https://abc123.transform.us-gov-west-1.on.aws')
+            == 'us-gov-west-1'
+        )
+
+    def test_govcloud_suffixed_url(self):
+        assert (
+            extract_region_from_origin('https://abc123.transform-gamma.us-gov-west-1.on.aws')
+            == 'us-gov-west-1'
+        )
+
     def test_non_matching_url(self):
         assert extract_region_from_origin('https://app.example.com') is None
 

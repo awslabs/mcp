@@ -58,6 +58,8 @@ def mock_context():
     context = MagicMock(spec=Context)
     context.info = AsyncMock()
     context.error = AsyncMock()
+    context.warning = AsyncMock()
+    context.debug = AsyncMock()
     return context
 
 
@@ -208,9 +210,10 @@ class TestListCostCategoryDefinitions:
         with patch.object(mod, 'create_aws_client', return_value=mock_ce_client):
             result = await mod.list_cost_category_definitions(mock_context)
 
-        mock_ce_client.list_cost_category_definitions.assert_called_once_with()
+        mock_ce_client.list_cost_category_definitions.assert_called_once_with(MaxResults=100)
         assert result['status'] == 'success'
         assert len(result['data']['CostCategoryReferences']) == 1
+        assert result['data']['pagination']['complete_dataset'] is True
 
     async def test_list_with_effective_on(self, mock_context, mock_ce_client):
         """Test listing categories filtered by effective date."""
@@ -222,7 +225,7 @@ class TestListCostCategoryDefinitions:
             )
 
         mock_ce_client.list_cost_category_definitions.assert_called_once_with(
-            EffectiveOn='2024-06-01T00:00:00Z'
+            EffectiveOn='2024-06-01T00:00:00Z', MaxResults=100
         )
         assert result['status'] == 'success'
 
@@ -237,16 +240,16 @@ class TestListCostCategoryDefinitions:
             )
 
         mock_ce_client.list_cost_category_definitions.assert_called_once_with(
-            SupportedResourceTypes=['billing:billingview']
+            SupportedResourceTypes=['billing:billingview'], MaxResults=100
         )
         assert result['status'] == 'success'
 
-    async def test_list_with_max_results(self, mock_context, mock_ce_client):
-        """Test listing categories with max_results."""
+    async def test_list_with_max_items(self, mock_context, mock_ce_client):
+        """max_items below the page maximum sets the page size."""
         mod = _reload_with_identity_decorator()
 
         with patch.object(mod, 'create_aws_client', return_value=mock_ce_client):
-            result = await mod.list_cost_category_definitions(mock_context, max_results=10)
+            result = await mod.list_cost_category_definitions(mock_context, max_items=10)
 
         mock_ce_client.list_cost_category_definitions.assert_called_once_with(MaxResults=10)
         assert result['status'] == 'success'
@@ -261,7 +264,7 @@ class TestListCostCategoryDefinitions:
                 mock_context,
                 effective_on='2024-06-01T00:00:00Z',
                 supported_resource_types=resource_types,
-                max_results=5,
+                max_items=5,
             )
 
         mock_ce_client.list_cost_category_definitions.assert_called_once_with(
@@ -271,43 +274,60 @@ class TestListCostCategoryDefinitions:
         )
         assert result['status'] == 'success'
 
-    async def test_list_with_max_pages(self, mock_context, mock_ce_client):
-        """Test listing categories with auto-pagination."""
+    async def test_list_without_max_items_fetches_every_page(self, mock_context):
+        """Without max_items every page is fetched at the largest page size."""
         mod = _reload_with_identity_decorator()
-        mock_paginate = AsyncMock(
-            return_value=(
-                [{'CostCategoryArn': COST_CATEGORY_ARN, 'Name': 'Environment'}],
-                {'total_results': 1, 'pages_fetched': 1},
+        client = MagicMock()
+        client.list_cost_category_definitions.side_effect = [
+            {'CostCategoryReferences': [{'Name': 'A'}], 'NextToken': 't1'},
+            {'CostCategoryReferences': [{'Name': 'B'}]},
+        ]
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_category_definitions(
+                mock_context, effective_on='2024-06-01T00:00:00Z'
             )
-        )
 
-        with (
-            patch.object(mod, 'create_aws_client', return_value=mock_ce_client),
-            patch.object(mod, 'paginate_aws_response', mock_paginate),
-        ):
-            result = await mod.list_cost_category_definitions(mock_context, max_pages=5)
+        assert [c['Name'] for c in result['data']['CostCategoryReferences']] == ['A', 'B']
+        assert 'complete_dataset' not in result['data']
+        assert [c.kwargs for c in client.list_cost_category_definitions.call_args_list] == [
+            {'EffectiveOn': '2024-06-01T00:00:00Z', 'MaxResults': 100},
+            {'EffectiveOn': '2024-06-01T00:00:00Z', 'MaxResults': 100, 'NextToken': 't1'},
+        ]
 
-        mock_paginate.assert_called_once()
-        assert result['status'] == 'success'
-        assert len(result['data']['CostCategoryReferences']) == 1
-
-    async def test_list_with_next_token(self, mock_context, mock_ce_client):
-        """Test listing categories with next_token triggers pagination."""
+    async def test_list_max_items_stops_with_token(self, mock_context):
+        """max_items stops after the requested total and returns the service token."""
         mod = _reload_with_identity_decorator()
-        mock_paginate = AsyncMock(
-            return_value=(
-                [{'CostCategoryArn': COST_CATEGORY_ARN, 'Name': 'Environment'}],
-                {'total_results': 1, 'pages_fetched': 1},
+        client = MagicMock()
+        client.list_cost_category_definitions.return_value = {
+            'CostCategoryReferences': [{'Name': 'A'}],
+            'NextToken': 't1',
+        }
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_category_definitions(mock_context, max_items=1)
+
+        client.list_cost_category_definitions.assert_called_once_with(MaxResults=1)
+        assert result['data']['complete_dataset'] is False
+        assert result['data']['pagination']['next_token'] == 't1'
+        assert result['data']['pagination']['has_more'] is True
+
+    async def test_list_continuation_sends_caller_token(self, mock_context):
+        """A continuation sends the caller's token and otherwise identical params."""
+        mod = _reload_with_identity_decorator()
+        client = MagicMock()
+        client.list_cost_category_definitions.return_value = {
+            'CostCategoryReferences': [{'CostCategoryArn': COST_CATEGORY_ARN}]
+        }
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_category_definitions(
+                mock_context, effective_on='2024-06-01T00:00:00Z', next_token='token456'
             )
+
+        client.list_cost_category_definitions.assert_called_once_with(
+            EffectiveOn='2024-06-01T00:00:00Z', MaxResults=100, NextToken='token456'
         )
-
-        with (
-            patch.object(mod, 'create_aws_client', return_value=mock_ce_client),
-            patch.object(mod, 'paginate_aws_response', mock_paginate),
-        ):
-            result = await mod.list_cost_category_definitions(mock_context, next_token='token456')
-
-        mock_paginate.assert_called_once()
         assert result['status'] == 'success'
 
     async def test_list_client_error(self, mock_context):
