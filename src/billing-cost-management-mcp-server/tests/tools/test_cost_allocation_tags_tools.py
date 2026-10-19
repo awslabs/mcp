@@ -57,6 +57,8 @@ def mock_context():
     context = MagicMock(spec=Context)
     context.info = AsyncMock()
     context.error = AsyncMock()
+    context.warning = AsyncMock()
+    context.debug = AsyncMock()
     return context
 
 
@@ -124,6 +126,12 @@ class TestListCostAllocationTags:
 
         assert result['status'] == 'success'
         assert len(result['data']['CostAllocationTags']) == 2
+        assert result['data']['pagination'] == {
+            'complete_dataset': True,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 2,
+        }
 
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.cost_allocation_tags_tools.create_aws_client'
@@ -137,7 +145,9 @@ class TestListCostAllocationTags:
         with patch.object(mod, 'create_aws_client', return_value=mock_ce_client):
             result = await mod.list_cost_allocation_tags(mock_context, status='Active')
 
-        mock_ce_client.list_cost_allocation_tags.assert_called_once_with(Status='Active')
+        mock_ce_client.list_cost_allocation_tags.assert_called_once_with(
+            Status='Active', MaxResults=1000
+        )
         assert result['status'] == 'success'
 
     @patch(
@@ -152,7 +162,9 @@ class TestListCostAllocationTags:
         with patch.object(mod, 'create_aws_client', return_value=mock_ce_client):
             result = await mod.list_cost_allocation_tags(mock_context, tag_type='UserDefined')
 
-        mock_ce_client.list_cost_allocation_tags.assert_called_once_with(Type='UserDefined')
+        mock_ce_client.list_cost_allocation_tags.assert_called_once_with(
+            Type='UserDefined', MaxResults=1000
+        )
         assert result['status'] == 'success'
 
     @patch(
@@ -169,32 +181,12 @@ class TestListCostAllocationTags:
             result = await mod.list_cost_allocation_tags(mock_context, tag_keys=tag_keys)
 
         mock_ce_client.list_cost_allocation_tags.assert_called_once_with(
-            TagKeys=['Environment', 'Team']
+            TagKeys=['Environment', 'Team'], MaxResults=1000
         )
         assert result['status'] == 'success'
 
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.cost_allocation_tags_tools.create_aws_client'
-    )
-    async def test_list_tags_with_max_results(
-        self, mock_create_client, mock_context, mock_ce_client
-    ):
-        """Test listing tags with max_results parameter."""
-        mod = _reload_with_identity_decorator()
-
-        with patch.object(mod, 'create_aws_client', return_value=mock_ce_client):
-            result = await mod.list_cost_allocation_tags(mock_context, max_results=50)
-
-        mock_ce_client.list_cost_allocation_tags.assert_called_once_with(MaxResults=50)
-        assert result['status'] == 'success'
-
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.cost_allocation_tags_tools.create_aws_client'
-    )
-    async def test_list_tags_with_all_filters(
-        self, mock_create_client, mock_context, mock_ce_client
-    ):
-        """Test listing tags with all filters combined."""
+    async def test_list_tags_with_all_filters(self, mock_context, mock_ce_client):
+        """Test listing tags with all filters combined; max_items sets the page size."""
         mod = _reload_with_identity_decorator()
         tag_keys = json.dumps(['Environment'])
 
@@ -204,7 +196,7 @@ class TestListCostAllocationTags:
                 status='Active',
                 tag_keys=tag_keys,
                 tag_type='UserDefined',
-                max_results=10,
+                max_items=10,
             )
 
         mock_ce_client.list_cost_allocation_tags.assert_called_once_with(
@@ -215,48 +207,81 @@ class TestListCostAllocationTags:
         )
         assert result['status'] == 'success'
 
-    async def test_list_tags_with_max_pages(self, mock_context, mock_ce_client):
-        """Test listing tags with auto-pagination via max_pages."""
+    async def test_list_tags_without_max_items_fetches_every_page(self, mock_context):
+        """Without max_items every page is fetched at the largest page size."""
         mod = _reload_with_identity_decorator()
-        mock_paginate = AsyncMock(
-            return_value=(
-                [
-                    {'TagKey': 'Environment', 'Type': 'UserDefined', 'Status': 'Active'},
-                    {'TagKey': 'Team', 'Type': 'UserDefined', 'Status': 'Active'},
-                ],
-                {'total_results': 2, 'pages_fetched': 1},
+        client = MagicMock()
+        client.list_cost_allocation_tags.side_effect = [
+            {'CostAllocationTags': [{'TagKey': 'A'}], 'NextToken': 't1'},
+            {'CostAllocationTags': [{'TagKey': 'B'}], 'NextToken': 't2'},
+            {'CostAllocationTags': [{'TagKey': 'C'}]},
+        ]
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_allocation_tags(mock_context, status='Active')
+
+        assert [t['TagKey'] for t in result['data']['CostAllocationTags']] == ['A', 'B', 'C']
+        assert 'complete_dataset' not in result['data']
+        assert result['data']['pagination']['complete_dataset'] is True
+        calls = client.list_cost_allocation_tags.call_args_list
+        assert [c.kwargs for c in calls] == [
+            {'Status': 'Active', 'MaxResults': 1000},
+            {'Status': 'Active', 'MaxResults': 1000, 'NextToken': 't1'},
+            {'Status': 'Active', 'MaxResults': 1000, 'NextToken': 't2'},
+        ]
+
+    async def test_list_tags_max_items_stops_with_token(self, mock_context):
+        """max_items stops after the requested total and returns the service token."""
+        mod = _reload_with_identity_decorator()
+        client = MagicMock()
+        client.list_cost_allocation_tags.side_effect = [
+            {'CostAllocationTags': [{'TagKey': 'A'}, {'TagKey': 'B'}], 'NextToken': 't1'},
+        ]
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_allocation_tags(mock_context, max_items=2)
+
+        client.list_cost_allocation_tags.assert_called_once_with(MaxResults=2)
+        data = result['data']
+        assert list(data)[:2] == ['complete_dataset', 'warning']
+        assert data['complete_dataset'] is False
+        assert data['pagination'] == {
+            'complete_dataset': False,
+            'has_more': True,
+            'next_token': 't1',
+            'items_returned': 2,
+        }
+
+    async def test_list_tags_continuation_sends_caller_token(self, mock_context):
+        """A continuation sends the caller's token and otherwise identical params."""
+        mod = _reload_with_identity_decorator()
+        client = MagicMock()
+        client.list_cost_allocation_tags.return_value = {'CostAllocationTags': [{'TagKey': 'C'}]}
+
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_allocation_tags(
+                mock_context, tag_type='UserDefined', max_items=2, next_token='t1'
             )
+
+        client.list_cost_allocation_tags.assert_called_once_with(
+            Type='UserDefined', MaxResults=2, NextToken='t1'
+        )
+        assert result['data']['pagination']['complete_dataset'] is True
+
+    async def test_list_tags_invalid_next_token(self, mock_context):
+        """A rejected caller token maps to invalid_next_token."""
+        mod = _reload_with_identity_decorator()
+        client = MagicMock()
+        client.list_cost_allocation_tags.side_effect = ClientError(
+            {'Error': {'Code': 'InvalidNextTokenException', 'Message': 'bad'}},
+            'ListCostAllocationTags',
         )
 
-        with (
-            patch.object(mod, 'create_aws_client', return_value=mock_ce_client),
-            patch.object(mod, 'paginate_aws_response', mock_paginate),
-        ):
-            result = await mod.list_cost_allocation_tags(mock_context, max_pages=5)
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_allocation_tags(mock_context, next_token='stale')
 
-        mock_paginate.assert_called_once()
-        assert result['status'] == 'success'
-        assert len(result['data']['CostAllocationTags']) == 2
-        assert result['data']['Pagination']['total_results'] == 2
-
-    async def test_list_tags_with_next_token(self, mock_context, mock_ce_client):
-        """Test listing tags with next_token triggers pagination."""
-        mod = _reload_with_identity_decorator()
-        mock_paginate = AsyncMock(
-            return_value=(
-                [{'TagKey': 'CostCenter', 'Type': 'UserDefined', 'Status': 'Active'}],
-                {'total_results': 1, 'pages_fetched': 1},
-            )
-        )
-
-        with (
-            patch.object(mod, 'create_aws_client', return_value=mock_ce_client),
-            patch.object(mod, 'paginate_aws_response', mock_paginate),
-        ):
-            result = await mod.list_cost_allocation_tags(mock_context, next_token='abc123')
-
-        mock_paginate.assert_called_once()
-        assert result['status'] == 'success'
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'invalid_next_token'
 
     async def test_list_tags_error(self, mock_context):
         """Test error handling for exceptions."""
@@ -303,66 +328,70 @@ class TestListCostAllocationTagBackfillHistory:
         with patch.object(mod, 'create_aws_client', return_value=mock_ce_client):
             result = await mod.list_cost_allocation_tag_backfill_history(mock_context)
 
-        mock_ce_client.list_cost_allocation_tag_backfill_history.assert_called_once_with()
+        mock_ce_client.list_cost_allocation_tag_backfill_history.assert_called_once_with(
+            MaxResults=1000
+        )
         assert result['status'] == 'success'
         assert len(result['data']['BackfillRequests']) == 1
 
-    async def test_list_backfill_with_max_results(self, mock_context, mock_ce_client):
-        """Test listing backfill history with max_results."""
+    async def test_list_backfill_with_max_items(self, mock_context, mock_ce_client):
+        """max_items=1 requests one item per page."""
         mod = _reload_with_identity_decorator()
 
         with patch.object(mod, 'create_aws_client', return_value=mock_ce_client):
-            result = await mod.list_cost_allocation_tag_backfill_history(
-                mock_context, max_results=1
-            )
+            result = await mod.list_cost_allocation_tag_backfill_history(mock_context, max_items=1)
 
         mock_ce_client.list_cost_allocation_tag_backfill_history.assert_called_once_with(
             MaxResults=1
         )
         assert result['status'] == 'success'
 
-    async def test_list_backfill_with_max_pages(self, mock_context, mock_ce_client):
-        """Test listing backfill history with auto-pagination."""
+    async def test_list_backfill_without_max_items_fetches_every_page(self, mock_context):
+        """Without max_items every page is fetched."""
         mod = _reload_with_identity_decorator()
-        mock_paginate = AsyncMock(
-            return_value=(
-                [{'BackfillFrom': '2024-01-01T00:00:00Z', 'BackfillStatus': 'SUCCEEDED'}],
-                {'total_results': 1, 'pages_fetched': 1},
-            )
-        )
+        client = MagicMock()
+        client.list_cost_allocation_tag_backfill_history.side_effect = [
+            {'BackfillRequests': [{'BackfillStatus': 'SUCCEEDED'}], 'NextToken': 't1'},
+            {'BackfillRequests': [{'BackfillStatus': 'FAILED'}]},
+        ]
 
-        with (
-            patch.object(mod, 'create_aws_client', return_value=mock_ce_client),
-            patch.object(mod, 'paginate_aws_response', mock_paginate),
-        ):
-            result = await mod.list_cost_allocation_tag_backfill_history(
-                mock_context, max_pages=10
-            )
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            result = await mod.list_cost_allocation_tag_backfill_history(mock_context)
 
-        mock_paginate.assert_called_once()
-        assert result['status'] == 'success'
-        assert len(result['data']['BackfillRequests']) == 1
+        assert len(result['data']['BackfillRequests']) == 2
+        assert result['data']['pagination']['complete_dataset'] is True
+        assert [
+            c.kwargs for c in client.list_cost_allocation_tag_backfill_history.call_args_list
+        ] == [
+            {'MaxResults': 1000},
+            {'MaxResults': 1000, 'NextToken': 't1'},
+        ]
 
-    async def test_list_backfill_with_next_token(self, mock_context, mock_ce_client):
-        """Test listing backfill history with next_token triggers pagination."""
+    async def test_list_backfill_max_items_stop_and_continue(self, mock_context):
+        """max_items stops with the service token; the continuation sends it back."""
         mod = _reload_with_identity_decorator()
-        mock_paginate = AsyncMock(
-            return_value=(
-                [{'BackfillFrom': '2024-02-01T00:00:00Z', 'BackfillStatus': 'PROCESSING'}],
-                {'total_results': 1, 'pages_fetched': 1},
-            )
-        )
+        client = MagicMock()
+        client.list_cost_allocation_tag_backfill_history.side_effect = [
+            {'BackfillRequests': [{'BackfillStatus': 'SUCCEEDED'}], 'NextToken': 't1'},
+            {'BackfillRequests': [{'BackfillStatus': 'FAILED'}]},
+        ]
 
-        with (
-            patch.object(mod, 'create_aws_client', return_value=mock_ce_client),
-            patch.object(mod, 'paginate_aws_response', mock_paginate),
-        ):
-            result = await mod.list_cost_allocation_tag_backfill_history(
-                mock_context, next_token='token123'
+        with patch.object(mod, 'create_aws_client', return_value=client):
+            first = await mod.list_cost_allocation_tag_backfill_history(mock_context, max_items=1)
+            token = first['data']['pagination']['next_token']
+            second = await mod.list_cost_allocation_tag_backfill_history(
+                mock_context, max_items=1, next_token=token
             )
 
-        mock_paginate.assert_called_once()
-        assert result['status'] == 'success'
+        assert first['data']['complete_dataset'] is False
+        assert token == 't1'
+        assert second['data']['pagination']['complete_dataset'] is True
+        assert [
+            c.kwargs for c in client.list_cost_allocation_tag_backfill_history.call_args_list
+        ] == [
+            {'MaxResults': 1},
+            {'MaxResults': 1, 'NextToken': 't1'},
+        ]
 
     async def test_list_backfill_error(self, mock_context):
         """Test error handling for backfill history."""
