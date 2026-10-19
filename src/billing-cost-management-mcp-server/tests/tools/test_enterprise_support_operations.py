@@ -22,6 +22,7 @@ from awslabs.billing_cost_management_mcp_server.tools.enterprise_support_operati
     get_contract_details,
     list_linked_account_charges,
 )
+from awslabs.billing_cost_management_mcp_server.utilities import sql_utils
 from botocore.exceptions import EndpointConnectionError
 from botocore.stub import Stubber
 from datetime import datetime, timezone
@@ -35,6 +36,8 @@ CREATE_CLIENT_PATH = (
 CHARGE_SUMMARY_OP = 'get_enterprise_support_charge_summary'
 CONTRACT_DETAILS_OP = 'get_enterprise_support_contract_details'
 LINKED_CHARGES_OP = 'list_enterprise_support_linked_account_charges'
+# Without max_items every page is requested at the API's largest page size.
+LINKED_CHARGES_FIRST_PAGE = {'billingMonth': '2026-06', 'maxResults': 100}
 
 # Every operation shares the same billing-month bounds, so the validation tests
 # run against each handler rather than trusting one to stand in for the others.
@@ -522,6 +525,7 @@ class TestListLinkedAccountCharges:
             LINKED_CHARGES_OP,
             '2026-06',
             response={'linkedAccount': [sample_linked_account]},
+            expected_params=LINKED_CHARGES_FIRST_PAGE,
         )
 
         assert result['status'] == 'success'
@@ -532,8 +536,13 @@ class TestListLinkedAccountCharges:
         assert 'endDate' not in charges[0]['subscriptionTimePeriods'][0]
         assert charges[0]['proratedTotalSupportEligibleSpend'] == '25000.00'
         assert charges[0]['supportEligibleSpendByService'][0]['serviceCode'] == 'AmazonEC2'
-        assert result['data']['pagination']['complete_dataset'] is True
-        assert result['data']['pagination']['total_results'] == 1
+        assert result['data']['pagination'] == {
+            'complete_dataset': True,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 1,
+        }
+        assert 'warning' not in result['data']
 
     @pytest.mark.asyncio
     async def test_account_id_is_omitted_when_not_requested(
@@ -550,7 +559,7 @@ class TestListLinkedAccountCharges:
             LINKED_CHARGES_OP,
             '2026-06',
             response={'linkedAccount': [sample_linked_account]},
-            expected_params={'billingMonth': '2026-06'},
+            expected_params=LINKED_CHARGES_FIRST_PAGE,
         )
 
         assert result['status'] == 'success'
@@ -564,15 +573,15 @@ class TestListLinkedAccountCharges:
             LINKED_CHARGES_OP,
             '2026-06',
             response={'linkedAccount': [sample_linked_account]},
-            expected_params={'billingMonth': '2026-06', 'accountId': '111122223333'},
+            expected_params={**LINKED_CHARGES_FIRST_PAGE, 'accountId': '111122223333'},
             account_id='111122223333',
         )
 
         assert result['status'] == 'success'
 
     @pytest.mark.asyncio
-    async def test_max_results_is_forwarded(self, mock_context, sample_linked_account):
-        """An explicit page size reaches the API."""
+    async def test_max_items_sizes_the_page(self, mock_context, sample_linked_account):
+        """max_items below the page maximum becomes the requested page size."""
         result = await _run_operation(
             mock_context,
             list_linked_account_charges,
@@ -580,7 +589,7 @@ class TestListLinkedAccountCharges:
             '2026-06',
             response={'linkedAccount': [sample_linked_account]},
             expected_params={'billingMonth': '2026-06', 'maxResults': 50},
-            max_results=50,
+            max_items=50,
         )
 
         assert result['status'] == 'success'
@@ -594,11 +603,13 @@ class TestListLinkedAccountCharges:
             LINKED_CHARGES_OP,
             '2026-06',
             response={'linkedAccount': []},
+            expected_params=LINKED_CHARGES_FIRST_PAGE,
         )
 
         assert result['status'] == 'success'
         assert result['data']['linked_account_charges'] == []
-        assert result['data']['pagination']['total_results'] == 0
+        assert result['data']['pagination']['items_returned'] == 0
+        assert result['data']['pagination']['complete_dataset'] is True
 
     @pytest.mark.asyncio
     async def test_access_denied_names_its_own_iam_action(self, mock_context):
@@ -717,11 +728,155 @@ class TestListLinkedAccountChargesPaging:
             LINKED_CHARGES_OP,
             '2026-06',
             response={'linkedAccount': []},
-            expected_params={'billingMonth': '2026-06', 'nextToken': 'resume-here'},
+            expected_params={**LINKED_CHARGES_FIRST_PAGE, 'nextToken': 'resume-here'},
             next_token='resume-here',
         )
 
         assert result['status'] == 'success'
+
+    @staticmethod
+    async def _run_pages(mock_context, pages, **handler_kwargs):
+        """Run list_linked_account_charges against stubbed pages.
+
+        Args:
+            mock_context: The mock MCP context.
+            pages: ``(expected_params, response)`` pairs, one per request, in order.
+            **handler_kwargs: Extra arguments forwarded to the handler.
+
+        Returns:
+            The operation result.
+        """
+        client = boto3.client('billing', region_name='us-east-1')
+        stubber = Stubber(client)
+        for expected, response in pages:
+            stubber.add_response(LINKED_CHARGES_OP, response, expected)
+        stubber.activate()
+        with patch(CREATE_CLIENT_PATH, return_value=client):
+            result = await list_linked_account_charges(
+                mock_context, billing_month='2026-06', **handler_kwargs
+            )
+        stubber.assert_no_pending_responses()
+        return result
+
+    @pytest.mark.asyncio
+    async def test_no_max_items_fetches_every_page(self, mock_context, sample_linked_account):
+        """Without max_items every page is fetched at the largest page size."""
+        result = await self._run_pages(
+            mock_context,
+            [
+                (
+                    LINKED_CHARGES_FIRST_PAGE,
+                    {'linkedAccount': [sample_linked_account], 'nextToken': 'P2'},
+                ),
+                (
+                    {**LINKED_CHARGES_FIRST_PAGE, 'nextToken': 'P2'},
+                    {'linkedAccount': [sample_linked_account], 'nextToken': 'P3'},
+                ),
+                (
+                    {**LINKED_CHARGES_FIRST_PAGE, 'nextToken': 'P3'},
+                    {'linkedAccount': [sample_linked_account]},
+                ),
+            ],
+        )
+
+        data = result['data']
+        assert len(data['linked_account_charges']) == 3
+        assert data['pagination']['complete_dataset'] is True
+        assert data['pagination']['items_returned'] == 3
+        assert 'warning' not in data
+
+    @pytest.mark.asyncio
+    async def test_max_items_stops_before_the_next_page(self, mock_context, sample_linked_account):
+        """Once max_items is reached the walk stops and returns the service token."""
+        result = await self._run_pages(
+            mock_context,
+            [
+                (
+                    {'billingMonth': '2026-06', 'maxResults': 2},
+                    {
+                        'linkedAccount': [sample_linked_account, sample_linked_account],
+                        'nextToken': 'P2',
+                    },
+                ),
+            ],
+            max_items=2,
+        )
+
+        data = result['data']
+        assert data['complete_dataset'] is False
+        assert 'Partial data' in data['warning']
+        assert data['pagination'] == {
+            'complete_dataset': False,
+            'has_more': True,
+            'next_token': 'P2',
+            'items_returned': 2,
+        }
+
+    @pytest.mark.asyncio
+    async def test_continuation_sends_token_and_identical_params(
+        self, mock_context, sample_linked_account
+    ):
+        """A continuation repeats the first request plus the caller's token."""
+        first_request = {'billingMonth': '2026-06', 'accountId': '111122223333', 'maxResults': 1}
+        await self._run_pages(
+            mock_context,
+            [(first_request, {'linkedAccount': [sample_linked_account], 'nextToken': 'P2'})],
+            account_id='111122223333',
+            max_items=1,
+        )
+        result = await self._run_pages(
+            mock_context,
+            [({**first_request, 'nextToken': 'P2'}, {'linkedAccount': [sample_linked_account]})],
+            account_id='111122223333',
+            max_items=1,
+            next_token='P2',
+        )
+
+        assert result['data']['pagination']['complete_dataset'] is True
+
+    @pytest.mark.asyncio
+    async def test_partial_result_survives_sql_offload(self, mock_context, sample_linked_account):
+        """The partial-data fields stay on the offload sentinel."""
+        with patch.object(sql_utils, 'SQL_CONVERSION_THRESHOLD', 1):
+            result = await self._run_pages(
+                mock_context,
+                [
+                    (
+                        {'billingMonth': '2026-06', 'maxResults': 1},
+                        {'linkedAccount': [sample_linked_account], 'nextToken': 'P2'},
+                    ),
+                ],
+                max_items=1,
+            )
+
+        data = result['data']
+        assert data['data_stored'] is True
+        assert [k for k in data if k != 'status'][:2] == ['complete_dataset', 'warning']
+        assert 'Partial data' in data['warning']
+        assert data['complete_dataset'] is False
+        assert data['pagination']['has_more'] is True
+        assert data['pagination']['next_token'] == 'P2'
+        assert data['pagination']['items_returned'] == 1
+        assert data['billing_month'] == '2026-06'
+
+    @pytest.mark.asyncio
+    async def test_rejected_token_is_invalid_next_token(self, mock_context):
+        """A token the service rejects maps to invalid_next_token."""
+        client = boto3.client('billing', region_name='us-east-1')
+        stubber = Stubber(client)
+        stubber.add_client_error(
+            LINKED_CHARGES_OP,
+            service_error_code='InvalidNextTokenException',
+            http_status_code=400,
+        )
+        stubber.activate()
+        with patch(CREATE_CLIENT_PATH, return_value=client):
+            result = await list_linked_account_charges(
+                mock_context, billing_month='2026-06', next_token='stale'
+            )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'invalid_next_token'
 
 
 class TestLatestAvailableMonthYearBoundary:
