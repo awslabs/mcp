@@ -41,7 +41,7 @@ cost_anomaly_server = FastMCP(
 GET_ANOMALIES = PageSpec(
     result_key='Anomalies',
     token_param='NextPageToken',
-    token_key='NextPageToken',
+    token_key_in_response='NextPageToken',
     page_max=10000,
     page_size_param='MaxResults',
 )

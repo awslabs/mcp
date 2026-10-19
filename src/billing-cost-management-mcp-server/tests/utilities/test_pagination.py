@@ -61,12 +61,12 @@ def _pages(*sizes, token_param='nextToken'):
 SIZED = PageSpec(
     result_key='items',
     token_param='nextToken',
-    token_key='nextToken',
+    token_key_in_response='nextToken',
     page_max=100,
     page_size_param='maxResults',
 )
 SERVER_SIZED = PageSpec(
-    result_key='items', token_param='nextToken', token_key='nextToken', page_max=5
+    result_key='items', token_param='nextToken', token_key_in_response='nextToken', page_max=5
 )
 
 
@@ -170,7 +170,7 @@ class TestFetchAll:
         spec = PageSpec(
             result_key=('Rec', 'Details'),
             token_param='NextPageToken',
-            token_key='NextPageToken',
+            token_key_in_response='NextPageToken',
             page_max=10,
         )
         items, _, _ = await paginate_aws_items(ctx, 'op', api, {}, spec)
@@ -189,7 +189,7 @@ class TestFetchAll:
         spec = PageSpec(
             result_key=('Rec', 'Details'),
             token_param='NextPageToken',
-            token_key='NextPageToken',
+            token_key_in_response='NextPageToken',
             page_max=10,
         )
 
@@ -252,7 +252,7 @@ class TestMaxItems:
         spec = PageSpec(
             result_key='items',
             token_param='NextPageToken',
-            token_key='NextPageToken',
+            token_key_in_response='NextPageToken',
             page_max=500,
             page_size_param='MaxResults',
             fixed_page_size=True,
@@ -272,22 +272,22 @@ class TestMaxItems:
         assert api.call_args_list[0].kwargs == {'NextPageToken': 't0', 'MaxResults': 500}
         assert pagination['next_token'] == 't1'
 
-    async def test_page_min_with_little_left_stops(self, ctx):
-        """When less than page_min is left and that page could overflow, stop."""
+    async def test_page_size_is_at_least_one(self, ctx):
+        """Fewer items left than one unit holds still requests a page of 1, never 0."""
         spec = PageSpec(
             result_key='items',
             token_param='NextToken',
-            token_key='NextToken',
-            page_max=300,
+            token_key_in_response='NextToken',
+            page_max=100,
             page_size_param='MaxResults',
-            page_min=200,
+            items_per_page_unit=10,
         )
-        api = MagicMock(side_effect=[{'items': list(range(300)), 'NextToken': 't1'}])
+        api = MagicMock(side_effect=[{'items': list(range(10)), 'NextToken': 't1'}])
 
-        items, _, pagination = await paginate_aws_items(ctx, 'op', api, {}, spec, max_items=400)
+        items, _, pagination = await paginate_aws_items(ctx, 'op', api, {}, spec, max_items=5)
 
-        assert len(items) == 300
-        assert api.call_count == 1
+        assert api.call_args_list[0].kwargs == {'MaxResults': 1}
+        assert len(items) == 10
         assert pagination['next_token'] == 't1'
 
     async def test_items_per_page_unit(self, ctx):
@@ -295,7 +295,7 @@ class TestMaxItems:
         spec = PageSpec(
             result_key='items',
             token_param='NextToken',
-            token_key='NextToken',
+            token_key_in_response='NextToken',
             page_max=10000,
             page_size_param='MaxResults',
             items_per_page_unit=10,
@@ -320,7 +320,7 @@ class TestMaxItems:
         spec = PageSpec(
             result_key='ResultsByTime',
             token_param='NextPageToken',
-            token_key='NextPageToken',
+            token_key_in_response='NextPageToken',
             page_max=10,
             count_items=lambda periods: sum(max(1, len(p['Groups'])) for p in periods),
         )
@@ -429,7 +429,7 @@ class TestFailures:
         spec = PageSpec(
             result_key='items',
             token_param='NextToken',
-            token_key='NextToken',
+            token_key_in_response='NextToken',
             page_max=5,
             token_error_codes=frozenset({'InternalServerException'}),
         )
@@ -466,7 +466,13 @@ class TestFailures:
         assert pagination['next_token'] is None
         assert pagination['has_more'] is False
         assert pagination['complete_dataset'] is False
-        assert 'without next_token' in pagination['warning']
+        assert pagination['warning'] == (
+            'Partial data: returned 1 items, then the service failed with '
+            'BillExpirationException. Totals and counts computed from this result undercount '
+            'the real data. The continuation token is no longer valid. Call again without '
+            'next_token to restart from the first page, and use only the new result: it repeats '
+            'the items in this one, so do not combine them.'
+        )
 
     async def test_expired_next_token_is_a_token_error(self, ctx):
         """AWS Pricing's ExpiredNextTokenException maps to invalid_next_token."""
@@ -483,7 +489,7 @@ class TestFailures:
         spec = PageSpec(
             result_key='items',
             token_param='NextToken',
-            token_key='NextToken',
+            token_key_in_response='NextToken',
             page_max=5,
             caller_token_error_codes=frozenset({'InternalServerException'}),
         )

@@ -777,11 +777,7 @@ async def convert_api_response_to_table(
             # Insert pricing data
             price_list = response.get('PriceList', [])
             for product_json in price_list:
-                try:
-                    product = json.loads(product_json)
-                except (TypeError, ValueError):
-                    # One malformed product must not fail the whole offload.
-                    product = {}
+                product = json.loads(product_json)
 
                 # Use validated table name
                 validate_table_name(table_name)

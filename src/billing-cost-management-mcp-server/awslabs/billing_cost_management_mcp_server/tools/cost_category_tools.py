@@ -40,7 +40,7 @@ cost_category_server = FastMCP(
 LIST_COST_CATEGORY_DEFINITIONS = PageSpec(
     result_key='CostCategoryReferences',
     token_param='NextToken',
-    token_key='NextToken',
+    token_key_in_response='NextToken',
     page_max=100,
     page_size_param='MaxResults',
 )

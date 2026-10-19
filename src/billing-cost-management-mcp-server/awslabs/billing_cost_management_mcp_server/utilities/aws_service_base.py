@@ -381,11 +381,10 @@ class PageSpec:
         result_key: Response key holding the page's items, or a tuple path to a
             nested list (e.g. ``('SavingsPlansPurchaseRecommendation', 'Details')``).
         token_param: Request field that carries the continuation token.
-        token_key: Response field that returns the continuation token.
+        token_key_in_response: Response field that returns the continuation token.
         page_max: Largest number of items one page can hold.
         page_size_param: Request field that sets the page size, or None when the
             service chooses the page size.
-        page_min: Smallest page size the service accepts.
         fixed_page_size: Always request ``page_max``. For services whose token is bound
             to the page size, so a continuation must repeat it.
         items_per_page_unit: Items each unit of page size can return. For APIs whose
@@ -403,10 +402,9 @@ class PageSpec:
 
     result_key: Union[str, Tuple[str, ...]]
     token_param: str
-    token_key: str
+    token_key_in_response: str
     page_max: int
     page_size_param: Optional[str] = None
-    page_min: int = 1
     fixed_page_size: bool = False
     items_per_page_unit: int = 1
     count_items: Callable[[List[Any]], int] = len
@@ -427,7 +425,9 @@ def partial_data_warning(items_returned: int) -> str:
 def failure_warning(items_returned: int, error_code: str, restart: bool) -> str:
     """Build the warning for a result cut short by a failed page."""
     next_step = (
-        'The continuation token is no longer valid; call again without next_token to restart.'
+        'The continuation token is no longer valid. Call again without next_token to restart '
+        'from the first page, and use only the new result: it repeats the items in this one, '
+        'so do not combine them.'
         if restart
         else 'Continue with next_token to retry from the failed page.'
     )
@@ -476,10 +476,11 @@ def _page_size(spec: PageSpec, max_items: Optional[int], collected: int) -> Opti
     if spec.page_size_param is None:
         return None
     unit = spec.items_per_page_unit
-    largest = max(spec.page_max // unit, spec.page_min)
+    largest = spec.page_max // unit
     if spec.fixed_page_size or max_items is None:
         return largest
-    return max(min(largest, (max_items - collected) // unit), spec.page_min)
+    # Never request a page of 0, which some services reject.
+    return max(min(largest, (max_items - collected) // unit), 1)
 
 
 # Superseded by paginate_aws_items; kept until every tool has moved to it.
@@ -691,7 +692,7 @@ async def paginate_aws_items(
         pages.append(response)
         collected += count
 
-        token = response.get(spec.token_key) or None
+        token = response.get(spec.token_key_in_response) or None
         if token is None:
             break
         if token in seen_tokens:

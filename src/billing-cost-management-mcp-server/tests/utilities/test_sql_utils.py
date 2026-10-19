@@ -1715,43 +1715,43 @@ class TestConvertApiResponseToTableSpecificTypes:
         assert 'table_name' in result
         assert 'sample_queries' in result
 
-    async def test_convert_pricing_products_malformed_entry_does_not_fail_offload(
-        self, mock_context
-    ):
-        """A product that is not valid JSON is stored as an empty row; the rest still land."""
+    async def test_pricing_products_malformed_entry_is_returned_inline(self, mock_context):
+        """A malformed PriceList entry fails the offload, so every product is returned inline.
+
+        Storing it as an empty row would report a product count the data does not have.
+        """
         conn = sqlite3.connect(':memory:')
+        # The schema table exists, so the malformed entry is the only reason the offload fails.
         conn.execute(
             'CREATE TABLE IF NOT EXISTS schema_info '
             '(table_name TEXT PRIMARY KEY, created_at TEXT, operation TEXT, '
             'query TEXT, row_count INTEGER)'
         )
-        response = {
-            'PriceList': [
-                '{"product": {"productFamily": "Compute Instance", "sku": "SKU123"}}',
-                '{not json',
-                None,
-            ]
-        }
+        price_list = [
+            '{"product": {"productFamily": "Compute Instance", "sku": "SKU123"}}',
+            '{not json',
+            '{"product": {"productFamily": "Storage", "sku": "SKU456"}}',
+        ]
+        response = {'PriceList': list(price_list)}
 
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_db_connection',
-            return_value=(conn, conn.cursor()),
+        with (
+            patch(
+                'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.should_convert_to_sql',
+                return_value=True,
+            ),
+            patch(
+                'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_db_connection',
+                return_value=(conn, conn.cursor()),
+            ),
         ):
-            result = await convert_api_response_to_table(
+            result = await convert_response_if_needed(
                 mock_context, response, 'aws_pricing_get_products', service_code='AmazonEC2'
             )
 
-        assert result['status'] == 'success'
-        assert result['row_count'] == 3
-        preview = result['preview']
-        assert preview[0]['sku'] == 'SKU123'
-        assert preview[0]['product_family'] == 'Compute Instance'
-        for row in preview[1:]:
-            assert row['service_code'] == 'AmazonEC2'
-            assert row['sku'] is None
-            assert row['product_family'] is None
-            assert row['attributes'] == '{}'
-            assert row['pricing_terms'] == '{}'
+        assert result is response
+        assert result['PriceList'] == price_list
+        assert 'data_stored' not in result
+        assert 'table_name' not in result
 
     @patch('sqlite3.connect')
     @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')

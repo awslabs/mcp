@@ -35,7 +35,7 @@ cost_allocation_tags_server = FastMCP(
 LIST_COST_ALLOCATION_TAGS = PageSpec(
     result_key='CostAllocationTags',
     token_param='NextToken',
-    token_key='NextToken',
+    token_key_in_response='NextToken',
     page_max=1000,
     page_size_param='MaxResults',
 )
@@ -43,7 +43,7 @@ LIST_COST_ALLOCATION_TAGS = PageSpec(
 LIST_COST_ALLOCATION_TAG_BACKFILL_HISTORY = PageSpec(
     result_key='BackfillRequests',
     token_param='NextToken',
-    token_key='NextToken',
+    token_key_in_response='NextToken',
     page_max=1000,
     page_size_param='MaxResults',
 )
