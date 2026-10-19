@@ -1,0 +1,157 @@
+# Copyright 2016-2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You
+# may not use this file except in compliance with the License. A copy of
+# the License is located at
+#
+#     http://aws.amazon.com/apache2.0/
+#
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
+# ANY KIND, either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+---
+# Module document. Translates directly into an almost-complete Module object
+name: !!str kpti
+path: !!str
+version: !!str 1.0
+title: !!str Determine status of Kernel Page Table Isolation.
+helptext: !!str |
+  Determine status of Kernel Page Table Isolation (KPTI) and pcid/invpcid.
+  This module is intended to determine these for performance related reasons, and is
+  **not intended to be used as a tool for checking compliance or security posture.**
+placement: !!str run
+package:
+  - !!str
+language: !!str python
+remediation: !!str False
+content: !!str |
+  """
+  Checks for status of Kernel Page Table Isolation on the running instance.
+  This is intended for determining the possible performance impact of KPTI.
+  It is **not intended to be used for determining compliance or security posture.**
+
+  Functions:
+      is_intel_cpu: Determine if utilizing an Intel CPU.
+      get_kpti_status: Determine if KPTI is in use to mitigate Meltdown
+      get_pcid_status: Determine if system has pcid and invpcid support
+      run: Determines if KPTI is enabled and what level of pcid support is provided.
+  """
+  from __future__ import print_function
+  import re
+  import sys
+
+  def is_intel_cpu():
+      """
+      Determine if utilizing an Intel CPU.
+      Currently this should always be true in EC2. This might not always be the case, and this might need to later
+      be expanded when Intel provides more in-hardware solutions. Exits if using an unsupported CPU.
+
+      Returns:
+          True (bool): If using an Intel CPU
+          False (bool): If using an AMD CPU
+      """
+      try:
+          with open("/proc/cpuinfo", "r") as cpuinfo_file:
+              if re.search("GenuineIntel", cpuinfo_file.read()):
+                  print("Running on an Intel CPU.\n")
+                  return True
+              elif re.search("AuthenticAMD", cpuinfo_file.read()):
+                  print("Running on an AMD CPU.\n")
+                  return False
+              else:
+                  print("Running on a non-Intel or AMD CPU. This is currently unsupported.\n")
+                  sys.exit(0)
+      except Exception as ex:
+          print(ex)
+          print("[WARN] Unable to determine CPU vendor\n")
+          raise
+
+
+  def get_kpti_status():
+      """
+      Determines if KPTI is in use.
+
+      Returns:
+         True (bool): If KPTI is enabled
+      """
+      try:
+          with open("/sys/devices/system/cpu/vulnerabilities/meltdown", "r") as meltdown_file:
+              meltdown = meltdown_file.read()
+              print(meltdown)
+              if re.search("PTI", meltdown):
+                  print("Kernel Page Table Isolation is enabled\n")
+                  return True
+              else:
+                  print("Kernel Page Table Isolation is disabled\n")
+                  with open("/proc/cmdline", "r") as cmdline_file:
+                      if re.search("nopti", cmdline_file.read()):
+                          print("Kernel Page Table isolation is disabled via nopti on the kernel commandline.\n")
+                  return False
+      except Exception as ex:
+          print(ex)
+          print("[WARN] Unable to determine KPTI status\n")
+          raise
+
+  def get_pcid_status():
+      """
+      Determine if the system supports pcid or nvpcid. Pre-Haswell CPUs should only have PCID support.
+      """
+      try:
+          with open("/proc/cpuinfo", "r") as cpuinfo_file:
+              if re.search("invpcid", cpuinfo_file.read()):
+                  print("invpcid supported. This is the best case for Kernel Page Table Isolation performance.\n")
+              elif re.search("pcid", cpuinfo_file.read()):
+                  print("pcid supported. This is a moderate case for Kernel Page Table Isolation performance.\n")
+              else:
+                  print("No pcid support detected. This is the worst case for Kernel Page Table Isolation performance.\n")
+      except Exception as ex:
+          print(ex)
+          print("[WARN] Unable to determine pcid support\n")
+          raise
+
+  def run():
+      """
+      Determines if KPTI is enabled and what level of pcid support is provided.
+      Returns:
+          True (bool): If collection is successful.
+      """
+      try:
+          kpti = False
+          if is_intel_cpu():
+              print("Continuing on to determine Meltdown related status\n")
+              kpti = get_kpti_status()
+              get_pcid_status()
+          else:
+              print("Skipping Meltdown related collection.\n")
+
+          if kpti:
+              print("Kernel Page Table Isolation can result in negative performance impact to certain workloads.\n")
+              print("We recommend "
+              "visiting https://aws.amazon.com/premiumsupport/knowledge-center/ec2-linux-performance/ for ways you can "
+              "increase EC2 instance performance.")
+
+          return True
+      except Exception as ex:
+          print(ex)
+          print("[WARN] module generated an exception and exited abnormally. "
+                "Review the logs to determine the cause of the issue.")
+          return False
+
+
+  if __name__ == "__main__":  # pragma: no coverage
+      run()
+
+constraint:
+  requires_ec2: !!str True
+  domain: !!str os
+  class: !!str collect
+  distro: !!str alami alami2 al2023 ubuntu rhel suse
+  required: !!str
+  optional: !!str
+  software: !!str
+  sudo: !!str True
+  perfimpact: !!str False
+  parallelexclusive: !!str

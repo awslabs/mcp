@@ -1,0 +1,192 @@
+# Copyright 2016-2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You
+# may not use this file except in compliance with the License. A copy of
+# the License is located at
+#
+#     http://aws.amazon.com/apache2.0/
+#
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
+# ANY KIND, either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+---
+# Module document. Translates directly into an almost-complete Module object
+name: !!str rebuildinitrd
+path: !!str
+version: !!str 1.0
+title: !!str Rebuilds the system initial ramdisk
+helptext: !!str |
+  Rebuilds the system initial ramdisk
+  Requires --rebuildinitrd and --remediate
+placement: !!str run
+package:
+  - !!str
+language: !!str python
+remediation: !!str True
+content: !!str |
+  """
+  Rebuilds the system initial ramdisk
+
+  Functions:
+      mount_boot: Attempt to mount /boot if it appears to not be mounted.
+      get_initrd: Get a list of initial ramdisk files.
+      rebuild: Rebuild the initial ramdisk(s).
+      run:
+  """
+  from __future__ import print_function
+  import os
+  import re
+  import shlex
+  import subprocess
+  import sys
+
+  # Add the root program directory to sys.path so libraried functions can be imported
+  # when this module is directly invoked with the interpreter.
+  if __name__ == "__main__":  # pragma: no coverage
+      sys.path.insert(0, os.environ["EC2RL_CALLPATH"])
+
+  from ec2rlcore.prediag import backup
+  from ec2rlcore.prediag import get_config_dict
+  from ec2rlcore.prediag import restore
+
+
+  def mount_boot():
+      """
+      Attempts to mount /boot if it appears to be unmounted.
+
+      Returns:
+          True (bool): If mounting is successful.
+      """
+      try:
+          with open("/etc/fstab", "r") as fstab_file:
+              if re.search("/boot", fstab_file.read()):
+                  print("Attempting to mount /boot")
+                  subprocess.check_output(["mount", "/boot"], stderr=subprocess.STDOUT)
+                  return True
+              else:
+                  print("[WARN] No /boot in /etc/fstab and /boot empty. Cannot proceed")
+                  return False
+      except Exception:
+          print("[WARN] /boot empty. Cannot proceed.")
+          raise
+
+
+  def get_initrd():
+      """
+      Gets a list of initial ramdisk files.
+
+      Returns:
+          initrdfiles (list): the initial ramdisk filename strings.
+      """
+      initrdfiles = [file_name for file_name in os.listdir("/boot")
+                     if "init" in file_name and not re.search("(plymouth|bak|rescue|initrd$)", file_name)]
+      if not initrdfiles:
+          raise ValueError("initrd list is empty! Did not find any initrd files!")
+      return initrdfiles
+
+
+  def rebuild(distro, backed_files, backup_dir):
+      """
+      Attempts to rebuild the initial ramdisk for support distributions.
+
+      Parameters:
+          distro (str): the detected distribution of Linux running on the system.
+          backed_files (dict): "original file path":"back up file copy path" key:pair values.
+          backup_dir (str): directory path containing backup file copies.
+
+      Returns:
+          True (bool): If successful in rebuilding.
+      """
+      if distro not in {"alami", "alami2", "rhel", "ubuntu", "suse", "al2023"}:
+          raise ValueError("[FAILURE] unsupported distribution: {}".format(distro))
+
+      initrd_file_names = get_initrd()
+      if len(initrd_file_names) == 0:
+          raise Exception("[FAILURE] Failed to find initial ramdisk!")
+
+      print("Rebuilding initial ramdisk for {} system".format(distro))
+      for initrd_file_name in initrd_file_names:
+          print("Creating a backup of " + initrd_file_name)
+          try:
+              backup("/boot/{}".format(initrd_file_name), backed_files, backup_dir)
+          except Exception:
+              print("[WARN] Backup of initial ramdisk failed.")
+              raise
+
+          if distro == "alami":
+              regex_match = re.search(r"[0-9]\.[0-9]+\.[0-9]+-[0-9]+\.[0-9]+\.amzn1\.x86_64", initrd_file_name).group(0)
+              subprocess_command = "dracut -f /boot/initramfs-{0}.img {0}".format(regex_match)
+          elif distro == "alami2":
+              regex_match = re.search(r"[0-9]\.[0-9]+\.[0-9]+-[0-9]+\.[0-9]+\.amzn2\.x86_64", initrd_file_name).group(0)
+              subprocess_command = "dracut -f /boot/initramfs-{0}.img {0}".format(regex_match)
+          elif distro == "al2023":
+              regex_match = re.search(r"[0-9]\.[0-9]+\.[0-9]+-[0-9]+\.[0-9]+\.amzn2023\.x86_64", initrd_file_name).group(0)
+              subprocess_command = "dracut -f /boot/initramfs-{0}.img {0}".format(regex_match)
+          elif distro == "rhel":
+              regex_match = re.search(r"[0-9]\.[0-9]+\.[0-9]+-[0-9]+(.*).el7\.x86_64", initrd_file_name).group(0)
+              subprocess_command = "dracut -f /boot/initramfs-{0}.img {0}".format(regex_match)
+          elif distro == "ubuntu":
+              regex_match = re.search(r"[0-9]\.[0-9]+\.[0-9]+-[0-9]+(.*)+-(aws|generic)", initrd_file_name).group(0)
+              subprocess_command = "update-initramfs -c -k {}".format(regex_match)
+          # Equivalent of elif distro == "suse":
+          # The early guard check on the distro parameter makes this safe
+          else:
+              regex_match = re.search(r"[0-9]\.[0-9]+\.[0-9]+-[0-9]+\.[0-9]+-default", initrd_file_name).group(0)
+              subprocess_command = "dracut -f /boot/initrd-{0} {0}".format(regex_match)
+
+          try:
+              print("Creating new initial ramdisk for {}".format(regex_match))
+              subprocess.check_output(shlex.split(subprocess_command), stderr=subprocess.STDOUT)
+          except Exception:
+              print("[WARN] Rebuild of initial ramdisk failed.")
+              raise
+      return True
+
+
+  def run():
+      """
+      Mount /boot, if needed, backup the initial ramdisk files, and rebuild the initial ramdisk(s).
+
+      Returns:
+          True: If rebuild is successful.
+      """
+      sys_config_dict = dict()
+      try:
+          sys_config_dict = get_config_dict("rebuildinitrd")
+
+          if os.listdir("/boot"):
+              print("/boot has contents")
+          else:
+              print("/boot has no contents. Is it unmounted?")
+              mount_boot()
+          rebuild(sys_config_dict["DISTRO"], sys_config_dict["BACKED_FILES"], sys_config_dict["BACKUP_DIR"])
+          print("[SUCCESS] initial ramdisk rebuilt")
+          print("Please see https://github.com/awslabs/aws-ec2rescue-linux/blob/master/docs/modules/rebuildinitrd.md "
+                "for further details")
+          return True
+      except Exception as ex:
+          print(ex)
+          print("[WARN] module generated an exception and exited abnormally. "
+                "Review the logs to determine the cause of the issue.")
+          for file_name in sys_config_dict["BACKED_FILES"]:
+              restore(file_name, sys_config_dict["BACKED_FILES"])
+          return False
+
+
+  if __name__ == "__main__":  # pragma: no coverage
+      run()
+
+constraint:
+  requires_ec2: !!str False
+  domain: !!str os
+  class: !!str diagnose
+  distro: !!str alami alami2 al2023 ubuntu rhel suse
+  required: !!str rebuildinitrd remediate
+  optional: !!str
+  software: !!str
+  sudo: !!str True
+  perfimpact: !!str False
+  parallelexclusive: !!str

@@ -1,0 +1,105 @@
+# Copyright 2016-2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You
+# may not use this file except in compliance with the License. A copy of
+# the License is located at
+#
+#     http://aws.amazon.com/apache2.0/
+#
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
+# ANY KIND, either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+---
+# Module document. Translates directly into an almost-complete Module object
+name: !!str duplicatefslabels
+path: !!str
+version: !!str 1.0
+title: !!str Search for duplicate filesystem labels.
+helptext: !!str |
+  Identifies which file systems have duplicate labels
+  Requires blkid, commonly provided by util-linux package
+placement: !!str run
+package:
+  - !!str
+language: !!str python
+content: !!str |
+  """
+  Determines if any filesystems share a label.
+
+  Functions:
+      get_label_dict: parses output from blkid and returns a dict representing filesystem labels and the source devices
+      run: get the label dict and determine if a duplicate exists
+  """
+
+  from __future__ import print_function
+  import os
+  import subprocess
+
+
+  def get_label_dict():
+      """
+      Obtain the filesystem label mappings from blkid and create and return a dict representing this data.
+
+      Returns:
+          labels_dict (dict): representation of filesystem labels (keys) and the source devices (values)
+      """
+      labels_dict = {}
+      for line in subprocess.check_output(["blkid", "-s", "LABEL"],
+                                          stderr=subprocess.STDOUT,
+                                          universal_newlines=True).splitlines():
+          # Example line: /dev/xvda1: LABEL="/"
+          line = line.replace("\"", "").strip()
+          tokens = line.split(": LABEL=")
+          device_file = os.path.realpath(tokens[0])
+          fs_label = tokens[1]
+          try:
+              labels_dict[fs_label].append(device_file)
+          except KeyError:
+              labels_dict[fs_label] = [device_file]
+      return labels_dict
+
+
+  def run():
+      """
+      Get the label dict and determine if a duplicate exists.
+
+      Returns:
+          (bool): whether the check completed successfully
+      """
+      try:
+          labels_dict = get_label_dict()
+          label_success = True
+          for label in labels_dict.keys():
+              if len(labels_dict[label]) > 1:
+                  label_success = False
+                  print("[FAILURE] Duplicate label, {}, found on the following filesystems: {}".format(
+                      label, ", ".join(labels_dict[label])))
+          if label_success:
+              print("[SUCCESS] No duplicate filesystem labels found.")
+          print("Please see https://github.com/awslabs/aws-ec2rescue-linux/blob/master/docs/modules/duplicatelabels.md"
+                "for further details")
+          return True
+      except Exception as ex:
+          print(ex)
+          print("[WARN] module generated an exception and exited abnormally. "
+                "Review the logs to determine the cause of the issue.")
+          return False
+
+
+  if __name__ == "__main__":  # pragma: no coverage
+      run()
+
+constraint:
+  requires_ec2: !!str False
+  domain: !!str os
+  class: !!str diagnose
+  distro: !!str alami alami2 al2023 ubuntu rhel suse
+  required: !!str
+  optional: !!str
+  software: !!str blkid
+  sudo: !!str True
+  perfimpact: !!str False
+  parallelexclusive: !!str

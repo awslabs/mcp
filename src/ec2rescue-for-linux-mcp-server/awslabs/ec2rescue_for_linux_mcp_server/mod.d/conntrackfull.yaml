@@ -1,0 +1,64 @@
+# Copyright 2016-2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You
+# may not use this file except in compliance with the License. A copy of
+# the License is located at
+#
+#     http://aws.amazon.com/apache2.0/
+#
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
+# ANY KIND, either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+---
+# Module document. Translates directly into an almost-complete Module object
+name: !!str conntrackfull
+path: !!str
+version: !!str 1.0
+title: !!str Attempts to detect ip_conntrack full
+helptext: !!str |
+  Searches dmesg for conntrack table full errors
+  Full conntrack results in dropped packets
+placement: !!str run
+package:
+  - !!str
+language: !!str bash
+content: !!str |
+  #!/bin/bash
+  error_trap()
+  {
+      printf "%0.s=" {1..80}
+      echo -e "\nERROR:	"$BASH_COMMAND" exited with an error on line ${BASH_LINENO[0]}"
+      exit 0
+  }
+  trap error_trap ERR
+
+  # read-in shared function
+  source functions.bash
+
+  echo -e "Checking for full conntrack table: 'table full, dropping packet'\n\n"
+
+  if dmesg | grep 'table full, dropping packet' 2>&1 > /dev/null
+      then
+          echo "[FAILURE] Conntrack table full errors found. $(dmesg | grep -c 'table full, dropping packet') occurrences in dmesg"
+          echo "-- This can cause new connections not in the conntrack table to fail to establish"
+          echo "-- Please increase the conntrack from the current maximum at /proc/sys/net/ipv4/netfilter/ip_conntrack_max"
+          echo "-- This can be done with 'sysctl -w net.ipv4.netfilter.ip_conntrack_max=#####' and by placing 'net.ipv4.netfilter.ip_conntrack_max=#####' in your /etc/sysctl.conf"
+          dmesg | grep 'table full, dropping packet'
+      else
+          echo "[SUCCESS] No conntrack table full errors found."
+  fi
+  echo "Please see https://github.com/awslabs/aws-ec2rescue-linux/blob/master/docs/modules/conntrackfull.md for further details"
+constraint:
+  requires_ec2: !!str False
+  domain: !!str net
+  class: !!str diagnose
+  distro: !!str alami alami2 al2023 ubuntu rhel suse
+  required: !!str
+  optional: !!str
+  software: !!str
+  sudo: !!str False
+  perfimpact: !!str False
+  parallelexclusive: !!str

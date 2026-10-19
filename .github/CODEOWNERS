@@ -53,6 +53,7 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/document-loader-mcp-server                                @awslabs/mcp-admins @awslabs/mcp-maintainers  @andywidjaja @hvital @HaoOliv
 /src/documentdb-mcp-server                                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @nitinahuja89
 /src/dynamodb-mcp-server                                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @LeeroyHannigan @willykev
+/src/ec2rescue-for-linux-mcp-server                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @takkozu @ryozw
 /src/ecs-mcp-server                                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @matthewgoodman13 @nineonine @biagic @meseer
 /src/eks-mcp-server                                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @patrick-yu-amzn @lynnnnnnluo @djtung @BrianS99 @nolanzzz @okjuliankim
 /src/elasticache-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @swarnaprakash @madolson @allenss-amazon @kevinmcgehee

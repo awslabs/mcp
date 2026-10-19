@@ -1,0 +1,191 @@
+# Copyright 2016-2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You
+# may not use this file except in compliance with the License. A copy of
+# the License is located at
+#
+#     http://aws.amazon.com/apache2.0/
+#
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
+# ANY KIND, either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+---
+# Module document. Translates directly into an almost-complete Module object
+name: !!str arpignore
+path: !!str
+version: !!str 3.1
+title: !!str Determines if any interfaces have been set to ignore arp requests
+helptext: !!str |
+  Determines if any interfaces have been set to ignore arp requests
+  These being disabled can cause networking issues or result in an instance failing status checks
+  Sudo is required for remediation
+placement: !!str run
+package:
+  - !!str
+language: !!str python
+remediation: !!str True
+content: !!str |
+  """
+  Determine if any interfaces have been set to ignore arp requests. These can cause networking issues
+  or result in instances failing status checks.
+
+  Functions:
+      detect: Determine if arpignore is enabled on any interface.
+      fix: Disable arpignore.
+      run: Detect if arpignore is enabled and attempt to remediate if remediation is enabled.
+  """
+  from __future__ import print_function
+  import os
+  import re
+  import subprocess
+  import sys
+
+  # Add the root program directory to sys.path so libraried functions can be imported
+  # when this module is directly invoked with the interpreter.
+  if __name__ == "__main__":  # pragma: no coverage
+      sys.path.insert(0, os.environ["EC2RL_CALLPATH"])
+
+  from ec2rlcore.prediag import backup
+  from ec2rlcore.prediag import get_config_dict
+  from ec2rlcore.prediag import restore
+
+  SEARCH_STRING = r"arp_ignore = [1-9]"
+
+
+  def detect():
+      """
+      Determine if arpignore is enabled on any interface.
+
+      Returns:
+          (bool): True if arpignore is enabled on at least one interface.
+      """
+      sysctl_all_out = subprocess.check_output(["sysctl", "-a"], universal_newlines=True, stderr=subprocess.STDOUT)
+      for line in sysctl_all_out.splitlines():
+          if re.search(SEARCH_STRING, line):
+              return True
+      return False
+
+
+  def fix(config_file_path):
+      """
+      Change any non-zero arp_ignore kernel parameters args to 0. Requires sudo to run.
+
+      Parameters:
+          config_file_path (str): path to the configuration file to be edited.
+
+      Returns:
+          True (bool): If remediation is successful.
+      """
+      print("Attempting to set arp_ignore to 0 for all interfaces it is enabled on.")
+      parameter_set = set()
+      parameter_match_regex = re.compile(r"net.ipv4.conf.*arp_ignore")
+      parameter_value_match_regex = re.compile(r"net.ipv4.conf.*arp_ignore *= *[0-9]+")
+      parameter_failure_regex = re.compile(r"net.ipv4.conf.*arp_ignore = [1-9]")
+      for line in subprocess.check_output(["sysctl", "net.ipv4.conf"], universal_newlines=True).splitlines():
+          if re.search(parameter_failure_regex, line):
+              parameter_set.add(re.match(parameter_match_regex, line).group(0))
+              fixed_arp = re.sub("arp_ignore = [0-9]", "arp_ignore=0", line)
+              try:
+                  print("Setting {} to 0".format(line))
+                  subprocess.check_output(["sysctl", "-w", fixed_arp], stderr=subprocess.STDOUT)
+                  print("[FIXED] {} for running system.".format(fixed_arp))
+              except Exception:
+                  print("[UNFIXED] {} failed for running system".format(fixed_arp))
+                  raise
+      try:
+          print("Attempting to write to {}".format(config_file_path))
+          if not os.path.exists(config_file_path):
+              with open(config_file_path, "w") as config_file:
+                  config_file.write(os.linesep.join(sorted(["{} = 0".format(setting) for setting in parameter_set])))
+                  print("[FIXED] {} written.".format(config_file_path))
+          else:
+              with open(config_file_path, "r") as config_file:
+                  contents = config_file.readlines()
+              original_settings = list()
+              for line in contents:
+                  line = line.strip()
+                  parameter_match = re.match(parameter_match_regex, line)
+                  # Only keep comments and valid parameters not in the parameter set
+                  if line.startswith("#") or (re.match(parameter_value_match_regex, line) and
+                                              (parameter_match and parameter_match.group(0) not in parameter_set)):
+                      original_settings.append(line)
+              with open(config_file_path, "w") as config_file:
+                  config_file.write(os.linesep.join(original_settings))
+                  config_file.write(os.linesep)
+                  config_file.write(os.linesep.join(sorted(["{} = 0".format(setting) for setting in parameter_set])))
+                  config_file.write(os.linesep)
+                  print("[FIXED] {} written.".format(config_file_path))
+      except Exception:
+          print("[UNFIXED] Unable to open {} and write to it.".format(config_file_path))
+          raise
+      return True
+
+
+  def run():
+      """
+      Detect if arpignore is enabled and attempt to remediate if remediation is enabled.
+
+      Returns:
+          (bool): True if arpignore is disabled on all interfaces or it is enabled, but was remediated.
+      """
+      failure_msg = "[FAILURE] arp ignore is enabled for one or more interfaces. Please see the module log\n" \
+                    "-- You can check for which interfaces are affected with \'sysctl net.ipv4.conf | " \
+                    "grep \"arp_ignore = 0\"\'\n" \
+                    "-- Then you can fix it by running \'sudo sysctl -w net.ipv4.conf.eth#.arp_ignore=0\n" \
+                    "-- Fixing it for next reboot can be done with \'echo \"net.ipv4.conf.eth#.arp_ignore = 0\" | " \
+                    "sudo tee /etc/sysctl.d/55-arp-ignore.conf\'\n" \
+                    "-- Replace ethX in these commands with the interface # seen in the detection."
+      problem_remediated = False
+      config_file_path = "/etc/sysctl.d/55-arp-ignore.conf"
+      sys_config_dict = dict()
+      try:
+          sys_config_dict = get_config_dict("arpignore")
+          print("Determining if any interfaces are set to ignore arp requests")
+          if detect():
+              if sys_config_dict["REMEDIATE"] and sys_config_dict["SUDO"]:
+                  if os.path.isfile(config_file_path):
+                      backup(config_file_path, sys_config_dict["BACKED_FILES"], sys_config_dict["BACKUP_DIR"])
+                  fix(config_file_path)
+                  if detect():
+                      print(failure_msg)
+                      if "BACKED_FILES" in sys_config_dict.keys() and \
+                              config_file_path in sys_config_dict["BACKED_FILES"].keys():
+                          restore(config_file_path, sys_config_dict["BACKED_FILES"])
+                  else:
+                      print("[SUCCESS] arp ignore is disabled for all interfaces after remediation.")
+                      problem_remediated = True
+              else:
+                  print("[UNFIXED] Remediation impossible without sudo and --remediate.")
+                  print("-- Running as root/sudo: {}".format(sys_config_dict["SUDO"]))
+                  print("-- Required --remediate flag specified: {}".format(sys_config_dict["REMEDIATE"]))
+                  print(failure_msg)
+          else:
+              print("[SUCCESS] arp ignore is disabled for all interfaces.")
+              problem_remediated = True
+          return problem_remediated
+      except Exception as ex:
+          print(ex)
+          print("[WARN] module generated an exception and exited abnormally. "
+                "Review the logs to determine the cause of the issue.")
+          if "BACKED_FILES" in sys_config_dict.keys() and config_file_path in sys_config_dict["BACKED_FILES"].keys():
+              restore(config_file_path, sys_config_dict["BACKED_FILES"])
+          return False
+
+
+  if __name__ == "__main__":  # pragma: no coverage
+      run()
+
+constraint:
+  requires_ec2: !!str False
+  domain: !!str net
+  class: !!str diagnose
+  distro: !!str alami alami2 al2023 ubuntu rhel suse
+  required: !!str
+  optional: !!str
+  software: !!str
+  sudo: !!str False
+  perfimpact: !!str False
+  parallelexclusive: !!str

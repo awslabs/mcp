@@ -1,0 +1,104 @@
+# Copyright 2016-2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You
+# may not use this file except in compliance with the License. A copy of
+# the License is located at
+#
+#     http://aws.amazon.com/apache2.0/
+#
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
+# ANY KIND, either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+---
+# Module document. Translates directly into an almost-complete Module object
+name: !!str asymmetricroute
+path: !!str
+version: !!str 1.0
+title: !!str Check for asymmetric routing
+helptext: !!str |
+  Checks if multiple interfaces are correctly configured
+placement: !!str run
+package:
+  - !!str
+language: !!str bash
+content: !!str |
+  #!/bin/bash
+  error_trap()
+  {
+      printf "%0.s=" {1..80}
+      echo -e "\nERROR:	"$BASH_COMMAND" exited with an error on line ${BASH_LINENO[0]}"
+      exit 0
+  }
+  trap error_trap ERR
+
+  # read-in shared function
+  source functions.bash
+
+  echo "I will look for asymmetric routing problems on this $EC2RL_DISTRO box."
+
+  # This works by checking the broadcast (brd) address on each inet address
+  # Each address in a subnet should have the same brd address at the end of the subnet
+  # Using brd address allows me to not mess with calculating the start of the subnet.
+  # Within VPC, address ranges are already checked to not overlap, so I do not need
+  # to consider the size of the subnet, just the end address.  That end address
+  # should be considered to be unique per subnet.
+
+  DUPLICATE_BROADCASTS=$(ip address show | grep -v "secondary" | awk '/inet .+brd/ {brdaddrs[$4]++; if (brdaddrs[$4] > 1) print $4;}')
+  if [[ $DUPLICATE_BROADCASTS ]]; then
+
+      #duplicates found
+      echo "Duplicate bridge addresses found, checking for multiple tables"
+
+      # get list of addresses which are involved in duplicate subnets
+      UNMATCHED_SRC_IP_COUNT=0
+
+      for BROADCAST_IP in $DUPLICATE_BROADCASTS; do
+          IPS_WITH_CONFLICT=$(ip addr show | grep -v "secondary" | awk '/inet .+ brd '"$BROADCAST_IP"'/ {print $2}' | awk -F"/" '{print $1}')
+
+          for CONFLICT_IP in $IPS_WITH_CONFLICT; do
+
+              if ip rule list | grep "$CONFLICT_IP" >/dev/null 2>/dev/null; then
+                  # Potential conflict IP has a rule in iproute2 rules
+                  echo "$CONFLICT_IP has matching ip rule: "
+                  echo "      $(ip rule list | grep "$CONFLICT_IP")"
+              else
+                  # No specific rule defined, might use default
+                  ((UNMATCHED_SRC_IP_COUNT+=1))
+                  echo "$CONFLICT_IP does not have a matching ip rule.  This makes $UNMATCHED_SRC_IP_COUNT unmatched rules"
+              fi
+
+          done
+
+          # If only _ONE_ rule is unmatched, then it should be handled by the default rule.  This is common for eth0
+          # The more specific rules will be used when possible.  Only a problem when there is more than 1 unmatched rule.
+          if [[ $UNMATCHED_SRC_IP_COUNT -gt 1 ]]; then
+              echo "[FAILURE] Potential asymmetric routing problems detected.  More than one interface has an un-matched routing rule"
+          elif [[ $UNMATCHED_SRC_IP_COUNT = 1 ]]; then
+              echo "[SUCCESS] Routing for additional interfaces is configured correctly.  Only one interface will use the default rule"
+          else
+              echo "[SUCCESS] Routing for additional interfaces is configured correctly.  All interfaces have a matching route rule"
+          fi
+
+      done
+
+  else
+
+      # no duplicates
+      echo "[SUCCESS] No duplicate subnets found."
+
+  fi
+  echo "Please see https://github.com/awslabs/aws-ec2rescue-linux/blob/master/docs/modules/asymmetricroute.md for further details"
+constraint:
+  requires_ec2: !!str False
+  domain: !!str net
+  class: !!str diagnose
+  distro: !!str alami alami2 al2023 ubuntu rhel suse
+  required: !!str
+  optional: !!str
+  software: !!str
+  sudo: !!str False
+  perfimpact: !!str False
+  parallelexclusive: !!str
