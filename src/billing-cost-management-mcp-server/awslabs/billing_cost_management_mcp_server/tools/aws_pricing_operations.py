@@ -120,18 +120,17 @@ async def get_service_codes(
             max_items=max_items,
             next_token=next_token,
         )
+        # Kept in the service's order. It is the same across pages in practice, though the
+        # API reference does not document an order; sorting each page would break it.
         service_codes = [service['ServiceCode'] for service in services]
-
-        # Sort the returned slice only, so a continuation picks up in service order
-        sorted_codes = sorted(service_codes)
 
         # Use shared format_response utility
         return format_response(
             'success',
             with_pagination(
                 {
-                    'service_codes': sorted_codes,
-                    'message': f'Successfully retrieved {len(sorted_codes)} AWS service codes',
+                    'service_codes': service_codes,
+                    'message': f'Successfully retrieved {len(service_codes)} AWS service codes',
                 },
                 pagination,
             ),
@@ -256,10 +255,9 @@ async def get_attribute_values(
             max_items=max_items,
             next_token=next_token,
         )
+        # Kept in the service's order. It is the same across pages in practice, though the
+        # API reference does not document an order; sorting each page would break it.
         values = [item['Value'] for item in attribute_values if 'Value' in item]
-
-        # Sort the returned slice only, so a continuation picks up in service order
-        sorted_values = sorted(values)
 
         # Use shared format_response utility
         return format_response(
@@ -268,8 +266,8 @@ async def get_attribute_values(
                 {
                     'service_code': service_code,
                     'attribute_name': attribute_name,
-                    'values': sorted_values,
-                    'message': f'Successfully retrieved {len(sorted_values)} values for attribute {attribute_name} of service {service_code}',
+                    'values': values,
+                    'message': f'Successfully retrieved {len(values)} values for attribute {attribute_name} of service {service_code}',
                 },
                 pagination,
             ),

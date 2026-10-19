@@ -962,9 +962,13 @@ class TestGetServiceCodesAdditional:
         result = await get_service_codes(mock_context)
 
         assert result['status'] == 'success'
-        assert result['data']['service_codes'] == sorted(
-            ['AmazonEC2', 'AmazonS3', 'AmazonRDS', 'AWSLambda']
-        )
+        # The service's order is kept across pages, not re-sorted.
+        assert result['data']['service_codes'] == [
+            'AmazonEC2',
+            'AmazonS3',
+            'AmazonRDS',
+            'AWSLambda',
+        ]
         calls = mock_client.describe_services.call_args_list
         assert [call.kwargs for call in calls] == [
             {'MaxResults': 100},
@@ -983,7 +987,7 @@ class TestGetServiceCodesAdditional:
         'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
     )
     async def test_get_service_codes_with_max_items(self, mock_create_client, mock_context):
-        """max_items stops the walk, returns the service token and sorts only the slice."""
+        """max_items stops the walk, returns the service token and keeps the service order."""
         mock_client = MagicMock()
         mock_create_client.return_value = mock_client
         mock_client.describe_services.return_value = {
@@ -996,7 +1000,7 @@ class TestGetServiceCodesAdditional:
         assert mock_client.describe_services.call_count == 1
         assert mock_client.describe_services.call_args.kwargs == {'MaxResults': 2}
         data = result['data']
-        assert data['service_codes'] == ['AService', 'ZService']
+        assert data['service_codes'] == ['ZService', 'AService']
         assert 'total_count' not in data
         assert data['pagination']['items_returned'] == 2
         assert list(data)[:2] == ['complete_dataset', 'warning']
@@ -1096,11 +1100,11 @@ class TestGetAttributeValuesAdditional:
         'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
     )
     async def test_get_attribute_values_max_items_stops(self, mock_create_client, mock_context):
-        """max_items sizes the page, stops when reached and sorts only the returned slice."""
+        """max_items sizes the page, stops when reached and keeps the service order."""
         mock_client = MagicMock()
         mock_create_client.return_value = mock_client
         mock_client.get_attribute_values.return_value = {
-            'AttributeValues': [{'Value': 'z'}, {'Value': 'a'}, {'Value': 'm'}],
+            'AttributeValues': [{'Value': 'us-east-1-x'}, {'Value': 'us-east-1'}, {'Value': 'a'}],
             'NextToken': 'page2token',
         }
 
@@ -1109,7 +1113,8 @@ class TestGetAttributeValuesAdditional:
         assert mock_client.get_attribute_values.call_count == 1
         assert mock_client.get_attribute_values.call_args.kwargs['MaxResults'] == 3
         data = result['data']
-        assert data['values'] == ['a', 'm', 'z']
+        # A value that is a prefix of another is not moved ahead of it, as sorted() would.
+        assert data['values'] == ['us-east-1-x', 'us-east-1', 'a']
         assert 'total_count' not in data
         assert data['pagination']['items_returned'] == 3
         assert data['complete_dataset'] is False

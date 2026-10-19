@@ -60,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `cost-comparison` requested 10 comparisons per page although the API allows 2,000 (10 for drivers), multiplying the number of paid Cost Explorer requests.
 - `list-cost-allocation-tags` and `list-cost-category-definitions` paged to the end with no limit whenever a `next_token` was passed without `max_pages`.
 - AWS Pricing `get_service_codes` sent `max_results` unchecked as `MaxResults`, so values above 100 failed with a `ValidationException`.
+- AWS Pricing `get_service_codes` and `get_attribute_values` sorted the values in each response, so values read across pages were not in one order, and the sort differed from the service's order when one value is a prefix of another (the service returns `us-east-1-x` before `us-east-1`). They now keep the order the service returns, which is the same across pages.
 - `getSavingsPlansUtilization` sent a `NextToken` parameter the API does not have when a token was passed, which failed parameter validation. The operation is not paginated and no longer takes paging parameters.
 - Paginated `getCostCategories` without `cost_category_name` read the names from a `CostCategories` key instead of `CostCategoryNames`, returning no names.
 - The `budgets` `budget_name` filter ran after the result was cut to `max_results`, so a budget beyond the cut was reported as missing. A name now calls `DescribeBudget`.
