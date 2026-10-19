@@ -364,6 +364,24 @@ class TestStringAndTemplateHelpers:
         assert len(errors) == 1
         assert 'pk_template' in errors[0].message
 
+    def test_template_breakout_char_message(self):
+        """A template with a break-out character reports the disallowed-characters message."""
+        errors = validate_key_template('USER#{user_id}"; x', 'p.pk_template', 'pk_template')
+        assert len(errors) == 1
+        assert 'disallowed characters' in errors[0].message
+
+    def test_template_non_string_message(self):
+        """A non-string template reports a must-be-a-string message."""
+        errors = validate_key_template(123, 'p.pk_template', 'pk_template')
+        assert len(errors) == 1
+        assert 'pk_template must be a string' in errors[0].message
+
+    def test_string_literal_non_string_message(self):
+        """A non-string string-literal value reports a must-be-a-string message."""
+        errors = validate_string_literal_value(123, 'p.entity_type', 'entity_type')
+        assert len(errors) == 1
+        assert 'entity_type must be a string' in errors[0].message
+
 
 @pytest.mark.unit
 class TestStringAndGsiInjectionRejectedEndToEnd:
@@ -376,6 +394,7 @@ class TestStringAndGsiInjectionRejectedEndToEnd:
         pk_template='USER#{user_id}',
         table_name='Users',
         partition_key='pk',
+        sort_key=None,
         pattern_name=None,
         gsi_name=None,
     ):
@@ -400,6 +419,8 @@ class TestStringAndGsiInjectionRejectedEndToEnd:
             'table_config': {'table_name': table_name, 'partition_key': partition_key},
             'entities': {'User': entity},
         }
+        if sort_key is not None:
+            table['table_config']['sort_key'] = sort_key
         if gsi_name is not None:
             table['gsi_list'] = [{'name': gsi_name, 'partition_key': 'user_id'}]
             entity['gsi_mappings'] = [{'name': gsi_name, 'pk_template': 'GSI#{user_id}'}]
@@ -432,6 +453,12 @@ class TestStringAndGsiInjectionRejectedEndToEnd:
         result = self._validate(self._schema(partition_key='pk"; import os; x = "'))
         assert result.is_valid is False
         assert any('partition_key' in e.message for e in result.errors)
+
+    def test_sort_key_quote_breakout_rejected(self):
+        """A sort_key that breaks out of the super().__init__ string literal is rejected."""
+        result = self._validate(self._schema(sort_key='sk"; import os; x = "'))
+        assert result.is_valid is False
+        assert any('sort_key' in e.message for e in result.errors)
 
     def test_pk_template_fstring_expression_rejected(self):
         """A pk_template with an arbitrary f-string brace expression is rejected."""
