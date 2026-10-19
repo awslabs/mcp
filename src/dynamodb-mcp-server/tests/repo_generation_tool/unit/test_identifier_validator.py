@@ -375,6 +375,7 @@ class TestStringAndGsiInjectionRejectedEndToEnd:
         entity_type='USER',
         pk_template='USER#{user_id}',
         table_name='Users',
+        partition_key='pk',
         pattern_name=None,
         gsi_name=None,
     ):
@@ -396,7 +397,7 @@ class TestStringAndGsiInjectionRejectedEndToEnd:
                 }
             ]
         table = {
-            'table_config': {'table_name': table_name, 'partition_key': 'pk'},
+            'table_config': {'table_name': table_name, 'partition_key': partition_key},
             'entities': {'User': entity},
         }
         if gsi_name is not None:
@@ -425,6 +426,12 @@ class TestStringAndGsiInjectionRejectedEndToEnd:
         result = self._validate(self._schema(table_name='Users"; import os; x = "'))
         assert result.is_valid is False
         assert any('table_name' in e.message for e in result.errors)
+
+    def test_partition_key_quote_breakout_rejected(self):
+        """A partition_key that breaks out of the super().__init__ string literal is rejected."""
+        result = self._validate(self._schema(partition_key='pk"; import os; x = "'))
+        assert result.is_valid is False
+        assert any('partition_key' in e.message for e in result.errors)
 
     def test_pk_template_fstring_expression_rejected(self):
         """A pk_template with an arbitrary f-string brace expression is rejected."""

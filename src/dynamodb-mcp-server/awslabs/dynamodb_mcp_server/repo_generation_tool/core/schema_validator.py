@@ -234,14 +234,18 @@ class SchemaValidator:
                     self.result.errors.append(error)
                     self.result.is_valid = False
 
-        # table_name is interpolated into a quoted string literal in generated code (the
-        # repository __init__ default: table_name: str = "..."); reject break-out values.
-        if 'table_name' in table_config:
-            self.result.add_errors(
-                validate_string_literal_value(
-                    table_config['table_name'], f'{path}.table_name', 'table_name'
+        # table_name, partition_key, and sort_key are all interpolated into quoted string
+        # literals in the generated repository (the __init__ default and the super().__init__
+        # call: super().__init__(..., "{partition_key}", "{sort_key}")), so reject any value
+        # that could break out of the string. sort_key is optional; the presence guard skips it
+        # when absent.
+        for string_field in ('table_name', 'partition_key', 'sort_key'):
+            if string_field in table_config:
+                self.result.add_errors(
+                    validate_string_literal_value(
+                        table_config[string_field], f'{path}.{string_field}', string_field
+                    )
                 )
-            )
 
     def _validate_entities(
         self, entities: Any, path: str = 'entities', table_index: int = 0
