@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Asia Pacific (Singapore) `ap-southeast-1` is now included in region discovery,
+  so accounts whose only AWS Transform profile lives there are found by the
+  startup credential probe and by SSO profile discovery.
+
 ### Removed
 
 - Removed the `ListPlanUpdates` call from the `plan` resource in `get_resource`

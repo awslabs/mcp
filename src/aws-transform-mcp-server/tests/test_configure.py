@@ -960,6 +960,33 @@ class TestDiscoverProfiles:
 class TestFesRegionsFor:
     """The fan-out region list is scoped to the caller's partition."""
 
+    def test_commercial_list_matches_fes_deployment(self):
+        """Drift guard: this list must track where FES is actually deployed.
+
+        A missing region makes every caller in it undiscoverable; a surplus one
+        costs a failing probe on every startup.
+        """
+        from awslabs.aws_transform_mcp_server.consts import FES_REGIONS
+
+        assert set(FES_REGIONS) == {
+            'us-east-1',
+            'eu-central-1',
+            'ap-southeast-1',
+            'ap-southeast-2',
+            'ap-northeast-1',
+            'ap-northeast-2',
+            'ap-south-1',
+            'eu-west-2',
+            'sa-east-1',
+            'ca-central-1',
+        }
+
+    def test_singapore_resolves_to_the_commercial_list(self):
+        """ap-southeast-1 must not trip the GovCloud prefix check."""
+        from awslabs.aws_transform_mcp_server.consts import FES_REGIONS, fes_regions_for
+
+        assert fes_regions_for('ap-southeast-1') == FES_REGIONS
+
     def test_commercial_region_excludes_gov(self):
         from awslabs.aws_transform_mcp_server.consts import FES_REGIONS, fes_regions_for
 
