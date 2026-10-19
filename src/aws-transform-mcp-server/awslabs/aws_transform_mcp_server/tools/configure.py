@@ -36,9 +36,9 @@ from awslabs.aws_transform_mcp_server.config_store import (
     set_sigv4_region,
 )
 from awslabs.aws_transform_mcp_server.consts import (
-    FES_REGIONS,
     OAUTH_SCOPE,
     PROFILE_DISCOVERY_TIMEOUT_SECONDS,
+    fes_regions_for,
 )
 from awslabs.aws_transform_mcp_server.http_utils import HttpError
 from awslabs.aws_transform_mcp_server.oauth import run_oauth_flow
@@ -60,11 +60,17 @@ from typing import Annotated, Any, Dict, List, Literal, Optional
 
 async def _discover_profiles(
     access_token: str,
+    idc_region: str,
 ) -> List[Dict[str, Any]]:
-    """Fan out ListAvailableProfiles across all FES regions.
+    """Fan out ListAvailableProfiles across the FES regions of one partition.
 
     Each region gets a 5-second timeout. Profiles are tagged with ``_region``
     (extracted from applicationUrl) so the caller knows which FES to use.
+
+    Args:
+        access_token: The Identity Center access token to present to FES.
+        idc_region: The Identity Center region, used to pick the partition's
+            region list — a GovCloud token is not valid against a commercial FES.
 
     Returns all discovered profiles, or an empty list if none found.
     """
@@ -82,7 +88,7 @@ async def _discover_profiles(
             logger.debug('Profile discovery failed for {}: {}', region, exc)
             return []
 
-    results = await asyncio.gather(*[_call_region(r) for r in FES_REGIONS])
+    results = await asyncio.gather(*[_call_region(r) for r in fes_regions_for(idc_region)])
     all_profiles: List[Dict[str, Any]] = []
     for region_profiles in results:
         all_profiles.extend(region_profiles)
@@ -395,7 +401,7 @@ class ConfigureHandler:
             tokens = await run_oauth_flow(start_url=startUrl, idc_region=idcRegion, scope=scope)
 
             # Step 2: Fan out ListAvailableProfiles across all regions
-            profiles = await _discover_profiles(tokens.access_token)
+            profiles = await _discover_profiles(tokens.access_token, idcRegion)
 
             if len(profiles) == 0:
                 return error_result(
@@ -498,8 +504,11 @@ class ConfigureHandler:
                 'Run configure with authMode "sso" to re-authenticate.',
             )
 
-        # Fan out to discover all profiles
-        profiles = await _discover_profiles(config.bearer_token)
+        # Fan out to discover all profiles. Pre-GovCloud configs predate
+        # idc_region; the service region names the same partition.
+        profiles = await _discover_profiles(
+            config.bearer_token, config.idc_region or config.region or ''
+        )
 
         if len(profiles) == 0:
             return error_result(

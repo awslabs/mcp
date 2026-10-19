@@ -828,8 +828,8 @@ class TestDiscoverProfiles:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.configure.FES_REGIONS',
-        ['us-east-1', 'eu-central-1'],
+        'awslabs.aws_transform_mcp_server.tools.configure.fes_regions_for',
+        lambda _region: ['us-east-1', 'eu-central-1'],
     )
     async def test_discovers_across_regions(self, mock_fes_bearer):
         from awslabs.aws_transform_mcp_server.tools.configure import _discover_profiles
@@ -853,7 +853,7 @@ class TestDiscoverProfiles:
             },
         ]
 
-        result = await _discover_profiles('tok-1')
+        result = await _discover_profiles('tok-1', 'us-east-1')
 
         assert len(result) == 2
         assert result[0]['profileName'] == 'alpha'
@@ -868,8 +868,8 @@ class TestDiscoverProfiles:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.configure.FES_REGIONS',
-        ['us-east-1', 'eu-central-1'],
+        'awslabs.aws_transform_mcp_server.tools.configure.fes_regions_for',
+        lambda _region: ['us-east-1', 'eu-central-1'],
     )
     async def test_handles_region_failure(self, mock_fes_bearer):
         from awslabs.aws_transform_mcp_server.tools.configure import _discover_profiles
@@ -886,7 +886,7 @@ class TestDiscoverProfiles:
             },
         ]
 
-        result = await _discover_profiles('tok-1')
+        result = await _discover_profiles('tok-1', 'us-east-1')
 
         assert len(result) == 1
         assert result[0]['profileName'] == 'beta'
@@ -898,15 +898,15 @@ class TestDiscoverProfiles:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.configure.FES_REGIONS',
-        ['us-east-1'],
+        'awslabs.aws_transform_mcp_server.tools.configure.fes_regions_for',
+        lambda _region: ['us-east-1'],
     )
     async def test_non_dict_response(self, mock_fes_bearer):
         from awslabs.aws_transform_mcp_server.tools.configure import _discover_profiles
 
         mock_fes_bearer.return_value = 'not-a-dict'
 
-        result = await _discover_profiles('tok-1')
+        result = await _discover_profiles('tok-1', 'us-east-1')
 
         assert result == []
 
@@ -916,17 +916,67 @@ class TestDiscoverProfiles:
         new_callable=AsyncMock,
     )
     @patch(
-        'awslabs.aws_transform_mcp_server.tools.configure.FES_REGIONS',
-        ['us-east-1', 'eu-central-1'],
+        'awslabs.aws_transform_mcp_server.tools.configure.fes_regions_for',
+        lambda _region: ['us-east-1', 'eu-central-1'],
     )
     async def test_empty_profiles(self, mock_fes_bearer):
         from awslabs.aws_transform_mcp_server.tools.configure import _discover_profiles
 
         mock_fes_bearer.return_value = {'profiles': []}
 
-        result = await _discover_profiles('tok-1')
+        result = await _discover_profiles('tok-1', 'us-east-1')
 
         assert result == []
+
+    @pytest.mark.asyncio
+    @patch(
+        'awslabs.aws_transform_mcp_server.tools.configure.call_fes_direct_bearer',
+        new_callable=AsyncMock,
+    )
+    async def test_govcloud_idc_region_probes_only_gov(self, mock_fes_bearer):
+        """A GovCloud IdC token must reach the gov FES and nothing else."""
+        from awslabs.aws_transform_mcp_server.tools.configure import _discover_profiles
+
+        mock_fes_bearer.return_value = {
+            'profiles': [
+                {
+                    'profileName': 'gov',
+                    'applicationUrl': 'https://ggg.transform.us-gov-west-1.on.aws',
+                }
+            ]
+        }
+
+        result = await _discover_profiles('tok-1', 'us-gov-west-1')
+
+        assert len(result) == 1
+        assert result[0]['_region'] == 'us-gov-west-1'
+        assert mock_fes_bearer.call_count == 1
+        assert mock_fes_bearer.call_args.args[0] == 'https://api.transform.us-gov-west-1.on.aws/'
+
+
+# ── fes_regions_for ────────────────────────────────────────────────────
+
+
+class TestFesRegionsFor:
+    """The fan-out region list is scoped to the caller's partition."""
+
+    def test_commercial_region_excludes_gov(self):
+        from awslabs.aws_transform_mcp_server.consts import FES_REGIONS, fes_regions_for
+
+        assert fes_regions_for('us-east-1') == FES_REGIONS
+        assert not any(r.startswith('us-gov-') for r in fes_regions_for('eu-central-1'))
+
+    def test_gov_region_returns_only_gov(self):
+        from awslabs.aws_transform_mcp_server.consts import FES_GOV_REGIONS, fes_regions_for
+
+        assert fes_regions_for('us-gov-west-1') == FES_GOV_REGIONS
+        assert fes_regions_for('us-gov-east-1') == FES_GOV_REGIONS
+
+    def test_returns_a_copy(self):
+        from awslabs.aws_transform_mcp_server.consts import FES_REGIONS, fes_regions_for
+
+        fes_regions_for('us-east-1').append('mutated')
+        assert 'mutated' not in FES_REGIONS
 
 
 # ── _select_profile elicitation paths ──────────────────────────────────
