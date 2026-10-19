@@ -16,10 +16,13 @@
 
 import pytest
 from awslabs.billing_cost_management_mcp_server.utilities.time_utils import (
+    EPOCH_MILLISECONDS_THRESHOLD,
+    format_timestamp_to_utc_iso,
     normalize_datetimes_to_iso,
     timestamp_to_utc_iso_string,
 )
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 
 
 class TestUtcDatetimeStringToEpochSeconds:
@@ -153,3 +156,68 @@ class TestNormalizeDatetimesToIso:
         assert normalize_datetimes_to_iso('hello') == 'hello'
         assert normalize_datetimes_to_iso(42) == 42
         assert normalize_datetimes_to_iso(None) is None
+
+
+class TestFormatTimestampToUtcIso:
+    """Tests for format_timestamp_to_utc_iso (datetime, epoch seconds, epoch ms)."""
+
+    # 2021-09-28T10:40:00Z in each wire form.
+    EXPECTED = '2021-09-28T10:40:00'
+    EPOCH_SECONDS = 1632825600
+    EPOCH_MS = 1632825600000
+
+    def test_none_returns_none(self):
+        """A missing timestamp is None, not an error string."""
+        assert format_timestamp_to_utc_iso(None) is None
+
+    def test_naive_datetime_is_taken_as_utc(self):
+        """boto3-style naive datetime is formatted as-is (UTC)."""
+        assert format_timestamp_to_utc_iso(datetime(2021, 9, 28, 10, 40)) == self.EXPECTED
+
+    def test_aware_datetime_is_converted_to_utc(self):
+        """An aware datetime in another zone is converted to UTC."""
+        eastern = timezone(timedelta(hours=-4))
+        value = datetime(2021, 9, 28, 6, 40, tzinfo=eastern)
+        assert format_timestamp_to_utc_iso(value) == self.EXPECTED
+
+    def test_epoch_seconds(self):
+        """Epoch seconds (the AWS JSON wire form) are not divided by 1000."""
+        assert format_timestamp_to_utc_iso(self.EPOCH_SECONDS) == self.EXPECTED
+
+    def test_epoch_seconds_float(self):
+        """Fractional epoch seconds keep their sub-second part."""
+        assert format_timestamp_to_utc_iso(1632825600.5) == '2021-09-28T10:40:00.500000'
+
+    def test_epoch_milliseconds(self):
+        """Epoch milliseconds are recognized by magnitude."""
+        assert format_timestamp_to_utc_iso(self.EPOCH_MS) == self.EXPECTED
+
+    def test_threshold_boundary(self):
+        """Values at the threshold are seconds; values above are milliseconds."""
+        at = format_timestamp_to_utc_iso(EPOCH_MILLISECONDS_THRESHOLD)
+        assert at is not None and at.startswith('5138-')
+        above = format_timestamp_to_utc_iso(EPOCH_MILLISECONDS_THRESHOLD + 1)
+        assert above is not None and above.startswith('1973-')
+
+    def test_epoch_zero_is_a_value(self):
+        """Epoch 0 is a real instant, not a missing value."""
+        assert format_timestamp_to_utc_iso(0) == '1970-01-01T00:00:00'
+
+    @pytest.mark.parametrize(
+        'value',
+        ['1632825600', '1632825600000', '2021-09-28T10:40:00Z', '2021-09-28T10:40:00+00:00'],
+    )
+    def test_strings(self, value):
+        """Numeric and ISO 8601 strings are accepted."""
+        assert format_timestamp_to_utc_iso(value) == self.EXPECTED
+
+    @pytest.mark.parametrize(
+        'value', ['not a timestamp', '', True, float('nan'), float('inf'), 1e20, [1], {}]
+    )
+    def test_unconvertible_returns_none_and_logs(self, value):
+        """Unconvertible input returns None and logs; no error text in the value."""
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.utilities.time_utils.logger'
+        ) as mock_logger:
+            assert format_timestamp_to_utc_iso(value) is None
+        mock_logger.warning.assert_called_once()

@@ -827,6 +827,66 @@ async def test_cost_explorer_missing_dimension():
 
 
 @pytest.mark.asyncio
+async def test_cost_explorer_get_dimension_values_tag_default_context_blocked(mock_context):
+    """GetDimensionValues(dimension=TAG) in the default COST_AND_USAGE context is rejected pre-call."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client', return_value=MagicMock()),
+        patch.object(ce_mod, 'get_dimension_values', new_callable=AsyncMock) as mock_impl,
+    ):
+        res = await real_fn(  # type: ignore
+            mock_context, operation='getDimensionValues', dimension='TAG'
+        )
+
+    assert res['status'] == 'error'
+    assert 'getTagsOrValues' in res['data']['message']
+    assert 'COST_AND_USAGE' in res['data']['message']
+    assert res['error_type'] == 'validation_error'
+    # Explicit, operation-specific hint set at the tool layer (survives middleware enrichment).
+    assert 'getTagsOrValues' in res['hint']
+    # Middleware derivation: validation_error -> modify_request, and our explicit hint is kept.
+    from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+        add_retry_guidance,
+    )
+
+    enriched = add_retry_guidance(res)
+    assert enriched['retry_strategy'] == 'modify_request'
+    assert enriched['hint'] == res['hint']
+    # Guard fires before the AWS GetDimensionValues round-trip (the real handler is never called).
+    mock_impl.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_cost_explorer_get_dimension_values_tag_reservations_context_allowed(mock_context):
+    """TAG is valid in the RESERVATIONS coverage context, so the guard must not block it."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with (
+        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
+        patch.object(ce_mod, 'get_dimension_values', new_callable=AsyncMock) as mock_impl,
+    ):
+        mock_create_client.return_value = MagicMock()
+        mock_impl.return_value = {'status': 'success', 'data': {}}
+
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getDimensionValues',
+            dimension='TAG',
+            context='RESERVATIONS',
+        )
+
+    assert res['status'] == 'success'
+    # The guard let it through to the real handler, which received dimension=TAG.
+    mock_impl.assert_awaited_once()
+    await_args = mock_impl.await_args
+    assert await_args is not None
+    assert await_args.args[2] == 'TAG'
+
+
+@pytest.mark.asyncio
 async def test_cost_explorer_missing_metric_forecast():
     """Test getCostForecast without metric."""
     ctx = AsyncMock()
@@ -1008,6 +1068,9 @@ async def test_ce_real_get_dimension_values_missing_dimension_error_reload_ident
             'dimension is required' in res.get('message', '')
             or 'dimension is required' in str(res.get('data', {})).lower()
         )
+        assert res['error_type'] == 'validation_error'
+        assert res['operation'] == 'getDimensionValues'
+        assert res['service'] == 'Cost Explorer'
 
 
 @pytest.mark.asyncio
@@ -1070,6 +1133,31 @@ async def test_ce_real_get_cost_forecast_missing_metric_error_reload_identity_de
             'metric is required' in res.get('message', '')
             or 'metric is required' in str(res.get('data', {})).lower()
         )
+        assert res['error_type'] == 'validation_error'
+        assert res['operation'] == 'getCostForecast'
+        assert res['service'] == 'Cost Explorer'
+
+
+@pytest.mark.asyncio
+async def test_ce_real_get_usage_forecast_missing_metric_error_reload_identity_decorator(
+    mock_context,
+):
+    """Test real cost_explorer get_usage_forecast missing metric is classified as validation_error."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with patch.object(ce_mod, 'create_aws_client') as mock_create_client:
+        mock_create_client.return_value = MagicMock()
+        res = await real_fn(  # type: ignore
+            mock_context,
+            operation='getUsageForecast',
+            # metric intentionally omitted
+        )
+        assert res['status'] == 'error'
+        assert res['data'] == {'message': 'metric is required for getUsageForecast operation'}
+        assert res['error_type'] == 'validation_error'
+        assert res['operation'] == 'getUsageForecast'
+        assert res['service'] == 'Cost Explorer'
 
 
 @pytest.mark.asyncio
@@ -1566,6 +1654,9 @@ async def test_ce_real_unknown_operation_error_reload_identity_decorator(mock_co
         res = await real_fn(mock_context, operation='definitely_not_supported')  # type: ignore
         assert res['status'] == 'error'
         assert 'Unknown operation' in res.get('data', {}).get('message', '')
+        assert res['error_type'] == 'validation_error'
+        assert res['operation'] == 'definitely_not_supported'
+        assert res['service'] == 'Cost Explorer'
 
 
 @pytest.mark.asyncio
@@ -1588,3 +1679,118 @@ async def test_ce_real_exception_flow_calls_handle_error_reload_identity_decorat
         assert res['status'] == 'error'
         assert 'boom' in res.get('message', '')
         mock_handle.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_ce_real_client_creation_error_is_classified(mock_context):
+    """A client-creation failure carries top-level error_type/operation/service."""
+    ce_mod = _reload_ce_with_identity_decorator()
+    real_fn = ce_mod.cost_explorer  # type: ignore
+
+    with patch.object(ce_mod, 'create_aws_client') as mock_create_client:
+        mock_create_client.side_effect = Exception('no credentials')
+        res = await real_fn(mock_context, operation='getCostAndUsage')  # type: ignore
+
+    assert res['status'] == 'error'
+    assert res['error_type'] == 'client_creation_error'
+    assert res['operation'] == 'getCostAndUsage'
+    assert res['service'] == 'Cost Explorer'
+    assert res['message'] == 'Failed to create AWS client: no credentials'
+    # Legacy nested payload is preserved
+    assert res['data']['error_type'] == 'client_creation_error'
+
+
+def _reload_ce_with_registered_tools():
+    """Reload cost_explorer_tools with the real FastMCP.tool decorator.
+
+    Undoes _reload_ce_with_identity_decorator so the server has its tools registered again.
+    """
+    from awslabs.billing_cost_management_mcp_server.tools import cost_explorer_tools as ce_mod
+
+    return importlib.reload(ce_mod)
+
+
+STRUCTURED_METRICS = ['UnblendedCost']
+STRUCTURED_GROUP_BY = [{'Type': 'DIMENSION', 'Key': 'SERVICE'}]
+STRUCTURED_FILTER = {'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon S3']}}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    'metrics, group_by, filter_value',
+    [
+        (STRUCTURED_METRICS, STRUCTURED_GROUP_BY, STRUCTURED_FILTER),
+        (
+            '["UnblendedCost"]',
+            '[{"Type": "DIMENSION", "Key": "SERVICE"}]',
+            '{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon S3"]}}',
+        ),
+    ],
+    ids=['structured', 'json_string'],
+)
+async def test_mcp_call_accepts_structured_and_json_string_params(metrics, group_by, filter_value):
+    """metrics, group_by, and filter reach boto3 as list/dict whether sent structured or as JSON strings (#4553)."""
+    ce_mod = _reload_ce_with_registered_tools()
+    ce_client = MagicMock()
+    ce_client.get_cost_and_usage.return_value = {'ResultsByTime': []}
+
+    with patch.object(ce_mod, 'create_aws_client', return_value=ce_client):
+        async with fastmcp.Client(ce_mod.cost_explorer_server) as client:
+            result = await client.call_tool(
+                'cost-explorer',
+                {
+                    'operation': 'getCostAndUsage',
+                    'start_date': '2026-09-01',
+                    'end_date': '2026-09-02',
+                    'metrics': metrics,
+                    'group_by': group_by,
+                    'filter': filter_value,
+                },
+            )
+
+    assert not result.is_error
+    kwargs = ce_client.get_cost_and_usage.call_args.kwargs
+    assert kwargs['Metrics'] == STRUCTURED_METRICS
+    assert kwargs['GroupBy'] == STRUCTURED_GROUP_BY
+    assert kwargs['Filter'] == STRUCTURED_FILTER
+
+
+@pytest.mark.asyncio
+async def test_mcp_call_accepts_structured_filter_for_forecast():
+    """A structured filter is accepted by operations that only take filter (#4553)."""
+    ce_mod = _reload_ce_with_registered_tools()
+    ce_client = MagicMock()
+    ce_client.get_cost_forecast.return_value = {'Total': {}, 'ForecastResultsByTime': []}
+
+    with patch.object(ce_mod, 'create_aws_client', return_value=ce_client):
+        async with fastmcp.Client(ce_mod.cost_explorer_server) as client:
+            result = await client.call_tool(
+                'cost-explorer',
+                {
+                    'operation': 'getCostForecast',
+                    'start_date': '2099-01-01',
+                    'end_date': '2099-02-01',
+                    'granularity': 'MONTHLY',
+                    'metric': 'UNBLENDED_COST',
+                    'filter': STRUCTURED_FILTER,
+                },
+            )
+
+    assert not result.is_error
+    assert ce_client.get_cost_forecast.call_args.kwargs['Filter'] == STRUCTURED_FILTER
+
+
+@pytest.mark.asyncio
+async def test_tool_schema_publishes_structured_types():
+    """The tool schema advertises array/object types for metrics, group_by, and filter (#4553)."""
+    ce_mod = _reload_ce_with_registered_tools()
+    async with fastmcp.Client(ce_mod.cost_explorer_server) as client:
+        tools = await client.list_tools()
+    properties = next(t for t in tools if t.name == 'cost-explorer').input_schema['properties']
+
+    def types(name):
+        return {option.get('type') for option in properties[name]['anyOf']}
+
+    assert types('metrics') == {'string', 'array', 'null'}
+    assert types('group_by') == {'string', 'array', 'null'}
+    assert types('filter') == {'string', 'object', 'null'}

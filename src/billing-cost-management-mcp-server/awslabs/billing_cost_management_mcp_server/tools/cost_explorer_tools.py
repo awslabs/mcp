@@ -28,10 +28,11 @@ from .cost_explorer_operations import (
     get_tags,
     get_usage_forecast,
 )
-from botocore.exceptions import ClientError
 from fastmcp import Context, FastMCP
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Union
 
+
+COST_EXPLORER_SERVICE_NAME = 'Cost Explorer'
 
 cost_explorer_server = FastMCP(
     name='cost-explorer-tools', instructions='Tools for working with AWS Cost Explorer API'
@@ -48,6 +49,20 @@ IMPORTANT USAGE GUIDELINES:
 - Choose DAILY granularity for periods <3 months, MONTHLY for longer periods
 - Start with high-level dimensions (SERVICE, LINKED_ACCOUNT) before detailed ones
 - Always remember that the end_date is exclusive
+- Never filter on a dimension value you are guessing; group_by that dimension instead and read
+  the exact values back with their costs
+
+REPORTING $0:
+An empty result is indistinguishable from a genuine zero, so a wrong filter value or a wrong
+filter KEY returns no rows, reads as $0, and the miss is silent: "Amazon RDS" returns nothing
+because the value is "Amazon Relational Database Service", and AWS Marketplace spend returns
+nothing when filtered on LEGAL_ENTITY_NAME because the key for it is BILLING_ENTITY.
+1. If you FILTERED, the filter was probably wrong. Confirm the value exists by calling
+   getDimensionValues (purpose-built for this, lighter than a full breakdown), and confirm the
+   KEY carries the concept you asked about (see DIMENSION REFERENCE). It returns only values
+   with usage in the period, so absence is not proof the value is invalid. If you also need the
+   spend, re-run grouped by that dimension to get the value and its cost in one call.
+2. If you GROUPED and the line genuinely shows $0, report "$0.00", not "no data found".
 
 USE THIS TOOL FOR:
 - **Historical cost trends** and spending analysis (any time period)
@@ -56,6 +71,48 @@ USE THIS TOOL FOR:
 - **Forecasting** future costs and usage
 - **Resource-level cost analysis** (last 14 days)
 - **Multi-dimensional cost analysis** with complex grouping
+
+WINDOW LIMITS:
+- getCostAndUsage: the current month and the previous 13 months at DAILY and MONTHLY
+  granularity. Older months are available at MONTHLY granularity only if multi-year data is
+  enabled in Cost Explorer settings. HOURLY data covers only the previous 14 days and must also
+  be enabled there.
+- getCostAndUsageWithResources: the range must be within the last 14 days (start_date no
+  earlier than 14 days ago).
+- getSavingsPlansUtilization: start_date must be within the last 13 months, and end_date must
+  be after start_date and before the current date.
+- getCostForecast, getUsageForecast: start_date must be today or later. The maximum horizon is
+  3 months at DAILY granularity and 18 months at MONTHLY. Cost Explorer does not produce a
+  forecast when the account has too little history, which is common for accounts with less
+  than one full billing cycle.
+
+FILTER EXPRESSION GRAMMAR (the `filter` argument is a JSON STRING):
+The top-level object has exactly ONE of these keys:
+- Leaf keys: `Dimensions`, `Tags`, `CostCategories`
+- Logical keys: `And` and `Or` (each takes an array of expressions), `Not` (takes one
+  expression)
+
+Leaf shape:
+`{"<Dimensions|Tags|CostCategories>": {"Key": "...", "Values": [...], "MatchOptions": [...]}}`
+
+MatchOptions accepted by getCostAndUsage and getCostAndUsageWithResources:
+- Dimensions:     EQUALS, CASE_SENSITIVE
+- Tags:           EQUALS, ABSENT, CASE_SENSITIVE
+- CostCategories: EQUALS, ABSENT, CASE_SENSITIVE
+The default is EQUALS and CASE_SENSITIVE, so MatchOptions can usually be omitted. Not every
+operation supports MatchOptions.
+
+The MatchOption enum also contains `CASE_INSENSITIVE`, `STARTS_WITH`, `ENDS_WITH`, `CONTAINS`,
+and `GREATER_THAN_OR_EQUAL`. These apply to Cost Category rules and anomaly subscriptions, not
+to these filters.
+
+For Tags, `ABSENT` with a `Key` and no `Values` matches costs that don't have that tag key.
+
+Correct filter examples (remember: the `filter` argument is itself JSON STRING-ENCODED):
+- `{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon Relational Database Service"]}}`
+- `{"Tags": {"Key": "env", "Values": ["prod"]}}`
+- `{"Tags": {"Key": "team", "MatchOptions": ["ABSENT"]}}`
+- `{"And": [{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon Elastic Compute Cloud - Compute"]}}, {"Dimensions": {"Key": "REGION", "Values": ["us-east-1"]}}]}`
 
 ## OPERATIONS
 
@@ -67,7 +124,7 @@ USE THIS TOOL FOR:
 2. getCostAndUsageWithResources - Resource-level cost data (limited to last 14 days)
    Required: operation="getCostAndUsageWithResources", filter, granularity, start_date, end_date
    Optional: metrics, group_by, next_token, max_pages, billing_view_arn
-   Notes: RESOURCE_ID must be included in either filter OR group_by parameters. This operation is limited to past 14 days of data from current date. Hourly granularity is only available for EC2-Instances resource-level data. All other resource-level data is available at daily granularity.
+   Notes: RESOURCE_ID must be included in either filter OR group_by parameters. The range must be within the last 14 days (start_date no earlier than 14 days ago). Hourly granularity is only available for EC2-Instances resource-level data. All other resource-level data is available at daily granularity.
    Example: {"operation": "getCostAndUsageWithResources", "start_date": "2025-08-07", "end_date": "2025-08-21", "granularity": "DAILY", "filter": "{\"Dimensions\": {\"Key\": \"SERVICE\", \"Values\": [\"Amazon Elastic Compute Cloud - Compute\"]}}", "group_by": "[{\"Type\": \"DIMENSION\", \"Key\": \"RESOURCE_ID\"}]"}
    Returns: Cost data with resource-level granularity
 
@@ -76,12 +133,13 @@ USE THIS TOOL FOR:
    Optional: context, search_string, filter, max_results, billing_view_arn
    Example: {"operation": "getDimensionValues", "dimension": "SERVICE", "start_date": "2024-01-01", "end_date": "2024-02-01"}
    Returns: List of values for specified dimension with automatic pagination
+   Notes: TAG is not a dimension here in the default COST_AND_USAGE context — to list a cost-allocation tag key's values use operation=getTagsOrValues (with tag_key); passing dimension=TAG is rejected. TAG is only valid as a dimension when context=RESERVATIONS (coverage).
 
 4. getCostForecast - Future cost projections
    Required: operation="getCostForecast", metric, granularity, start_date, end_date
    Optional: filter, prediction_interval_level, billing_view_arn
    Example: {"operation": "getCostForecast", "metric": "UNBLENDED_COST", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22"}
-   Notes: metric value for this operation should be in all caps
+   Notes: `metric` must be ALL CAPS and one of UNBLENDED_COST, BLENDED_COST, AMORTIZED_COST, NET_UNBLENDED_COST, NET_AMORTIZED_COST. `start_date` must be today or later. The horizon is up to 3 months (DAILY) or 18 months (MONTHLY).
    Returns: Cost forecast for specified time period and granularity
 
 5. getUsageForecast - Future usage projections
@@ -111,22 +169,27 @@ USE THIS TOOL FOR:
    Required: operation="getSavingsPlansUtilization", start_date, end_date
    Optional: granularity, filter
    Example: {"operation": "getSavingsPlansUtilization", "granularity": "MONTHLY"}
-   Notes: This operation supports only DAILY and MONTHLY granularity
+   Notes: Supports only DAILY and MONTHLY granularity. start_date must be within the last 13 months, and end_date must be before the current date.
    Returns: Savings Plans utilization for the specified time period
 
 DIMENSION REFERENCE:
 - AZ: The Availability Zone (e.g., us-east-1a)
+- BILLING_ENTITY: Who bills the charge - "AWS" for AWS services, "AWS Marketplace" for
+  third-party Marketplace purchases. This is the key for Marketplace spend, NOT LEGAL_ENTITY_NAME
 - DATABASE_ENGINE: The Amazon RDS database (e.g., Aurora, MySQL)
 - DEPLOYMENT_OPTION: RDS deployment scope (SingleAZ, MultiAZ)
 - INSTANCE_TYPE: The EC2 instance type (e.g., m4.xlarge)
 - INSTANCE_TYPE_FAMILY: Family of instances (e.g., Compute Optimized, Memory Optimized)
+- INVOICING_ENTITY: The AWS entity that issued the invoice (e.g., Amazon Web Services, Inc.)
+- LEGAL_ENTITY_NAME: The AWS seller of record (e.g., Amazon Web Services, Inc.); it does not
+  separate Marketplace from AWS charges
 - LINKED_ACCOUNT: AWS member accounts
 - OPERATING_SYSTEM: OS type (e.g., Windows, Linux)
 - PLATFORM: EC2 operating system
 - PURCHASE_TYPE: Reservation type (e.g., On-Demand, Reserved)
 - REGION: AWS Region
 - SERVICE: AWS service (e.g., Amazon DynamoDB)
-- TAG: Cost allocation tag
+- TAG: Cost allocation tag — valid as a GroupBy Type (`[{"Type":"TAG","Key":"<tag_key>"}]`) and inside filter `Tags` leaves. As a getDimensionValues dimension it is only valid in the RESERVATIONS coverage context, NOT in COST_AND_USAGE; to list a tag key's values use operation=getTagsOrValues (with tag_key).
 - TENANCY: EC2 tenancy (shared, dedicated)
 - USAGE_TYPE: Usage type (e.g., DataTransfer-In-Bytes)
 - RECORD_TYPE: Charge types (e.g., RI fees, usage costs)
@@ -157,9 +220,9 @@ async def cost_explorer(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     granularity: str = 'DAILY',
-    metrics: Optional[str] = None,
-    group_by: Optional[str] = None,
-    filter: Optional[str] = None,
+    metrics: Optional[Union[str, List[str]]] = None,
+    group_by: Optional[Union[str, List[Dict[str, Any]]]] = None,
+    filter: Optional[Union[str, Dict[str, Any]]] = None,
     dimension: Optional[str] = None,
     search_string: Optional[str] = None,
     max_results: Optional[int] = None,
@@ -183,9 +246,9 @@ async def cost_explorer(
         start_date: Start date for cost data in YYYY-MM-DD format
         end_date: End date for cost data in YYYY-MM-DD format (exclusive)
         granularity: Granularity of the returned data (DAILY, MONTHLY, etc.)
-        metrics: Metrics to include in the response
-        group_by: How to group the results
-        filter: Filter to apply to the results
+        metrics: Metrics to include in the response, as a list or a JSON string
+        group_by: How to group the results, as a list of objects or a JSON string
+        filter: Filter to apply to the results, as an object or a JSON string
         dimension: Dimension to get values for (getDimensionValues)
         search_string: Search string to filter dimension values
         max_results: Maximum number of results to return
@@ -209,13 +272,18 @@ async def cost_explorer(
         ce_client = create_aws_client('ce')
     except Exception as client_error:
         await ctx.error(f'Failed to create AWS client: {str(client_error)}')
+        error_message = f'Failed to create AWS client: {str(client_error)}'
         return format_response(
             'error',
             {
                 'error_type': 'client_creation_error',
-                'message': f'Failed to create AWS client: {str(client_error)}',
+                'message': error_message,
                 'details': repr(client_error),
             },
+            error_message,
+            error_type='client_creation_error',
+            operation=operation,
+            service=COST_EXPLORER_SERVICE_NAME,
         )
 
     # Route to the appropriate operation handler
@@ -255,7 +323,36 @@ async def cost_explorer(
         elif operation == 'getDimensionValues':
             if not dimension:
                 return format_response(
-                    'error', {'message': 'dimension is required for getDimensionValues operation'}
+                    'error',
+                    {'message': 'dimension is required for getDimensionValues operation'},
+                    error_type='validation_error',
+                    operation=operation,
+                    service=COST_EXPLORER_SERVICE_NAME,
+                )
+
+            # TAG is only a valid dimension in the RESERVATIONS coverage context; in the
+            # default COST_AND_USAGE context AWS rejects it with ValidationException. Catch
+            # it before the API round-trip and point to the operation that actually lists
+            # tag values. Do NOT reject TAG unconditionally — RESERVATIONS coverage uses it.
+            if dimension == 'TAG' and (context or 'COST_AND_USAGE') == 'COST_AND_USAGE':
+                return format_response(
+                    'error',
+                    {
+                        'message': (
+                            'TAG is not a COST_AND_USAGE getDimensionValues dimension. '
+                            "To list a tag key's values use operation=getTagsOrValues "
+                            '(optionally with tag_key). TAG as a dimension is only valid '
+                            'in the RESERVATIONS coverage context.'
+                        )
+                    },
+                    error_type='validation_error',
+                    operation=operation,
+                    service=COST_EXPLORER_SERVICE_NAME,
+                    hint=(
+                        "To list a cost-allocation tag key's values, call this tool with "
+                        'operation=getTagsOrValues (pass tag_key for one key). Do **NOT** retry '
+                        'getDimensionValues with dimension=TAG in the COST_AND_USAGE context.'
+                    ),
                 )
 
             return await get_dimension_values(
@@ -276,7 +373,11 @@ async def cost_explorer(
         elif operation == 'getCostForecast':
             if not metric:
                 return format_response(
-                    'error', {'message': 'metric is required for getCostForecast operation'}
+                    'error',
+                    {'message': 'metric is required for getCostForecast operation'},
+                    error_type='validation_error',
+                    operation=operation,
+                    service=COST_EXPLORER_SERVICE_NAME,
                 )
 
             return await get_cost_forecast(
@@ -294,7 +395,11 @@ async def cost_explorer(
         elif operation == 'getUsageForecast':
             if not metric:
                 return format_response(
-                    'error', {'message': 'metric is required for getUsageForecast operation'}
+                    'error',
+                    {'message': 'metric is required for getUsageForecast operation'},
+                    error_type='validation_error',
+                    operation=operation,
+                    service=COST_EXPLORER_SERVICE_NAME,
                 )
 
             return await get_usage_forecast(
@@ -344,11 +449,14 @@ async def cost_explorer(
             )
 
         else:
-            return format_response('error', {'message': f'Unknown operation: {operation}'})
+            return format_response(
+                'error',
+                {'message': f'Unknown operation: {operation}'},
+                error_type='validation_error',
+                operation=operation,
+                service=COST_EXPLORER_SERVICE_NAME,
+            )
 
-    except ClientError as e:
-        # Let the shared handler take care of this
-        return await handle_aws_error(ctx, e, operation, 'Cost Explorer')
     except Exception as e:
-        # For all other exceptions, use the shared error handler
-        return await handle_aws_error(ctx, e, operation, 'Cost Explorer')
+        # The shared handler classifies ClientError and all other exceptions
+        return await handle_aws_error(ctx, e, operation, COST_EXPLORER_SERVICE_NAME)

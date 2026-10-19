@@ -14,7 +14,7 @@
 
 """Enterprise Support operations for the AWS Billing and Cost Management MCP server.
 
-This module contains the operation handlers for the ``enterprise_support`` tool.
+This module contains the operation handlers for the ``enterprise-support`` tool.
 Each operation validates the requested billing month, performs the AWS API call,
 normalizes timestamps for the agent, and returns a standardized response
 envelope. Every other field is passed through exactly as the API returned it so

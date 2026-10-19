@@ -97,6 +97,9 @@ from awslabs.billing_cost_management_mcp_server.tools.sp_recommendation_tools im
 )
 from awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools import storage_lens_server
 from awslabs.billing_cost_management_mcp_server.tools.unified_sql_tools import unified_sql_server
+from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+    add_retry_guidance,
+)
 from awslabs.billing_cost_management_mcp_server.utilities.logging_utils import get_logger
 from fastmcp import FastMCP
 from fastmcp.server.middleware import Middleware
@@ -126,6 +129,9 @@ class ErrorSignalingMiddleware(Middleware):
     This middleware intercepts tool results that contain status='error' in their
     response body and returns a result with is_error=True, preserving the original
     content and structured_content for backward compatibility.
+
+    It also adds retry_strategy (and hint, when one applies) derived from error_type,
+    unless the tool already set them (see utilities/error_contract.py).
     """
 
     async def on_call_tool(self, context, call_next):
@@ -136,9 +142,18 @@ class ErrorSignalingMiddleware(Middleware):
             and isinstance(result.structured_content, dict)
             and result.structured_content.get('status') == 'error'
         ):
+            structured_content = add_retry_guidance(result.structured_content)
+            content = result.content
+            # When content is the serialized structured_content (the case for dict
+            # returns), re-derive it so the text the model reads carries the same fields.
+            if (
+                structured_content is not result.structured_content
+                and content == ToolResult(structured_content=result.structured_content).content
+            ):
+                content = ToolResult(structured_content=structured_content).content
             return _ErrorToolResult(
-                content=result.content,
-                structured_content=result.structured_content,
+                content=content,
+                structured_content=structured_content,
                 meta=result.meta,
             )
         return result
@@ -177,13 +192,13 @@ TOOLS:
 - sp-recommendation: Get Savings Plans purchase recommendations, the hourly data-points behind one, and the recommendation generation history
 - sp-purchase-analyzer: Run Savings Plans Purchase Analyzer what-if analyses (max savings, custom commitment, target average coverage) and retrieve their results
 - session-sql: Execute SQL queries on the session database
-- billing-conductor: AWS Billing Conductor tools for AWS Proforma billing (billing groups and associated accounts and cost reports, pricing rules/plans, custom line items)
+- billing-conductor: AWS Billing Conductor tools for AWS Proforma billing (billing groups and associated accounts and cost reports, pricing rules/plans, custom line items, billing transfer preferences)
 - billing-view: AWS Billing View tools for managing and querying billing views (get-billing-view, list-billing-views, list-source-views-for-billing-view, get-resource-policy, list-billing-view-segments)
 - cost-allocation-tags: List cost allocation tags and backfill history (list-cost-allocation-tags, list-cost-allocation-tag-backfill-history)
 - cost-category: Describe and list cost category definitions (describe-cost-category-definition, list-cost-category-definitions)
 - invoicing: AWS Invoicing data — invoice summaries with amounts, tax, discounts/fees, currency/FX, due dates, PO numbers, and credit memos (operation: list_invoice_summaries)
 - credits: AWS Billing credits — credit balance, expiration, product applicability, sharing configuration, and the per-service allocation ledger (operations: get_credits, get_credit_allocation_history)
-- enterprise_support: AWS Enterprise Support charge data for a closed billing period — the Support charge and the Support-eligible spend it was calculated from, the contract terms that govern how the charge is allocated, and the per-linked-account breakdown (operations: get_charge_summary, get_contract_details, list_linked_account_charges)
+- enterprise-support: AWS Enterprise Support charge data for a closed billing period — the Support charge and the Support-eligible spend it was calculated from, the contract terms that govern how the charge is allocated, and the per-linked-account breakdown (operations: get_charge_summary, get_contract_details, list_linked_account_charges)
 
 PROMPTS:
 - savings_plans: Analyzes AWS usage and identifies opportunities for Savings Plans purchases
@@ -289,6 +304,7 @@ def setup():
         'list-custom-line-items',
         'list-custom-line-item-versions',
         'list-resources-associated-to-custom-line-item',
+        'get-billing-transfer-preference',
         'get-billing-view',
         'list-billing-views',
         'list-source-views-for-billing-view',

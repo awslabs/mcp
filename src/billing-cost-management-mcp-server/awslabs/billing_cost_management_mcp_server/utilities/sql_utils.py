@@ -38,6 +38,7 @@ from .constants import (
     COST_OPTIMIZATION_HUB_RECOMMENDATION_COLUMNS,
     ColumnSpec,
 )
+from .error_contract import MODIFY_REQUEST
 from .logging_utils import get_context_logger, get_logger
 from datetime import datetime
 from fastmcp import Context
@@ -404,6 +405,10 @@ def _get_specialized_converter(operation_name: str) -> Optional[str]:
         'cost_optimization_hub_list_efficiency_metrics': 'coh_efficiency_metrics',
         'budget_actions': 'records',
         'budget_notifications': 'records',
+        'sp_explorer_describe_savings_plans': 'records',
+        'sp_explorer_describe_savings_plan_rates': 'records',
+        'sp_explorer_describe_savings_plans_offerings': 'records',
+        'sp_explorer_describe_savings_plans_offering_rates': 'records',
     }
 
     if operation_name in converters:
@@ -1057,10 +1062,15 @@ async def convert_api_response_to_table(
                 preview_item[col] = row[i]
             preview.append(preview_item)
 
-        # Register table in schema info
+        # Register table in schema info, and commit it before the await below. The INSERT opens a
+        # write transaction; holding it across the await lets a concurrent conversion on the same
+        # event loop block on the lock (sqlite's busy_timeout waits synchronously, so the holder
+        # never resumes) until it fails with "database is locked". Uncommitted, the row would
+        # also be rolled back when the connection closes.
         register_table_in_schema_info(
             cursor, table_name, operation_name, json.dumps(metadata), rows_inserted
         )
+        conn.commit()
 
         await ctx.info(f'Converted {rows_inserted} rows to SQL table: {table_name}')
 
@@ -1499,13 +1509,19 @@ async def execute_session_sql(
         # Add a structured error_type/operation/service so failures are
         # classifiable. error_type is the exception class name only (e.g.
         # 'OperationalError').
-        return {
+        response = {
             'status': 'error',
             'service': 'SQL',
             'operation': 'session_sql',
             'error_type': type(e).__name__,
             'message': error_message,
         }
+        # Rejected or invalid SQL (ValueError from validation, sqlite3 syntax errors,
+        # unknown tables or columns) is fixed by changing the query. The class names
+        # are too generic for the shared error_type mapping, so it is set here.
+        if isinstance(e, (ValueError, sqlite3.Error)):
+            response['retry_strategy'] = MODIFY_REQUEST
+        return response
 
     finally:
         # Close connection only if it was successfully opened

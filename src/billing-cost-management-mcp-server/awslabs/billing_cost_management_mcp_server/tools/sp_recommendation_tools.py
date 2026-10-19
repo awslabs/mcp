@@ -301,11 +301,11 @@ async def get_savings_plans_purchase_recommendation(
         data = {k: v for k, v in first_page.items() if k != 'NextPageToken'}
         data['SavingsPlansPurchaseRecommendation'] = merged_recommendation
         data['pagination'] = {
-            'complete_dataset': current_token is None,
+            'complete_dataset': not current_token,
             'pages_fetched': pages_fetched,
             'total_results': len(all_details),
-            'has_more': current_token is not None,
-            'next_token': current_token,
+            'has_more': bool(current_token),
+            'next_token': current_token or None,
             'duration_ms': int(duration_ms),
         }
 
