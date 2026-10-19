@@ -120,13 +120,13 @@ Correct filter examples:
 1) getCostAndUsage — account-level historical cost/usage
    Required: operation="getCostAndUsage", start_date, end_date, granularity, metrics
    Optional: group_by, filter, next_token, max_pages, billing_view_arn
-   Example: {"operation": "getCostAndUsage", "start_date": "2024-01-01", "end_date": "2024-02-01", "granularity": "MONTHLY", "metrics": ["UnblendedCost"], "group_by": [{"Type": "DIMENSION", "Key": "SERVICE"}]}
+   Example: {"operation": "getCostAndUsage", "start_date": "2024-01-01", "end_date": "2024-02-01", "granularity": "MONTHLY", "metrics": "[\\"UnblendedCost\\"]", "group_by": "[{\\"Type\\": \\"DIMENSION\\", \\"Key\\": \\"SERVICE\\"}]"}
 
 2. getCostAndUsageWithResources - Resource-level cost data (limited to last 14 days)
    Required: operation="getCostAndUsageWithResources", filter, granularity, start_date, end_date
    Optional: metrics, group_by, next_token, max_pages, billing_view_arn
    Notes: RESOURCE_ID must be included in either filter OR group_by parameters. The range must be within the last 14 days (start_date no earlier than 14 days ago). Hourly granularity is only available for EC2-Instances resource-level data. All other resource-level data is available at daily granularity.
-   Example: {"operation": "getCostAndUsageWithResources", "start_date": "2025-08-07", "end_date": "2025-08-21", "granularity": "DAILY", "filter": {"Dimensions": {"Key": "SERVICE", "Values": ["Amazon Elastic Compute Cloud - Compute"]}}, "group_by": [{"Type": "DIMENSION", "Key": "RESOURCE_ID"}]}
+   Example: {"operation": "getCostAndUsageWithResources", "start_date": "2025-08-07", "end_date": "2025-08-21", "granularity": "DAILY", "filter": "{\\"Dimensions\\": {\\"Key\\": \\"SERVICE\\", \\"Values\\": [\\"Amazon Elastic Compute Cloud - Compute\\"]}}", "group_by": "[{\\"Type\\": \\"DIMENSION\\", \\"Key\\": \\"RESOURCE_ID\\"}]"}
    Returns: Cost data with resource-level granularity
 
 3. getDimensionValues - List of available values for specified dimension
@@ -146,9 +146,9 @@ Correct filter examples:
 5. getUsageForecast - Future usage projections
    Required: operation="getUsageForecast", metric, granularity, start_date, end_date, filter
    Optional: prediction_interval_level, billing_view_arn
-   Example 1: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22", "filter": {"Dimensions": {"Key": "USAGE_TYPE_GROUP", "Values": ["EC2: Running Hours"]}}}
-   Example 2: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22", "filter": {"And": [{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon Elastic Compute Cloud - Compute"]}}, {"Dimensions": {"Key": "USAGE_TYPE", "Values": ["BoxUsage:p4de.24xlarge"]}}]}}
-   Example 3: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22", "filter": {"Dimensions": {"Key": "USAGE_TYPE", "Values": ["BoxUsage:p4de.24xlarge", "Reservation:p4de.24xlarge", "UnusedBox:p4de.24xlarge"]}}, "group_by": [{"Type": "DIMENSION", "Key": "REGION"}]}
+   Example 1: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22", "filter": "{\\"Dimensions\\": {\\"Key\\": \\"USAGE_TYPE_GROUP\\", \\"Values\\": [\\"EC2: Running Hours\\"]}}"}
+   Example 2: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22", "filter": "{\\"And\\": [{\\"Dimensions\\": {\\"Key\\": \\"SERVICE\\", \\"Values\\": [\\"Amazon Elastic Compute Cloud - Compute\\"]}}, {\\"Dimensions\\": {\\"Key\\": \\"USAGE_TYPE\\", \\"Values\\": [\\"BoxUsage:p4de.24xlarge\\"]}}]}"}
+   Example 3: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22", "filter": "{\\"Dimensions\\": {\\"Key\\": \\"USAGE_TYPE\\", \\"Values\\": [\\"BoxUsage:p4de.24xlarge\\", \\"Reservation:p4de.24xlarge\\", \\"UnusedBox:p4de.24xlarge\\"]}}", "group_by": "[{\\"Type\\": \\"DIMENSION\\", \\"Key\\": \\"REGION\\"}]"}
    Notes: Valid values for metric is: USAGE_QUANTITY, NORMALIZED_USAGE_AMOUNT. Valid values for granularity is: DAILY, MONTHLY. Filter is REQUIRED and must specify USAGE_TYPE or USAGE_TYPE_GROUP to define what usage units to forecast.
    Returns: Usage forecast for specified time period and granularity
 

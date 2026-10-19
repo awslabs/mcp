@@ -1903,6 +1903,19 @@ class TestCostExplorerDescriptionContract:
         for example in examples:
             jsonschema.validate(json.loads(example), tool.input_schema)
 
+    def test_rendered_examples_json_encode_structured_params(self, tool):
+        """Examples pass metrics, group_by and filter as JSON strings that decode cleanly.
+
+        Copies of this description (and older clients) may type these parameters as plain
+        strings, so the examples use the form every variant accepts.
+        """
+        for example in _rendered_examples(tool.description):
+            call = json.loads(example)
+            for name in ('metrics', 'group_by', 'filter'):
+                if name in call:
+                    assert isinstance(call[name], str), (name, example)
+                    json.loads(call[name])
+
     def test_documented_filters_pass_botocore_validation(self, tool):
         """Every filter in an example is a valid Cost Explorer Expression."""
         validator = ParamValidator()
@@ -1913,7 +1926,7 @@ class TestCostExplorerDescriptionContract:
             .input_shape
         )
         filters = [
-            json.loads(e)['filter']
+            json.loads(json.loads(e)['filter'])
             for e in _rendered_examples(tool.description)
             if '"filter"' in e
         ]
