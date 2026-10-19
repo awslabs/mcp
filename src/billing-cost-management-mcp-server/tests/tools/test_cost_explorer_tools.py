@@ -1916,6 +1916,41 @@ class TestCostExplorerDescriptionContract:
                     assert isinstance(call[name], str), (name, example)
                     json.loads(call[name])
 
+    def test_filter_grammar_states_values_rules_and_examples_follow_them(self, tool):
+        """Dimensions need Values; ABSENT leaves omit Values; every documented filter complies."""
+        grammar = tool.description.split('FILTER EXPRESSION GRAMMAR')[1].split('## OPERATIONS')[0]
+        assert 'Dimensions: `Values` is required and must not be empty.' in grammar
+        assert 'omit `Values` entirely' in grammar
+
+        documented = [
+            json.loads(example)
+            for example in re.findall(r'^- `(\{.*\})`$', grammar, flags=re.MULTILINE)
+        ]
+        documented += [
+            json.loads(json.loads(e)['filter'])
+            for e in _rendered_examples(tool.description)
+            if '"filter"' in e
+        ]
+        assert any('ABSENT' in json.dumps(f) for f in documented)
+
+        def leaves(expression):
+            for key, value in expression.items():
+                if key in ('And', 'Or'):
+                    for child in value:
+                        yield from leaves(child)
+                elif key == 'Not':
+                    yield from leaves(value)
+                else:
+                    yield key, value
+
+        for expression in documented:
+            for leaf_type, leaf in leaves(expression):
+                if 'ABSENT' in leaf.get('MatchOptions', []):
+                    assert leaf_type in ('Tags', 'CostCategories')
+                    assert 'Values' not in leaf
+                else:
+                    assert leaf['Values']
+
     def test_documented_filters_pass_botocore_validation(self, tool):
         """Every filter in an example is a valid Cost Explorer Expression."""
         validator = ParamValidator()

@@ -107,7 +107,11 @@ The MatchOption enum also contains `CASE_INSENSITIVE`, `STARTS_WITH`, `ENDS_WITH
 and `GREATER_THAN_OR_EQUAL`. These apply to Cost Category rules and anomaly subscriptions, not
 to these filters.
 
-For Tags, `ABSENT` with a `Key` and no `Values` matches costs that don't have that tag key.
+Values per leaf type:
+- Dimensions: `Values` is required and must not be empty.
+- Tags / CostCategories: `Values` is required, except with `ABSENT`. `ABSENT` matches costs
+  where the tag or cost category key is not present, so there is no value to compare against:
+  omit `Values` entirely (an empty `Values` list is rejected too).
 
 Correct filter examples:
 - `{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon Relational Database Service"]}}`
