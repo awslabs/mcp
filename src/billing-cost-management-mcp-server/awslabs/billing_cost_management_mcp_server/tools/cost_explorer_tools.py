@@ -46,7 +46,8 @@ cost_explorer_server = FastMCP(
 IMPORTANT USAGE GUIDELINES:
 - Use UnblendedCost metric by default (not BlendedCost) unless user specifies otherwise
 - Exclude record_types 'Credit' and 'Refund' by default unless user requests inclusion
-- Choose DAILY granularity for periods <3 months, MONTHLY for longer periods
+- Use MONTHLY granularity for totals or rankings over whole months; use DAILY only when a daily
+  trend is asked for or the window is shorter than a month
 - Start with high-level dimensions (SERVICE, LINKED_ACCOUNT) before detailed ones
 - Always remember that the end_date is exclusive
 - Never filter on a dimension value you are guessing; group_by that dimension instead and read
@@ -86,7 +87,7 @@ WINDOW LIMITS:
   forecast when the account has too little history, which is common for accounts with less
   than one full billing cycle.
 
-FILTER EXPRESSION GRAMMAR (the `filter` argument is a JSON STRING):
+FILTER EXPRESSION GRAMMAR (the `filter` argument is an object or a JSON string):
 The top-level object has exactly ONE of these keys:
 - Leaf keys: `Dimensions`, `Tags`, `CostCategories`
 - Logical keys: `And` and `Or` (each takes an array of expressions), `Not` (takes one
@@ -108,7 +109,7 @@ to these filters.
 
 For Tags, `ABSENT` with a `Key` and no `Values` matches costs that don't have that tag key.
 
-Correct filter examples (remember: the `filter` argument is itself JSON STRING-ENCODED):
+Correct filter examples:
 - `{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon Relational Database Service"]}}`
 - `{"Tags": {"Key": "env", "Values": ["prod"]}}`
 - `{"Tags": {"Key": "team", "MatchOptions": ["ABSENT"]}}`
@@ -119,13 +120,13 @@ Correct filter examples (remember: the `filter` argument is itself JSON STRING-E
 1) getCostAndUsage — account-level historical cost/usage
    Required: operation="getCostAndUsage", start_date, end_date, granularity, metrics
    Optional: group_by, filter, next_token, max_pages, billing_view_arn
-   Example: {"operation": "getCostAndUsage", "start_date": "2024-01-01", "end_date": "2024-02-01", "granularity": "DAILY", "metrics": [\"UnblendedCost\"], "group_by": "[{\"Type\": \"DIMENSION\", \"Key\": \"SERVICE\"}]"}
+   Example: {"operation": "getCostAndUsage", "start_date": "2024-01-01", "end_date": "2024-02-01", "granularity": "MONTHLY", "metrics": ["UnblendedCost"], "group_by": [{"Type": "DIMENSION", "Key": "SERVICE"}]}
 
 2. getCostAndUsageWithResources - Resource-level cost data (limited to last 14 days)
    Required: operation="getCostAndUsageWithResources", filter, granularity, start_date, end_date
    Optional: metrics, group_by, next_token, max_pages, billing_view_arn
    Notes: RESOURCE_ID must be included in either filter OR group_by parameters. The range must be within the last 14 days (start_date no earlier than 14 days ago). Hourly granularity is only available for EC2-Instances resource-level data. All other resource-level data is available at daily granularity.
-   Example: {"operation": "getCostAndUsageWithResources", "start_date": "2025-08-07", "end_date": "2025-08-21", "granularity": "DAILY", "filter": "{\"Dimensions\": {\"Key\": \"SERVICE\", \"Values\": [\"Amazon Elastic Compute Cloud - Compute\"]}}", "group_by": "[{\"Type\": \"DIMENSION\", \"Key\": \"RESOURCE_ID\"}]"}
+   Example: {"operation": "getCostAndUsageWithResources", "start_date": "2025-08-07", "end_date": "2025-08-21", "granularity": "DAILY", "filter": {"Dimensions": {"Key": "SERVICE", "Values": ["Amazon Elastic Compute Cloud - Compute"]}}, "group_by": [{"Type": "DIMENSION", "Key": "RESOURCE_ID"}]}
    Returns: Cost data with resource-level granularity
 
 3. getDimensionValues - List of available values for specified dimension
@@ -145,9 +146,9 @@ Correct filter examples (remember: the `filter` argument is itself JSON STRING-E
 5. getUsageForecast - Future usage projections
    Required: operation="getUsageForecast", metric, granularity, start_date, end_date, filter
    Optional: prediction_interval_level, billing_view_arn
-   Example 1: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22", "filter": "{\"Dimensions\": {\"Key\": \"USAGE_TYPE_GROUP\", \"Values\": [\"EC2-Instance\"]}}"}
-   Example 2: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22", "filter": "{\"And\": [{\"Dimensions\": {\"Key\": \"SERVICE\", \"Values\": [\"Amazon Elastic Compute Cloud - Compute\"]}}, {\"Dimensions\": {\"Key\": \"USAGE_TYPE\", \"Values\": [\"BoxUsage:p4de.24xlarge\"]}}]}"}
-   Example 3: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22", "filter": "{\"Dimensions\": {\"Key\": \"USAGE_TYPE\", \"Values\": [\"BoxUsage:p4de.24xlarge\", \"Reservation:p4de.24xlarge\", \"UnusedBox:p4de.24xlarge\"]}}", "group_by": "[{\"Type\": \"DIMENSION\", \"Key\": \"REGION\"}]"}
+   Example 1: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22", "filter": {"Dimensions": {"Key": "USAGE_TYPE_GROUP", "Values": ["EC2: Running Hours"]}}}
+   Example 2: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22", "filter": {"And": [{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon Elastic Compute Cloud - Compute"]}}, {"Dimensions": {"Key": "USAGE_TYPE", "Values": ["BoxUsage:p4de.24xlarge"]}}]}}
+   Example 3: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22", "filter": {"Dimensions": {"Key": "USAGE_TYPE", "Values": ["BoxUsage:p4de.24xlarge", "Reservation:p4de.24xlarge", "UnusedBox:p4de.24xlarge"]}}, "group_by": [{"Type": "DIMENSION", "Key": "REGION"}]}
    Notes: Valid values for metric is: USAGE_QUANTITY, NORMALIZED_USAGE_AMOUNT. Valid values for granularity is: DAILY, MONTHLY. Filter is REQUIRED and must specify USAGE_TYPE or USAGE_TYPE_GROUP to define what usage units to forecast.
    Returns: Usage forecast for specified time period and granularity
 
@@ -185,13 +186,17 @@ DIMENSION REFERENCE:
   separate Marketplace from AWS charges
 - LINKED_ACCOUNT: AWS member accounts
 - OPERATING_SYSTEM: OS type (e.g., Windows, Linux)
+- OPERATION: The API operation behind a charge (e.g., RunInstances, PutObject)
 - PLATFORM: EC2 operating system
 - PURCHASE_TYPE: Reservation type (e.g., On-Demand, Reserved)
 - REGION: AWS Region
+- RESOURCE_ID: Resource identifier. Only for getCostAndUsageWithResources (last 14 days)
 - SERVICE: AWS service (e.g., Amazon DynamoDB)
 - TAG: Cost allocation tag — valid as a GroupBy Type (`[{"Type":"TAG","Key":"<tag_key>"}]`) and inside filter `Tags` leaves. As a getDimensionValues dimension it is only valid in the RESERVATIONS coverage context, NOT in COST_AND_USAGE; to list a tag key's values use operation=getTagsOrValues (with tag_key).
-- TENANCY: EC2 tenancy (shared, dedicated)
+- TENANCY: EC2 tenancy. Exact, case-sensitive values: Shared, Dedicated (Dedicated Instance),
+  Host (Dedicated Host)
 - USAGE_TYPE: Usage type (e.g., DataTransfer-In-Bytes)
+- USAGE_TYPE_GROUP: Group of related usage types (e.g., EC2: Running Hours)
 - RECORD_TYPE: Charge types (e.g., RI fees, usage costs)
 
 BILLING VIEW SUPPORT:
