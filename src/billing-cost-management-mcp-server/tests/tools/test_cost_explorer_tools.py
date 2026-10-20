@@ -833,8 +833,14 @@ async def test_cost_explorer_missing_dimension():
 
 
 @pytest.mark.asyncio
-async def test_cost_explorer_get_dimension_values_tag_default_context_blocked(mock_context):
-    """GetDimensionValues(dimension=TAG) in the default COST_AND_USAGE context is rejected pre-call."""
+@pytest.mark.parametrize('context', [None, 'COST_AND_USAGE', 'RESERVATIONS', 'SAVINGS_PLANS'])
+async def test_cost_explorer_get_dimension_values_tag_blocked_in_every_context(
+    mock_context, context
+):
+    """GetDimensionValues(dimension=TAG) is rejected pre-call in every context.
+
+    Cost Explorer accepts TAG as a dimension in none of them (see CE_DIMENSIONS_BY_CONTEXT).
+    """
     ce_mod = _reload_ce_with_identity_decorator()
     real_fn = ce_mod.cost_explorer  # type: ignore
 
@@ -843,12 +849,12 @@ async def test_cost_explorer_get_dimension_values_tag_default_context_blocked(mo
         patch.object(ce_mod, 'get_dimension_values', new_callable=AsyncMock) as mock_impl,
     ):
         res = await real_fn(  # type: ignore
-            mock_context, operation='getDimensionValues', dimension='TAG'
+            mock_context, operation='getDimensionValues', dimension='TAG', context=context
         )
 
     assert res['status'] == 'error'
     assert 'getTagsOrValues' in res['data']['message']
-    assert 'COST_AND_USAGE' in res['data']['message']
+    assert 'any context' in res['data']['message']
     assert res['error_type'] == 'validation_error'
     # Explicit, operation-specific hint set at the tool layer (survives middleware enrichment).
     assert 'getTagsOrValues' in res['hint']
@@ -862,34 +868,6 @@ async def test_cost_explorer_get_dimension_values_tag_default_context_blocked(mo
     assert enriched['hint'] == res['hint']
     # Guard fires before the AWS GetDimensionValues round-trip (the real handler is never called).
     mock_impl.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_cost_explorer_get_dimension_values_tag_reservations_context_allowed(mock_context):
-    """TAG is valid in the RESERVATIONS coverage context, so the guard must not block it."""
-    ce_mod = _reload_ce_with_identity_decorator()
-    real_fn = ce_mod.cost_explorer  # type: ignore
-
-    with (
-        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
-        patch.object(ce_mod, 'get_dimension_values', new_callable=AsyncMock) as mock_impl,
-    ):
-        mock_create_client.return_value = MagicMock()
-        mock_impl.return_value = {'status': 'success', 'data': {}}
-
-        res = await real_fn(  # type: ignore
-            mock_context,
-            operation='getDimensionValues',
-            dimension='TAG',
-            context='RESERVATIONS',
-        )
-
-    assert res['status'] == 'success'
-    # The guard let it through to the real handler, which received dimension=TAG.
-    mock_impl.assert_awaited_once()
-    await_args = mock_impl.await_args
-    assert await_args is not None
-    assert await_args.args[2] == 'TAG'
 
 
 @pytest.mark.asyncio
@@ -1822,6 +1800,69 @@ def _rendered_examples(description):
     )
 
 
+# Dimensions Cost Explorer's GetDimensionValues accepts per context, as listed by the service
+# in its ValidationException for an unsupported dimension (captured 2026-10-20). These lists,
+# not botocore's Dimension enum, are what a documented key must be in: the enum also has keys
+# the service rejects here (LINKED_ACCOUNT_NAME, SERVICE_CODE, ...) and lacks some it accepts
+# (RESERVATION_MODIFIED).
+CE_DIMENSIONS_BY_CONTEXT = {
+    'COST_AND_USAGE': frozenset(
+        {
+            'AZ',
+            'INSTANCE_TYPE',
+            'LINKED_ACCOUNT',
+            'OPERATION',
+            'PURCHASE_TYPE',
+            'SERVICE',
+            'USAGE_TYPE',
+            'USAGE_TYPE_GROUP',
+            'PLATFORM',
+            'TENANCY',
+            'RECORD_TYPE',
+            'LEGAL_ENTITY_NAME',
+            'INVOICING_ENTITY',
+            'DEPLOYMENT_OPTION',
+            'DATABASE_ENGINE',
+            'CACHE_ENGINE',
+            'INSTANCE_TYPE_FAMILY',
+            'REGION',
+            'BILLING_ENTITY',
+            'RESERVATION_ID',
+            'RESOURCE_ID',
+            'SAVINGS_PLANS_TYPE',
+            'SAVINGS_PLAN_ARN',
+            'OPERATING_SYSTEM',
+            'RESERVATION_MODIFIED',
+            'PAYER_ACCOUNT',
+            'PRODUCT_ATTRIBUTE',
+        }
+    ),
+    'RESERVATIONS': frozenset(
+        {
+            'AZ',
+            'INSTANCE_TYPE',
+            'LINKED_ACCOUNT',
+            'PLATFORM',
+            'SCOPE',
+            'REGION',
+            'TENANCY',
+            'SERVICE',
+            'INSTANCE_TYPE_FAMILY',
+        }
+    ),
+    'SAVINGS_PLANS': frozenset(
+        {
+            'SAVINGS_PLANS_TYPE',
+            'PAYMENT_OPTION',
+            'REGION',
+            'INSTANCE_TYPE_FAMILY',
+            'LINKED_ACCOUNT',
+            'SAVINGS_PLAN_ARN',
+        }
+    ),
+}
+
+
 class TestCostExplorerDescriptionContract:
     """The cost-explorer description matches Cost Explorer's real dimensions, values and shapes."""
 
@@ -1973,6 +2014,53 @@ class TestCostExplorerDescriptionContract:
                 input_shape,
             )
             assert not report.has_errors(), report.generate_report()
+
+    def test_no_context_accepts_tag(self):
+        """TAG is in none of the service's per-context lists, so the guard is unconditional."""
+        for context, dimensions in CE_DIMENSIONS_BY_CONTEXT.items():
+            assert 'TAG' not in dimensions, context
+
+    def test_dimension_reference_keys_are_accepted_by_the_service(self, tool):
+        """Every DIMENSION REFERENCE key except the TAG note is a COST_AND_USAGE dimension."""
+        keys = set(_dimension_reference_keys(tool.description)) - {'TAG'}
+        assert keys <= CE_DIMENSIONS_BY_CONTEXT['COST_AND_USAGE']
+
+    @pytest.mark.parametrize('context', ['RESERVATIONS', 'SAVINGS_PLANS'])
+    def test_get_dimension_values_notes_list_each_context(self, tool, context):
+        """The getDimensionValues notes list exactly the dimensions each context accepts."""
+        match = re.search(rf'{context} takes only ([A-Z_, ]+)\.', tool.description)
+        assert match is not None, context
+        assert set(match.group(1).split(', ')) == CE_DIMENSIONS_BY_CONTEXT[context]
+
+    def test_tag_is_described_as_rejected_in_every_context(self, tool):
+        """No line still says TAG is a valid getDimensionValues dimension in some context."""
+        assert 'TAG is not a dimension in any context' in tool.description
+        assert 'RESERVATIONS coverage context' not in tool.description
+
+    def test_forecast_examples_carry_no_literal_dates(self, tool):
+        """Forecast examples rely on the date defaults, so they cannot go stale.
+
+        Cost Explorer rejects a forecast that starts before today, and a copied
+        literal date is eventually in the past.
+        """
+        forecasts = [
+            json.loads(e)
+            for e in _rendered_examples(tool.description)
+            if json.loads(e)['operation'] in ('getCostForecast', 'getUsageForecast')
+        ]
+        assert len(forecasts) == 4
+        for call in forecasts:
+            assert 'start_date' not in call and 'end_date' not in call, call
+
+    def test_forecast_notes_state_the_forecast_filter_limits(self, tool):
+        """Forecast filters take only 12-digit LINKED_ACCOUNT IDs and no RESOURCE_ID.
+
+        Cost Explorer rejects both with ValidationException for GetCostForecast and
+        GetUsageForecast, though getCostAndUsage accepts RESOURCE_ID.
+        """
+        notes = tool.description.split('4. getCostForecast')[1].split('5. getUsageForecast')[0]
+        assert 'LINKED_ACCOUNT values must be 12-digit account IDs' in notes
+        assert 'RESOURCE_ID is not allowed' in notes
 
 
 def test_description_documents_max_items_paging():
