@@ -385,7 +385,7 @@ The server uses these key environment variables:
 
 ## Pagination
 
-List tools take `max_items` (the total number of items to return) and `next_token`. Without `max_items` a tool fetches every page; with it, the tool stops before a page that could take the result past `max_items` (the first page is always returned). `ri-performance` `get_reservation_utilization` (pages of 500) and Billing Conductor `get-billing-group-cost-report` (pages of 300) cannot shrink a page, because their token only works with the same page size, so they round `max_items` up to whole pages and return every item fetched. `next_token` in a response is the AWS service's own continuation token: pass it back, with every other parameter unchanged, to get the next items.
+List tools take `max_items` (the total number of items to return) and `next_token`. Without `max_items` a tool fetches every page; with it, the tool stops before a page that could take the result past `max_items` (the first page is always returned). `next_token` in a response is the AWS service's own continuation token: pass it back, with every other parameter unchanged, to get the next items.
 
 A response that stops before the end of the data leads with `complete_dataset: false` and a `warning`, and every paginated response carries a `pagination` block:
 

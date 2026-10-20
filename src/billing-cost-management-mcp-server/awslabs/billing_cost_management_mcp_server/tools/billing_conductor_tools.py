@@ -284,8 +284,7 @@ Pagination: `max_items` is the total number of items to return. Omit it to fetch
 with `complete_dataset: false` and a `warning`: call again with a larger `max_items`, continue by
 passing `pagination.next_token` back as `next_token`, or say in the answer that the result is
 partial. `pagination.items_returned` counts the items in this response, not every item that exists.
-Results come in whole pages of 300: `max_items` is rounded up to a multiple of 300 (`max_items=10`
-returns up to 300 results, `max_items=400` up to 600).
+Results come in pages of 300, so a `max_items` below 300 still returns the whole first page.
 The next_token expires shortly after the first call; after that, call again without next_token.
 
 Example 1: {"arn": "arn:aws:billingconductor::123456789012:billinggroup/abc", "group_by": "[\"PRODUCT_NAME\"]"}
@@ -306,8 +305,7 @@ async def get_billing_group_cost_report(
         arn: The ARN that uniquely identifies the billing group.
         billing_period_range: Optional JSON string specifying a time range (up to 12 months).
         group_by: Optional JSON string with attributes to group by ("PRODUCT_NAME", "BILLING_PERIOD").
-        max_items: Optional total number of items to return, rounded up to a multiple of 300.
-            Omit it to fetch every page.
+        max_items: Optional total number of items to return. Omit it to fetch every page.
         next_token: Optional pagination token from a previous response.
 
     Returns:

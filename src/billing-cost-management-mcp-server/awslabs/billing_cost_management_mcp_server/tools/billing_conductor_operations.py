@@ -341,8 +341,8 @@ async def get_billing_group_cost_report(
         arn: The billing group ARN.
         billing_period_range: Optional JSON string with billing period range.
         group_by: Optional JSON string with group by attributes.
-        max_items: Most cost report results to return. None fetches every page. Rounded up to
-            a multiple of 300, since every page holds up to 300 results.
+        max_items: Most cost report results to return. None fetches every page. The first page
+            (up to 300 results) is always returned whole.
         next_token: Optional pagination token to continue from.
 
     Returns:

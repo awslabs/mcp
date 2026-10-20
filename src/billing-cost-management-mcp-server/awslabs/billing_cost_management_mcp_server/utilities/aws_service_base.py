@@ -386,9 +386,7 @@ class PageSpec:
         page_size_param: Request field that sets the page size, or None when the
             service chooses the page size.
         fixed_page_size: Always request ``page_max``. For services whose token is bound
-            to the page size, so a continuation must repeat it. Pages cannot shrink, so
-            ``max_items`` rounds up to whole pages: paging continues until at least
-            ``max_items`` items are collected and returns every item fetched.
+            to the page size, so a continuation must repeat it.
         items_per_page_unit: Items each unit of page size can return. For APIs whose
             page size counts a parent object (e.g. budgets, each with up to 10
             notifications), so one unit can hold several items.
@@ -497,10 +495,6 @@ async def paginate_aws_items(
 ) -> Tuple[List[Any], List[Dict[str, Any]], Dict[str, Any]]:
     """Fetch pages until the data ends or the next page could exceed ``max_items``.
 
-    With ``spec.fixed_page_size`` a page cannot shrink, so ``max_items`` rounds up to
-    whole pages instead: paging stops once at least ``max_items`` items are collected,
-    and every item fetched is returned with the service's token.
-
     Every request repeats ``request_params`` unchanged, apart from the token and,
     where the API allows, the page size: several services bind their token to the
     whole request.
@@ -557,12 +551,7 @@ async def paginate_aws_items(
 
         size = _page_size(spec, max_items, collected)
         worst_case = size * spec.items_per_page_unit if size is not None else spec.page_max
-        if (
-            max_items is not None
-            and pages
-            and not spec.fixed_page_size
-            and collected + worst_case > max_items
-        ):
+        if max_items is not None and pages and collected + worst_case > max_items:
             break
 
         params = dict(request_params)

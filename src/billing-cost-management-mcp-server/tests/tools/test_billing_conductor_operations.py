@@ -2192,12 +2192,10 @@ class TestConductorPaginationContract:
     async def test_cost_report_resends_fixed_page_size_on_continuation(
         self, mock_create_client, mock_ctx
     ):
-        """GetBillingGroupCostReport always sends MaxResults=300 and rounds max_items up."""
+        """GetBillingGroupCostReport always sends MaxResults=300, even below max_items."""
         mock_client = MagicMock()
         mock_client.get_billing_group_cost_report.side_effect = [
             _page('BillingGroupCostReportResults', 300, token='svc-2'),
-            _page('BillingGroupCostReportResults', 300, token='svc-3'),
-            _page('BillingGroupCostReportResults', 300, token='svc-4'),
         ]
         mock_create_client.return_value = mock_client
 
@@ -2205,16 +2203,12 @@ class TestConductorPaginationContract:
             mock_ctx, BILLING_GROUP_ARN_1, max_items=500, next_token='caller-token'
         )
 
-        # A page cannot shrink, so 500 rounds up to two full pages of 300.
-        calls = mock_client.get_billing_group_cost_report.call_args_list
-        assert len(calls) == 2
-        assert [c.kwargs['MaxResults'] for c in calls] == [300, 300]
-        assert calls[0].kwargs['NextToken'] == 'caller-token'
-        assert calls[1].kwargs['NextToken'] == 'svc-2'
-        pagination = result['data']['pagination']
-        assert pagination['items_returned'] == 600
-        assert pagination['next_token'] == 'svc-3'
-        assert pagination['complete_dataset'] is False
+        # 300 collected; the next fixed page of 300 would pass 500, so the call stops.
+        assert mock_client.get_billing_group_cost_report.call_count == 1
+        call = mock_client.get_billing_group_cost_report.call_args.kwargs
+        assert call['MaxResults'] == 300
+        assert call['NextToken'] == 'caller-token'
+        assert result['data']['pagination']['next_token'] == 'svc-2'
 
     @pytest.mark.parametrize('code', ['ValidationException', 'InternalServerException'])
     @patch(PATCH_BC_CLIENT)

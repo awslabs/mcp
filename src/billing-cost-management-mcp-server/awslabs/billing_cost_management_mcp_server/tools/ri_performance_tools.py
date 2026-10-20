@@ -102,9 +102,8 @@ PAGINATION (applies only when group_by is set; an item is one group of the queri
 - Without group_by, both operations return every time period in one response, so max_items and
   next_token do not apply (get_reservation_utilization ignores them).
 - max_items is the total number of groups returned. Omit it to fetch every page (no limit). Pass
-  it, or narrow the filter, for queries that can be large. get_reservation_utilization returns
-  whole pages of 500 groups: max_items is rounded up to a multiple of 500 (max_items=10 returns up
-  to 500 groups, max_items=700 up to 1,000).
+  it, or narrow the filter, for queries that can be large. get_reservation_utilization pages in
+  fixed pages of 500 groups, and its first page is returned whole even when max_items is smaller.
 - Top-N: sort_by + max_items=N.
 - If the response has complete_dataset: false, call again with a larger max_items, continue with
   next_token, or state in the answer that the result is partial.
@@ -137,8 +136,7 @@ async def ri_performance(
         filter: Optional filter as a JSON string (e.g., by service, region, or instance type). SERVICE takes a single value and defaults to EC2 when omitted; valid coverage SERVICE values are "Amazon Elastic Compute Cloud - Compute", "Amazon Relational Database Service", "Amazon ElastiCache", and "Amazon Redshift" (use the full display name, not "EC2"/"RDS"). SubscriptionId values are numeric, not ARNs/UUIDs. A wide grouped/DAILY query may exceed the result size cap (ToolResultOversized) — scope it with a filter, a shorter window, or MONTHLY granularity.
         sort_by: Optional sorting configuration as a JSON string with key and direction (ASCENDING or DESCENDING).
         max_items: Total number of groups to return across all pages. Omit it to fetch every
-            page. Applies only when group_by is set. get_reservation_utilization rounds it up
-            to a multiple of 500.
+            page. Applies only when group_by is set.
         next_token: The pagination.next_token from a previous response; continue with otherwise
             identical parameters. Applies only when group_by is set.
 
