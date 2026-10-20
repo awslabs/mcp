@@ -59,6 +59,18 @@ BUSY_TIMEOUT_MS = int(
     os.getenv('BCM_MCP_SQLITE_TIMEOUT_MS', 30000)
 )  # 30s default — handles concurrent subagent writes
 
+# Ceilings on the handle fields that grow with the stored data's shape. A
+# per-cell cap alone does not bound them: a wide response puts hundreds of
+# at-cap cells or long flattened column names on the handle.
+# Longest preview cell text kept before it is shortened with a marker
+PREVIEW_CELL_MAX_CHARS = 200
+# Bytes the preview rows may use, costed as each cell's JSON encoding
+PREVIEW_BUDGET_BYTES = 4096
+# Most column names the handle's schema lists
+SCHEMA_COLUMN_LIMIT = 60
+# Bytes the handle's schema column list may use
+SCHEMA_BUDGET_BYTES = 4096
+
 # Session database path singleton
 _SESSION_DB_PATH = None
 
@@ -722,6 +734,124 @@ async def convert_response_if_needed(
         return inline_response
 
 
+def _truncate_preview_value(value: Any, max_chars: int = PREVIEW_CELL_MAX_CHARS) -> Any:
+    """Shorten one preview cell.
+
+    Args:
+        value: The cell value read back from the table.
+        max_chars: Longest string kept before truncation.
+
+    Returns:
+        The value unchanged when it is short or not a string, otherwise the
+        first ``max_chars`` characters with an elision marker recording how much
+        was left in the table.
+    """
+    if not isinstance(value, str) or len(value) <= max_chars:
+        return value
+    return f'{value[:max_chars]}... [{len(value)} chars total, query the table for the full value]'
+
+
+def _bounded_schema(
+    columns: List[str], budget_bytes: int = SCHEMA_BUDGET_BYTES
+) -> Tuple[List[str], Optional[int]]:
+    """Return a bounded column list, by count and by bytes.
+
+    A count limit alone is not enough: flattened names repeat their parent
+    prefixes, so sixty long names can rebuild a sizeable share of the payload.
+
+    Args:
+        columns: Every column in the stored table.
+        budget_bytes: Bytes the serialized column list may use.
+
+    Returns:
+        The column names kept, and the full count when any were dropped
+        (``None`` otherwise, so the handle stays unchanged for normal tables).
+    """
+    kept: List[str] = []
+    spent = 0
+    for column in columns[:SCHEMA_COLUMN_LIMIT]:
+        cost = len(column.encode('utf-8')) + 4  # quotes and the ', ' separator json.dumps writes
+        if spent + cost > budget_bytes:
+            break
+        kept.append(column)
+        spent += cost
+    if len(kept) == len(columns):
+        return kept, None
+    return kept, len(columns)
+
+
+def _unserializable_preview_value(value: Any) -> str:
+    """Return a bounded text stand-in for a cell that is not a JSON scalar, such as a BLOB.
+
+    Args:
+        value: The cell value read back from the table.
+
+    Returns:
+        The value's ``str()`` form shortened like any other preview cell, or a
+        placeholder naming its type when even ``str()`` fails.
+    """
+    try:
+        text = str(value)
+    except Exception:
+        return f'<unserializable {type(value).__name__}>'
+    return _truncate_preview_value(text)
+
+
+def _bounded_preview(
+    preview_rows: Iterable[Tuple[Any, ...]], columns: List[str]
+) -> Tuple[List[Dict[str, Any]], bool]:
+    """Build the preview, stopping at :data:`PREVIEW_BUDGET_BYTES`.
+
+    Each row is costed in full and kept only when the whole row fits, so every
+    kept row carries every column. The one exception is a first row that alone
+    exceeds the budget: its cells are kept up to the budget, so the preview is
+    not empty for a very wide table.
+
+    Args:
+        preview_rows: Rows read back from the stored table.
+        columns: Column names, in cursor order.
+
+    Returns:
+        The preview rows kept, and whether anything was dropped.
+    """
+    preview: List[Dict[str, Any]] = []
+    spent = 0
+    for row in preview_rows:
+        cells: List[Tuple[str, Any, int]] = []
+        for index, column in enumerate(columns):
+            value = row[index]
+            if value is None or isinstance(value, (str, int, float, bool)):
+                cell = _truncate_preview_value(value)
+            else:
+                # Shorten the text form too, so a large BLOB is cut rather
+                # than costing the whole row.
+                cell = _unserializable_preview_value(value)
+            # Cost each cell as its JSON encoding, the form the handle takes on
+            # the wire; json.dumps escapes non-ASCII, so the count never undercounts.
+            cost = len(json.dumps({column: cell}).encode('utf-8'))
+            cells.append((column, cell, cost))
+
+        row_cost = sum(cost for _, _, cost in cells)
+        if spent + row_cost <= PREVIEW_BUDGET_BYTES:
+            preview.append({column: cell for column, cell, _ in cells})
+            spent += row_cost
+            continue
+
+        if not preview:
+            # A first row wider than the whole budget would otherwise leave
+            # the preview empty; keep its leading cells that fit instead.
+            item: Dict[str, Any] = {}
+            for column, cell, cost in cells:
+                if spent + cost > PREVIEW_BUDGET_BYTES:
+                    break
+                item[column] = cell
+                spent += cost
+            if item:
+                preview.append(item)
+        return preview, True
+    return preview, False
+
+
 async def convert_api_response_to_table(
     ctx: Context, response: Dict[str, Any], operation_name: str, **metadata
 ) -> Dict[str, Any]:
@@ -1097,13 +1227,10 @@ async def convert_api_response_to_table(
         # Get column names for preview
         columns = [description[0] for description in cursor.description]
 
-        # Format preview as list of dictionaries
-        preview = []
-        for row in preview_rows:
-            preview_item = {}
-            for i, col in enumerate(columns):
-                preview_item[col] = row[i]
-            preview.append(preview_item)
+        # Format preview as list of dictionaries, bounded so a wide or long-celled
+        # table cannot rebuild the payload the offload exists to keep off the handle
+        preview, preview_truncated = _bounded_preview(preview_rows, columns)
+        schema_columns, schema_column_count = _bounded_schema(columns)
 
         # Register table in schema info, and commit it before the await below. The INSERT opens a
         # write transaction; holding it across the await lets a concurrent conversion on the same
@@ -1446,11 +1573,19 @@ async def convert_api_response_to_table(
             'data_stored': True,
             'session_db': db_path,
             'table_name': table_name,
-            'schema': columns,
+            'schema': schema_columns,
             'row_count': rows_inserted,
             'sample_queries': sample_queries,
             'preview': preview,
             **metadata,
+            # Present only when a bound applied, and after the metadata so a
+            # caller's keyword cannot overwrite them.
+            **(
+                {'schema_column_count': schema_column_count}
+                if schema_column_count is not None
+                else {}
+            ),
+            **({'preview_truncated': True} if preview_truncated else {}),
         }
 
     except Exception as e:
