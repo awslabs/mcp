@@ -50,9 +50,8 @@ async def _invoice_units(
     bill_source_accounts: Optional[List[str]] = None,
     account_ids: Optional[List[str]] = None,
     as_of: Optional[str] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Route an AWS Invoice Unit ``operation`` to its handler.
 
@@ -72,9 +71,8 @@ async def _invoice_units(
         account_ids: Account IDs to fetch profiles for
             (batch_get_invoice_profile).
         as_of: Point-in-time UTC instant for list/get operations.
-        max_results: Maximum results per page (1-500).
-        next_token: Pagination token from a previous response.
-        max_pages: Maximum pages to auto-paginate through (default: all).
+        max_items: Most items to return (list operation only). None fetches every page.
+        next_token: Pagination token from a previous response (list operation only).
 
     Returns:
         The operation's response, or a standardized error for an unknown
@@ -90,9 +88,8 @@ async def _invoice_units(
             accounts=accounts,
             bill_source_accounts=bill_source_accounts,
             as_of=as_of,
-            max_results=max_results,
+            max_items=max_items,
             next_token=next_token,
-            max_pages=max_pages,
         )
 
     if operation == 'get_invoice_unit':
@@ -136,7 +133,10 @@ async def _invoice_units(
      - bill_source_accounts: match a bill-source account
      - accounts: global search — matches invoice units where the account appears as the receiver, a linked (member) account, OR a bill-source account
      - as_of: point-in-time UTC "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM:SS" (definitions as of that instant; defaults to current)
-   Pagination: max_results caps items per page (1-500); max_pages caps pages fetched (default: all). The `pagination` block reports total_results, pages_fetched, has_more, and next_token.
+   Pagination:
+     - max_items: total invoice units returned. Omit it to fetch every page (no limit). Pass it, or narrow the filters, for queries that can be large.
+     - next_token: the `pagination.next_token` from a previous response, to continue where it stopped. Send every other parameter unchanged.
+     - A partial result has `complete_dataset: false` and a warning. Call again with a larger max_items, continue with next_token, or state in the answer that the result is partial. `pagination.items_returned` counts only this response, and a continuation call does not repeat earlier items.
    Returns: `data.invoice_units`, each with InvoiceUnitArn, Name, Description, InvoiceReceiver, TaxInheritanceDisabled, Rule {LinkedAccounts}, and LastModified (ISO 8601 UTC).
 
 2) get_invoice_unit - retrieve one invoice unit definition
@@ -164,9 +164,8 @@ async def invoice_units(
     bill_source_accounts: Optional[List[str]] = None,
     account_ids: Optional[List[str]] = None,
     as_of: Optional[str] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """FastMCP wrapper for AWS Invoice Unit operations.
 
@@ -185,9 +184,8 @@ async def invoice_units(
         account_ids: Account IDs to fetch profiles for
             (batch_get_invoice_profile).
         as_of: Point-in-time UTC instant for list/get operations.
-        max_results: Maximum results per page (1-500).
-        next_token: Pagination token from a previous response.
-        max_pages: Maximum pages to auto-paginate through (default: all).
+        max_items: Most items to return (list operation only). None fetches every page.
+        next_token: Pagination token from a previous response (list operation only).
 
     Returns:
         Dict containing the operation result.
@@ -202,7 +200,6 @@ async def invoice_units(
         bill_source_accounts=bill_source_accounts,
         account_ids=account_ids,
         as_of=as_of,
-        max_results=max_results,
+        max_items=max_items,
         next_token=next_token,
-        max_pages=max_pages,
     )

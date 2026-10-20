@@ -43,9 +43,8 @@ async def _enterprise_support(
     operation: str,
     billing_month: Optional[str] = None,
     account_id: Optional[str] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Route an Enterprise Support ``operation`` to its handler.
 
@@ -58,9 +57,10 @@ async def _enterprise_support(
             ``"get_charge_summary"``).
         billing_month: Single calendar month in ``YYYY-MM`` format.
         account_id: Linked account to filter to (list_linked_account_charges only).
-        max_results: Results per page (list_linked_account_charges only).
-        next_token: Pagination token from a previous response.
-        max_pages: Maximum pages to auto-paginate through (default: all).
+        max_items: Most linked accounts to return (list_linked_account_charges only).
+            None fetches every page.
+        next_token: Pagination token from a previous response
+            (list_linked_account_charges only).
 
     Returns:
         The operation's response, or a standardized error for an unknown
@@ -79,9 +79,8 @@ async def _enterprise_support(
             ctx,
             billing_month=billing_month,
             account_id=account_id,
-            max_results=max_results,
+            max_items=max_items,
             next_token=next_token,
-            max_pages=max_pages,
         )
 
     return format_response(
@@ -135,8 +134,9 @@ async def _enterprise_support(
    Required: operation="list_linked_account_charges", billing_month. Same billing_month rules as above.
    Optional:
      - account_id: filter to ONE linked account. This narrows the results to that account inside the payer's Support profile. Omit it to get every linked account, which is what "break down my Support charge by account" asks for. Do not pass the payer's own account id here expecting the whole organization. Omitting it sends no account filter at all and the tool never infers one from the caller credentials, so never report that a filter was applied when you left it out. An account id that appears in an error message is the caller's payer account, not a filter that was used.
-     - max_results: results per page, 1 to 100. next_token: resume from a previous response. max_pages: pages to auto-paginate through, default all.
-   Paginated: this is the only operation that pages. The tool follows nextToken for you.
+     - max_items: total linked accounts returned. Omit it to fetch every page (no limit). Pass it, or filter with account_id, when the Support profile has many linked accounts.
+     - next_token: the `pagination.next_token` from a previous response, to continue where it stopped. Send billing_month and account_id unchanged.
+   Paginated: this is the only operation that pages, and the only one that takes max_items and next_token. The tool follows nextToken for you.
    Returns: `data.linked_account_charges`, a list where each item contains:
      - accountId and payerAccountId: the linked account and the payer it belongs to
      - accountType: the account's role in the Support profile. Free-form text with no published value set, so report it verbatim rather than mapping it to values you expect or filtering on a guessed one.
@@ -157,7 +157,7 @@ async def _enterprise_support(
 - TIER CHARGES ARE INCREMENTAL, not a flat rate on total spend. For the tier the customer falls in: charge = baseCharge + (additionalPercentageOfAggregateCharges * (totalSupportEligibleSpend - aggregateChargesAdjustment)). The percentage applies only to spend above aggregateChargesAdjustment, matching the bracket structure AWS publishes for Support pricing. Never describe a tier's rate as applying to the customer's full eligible spend.
 - isGdn IS THE GROSS VERSUS NET BILLING BASIS for that payer account. true means the account's Support charge is computed on a Gross basis, false means it is computed on the contract's Net basis. Answer basis questions from this field. Do NOT say the Gross or Net basis is unavailable, and do NOT claim isGdn is unrelated to it. The name is misleading, so report the basis in Gross or Net terms and NEVER expand the GDN acronym or attach any other meaning to it. There are multiple Net variants and this response cannot tell them apart, so say "the contract's Net basis" and never name a specific one. isGdn appears only on contractPayerAccountIds entries, so the response says nothing about the basis of linked accounts and you must never imply that accounts absent from that list are on a different basis. Explaining WHY a contract is on a given basis is out of scope, the same as pricing rationale.
 - THIS TOOL NEVER RESOLVES AN ACCOUNT ID FROM CREDENTIALS, unlike some other billing tools. When account_id is omitted no account filter is sent and the results cover every linked account in the Support profile. NEVER state that the tool auto-detected, inferred or looked up the caller's account. An account id inside an error message is the payer the credentials belong to, reported by AWS, not a filter this tool applied.
-- CHECK `data.pagination` BEFORE TOTALLING LINKED ACCOUNTS. When `has_more` is true the walk stopped early, usually because max_pages was reached, so any sum over the returned accounts is partial. Report the total AND say it covers `total_results` accounts with more available. `complete_dataset` true means every account was fetched.
+- CHECK `complete_dataset` BEFORE TOTALLING LINKED ACCOUNTS. When it is false (with a warning), the call stopped at max_items or a page failed, so any sum over the returned accounts is partial. Call again with a larger max_items, continue with next_token, or state in the answer that the total covers only `pagination.items_returned` accounts with more available. A continuation call returns only the accounts after the previous response, not the earlier ones. When the result is offloaded to SQL, the same `complete_dataset`, `next_token` and `items_returned` fields sit alongside the table reference.
 - ONE BILLING PERIOD PER CALL. There is no date range. Answering "how did my Support charge change since March" means one call per billing period, then comparing the results.
 - An access_denied error means the caller's IAM policy is missing the named permission, or the caller is not the payer account authorized for the Support profile. It does NOT mean the account has no Enterprise Support charges, and a linked account cannot read these operations at all.
 
@@ -179,9 +179,8 @@ async def enterprise_support(
     operation: str,
     billing_month: Optional[str] = None,
     account_id: Optional[str] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """FastMCP wrapper for Enterprise Support operations.
 
@@ -195,9 +194,10 @@ async def enterprise_support(
             ``"get_charge_summary"``).
         billing_month: Single calendar month in ``YYYY-MM`` format.
         account_id: Linked account to filter to (list_linked_account_charges only).
-        max_results: Results per page (list_linked_account_charges only).
-        next_token: Pagination token from a previous response.
-        max_pages: Maximum pages to auto-paginate through (default: all).
+        max_items: Most linked accounts to return (list_linked_account_charges only).
+            None fetches every page.
+        next_token: Pagination token from a previous response
+            (list_linked_account_charges only).
 
     Returns:
         Dict containing the operation result.
@@ -207,7 +207,6 @@ async def enterprise_support(
         operation,
         billing_month=billing_month,
         account_id=account_id,
-        max_results=max_results,
+        max_items=max_items,
         next_token=next_token,
-        max_pages=max_pages,
     )
