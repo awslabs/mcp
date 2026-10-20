@@ -42,9 +42,8 @@ async def _procurement_preferences(
     ctx: Context,
     operation: str,
     procurement_portal_preference_arn: Optional[str] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Route an AWS Procurement Portal Preference ``operation`` to its handler.
 
@@ -57,9 +56,8 @@ async def _procurement_preferences(
             ``"get_procurement_portal_preference"``).
         procurement_portal_preference_arn: ARN of a single preference
             (get_procurement_portal_preference).
-        max_results: Maximum results per page (1-100).
-        next_token: Pagination token from a previous response.
-        max_pages: Maximum pages to auto-paginate through (default: all).
+        max_items: Most items to return (list operation only). None fetches every page.
+        next_token: Pagination token from a previous response (list operation only).
 
     Returns:
         The operation's response, or a standardized error for an unknown
@@ -70,9 +68,8 @@ async def _procurement_preferences(
     if operation == 'list_procurement_portal_preferences':
         return await _list_procurement_portal_preferences(
             ctx,
-            max_results=max_results,
+            max_items=max_items,
             next_token=next_token,
-            max_pages=max_pages,
         )
 
     if operation == 'get_procurement_portal_preference':
@@ -110,7 +107,10 @@ async def _procurement_preferences(
 
 1) list_procurement_portal_preferences - list configured procurement portal preferences
    Required: operation="list_procurement_portal_preferences"
-   Pagination: max_results caps items per page (1-100); max_pages caps pages fetched (default: all). The `pagination` block reports total_results, pages_fetched, has_more, and next_token.
+   Pagination:
+     - max_items: total preferences returned. Omit it to fetch every page (no limit). Pass it for queries that can be large.
+     - next_token: the `pagination.next_token` from a previous response, to continue where it stopped. Send every other parameter unchanged.
+     - A partial result has `complete_dataset: false` and a warning. Call again with a larger max_items, continue with next_token, or state in the answer that the result is partial. `pagination.items_returned` counts only this response, and a continuation call does not repeat earlier items.
    Returns: `data.procurement_portal_preferences`, each including the preference ARN, portal type/connection details, status, EinvoiceDeliveryPreference, and CreateDate / LastUpdateDate (ISO 8601 UTC).
 
 2) get_procurement_portal_preference - retrieve one procurement portal preference
@@ -127,9 +127,8 @@ async def procurement_preferences(
     ctx: Context,
     operation: str,
     procurement_portal_preference_arn: Optional[str] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """FastMCP wrapper for AWS Procurement Portal Preference operations.
 
@@ -142,9 +141,8 @@ async def procurement_preferences(
         operation: The operation to perform.
         procurement_portal_preference_arn: ARN of a single preference
             (get_procurement_portal_preference).
-        max_results: Maximum results per page (1-100).
-        next_token: Pagination token from a previous response.
-        max_pages: Maximum pages to auto-paginate through (default: all).
+        max_items: Most items to return (list operation only). None fetches every page.
+        next_token: Pagination token from a previous response (list operation only).
 
     Returns:
         Dict containing the operation result.
@@ -153,7 +151,6 @@ async def procurement_preferences(
         ctx,
         operation,
         procurement_portal_preference_arn=procurement_portal_preference_arn,
-        max_results=max_results,
+        max_items=max_items,
         next_token=next_token,
-        max_pages=max_pages,
     )

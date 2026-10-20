@@ -385,7 +385,7 @@ The server uses these key environment variables:
 
 ## Pagination
 
-`cost-anomaly`, `list-cost-category-definitions`, `list-cost-allocation-tags` and `list-cost-allocation-tag-backfill-history` page as described here; the other list tools keep their current paging parameters until they move to it.
+`cost-anomaly`, `list-cost-category-definitions`, `list-cost-allocation-tags`, `list-cost-allocation-tag-backfill-history`, `invoicing`, `invoice-units`, the billing view tools, `get-billing-preferences`, `procurement-preferences`, `enterprise-support`, `sp-purchase-analyzer`, `sp-explorer`, `free-tier-usage`, `bcm-pricing-calc`, the Billing Conductor tools and `compute-optimizer` page as described here; the other list tools keep their current paging parameters until they move to it.
 
 These tools take `max_items` (the total number of items to return) and `next_token`. Without `max_items` a tool fetches every page; with it, the tool stops before a page that could take the result past `max_items` (the first page is always returned). `next_token` in a response is the AWS service's own continuation token: pass it back, with every other parameter unchanged, to get the next items.
 
