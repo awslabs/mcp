@@ -1243,6 +1243,45 @@ def test_multi_region_error_type(region_errors, regions_not_found, expected):
     assert automation_tools._multi_region_error_type(region_errors, regions_not_found) == expected
 
 
+@pytest.mark.parametrize(
+    'region_errors,regions_not_found,expected',
+    [
+        (
+            {
+                'us-east-1': {'error_type': 'ThrottlingException'},
+                'eu-west-1': {'error_type': 'InternalServerException'},
+            },
+            [],
+            'retry_same_request',
+        ),
+        # An unmapped type with a 5xx stays transient, though http_status is nested
+        (
+            {'us-east-1': {'error_type': 'InternalError', 'http_status': 500}},
+            [],
+            'retry_same_request',
+        ),
+        # A throttled region may still hold the resource the others did not find
+        (
+            {'us-east-1': {'error_type': 'ThrottlingException'}},
+            ['eu-west-1'],
+            'retry_same_request',
+        ),
+        (
+            {
+                'us-east-1': {'error_type': 'ThrottlingException'},
+                'eu-west-1': {'error_type': 'AccessDeniedException'},
+            },
+            [],
+            'do_not_retry',
+        ),
+    ],
+)
+def test_multi_region_guidance(region_errors, regions_not_found, expected):
+    """retry_strategy is derived from every region's own error_type and http_status."""
+    retry_strategy, _ = automation_tools._multi_region_guidance(region_errors, regions_not_found)
+    assert retry_strategy == expected
+
+
 # The regions passed as `regions` by the fan-out tests. Callers choose the set now, so
 # tests assert against this list rather than any list built into the tool.
 _REGIONS = ['us-east-1', 'eu-west-1', 'ap-south-1', 'sa-east-1', 'us-west-2']
@@ -1749,6 +1788,8 @@ class TestMultiRegionFanOut:
         region_errors = result['data']['region_errors']
         assert region_errors['us-east-1']['error_type'] == 'ThrottlingException'
         assert region_errors['eu-west-1']['error_type'] == 'unknown_runtimeerror'
+        # Throttled plus an unexpected failure: the unexpected one cannot be fixed by retrying
+        assert result['retry_strategy'] == 'do_not_retry'
 
     async def test_plain_token_rejected_in_multi_region_mode(self, mock_ctx):
         """A native single-region token is rejected when a regions list is given."""

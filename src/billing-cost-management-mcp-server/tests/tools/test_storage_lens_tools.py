@@ -37,6 +37,9 @@ from awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools import 
     storage_lens_server,
     validate_query_is_readonly_select,
 )
+from awslabs.billing_cost_management_mcp_server.utilities.aws_service_base import handle_aws_error
+from awslabs.billing_cost_management_mcp_server.utilities.error_contract import add_retry_guidance
+from botocore.exceptions import ClientError
 from fastmcp import Context
 from tests.tools.fixtures import CSV_MANIFEST, PARQUET_MANIFEST
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -458,6 +461,7 @@ async def test_storage_lens_real_query_missing_table_reference_error_reload_iden
                     res = await real_fn(mock_context, query='SELECT 42')  # type: ignore
                     assert res['status'] == 'error'
                     assert 'must either contain {table} placeholder' in res.get('message', '')
+                    assert res['error_type'] == 'validation_error'
 
 
 @pytest.mark.asyncio
@@ -487,17 +491,24 @@ async def test_athena_handler_execute_query_exception_logs_and_raises(mock_conte
         'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.create_aws_client'
     ) as mock_create_client:
         mock_athena_client = MagicMock()
-        mock_athena_client.start_query_execution.side_effect = Exception('oops db')
+        error = ClientError(
+            {'Error': {'Code': 'TooManyRequestsException', 'Message': 'oops db'}},
+            'StartQueryExecution',
+        )
+        mock_athena_client.start_query_execution.side_effect = error
         mock_create_client.return_value = mock_athena_client
 
         athena_handler = AthenaHandler(mock_context)
 
-        with pytest.raises(Exception, match='Error starting Athena query: oops db'):
+        # Re-raised unwrapped so handle_aws_error keeps the AWS error code
+        with pytest.raises(ClientError) as excinfo:
             await athena_handler.execute_query(
                 'SELECT 1',
                 'test_db',
                 's3://test-bucket/athena-results/',
             )
+
+        assert excinfo.value is error
 
     mock_context.error.assert_awaited()
     mock_athena_client.start_query_execution.assert_called()
@@ -525,14 +536,16 @@ async def test_manifest_handler_get_manifest_exact_path(mock_context, manifest_h
 async def test_manifest_handler_read_manifest_file_error(mock_context, manifest_handler):
     """Test error handling when reading a manifest file fails."""
     # Setup mock to raise an exception
-    manifest_handler.s3_client.get_object.side_effect = Exception('Access denied')
+    error = ClientError(
+        {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}, 'GetObject'
+    )
+    manifest_handler.s3_client.get_object.side_effect = error
 
-    # Call the method and expect an exception
-    with pytest.raises(Exception) as excinfo:
+    # Call the method and expect the original exception, unwrapped
+    with pytest.raises(ClientError) as excinfo:
         await manifest_handler._read_manifest_file('my-bucket', 'path/to/manifest.json')
 
-    # Verify the error message
-    assert 'Failed to read manifest file' in str(excinfo.value)
+    assert excinfo.value is error
 
 
 @pytest.mark.asyncio
@@ -732,6 +745,40 @@ async def test_athena_handler_wait_for_query_completion(mock_context, athena_han
         QueryExecutionId='test-execution-id'
     )
     assert result['Status']['State'] == 'SUCCEEDED'
+
+
+@pytest.mark.asyncio
+async def test_athena_handler_wait_for_query_completion_timeout_is_retryable(
+    mock_context, athena_handler
+):
+    """A poll timeout raises TimeoutError, which the error contract maps to a retry."""
+    athena_handler.athena_client.get_query_execution.return_value = {
+        'QueryExecution': {'Status': {'State': 'RUNNING'}}
+    }
+
+    with patch(
+        'awslabs.billing_cost_management_mcp_server.tools.storage_lens_tools.asyncio.sleep',
+        new_callable=AsyncMock,
+    ):
+        with pytest.raises(TimeoutError) as excinfo:
+            await athena_handler.wait_for_query_completion('test-execution-id', max_retries=2)
+
+    result = add_retry_guidance(await handle_aws_error(mock_context, excinfo.value, 'q', 'S3'))
+    assert result['error_type'] == 'unknown_timeouterror'
+    assert result['retry_strategy'] == 'retry_same_request'
+
+
+@pytest.mark.asyncio
+async def test_athena_handler_wait_for_query_completion_failed_query_is_validation(
+    mock_context, athena_handler
+):
+    """A FAILED Athena query raises ValueError, so the caller is told to change the query."""
+    athena_handler.athena_client.get_query_execution.return_value = {
+        'QueryExecution': {'Status': {'State': 'FAILED', 'StateChangeReason': 'COLUMN_NOT_FOUND'}}
+    }
+
+    with pytest.raises(ValueError, match='Query failed: COLUMN_NOT_FOUND'):
+        await athena_handler.wait_for_query_completion('test-execution-id')
 
 
 @pytest.mark.asyncio

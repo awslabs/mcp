@@ -25,10 +25,12 @@ details. Ensure IAM read-only policies are scoped appropriately.
 """
 
 from ..utilities.aws_service_base import (
+    PageSpec,
     create_aws_client,
     format_response,
     handle_aws_error,
-    paginate_aws_response,
+    paginate_aws_items,
+    with_pagination,
 )
 from ..utilities.time_utils import normalize_datetimes_to_iso
 from fastmcp import Context
@@ -70,6 +72,16 @@ def drop_sensitive_fields(value: Any) -> Any:
     return value
 
 
+# ListProcurementPortalPreferences returns up to 100 preferences per page.
+LIST_PROCUREMENT_PORTAL_PREFERENCES_PAGE_SPEC = PageSpec(
+    result_key='ProcurementPortalPreferences',
+    token_param='NextToken',
+    token_key_in_response='NextToken',
+    page_max=100,
+    page_size_param='MaxResults',
+)
+
+
 def _create_invoicing_client() -> Any:
     """Create an AWS Invoicing client.
 
@@ -85,9 +97,8 @@ def _create_invoicing_client() -> Any:
 
 async def list_procurement_portal_preferences(
     ctx: Context,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """List procurement portal preference configurations for the caller.
 
@@ -97,10 +108,8 @@ async def list_procurement_portal_preferences(
 
     Args:
         ctx: The MCP context object.
-        max_results: Maximum number of results per page (1-100).
+        max_items: Most preferences to return. None fetches every page.
         next_token: Pagination token from a previous response to resume from.
-        max_pages: Maximum number of pages to auto-paginate through. Defaults to
-            all pages.
 
     Returns:
         Dict containing ``procurement_portal_preferences`` (with ISO 8601
@@ -108,23 +117,16 @@ async def list_procurement_portal_preferences(
         response.
     """
     try:
-        request_params: Dict[str, Any] = {}
-        if max_results is not None:
-            request_params['MaxResults'] = max_results
-        if next_token:
-            request_params['NextToken'] = next_token
-
         client = _create_invoicing_client()
 
-        preferences, pagination = await paginate_aws_response(
+        preferences, _, pagination = await paginate_aws_items(
             ctx,
             'ListProcurementPortalPreferences',
             client.list_procurement_portal_preferences,
-            request_params,
-            'ProcurementPortalPreferences',
-            token_param='NextToken',
-            token_key='NextToken',
-            max_pages=max_pages,
+            {},
+            LIST_PROCUREMENT_PORTAL_PREFERENCES_PAGE_SPEC,
+            max_items=max_items,
+            next_token=next_token,
         )
 
         normalized = normalize_datetimes_to_iso(preferences)
@@ -136,7 +138,7 @@ async def list_procurement_portal_preferences(
 
         return format_response(
             'success',
-            {'procurement_portal_preferences': normalized, 'pagination': pagination},
+            with_pagination({'procurement_portal_preferences': normalized}, pagination),
         )
 
     except Exception as e:
