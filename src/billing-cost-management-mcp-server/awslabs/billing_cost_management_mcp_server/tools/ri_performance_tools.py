@@ -53,12 +53,28 @@ This tool provides insights into your Reserved Instance (RI) and Savings Plans u
 
 GROUPING get_reservation_coverage (group_by):
 GetReservationCoverage groups ONLY by these attributes:
-AZ, CACHE_ENGINE, DATABASE_ENGINE, DEPLOYMENT_OPTION, INSTANCE_TYPE,
-INVOICING_ENTITY, LINKED_ACCOUNT, OPERATING_SYSTEM, PLATFORM, REGION, TENANCY.
+- AZ: Availability Zone (e.g. us-east-1a)
+- CACHE_ENGINE: ElastiCache engine (e.g. Redis, Memcached)
+- DATABASE_ENGINE: RDS database engine (e.g. PostgreSQL, MySQL, Aurora MySQL)
+- DEPLOYMENT_OPTION: deployment mode (e.g. Single-AZ, Multi-AZ)
+- INSTANCE_TYPE: instance type (e.g. m4.xlarge, cache.r6g.large)
+- INVOICING_ENTITY: the Amazon entity that issues the invoice
+- LINKED_ACCOUNT: member account id in the organization
+- OPERATING_SYSTEM: operating system (e.g. Linux, Windows, RHEL)
+- PLATFORM: operating system / platform
+- REGION: AWS Region (e.g. us-east-1)
+- TENANCY: instance tenancy (e.g. Shared, Dedicated)
 SERVICE is NOT a valid group_by attribute here — grouping coverage by SERVICE
 returns a ValidationException. SERVICE is a FILTER dimension instead: pass it in
 `filter` (one SERVICE value per call; if you omit a SERVICE filter, Cost Explorer
 defaults to EC2), and call once per service to compare across services.
+Reservation coverage applies only to reservable services. As of this writing the
+SERVICE filter values are "Amazon Elastic Compute Cloud - Compute" (the default
+when omitted), "Amazon Relational Database Service", "Amazon ElastiCache", and
+"Amazon Redshift". AWS may add reservable services over time, so treat this list
+as illustrative, not exhaustive: call GetDimensionValues with Dimension=SERVICE
+for the authoritative current set, and use the full Cost Explorer service display
+name (not "EC2"/"RDS").
 
 GROUPING get_reservation_utilization (group_by):
 GetReservationUtilization groups ONLY by SUBSCRIPTION_ID. No other attribute is
@@ -103,7 +119,7 @@ async def ri_performance(
         granularity: Time granularity of the data (DAILY or MONTHLY). Defaults to DAILY. Ignored when group_by is provided (granularity and group_by are mutually exclusive).
         metrics: List of metrics to retrieve for coverage as a JSON string (e.g., '["HoursCoverage", "CostCoverage"]'). Defaults to all metrics.
         group_by: Optional grouping as a JSON string. For coverage: AZ, CACHE_ENGINE, DATABASE_ENGINE, DEPLOYMENT_OPTION, INSTANCE_TYPE, INVOICING_ENTITY, LINKED_ACCOUNT, OPERATING_SYSTEM, PLATFORM, REGION, or TENANCY (SERVICE is NOT valid — filter on it instead). For utilization: SUBSCRIPTION_ID only.
-        filter: Optional filter as a JSON string (e.g., by service, region, or instance type). SERVICE takes a single value and defaults to EC2 when omitted; SubscriptionId values are numeric, not ARNs/UUIDs. A wide grouped/DAILY query may exceed the result size cap (ToolResultOversized) — scope it with a filter, a shorter window, or MONTHLY granularity.
+        filter: Optional filter as a JSON string (e.g., by service, region, or instance type). SERVICE takes a single value and defaults to EC2 when omitted; valid coverage SERVICE values as of this writing are "Amazon Elastic Compute Cloud - Compute", "Amazon Relational Database Service", "Amazon ElastiCache", and "Amazon Redshift" (not exhaustive — call GetDimensionValues with Dimension=SERVICE for the authoritative set, and use the full display name, not "EC2"/"RDS"). SubscriptionId values are numeric, not ARNs/UUIDs. A wide grouped/DAILY query may exceed the result size cap (ToolResultOversized) — scope it with a filter, a shorter window, or MONTHLY granularity.
         sort_by: Optional sorting configuration as a JSON string with key and direction (ASCENDING or DESCENDING).
 
         max_results: Maximum number of results to return per page.
