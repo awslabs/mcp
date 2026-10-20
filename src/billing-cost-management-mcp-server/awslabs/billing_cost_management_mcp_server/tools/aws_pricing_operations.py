@@ -37,13 +37,6 @@ from typing import Any, Dict, Optional
 
 AWS_PRICING_SERVICE_NAME = 'AWS Pricing'
 
-# Term and price dimension fields kept, when present, alongside the reduced
-# fields: termAttributes and offerTermCode tell Reserved lease lengths and
-# purchase options apart, and beginRange/endRange and rateCode tell price
-# tiers apart.
-TERM_DETAIL_KEYS = ('offerTermCode', 'sku', 'termAttributes')
-PRICE_DIMENSION_DETAIL_KEYS = ('rateCode', 'beginRange', 'endRange', 'appliesTo')
-
 PRICING_API_REGIONS = {
     'classic': ['us-east-1', 'eu-central-1', 'ap-south-1'],
     'china': ['cn-northwest-1'],
@@ -419,36 +412,9 @@ async def get_pricing_from_api(
                     'attributes': product.get('product', {}).get('attributes', {}),
                 }
 
-                # Process terms in a more readable format
-                terms = product.get('terms', {})
-                processed_terms = {}
-
-                for term_type, term_values in terms.items():
-                    processed_terms[term_type] = []
-                    for _, term_details in term_values.items():
-                        price_dimensions = []
-
-                        for _, dimension in term_details.get('priceDimensions', {}).items():
-                            processed_dimension = {
-                                'description': dimension.get('description'),
-                                'unit': dimension.get('unit'),
-                                'pricePerUnit': dimension.get('pricePerUnit'),
-                            }
-                            for key in PRICE_DIMENSION_DETAIL_KEYS:
-                                if key in dimension:
-                                    processed_dimension[key] = dimension[key]
-                            price_dimensions.append(processed_dimension)
-
-                        processed_term = {
-                            'effectiveDate': term_details.get('effectiveDate'),
-                            'priceDimensions': price_dimensions,
-                        }
-                        for key in TERM_DETAIL_KEYS:
-                            if key in term_details:
-                                processed_term[key] = term_details[key]
-                        processed_terms[term_type].append(processed_term)
-
-                processed_product['terms'] = processed_terms
+                # Returned as given: Reserved prices are told apart by termAttributes
+                # and tiered prices by beginRange/endRange.
+                processed_product['terms'] = product.get('terms', {})
                 processed_products.append(processed_product)
 
             except json.JSONDecodeError as e:
