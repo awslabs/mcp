@@ -1804,7 +1804,8 @@ def _rendered_examples(description):
 # in its ValidationException for an unsupported dimension (captured 2026-10-20). These lists,
 # not botocore's Dimension enum, are what a documented key must be in: the enum also has keys
 # the service rejects here (LINKED_ACCOUNT_NAME, SERVICE_CODE, ...) and lacks some it accepts
-# (RESERVATION_MODIFIED).
+# (RESERVATION_MODIFIED). COST_AND_USAGE holds the dimensions every account gets; the service
+# enables a few more per account (PAYER_ACCOUNT, PRODUCT_ATTRIBUTE), so they are left out.
 CE_DIMENSIONS_BY_CONTEXT = {
     'COST_AND_USAGE': frozenset(
         {
@@ -1833,8 +1834,6 @@ CE_DIMENSIONS_BY_CONTEXT = {
             'SAVINGS_PLAN_ARN',
             'OPERATING_SYSTEM',
             'RESERVATION_MODIFIED',
-            'PAYER_ACCOUNT',
-            'PRODUCT_ATTRIBUTE',
         }
     ),
     'RESERVATIONS': frozenset(
