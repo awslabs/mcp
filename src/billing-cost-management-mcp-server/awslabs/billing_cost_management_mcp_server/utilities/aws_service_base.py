@@ -424,7 +424,7 @@ def partial_data_warning(items_returned: int, limit_param: str = 'max_items') ->
     """
     return (
         f'Partial data: returned {items_returned} items and more remain. Totals, counts and '
-        f'top-N computed from this result undercount the real data. Call again with a larger '
+        'top-N computed from this result undercount the real data. Call again with a larger '
         f'{limit_param}, continue with next_token, or state in the answer that the result is '
         'partial. Do not report the number of items returned as a total count.'
     )
