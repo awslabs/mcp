@@ -44,7 +44,7 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_tools import
     cost_explorer_server,
 )
 from botocore.validate import ParamValidator
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -2036,20 +2036,49 @@ class TestCostExplorerDescriptionContract:
         assert 'TAG is not a dimension in any context' in tool.description
         assert 'RESERVATIONS coverage context' not in tool.description
 
-    def test_forecast_examples_carry_no_literal_dates(self, tool):
-        """Forecast examples rely on the date defaults, so they cannot go stale.
+    def test_example_dates_are_valid_today(self, tool):
+        """Every example date is inside the window Cost Explorer accepts today.
 
-        Cost Explorer rejects a forecast that starts before today, and a copied
-        literal date is eventually in the past.
+        The dates are rendered relative to today because literal ones go stale: a forecast
+        cannot start before today, resource-level data covers the last 14 days, and history
+        covers the current month and the previous 13 months.
         """
+        today = date.today()
+        month_start = today.replace(day=1)
+        history_start = date(month_start.year - 1, month_start.month, 1)  # inside 13 months
+        years, month = divmod(month_start.month - 1 + 18, 12)
+        forecast_horizon = date(month_start.year + years, month + 1, 1)  # MONTHLY: 18 months
+        checked = 0
+        for example in _rendered_examples(tool.description):
+            call = json.loads(example)
+            if 'start_date' not in call:
+                continue
+            start = date.fromisoformat(call['start_date'])
+            end = date.fromisoformat(call['end_date'])
+            assert start < end, call
+            operation = call['operation']
+            if operation in ('getCostForecast', 'getUsageForecast'):
+                assert start >= today, call
+                assert end <= forecast_horizon, call
+            elif operation == 'getCostAndUsageWithResources':
+                assert start >= today - timedelta(days=14), call
+                assert end <= today + timedelta(days=1), call
+            else:
+                assert start >= history_start, call
+                assert end <= today + timedelta(days=1), call
+            checked += 1
+        assert checked >= 6
+        assert not re.search(r'__[A-Z_]+__', tool.description)
+
+    def test_forecasts_show_dated_and_default_windows(self, tool):
+        """Forecast examples show both an explicit window and the default one."""
         forecasts = [
             json.loads(e)
             for e in _rendered_examples(tool.description)
             if json.loads(e)['operation'] in ('getCostForecast', 'getUsageForecast')
         ]
-        assert len(forecasts) == 4
-        for call in forecasts:
-            assert 'start_date' not in call and 'end_date' not in call, call
+        assert any('start_date' in call for call in forecasts)
+        assert any('start_date' not in call for call in forecasts)
 
     def test_forecast_notes_state_the_forecast_filter_limits(self, tool):
         """Forecast filters take only 12-digit LINKED_ACCOUNT IDs and no RESOURCE_ID.
@@ -2064,20 +2093,11 @@ class TestCostExplorerDescriptionContract:
 
 def test_description_documents_max_items_paging():
     """The description explains max_items and no longer mentions the removed paging params."""
-    import ast
-    import inspect
     from awslabs.billing_cost_management_mcp_server.tools import cost_explorer_tools
 
-    # Read the decorator argument from source: other tests reload the module with an
-    # identity decorator, which drops the registered tool's metadata.
-    tree = ast.parse(inspect.getsource(cost_explorer_tools))
-    description = next(
-        keyword.value.value
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        for keyword in node.keywords
-        if keyword.arg == 'description' and isinstance(keyword.value, ast.Constant)
-    )
+    # Read the module constant: other tests reload the module with an identity decorator,
+    # which drops the registered tool's metadata.
+    description = cost_explorer_tools.COST_EXPLORER_DESCRIPTION
     assert isinstance(description, str)
     assert 'max_items' in description
     assert 'Omit it to fetch every page' in description
