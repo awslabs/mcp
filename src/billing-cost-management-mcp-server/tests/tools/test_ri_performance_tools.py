@@ -947,3 +947,33 @@ async def test_ungrouped_utilization_ignores_max_items_and_next_token(mock_conte
     )
 
     assert 'NextPageToken' not in client.get_reservation_utilization.call_args.kwargs
+
+
+@pytest.mark.asyncio
+async def test_grouped_utilization_rounds_max_items_up_to_whole_pages(mock_context):
+    """Utilization pages cannot shrink, so max_items=700 fetches two full pages of 500."""
+    client = MagicMock()
+    client.get_reservation_utilization.side_effect = [
+        _grouped_page(
+            'UtilizationsByTime',
+            'Utilization',
+            [f'g{i}' for i in range(p * 500, (p + 1) * 500)],
+            token=f't{p + 1}',
+        )
+        for p in range(3)
+    ]
+
+    result = await _call_ri(
+        get_reservation_utilization,
+        client,
+        mock_context,
+        group_by=GROUP_BY_SUBSCRIPTION,
+        max_items=700,
+    )
+
+    calls = client.get_reservation_utilization.call_args_list
+    assert [c.kwargs['MaxResults'] for c in calls] == [500, 500]
+    pagination = result['data']['pagination']
+    assert pagination['items_returned'] == 1000
+    assert pagination['next_token'] == 't2'
+    assert result['data']['complete_dataset'] is False

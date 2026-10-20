@@ -272,6 +272,99 @@ class TestMaxItems:
         assert api.call_args_list[0].kwargs == {'NextPageToken': 't0', 'MaxResults': 500}
         assert pagination['next_token'] == 't1'
 
+    @staticmethod
+    def _fixed_spec() -> PageSpec:
+        return PageSpec(
+            result_key='items',
+            token_param='NextPageToken',
+            token_key_in_response='NextPageToken',
+            page_max=500,
+            page_size_param='MaxResults',
+            fixed_page_size=True,
+        )
+
+    async def test_fixed_page_size_below_one_page_returns_the_full_page(self, ctx):
+        """max_items below one fixed page rounds up to that page, token kept."""
+        api = MagicMock(
+            side_effect=[
+                {'items': list(range(500)), 'NextPageToken': 't1'},
+                {'items': list(range(500)), 'NextPageToken': 't2'},
+            ]
+        )
+
+        items, _, pagination = await paginate_aws_items(
+            ctx, 'op', api, {}, self._fixed_spec(), max_items=10
+        )
+
+        assert api.call_count == 1
+        assert len(items) == 500
+        assert pagination['items_returned'] == 500
+        assert pagination['next_token'] == 't1'
+        assert pagination['complete_dataset'] is False
+        assert pagination['warning'] == partial_data_warning(500)
+
+    async def test_fixed_page_size_rounds_max_items_up_to_whole_pages(self, ctx):
+        """max_items between pages fetches the next full page instead of stopping short."""
+        api = MagicMock(
+            side_effect=[
+                {'items': list(range(500)), 'NextPageToken': 't1'},
+                {'items': list(range(500)), 'NextPageToken': 't2'},
+                {'items': list(range(500)), 'NextPageToken': 't3'},
+            ]
+        )
+
+        items, _, pagination = await paginate_aws_items(
+            ctx, 'op', api, {}, self._fixed_spec(), max_items=700
+        )
+
+        assert api.call_count == 2
+        assert [c.kwargs['MaxResults'] for c in api.call_args_list] == [500, 500]
+        assert api.call_args_list[1].kwargs['NextPageToken'] == 't1'
+        assert len(items) == 1000
+        assert pagination['items_returned'] == 1000
+        assert pagination['next_token'] == 't2'
+        assert pagination['has_more'] is True
+        assert pagination['complete_dataset'] is False
+        assert pagination['warning'] == partial_data_warning(1000)
+
+    async def test_fixed_page_size_multiple_of_page_stops_exactly(self, ctx):
+        """max_items equal to whole pages fetches exactly that many pages."""
+        api = MagicMock(
+            side_effect=[
+                {'items': list(range(500)), 'NextPageToken': 't1'},
+                {'items': list(range(500)), 'NextPageToken': 't2'},
+                {'items': list(range(500)), 'NextPageToken': 't3'},
+            ]
+        )
+
+        items, _, pagination = await paginate_aws_items(
+            ctx, 'op', api, {}, self._fixed_spec(), max_items=1000
+        )
+
+        assert api.call_count == 2
+        assert len(items) == 1000
+        assert pagination['next_token'] == 't2'
+
+    async def test_fixed_page_size_data_ends_before_max_items(self, ctx):
+        """The service running out of tokens first gives a complete result."""
+        api = MagicMock(
+            side_effect=[
+                {'items': list(range(500)), 'NextPageToken': 't1'},
+                {'items': list(range(120))},
+            ]
+        )
+
+        items, _, pagination = await paginate_aws_items(
+            ctx, 'op', api, {}, self._fixed_spec(), max_items=2000
+        )
+
+        assert api.call_count == 2
+        assert len(items) == 620
+        assert pagination['complete_dataset'] is True
+        assert pagination['has_more'] is False
+        assert pagination['next_token'] is None
+        assert 'warning' not in pagination
+
     async def test_page_size_is_at_least_one(self, ctx):
         """Fewer items left than one unit holds still requests a page of 1, never 0."""
         spec = PageSpec(
