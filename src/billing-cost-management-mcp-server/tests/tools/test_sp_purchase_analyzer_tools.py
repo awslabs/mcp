@@ -79,11 +79,9 @@ def mock_ce_client():
 
 PAGINATION_COMPLETE = {
     'complete_dataset': True,
-    'pages_fetched': 1,
-    'total_results': 1,
     'has_more': False,
     'next_token': None,
-    'duration_ms': 1,
+    'items_returned': 1,
 }
 
 COMPUTE_SP_TO_ADD = [
@@ -280,65 +278,108 @@ class TestGetCommitmentPurchaseAnalysis:
 
 @pytest.mark.asyncio
 class TestListCommitmentPurchaseAnalyses:
-    """Tests for list_commitment_purchase_analyses."""
+    """Tests for list_commitment_purchase_analyses, run through the real pagination helper."""
 
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.sp_purchase_analyzer_tools.paginate_aws_response'
-    )
-    async def test_basic(self, mock_paginate, mock_context, mock_ce_client):
-        """Analyses page through AnalysisSummaryList."""
+    async def test_basic(self, mock_context, mock_ce_client):
+        """Analyses come back under AnalysisSummaryList with a complete pagination block."""
         analyses = mock_ce_client.list_commitment_purchase_analyses.return_value[
             'AnalysisSummaryList'
         ]
-        mock_paginate.return_value = (analyses, PAGINATION_COMPLETE)
 
         result = await list_commitment_purchase_analyses(
-            mock_context, mock_ce_client, None, None, None, None, None
+            mock_context, mock_ce_client, None, None, None, None
         )
-
-        call_kwargs = mock_paginate.call_args[1]
-        assert call_kwargs['operation_name'] == 'ListCommitmentPurchaseAnalyses'
-        assert call_kwargs['result_key'] == 'AnalysisSummaryList'
-        assert call_kwargs['token_param'] == 'NextPageToken'
-        assert call_kwargs['token_key'] == 'NextPageToken'
 
         assert result['status'] == 'success'
         assert result['data']['AnalysisSummaryList'] == analyses
-        assert result['data']['pagination']['complete_dataset'] is True
+        assert result['data']['pagination'] == PAGINATION_COMPLETE
+        # Without max_items the largest page is requested.
+        mock_ce_client.list_commitment_purchase_analyses.assert_called_once_with(PageSize=600)
 
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.sp_purchase_analyzer_tools.paginate_aws_response'
-    )
-    async def test_optional_parameters(self, mock_paginate, mock_context, mock_ce_client):
+    async def test_no_max_items_fetches_every_page(self, mock_context, mock_ce_client):
+        """Every page is fetched, following NextPageToken (Cost Explorer's spelling)."""
+        mock_ce_client.list_commitment_purchase_analyses.side_effect = [
+            {'AnalysisSummaryList': [{'AnalysisId': 'a'}], 'NextPageToken': 't1'},
+            {'AnalysisSummaryList': [{'AnalysisId': 'b'}]},
+        ]
+
+        result = await list_commitment_purchase_analyses(
+            mock_context, mock_ce_client, 'SUCCEEDED', None, None, None
+        )
+
+        data = result['data']
+        assert [a['AnalysisId'] for a in data['AnalysisSummaryList']] == ['a', 'b']
+        assert 'complete_dataset' not in data
+        assert data['pagination']['items_returned'] == 2
+        calls = mock_ce_client.list_commitment_purchase_analyses.call_args_list
+        assert calls[0].kwargs == {'AnalysisStatus': 'SUCCEEDED', 'PageSize': 600}
+        assert calls[1].kwargs == {
+            'AnalysisStatus': 'SUCCEEDED',
+            'PageSize': 600,
+            'NextPageToken': 't1',
+        }
+
+    async def test_max_items_stops_and_returns_the_token(self, mock_context, mock_ce_client):
+        """max_items sizes the page, and the service token comes back for continuation."""
+        mock_ce_client.list_commitment_purchase_analyses.return_value = {
+            'AnalysisSummaryList': [{'AnalysisId': 'a'}, {'AnalysisId': 'b'}],
+            'NextPageToken': 'more',
+        }
+
+        result = await list_commitment_purchase_analyses(
+            mock_context, mock_ce_client, None, None, 2, None
+        )
+
+        data = result['data']
+        assert data['complete_dataset'] is False
+        assert 'Partial data' in data['warning']
+        assert data['pagination']['next_token'] == 'more'
+        mock_ce_client.list_commitment_purchase_analyses.assert_called_once_with(PageSize=2)
+
+    async def test_continuation_sends_caller_token_and_identical_params(
+        self, mock_context, mock_ce_client
+    ):
         """Listing what has already run is cheaper than starting another analysis."""
-        mock_paginate.return_value = ([], PAGINATION_COMPLETE)
-
         await list_commitment_purchase_analyses(
             mock_context,
             mock_ce_client,
             'SUCCEEDED',
             ['23a6da4c-c5f8-448b-8e69-31c27d0f2603'],
+            None,
             'token-from-caller',
-            10,
-            2,
         )
 
-        request_params = mock_paginate.call_args[1]['request_params']
-        assert request_params['AnalysisStatus'] == 'SUCCEEDED'
-        assert request_params['AnalysisIds'] == ['23a6da4c-c5f8-448b-8e69-31c27d0f2603']
-        assert request_params['NextPageToken'] == 'token-from-caller'
-        assert request_params['PageSize'] == 10
-        assert mock_paginate.call_args[1]['max_pages'] == 2
+        mock_ce_client.list_commitment_purchase_analyses.assert_called_once_with(
+            AnalysisStatus='SUCCEEDED',
+            AnalysisIds=['23a6da4c-c5f8-448b-8e69-31c27d0f2603'],
+            PageSize=600,
+            NextPageToken='token-from-caller',
+        )
 
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.sp_purchase_analyzer_tools.paginate_aws_response'
-    )
-    async def test_error(self, mock_paginate, mock_context, mock_ce_client):
-        """A client failure is reported rather than raised."""
-        mock_paginate.side_effect = Exception('AccessDeniedException')
+    async def test_rejected_token_maps_to_invalid_next_token(self, mock_context, mock_ce_client):
+        """A stale caller token is reported as invalid_next_token."""
+        from botocore.exceptions import ClientError
+
+        mock_ce_client.list_commitment_purchase_analyses.side_effect = ClientError(
+            {'Error': {'Code': 'InvalidNextTokenException', 'Message': 'bad'}},
+            'ListCommitmentPurchaseAnalyses',
+        )
 
         result = await list_commitment_purchase_analyses(
-            mock_context, mock_ce_client, None, None, None, None, None
+            mock_context, mock_ce_client, None, None, None, 'stale'
+        )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'invalid_next_token'
+
+    async def test_error(self, mock_context, mock_ce_client):
+        """A client failure is reported rather than raised."""
+        mock_ce_client.list_commitment_purchase_analyses.side_effect = Exception(
+            'AccessDeniedException'
+        )
+
+        result = await list_commitment_purchase_analyses(
+            mock_context, mock_ce_client, None, None, None, None
         )
 
         assert result['status'] == 'error'
@@ -400,19 +441,21 @@ class TestSpPurchaseAnalyzerDispatch:
         'awslabs.billing_cost_management_mcp_server.tools.sp_purchase_analyzer_tools.list_commitment_purchase_analyses'
     )
     async def test_routes_to_list_analyses(self, mock_impl, mock_create_client, mock_context):
-        """The status filter and max_pages arrive."""
+        """The status filter, max_items and next_token arrive."""
         mock_impl.return_value = {'status': 'success', 'data': {}}
 
         await sp_purchase_analyzer(
             mock_context,
             operation='list_commitment_purchase_analyses',
             analysis_status='PROCESSING',
-            max_pages=2,
+            max_items=2,
+            next_token='tok',
         )
 
         args = mock_impl.await_args[0]
         assert args[2] == 'PROCESSING'
-        assert args[6] == 2
+        assert args[4] == 2
+        assert args[5] == 'tok'
 
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.sp_purchase_analyzer_tools.create_aws_client'

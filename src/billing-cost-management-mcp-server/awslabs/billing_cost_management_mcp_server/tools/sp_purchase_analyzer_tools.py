@@ -15,10 +15,12 @@
 """AWS Savings Plans Purchase Analyzer tools for the AWS Billing and Cost Management MCP server."""
 
 from ..utilities.aws_service_base import (
+    PageSpec,
     create_aws_client,
     format_response,
     handle_aws_error,
-    paginate_aws_response,
+    paginate_aws_items,
+    with_pagination,
 )
 from ..utilities.logging_utils import get_context_logger
 from fastmcp import Context, FastMCP
@@ -73,7 +75,12 @@ payment option live inside it. None has a default: each changes the result, and 
 one of the day's analyses on a scenario nobody asked for. A validation error names the nested field
 it rejected rather than the parameter, so read the path in the message. An analysis also carries the
 configuration it was run with, so read AnalysisType from a result rather than assuming which
-scenario it modelled.""",
+scenario it modelled.
+
+PAGINATION (list_commitment_purchase_analyses only; the other operations take neither parameter):
+- max_items is the total number of analyses returned. Omit it to fetch every page (no limit).
+- If the response has complete_dataset: false, call again with a larger max_items, continue with
+  next_token, or state in the answer that the result is partial.""",
 )
 async def sp_purchase_analyzer(
     ctx: Context,
@@ -89,9 +96,8 @@ async def sp_purchase_analyzer(
     analysis_id: Optional[str] = None,
     analysis_ids: Optional[List[str]] = None,
     analysis_status: Optional[str] = None,
-    next_page_token: Optional[str] = None,
-    page_size: Optional[int] = None,
-    max_pages: Optional[int] = None,
+    max_items: Optional[int] = None,
+    next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Tool that runs AWS Savings Plans Purchase Analyzer what-if analyses.
 
@@ -125,10 +131,10 @@ async def sp_purchase_analyzer(
             Filters list_commitment_purchase_analyses.
         analysis_status: The status of the analysis — SUCCEEDED, PROCESSING, or FAILED. Filters
             list_commitment_purchase_analyses.
-        next_page_token: The token to retrieve the next set of results. Paging is handled for you, so
-            this is only needed to resume from a token a previous call returned.
-        page_size: The number of analyses that you want returned in a single response object.
-        max_pages: The maximum number of pages to fetch. Omitting it fetches every page.
+        max_items: Total number of analyses to return across all pages. Omit it to fetch every
+            page. list_commitment_purchase_analyses only.
+        next_token: The pagination.next_token from a previous response; continue with otherwise
+            identical parameters. list_commitment_purchase_analyses only.
 
     Returns:
         Dict containing the analysis identifiers or results
@@ -160,9 +166,8 @@ async def sp_purchase_analyzer(
                 ce_client,
                 analysis_status,
                 analysis_ids,
-                next_page_token,
-                page_size,
-                max_pages,
+                max_items,
+                next_token,
             )
         else:
             return format_response(
@@ -285,14 +290,22 @@ async def get_commitment_purchase_analysis(
         return await handle_aws_error(ctx, e, 'get_commitment_purchase_analysis', 'Cost Explorer')
 
 
+CE_LIST_COMMITMENT_PURCHASE_ANALYSES = PageSpec(
+    result_key='AnalysisSummaryList',
+    token_param='NextPageToken',
+    token_key_in_response='NextPageToken',
+    page_max=600,
+    page_size_param='PageSize',
+)
+
+
 async def list_commitment_purchase_analyses(
     ctx: Context,
     ce_client: Any,
     analysis_status: Optional[str],
     analysis_ids: Optional[List[str]],
-    next_page_token: Optional[str],
-    page_size: Optional[int],
-    max_pages: Optional[int],
+    max_items: Optional[int],
+    next_token: Optional[str],
 ) -> Dict[str, Any]:
     """Lists the commitment purchase analyses for your account.
 
@@ -301,9 +314,8 @@ async def list_commitment_purchase_analyses(
         ce_client: Cost Explorer client
         analysis_status: The status of the analysis.
         analysis_ids: The analysis IDs associated with the commitment purchase analyses.
-        next_page_token: The token to retrieve the next set of results.
-        page_size: The number of analyses that you want returned in a single response object.
-        max_pages: The maximum number of pages to fetch. None fetches every page.
+        max_items: Total number of analyses to return. None fetches every page.
+        next_token: The token from a previous response.
 
     Returns:
         Dict containing the analysis history
@@ -322,25 +334,19 @@ async def list_commitment_purchase_analyses(
             request_params['AnalysisStatus'] = analysis_status
         if analysis_ids:
             request_params['AnalysisIds'] = analysis_ids
-        if next_page_token:
-            request_params['NextPageToken'] = next_page_token
-        if page_size:
-            request_params['PageSize'] = page_size
 
-        all_analyses, pagination_metadata = await paginate_aws_response(
-            ctx=ctx,
-            operation_name='ListCommitmentPurchaseAnalyses',
-            api_function=ce_client.list_commitment_purchase_analyses,
-            request_params=request_params,
-            result_key='AnalysisSummaryList',
-            token_param='NextPageToken',
-            token_key='NextPageToken',
-            max_pages=max_pages,
+        all_analyses, _, pagination = await paginate_aws_items(
+            ctx,
+            'ListCommitmentPurchaseAnalyses',
+            ce_client.list_commitment_purchase_analyses,
+            request_params,
+            CE_LIST_COMMITMENT_PURCHASE_ANALYSES,
+            max_items=max_items,
+            next_token=next_token,
         )
 
         return format_response(
-            'success',
-            {'AnalysisSummaryList': all_analyses, 'pagination': pagination_metadata},
+            'success', with_pagination({'AnalysisSummaryList': all_analyses}, pagination)
         )
 
     except Exception as e:

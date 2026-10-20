@@ -18,10 +18,13 @@ Updated to use shared utility functions.
 """
 
 from ..utilities.aws_service_base import (
+    PageSpec,
     create_aws_client,
     format_response,
     handle_aws_error,
+    paginate_aws_items,
     validate_date_format,
+    with_pagination,
 )
 from ..utilities.logging_utils import get_context_logger
 from botocore.exceptions import ClientError
@@ -32,6 +35,15 @@ from typing import Any, Dict, Optional
 
 cost_anomaly_server = FastMCP(
     name='cost-anomaly-tools', instructions='Tools for working with AWS Cost Anomaly Detection API'
+)
+
+# Pages can come back short and still carry a token, so paging continues until no token.
+GET_ANOMALIES = PageSpec(
+    result_key='Anomalies',
+    token_param='NextPageToken',
+    token_key_in_response='NextPageToken',
+    page_max=10000,
+    page_size_param='MaxResults',
 )
 
 
@@ -53,7 +65,16 @@ Note: Both start_date and end_date are INCLUSIVE. To get anomalies including tod
 Feedback status options:
 - YES: Anomalies marked as accurate
 - NO: Anomalies marked as inaccurate
-- PLANNED_ACTIVITY: Anomalies marked as planned activities""",
+- PLANNED_ACTIVITY: Anomalies marked as planned activities
+
+Pagination:
+- max_items: total number of anomalies returned. Omit it to fetch every page (no limit).
+  Pass it, or narrow the filters (monitor_arn, total impact, a shorter date range), for
+  accounts with many anomalies.
+- Anomalies come back newest first (by anomaly end date), so max_items=N returns the N most
+  recent.
+- If the result has complete_dataset: false, it is partial: call again with a larger
+  max_items, continue with next_token, or say the result is partial.""",
 )
 async def cost_anomaly(
     ctx: Context,
@@ -61,7 +82,8 @@ async def cost_anomaly(
     end_date: str,
     monitor_arn: Optional[str] = None,
     feedback: Optional[str] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
+    next_token: Optional[str] = None,
     total_impact_operator: Optional[str] = None,
     total_impact_start: Optional[float] = None,
     total_impact_end: Optional[float] = None,
@@ -74,7 +96,8 @@ async def cost_anomaly(
         end_date: End date in YYYY-MM-DD format (inclusive — use today's date to include today's anomalies). Required.
         monitor_arn: Optional ARN of a specific cost anomaly monitor to filter results.
         feedback: Optional filter for anomalies by feedback status (YES, NO, PLANNED_ACTIVITY).
-        max_results: Optional maximum number of results to return.
+        max_items: Optional total number of anomalies to return. None fetches every page.
+        next_token: Optional pagination token from a previous response.
         total_impact_operator: Optional numeric operator for filtering by total impact (EQUAL, GREATER_THAN, LESS_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN_OR_EQUAL, BETWEEN).
         total_impact_start: Optional start value for total impact filter.
         total_impact_end: Optional end value for total impact filter (required when using BETWEEN operator).
@@ -208,7 +231,8 @@ async def cost_anomaly(
             end_date,
             monitor_arn,
             feedback,
-            max_results,
+            max_items,
+            next_token,
             total_impact_operator,
             total_impact_start,
             total_impact_end,
@@ -265,7 +289,8 @@ async def get_anomalies(
     end_date: str,
     monitor_arn: Optional[str],
     feedback: Optional[str],
-    max_results: Optional[int],
+    max_items: Optional[int],
+    next_token: Optional[str],
     total_impact_operator: Optional[str],
     total_impact_start: Optional[float],
     total_impact_end: Optional[float],
@@ -279,7 +304,8 @@ async def get_anomalies(
         end_date: End date in YYYY-MM-DD format
         monitor_arn: Optional ARN of a specific monitor
         feedback: Optional filter for anomaly feedback
-        max_results: Maximum results to return
+        max_items: Total anomalies to return. None fetches every page.
+        next_token: Pagination token from a previous response
         total_impact_operator: Optional numeric operator for filtering
         total_impact_start: Optional start value for total impact filter
         total_impact_end: Optional end value for total impact filter
@@ -298,9 +324,6 @@ async def get_anomalies(
         if feedback:
             request_params['Feedback'] = str(feedback)
 
-        if max_results:
-            request_params['MaxResults'] = int(max_results)
-
         # Add total impact filter if provided
         if total_impact_operator:
             total_impact: dict = {'NumericOperator': total_impact_operator}
@@ -313,30 +336,15 @@ async def get_anomalies(
 
             request_params['TotalImpact'] = total_impact
 
-        # Collect all anomalies with internal pagination
-        all_anomalies = []
-        next_page_token = None
-        page_count = 0
-
-        while True:
-            page_count += 1
-
-            if next_page_token:
-                request_params['NextPageToken'] = next_page_token
-
-            await ctx.info(f'Fetching cost anomalies page {page_count}')
-            response = ce_client.get_anomalies(**request_params)
-
-            page_anomalies = response.get('Anomalies', [])
-            all_anomalies.extend(page_anomalies)
-
-            await ctx.info(
-                f'Retrieved {len(page_anomalies)} anomalies (total: {len(all_anomalies)})'
-            )
-
-            next_page_token = response.get('NextPageToken')
-            if not next_page_token:
-                break
+        all_anomalies, _, pagination = await paginate_aws_items(
+            ctx,
+            'GetAnomalies',
+            ce_client.get_anomalies,
+            request_params,
+            GET_ANOMALIES,
+            max_items=max_items,
+            next_token=next_token,
+        )
 
         # Format the response for better readability
         formatted_response: Dict[str, Any] = {'anomalies': []}
@@ -388,7 +396,7 @@ async def get_anomalies(
 
             formatted_response['anomalies'].append(formatted_anomaly)
 
-        return format_response('success', formatted_response)
+        return format_response('success', with_pagination(formatted_response, pagination))
 
     except Exception as e:
         # Use shared error handler for consistent error reporting

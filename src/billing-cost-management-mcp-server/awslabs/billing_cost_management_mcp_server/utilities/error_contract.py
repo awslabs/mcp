@@ -37,6 +37,10 @@ _HINT_THROTTLED = 'The request was throttled. Wait briefly, then retry the same 
 _HINT_TRANSIENT = 'The service failed transiently. Retry the same request.'
 _HINT_INVALID = 'The request arguments are invalid. Correct them using the message, then retry.'
 _HINT_NOT_FOUND = 'Nothing matched the request. Broaden or correct the filters, then retry.'
+_HINT_INVALID_NEXT_TOKEN = (
+    'The next_token is expired or no longer matches the request. Call again without '
+    'next_token to restart from the first page.'
+)
 _HINT_ACCESS = (
     'The caller lacks permission for this operation. Do not retry; '
     'report the missing permission to the user.'
@@ -82,6 +86,7 @@ _ERROR_TYPE_GUIDANCE: Dict[str, Tuple[str, Optional[str]]] = {
     'BadRequestException': (MODIFY_REQUEST, _HINT_INVALID),
     'BillExpirationException': (MODIFY_REQUEST, _HINT_INVALID),
     'RequestChangedException': (MODIFY_REQUEST, _HINT_INVALID),
+    'invalid_next_token': (MODIFY_REQUEST, _HINT_INVALID_NEXT_TOKEN),
     # Nothing matched
     'no_results': (MODIFY_REQUEST, _HINT_NOT_FOUND),
     'ResourceNotFoundException': (MODIFY_REQUEST, _HINT_NOT_FOUND),
@@ -172,3 +177,13 @@ def add_retry_guidance(response: Dict[str, Any]) -> Dict[str, Any]:
     if hint is not None:
         enriched.setdefault('hint', hint)
     return enriched
+
+
+class InvalidNextTokenError(Exception):
+    """The caller's next_token was rejected; the caller must restart without it."""
+
+    def __init__(self, operation: str, error_code: str):
+        """Record the operation and the service error code that rejected the token."""
+        super().__init__(f'{operation}: next_token rejected ({error_code})')
+        self.operation = operation
+        self.error_code = error_code

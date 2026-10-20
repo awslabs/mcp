@@ -25,11 +25,13 @@ same API model and is deliberately not exposed, because this server is read-only
 """
 
 from ..utilities.aws_service_base import (
+    PageSpec,
     create_aws_client,
     format_response,
     handle_aws_error,
-    paginate_aws_response,
+    paginate_aws_items,
     parse_json,
+    with_pagination,
 )
 from ..utilities.sql_utils import convert_response_if_needed
 from fastmcp import Context
@@ -45,13 +47,22 @@ def _create_billing_client() -> Any:
     return create_aws_client('billing')
 
 
+# GetBillingPreferences: maxResults 1-50.
+BILLING_GET_BILLING_PREFERENCES = PageSpec(
+    result_key='billingPreferences',
+    token_param='nextToken',
+    token_key_in_response='nextToken',
+    page_max=50,
+    page_size_param='maxResults',
+)
+
+
 async def get_billing_preferences(
     ctx: Context,
     features: Union[str, List[str]],
     filters: Optional[str] = None,
-    max_results: Optional[int] = 50,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = 5,
 ) -> Dict[str, Any]:
     """Get the billing preferences for one feature.
 
@@ -61,13 +72,8 @@ async def get_billing_preferences(
             a bare string is wrapped into the single-item list it expects.
         filters: Filters as a JSON string, for example
             ``[{"name": "PREFERENCE_KEY", "value": ["credit/4242"]}]``.
-        max_results: Maximum number of results per page (1-50). Defaults to the
-            API maximum so a member-account list arrives in as few calls as possible.
+        max_items: Most billing preferences to return. None fetches every page.
         next_token: Pagination token from a previous response to resume from.
-        max_pages: Maximum number of pages to auto-paginate through. Bounded by
-            default so a very large organization cannot fill the agent's context
-            unprompted; the ``pagination`` block reports the truncation. Pass None
-            to fetch every page.
 
     Returns:
         Dict containing ``billing_preferences`` and a ``pagination`` metadata
@@ -79,22 +85,17 @@ async def get_billing_preferences(
         }
         if filters:
             request_params['filters'] = parse_json(filters, 'filters')
-        if max_results is not None:
-            request_params['maxResults'] = max_results
-        if next_token:
-            request_params['nextToken'] = next_token
 
         client = _create_billing_client()
 
-        preferences, pagination = await paginate_aws_response(
+        preferences, _, pagination = await paginate_aws_items(
             ctx,
             'GetBillingPreferences',
             client.get_billing_preferences,
             request_params,
-            'billingPreferences',
-            token_param='nextToken',
-            token_key='nextToken',
-            max_pages=max_pages,
+            BILLING_GET_BILLING_PREFERENCES,
+            max_items=max_items,
+            next_token=next_token,
         )
 
         await ctx.info(f'Successfully retrieved {len(preferences)} billing preferences')
@@ -103,10 +104,8 @@ async def get_billing_preferences(
         # the shared size threshold decides whether to offload to session SQL.
         converted = await convert_response_if_needed(
             ctx,
-            {'billing_preferences': preferences, 'pagination': pagination},
+            with_pagination({'billing_preferences': preferences}, pagination),
             'billing_preferences_get_billing_preferences',
-            pagination_token_key='nextToken',
-            pagination=pagination,
         )
         return format_response('success', converted)
 

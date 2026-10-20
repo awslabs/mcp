@@ -122,6 +122,22 @@ class TestToolRegistration:
         assert 'supportDiscount' in (tool.description or '')
         assert 'planDiscountPercent' in (tool.description or '')
 
+    @pytest.mark.asyncio
+    async def test_paging_parameters_follow_the_max_items_contract(self):
+        """The tool takes max_items and next_token; max_results and max_pages are gone."""
+        tool = await _registered_tool()
+        properties = tool.parameters['properties']
+        description = tool.description or ''
+
+        assert 'max_items' in properties
+        assert 'next_token' in properties
+        assert 'max_results' not in properties
+        assert 'max_pages' not in properties
+        assert 'max_items' in description
+        assert 'complete_dataset' in description
+        assert 'max_results' not in description
+        assert 'max_pages' not in description
+
 
 class TestOperationRouting:
     """Each operation reaches its own handler and no others."""
@@ -190,16 +206,14 @@ class TestParameterForwarding:
                 'list_linked_account_charges',
                 billing_month='2026-06',
                 account_id='111122223333',
-                max_results=50,
+                max_items=50,
                 next_token='token',
-                max_pages=2,
             )
 
         kwargs = _await_kwargs(mocks['list_linked_account_charges'])
         assert kwargs['account_id'] == '111122223333'
-        assert kwargs['max_results'] == 50
+        assert kwargs['max_items'] == 50
         assert kwargs['next_token'] == 'token'
-        assert kwargs['max_pages'] == 2
 
 
 class TestWrapperDelegation:
@@ -214,14 +228,12 @@ class TestWrapperDelegation:
                 'list_linked_account_charges',
                 billing_month='2026-06',
                 account_id='111122223333',
-                max_results=25,
+                max_items=25,
                 next_token='token',
-                max_pages=3,
             )
 
         kwargs = _await_kwargs(mocks['list_linked_account_charges'])
         assert kwargs['billing_month'] == '2026-06'
         assert kwargs['account_id'] == '111122223333'
-        assert kwargs['max_results'] == 25
+        assert kwargs['max_items'] == 25
         assert kwargs['next_token'] == 'token'
-        assert kwargs['max_pages'] == 3

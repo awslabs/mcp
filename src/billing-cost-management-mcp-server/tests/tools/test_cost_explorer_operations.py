@@ -35,6 +35,7 @@ def mock_context():
     context = MagicMock()
     context.info = AsyncMock()
     context.warning = AsyncMock()
+    context.debug = AsyncMock()
     context.error = AsyncMock()
     return context
 
