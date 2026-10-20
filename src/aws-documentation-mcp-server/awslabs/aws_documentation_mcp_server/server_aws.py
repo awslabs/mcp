@@ -498,28 +498,16 @@ async def search_documentation(
                 timeout=30,
             )
         except httpx.HTTPError as e:
-            error_msg = f'Error searching AWS docs: {str(e)}'
+            error_msg = f'Error searching AWS docs: {str(e)}.'
             logger.error(error_msg)
             await ctx.error(error_msg)
-            return SearchResponse(
-                search_results=[SearchResult(rank_order=1, url='', title=error_msg, context=None)],
-                facets=None,
-                query_id='',
-            )
+            raise DocumentationToolError(error_msg) from e
 
         if response.status_code >= 400:
-            error_msg = f'Error searching AWS docs - status code {response.status_code}'
+            error_msg = f'Error searching AWS docs - status code {response.status_code}.'
             logger.error(error_msg)
             await ctx.error(error_msg)
-            return SearchResponse(
-                search_results=[
-                    SearchResult(
-                        rank_order=1, url='', title=error_msg, context=None, sections=None
-                    )
-                ],
-                facets=None,
-                query_id='',
-            )
+            raise DocumentationToolError(error_msg)
 
         try:
             data = response.json()
@@ -541,18 +529,10 @@ async def search_documentation(
             response_metadata = _safe_model_validate(ResponseMetadata, filtered_metadata)
 
         except json.JSONDecodeError as e:
-            error_msg = f'Error parsing search results: {str(e)}'
+            error_msg = f'Error parsing search results: {str(e)}.'
             logger.error(error_msg)
             await ctx.error(error_msg)
-            return SearchResponse(
-                search_results=[
-                    SearchResult(
-                        rank_order=1, url='', title=error_msg, context=None, sections=None
-                    )
-                ],
-                facets=None,
-                query_id='',
-            )
+            raise DocumentationToolError(error_msg) from e
 
     results = []
     if 'suggestions' in data:
@@ -706,30 +686,24 @@ async def recommend(
                 timeout=30,
             )
         except httpx.HTTPError as e:
-            error_msg = f'Error getting recommendations: {str(e)}'
+            error_msg = f'Error getting recommendations: {str(e)}.'
             logger.error(error_msg)
             await ctx.error(error_msg)
-            return [RecommendationResult(url='', title=error_msg, context=None)]
+            raise DocumentationToolError(error_msg) from e
 
         if response.status_code >= 400:
-            error_msg = f'Error getting recommendations - status code {response.status_code}'
+            error_msg = f'Error getting recommendations - status code {response.status_code}.'
             logger.error(error_msg)
             await ctx.error(error_msg)
-            return [
-                RecommendationResult(
-                    url='',
-                    title=error_msg,
-                    context=None,
-                )
-            ]
+            raise DocumentationToolError(error_msg)
 
         try:
             data = response.json()
         except json.JSONDecodeError as e:
-            error_msg = f'Error parsing recommendations: {str(e)}'
+            error_msg = f'Error parsing recommendations: {str(e)}.'
             logger.error(error_msg)
             await ctx.error(error_msg)
-            return [RecommendationResult(url='', title=error_msg, context=None)]
+            raise DocumentationToolError(error_msg) from e
 
     results = parse_recommendation_results(data)
     logger.debug(f'Found {len(results)} recommendations for: {url_str}')
