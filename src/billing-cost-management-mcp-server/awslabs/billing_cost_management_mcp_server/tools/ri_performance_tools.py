@@ -63,7 +63,7 @@ GetReservationCoverage groups ONLY by these attributes:
 - OPERATING_SYSTEM: operating system (e.g. Linux, Windows, RHEL)
 - PLATFORM: operating system / platform
 - REGION: AWS Region (e.g. us-east-1)
-- TENANCY: instance tenancy (e.g. Shared, Dedicated)
+- TENANCY: instance tenancy. Exact, case-sensitive values: Shared, Dedicated, Host
 SERVICE is NOT a valid group_by attribute here — grouping coverage by SERVICE
 returns a ValidationException. SERVICE is a FILTER dimension instead: pass it in
 `filter` (one SERVICE value per call; if you omit a SERVICE filter, Cost Explorer

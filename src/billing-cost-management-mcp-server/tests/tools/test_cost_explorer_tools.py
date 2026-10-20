@@ -22,9 +22,14 @@ These tests verify the functionality of the Cost Explorer tools, including:
 - Error handling for API exceptions
 """
 
+import asyncio
+import botocore.session
 import fastmcp
 import importlib
+import json
+import jsonschema
 import pytest
+import re
 from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_operations import (
     get_cost_and_usage,
     get_cost_and_usage_with_resources,
@@ -38,6 +43,7 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_operations i
 from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_tools import (
     cost_explorer_server,
 )
+from botocore.validate import ParamValidator
 from datetime import datetime
 from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -1794,3 +1800,180 @@ async def test_tool_schema_publishes_structured_types():
     assert types('metrics') == {'string', 'array', 'null'}
     assert types('group_by') == {'string', 'array', 'null'}
     assert types('filter') == {'string', 'object', 'null'}
+
+
+def _registered_tool(server, tool_name):
+    """Return a registered tool as published to MCP clients."""
+
+    async def _get():
+        async with fastmcp.Client(server) as client:
+            tools = await client.list_tools()
+        return next(t for t in tools if t.name == tool_name)
+
+    return asyncio.run(_get())
+
+
+def _dimension_reference_keys(description):
+    """Return the keys listed in the DIMENSION REFERENCE block."""
+    block = description.split('DIMENSION REFERENCE:')[1].split('\n\n')[0]
+    return re.findall(r'^- ([A-Z_]+):', block, flags=re.MULTILINE)
+
+
+def _rendered_examples(description):
+    """Return every `{"operation": ...}` example exactly as the model sees it."""
+    return re.findall(
+        r'Example(?: \d)?(?: \([^)]*\))?: (\{"operation".*\})\s*$', description, re.M
+    )
+
+
+class TestCostExplorerDescriptionContract:
+    """The cost-explorer description matches Cost Explorer's real dimensions, values and shapes."""
+
+    @pytest.fixture(scope='class')
+    def tool(self):
+        """The registered cost-explorer tool."""
+        ce_mod = _reload_ce_with_registered_tools()
+        return _registered_tool(ce_mod.cost_explorer_server, 'cost-explorer')
+
+    @pytest.mark.parametrize(
+        'module_name, tool_name, server_attr',
+        [
+            ('cost_explorer_tools', 'cost-explorer', 'cost_explorer_server'),
+            ('ri_performance_tools', 'ri-performance', 'ri_performance_server'),
+            ('cost_comparison_tools', 'cost-comparison', 'cost_comparison_server'),
+        ],
+    )
+    def test_tenancy_reference_uses_exact_ce_values(self, module_name, tool_name, server_attr):
+        """TENANCY lists the case-sensitive values Cost Explorer matches: Shared, Dedicated, Host."""
+        module = importlib.reload(
+            importlib.import_module(
+                f'awslabs.billing_cost_management_mcp_server.tools.{module_name}'
+            )
+        )
+        description = _registered_tool(getattr(module, server_attr), tool_name).description or ''
+        # The TENANCY entry is its line plus any indented continuation lines.
+        match = re.search(r'^- TENANCY:.*(?:\n  .*)*', description, re.MULTILINE)
+        assert match is not None
+        tenancy = match.group(0)
+        assert 'case-sensitive' in tenancy
+        for value in ('Shared', 'Dedicated', 'Host'):
+            assert re.search(rf'\b{value}\b', tenancy)
+        for wrong in ('shared', 'dedicated', 'default', 'SHARED', 'DEDICATED', 'HOST'):
+            assert not re.search(rf'\b{wrong}\b', tenancy)
+
+    def test_description_prefers_monthly_for_whole_month_rankings(self, tool):
+        """Whole-month totals and rankings are steered to MONTHLY; the code default stays DAILY."""
+        assert 'DAILY granularity for periods <3 months' not in tool.description
+        assert (
+            'Use MONTHLY granularity for totals or rankings over whole months' in tool.description
+        )
+        assert tool.input_schema['properties']['granularity']['default'] == 'DAILY'
+
+    def test_dimension_reference_keys_are_ce_dimensions(self, tool):
+        """Every DIMENSION REFERENCE key except the TAG note is in botocore's ce Dimension enum."""
+        enum = set(
+            botocore.session.get_session().get_service_model('ce').shape_for('Dimension').enum
+        )
+        keys = _dimension_reference_keys(tool.description)
+        assert set(keys) - enum == {'TAG'}
+        tag_line = next(ln for ln in tool.description.splitlines() if ln.startswith('- TAG:'))
+        assert 'getTagsOrValues' in tag_line
+
+    def test_dimension_reference_names_commonly_needed_keys(self, tool):
+        """OPERATION, BILLING_ENTITY, RESOURCE_ID, USAGE_TYPE_GROUP and INVOICING_ENTITY are listed."""
+        keys = _dimension_reference_keys(tool.description)
+        for key in (
+            'OPERATION',
+            'BILLING_ENTITY',
+            'RESOURCE_ID',
+            'USAGE_TYPE_GROUP',
+            'INVOICING_ENTITY',
+        ):
+            assert key in keys
+        resource_line = next(
+            ln for ln in tool.description.splitlines() if ln.startswith('- RESOURCE_ID:')
+        )
+        assert 'getCostAndUsageWithResources' in resource_line
+        assert '14 days' in resource_line
+
+    def test_every_rendered_example_validates_against_input_schema(self, tool):
+        """Each example is valid JSON and satisfies the published input schema."""
+        examples = _rendered_examples(tool.description)
+        assert len(examples) >= 12
+        for example in examples:
+            jsonschema.validate(json.loads(example), tool.input_schema)
+
+    def test_rendered_examples_json_encode_structured_params(self, tool):
+        """Examples pass metrics, group_by and filter as JSON strings that decode cleanly.
+
+        Copies of this description (and older clients) may type these parameters as plain
+        strings, so the examples use the form every variant accepts.
+        """
+        for example in _rendered_examples(tool.description):
+            call = json.loads(example)
+            for name in ('metrics', 'group_by', 'filter'):
+                if name in call:
+                    assert isinstance(call[name], str), (name, example)
+                    json.loads(call[name])
+
+    def test_filter_grammar_states_values_rules_and_examples_follow_them(self, tool):
+        """Dimensions need Values; ABSENT leaves omit Values; every documented filter complies."""
+        grammar = tool.description.split('FILTER EXPRESSION GRAMMAR')[1].split('## OPERATIONS')[0]
+        assert 'Dimensions: `Values` is required and must not be empty.' in grammar
+        assert 'omit `Values` entirely' in grammar
+
+        documented = [
+            json.loads(example)
+            for example in re.findall(r'^- `(\{.*\})`$', grammar, flags=re.MULTILINE)
+        ]
+        documented += [
+            json.loads(json.loads(e)['filter'])
+            for e in _rendered_examples(tool.description)
+            if '"filter"' in e
+        ]
+        assert any('ABSENT' in json.dumps(f) for f in documented)
+
+        def leaves(expression):
+            for key, value in expression.items():
+                if key in ('And', 'Or'):
+                    for child in value:
+                        yield from leaves(child)
+                elif key == 'Not':
+                    yield from leaves(value)
+                else:
+                    yield key, value
+
+        for expression in documented:
+            for leaf_type, leaf in leaves(expression):
+                if 'ABSENT' in leaf.get('MatchOptions', []):
+                    assert leaf_type in ('Tags', 'CostCategories')
+                    assert 'Values' not in leaf
+                else:
+                    assert leaf['Values']
+
+    def test_documented_filters_pass_botocore_validation(self, tool):
+        """Every filter in an example is a valid Cost Explorer Expression."""
+        validator = ParamValidator()
+        input_shape = (
+            botocore.session.get_session()
+            .get_service_model('ce')
+            .operation_model('GetCostAndUsage')
+            .input_shape
+        )
+        filters = [
+            json.loads(json.loads(e)['filter'])
+            for e in _rendered_examples(tool.description)
+            if '"filter"' in e
+        ]
+        assert filters
+        for expression in filters:
+            report = validator.validate(
+                {
+                    'TimePeriod': {'Start': '2026-01-01', 'End': '2026-02-01'},
+                    'Granularity': 'MONTHLY',
+                    'Metrics': ['UnblendedCost'],
+                    'Filter': expression,
+                },
+                input_shape,
+            )
+            assert not report.has_errors(), report.generate_report()
