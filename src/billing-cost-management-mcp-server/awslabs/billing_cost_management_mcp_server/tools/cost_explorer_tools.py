@@ -169,7 +169,7 @@ Correct filter examples (remember: the `filter` argument is itself JSON STRING-E
    Required: operation="getSavingsPlansUtilization", start_date, end_date
    Optional: granularity, filter
    Example: {"operation": "getSavingsPlansUtilization", "granularity": "MONTHLY"}
-   Notes: Supports only DAILY and MONTHLY granularity. start_date must be within the last 13 months, and end_date must be before the current date.
+   Notes: Supports only DAILY and MONTHLY granularity. start_date must be within the last 13 months, and end_date must be before the current date. Data lags ~1 day: a window ending today (an incomplete UTC day) may come back empty or as a DataUnavailableException. A DataUnavailableException here means there is no Savings Plans data for THIS window (no active plans, or the window is outside the plan period) — report none/zero and do NOT retry the identical window; change the window (e.g. set end_date to yesterday) instead.
    Returns: Savings Plans utilization for the specified time period
 
 DIMENSION REFERENCE:

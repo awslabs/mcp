@@ -46,6 +46,34 @@ This tool provides insights into your Savings Plans usage patterns through three
 2. get_savings_plans_utilization: Shows overall utilization metrics for your Savings Plans
 3. get_savings_plans_utilization_details: Shows detailed per-Savings Plan utilization
 
+COVERAGE grouping and filtering (get_savings_plans_coverage):
+- group_by accepts ONLY INSTANCE_FAMILY, REGION, or SERVICE. LINKED_ACCOUNT is
+  NOT a valid group_by attribute — grouping by it returns a ValidationException.
+- filter accepts LINKED_ACCOUNT, REGION, SERVICE, INSTANCE_FAMILY. To see coverage
+  per member account, FILTER by one LINKED_ACCOUNT and call once per account; do
+  not try to group_by LINKED_ACCOUNT.
+- Each group_by entry is a GroupDefinition with Type and Key, e.g.
+  `[{"Type": "DIMENSION", "Key": "REGION"}]`. There is no "Value" field in a
+  group_by entry — a `{Key, Value}` shape is rejected (seen as a boto
+  ParamValidationError typed validation_error).
+
+DATES AND DATA FRESHNESS (all three operations):
+- start_date must be within the last 13 months (the Cost Explorer lookback); an
+  older start_date returns a ValidationException.
+- Savings Plans data lags roughly one day. A window whose end_date is today (an
+  incomplete UTC day) commonly comes back as a DataUnavailableException with an
+  empty message. Set end_date to exclude today (end_date is exclusive), then the
+  window resolves. A DataUnavailableException means there is no data for THIS
+  window (no active plans, or the window is outside the plan period); report none
+  and do NOT retry the identical request — change the window instead.
+
+UTILIZATION DETAILS filters (get_savings_plans_utilization_details):
+- The filter is a Cost Explorer Expression. And/Or each require at least TWO
+  operands ("And expression must have at least 2 operands"). For a single
+  condition, pass the leaf object directly — e.g.
+  `{"Dimensions": {"Key": "REGION", "Values": ["us-east-1"]}}` — not wrapped in
+  a one-element `And`/`Or`.
+
 IMPORTANT: For get_savings_plans_coverage, `granularity` and `group_by` are mutually
 exclusive. If `group_by` is provided, `granularity` is ignored (the Cost Explorer
 GetSavingsPlansCoverage API does not allow both). Valid `group_by` dimensions for
@@ -67,12 +95,12 @@ async def sp_performance(
     Args:
         ctx: The MCP context object
         operation: The operation to perform: 'get_savings_plans_coverage', 'get_savings_plans_utilization', or 'get_savings_plans_utilization_details'
-        start_date: Start date in YYYY-MM-DD format (inclusive). Defaults to 30 days ago if not provided.
-        end_date: End date in YYYY-MM-DD format (exclusive). Defaults to today if not provided.
+        start_date: Start date in YYYY-MM-DD format (inclusive). Defaults to 30 days ago if not provided. Must be within the last 13 months.
+        end_date: End date in YYYY-MM-DD format (exclusive). Defaults to today if not provided. Savings Plans data lags ~1 day; a window ending today may return an empty-message DataUnavailableException, so set end_date to exclude today.
         granularity: Time granularity of the data (DAILY or MONTHLY). Defaults to DAILY. For coverage, ignored when group_by is provided (granularity and group_by are mutually exclusive).
         metrics: List of metrics to retrieve as a JSON string. For coverage, only 'SpendCoveredBySavingsPlans' is valid.
-        group_by: Optional grouping of results as a JSON string. For coverage, supports SERVICE, REGION, or INSTANCE_FAMILY.
-        filter: Optional filter to apply to the results as a JSON string.
+        group_by: Optional grouping of results as a JSON string. For coverage, supports SERVICE, REGION, or INSTANCE_FAMILY (NOT LINKED_ACCOUNT). Each entry is {"Type": ..., "Key": ...}; there is no "Value" field.
+        filter: Optional filter to apply to the results as a JSON string. Coverage filter dimensions: LINKED_ACCOUNT, REGION, SERVICE, INSTANCE_FAMILY. And/Or need >=2 operands; for one condition pass the leaf object directly.
         max_results: Maximum number of results to return per page.
 
     Returns:
