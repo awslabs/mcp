@@ -1018,6 +1018,15 @@ class TestDerivePaginationEnvelope:
             'pagination': block,
         }
 
+    def test_raw_token_fields_are_not_pagination(self):
+        """Only the pagination block counts; a raw service token field is ignored."""
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _derive_pagination_envelope,
+        )
+
+        assert _derive_pagination_envelope({'PriceList': ['{}'], 'NextToken': 'page2'}) == {}
+        assert _derive_pagination_envelope({'Pagination': {'has_more': True}}) == {}
+
     def test_non_paginated_response_returns_empty(self):
         """Forecast / pricing responses without pagination markers get an empty envelope so unrelated APIs aren't polluted."""
         from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
@@ -1050,144 +1059,6 @@ class TestDerivePaginationEnvelope:
             )
 
         assert result.get('next_page_token') == 'caller-override'
-
-
-class TestDeriveLegacyPaginationEnvelope:
-    """Shapes from tools not yet moved to paginate_aws_items still reach the offload result."""
-
-    def test_from_paginated_wrapper(self):
-        """Response with a Pagination sub-dict (paginate_aws_response output) populates the envelope."""
-        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
-            _derive_pagination_envelope,
-        )
-
-        response = {
-            'ResultsByTime': [{'TimePeriod': {'Start': '2023-01-01'}}],
-            'Pagination': {
-                'next_token': 'page2',
-                'has_more': True,
-                'pages_fetched': 3,
-                'complete_dataset': False,
-            },
-        }
-
-        assert _derive_pagination_envelope(response) == {
-            'next_page_token': 'page2',
-            'has_more': True,
-            'pages_fetched': 3,
-        }
-
-    def test_from_single_page_response_with_token(self):
-        """Single-page boto3 response with NextPageToken populates the envelope."""
-        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
-            _derive_pagination_envelope,
-        )
-
-        response = {
-            'ResultsByTime': [{'TimePeriod': {'Start': '2023-01-01'}}],
-            'NextPageToken': 'continue-here',
-        }
-
-        assert _derive_pagination_envelope(response) == {
-            'next_page_token': 'continue-here',
-            'has_more': True,
-            'pages_fetched': 1,
-        }
-
-    def test_from_single_page_response_with_null_token(self):
-        """Final-page boto3 response (NextPageToken present but None) marks has_more=False."""
-        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
-            _derive_pagination_envelope,
-        )
-
-        response = {'ResultsByTime': [], 'NextPageToken': None}
-
-        assert _derive_pagination_envelope(response) == {
-            'next_page_token': None,
-            'has_more': False,
-            'pages_fetched': 1,
-        }
-
-    def test_custom_token_key(self):
-        """token_key picks up alternative continuation-token field names (e.g. NextToken)."""
-        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
-            _derive_pagination_envelope,
-        )
-
-        response = {'PriceList': ['{...}'], 'NextToken': 'page2'}
-
-        assert _derive_pagination_envelope(response, token_key='NextToken') == {
-            'next_page_token': 'page2',
-            'has_more': True,
-            'pages_fetched': 1,
-        }
-
-    def test_pagination_block_wins_over_legacy_fields(self):
-        """A response carrying the lowercase block is read as the new format only."""
-        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
-            _derive_pagination_envelope,
-        )
-
-        block = {
-            'complete_dataset': True,
-            'has_more': False,
-            'next_token': None,
-            'items_returned': 1,
-        }
-        response = {'items': [1], 'NextPageToken': 'stale', 'pagination': block}
-
-        assert _derive_pagination_envelope(response) == {
-            'complete_dataset': True,
-            'pagination': block,
-        }
-
-    @pytest.mark.asyncio
-    @pytest.mark.parametrize(
-        'response,token_key,expected',
-        [
-            (
-                {
-                    'ResultsByTime': [{'a': 1}],
-                    'Pagination': {'next_token': 'page2', 'has_more': True, 'pages_fetched': 2},
-                },
-                'NextPageToken',
-                {'next_page_token': 'page2', 'has_more': True, 'pages_fetched': 2},
-            ),
-            (
-                {'segments': [{'a': 1}], 'nextToken': 'tok'},
-                'nextToken',
-                {'next_page_token': 'tok', 'has_more': True, 'pages_fetched': 1},
-            ),
-        ],
-        ids=['pagination_wrapper', 'single_page_token'],
-    )
-    async def test_legacy_shapes_reach_offload_sentinel(self, response, token_key, expected):
-        """convert_response_if_needed carries both legacy shapes into the offload result."""
-        mock_context = MagicMock(spec=Context)
-        mock_context.info = AsyncMock()
-
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.should_convert_to_sql',
-            return_value=True,
-        ):
-            result = await convert_response_if_needed(
-                mock_context, response, 'legacy_api', pagination_token_key=token_key
-            )
-
-        assert result['data_stored'] is True
-        assert {key: result.get(key) for key in expected} == expected
-        assert 'complete_dataset' not in result
-        assert 'pagination' not in result
-
-    @pytest.mark.asyncio
-    async def test_legacy_shape_below_threshold_is_returned_unchanged(self):
-        """A small legacy response is returned as is, with no partial-data lead."""
-        mock_context = MagicMock(spec=Context)
-        response = {'ResultsByTime': [], 'Pagination': {'next_token': 't', 'has_more': True}}
-
-        result = await convert_response_if_needed(mock_context, response, 'legacy_api')
-
-        assert result is response
 
 
 @pytest.mark.asyncio

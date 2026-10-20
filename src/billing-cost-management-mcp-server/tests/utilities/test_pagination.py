@@ -290,6 +290,29 @@ class TestMaxItems:
         assert len(items) == 10
         assert pagination['next_token'] == 't1'
 
+    async def test_page_size_is_at_least_page_min(self, ctx):
+        """A remainder below page_min requests page_min; the stop rule counts that size."""
+        spec = PageSpec(
+            result_key='items',
+            token_param='NextToken',
+            token_key_in_response='NextToken',
+            page_max=300,
+            page_size_param='MaxResults',
+            page_min=200,
+        )
+        api = MagicMock(
+            side_effect=[
+                {'items': list(range(300)), 'NextToken': 't1'},
+                {'items': list(range(200)), 'NextToken': 't2'},
+            ]
+        )
+
+        items, _, pagination = await paginate_aws_items(ctx, 'op', api, {}, spec, max_items=500)
+
+        assert [call.kwargs['MaxResults'] for call in api.call_args_list] == [300, 200]
+        assert len(items) == 500
+        assert pagination['next_token'] == 't2'
+
     async def test_items_per_page_unit(self, ctx):
         """Page size counts parents: request floor(remaining / unit) of them."""
         spec = PageSpec(
@@ -382,6 +405,100 @@ class TestPagingLimitConfig:
             monkeypatch.setenv('BCM_MCP_TEST_LIMIT', raw)
 
         assert constants._positive_int_env('BCM_MCP_TEST_LIMIT', 7) == expected
+
+
+FIXED = PageSpec(
+    result_key='items',
+    token_param='NextPageToken',
+    token_key_in_response='NextPageToken',
+    page_max=500,
+    page_size_param='MaxResults',
+    fixed_page_size=True,
+)
+
+
+@pytest.mark.asyncio
+class TestMaxPages:
+    """With max_pages the helper fetches at most that many whole pages."""
+
+    async def test_one_page(self, ctx):
+        """max_pages=1 fetches one page at the spec's size and returns the service token."""
+        api = MagicMock(side_effect=_pages(500, 500, token_param='NextPageToken'))
+
+        items, pages, pagination = await paginate_aws_items(ctx, 'op', api, {}, FIXED, max_pages=1)
+
+        assert len(items) == 500
+        assert len(pages) == 1
+        assert api.call_args_list[0].kwargs == {'MaxResults': 500}
+        assert pagination['next_token'] == 't1'
+        assert pagination['complete_dataset'] is False
+        assert pagination['has_more'] is True
+
+    async def test_two_pages_return_every_item(self, ctx):
+        """max_pages=2 fetches two pages, both at the same size, and keeps every item."""
+        api = MagicMock(side_effect=_pages(500, 500, 500, token_param='NextPageToken'))
+
+        items, _, pagination = await paginate_aws_items(
+            ctx, 'op', api, {}, FIXED, max_pages=2, next_token='t0'
+        )
+
+        assert len(items) == 1000
+        assert [call.kwargs for call in api.call_args_list] == [
+            {'NextPageToken': 't0', 'MaxResults': 500},
+            {'NextPageToken': 't1', 'MaxResults': 500},
+        ]
+        assert pagination['next_token'] == 't2'
+        assert pagination['items_returned'] == 1000
+
+    async def test_data_ending_first_is_complete(self, ctx):
+        """When the data ends before max_pages the result is complete."""
+        api = MagicMock(side_effect=_pages(500, 20, token_param='NextPageToken'))
+
+        items, _, pagination = await paginate_aws_items(ctx, 'op', api, {}, FIXED, max_pages=5)
+
+        assert len(items) == 520
+        assert api.call_count == 2
+        assert pagination['complete_dataset'] is True
+        assert pagination['next_token'] is None
+        assert 'warning' not in pagination
+
+    async def test_warning_names_max_pages(self, ctx):
+        """A result cut by max_pages tells the caller to raise max_pages, not max_items."""
+        api = MagicMock(side_effect=_pages(500, 500, token_param='NextPageToken'))
+
+        _, _, pagination = await paginate_aws_items(ctx, 'op', api, {}, FIXED, max_pages=1)
+
+        assert pagination['warning'] == partial_data_warning(500, 'max_pages')
+        assert (
+            'Call again with a larger max_pages, continue with next_token'
+            in (pagination['warning'])
+        )
+        assert 'max_items' not in pagination['warning']
+
+    async def test_default_warning_names_max_items(self):
+        """Without a parameter name the warning keeps pointing at max_items."""
+        assert 'Call again with a larger max_items,' in partial_data_warning(3)
+
+    async def test_with_max_items_is_rejected(self, ctx):
+        """max_pages and max_items are mutually exclusive."""
+        api = MagicMock()
+
+        with pytest.raises(ValueError, match='max_pages and max_items'):
+            await paginate_aws_items(ctx, 'op', api, {}, FIXED, max_items=10, max_pages=1)
+
+        api.assert_not_called()
+
+    @pytest.mark.parametrize('max_pages', [0, -1])
+    async def test_below_one_is_rejected(self, ctx, max_pages):
+        """A max_pages below 1 is a validation error, before any call is made."""
+        api = MagicMock()
+
+        with pytest.raises(
+            ValueError, match='max_pages must be at least 1. Omit it to fetch every page.'
+        ):
+            await paginate_aws_items(ctx, 'op', api, {}, FIXED, max_pages=max_pages)
+
+        api.assert_not_called()
 
 
 @pytest.mark.asyncio

@@ -385,11 +385,9 @@ The server uses these key environment variables:
 
 ## Pagination
 
-`cost-anomaly`, `list-cost-category-definitions`, `list-cost-allocation-tags`, `list-cost-allocation-tag-backfill-history`, `invoicing`, `invoice-units`, the billing view tools, `get-billing-preferences`, `procurement-preferences`, `enterprise-support`, `sp-purchase-analyzer`, `sp-explorer`, `free-tier-usage`, `bcm-pricing-calc`, the Billing Conductor tools and `compute-optimizer` page as described here; the other list tools keep their current paging parameters until they move to it.
+List tools take `max_items` (the total number of items to return) and `next_token`. Without `max_items` a tool fetches every page; with it, the tool stops before a page that could take the result past `max_items` (the first page is always returned). `ri-performance` `get_reservation_utilization` grouped by `SUBSCRIPTION_ID` takes `max_pages` instead of `max_items`: its `next_token` only works with the same page size, so it returns whole pages of 500 groups; omit `max_pages` to fetch every page. Billing Conductor `get-billing-group-cost-report` requests pages of 200 to 300 results, the range the service accepts, so a `max_items` below 200 can return up to 200. `next_token` in a response is the AWS service's own continuation token: pass it back, with every other parameter unchanged, to get the next items.
 
-These tools take `max_items` (the total number of items to return) and `next_token`. Without `max_items` a tool fetches every page; with it, the tool stops before a page that could take the result past `max_items` (the first page is always returned). `next_token` in a response is the AWS service's own continuation token: pass it back, with every other parameter unchanged, to get the next items.
-
-A response that stops before the end of the data leads with `complete_dataset: false` and a `warning`, and every response from these tools carries a `pagination` block:
+A response that stops before the end of the data leads with `complete_dataset: false` and a `warning`, and every paginated response carries a `pagination` block:
 
 ```json
 {"complete_dataset": false, "warning": "Partial data: ...", "pagination": {"complete_dataset": false, "has_more": true, "next_token": "<service token>", "items_returned": 5000}, "...": "data"}

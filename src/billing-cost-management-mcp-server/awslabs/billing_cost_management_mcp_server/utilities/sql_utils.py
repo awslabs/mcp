@@ -586,67 +586,24 @@ def _create_and_insert(
     return count
 
 
-def _derive_legacy_pagination_envelope(
-    response: Dict[str, Any], token_key: str = 'NextPageToken'
-) -> Dict[str, Any]:
-    """Extract pagination metadata from a tool not yet moved to ``paginate_aws_items``.
-
-    Recognizes two shapes produced upstream:
-
-    - Multi-page wrapper built by callers after ``paginate_aws_response``:
-      ``{'<ResultsKey>': [...], 'Pagination': {next_token, has_more, pages_fetched, ...}}``
-    - Single-page raw boto3 response with a continuation-token field (e.g.
-      ``NextPageToken``).
-
-    Args:
-        response: The API response (or paginated wrapper) being offloaded.
-        token_key: Name of the continuation-token field in the single-page
-            boto3 response.
-
-    Returns:
-        Dict with ``next_page_token``, ``has_more``, ``pages_fetched`` keys.
-        Empty dict if the response carries no pagination markers.
-    """
-    if 'Pagination' in response and isinstance(response['Pagination'], dict):
-        pag_meta = response['Pagination']
-        return {
-            'next_page_token': pag_meta.get('next_token'),
-            'has_more': pag_meta.get('has_more', False),
-            'pages_fetched': pag_meta.get('pages_fetched'),
-        }
-    if token_key in response:
-        token = response.get(token_key)
-        return {
-            'next_page_token': token,
-            'has_more': bool(token),
-            'pages_fetched': 1,
-        }
-    return {}
-
-
-def _derive_pagination_envelope(
-    response: Dict[str, Any], token_key: str = 'NextPageToken'
-) -> Dict[str, Any]:
+def _derive_pagination_envelope(response: Dict[str, Any]) -> Dict[str, Any]:
     """Extract the pagination block from a response so it survives SQL offload.
 
     Reads the lowercase ``pagination`` block attached by
     ``aws_service_base.with_pagination``. A partial result's ``warning`` sits at the top
-    level of the response. A response without that block falls back to the shapes of
-    tools not yet moved to ``paginate_aws_items`` (see
-    ``_derive_legacy_pagination_envelope``).
+    level of the response.
 
     Args:
         response: The tool response being offloaded.
-        token_key: Continuation-token field of a legacy single-page response.
 
     Returns:
         ``{'complete_dataset', 'warning' (partial only), 'pagination': {...}}``, in that
         order so the partial-data signal leads. Empty dict if the response carries no
-        pagination markers (e.g. a forecast response).
+        pagination block (e.g. a forecast response).
     """
     block = response.get('pagination')
     if not isinstance(block, dict):
-        return _derive_legacy_pagination_envelope(response, token_key)
+        return {}
     complete = bool(block.get('complete_dataset', True))
     envelope: Dict[str, Any] = {'complete_dataset': complete}
     if not complete:
@@ -661,7 +618,6 @@ async def convert_response_if_needed(
     ctx: Context,
     response: Dict[str, Any],
     api_name: str,
-    pagination_token_key: str = 'NextPageToken',
     **metadata,
 ) -> Dict[str, Any]:
     """Offload an API response to SQL if it exceeds the size threshold.
@@ -681,8 +637,6 @@ async def convert_response_if_needed(
         ctx: MCP context
         response: API response data
         api_name: Name of the API operation (e.g. 'aws_pricing_get_products')
-        pagination_token_key: Name of the continuation-token field in a legacy
-            single-page boto3 response. Defaults to 'NextPageToken'.
         **metadata: Additional metadata to include in the offload sentinel.
 
     Returns:
@@ -693,7 +647,7 @@ async def convert_response_if_needed(
 
     # Pull pagination markers out of the response so they survive offload —
     # caller-provided metadata still wins on key conflict.
-    metadata = {**_derive_pagination_envelope(response, pagination_token_key), **metadata}
+    metadata = {**_derive_pagination_envelope(response), **metadata}
 
     # Inline results lead with the partial-data signal too, so it is read before the data.
     inline_response = response

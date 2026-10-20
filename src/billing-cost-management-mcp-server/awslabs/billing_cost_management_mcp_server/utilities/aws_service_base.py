@@ -385,6 +385,8 @@ class PageSpec:
         page_max: Largest number of items one page can hold.
         page_size_param: Request field that sets the page size, or None when the
             service chooses the page size.
+        page_min: Smallest page size the service accepts. A smaller request is raised
+            to it, so near ``max_items`` a page can hold up to ``page_min`` items.
         fixed_page_size: Always request ``page_max``. For services whose token is bound
             to the page size, so a continuation must repeat it.
         items_per_page_unit: Items each unit of page size can return. For APIs whose
@@ -405,6 +407,7 @@ class PageSpec:
     token_key_in_response: str
     page_max: int
     page_size_param: Optional[str] = None
+    page_min: int = 1
     fixed_page_size: bool = False
     items_per_page_unit: int = 1
     count_items: Callable[[List[Any]], int] = len
@@ -412,12 +415,17 @@ class PageSpec:
     caller_token_error_codes: FrozenSet[str] = frozenset()
 
 
-def partial_data_warning(items_returned: int) -> str:
-    """Build the warning attached to a result that stopped before the last page."""
+def partial_data_warning(items_returned: int, limit_param: str = 'max_items') -> str:
+    """Build the warning attached to a result that stopped before the last page.
+
+    Args:
+        items_returned: Items in the result.
+        limit_param: The parameter that stopped paging (``max_items`` or ``max_pages``).
+    """
     return (
         f'Partial data: returned {items_returned} items and more remain. Totals, counts and '
         'top-N computed from this result undercount the real data. Call again with a larger '
-        'max_items, continue with next_token, or state in the answer that the result is '
+        f'{limit_param}, continue with next_token, or state in the answer that the result is '
         'partial. Do not report the number of items returned as a total count.'
     )
 
@@ -479,106 +487,8 @@ def _page_size(spec: PageSpec, max_items: Optional[int], collected: int) -> Opti
     largest = spec.page_max // unit
     if spec.fixed_page_size or max_items is None:
         return largest
-    # Never request a page of 0, which some services reject.
-    return max(min(largest, (max_items - collected) // unit), 1)
-
-
-# Superseded by paginate_aws_items; kept until every tool has moved to it.
-async def paginate_aws_response(
-    ctx: Context,
-    operation_name: str,
-    api_function: Any,
-    request_params: Dict[str, Any],
-    result_key: str,
-    token_param: str = 'NextToken',
-    token_key: str = 'NextToken',
-    max_pages: Optional[int] = None,
-) -> Tuple[List[Any], Dict[str, Any]]:
-    """Handle pagination for AWS API calls.
-
-    Args:
-        ctx: The MCP context object
-        operation_name: Name of the operation (for logging)
-        api_function: Function to call for each page
-        request_params: Parameters to pass to the API function
-        result_key: Key in the response that contains the results list
-        token_param: Parameter name for the pagination token in the request
-        token_key: Key name for the pagination token in the response
-        max_pages: Maximum number of pages to fetch (optional)
-
-    Returns:
-        Tuple of (combined_results, pagination_metadata)
-    """
-    # Get context logger for consistent logging
-    ctx_logger = get_context_logger(ctx, __name__)
-
-    all_results = []
-    current_token = None
-    pages_fetched = 0
-
-    # For performance timing
-    start_time = datetime.now()
-
-    # Fetch all pages
-    while True:
-        # Add token if we have one
-        if current_token:
-            request_params[token_param] = current_token
-
-        # Make API call for current page
-        page_info = f'Fetching {operation_name} page {pages_fetched + 1}{" using next_token" if current_token else ""}'
-        await ctx_logger.info(page_info)
-
-        try:
-            # Make the API call
-            response = api_function(**request_params)
-
-            # Get the results and add to combined list
-            results = response.get(result_key, [])
-            all_results.extend(results)
-
-            # Count pages
-            pages_fetched += 1
-            await ctx_logger.info(f'Received {len(results)} results (total: {len(all_results)})')
-
-            # Check if we have more pages
-            current_token = response.get(token_key)
-
-            # Stop conditions
-            if not current_token:
-                await ctx_logger.info('No more pages available')
-                break
-
-            if max_pages and pages_fetched >= max_pages:
-                await ctx_logger.info(f'Reached maximum pages limit ({max_pages})')
-                break
-
-        except Exception as e:
-            # Log error with both context and Loguru for consistent handling
-            error_msg = f'Error fetching page {pages_fetched + 1} of {operation_name}: {str(e)}'
-            await ctx_logger.error(error_msg, exc_info=True)
-            raise
-
-    # Log performance information
-    end_time = datetime.now()
-    duration_ms = (end_time - start_time).total_seconds() * 1000
-
-    # Create pagination metadata
-    pagination_metadata = {
-        'complete_dataset': not current_token,
-        'pages_fetched': pages_fetched,
-        'total_results': len(all_results),
-        'has_more': bool(current_token),
-        'next_token': current_token or None,
-        'duration_ms': int(duration_ms),
-    }
-
-    # Log completion with timing info
-    await ctx_logger.info(
-        f'Completed {operation_name} pagination: {pages_fetched} pages, {len(all_results)} results in {duration_ms:.1f}ms'
-    )
-
-    return all_results, pagination_metadata
+    # Never request a page of 0, which some services reject, or one below page_min.
+    return max(min(largest, (max_items - collected) // unit), spec.page_min, 1)
 
 
 async def paginate_aws_items(
@@ -590,8 +500,14 @@ async def paginate_aws_items(
     *,
     max_items: Optional[int] = None,
     next_token: Optional[str] = None,
+    max_pages: Optional[int] = None,
 ) -> Tuple[List[Any], List[Dict[str, Any]], Dict[str, Any]]:
     """Fetch pages until the data ends or the next page could exceed ``max_items``.
+
+    ``max_pages`` limits the call to a number of pages instead, each at the spec's page
+    size, and returns every item fetched. It is for operations whose token only works
+    with the same page size (``fixed_page_size``), where a page cannot shrink to fit
+    ``max_items``.
 
     Every request repeats ``request_params`` unchanged, apart from the token and,
     where the API allows, the page size: several services bind their token to the
@@ -605,6 +521,7 @@ async def paginate_aws_items(
         spec: How the operation pages.
         max_items: Most items to return. None fetches every page.
         next_token: The caller's token from a previous response.
+        max_pages: Most pages to fetch, instead of ``max_items``. None fetches every page.
 
     Returns:
         ``(items, pages, pagination)``: every kept item, the raw responses the items
@@ -612,12 +529,17 @@ async def paginate_aws_items(
         block (see ``with_pagination``).
 
     Raises:
-        ValueError: ``max_items`` is less than 1, or ``next_token`` is empty.
+        ValueError: ``max_items`` or ``max_pages`` is less than 1, both are set, or
+            ``next_token`` is empty.
         InvalidNextTokenError: The first page failed because ``next_token`` was rejected.
         Exception: Any other failure on the first page, unchanged.
     """
     if max_items is not None and max_items < 1:
         raise ValueError('max_items must be at least 1. Omit it to fetch every page.')
+    if max_pages is not None and max_items is not None:
+        raise ValueError('max_pages and max_items cannot be used together. Pass only one.')
+    if max_pages is not None and max_pages < 1:
+        raise ValueError('max_pages must be at least 1. Omit it to fetch every page.')
     if next_token is not None and not next_token.strip():
         # An empty token would silently restart from page 1 while the caller
         # believes the result continues a previous one.
@@ -638,6 +560,8 @@ async def paginate_aws_items(
 
     while True:
         if max_items is not None and pages and collected >= max_items:
+            break
+        if max_pages is not None and len(pages) >= max_pages:
             break
         if pages:
             limit_reached = paging_limit_reached(started)
@@ -718,7 +642,8 @@ async def paginate_aws_items(
     elif limit_reached and has_more:
         pagination['warning'] = paging_limit_warning(collected, limit_reached)
     elif has_more:
-        pagination['warning'] = partial_data_warning(collected)
+        limit_param = 'max_pages' if max_pages is not None else 'max_items'
+        pagination['warning'] = partial_data_warning(collected, limit_param)
     return items, pages, pagination
 
 
