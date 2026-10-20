@@ -55,12 +55,14 @@ MAX_ALLOCATION_HISTORY_SECONDS = 63072000
 # year because it is never wider than the limit, including across a leap day.
 MAX_CREDITS_LOOKBACK_SECONDS = 31536000
 
-# GetCreditAllocationHistory returns up to 1,000 ledger rows per page.
+# GetCreditAllocationHistory accepts maxResults up to 1,000 but clamps a page to 500 ledger rows,
+# and it only ends a page at a bill boundary, so a page can hold more rows than maxResults. The
+# helper keeps such an oversized page.
 GET_CREDIT_ALLOCATION_HISTORY_PAGE_SPEC = PageSpec(
     result_key='creditAllocationHistoryList',
     token_param='nextToken',
     token_key_in_response='nextToken',
-    page_max=1000,
+    page_max=500,
     page_size_param='maxResults',
 )
 

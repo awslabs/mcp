@@ -18,6 +18,7 @@ import boto3
 import pytest
 import sqlite3
 from awslabs.billing_cost_management_mcp_server.tools.credits_operations import (
+    GET_CREDIT_ALLOCATION_HISTORY_PAGE_SPEC,
     MAX_ALLOCATION_HISTORY_SECONDS,
     MAX_CREDITS_LOOKBACK_SECONDS,
     get_credit_allocation_history,
@@ -641,7 +642,7 @@ class TestGetCreditAllocationHistoryPagination:
         assert 'complete_dataset' not in data
         assert client.get_credit_allocation_history.call_count == 3
         assert all(
-            call.kwargs['maxResults'] == 1000
+            call.kwargs['maxResults'] == 500
             for call in client.get_credit_allocation_history.call_args_list
         )
 
@@ -663,6 +664,33 @@ class TestGetCreditAllocationHistoryPagination:
         assert pagination['next_token'] is None
         assert pagination['complete_dataset'] is True
         assert client.get_credit_allocation_history.call_count == 2
+
+    def test_page_max_is_the_service_clamp(self):
+        """The service clamps a page to 500 rows, so 500 is the largest page requested."""
+        assert GET_CREDIT_ALLOCATION_HISTORY_PAGE_SPEC.page_max == 500
+
+    @pytest.mark.asyncio
+    async def test_page_past_max_results_at_a_bill_boundary_is_kept(
+        self, mock_context, sample_allocation
+    ):
+        """A page ends only at a bill boundary, so rows beyond maxResults are kept."""
+        client = _get_credit_allocation_history_client(
+            [
+                {
+                    'creditAllocationHistoryList': [sample_allocation] * 520,
+                    'nextToken': 'page-2',
+                }
+            ]
+        )
+
+        result = await _call_get_credit_allocation_history(
+            mock_context, client, billing_period='2026-06', max_items=500
+        )
+
+        assert _paginate_call(client)['maxResults'] == 500
+        data = result['data']
+        assert data['pagination']['items_returned'] == 520
+        assert data['pagination']['next_token'] == 'page-2'
 
     @pytest.mark.asyncio
     async def test_max_items_stops_before_exceeding(self, mock_context, sample_allocation):
@@ -763,7 +791,7 @@ class TestGetCreditAllocationHistoryRealClient:
             'accountId': '123456789012',
             'startDate': ANY,
             'endDate': ANY,
-            'maxResults': 1000,
+            'maxResults': 500,
         }
         previous = None
         for token in page_tokens:
