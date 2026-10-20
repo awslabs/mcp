@@ -2103,9 +2103,9 @@ class TestConductorPaginationContract:
 
         data = result['data']
         assert getattr(mock_client, method).call_count == 1
-        # The page size asks for exactly the remainder, except where it is fixed (300) or set
-        # by the service.
-        expected_size = None if page_size is None else (300 if page_size == 300 else 3)
+        # The page size asks for exactly the remainder, except where the service sets it or
+        # needs at least 200 (the cost report).
+        expected_size = None if page_size is None else (200 if page_size == 300 else 3)
         assert getattr(mock_client, method).call_args.kwargs.get('MaxResults') == expected_size
         assert len(data[data_key]) == 3
         assert list(data)[:2] == ['complete_dataset', 'warning']
@@ -2188,27 +2188,39 @@ class TestConductorPaginationContract:
         assert result['data']['pagination']['items_returned'] == 150
         assert result['data']['pagination']['next_token'] == 'svc-3'
 
+    @pytest.mark.parametrize(
+        'max_items,pages,sizes,items_returned',
+        [
+            # 300, then 150 remain: the 200 minimum could pass 450, so the call stops.
+            (450, [300], [300], 300),
+            # 300, then exactly the 200 minimum fits.
+            (500, [300, 200], [300, 200], 500),
+            # Below the minimum one page of 200 is requested and returned whole.
+            (10, [200], [200], 200),
+        ],
+    )
     @patch(PATCH_BC_CLIENT)
-    async def test_cost_report_resends_fixed_page_size_on_continuation(
-        self, mock_create_client, mock_ctx
+    async def test_cost_report_pages_between_200_and_300(
+        self, mock_create_client, mock_ctx, max_items, pages, sizes, items_returned
     ):
-        """GetBillingGroupCostReport always sends MaxResults=300, even below max_items."""
+        """GetBillingGroupCostReport asks for 200-300 per page, sized from max_items."""
         mock_client = MagicMock()
         mock_client.get_billing_group_cost_report.side_effect = [
-            _page('BillingGroupCostReportResults', 300, token='svc-2'),
+            _page('BillingGroupCostReportResults', count, token=f'svc-{n + 2}', start=n * 300)
+            for n, count in enumerate(pages)
         ]
         mock_create_client.return_value = mock_client
 
         result = await get_billing_group_cost_report(
-            mock_ctx, BILLING_GROUP_ARN_1, max_items=500, next_token='caller-token'
+            mock_ctx, BILLING_GROUP_ARN_1, max_items=max_items, next_token='caller-token'
         )
 
-        # 300 collected; the next fixed page of 300 would pass 500, so the call stops.
-        assert mock_client.get_billing_group_cost_report.call_count == 1
-        call = mock_client.get_billing_group_cost_report.call_args.kwargs
-        assert call['MaxResults'] == 300
-        assert call['NextToken'] == 'caller-token'
-        assert result['data']['pagination']['next_token'] == 'svc-2'
+        calls = [c.kwargs for c in mock_client.get_billing_group_cost_report.call_args_list]
+        assert [call['MaxResults'] for call in calls] == sizes
+        assert calls[0]['NextToken'] == 'caller-token'
+        pagination = result['data']['pagination']
+        assert pagination['items_returned'] == items_returned
+        assert pagination['next_token'] == f'svc-{len(pages) + 1}'
 
     @pytest.mark.parametrize('code', ['ValidationException', 'InternalServerException'])
     @patch(PATCH_BC_CLIENT)

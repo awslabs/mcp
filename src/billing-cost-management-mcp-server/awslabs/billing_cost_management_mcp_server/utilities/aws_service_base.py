@@ -385,6 +385,8 @@ class PageSpec:
         page_max: Largest number of items one page can hold.
         page_size_param: Request field that sets the page size, or None when the
             service chooses the page size.
+        page_min: Smallest page size the service accepts. A smaller request is raised
+            to it, so near ``max_items`` a page can hold up to ``page_min`` items.
         fixed_page_size: Always request ``page_max``. For services whose token is bound
             to the page size, so a continuation must repeat it.
         items_per_page_unit: Items each unit of page size can return. For APIs whose
@@ -405,6 +407,7 @@ class PageSpec:
     token_key_in_response: str
     page_max: int
     page_size_param: Optional[str] = None
+    page_min: int = 1
     fixed_page_size: bool = False
     items_per_page_unit: int = 1
     count_items: Callable[[List[Any]], int] = len
@@ -484,8 +487,8 @@ def _page_size(spec: PageSpec, max_items: Optional[int], collected: int) -> Opti
     largest = spec.page_max // unit
     if spec.fixed_page_size or max_items is None:
         return largest
-    # Never request a page of 0, which some services reject.
-    return max(min(largest, (max_items - collected) // unit), 1)
+    # Never request a page of 0, which some services reject, or one below page_min.
+    return max(min(largest, (max_items - collected) // unit), spec.page_min, 1)
 
 
 async def paginate_aws_items(

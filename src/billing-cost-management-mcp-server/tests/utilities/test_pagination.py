@@ -290,6 +290,29 @@ class TestMaxItems:
         assert len(items) == 10
         assert pagination['next_token'] == 't1'
 
+    async def test_page_size_is_at_least_page_min(self, ctx):
+        """A remainder below page_min requests page_min; the stop rule counts that size."""
+        spec = PageSpec(
+            result_key='items',
+            token_param='NextToken',
+            token_key_in_response='NextToken',
+            page_max=300,
+            page_size_param='MaxResults',
+            page_min=200,
+        )
+        api = MagicMock(
+            side_effect=[
+                {'items': list(range(300)), 'NextToken': 't1'},
+                {'items': list(range(200)), 'NextToken': 't2'},
+            ]
+        )
+
+        items, _, pagination = await paginate_aws_items(ctx, 'op', api, {}, spec, max_items=500)
+
+        assert [call.kwargs['MaxResults'] for call in api.call_args_list] == [300, 200]
+        assert len(items) == 500
+        assert pagination['next_token'] == 't2'
+
     async def test_items_per_page_unit(self, ctx):
         """Page size counts parents: request floor(remaining / unit) of them."""
         spec = PageSpec(

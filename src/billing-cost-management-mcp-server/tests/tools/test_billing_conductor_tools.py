@@ -127,6 +127,15 @@ def test_get_billing_group_cost_report_tool_registered():
     assert tool.name == 'get-billing-group-cost-report'
 
 
+def test_get_billing_group_cost_report_describes_page_sizes():
+    """The description gives the 200-300 page size and what it means for a small max_items."""
+    tool = asyncio.run(billing_conductor_server.get_tool('get-billing-group-cost-report'))
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+    assert 'Results come in pages of up to 300' in description
+    assert 'a `max_items` below 200 can return up to 200' in description
+
+
 def test_list_pricing_rules_tool_registered():
     """Test that the list_pricing_rules tool is registered."""
     tool = asyncio.run(billing_conductor_server.get_tool('list-pricing-rules'))
