@@ -37,6 +37,13 @@ from typing import Any, Dict, Optional
 
 AWS_PRICING_SERVICE_NAME = 'AWS Pricing'
 
+# Term and price dimension fields kept, when present, alongside the reduced
+# fields: termAttributes and offerTermCode tell Reserved lease lengths and
+# purchase options apart, and beginRange/endRange and rateCode tell price
+# tiers apart.
+TERM_DETAIL_KEYS = ('offerTermCode', 'sku', 'termAttributes')
+PRICE_DIMENSION_DETAIL_KEYS = ('rateCode', 'beginRange', 'endRange', 'appliesTo')
+
 PRICING_API_REGIONS = {
     'classic': ['us-east-1', 'eu-central-1', 'ap-south-1'],
     'china': ['cn-northwest-1'],
@@ -422,20 +429,24 @@ async def get_pricing_from_api(
                         price_dimensions = []
 
                         for _, dimension in term_details.get('priceDimensions', {}).items():
-                            price_dimensions.append(
-                                {
-                                    'description': dimension.get('description'),
-                                    'unit': dimension.get('unit'),
-                                    'pricePerUnit': dimension.get('pricePerUnit'),
-                                }
-                            )
-
-                        processed_terms[term_type].append(
-                            {
-                                'effectiveDate': term_details.get('effectiveDate'),
-                                'priceDimensions': price_dimensions,
+                            processed_dimension = {
+                                'description': dimension.get('description'),
+                                'unit': dimension.get('unit'),
+                                'pricePerUnit': dimension.get('pricePerUnit'),
                             }
-                        )
+                            for key in PRICE_DIMENSION_DETAIL_KEYS:
+                                if key in dimension:
+                                    processed_dimension[key] = dimension[key]
+                            price_dimensions.append(processed_dimension)
+
+                        processed_term = {
+                            'effectiveDate': term_details.get('effectiveDate'),
+                            'priceDimensions': price_dimensions,
+                        }
+                        for key in TERM_DETAIL_KEYS:
+                            if key in term_details:
+                                processed_term[key] = term_details[key]
+                        processed_terms[term_type].append(processed_term)
 
                 processed_product['terms'] = processed_terms
                 processed_products.append(processed_product)

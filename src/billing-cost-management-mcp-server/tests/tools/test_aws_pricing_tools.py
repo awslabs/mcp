@@ -1516,6 +1516,348 @@ class TestGetPricingFromApiAdditional:
         # Defaults to us-east-1 when AWS_REGION is not set
         mock_create_client.assert_called_once_with('pricing', 'us-east-1')
 
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_response_if_needed'
+    )
+    async def test_get_pricing_from_api_inline_keeps_tiered_terms(
+        self, mock_convert_table, mock_create_client, mock_context
+    ):
+        """Each tiered price dimension keeps its tier bounds and rate code."""
+        terms = {
+            'OnDemand': {
+                'S3SKU.JRTCKXETXF': {
+                    'offerTermCode': 'JRTCKXETXF',
+                    'sku': 'S3SKU',
+                    'effectiveDate': '2026-10-01T00:00:00Z',
+                    'priceDimensions': {
+                        'S3SKU.JRTCKXETXF.PGHJ3S3EYE': {
+                            'rateCode': 'S3SKU.JRTCKXETXF.PGHJ3S3EYE',
+                            'description': '$0.023 per GB - first 50 TB / month',
+                            'beginRange': '0',
+                            'endRange': '51200',
+                            'unit': 'GB-Mo',
+                            'pricePerUnit': {'USD': '0.0230000000'},
+                            'appliesTo': [],
+                        },
+                        'S3SKU.JRTCKXETXF.D42MF2PVJS': {
+                            'rateCode': 'S3SKU.JRTCKXETXF.D42MF2PVJS',
+                            'description': '$0.022 per GB - next 450 TB / month',
+                            'beginRange': '51200',
+                            'endRange': '512000',
+                            'unit': 'GB-Mo',
+                            'pricePerUnit': {'USD': '0.0220000000'},
+                            'appliesTo': [],
+                        },
+                    },
+                    'termAttributes': {},
+                }
+            },
+        }
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_products.return_value = {
+            'PriceList': [
+                json.dumps(
+                    {
+                        'product': {
+                            'sku': 'S3SKU',
+                            'productFamily': 'Storage',
+                            'attributes': {'storageClass': 'General Purpose'},
+                        },
+                        'terms': terms,
+                    }
+                )
+            ]
+        }
+        mock_convert_table.return_value = None
+
+        result = await get_pricing_from_api(mock_context, 'AmazonS3')
+
+        assert result['status'] == 'success'
+        assert len(result['data']['products']) == 1
+        product = result['data']['products'][0]
+        assert product['sku'] == 'S3SKU'
+        assert product['productFamily'] == 'Storage'
+        assert product['attributes'] == {'storageClass': 'General Purpose'}
+        assert product['terms'] == {
+            'OnDemand': [
+                {
+                    'effectiveDate': '2026-10-01T00:00:00Z',
+                    'priceDimensions': [
+                        {
+                            'description': '$0.023 per GB - first 50 TB / month',
+                            'unit': 'GB-Mo',
+                            'pricePerUnit': {'USD': '0.0230000000'},
+                            'rateCode': 'S3SKU.JRTCKXETXF.PGHJ3S3EYE',
+                            'beginRange': '0',
+                            'endRange': '51200',
+                            'appliesTo': [],
+                        },
+                        {
+                            'description': '$0.022 per GB - next 450 TB / month',
+                            'unit': 'GB-Mo',
+                            'pricePerUnit': {'USD': '0.0220000000'},
+                            'rateCode': 'S3SKU.JRTCKXETXF.D42MF2PVJS',
+                            'beginRange': '51200',
+                            'endRange': '512000',
+                            'appliesTo': [],
+                        },
+                    ],
+                    'offerTermCode': 'JRTCKXETXF',
+                    'sku': 'S3SKU',
+                    'termAttributes': {},
+                }
+            ]
+        }
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_response_if_needed'
+    )
+    async def test_get_pricing_from_api_inline_keeps_reserved_term_attributes(
+        self, mock_convert_table, mock_create_client, mock_context
+    ):
+        """Reserved terms keep the term attributes and codes that tell them apart."""
+        terms = {
+            'OnDemand': {
+                'EC2SKU.JRTCKXETXF': {
+                    'offerTermCode': 'JRTCKXETXF',
+                    'sku': 'EC2SKU',
+                    'effectiveDate': '2026-10-01T00:00:00Z',
+                    'priceDimensions': {
+                        'EC2SKU.JRTCKXETXF.6YS6EN2CT7': {
+                            'rateCode': 'EC2SKU.JRTCKXETXF.6YS6EN2CT7',
+                            'description': '$0.0104 per On Demand Linux t3.micro Instance Hour',
+                            'beginRange': '0',
+                            'endRange': 'Inf',
+                            'unit': 'Hrs',
+                            'pricePerUnit': {'USD': '0.0104000000'},
+                            'appliesTo': [],
+                        }
+                    },
+                    'termAttributes': {},
+                }
+            },
+            'Reserved': {
+                'EC2SKU.4NA7Y494T4': {
+                    'offerTermCode': '4NA7Y494T4',
+                    'sku': 'EC2SKU',
+                    'effectiveDate': '2026-10-01T00:00:00Z',
+                    'priceDimensions': {
+                        'EC2SKU.4NA7Y494T4.6YS6EN2CT7': {
+                            'rateCode': 'EC2SKU.4NA7Y494T4.6YS6EN2CT7',
+                            'description': 'Linux/UNIX (Amazon VPC), t3.micro reserved instance',
+                            'beginRange': '0',
+                            'endRange': 'Inf',
+                            'unit': 'Hrs',
+                            'pricePerUnit': {'USD': '0.0065000000'},
+                            'appliesTo': [],
+                        }
+                    },
+                    'termAttributes': {
+                        'LeaseContractLength': '1yr',
+                        'OfferingClass': 'standard',
+                        'PurchaseOption': 'No Upfront',
+                    },
+                },
+                'EC2SKU.38NPMPTW36': {
+                    'offerTermCode': '38NPMPTW36',
+                    'sku': 'EC2SKU',
+                    'effectiveDate': '2026-10-01T00:00:00Z',
+                    'priceDimensions': {
+                        'EC2SKU.38NPMPTW36.6YS6EN2CT7': {
+                            'rateCode': 'EC2SKU.38NPMPTW36.6YS6EN2CT7',
+                            'description': 'Linux/UNIX (Amazon VPC), t3.micro reserved instance',
+                            'beginRange': '0',
+                            'endRange': 'Inf',
+                            'unit': 'Hrs',
+                            'pricePerUnit': {'USD': '0.0045000000'},
+                            'appliesTo': [],
+                        }
+                    },
+                    'termAttributes': {
+                        'LeaseContractLength': '3yr',
+                        'OfferingClass': 'convertible',
+                        'PurchaseOption': 'Partial Upfront',
+                    },
+                },
+            },
+        }
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_products.return_value = {
+            'PriceList': [
+                json.dumps(
+                    {
+                        'product': {
+                            'sku': 'EC2SKU',
+                            'productFamily': 'Compute Instance',
+                            'attributes': {'instanceType': 't3.micro'},
+                        },
+                        'terms': terms,
+                    }
+                )
+            ]
+        }
+        mock_convert_table.return_value = None
+
+        result = await get_pricing_from_api(mock_context, 'AmazonEC2')
+
+        assert result['status'] == 'success'
+        assert len(result['data']['products']) == 1
+        product = result['data']['products'][0]
+        assert product['sku'] == 'EC2SKU'
+        assert product['productFamily'] == 'Compute Instance'
+        assert product['attributes'] == {'instanceType': 't3.micro'}
+        assert product['terms'] == {
+            'OnDemand': [
+                {
+                    'effectiveDate': '2026-10-01T00:00:00Z',
+                    'priceDimensions': [
+                        {
+                            'description': '$0.0104 per On Demand Linux t3.micro Instance Hour',
+                            'unit': 'Hrs',
+                            'pricePerUnit': {'USD': '0.0104000000'},
+                            'rateCode': 'EC2SKU.JRTCKXETXF.6YS6EN2CT7',
+                            'beginRange': '0',
+                            'endRange': 'Inf',
+                            'appliesTo': [],
+                        }
+                    ],
+                    'offerTermCode': 'JRTCKXETXF',
+                    'sku': 'EC2SKU',
+                    'termAttributes': {},
+                }
+            ],
+            'Reserved': [
+                {
+                    'effectiveDate': '2026-10-01T00:00:00Z',
+                    'priceDimensions': [
+                        {
+                            'description': 'Linux/UNIX (Amazon VPC), t3.micro reserved instance',
+                            'unit': 'Hrs',
+                            'pricePerUnit': {'USD': '0.0065000000'},
+                            'rateCode': 'EC2SKU.4NA7Y494T4.6YS6EN2CT7',
+                            'beginRange': '0',
+                            'endRange': 'Inf',
+                            'appliesTo': [],
+                        }
+                    ],
+                    'offerTermCode': '4NA7Y494T4',
+                    'sku': 'EC2SKU',
+                    'termAttributes': {
+                        'LeaseContractLength': '1yr',
+                        'OfferingClass': 'standard',
+                        'PurchaseOption': 'No Upfront',
+                    },
+                },
+                {
+                    'effectiveDate': '2026-10-01T00:00:00Z',
+                    'priceDimensions': [
+                        {
+                            'description': 'Linux/UNIX (Amazon VPC), t3.micro reserved instance',
+                            'unit': 'Hrs',
+                            'pricePerUnit': {'USD': '0.0045000000'},
+                            'rateCode': 'EC2SKU.38NPMPTW36.6YS6EN2CT7',
+                            'beginRange': '0',
+                            'endRange': 'Inf',
+                            'appliesTo': [],
+                        }
+                    ],
+                    'offerTermCode': '38NPMPTW36',
+                    'sku': 'EC2SKU',
+                    'termAttributes': {
+                        'LeaseContractLength': '3yr',
+                        'OfferingClass': 'convertible',
+                        'PurchaseOption': 'Partial Upfront',
+                    },
+                },
+            ],
+        }
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_response_if_needed'
+    )
+    async def test_get_pricing_from_api_inline_term_without_detail_fields_unchanged(
+        self, mock_convert_table, mock_create_client, mock_context
+    ):
+        """A term without the detail fields keeps the reduced shape exactly."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_products.return_value = {
+            'PriceList': [
+                json.dumps(
+                    {
+                        'product': {'sku': 'PLAINSKU', 'productFamily': 'Compute Instance'},
+                        'terms': {
+                            'OnDemand': {
+                                'PLAINSKU.JRTCKXETXF': {
+                                    'effectiveDate': '2026-10-01T00:00:00Z',
+                                    'priceDimensions': {
+                                        'PLAINSKU.JRTCKXETXF.6YS6EN2CT7': {
+                                            'description': '$0.0104 per Instance Hour',
+                                            'unit': 'Hrs',
+                                            'pricePerUnit': {'USD': '0.0104000000'},
+                                        }
+                                    },
+                                }
+                            }
+                        },
+                    }
+                )
+            ]
+        }
+        mock_convert_table.return_value = None
+
+        result = await get_pricing_from_api(mock_context, 'AmazonEC2')
+
+        expected_terms = {
+            'OnDemand': [
+                {
+                    'effectiveDate': '2026-10-01T00:00:00Z',
+                    'priceDimensions': [
+                        {
+                            'description': '$0.0104 per Instance Hour',
+                            'unit': 'Hrs',
+                            'pricePerUnit': {'USD': '0.0104000000'},
+                        }
+                    ],
+                }
+            ]
+        }
+        assert result['status'] == 'success'
+        terms = result['data']['products'][0]['terms']
+        assert terms == expected_terms
+        assert json.dumps(terms) == json.dumps(expected_terms)
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.create_aws_client'
+    )
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.convert_response_if_needed'
+    )
+    async def test_get_pricing_from_api_inline_product_without_terms(
+        self, mock_convert_table, mock_create_client, mock_context
+    ):
+        """A product with no terms object is returned with empty terms."""
+        mock_client = MagicMock()
+        mock_create_client.return_value = mock_client
+        mock_client.get_products.return_value = {'PriceList': ['{"product": {"sku": "NOTERMS"}}']}
+        mock_convert_table.return_value = None
+
+        result = await get_pricing_from_api(mock_context, 'AmazonEC2')
+
+        assert result['status'] == 'success'
+        assert result['data']['products'][0]['terms'] == {}
+
 
 @pytest.mark.asyncio
 async def test_aws_pricing_tool_takes_max_items_and_next_token():
