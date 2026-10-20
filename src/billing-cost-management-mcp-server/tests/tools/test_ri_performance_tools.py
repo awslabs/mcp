@@ -31,6 +31,7 @@ from awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools impor
     ri_performance_server,
 )
 from fastmcp import Context
+from fastmcp.tools import FunctionTool
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -629,7 +630,7 @@ class TestGetReservationUtilization:
             'group_by_json',  # group_by
             'filter_json',  # filter_expr
             'sort_by_json',  # sort_by
-            50,  # max_items
+            max_pages=2,
         )
 
         # Assert
@@ -641,9 +642,9 @@ class TestGetReservationUtilization:
         assert request_params['GroupBy'] == mock_group_by
         assert request_params['Filter'] == mock_filter
         assert request_params['SortBy'] == mock_sort_by
-        # Page size and token are the helper's to set; max_items goes to it.
+        # Page size and token are the helper's to set; max_pages goes to it.
         assert 'MaxResults' not in request_params
-        assert mock_paginate_response.call_args[1] == {'max_items': 50, 'next_token': None}
+        assert mock_paginate_response.call_args[1] == {'next_token': None, 'max_pages': 2}
         # Grouped requests page over groups.
         assert mock_paginate_response.call_args[0][4].page_size_param == 'MaxResults'
         # Granularity and GroupBy are mutually exclusive for GetReservationUtilization:
@@ -806,7 +807,9 @@ def _grouped_page(key, metric, groups, token=None, total=None):
     return page
 
 
-async def _call_ri(function, client, ctx, group_by=None, max_items=None, next_token=None):
+async def _call_ri(
+    function, client, ctx, group_by=None, max_items=None, next_token=None, max_pages=None
+):
     if function is get_reservation_coverage:
         return await function(
             ctx,
@@ -820,6 +823,7 @@ async def _call_ri(function, client, ctx, group_by=None, max_items=None, next_to
             None,
             max_items,
             next_token,
+            max_pages,
         )
     return await function(
         ctx,
@@ -832,6 +836,7 @@ async def _call_ri(function, client, ctx, group_by=None, max_items=None, next_to
         None,
         max_items,
         next_token,
+        max_pages,
     )
 
 
@@ -883,15 +888,16 @@ class TestRIPerformancePagination:
         assert calls[1].kwargs['MaxResults'] == page_size
         assert calls[1].kwargs['NextPageToken'] == 't1'
 
-    async def test_max_items_stops_and_returns_the_token(
+    async def test_page_limit_stops_and_returns_the_token(
         self, mock_context, function, method, key, metric, page_size
     ):
-        """max_items stops after the first page and returns the service token."""
+        """max_items (coverage) or max_pages (utilization) stops and returns the token."""
         client = MagicMock()
         getattr(client, method).return_value = _grouped_page(key, metric, ['a', 'b'], token='more')
+        limit = {'max_items': 2} if function is get_reservation_coverage else {'max_pages': 1}
 
         result = await _call_ri(
-            function, client, mock_context, group_by=GROUP_BY_SUBSCRIPTION, max_items=2
+            function, client, mock_context, group_by=GROUP_BY_SUBSCRIPTION, **limit
         )
 
         data = result['data']
@@ -947,3 +953,113 @@ async def test_ungrouped_utilization_ignores_max_items_and_next_token(mock_conte
     )
 
     assert 'NextPageToken' not in client.get_reservation_utilization.call_args.kwargs
+
+
+async def _call_tool(client, ctx, **kwargs):
+    """Call the registered ri-performance tool with a mocked Cost Explorer client."""
+    tool = await ri_performance_server.get_tool('ri-performance')
+    assert isinstance(tool, FunctionTool)
+    with patch(
+        'awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools.create_aws_client',
+        return_value=client,
+    ):
+        return await tool.fn(ctx, start_date='2023-01-01', end_date='2023-01-31', **kwargs)
+
+
+@pytest.mark.asyncio
+class TestMaxPages:
+    """get_reservation_utilization takes max_pages; coverage keeps max_items."""
+
+    async def test_grouped_utilization_max_pages_fetches_whole_pages(self, mock_context):
+        """max_pages=2 makes two calls at MaxResults=500 and returns the token from page 2."""
+        client = MagicMock()
+        key, metric = 'UtilizationsByTime', 'Utilization'
+        client.get_reservation_utilization.side_effect = [
+            _grouped_page(key, metric, [f'a{n}' for n in range(500)], token='t1'),
+            _grouped_page(key, metric, [f'b{n}' for n in range(500)], token='t2'),
+            _grouped_page(key, metric, ['c']),
+        ]
+
+        result = await _call_tool(
+            client,
+            mock_context,
+            operation='get_reservation_utilization',
+            group_by=GROUP_BY_SUBSCRIPTION,
+            max_pages=2,
+        )
+
+        calls = client.get_reservation_utilization.call_args_list
+        assert [call.kwargs['MaxResults'] for call in calls] == [500, 500]
+        assert 'NextPageToken' not in calls[0].kwargs
+        assert calls[1].kwargs['NextPageToken'] == 't1'
+        data = result['data']
+        assert data['pagination']['next_token'] == 't2'
+        assert data['pagination']['items_returned'] == 1000
+        assert data['complete_dataset'] is False
+        assert 'Call again with a larger max_pages' in data['warning']
+
+    async def test_grouped_utilization_rejects_max_items(self, mock_context):
+        """max_items on grouped utilization is a validation error and no call is made."""
+        client = MagicMock()
+
+        result = await _call_tool(
+            client,
+            mock_context,
+            operation='get_reservation_utilization',
+            group_by=GROUP_BY_SUBSCRIPTION,
+            max_items=10,
+        )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['message'] == (
+            'get_reservation_utilization pages in fixed pages of 500 groups: use max_pages '
+            'instead of max_items.'
+        )
+        client.get_reservation_utilization.assert_not_called()
+
+    async def test_coverage_rejects_max_pages(self, mock_context):
+        """max_pages on coverage is a validation error and no call is made."""
+        client = MagicMock()
+
+        result = await _call_tool(
+            client,
+            mock_context,
+            operation='get_reservation_coverage',
+            group_by='[{"Type": "DIMENSION", "Key": "REGION"}]',
+            max_pages=1,
+        )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['message'] == (
+            'max_pages applies only to get_reservation_utilization; use max_items.'
+        )
+        client.get_reservation_coverage.assert_not_called()
+
+    async def test_ungrouped_utilization_ignores_max_pages(self, mock_context):
+        """Without GroupBy everything comes in one response, so max_pages is ignored."""
+        client = MagicMock()
+        client.get_reservation_utilization.return_value = {'UtilizationsByTime': []}
+
+        result = await _call_tool(
+            client,
+            mock_context,
+            operation='get_reservation_utilization',
+            max_pages=1,
+            next_token='stale',
+        )
+
+        assert result['status'] == 'success'
+        kwargs = client.get_reservation_utilization.call_args.kwargs
+        assert 'NextPageToken' not in kwargs
+        assert 'MaxResults' not in kwargs
+
+    async def test_description_names_max_pages(self):
+        """The tool description and schema tell the agent to use max_pages for utilization."""
+        tool = await ri_performance_server.get_tool('ri-performance')
+        assert tool is not None
+        assert 'max_pages' in tool.parameters['properties']
+        description = tool.description or ''
+        assert 'get_reservation_utilization takes max_pages (pages of 500 groups)' in description
+        assert 'rounded up' not in description

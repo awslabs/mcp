@@ -412,12 +412,17 @@ class PageSpec:
     caller_token_error_codes: FrozenSet[str] = frozenset()
 
 
-def partial_data_warning(items_returned: int) -> str:
-    """Build the warning attached to a result that stopped before the last page."""
+def partial_data_warning(items_returned: int, limit_param: str = 'max_items') -> str:
+    """Build the warning attached to a result that stopped before the last page.
+
+    Args:
+        items_returned: Items in the result.
+        limit_param: The parameter that stopped paging (``max_items`` or ``max_pages``).
+    """
     return (
         f'Partial data: returned {items_returned} items and more remain. Totals, counts and '
-        'top-N computed from this result undercount the real data. Call again with a larger '
-        'max_items, continue with next_token, or state in the answer that the result is '
+        f'top-N computed from this result undercount the real data. Call again with a larger '
+        f'{limit_param}, continue with next_token, or state in the answer that the result is '
         'partial. Do not report the number of items returned as a total count.'
     )
 
@@ -492,8 +497,14 @@ async def paginate_aws_items(
     *,
     max_items: Optional[int] = None,
     next_token: Optional[str] = None,
+    max_pages: Optional[int] = None,
 ) -> Tuple[List[Any], List[Dict[str, Any]], Dict[str, Any]]:
     """Fetch pages until the data ends or the next page could exceed ``max_items``.
+
+    ``max_pages`` limits the call to a number of pages instead, each at the spec's page
+    size, and returns every item fetched. It is for operations whose token only works
+    with the same page size (``fixed_page_size``), where a page cannot shrink to fit
+    ``max_items``.
 
     Every request repeats ``request_params`` unchanged, apart from the token and,
     where the API allows, the page size: several services bind their token to the
@@ -507,6 +518,7 @@ async def paginate_aws_items(
         spec: How the operation pages.
         max_items: Most items to return. None fetches every page.
         next_token: The caller's token from a previous response.
+        max_pages: Most pages to fetch, instead of ``max_items``. None fetches every page.
 
     Returns:
         ``(items, pages, pagination)``: every kept item, the raw responses the items
@@ -514,12 +526,17 @@ async def paginate_aws_items(
         block (see ``with_pagination``).
 
     Raises:
-        ValueError: ``max_items`` is less than 1, or ``next_token`` is empty.
+        ValueError: ``max_items`` or ``max_pages`` is less than 1, both are set, or
+            ``next_token`` is empty.
         InvalidNextTokenError: The first page failed because ``next_token`` was rejected.
         Exception: Any other failure on the first page, unchanged.
     """
     if max_items is not None and max_items < 1:
         raise ValueError('max_items must be at least 1. Omit it to fetch every page.')
+    if max_pages is not None and max_items is not None:
+        raise ValueError('max_pages and max_items cannot be used together. Pass only one.')
+    if max_pages is not None and max_pages < 1:
+        raise ValueError('max_pages must be at least 1. Omit it to fetch every page.')
     if next_token is not None and not next_token.strip():
         # An empty token would silently restart from page 1 while the caller
         # believes the result continues a previous one.
@@ -540,6 +557,8 @@ async def paginate_aws_items(
 
     while True:
         if max_items is not None and pages and collected >= max_items:
+            break
+        if max_pages is not None and len(pages) >= max_pages:
             break
         if pages:
             limit_reached = paging_limit_reached(started)
@@ -620,7 +639,8 @@ async def paginate_aws_items(
     elif limit_reached and has_more:
         pagination['warning'] = paging_limit_warning(collected, limit_reached)
     elif has_more:
-        pagination['warning'] = partial_data_warning(collected)
+        limit_param = 'max_pages' if max_pages is not None else 'max_items'
+        pagination['warning'] = partial_data_warning(collected, limit_param)
     return items, pages, pagination
 
 

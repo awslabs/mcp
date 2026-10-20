@@ -99,14 +99,16 @@ GetReservationCoverage or GetReservationUtilization). Provide one or the other,
 not both.
 
 PAGINATION (applies only when group_by is set; an item is one group of the queried period):
-- Without group_by, both operations return every time period in one response, so max_items and
-  next_token do not apply (get_reservation_utilization ignores them).
-- max_items is the total number of groups returned. Omit it to fetch every page (no limit). Pass
-  it, or narrow the filter, for queries that can be large. get_reservation_utilization pages in
-  fixed pages of 500 groups, and its first page is returned whole even when max_items is smaller.
-- Top-N: sort_by + max_items=N.
-- If the response has complete_dataset: false, call again with a larger max_items, continue with
-  next_token, or state in the answer that the result is partial.
+- Without group_by, both operations return every time period in one response, so max_items,
+  max_pages and next_token do not apply (get_reservation_utilization ignores them).
+- get_reservation_coverage: max_items is the total number of groups returned. Omit it to fetch
+  every page (no limit). Pass it, or narrow the filter, for queries that can be large.
+  Top-N: sort_by + max_items=N.
+- get_reservation_utilization takes max_pages (pages of 500 groups) instead of max_items, because
+  its next_token only works with the same page size. Continue with next_token; omit max_pages to
+  fetch every page.
+- If the response has complete_dataset: false, call again with a larger max_items or max_pages,
+  continue with next_token, or state in the answer that the result is partial.
 - `total` comes from the first page fetched and covers the whole query; it is not repeated on
   continuation calls.""",
 )
@@ -122,6 +124,7 @@ async def ri_performance(
     sort_by: Optional[str] = None,
     max_items: Optional[int] = None,
     next_token: Optional[str] = None,
+    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Retrieves AWS RI coverage and utilization data using the Cost Explorer API.
 
@@ -136,9 +139,11 @@ async def ri_performance(
         filter: Optional filter as a JSON string (e.g., by service, region, or instance type). SERVICE takes a single value and defaults to EC2 when omitted; valid coverage SERVICE values are "Amazon Elastic Compute Cloud - Compute", "Amazon Relational Database Service", "Amazon ElastiCache", and "Amazon Redshift" (use the full display name, not "EC2"/"RDS"). SubscriptionId values are numeric, not ARNs/UUIDs. A wide grouped/DAILY query may exceed the result size cap (ToolResultOversized) — scope it with a filter, a shorter window, or MONTHLY granularity.
         sort_by: Optional sorting configuration as a JSON string with key and direction (ASCENDING or DESCENDING).
         max_items: Total number of groups to return across all pages. Omit it to fetch every
-            page. Applies only when group_by is set.
+            page. Applies only to get_reservation_coverage with group_by set.
         next_token: The pagination.next_token from a previous response; continue with otherwise
             identical parameters. Applies only when group_by is set.
+        max_pages: Number of pages of 500 groups to return. Omit it to fetch every page.
+            Applies only to get_reservation_utilization with group_by set.
 
     Returns:
         Dict containing the reservation coverage/utilization information
@@ -162,6 +167,7 @@ async def ri_performance(
                 sort_by,
                 max_items,
                 next_token,
+                max_pages,
             )
         elif operation == 'get_reservation_utilization':
             return await get_reservation_utilization(
@@ -175,6 +181,7 @@ async def ri_performance(
                 sort_by,
                 max_items,
                 next_token,
+                max_pages,
             )
         else:
             return format_response(
@@ -240,6 +247,7 @@ async def get_reservation_coverage(
     sort_by: Optional[str],
     max_items: Optional[int] = None,
     next_token: Optional[str] = None,
+    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Retrieves reservation coverage data using the AWS Cost Explorer API.
 
@@ -255,11 +263,17 @@ async def get_reservation_coverage(
         sort_by: Sort configuration as JSON string
         max_items: Total number of groups to return. None fetches every page.
         next_token: The token from a previous response.
+        max_pages: Not supported; set only to report a validation error.
 
     Returns:
         Dict containing coverage data
     """
     try:
+        if max_pages is not None:
+            raise ValueError(
+                'max_pages applies only to get_reservation_utilization; use max_items.'
+            )
+
         # Get date range using shared utility
         start, end = get_date_range(start_date, end_date)
 
@@ -360,8 +374,9 @@ async def get_reservation_coverage(
 
 
 # With GroupBy the API pages over the groups of a single time-period entry. The continuation
-# token is bound to MaxResults, so every page, continuation included, must send the same value:
-# the page size is fixed at the maximum.
+# token is bound to MaxResults, so every page, continuation included, must send the same value,
+# and the tool takes max_pages instead of max_items. The API allows MaxResults up to 7000; 500 is
+# the page size chosen here, sent on every page because the token requires the same size.
 CE_GET_RESERVATION_UTILIZATION_GROUPED = PageSpec(
     result_key='UtilizationsByTime',
     token_param='NextPageToken',
@@ -392,6 +407,7 @@ async def get_reservation_utilization(
     sort_by: Optional[str],
     max_items: Optional[int] = None,
     next_token: Optional[str] = None,
+    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Retrieves reservation utilization data using the AWS Cost Explorer API.
 
@@ -404,9 +420,11 @@ async def get_reservation_utilization(
         group_by: Grouping dimensions as JSON string
         filter_expr: Filter expression as JSON string
         sort_by: Sort configuration as JSON string
-        max_items: Total number of groups to return. None fetches every page. Ignored without
-            group_by.
+        max_items: Not supported with group_by, where pages have a fixed size of 500 groups;
+            set only to report a validation error. Ignored without group_by.
         next_token: The token from a previous response. Ignored without group_by.
+        max_pages: Number of pages of 500 groups to return. None fetches every page. Ignored
+            without group_by.
 
     Returns:
         Dict containing utilization data
@@ -443,12 +461,17 @@ async def get_reservation_utilization(
             request_params['SortBy'] = parse_json(sort_by, 'sort_by')
 
         if group_by:
+            if max_items is not None:
+                raise ValueError(
+                    'get_reservation_utilization pages in fixed pages of 500 groups: use '
+                    'max_pages instead of max_items.'
+                )
             spec = CE_GET_RESERVATION_UTILIZATION_GROUPED
         else:
             # The ungrouped API returns everything in one response and rejects any token, so
-            # max_items and next_token do not apply.
+            # max_pages and next_token do not apply.
             spec = CE_GET_RESERVATION_UTILIZATION
-            max_items = None
+            max_pages = None
             next_token = None
 
         utilization_entries, pages, pagination = await paginate_aws_items(
@@ -457,8 +480,8 @@ async def get_reservation_utilization(
             ce_client.get_reservation_utilization,
             request_params,
             spec,
-            max_items=max_items,
             next_token=next_token,
+            max_pages=max_pages,
         )
         all_utilizations = _merge_periods(utilization_entries)
 
