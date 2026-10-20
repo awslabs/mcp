@@ -412,32 +412,9 @@ async def get_pricing_from_api(
                     'attributes': product.get('product', {}).get('attributes', {}),
                 }
 
-                # Process terms in a more readable format
-                terms = product.get('terms', {})
-                processed_terms = {}
-
-                for term_type, term_values in terms.items():
-                    processed_terms[term_type] = []
-                    for _, term_details in term_values.items():
-                        price_dimensions = []
-
-                        for _, dimension in term_details.get('priceDimensions', {}).items():
-                            price_dimensions.append(
-                                {
-                                    'description': dimension.get('description'),
-                                    'unit': dimension.get('unit'),
-                                    'pricePerUnit': dimension.get('pricePerUnit'),
-                                }
-                            )
-
-                        processed_terms[term_type].append(
-                            {
-                                'effectiveDate': term_details.get('effectiveDate'),
-                                'priceDimensions': price_dimensions,
-                            }
-                        )
-
-                processed_product['terms'] = processed_terms
+                # Returned as given: Reserved prices are told apart by termAttributes
+                # and tiered prices by beginRange/endRange.
+                processed_product['terms'] = product.get('terms', {})
                 processed_products.append(processed_product)
 
             except json.JSONDecodeError as e:
