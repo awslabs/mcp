@@ -4,6 +4,9 @@ import json
 import os
 import pytest
 import tempfile
+from awslabs.dynamodb_mcp_server.repo_generation_tool.core.identifier_validator import (
+    is_valid_python_identifier,
+)
 from awslabs.dynamodb_mcp_server.repo_generation_tool.core.schema_validator import (
     SchemaValidator,
 )
@@ -909,7 +912,9 @@ class TestSchemaValidator:
 
     @given(
         operation=st.sampled_from(['Query', 'Scan']),
-        index_name=st.text(min_size=1, max_size=50).filter(lambda x: x.strip() != ''),
+        index_name=st.from_regex(r'[A-Za-z_][A-Za-z0-9_]{0,30}', fullmatch=True).filter(
+            is_valid_python_identifier
+        ),
     )
     def test_property_gsi_queries_reject_consistent_read_true(self, operation, index_name):
         """Property Test 5: GSI queries reject consistent_read true.
@@ -986,7 +991,9 @@ class TestSchemaValidator:
 
     @given(
         operation=st.sampled_from(['Query', 'Scan']),
-        index_name=st.text(min_size=1, max_size=50).filter(lambda x: x.strip() != ''),
+        index_name=st.from_regex(r'[A-Za-z_][A-Za-z0-9_]{0,30}', fullmatch=True).filter(
+            is_valid_python_identifier
+        ),
         consistent_read=st.one_of(st.just(False), st.none()),
     )
     def test_property_gsi_queries_accept_consistent_read_false_or_omitted(

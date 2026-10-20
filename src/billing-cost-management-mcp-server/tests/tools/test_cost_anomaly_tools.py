@@ -39,6 +39,8 @@ def mock_context():
     context = MagicMock(spec=Context)
     context.info = AsyncMock()
     context.error = AsyncMock()
+    context.warning = AsyncMock()
+    context.debug = AsyncMock()
     return context
 
 
@@ -147,7 +149,8 @@ class TestGetAnomalies:
             end_date,
             None,  # monitor_arn
             None,  # feedback
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             None,  # total_impact_operator
             None,  # total_impact_start
             None,  # total_impact_end
@@ -180,7 +183,8 @@ class TestGetAnomalies:
             end_date,
             monitor_arn,
             None,  # feedback
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             None,  # total_impact_operator
             None,  # total_impact_start
             None,  # total_impact_end
@@ -206,7 +210,8 @@ class TestGetAnomalies:
             end_date,
             None,  # monitor_arn
             feedback,
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             None,  # total_impact_operator
             None,  # total_impact_start
             None,  # total_impact_end
@@ -217,12 +222,12 @@ class TestGetAnomalies:
         assert 'Feedback' in call_kwargs
         assert call_kwargs['Feedback'] == 'YES'
 
-    async def test_get_anomalies_with_max_results(self, mock_context, mock_ce_client):
-        """Test get_anomalies with max_results parameter."""
+    async def test_get_anomalies_with_max_items(self, mock_context, mock_ce_client):
+        """max_items below the page maximum sets the page size."""
         # Setup
         start_date = '2023-01-01'
         end_date = '2023-01-31'
-        max_results = 50
+        max_items = 50
 
         # Execute
         await get_anomalies(
@@ -232,7 +237,8 @@ class TestGetAnomalies:
             end_date,
             None,  # monitor_arn
             None,  # feedback
-            max_results,
+            max_items,
+            None,  # next_token
             None,  # total_impact_operator
             None,  # total_impact_start
             None,  # total_impact_end
@@ -259,7 +265,8 @@ class TestGetAnomalies:
             end_date,
             None,  # monitor_arn
             None,  # feedback
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             total_impact_operator,
             total_impact_start,
             None,  # total_impact_end
@@ -288,7 +295,8 @@ class TestGetAnomalies:
             end_date,
             None,  # monitor_arn
             None,  # feedback
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             total_impact_operator,
             total_impact_start,
             total_impact_end,
@@ -327,7 +335,8 @@ class TestGetAnomalies:
             end_date,
             None,  # monitor_arn
             None,  # feedback
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             None,  # total_impact_operator
             None,  # total_impact_start
             None,  # total_impact_end
@@ -337,10 +346,153 @@ class TestGetAnomalies:
         assert mock_ce_client.get_anomalies.call_count == 2
         assert len(result['data']['anomalies']) == 2
 
-        # Check second call includes NextPageToken
-        second_call_kwargs = mock_ce_client.get_anomalies.call_args_list[1][1]
-        assert 'NextPageToken' in second_call_kwargs
-        assert second_call_kwargs['NextPageToken'] == 'page2token'
+        # Every page requests the largest page size; the second call adds the token.
+        calls = [c.kwargs for c in mock_ce_client.get_anomalies.call_args_list]
+        assert calls[0]['MaxResults'] == 10000
+        assert 'NextPageToken' not in calls[0]
+        assert calls[1] == {**calls[0], 'NextPageToken': 'page2token'}
+        assert 'complete_dataset' not in result['data']
+        assert result['data']['pagination']['complete_dataset'] is True
+        assert result['data']['pagination']['items_returned'] == 2
+
+    async def test_get_anomalies_short_page_with_token_keeps_paging(
+        self, mock_context, mock_ce_client
+    ):
+        """A short or empty page that carries a token does not end paging."""
+        mock_ce_client.get_anomalies.side_effect = [
+            {'Anomalies': [], 'NextPageToken': 't1'},
+            {'Anomalies': [{'AnomalyId': 'a1'}]},
+        ]
+
+        result = await get_anomalies(
+            mock_context,
+            mock_ce_client,
+            '2023-01-01',
+            '2023-01-31',
+            None,
+            None,
+            5,
+            None,
+            None,
+            None,
+            None,
+        )
+
+        assert mock_ce_client.get_anomalies.call_count == 2
+        assert [a['id'] for a in result['data']['anomalies']] == ['a1']
+        assert result['data']['pagination']['complete_dataset'] is True
+
+    async def test_get_anomalies_max_items_stops_with_token(self, mock_context, mock_ce_client):
+        """max_items stops before the next page could exceed it and returns the token."""
+        mock_ce_client.get_anomalies.side_effect = [
+            {'Anomalies': [{'AnomalyId': 'a1'}, {'AnomalyId': 'a2'}], 'NextPageToken': 't1'},
+        ]
+
+        result = await get_anomalies(
+            mock_context,
+            mock_ce_client,
+            '2023-01-01',
+            '2023-01-31',
+            None,
+            None,
+            2,
+            None,
+            None,
+            None,
+            None,
+        )
+
+        mock_ce_client.get_anomalies.assert_called_once()
+        assert mock_ce_client.get_anomalies.call_args.kwargs['MaxResults'] == 2
+        data = result['data']
+        assert list(data)[:2] == ['complete_dataset', 'warning']
+        assert data['pagination'] == {
+            'complete_dataset': False,
+            'has_more': True,
+            'next_token': 't1',
+            'items_returned': 2,
+        }
+
+    async def test_get_anomalies_continuation_sends_caller_token(
+        self, mock_context, mock_ce_client
+    ):
+        """A continuation sends the caller's token and otherwise identical params."""
+        monitor = 'arn:aws:ce::123456789012:anomalymonitor/m'
+        await get_anomalies(
+            mock_context,
+            mock_ce_client,
+            '2023-01-01',
+            '2023-01-31',
+            monitor,
+            'YES',
+            2,
+            'caller-token',
+            None,
+            None,
+            None,
+        )
+
+        mock_ce_client.get_anomalies.assert_called_once_with(
+            DateInterval={'StartDate': '2023-01-01', 'EndDate': '2023-01-31'},
+            MonitorArn=monitor,
+            Feedback='YES',
+            MaxResults=2,
+            NextPageToken='caller-token',
+        )
+
+    async def test_get_anomalies_invalid_next_token(self, mock_context, mock_ce_client):
+        """A rejected caller token maps to invalid_next_token."""
+        from botocore.exceptions import ClientError
+
+        mock_ce_client.get_anomalies.side_effect = ClientError(
+            {'Error': {'Code': 'InvalidNextTokenException', 'Message': 'expired'}},
+            'GetAnomalies',
+        )
+
+        result = await get_anomalies(
+            mock_context,
+            mock_ce_client,
+            '2023-01-01',
+            '2023-01-31',
+            None,
+            None,
+            None,
+            'stale',
+            None,
+            None,
+            None,
+        )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'invalid_next_token'
+
+    async def test_get_anomalies_empty_next_token_tells_caller_to_omit_it(
+        self, mock_context, mock_ce_client
+    ):
+        """An empty next_token fails before any request, with guidance to omit it."""
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            add_retry_guidance,
+        )
+
+        result = await get_anomalies(
+            mock_context,
+            mock_ce_client,
+            '2023-01-01',
+            '2023-01-31',
+            None,
+            None,
+            None,
+            '',
+            None,
+            None,
+            None,
+        )
+
+        mock_ce_client.get_anomalies.assert_not_called()
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert 'Omit it to start from the first page' in result['message']
+        assert add_retry_guidance(result)['retry_strategy'] == 'modify_request'
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.cost_anomaly_tools.handle_aws_error')
     async def test_get_anomalies_error_handling(
@@ -363,7 +515,8 @@ class TestGetAnomalies:
             end_date,
             None,  # monitor_arn
             None,  # feedback
-            None,  # max_results
+            None,  # max_items
+            None,  # next_token
             None,  # total_impact_operator
             None,  # total_impact_start
             None,  # total_impact_end
@@ -720,12 +873,14 @@ class TestCostAnomalyFastMCP:
                 end_date='2023-01-31',
                 monitor_arn='arn:aws:ce::123456789012:anomalymonitor/test',
                 feedback='YES',
-                max_results=50,
+                max_items=50,
+                next_token='tok',
                 total_impact_operator='GREATER_THAN',
                 total_impact_start=100.0,
             )
             assert res['status'] == 'success'
             mock_get_anomalies.assert_called_once()
+            assert mock_get_anomalies.call_args.args[6:8] == (50, 'tok')
 
 
 @pytest.mark.asyncio
@@ -739,7 +894,7 @@ class TestGetAnomaliesAdditional:
         end_date = '2023-01-31'
         monitor_arn = 'arn:aws:ce::123456789012:anomalymonitor/test-monitor'
         feedback = 'YES'
-        max_results = 25
+        max_items = 25
         total_impact_operator = 'BETWEEN'
         total_impact_start = 100.0
         total_impact_end = 500.0
@@ -752,7 +907,8 @@ class TestGetAnomaliesAdditional:
             end_date,
             monitor_arn,
             feedback,
-            max_results,
+            max_items,
+            None,  # next_token
             total_impact_operator,
             total_impact_start,
             total_impact_end,
@@ -762,7 +918,7 @@ class TestGetAnomaliesAdditional:
         call_kwargs = mock_ce_client.get_anomalies.call_args[1]
         assert call_kwargs['MonitorArn'] == monitor_arn
         assert call_kwargs['Feedback'] == feedback
-        assert call_kwargs['MaxResults'] == max_results
+        assert call_kwargs['MaxResults'] == max_items
         assert call_kwargs['TotalImpact']['NumericOperator'] == 'BETWEEN'
         assert call_kwargs['TotalImpact']['StartValue'] == 100.0
         assert call_kwargs['TotalImpact']['EndValue'] == 500.0
@@ -819,6 +975,7 @@ class TestGetAnomaliesAdditional:
             None,
             None,
             None,
+            None,
         )
 
         # Assert comprehensive formatting
@@ -854,6 +1011,7 @@ class TestGetAnomaliesAdditional:
             mock_ce_client,
             '2023-01-01',
             '2023-01-31',
+            None,
             None,
             None,
             None,

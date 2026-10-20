@@ -42,9 +42,8 @@ async def _invoicing(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     invoicing_entity: Optional[str] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Route an AWS Invoicing ``operation`` to its handler.
 
@@ -62,9 +61,8 @@ async def _invoicing(
         end_date: Range end (``YYYY-MM-DD`` UTC, i.e. 00:00:00 that day, so use
             the day after the last one you want).
         invoicing_entity: Filter by AWS legal selling entity name.
-        max_results: Maximum results per page (1-100).
-        next_token: Pagination token from a previous response.
-        max_pages: Maximum pages to auto-paginate through (default: all).
+        max_items: Most items to return (list operation only). None fetches every page.
+        next_token: Pagination token from a previous response (list operation only).
 
     Returns:
         The operation's response, or a standardized error for an unknown
@@ -81,9 +79,8 @@ async def _invoicing(
             start_date=start_date,
             end_date=end_date,
             invoicing_entity=invoicing_entity,
-            max_results=max_results,
+            max_items=max_items,
             next_token=next_token,
-            max_pages=max_pages,
         )
 
     return format_response(
@@ -115,7 +112,10 @@ async def _invoicing(
    NOTE — the two time filters are not interchangeable: billing_period selects by BILLING MONTH, start_date/end_date select by ISSUED DATE. Pick whichever the question asks for, and keep using that same one when splitting a multi-month request.
    Other filters (optional):
      - invoicing_entity: filter by the AWS legal selling entity (seller of record) name. Examples: "Amazon Web Services, Inc." (US), "Amazon Web Services EMEA SARL" (Europe/Middle East/Africa), "Amazon Web Services Australia Pty Ltd" (Australia), "Amazon Web Services Japan G.K." (Japan).
-   Pagination: max_results caps items per page (1-100); max_pages caps pages fetched (default: all). The response `pagination` block reports total_results, pages_fetched, has_more, and next_token.
+   Pagination:
+     - max_items: total invoice summaries returned. Omit it to fetch every page (no limit). Pass it, or narrow the filters, for queries that can be large.
+     - next_token: the `pagination.next_token` from a previous response, to continue where it stopped. Send every other parameter unchanged.
+     - A partial result has `complete_dataset: false` and a warning. Call again with a larger max_items, continue with next_token, or state in the answer that the result is partial. `pagination.items_returned` counts only this response, and a continuation call does not repeat earlier items.
    Returns: `data.invoice_summaries`, a list where each item contains:
      - AccountId; InvoiceId; InvoiceType ("INVOICE" or "CREDIT_MEMO"); OriginalInvoiceId (the invoice a CREDIT_MEMO adjusts); PurchaseOrderNumber
      - IssuedDate / DueDate: ISO 8601 UTC timestamps (converted from epoch)
@@ -140,9 +140,8 @@ async def invoicing(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     invoicing_entity: Optional[str] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """FastMCP wrapper for AWS Invoicing operations.
 
@@ -160,9 +159,8 @@ async def invoicing(
         end_date: Range end (``YYYY-MM-DD`` UTC, i.e. 00:00:00 that day, so use
             the day after the last one you want).
         invoicing_entity: Filter by AWS legal selling entity name.
-        max_results: Maximum results per page (1-100).
-        next_token: Pagination token from a previous response.
-        max_pages: Maximum pages to auto-paginate through (default: all).
+        max_items: Most items to return (list operation only). None fetches every page.
+        next_token: Pagination token from a previous response (list operation only).
 
     Returns:
         Dict containing the operation result.
@@ -176,7 +174,6 @@ async def invoicing(
         start_date=start_date,
         end_date=end_date,
         invoicing_entity=invoicing_entity,
-        max_results=max_results,
+        max_items=max_items,
         next_token=next_token,
-        max_pages=max_pages,
     )
