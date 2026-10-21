@@ -18,12 +18,15 @@ Updated to use shared utility functions.
 """
 
 from ..utilities.aws_service_base import (
+    PageSpec,
     create_aws_client,
+    first_page_fields,
     format_response,
     get_date_range,
     handle_aws_error,
-    paginate_aws_response,
+    paginate_aws_items,
     parse_json,
+    with_pagination,
 )
 from ..utilities.logging_utils import get_context_logger
 from fastmcp import Context, FastMCP
@@ -77,7 +80,17 @@ UTILIZATION DETAILS filters (get_savings_plans_utilization_details):
 IMPORTANT: For get_savings_plans_coverage, `granularity` and `group_by` are mutually
 exclusive. If `group_by` is provided, `granularity` is ignored (the Cost Explorer
 GetSavingsPlansCoverage API does not allow both). Valid `group_by` dimensions for
-coverage are SERVICE, REGION, or INSTANCE_FAMILY.""",
+coverage are SERVICE, REGION, or INSTANCE_FAMILY.
+
+PAGINATION (get_savings_plans_coverage, where an item is one period x group entry, and
+get_savings_plans_utilization_details, where an item is one Savings Plan;
+get_savings_plans_utilization is not paginated and takes neither parameter):
+- max_items is the total number of items returned. Omit it to fetch every page (no limit). Pass it,
+  or narrow the date range or filter, for queries that can be large.
+- If the response has complete_dataset: false, call again with a larger max_items, continue with
+  next_token, or state in the answer that the result is partial.
+- `total` comes from the first page fetched and covers the whole query; it is not repeated on
+  continuation calls.""",
 )
 async def sp_performance(
     ctx: Context,
@@ -88,7 +101,8 @@ async def sp_performance(
     metrics: Optional[str] = None,
     group_by: Optional[str] = None,
     filter: Optional[str] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
+    next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Tool that retrieves AWS Savings Plans coverage and utilization data.
 
@@ -101,7 +115,10 @@ async def sp_performance(
         metrics: List of metrics to retrieve as a JSON string. For coverage, only 'SpendCoveredBySavingsPlans' is valid.
         group_by: Optional grouping of results as a JSON string. For coverage, supports SERVICE, REGION, or INSTANCE_FAMILY (NOT LINKED_ACCOUNT). Each entry is {"Type": ..., "Key": ...}; there is no "Value" field.
         filter: Optional filter to apply to the results as a JSON string. Coverage filter dimensions: LINKED_ACCOUNT, REGION, SERVICE, INSTANCE_FAMILY. And/Or need >=2 operands; for one condition pass the leaf object directly.
-        max_results: Maximum number of results to return per page.
+        max_items: Total number of items to return across all pages. Omit it to fetch every
+            page. Coverage and utilization details only.
+        next_token: The pagination.next_token from a previous response; continue with otherwise
+            identical parameters. Coverage and utilization details only.
 
     Returns:
         Dict containing the savings plans coverage/utilization information
@@ -114,7 +131,16 @@ async def sp_performance(
 
         if operation == 'get_savings_plans_coverage':
             return await get_savings_plans_coverage(
-                ctx, ce_client, start_date, end_date, granularity, metrics, group_by, filter
+                ctx,
+                ce_client,
+                start_date,
+                end_date,
+                granularity,
+                metrics,
+                group_by,
+                filter,
+                max_items,
+                next_token,
             )
         elif operation == 'get_savings_plans_utilization':
             return await get_savings_plans_utilization(
@@ -122,7 +148,7 @@ async def sp_performance(
             )
         elif operation == 'get_savings_plans_utilization_details':
             return await get_savings_plans_utilization_details(
-                ctx, ce_client, start_date, end_date, filter, max_results
+                ctx, ce_client, start_date, end_date, filter, max_items, next_token
             )
         else:
             return format_response(
@@ -136,6 +162,16 @@ async def sp_performance(
         return await handle_aws_error(ctx, e, 'sp_performance', 'Cost Explorer')
 
 
+# The service default page size is 500, not the documented 20, so MaxResults is always sent.
+CE_GET_SAVINGS_PLANS_COVERAGE = PageSpec(
+    result_key='SavingsPlansCoverages',
+    token_param='NextToken',
+    token_key_in_response='NextToken',
+    page_max=10000,
+    page_size_param='MaxResults',
+)
+
+
 async def get_savings_plans_coverage(
     ctx: Context,
     ce_client: Any,
@@ -145,6 +181,8 @@ async def get_savings_plans_coverage(
     metrics: Optional[str],
     group_by: Optional[str],
     filter_expr: Optional[str],
+    max_items: Optional[int] = None,
+    next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Retrieves Savings Plans coverage data.
 
@@ -157,6 +195,8 @@ async def get_savings_plans_coverage(
         metrics: Metrics to retrieve as JSON string
         group_by: Grouping dimensions as JSON string
         filter_expr: Filter expression as JSON string
+        max_items: Total number of coverage entries to return. None fetches every page.
+        next_token: The token from a previous response.
 
     Returns:
         Dict containing coverage data
@@ -194,34 +234,30 @@ async def get_savings_plans_coverage(
         if filter_expr:
             request_params['Filter'] = parse_json(filter_expr, 'filter')
 
-        # Use the paginate_aws_response utility for consistent pagination
-        all_coverages, pagination_metadata = await paginate_aws_response(
-            ctx=ctx,
-            operation_name='GetSavingsPlansCoverage',
-            api_function=ce_client.get_savings_plans_coverage,
-            request_params=request_params,
-            result_key='SavingsPlansCoverages',
-            token_param='NextToken',
-            token_key='NextToken',
-            max_pages=None,
+        all_coverages, pages, pagination = await paginate_aws_items(
+            ctx,
+            'GetSavingsPlansCoverage',
+            ce_client.get_savings_plans_coverage,
+            request_params,
+            CE_GET_SAVINGS_PLANS_COVERAGE,
+            max_items=max_items,
+            next_token=next_token,
         )
 
         # Format the response data
-        formatted_response = {
+        formatted_response: Dict[str, Any] = {
             'savings_plans_coverages': all_coverages,
-            'pagination': pagination_metadata,
             'time_period': {'start': start, 'end': end},
             'granularity': granularity,
         }
 
-        # Add total coverage metrics if available
-        if all_coverages:
-            # We need to make one call to get the Total
-            initial_response = ce_client.get_savings_plans_coverage(**request_params)
-            if 'Total' in initial_response:
-                formatted_response['total'] = initial_response['Total']
+        # Total covers the whole query and comes with the first page, so no extra request is
+        # needed for it.
+        total = first_page_fields(pages, ['Total']).get('Total')
+        if total is not None:
+            formatted_response['total'] = total
 
-        return format_response('success', formatted_response)
+        return format_response('success', with_pagination(formatted_response, pagination))
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
@@ -302,13 +338,23 @@ async def get_savings_plans_utilization(
         return await handle_aws_error(ctx, e, 'get_savings_plans_utilization', 'Cost Explorer')
 
 
+CE_GET_SAVINGS_PLANS_UTILIZATION_DETAILS = PageSpec(
+    result_key='SavingsPlansUtilizationDetails',
+    token_param='NextToken',
+    token_key_in_response='NextToken',
+    page_max=10000,
+    page_size_param='MaxResults',
+)
+
+
 async def get_savings_plans_utilization_details(
     ctx: Context,
     ce_client: Any,
     start_date: Optional[str],
     end_date: Optional[str],
     filter_expr: Optional[str],
-    max_results: Optional[int],
+    max_items: Optional[int] = None,
+    next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Retrieves detailed Savings Plans utilization data.
 
@@ -318,7 +364,8 @@ async def get_savings_plans_utilization_details(
         start_date: Start date for the query
         end_date: End date for the query
         filter_expr: Filter expression as JSON string
-        max_results: Maximum results to return
+        max_items: Total number of Savings Plans to return. None fetches every page.
+        next_token: The token from a previous response.
 
     Returns:
         Dict containing detailed utilization data
@@ -342,21 +389,14 @@ async def get_savings_plans_utilization_details(
         if filter_expr:
             request_params['Filter'] = parse_json(filter_expr, 'filter')
 
-        if max_results:
-            request_params['MaxResults'] = int(max_results)
-        else:
-            request_params['MaxResults'] = 20  # Default
-
-        # Use the paginate_aws_response utility for consistent pagination
-        all_details, pagination_metadata = await paginate_aws_response(
-            ctx=ctx,
-            operation_name='GetSavingsPlansUtilizationDetails',
-            api_function=ce_client.get_savings_plans_utilization_details,
-            request_params=request_params,
-            result_key='SavingsPlansUtilizationDetails',
-            token_param='NextToken',
-            token_key='NextToken',
-            max_pages=None,
+        all_details, pages, pagination = await paginate_aws_items(
+            ctx,
+            'GetSavingsPlansUtilizationDetails',
+            ce_client.get_savings_plans_utilization_details,
+            request_params,
+            CE_GET_SAVINGS_PLANS_UTILIZATION_DETAILS,
+            max_items=max_items,
+            next_token=next_token,
         )
 
         # Check if we have any details data
@@ -366,23 +406,27 @@ async def get_savings_plans_utilization_details(
             )
             return format_response(
                 'success',
-                {
-                    'savings_plans_utilization_details': [],
-                    'pagination': pagination_metadata,
-                    'time_period': {'start': start, 'end': end},
-                    'total_count': 0,
-                    'message': 'No Savings Plans utilization details found for the specified period. This could be because you do not have any active Savings Plans, or because the specified date range is outside your Savings Plans period.',
-                },
+                with_pagination(
+                    {
+                        'savings_plans_utilization_details': [],
+                        'time_period': {'start': start, 'end': end},
+                        'message': 'No Savings Plans utilization details found for the specified period. This could be because you do not have any active Savings Plans, or because the specified date range is outside your Savings Plans period.',
+                    },
+                    pagination,
+                ),
             )
 
         formatted_response: Dict[str, Any] = {
             'savings_plans_utilization_details': all_details,
-            'pagination': pagination_metadata,
             'time_period': {'start': start, 'end': end},
-            'total_count': len(all_details),
         }
 
-        return format_response('success', formatted_response)
+        # Total aggregates every plan in the query and comes with the first page.
+        total = first_page_fields(pages, ['Total']).get('Total')
+        if total is not None:
+            formatted_response['total'] = total
+
+        return format_response('success', with_pagination(formatted_response, pagination))
 
     except Exception as e:
         # Use shared error handler for consistent error reporting

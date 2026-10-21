@@ -18,9 +18,12 @@ These functions handle the specific operations for the Cost Optimization Hub too
 """
 
 from ..utilities.aws_service_base import (
+    PageSpec,
+    first_page_fields,
     format_response,
     handle_aws_error,
-    paginate_aws_response,
+    paginate_aws_items,
+    with_pagination,
 )
 from ..utilities.constants import (
     COST_OPTIMIZATION_HUB_SERVICE_NAME,
@@ -43,6 +46,42 @@ from fastmcp import Context
 from typing import Any, Dict, Optional
 
 
+# maxResults is at most 1000 on every paginated COH list operation, and nextToken is not
+# bound to it, so each page asks for what is left of max_items.
+COH_LIST_RECOMMENDATIONS = PageSpec(
+    result_key='items',
+    token_param='nextToken',
+    token_key_in_response='nextToken',
+    page_max=1000,
+    page_size_param='maxResults',
+)
+COH_LIST_RECOMMENDATION_SUMMARIES = PageSpec(
+    result_key='items',
+    token_param='nextToken',
+    token_key_in_response='nextToken',
+    page_max=1000,
+    page_size_param='maxResults',
+)
+COH_LIST_EFFICIENCY_METRICS = PageSpec(
+    result_key='efficiencyMetricsByGroup',
+    token_param='nextToken',
+    token_key_in_response='nextToken',
+    page_max=1000,
+    page_size_param='maxResults',
+)
+# Performance ranking's internal fetch: EFFICIENCY_PARETO_PAGE_SIZE groups per page, highest
+# spend first, up to EFFICIENCY_PARETO_MAX_PAGES pages (a cap of pages x page size groups).
+COH_LIST_EFFICIENCY_METRICS_PERFORMANCE = PageSpec(
+    result_key='efficiencyMetricsByGroup',
+    token_param='nextToken',
+    token_key_in_response='nextToken',
+    page_max=EFFICIENCY_PARETO_PAGE_SIZE,
+    page_size_param='maxResults',
+    fixed_page_size=True,
+)
+EFFICIENCY_PARETO_MAX_GROUPS = EFFICIENCY_PARETO_MAX_PAGES * EFFICIENCY_PARETO_PAGE_SIZE
+
+
 def format_timestamp(timestamp: Any) -> Optional[str]:
     """Format a timestamp to a UTC ISO 8601 string.
 
@@ -59,36 +98,30 @@ def format_timestamp(timestamp: Any) -> Optional[str]:
 async def list_recommendations(
     ctx: Context,
     coh_client: Any,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     filters: Optional[Dict[str, Any]] = None,
     include_all_recommendations: Optional[bool] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
     order_by: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """List recommendations from Cost Optimization Hub.
 
-    - When neither ``next_token`` nor ``max_pages`` is provided, a single boto3
-      call is made and the raw response (including ``nextToken``, if any) is
-      returned. Callers wanting more pages re-invoke with the returned token.
-    - When either is provided, ``paginate_aws_response`` walks pages up to
-      ``max_pages`` and returns a combined ``items`` list with a ``Pagination``
-      envelope so the SQL-offload helper can carry pagination metadata through.
+    Fetches every page, or stops before exceeding ``max_items``, and returns the combined
+    recommendations with a ``pagination`` block. ``orderBy`` is sent on every page, so
+    ``order_by`` + ``max_items=N`` is the top N.
 
     Args:
         ctx: MCP context
         coh_client: Cost Optimization Hub client
-        max_results: Per-page result count (boto3 ``maxResults``). NOT a total
-            cap. To bound total fetched results, combine with ``max_pages``.
+        max_items: Most recommendations to return. None fetches every page.
         filters: Optional filters dictionary
         include_all_recommendations: Whether to include all recommendations
         next_token: Pagination token to resume from a previous response
-        max_pages: Maximum number of pages to fetch when paginating
         order_by: Optional ordering dict ``{'dimension': ..., 'order': 'Asc'|'Desc'}``
             passed through as the COH ``orderBy`` structure
 
     Returns:
-        Dict containing recommendations and (when paginated) pagination metadata
+        Dict containing recommendations and pagination metadata
     """
     ctx_logger = get_context_logger(ctx, __name__)
 
@@ -103,34 +136,16 @@ async def list_recommendations(
             request_params['filter'] = dict(filters)
         if order_by:
             request_params['orderBy'] = dict(order_by)
-        if max_results:
-            request_params['maxResults'] = int(max_results)
-        if next_token:
-            request_params['nextToken'] = next_token
 
-        # Pagination dispatch — same shape as cost_explorer_operations.
-        if next_token or max_pages:
-            items, pagination_metadata = await paginate_aws_response(
-                ctx,
-                'listRecommendations',
-                lambda **params: coh_client.list_recommendations(**params),
-                request_params,
-                'items',
-                'nextToken',
-                'nextToken',
-                max_pages,
-            )
-            raw_response: Dict[str, Any] = {
-                'items': items,
-                'Pagination': pagination_metadata,
-            }
-        else:
-            await ctx_logger.info('Fetching recommendations from Cost Optimization Hub')
-            raw_response = coh_client.list_recommendations(**request_params)
-
-        # Flatten boto3 items into snake_case dicts. Done after pagination so
-        # both code paths reuse the same formatting.
-        all_recommendations = raw_response.get('items', [])
+        all_recommendations, _, pagination = await paginate_aws_items(
+            ctx,
+            'listRecommendations',
+            coh_client.list_recommendations,
+            request_params,
+            COH_LIST_RECOMMENDATIONS,
+            max_items=max_items,
+            next_token=next_token,
+        )
         await ctx_logger.info(f'Processing {len(all_recommendations)} total recommendations')
 
         formatted_recommendations = []
@@ -158,20 +173,15 @@ async def list_recommendations(
             }
             formatted_recommendations.append(recommendation)
 
-        # Preserve the pagination envelope through SQL offload so the model
-        # can resume. ``_derive_pagination_envelope`` recognizes both the
-        # multi-page ``Pagination`` dict and a single-page ``nextToken`` key.
-        response_payload: Dict[str, Any] = {'recommendations': formatted_recommendations}
-        if 'Pagination' in raw_response:
-            response_payload['Pagination'] = raw_response['Pagination']
-        elif 'nextToken' in raw_response:
-            response_payload['nextToken'] = raw_response['nextToken']
+        # The pagination block survives SQL offload so the model can see partial data and resume.
+        response_payload = with_pagination(
+            {'recommendations': formatted_recommendations}, pagination
+        )
 
         offload_or_inline = await convert_response_if_needed(
             ctx,
             response_payload,
             'cost_optimization_hub_list_recommendations',
-            pagination_token_key='nextToken',
             order_by=order_by,
         )
 
@@ -293,33 +303,25 @@ async def list_recommendation_summaries(
     ctx: Context,
     coh_client: Any,
     group_by: str,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     filters: Optional[Dict[str, Any]] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """List recommendation summaries from Cost Optimization Hub.
 
-    - When neither ``next_token`` nor ``max_pages`` is provided, a single boto3
-      call is made and the raw response is formatted (its ``nextToken`` field,
-      if any, is exposed in the result so callers can resume).
-    - When either is provided, ``paginate_aws_response`` walks pages up to
-      ``max_pages`` and the combined summaries are returned with a
-      ``Pagination`` envelope so callers can continue paging.
+    Fetches every page, or stops before exceeding ``max_items``, and returns the combined
+    summaries with a ``pagination`` block so callers can see partial data and continue.
 
     Args:
         ctx: MCP context
         coh_client: Cost Optimization Hub client
         group_by: Grouping parameter (e.g. ``RESOURCE_TYPE``)
-        max_results: Per-page result count (boto3 ``maxResults``). NOT a total
-            cap. Combine with ``max_pages`` to bound total fetched results.
+        max_items: Most summaries to return. None fetches every page.
         filters: Optional filters dictionary
         next_token: Pagination token to resume from a previous response
-        max_pages: Maximum number of pages to fetch when paginating
 
     Returns:
-        Dict containing recommendation summaries and (when paginated)
-        pagination metadata.
+        Dict containing recommendation summaries and pagination metadata.
     """
     ctx_logger = get_context_logger(ctx, __name__)
 
@@ -328,52 +330,21 @@ async def list_recommendation_summaries(
         request_params: Dict[str, Any] = {'groupBy': str(group_by)}
         if filters:
             request_params['filter'] = dict(filters)
-        if max_results:
-            request_params['maxResults'] = int(max_results)
-        if next_token:
-            request_params['nextToken'] = next_token
 
-        # The top-level metadata fields (``groupBy``, ``currencyCode``,
-        # ``estimatedTotalDedupedSavings``, ``metrics``) are global aggregates
-        # over the full filtered result set, not per-page values. Capture the
-        # FIRST response (rather than the last) so the aggregate header
-        # describes the result set the caller started paginating — and so the
-        # code stays correct if the API ever made these fields page-scoped.
-        first_response: Dict[str, Any] = {}
-
-        if next_token or max_pages:
-
-            def api_call(**params: Any) -> Dict[str, Any]:
-                # Stash the first response so we can read its top-level
-                # aggregate fields after paginate_aws_response returns.
-                nonlocal first_response
-                response = coh_client.list_recommendation_summaries(**params)
-                if not first_response:
-                    first_response = response
-                return response
-
-            items, pagination_metadata = await paginate_aws_response(
-                ctx,
-                'listRecommendationSummaries',
-                api_call,
-                request_params,
-                'items',
-                'nextToken',
-                'nextToken',
-                max_pages,
-            )
-            raw_response: Dict[str, Any] = {
-                'items': items,
-                'Pagination': pagination_metadata,
-            }
-        else:
-            await ctx_logger.info(f'Fetching recommendation summaries grouped by {group_by}')
-            first_response = coh_client.list_recommendation_summaries(**request_params)
-            raw_response = first_response
-
-        # Flatten boto3 items into snake_case dicts. Done after pagination so
-        # both code paths reuse the same formatting.
-        all_summaries = raw_response.get('items', [])
+        all_summaries, pages, pagination = await paginate_aws_items(
+            ctx,
+            'listRecommendationSummaries',
+            coh_client.list_recommendation_summaries,
+            request_params,
+            COH_LIST_RECOMMENDATION_SUMMARIES,
+            max_items=max_items,
+            next_token=next_token,
+        )
+        # ``groupBy``, ``currencyCode``, ``estimatedTotalDedupedSavings`` and ``metrics`` are
+        # aggregates over the whole filtered result set, so they come from the first page.
+        first_response = first_page_fields(
+            pages, ['groupBy', 'currencyCode', 'estimatedTotalDedupedSavings', 'metrics']
+        )
         await ctx_logger.info(f'Processing {len(all_summaries)} total recommendation summaries')
 
         formatted_summaries = [
@@ -396,15 +367,7 @@ async def list_recommendation_summaries(
                 'savings_percentage': first_response['metrics'].get('savingsPercentage')
             }
 
-        # Preserve resumption state. Multi-page path carries the canonical
-        # ``Pagination`` envelope; single-page exposes the raw ``nextToken``
-        # so callers can continue paging on their own.
-        if 'Pagination' in raw_response:
-            formatted_response['Pagination'] = raw_response['Pagination']
-        elif 'nextToken' in raw_response:
-            formatted_response['nextToken'] = raw_response['nextToken']
-
-        return format_response('success', formatted_response)
+        return format_response('success', with_pagination(formatted_response, pagination))
 
     except Exception as e:
         return await handle_aws_error(
@@ -609,6 +572,36 @@ def _apply_pareto_materiality(
     return ranked_groups, ranking_focus
 
 
+def _performance_pagination(
+    cap_hit: bool, groups_fetched: Optional[int], groups_returned: int
+) -> Dict[str, Any]:
+    """Build the pagination block for a performance ranking.
+
+    A ranking is not continuable: groups past the fetch would be ranked on their own, so
+    there is never a ``next_token``, and neither a larger ``max_items`` nor a continuation
+    widens the fetch. The block is partial only when the fetch stopped before the full set;
+    trimming the ranked list to ``max_items`` is a requested top N, not partial data.
+    """
+    pagination: Dict[str, Any] = {
+        'complete_dataset': not cap_hit,
+        'has_more': False,
+        'next_token': None,
+        'items_returned': groups_returned,
+    }
+    if cap_hit:
+        reason = (
+            'fetch cap reached'
+            if (groups_fetched or 0) >= EFFICIENCY_PARETO_MAX_GROUPS
+            else 'fetch stopped early'
+        )
+        pagination['warning'] = (
+            f'Ranking covers only the top {groups_fetched} spenders ({reason}); groups '
+            'beyond them were not analyzed. Group by a coarser dimension (Region) for a '
+            'complete ranking, or state that it covers only the top spenders.'
+        )
+    return pagination
+
+
 async def list_efficiency_metrics(
     ctx: Context,
     coh_client: Any,
@@ -617,9 +610,8 @@ async def list_efficiency_metrics(
     end_date: str,
     group_by: Optional[str] = None,
     order_by: Optional[Dict[str, Any]] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
     ranking_mode: Optional[str] = None,
 ) -> Dict[str, Any]:
     """List cost efficiency metrics from Cost Optimization Hub.
@@ -628,12 +620,12 @@ async def list_efficiency_metrics(
     spend) aggregated over the requested time period and optionally grouped by
     account ID or Region.
 
-    - When neither ``next_token`` nor ``max_pages`` is provided, a single boto3
-      call is made and the raw response (including ``nextToken``, if any) is
-      formatted so callers can resume.
-    - When either is provided, ``paginate_aws_response`` walks pages up to
-      ``max_pages`` and the combined groups are returned with a ``Pagination``
-      envelope.
+    Fetches every page, or stops before exceeding ``max_items``, and returns the combined
+    groups with a ``pagination`` block. ``orderBy`` is sent on every page. In ``performance``
+    ranking mode the fetch is fixed (highest spend first, ``EFFICIENCY_PARETO_PAGE_SIZE`` per
+    page, up to ``EFFICIENCY_PARETO_MAX_PAGES`` pages) and ``max_items`` only trims the
+    ranked list returned; the ranking has no ``next_token`` and is partial only when the
+    fetch stopped before the full set (see ``_performance_pagination``).
 
     Args:
         ctx: MCP context
@@ -645,10 +637,9 @@ async def list_efficiency_metrics(
             to aggregate across all resources
         order_by: Optional ordering dict ``{'dimension': 'Score'|'Savings'|'Spend',
             'order': 'Asc'|'Desc'}`` passed through as the COH ``orderBy`` structure
-        max_results: Per-page result count (boto3 ``maxResults``). NOT a total
-            cap. Combine with ``max_pages`` to bound total fetched results.
+        max_items: Most groups to return. None fetches every page. In ``performance``
+            ranking mode, the most ranked groups to return.
         next_token: Pagination token to resume from a previous response
-        max_pages: Maximum number of pages to fetch when paginating
         ranking_mode: Applies to list_efficiency_metrics only (the other COH
             operations do not accept it). When ``'performance'`` and ``group_by``
             is set, reduce the groups to the Pareto-material set (highest-spend
@@ -659,13 +650,17 @@ async def list_efficiency_metrics(
             for the raw series.
 
     Returns:
-        Dict containing efficiency metrics grouped over time and (when paginated)
-        pagination metadata. In ``performance`` ranking mode a ``ranking_focus``
+        Dict containing efficiency metrics grouped over time and the pagination block. In ``performance`` ranking mode a ``ranking_focus``
         block describes the material vs. set-aside groups.
     """
     ctx_logger = get_context_logger(ctx, __name__)
 
     try:
+        # Validate here: performance mode replaces max_items with its own fetch size, so the
+        # paginator's check would never see the caller's value.
+        if max_items is not None and max_items < 1:
+            raise ValueError('max_items must be at least 1. Omit it to fetch every page.')
+
         request_params: Dict[str, Any] = {
             'granularity': str(granularity),
             'timePeriod': {'start': str(start_date), 'end': str(end_date)},
@@ -674,56 +669,38 @@ async def list_efficiency_metrics(
             request_params['groupBy'] = str(group_by)
         if order_by:
             request_params['orderBy'] = dict(order_by)
-        if max_results:
-            request_params['maxResults'] = int(max_results)
-        if next_token:
-            request_params['nextToken'] = next_token
 
-        # Performance ranking fetches highest-spend accounts first, up to the page
-        # cap, so the spend-material ones arrive before the cap is reached.
+        # Performance ranking fetches highest-spend groups first, up to a fixed cap, so the
+        # spend-material ones arrive before the cap is reached.
         performance_mode = ranking_mode == EFFICIENCY_RANKING_MODE_PERFORMANCE and bool(group_by)
         performance_direction = 'Desc'
+        spec = COH_LIST_EFFICIENCY_METRICS
+        fetch_max_items = max_items
         if performance_mode:
             # order_by does not drive the fetch here; it only sets the ranking
             # direction (Asc = worst first, Desc/omitted = best first).
             if isinstance(order_by, dict) and order_by.get('order') == 'Asc':
                 performance_direction = 'Asc'
             request_params['orderBy'] = {'dimension': 'Spend', 'order': 'Desc'}
-            # A caller max_results is a display "top N", not a fetch size — drop it
-            # so it can't shrink the fetch and cap spend coverage early.
-            request_params.pop('maxResults', None)
-        effective_max_pages = max_pages
-        if performance_mode and not next_token:
-            effective_max_pages = max_pages or EFFICIENCY_PARETO_MAX_PAGES
-            # Bounded per-page size; page cap x page size = the top-spenders ceiling.
-            request_params['maxResults'] = EFFICIENCY_PARETO_PAGE_SIZE
+            # max_items is a display "top N" here, not a fetch size, so it can't shrink the
+            # fetch and cap spend coverage early.
+            spec = COH_LIST_EFFICIENCY_METRICS_PERFORMANCE
+            fetch_max_items = EFFICIENCY_PARETO_MAX_GROUPS
 
-        # Pagination dispatch — same shape as the other list helpers, but the
-        # result list lives under ``efficiencyMetricsByGroup``.
-        if next_token or effective_max_pages:
-            groups, pagination_metadata = await paginate_aws_response(
-                ctx,
-                'listEfficiencyMetrics',
-                lambda **params: coh_client.list_efficiency_metrics(**params),
-                request_params,
-                'efficiencyMetricsByGroup',
-                'nextToken',
-                'nextToken',
-                effective_max_pages,
-            )
-            raw_response: Dict[str, Any] = {
-                'efficiencyMetricsByGroup': groups,
-                'Pagination': pagination_metadata,
-            }
-        else:
-            await ctx_logger.info(
-                f'Fetching efficiency metrics ({granularity}) from Cost Optimization Hub'
-            )
-            raw_response = coh_client.list_efficiency_metrics(**request_params)
+        await ctx_logger.info(
+            f'Fetching efficiency metrics ({granularity}) from Cost Optimization Hub'
+        )
+        all_groups, _, pagination = await paginate_aws_items(
+            ctx,
+            'listEfficiencyMetrics',
+            coh_client.list_efficiency_metrics,
+            request_params,
+            spec,
+            max_items=fetch_max_items,
+            next_token=next_token,
+        )
 
-        # Flatten boto3 groups into snake_case dicts. Done after pagination so
-        # both code paths reuse the same formatting.
-        all_groups = raw_response.get('efficiencyMetricsByGroup', [])
+        # Flatten boto3 groups into snake_case dicts.
         await ctx_logger.info(f'Processing {len(all_groups)} total efficiency-metric groups')
 
         formatted_groups = [
@@ -746,21 +723,27 @@ async def list_efficiency_metrics(
         # Rank by score, dropping idle/no-score groups (see _apply_pareto_materiality).
         ranking_focus = None
         if performance_mode:
-            # Cap-hit = a nextToken still remained (org has more groups than the cap
-            # reached); the fetched set is then the top spenders only.
-            pagination = raw_response.get('Pagination')
-            perf_capped = (
-                bool(pagination.get('has_more')) if isinstance(pagination, dict) else False
-            )
-            fetched_count = (
-                pagination.get('total_results') if isinstance(pagination, dict) else None
-            )
+            # Cap-hit = the fetch stopped before the last page (org has more groups than
+            # the cap reached); the fetched set is then the top spenders only.
+            perf_capped = not pagination.get('complete_dataset', True)
             formatted_groups, ranking_focus = _apply_pareto_materiality(
                 formatted_groups,
                 EFFICIENCY_PARETO_SPEND_FRACTION,
                 direction=performance_direction,
                 cap_hit=perf_capped,
-                groups_fetched=fetched_count,
+                groups_fetched=pagination.get('items_returned'),
+            )
+            if max_items is not None:
+                # Trim only the ranked list; ranking_focus still describes the full ranking.
+                formatted_groups = formatted_groups[:max_items]
+            ranking_focus['groups_returned'] = len(formatted_groups)
+            if len(formatted_groups) < ranking_focus['material_groups']:
+                ranking_focus['note'] = (
+                    f'Returned the top {len(formatted_groups)} of '
+                    f'{ranking_focus["material_groups"]} ranked groups (max_items).'
+                )
+            pagination = _performance_pagination(
+                perf_capped, pagination.get('items_returned'), len(formatted_groups)
             )
             await ctx_logger.info(
                 f'Performance ranking (score {performance_direction}): kept '
@@ -778,12 +761,7 @@ async def list_efficiency_metrics(
         if ranking_focus is not None:
             formatted_response['ranking_focus'] = ranking_focus
 
-        # Preserve resumption state. Multi-page path carries the canonical
-        # ``Pagination`` envelope; single-page exposes the raw ``nextToken``.
-        if 'Pagination' in raw_response:
-            formatted_response['Pagination'] = raw_response['Pagination']
-        elif 'nextToken' in raw_response:
-            formatted_response['nextToken'] = raw_response['nextToken']
+        formatted_response = with_pagination(formatted_response, pagination)
 
         # ranking_focus is a sibling of `groups`, so it would be dropped on offload
         # (only `groups` becomes the SQL table); carry it through as metadata.
@@ -795,7 +773,6 @@ async def list_efficiency_metrics(
             ctx,
             formatted_response,
             'cost_optimization_hub_list_efficiency_metrics',
-            pagination_token_key='nextToken',
             # Performance mode already ranked by score client-side; ignore order_by
             # here too so the (rare) offload sample matches the returned ordering.
             order_by=None if performance_mode else order_by,

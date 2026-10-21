@@ -309,11 +309,12 @@ async def list_billing_group_cost_reports(
         return await handle_aws_error(ctx, e, 'listBillingGroupCostReports', 'Billing Conductor')
 
 
-# GetBillingGroupCostReport: MaxResults 200-300, always sent as 300. Every page is full except
-# the last. The token is bound to Arn, GroupBy and BillingPeriodRange and expires shortly after
-# the first call. A changed parameter or a malformed token fails with ValidationException, and
-# an expired token can fail with ValidationException or InternalServerException. Either code
-# on a call that carried a next_token means that token is unusable, so the helper maps it to
+# GetBillingGroupCostReport: MaxResults 200-300. The token is bound to Arn, GroupBy and
+# BillingPeriodRange and expires shortly after the first call; it is not bound to MaxResults, so
+# each page can ask for a different size within the range. Every page is full except the last.
+# A changed parameter or a malformed token fails with ValidationException, and an expired token
+# can fail with ValidationException or InternalServerException. Either code on a call that
+# carried a next_token means that token is unusable, so the helper maps it to
 # invalid_next_token only then.
 BC_GET_BILLING_GROUP_COST_REPORT = PageSpec(
     result_key='BillingGroupCostReportResults',
@@ -321,7 +322,7 @@ BC_GET_BILLING_GROUP_COST_REPORT = PageSpec(
     token_key_in_response='NextToken',
     page_max=300,
     page_size_param='MaxResults',
-    fixed_page_size=True,
+    page_min=200,
     caller_token_error_codes=frozenset({'ValidationException', 'InternalServerException'}),
 )
 
@@ -341,8 +342,8 @@ async def get_billing_group_cost_report(
         arn: The billing group ARN.
         billing_period_range: Optional JSON string with billing period range.
         group_by: Optional JSON string with group by attributes.
-        max_items: Most cost report results to return. None fetches every page. The first page
-            (up to 300 results) is always returned whole.
+        max_items: Most cost report results to return. None fetches every page. Pages hold 200
+            to 300 results, so a max_items below 200 can return up to 200.
         next_token: Optional pagination token to continue from.
 
     Returns:
