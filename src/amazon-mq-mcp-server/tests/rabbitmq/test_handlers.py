@@ -14,6 +14,10 @@
 # This file is part of the awslabs namespace.
 # It is intentionally minimal to support PEP 420 namespace packages.
 
+import builtins
+import io
+import pytest
+from awslabs.amazon_mq_mcp_server.rabbitmq import handlers
 from awslabs.amazon_mq_mcp_server.rabbitmq.handlers import (
     handle_delete_exchange,
     handle_delete_queue,
@@ -39,6 +43,7 @@ from awslabs.amazon_mq_mcp_server.rabbitmq.handlers import (
     handle_purge_queue,
     handle_shovel,
 )
+from pathlib import Path
 from unittest.mock import MagicMock
 
 
@@ -207,6 +212,68 @@ class TestDocHandlers:
         result = handle_get_guidelines('rabbitmq_client_performance_optimization_guide')
         assert isinstance(result, str)
         assert len(result) > 0
+
+
+GUIDELINE_DOCS = {
+    'rabbimq_broker_sizing_guide': 'rabbitmq_broker_sizing_guide.md',
+    'rabbitmq_broker_setup_best_practices_guide': 'rabbitmq_setup_best_practice.md',
+    'rabbitmq_quorum_queue_migration_guide': 'rabbitmq_quorum_queue_migration_guide.md',
+    'rabbitmq_client_performance_optimization_guide': (
+        'rabbitmq_performance_optimization_best_practice.md'
+    ),
+}
+DOC_DIR = Path(handlers.__file__).parent / 'doc'
+
+
+@pytest.fixture
+def legacy_default_encoding(monkeypatch):
+    """Make text-mode file I/O behave like a Windows host whose default encoding is cp1252.
+
+    ``open()`` and ``Path.read_text()`` called without an ``encoding`` use cp1252. This
+    reproduces such a host on any platform, including when the test run itself has
+    UTF-8 mode enabled.
+    """
+    real_open = io.open
+
+    def legacy_open(
+        file,
+        mode='r',
+        buffering=-1,
+        encoding=None,
+        errors=None,
+        newline=None,
+        closefd=True,
+        opener=None,
+    ):
+        if 'b' not in mode and encoding in (None, 'locale'):
+            encoding = 'cp1252'
+        return real_open(file, mode, buffering, encoding, errors, newline, closefd, opener)
+
+    def legacy_text_encoding(encoding, stacklevel=2):
+        return 'locale' if encoding is None else encoding
+
+    monkeypatch.setattr(builtins, 'open', legacy_open)
+    monkeypatch.setattr(io, 'open', legacy_open)
+    monkeypatch.setattr(io, 'text_encoding', legacy_text_encoding)
+
+
+class TestDocHandlersEncoding:
+    """The bundled guidelines are UTF-8 and must read the same whatever the host's default is."""
+
+    @pytest.mark.parametrize('guideline_name', sorted(GUIDELINE_DOCS))
+    def test_guideline_is_read_as_utf8(self, guideline_name, legacy_default_encoding):
+        """Each guideline is returned exactly as stored."""
+        expected = (DOC_DIR / GUIDELINE_DOCS[guideline_name]).read_text(encoding='utf-8')
+
+        assert handle_get_guidelines(guideline_name) == expected
+
+    def test_sizing_guide_has_non_ascii_content(self):
+        """Make sure the sizing guide test above exercises a decoding difference."""
+        sizing_guide = (DOC_DIR / GUIDELINE_DOCS['rabbimq_broker_sizing_guide']).read_text(
+            encoding='utf-8'
+        )
+
+        assert not sizing_guide.isascii()
 
 
 class TestHealthHandlers:
