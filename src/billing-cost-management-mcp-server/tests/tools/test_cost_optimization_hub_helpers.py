@@ -19,12 +19,15 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_optimization_hub_help
     _apply_pareto_materiality,
     _latest_efficiency_point,
     format_timestamp,
+    get_preferences,
     get_recommendation,
     list_efficiency_metrics,
+    list_enrollment_statuses,
     list_recommendation_summaries,
     list_recommendations,
 )
 from awslabs.billing_cost_management_mcp_server.utilities.constants import (
+    EFFICIENCY_PARETO_MAX_PAGES,
     EFFICIENCY_PARETO_PAGE_SIZE,
 )
 from datetime import datetime
@@ -156,6 +159,25 @@ class TestFormatHelpers:
         result = format_timestamp(None)
         assert result is None
 
+    def test_format_timestamp_with_epoch_seconds(self):
+        """Epoch seconds are read as seconds, not milliseconds (no 1970 dates)."""
+        assert format_timestamp(1756728000) == '2025-09-01T12:00:00'
+
+    def test_format_timestamp_with_epoch_milliseconds(self):
+        """Epoch milliseconds are still supported."""
+        assert format_timestamp(1756728000000) == '2025-09-01T12:00:00'
+
+    def test_format_timestamp_with_aware_datetime(self):
+        """An aware datetime is normalized to UTC."""
+        from datetime import timezone
+
+        value = datetime(2025, 9, 1, 12, 0, tzinfo=timezone.utc)
+        assert format_timestamp(value) == '2025-09-01T12:00:00'
+
+    def test_format_timestamp_unconvertible_returns_none(self):
+        """Unconvertible input yields None, never an error string."""
+        assert format_timestamp('garbage') is None
+
 
 @pytest.mark.asyncio
 class TestListRecommendations:
@@ -181,7 +203,7 @@ class TestListRecommendations:
         result = await list_recommendations(
             mock_context,
             mock_coh_client,
-            max_results=10,
+            max_items=10,
         )
 
         # Verify the client was called correctly
@@ -216,7 +238,7 @@ class TestListRecommendations:
         await list_recommendations(
             mock_context,
             mock_coh_client,
-            max_results=10,
+            max_items=10,
             filters=filters,
             include_all_recommendations=True,
         )
@@ -236,6 +258,28 @@ class TestListRecommendations:
 
         call_kwargs = mock_coh_client.list_recommendations.call_args[1]
         assert call_kwargs['orderBy'] == order_by
+
+    async def test_order_by_sent_on_every_page(self, mock_context, mock_coh_client):
+        """``orderBy`` is sent on every page, so a multi-page top-N stays ordered."""
+        order_by = {'dimension': 'EstimatedMonthlySavings', 'order': 'Desc'}
+        mock_coh_client.list_recommendations.side_effect = [
+            {'items': [{'recommendationId': 'rec-1'}], 'nextToken': 'page2'},
+            {'items': [{'recommendationId': 'rec-2'}], 'nextToken': 'page3'},
+            {'items': [{'recommendationId': 'rec-3'}]},
+        ]
+
+        result = await list_recommendations(mock_context, mock_coh_client, order_by=order_by)
+
+        calls = mock_coh_client.list_recommendations.call_args_list
+        assert len(calls) == 3
+        assert all(call.kwargs['orderBy'] == order_by for call in calls)
+        assert [r['recommendation_id'] for r in result['data']['recommendations']] == [
+            'rec-1',
+            'rec-2',
+            'rec-3',
+        ]
+        assert result['data']['pagination']['complete_dataset'] is True
+        assert 'complete_dataset' not in [k for k in result['data'] if k != 'pagination']
 
     async def test_order_by_omitted_when_absent(self, mock_context, mock_coh_client):
         """No ``orderBy`` key is sent when ``order_by`` is not provided."""
@@ -385,7 +429,7 @@ class TestListRecommendationSummaries:
             mock_context,
             mock_coh_client,
             group_by='ACCOUNT_ID',
-            max_results=10,
+            max_items=10,
             filters=filters,
         )
 
@@ -465,13 +509,12 @@ class TestListRecommendationsErrorHandling:
         assert result['status'] == 'success'
         assert result['data']['recommendations'] == []
 
-    async def test_pagination_with_max_pages(self, mock_context, mock_coh_client):
-        """``max_pages`` caps the number of API calls and surfaces resumption state.
+    async def test_pagination_with_max_items(self, mock_context, mock_coh_client):
+        """``max_items`` stops paging once reached and surfaces resumption state.
 
-        Pages 1 and 2 both return ``nextToken``; with ``max_pages=2`` the helper
-        stops after page 2 and returns the combined recommendations alongside a
-        ``Pagination`` envelope (matching the Cost Explorer pattern) so the
-        caller can resume.
+        Pages 1 and 2 both return ``nextToken``; with ``max_items=6`` and short pages of
+        3, the helper asks for 6 then 3, stops after page 2 and returns the service's
+        token so the caller can resume.
         """
         mock_coh_client.list_recommendations.side_effect = [
             {
@@ -489,19 +532,18 @@ class TestListRecommendationsErrorHandling:
             },
         ]
 
-        result = await list_recommendations(mock_context, mock_coh_client, max_pages=2)
+        result = await list_recommendations(mock_context, mock_coh_client, max_items=6)
 
         assert result['status'] == 'success'
-        # All items across the two fetched pages are returned (no truncation).
         assert len(result['data']['recommendations']) == 6
-        # Boto3 was called exactly twice — max_pages stopped further fetches.
-        assert mock_coh_client.list_recommendations.call_count == 2
-        # Resumption state is plumbed through under the canonical ``Pagination``
-        # envelope so the caller can continue from page 3.
-        pagination = result['data'].get('Pagination', {})
-        assert pagination.get('has_more') is True
-        assert pagination.get('next_token') == 'page3token'
-        assert pagination.get('pages_fetched') == 2
+        calls = mock_coh_client.list_recommendations.call_args_list
+        assert [c.kwargs['maxResults'] for c in calls] == [6, 3]
+        assert result['data']['complete_dataset'] is False
+        assert 'Partial data' in result['data']['warning']
+        pagination = result['data']['pagination']
+        assert pagination['has_more'] is True
+        assert pagination['next_token'] == 'page3token'
+        assert pagination['items_returned'] == 6
 
     async def test_pagination_with_next_token_seeds_first_request(
         self, mock_context, mock_coh_client
@@ -529,7 +571,8 @@ class TestListRecommendationsErrorHandling:
         result = await list_recommendations(mock_context, mock_coh_client)
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'ValidationException'
+        assert result['operation'] == 'list_recommendations'
+        assert result['error_type'] == 'ValidationException'
         # The service's own message is surfaced verbatim (no bespoke mapping).
         assert result['message'] == 'Invalid filter'
 
@@ -547,7 +590,8 @@ class TestListRecommendationsErrorHandling:
         result = await list_recommendations(mock_context, mock_coh_client)
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'AccessDeniedException'
+        assert result['operation'] == 'list_recommendations'
+        assert result['error_type'] == 'AccessDeniedException'
         assert result['message'] == 'Access denied'
 
     async def test_resource_not_found_exception(self, mock_context, mock_coh_client):
@@ -564,7 +608,8 @@ class TestListRecommendationsErrorHandling:
         result = await list_recommendations(mock_context, mock_coh_client)
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'ResourceNotFoundException'
+        assert result['operation'] == 'list_recommendations'
+        assert result['error_type'] == 'ResourceNotFoundException'
         assert result['message'] == 'Resource not found'
 
     async def test_other_client_error_returns_service_message(self, mock_context, mock_coh_client):
@@ -580,16 +625,21 @@ class TestListRecommendationsErrorHandling:
         result = await list_recommendations(mock_context, mock_coh_client)
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'InternalServerError'
+        assert result['operation'] == 'list_recommendations'
+        assert result['error_type'] == 'InternalServerError'
         assert result['message'] == 'Internal error'
 
-    async def test_non_client_error_reraise(self, mock_context, mock_coh_client):
-        """Test list_recommendations non-ClientError gets re-raised."""
+    async def test_non_client_error_returns_structured_error(self, mock_context, mock_coh_client):
+        """Test list_recommendations non-ClientError returns a structured validation_error."""
         error = ValueError('Some unexpected error')
         mock_coh_client.list_recommendations.side_effect = error
 
-        with pytest.raises(ValueError):
-            await list_recommendations(mock_context, mock_coh_client)
+        result = await list_recommendations(mock_context, mock_coh_client)
+
+        assert result['status'] == 'error'
+        assert result['operation'] == 'list_recommendations'
+        assert result['error_type'] == 'validation_error'
+        assert result['message'] == 'Some unexpected error'
 
 
 @pytest.mark.asyncio
@@ -627,8 +677,9 @@ class TestGetRecommendationErrorHandling:
         result = await get_recommendation(mock_context, mock_coh_client, 'invalid-id')
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'ValidationException'
-        assert 'validation error' in result['message']
+        assert result['operation'] == 'get_recommendation'
+        assert result['error_type'] == 'ValidationException'
+        assert result['message'] == 'Invalid resource'
 
     async def test_access_denied_exception(self, mock_context, mock_coh_client):
         """Test get_recommendation AccessDeniedException handling."""
@@ -644,11 +695,12 @@ class TestGetRecommendationErrorHandling:
         result = await get_recommendation(mock_context, mock_coh_client, 'i-1234567890abcdef0')
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'AccessDeniedException'
-        assert 'Access denied' in result['message']
+        assert result['operation'] == 'get_recommendation'
+        assert result['error_type'] == 'AccessDeniedException'
+        assert result['message'] == 'Access denied'
 
     async def test_resource_not_found_exception(self, mock_context, mock_coh_client):
-        """Test get_recommendation ResourceNotFoundException handling."""
+        """ResourceNotFoundException is reported as a warning naming the recommendation ID."""
         from botocore.exceptions import ClientError
 
         mock_coh_client.get_recommendation.side_effect = ClientError(
@@ -660,12 +712,25 @@ class TestGetRecommendationErrorHandling:
 
         result = await get_recommendation(mock_context, mock_coh_client, 'i-nonexistent')
 
-        assert result['status'] == 'warning'
-        assert result['data']['error_code'] == 'ResourceNotFoundException'
-        assert 'not found' in result['message']
+        assert result == {
+            'status': 'warning',
+            'data': {
+                'error_code': 'ResourceNotFoundException',
+                'recommendation_id': 'i-nonexistent',
+            },
+            'message': (
+                'Recommendation i-nonexistent not found in Cost Optimization Hub. The ID may be '
+                'invalid (it must be a Cost Optimization Hub recommendation ID, not a resource ID '
+                'or ARN), or the recommendation may no longer exist: recommendations are '
+                'refreshed daily and removed once they no longer apply. Call list_recommendations '
+                'to check the current recommendations for the resource.'
+            ),
+        }
 
-    async def test_other_client_error_reraise(self, mock_context, mock_coh_client):
-        """Test get_recommendation other ClientError gets re-raised."""
+    async def test_other_client_error_returns_structured_error(
+        self, mock_context, mock_coh_client
+    ):
+        """Test get_recommendation other ClientError returns a structured error."""
         from botocore.exceptions import ClientError
 
         error = ClientError(
@@ -674,16 +739,24 @@ class TestGetRecommendationErrorHandling:
         )
         mock_coh_client.get_recommendation.side_effect = error
 
-        with pytest.raises(ClientError):
-            await get_recommendation(mock_context, mock_coh_client, 'i-1234567890abcdef0')
+        result = await get_recommendation(mock_context, mock_coh_client, 'i-1234567890abcdef0')
 
-    async def test_non_client_error_reraise(self, mock_context, mock_coh_client):
-        """Test get_recommendation non-ClientError gets re-raised."""
+        assert result['status'] == 'error'
+        assert result['operation'] == 'get_recommendation'
+        assert result['error_type'] == 'InternalServerError'
+        assert result['message'] == 'Internal error'
+
+    async def test_non_client_error_returns_structured_error(self, mock_context, mock_coh_client):
+        """Test get_recommendation non-ClientError returns a structured validation_error."""
         error = ValueError('Some unexpected error')
         mock_coh_client.get_recommendation.side_effect = error
 
-        with pytest.raises(ValueError):
-            await get_recommendation(mock_context, mock_coh_client, 'i-1234567890abcdef0')
+        result = await get_recommendation(mock_context, mock_coh_client, 'i-1234567890abcdef0')
+
+        assert result['status'] == 'error'
+        assert result['operation'] == 'get_recommendation'
+        assert result['error_type'] == 'validation_error'
+        assert result['message'] == 'Some unexpected error'
 
 
 @pytest.mark.asyncio
@@ -701,13 +774,12 @@ class TestListRecommendationSummariesErrorHandling:
         assert result['status'] == 'success'
         assert result['data']['summaries'] == []
 
-    async def test_pagination_with_max_pages(self, mock_context, mock_coh_client):
-        """``max_pages`` caps the number of API calls and surfaces resumption state.
+    async def test_pagination_with_max_items(self, mock_context, mock_coh_client):
+        """``max_items`` stops paging once reached and surfaces resumption state.
 
-        Pages 1 and 2 both return ``nextToken``; with ``max_pages=2`` the helper
-        stops after page 2 and returns the combined summaries alongside a
-        ``Pagination`` envelope (matching the Cost Explorer pattern). The
-        top-level aggregate fields are read from the FIRST response — per
+        Pages 1 and 2 both return ``nextToken``; with ``max_items=6`` the helper
+        stops after page 2 and returns the combined summaries alongside the
+        ``pagination`` block. The top-level aggregate fields are read from the FIRST response — per
         AWS the values are page-invariant, but giving the two mock pages
         different ``estimatedTotalDedupedSavings`` values lets the test
         actually prove which page was consulted.
@@ -747,22 +819,21 @@ class TestListRecommendationSummariesErrorHandling:
         ]
 
         result = await list_recommendation_summaries(
-            mock_context, mock_coh_client, 'RESOURCE_TYPE', max_pages=2
+            mock_context, mock_coh_client, 'RESOURCE_TYPE', max_items=6
         )
 
         assert result['status'] == 'success'
-        # All items across the two fetched pages are returned (no truncation).
         assert len(result['data']['summaries']) == 6
-        # Boto3 was called exactly twice — max_pages stopped further fetches.
-        assert mock_coh_client.list_recommendation_summaries.call_count == 2
+        calls = mock_coh_client.list_recommendation_summaries.call_args_list
+        assert [c.kwargs['maxResults'] for c in calls] == [6, 3]
         # Aggregate header comes from the FIRST response, not the last.
-        assert result['data']['estimated_total_savings'] == 600.0
-        # Resumption state is plumbed through under ``Pagination`` so the
-        # caller can continue from page 3.
-        pagination = result['data'].get('Pagination', {})
-        assert pagination.get('has_more') is True
-        assert pagination.get('next_token') == 'page3token'
-        assert pagination.get('pages_fetched') == 2
+        assert result['data']['estimated_total_deduped_savings'] == 600.0
+        # The partial-data signal leads the data.
+        assert list(result['data'])[:2] == ['complete_dataset', 'warning']
+        pagination = result['data']['pagination']
+        assert pagination['has_more'] is True
+        assert pagination['next_token'] == 'page3token'
+        assert pagination['items_returned'] == 6
 
     async def test_pagination_with_next_token_seeds_first_request(
         self, mock_context, mock_coh_client
@@ -808,7 +879,8 @@ class TestListRecommendationSummariesErrorHandling:
         )
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'ValidationException'
+        assert result['operation'] == 'list_recommendation_summaries'
+        assert result['error_type'] == 'ValidationException'
         # The service's own message is surfaced verbatim (no bespoke mapping).
         assert result['message'] == 'Invalid group_by'
 
@@ -828,7 +900,8 @@ class TestListRecommendationSummariesErrorHandling:
         )
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'AccessDeniedException'
+        assert result['operation'] == 'list_recommendation_summaries'
+        assert result['error_type'] == 'AccessDeniedException'
         assert result['message'] == 'Access denied'
 
     async def test_unauthorized_exception(self, mock_context, mock_coh_client):
@@ -845,7 +918,8 @@ class TestListRecommendationSummariesErrorHandling:
         )
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'UnauthorizedException'
+        assert result['operation'] == 'list_recommendation_summaries'
+        assert result['error_type'] == 'UnauthorizedException'
         assert result['message'] == 'Unauthorized'
 
     async def test_resource_not_found_exception(self, mock_context, mock_coh_client):
@@ -864,7 +938,8 @@ class TestListRecommendationSummariesErrorHandling:
         )
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'ResourceNotFoundException'
+        assert result['operation'] == 'list_recommendation_summaries'
+        assert result['error_type'] == 'ResourceNotFoundException'
         assert result['message'] == 'Resource not found'
 
     async def test_other_aws_error(self, mock_context, mock_coh_client):
@@ -884,7 +959,8 @@ class TestListRecommendationSummariesErrorHandling:
         )
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'InternalServerError'
+        assert result['operation'] == 'list_recommendation_summaries'
+        assert result['error_type'] == 'InternalServerError'
         assert result['message'] == 'Internal error'
 
     async def test_non_aws_error(self, mock_context, mock_coh_client):
@@ -898,9 +974,10 @@ class TestListRecommendationSummariesErrorHandling:
         )
 
         assert result['status'] == 'error'
-        assert result['data']['error_type'] == 'service_error'
-        assert result['data']['service'] == 'Cost Optimization Hub'
-        assert 'Try using list_recommendations' in result['message']
+        assert result['service'] == 'Cost Optimization Hub'
+        assert result['operation'] == 'list_recommendation_summaries'
+        assert result['error_type'] == 'validation_error'
+        assert result['message'] == 'Some unexpected error'
 
 
 @pytest.mark.asyncio
@@ -1125,7 +1202,7 @@ class TestListEfficiencyMetrics:
             end_date='2026-08',
             group_by='Region',
             order_by={'dimension': 'Score', 'order': 'Desc'},
-            max_results=25,
+            max_items=25,
         )
 
         # Verify the client was called with camelCase params.
@@ -1171,7 +1248,8 @@ class TestListEfficiencyMetrics:
         assert call_kwargs['timePeriod'] == {'start': '2026-05-01', 'end': '2026-05-31'}
         assert 'groupBy' not in call_kwargs
         assert 'orderBy' not in call_kwargs
-        assert 'maxResults' not in call_kwargs
+        # Without max_items every page is fetched at the largest page size.
+        assert call_kwargs['maxResults'] == 1000
         assert 'nextToken' not in call_kwargs
         assert result['status'] == 'success'
         assert result['data']['groups'] == []
@@ -1203,8 +1281,8 @@ class TestListEfficiencyMetrics:
         assert group['message'] == 'Insufficient data for the specified time period.'
         assert group['metrics_by_time'] == []
 
-    async def test_pagination_with_max_pages(self, mock_context, mock_coh_client):
-        """``max_pages`` caps API calls and returns a ``Pagination`` envelope."""
+    async def test_pagination_with_max_items(self, mock_context, mock_coh_client):
+        """``max_items`` stops paging and returns the service token in ``pagination``."""
         mock_coh_client.list_efficiency_metrics.side_effect = [
             {
                 'efficiencyMetricsByGroup': [
@@ -1228,16 +1306,18 @@ class TestListEfficiencyMetrics:
             start_date='2026-06',
             end_date='2026-08',
             group_by='AccountId',
-            max_pages=2,
+            max_items=6,
         )
 
         assert result['status'] == 'success'
         assert len(result['data']['groups']) == 6
-        assert mock_coh_client.list_efficiency_metrics.call_count == 2
-        pagination = result['data'].get('Pagination', {})
-        assert pagination.get('has_more') is True
-        assert pagination.get('next_token') == 'page3token'
-        assert pagination.get('pages_fetched') == 2
+        calls = mock_coh_client.list_efficiency_metrics.call_args_list
+        assert [c.kwargs['maxResults'] for c in calls] == [6, 3]
+        assert result['data']['complete_dataset'] is False
+        pagination = result['data']['pagination']
+        assert pagination['has_more'] is True
+        assert pagination['next_token'] == 'page3token'
+        assert pagination['items_returned'] == 6
 
     async def test_pagination_with_next_token_seeds_first_request(
         self, mock_context, mock_coh_client
@@ -1260,14 +1340,21 @@ class TestListEfficiencyMetrics:
         call_kwargs = mock_coh_client.list_efficiency_metrics.call_args[1]
         assert call_kwargs['nextToken'] == 'resume-from-here'
 
-    async def test_single_page_surfaces_next_token(self, mock_context, mock_coh_client):
-        """A single-page response with a ``nextToken`` exposes it for resumption."""
-        mock_coh_client.list_efficiency_metrics.return_value = {
-            'efficiencyMetricsByGroup': [
-                {'group': 'us-east-1', 'message': None, 'metricsByTime': []}
-            ],
-            'nextToken': 'more-groups',
-        }
+    async def test_no_max_items_fetches_every_page(self, mock_context, mock_coh_client):
+        """Without ``max_items`` every page is fetched and the result is complete."""
+        mock_coh_client.list_efficiency_metrics.side_effect = [
+            {
+                'efficiencyMetricsByGroup': [
+                    {'group': 'us-east-1', 'message': None, 'metricsByTime': []}
+                ],
+                'nextToken': 'more-groups',
+            },
+            {
+                'efficiencyMetricsByGroup': [
+                    {'group': 'us-west-2', 'message': None, 'metricsByTime': []}
+                ],
+            },
+        ]
 
         result = await list_efficiency_metrics(
             mock_context,
@@ -1276,13 +1363,23 @@ class TestListEfficiencyMetrics:
             start_date='2026-06',
             end_date='2026-08',
             group_by='Region',
+            order_by={'dimension': 'Score', 'order': 'Desc'},
         )
 
         assert result['status'] == 'success'
-        # No next_token/max_pages passed -> single boto3 call, token surfaced inline.
-        assert mock_coh_client.list_efficiency_metrics.call_count == 1
-        assert result['data']['nextToken'] == 'more-groups'
-        assert 'Pagination' not in result['data']
+        calls = mock_coh_client.list_efficiency_metrics.call_args_list
+        assert len(calls) == 2
+        assert calls[1].kwargs['nextToken'] == 'more-groups'
+        # orderBy is sent on every page.
+        assert all(c.kwargs['orderBy'] == {'dimension': 'Score', 'order': 'Desc'} for c in calls)
+        assert [g['group'] for g in result['data']['groups']] == ['us-east-1', 'us-west-2']
+        assert 'complete_dataset' not in result['data']
+        assert result['data']['pagination'] == {
+            'complete_dataset': True,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 2,
+        }
 
     async def test_validation_exception(self, mock_context, mock_coh_client):
         """ValidationException surfaces the service's own message verbatim."""
@@ -1304,7 +1401,8 @@ class TestListEfficiencyMetrics:
         )
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'ValidationException'
+        assert result['operation'] == 'list_efficiency_metrics'
+        assert result['error_type'] == 'ValidationException'
         assert result['message'] == 'Invalid timePeriod'
 
     async def test_access_denied_exception(self, mock_context, mock_coh_client):
@@ -1327,7 +1425,8 @@ class TestListEfficiencyMetrics:
         )
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'AccessDeniedException'
+        assert result['operation'] == 'list_efficiency_metrics'
+        assert result['error_type'] == 'AccessDeniedException'
         assert result['message'] == 'Access denied'
 
     async def test_resource_not_found_exception(self, mock_context, mock_coh_client):
@@ -1350,7 +1449,8 @@ class TestListEfficiencyMetrics:
         )
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'ResourceNotFoundException'
+        assert result['operation'] == 'list_efficiency_metrics'
+        assert result['error_type'] == 'ResourceNotFoundException'
         assert result['message'] == 'Not found'
 
     async def test_other_client_error_returns_service_message(self, mock_context, mock_coh_client):
@@ -1371,21 +1471,26 @@ class TestListEfficiencyMetrics:
         )
 
         assert result['status'] == 'error'
-        assert result['data']['error_code'] == 'InternalServerError'
+        assert result['operation'] == 'list_efficiency_metrics'
+        assert result['error_type'] == 'InternalServerError'
         assert result['message'] == 'Internal error'
 
-    async def test_non_client_error_reraise(self, mock_context, mock_coh_client):
-        """Non-ClientError exceptions are re-raised."""
+    async def test_non_client_error_returns_structured_error(self, mock_context, mock_coh_client):
+        """Non-ClientError exceptions return a structured validation_error."""
         mock_coh_client.list_efficiency_metrics.side_effect = ValueError('boom')
 
-        with pytest.raises(ValueError):
-            await list_efficiency_metrics(
-                mock_context,
-                mock_coh_client,
-                granularity='Monthly',
-                start_date='2026-06',
-                end_date='2026-08',
-            )
+        result = await list_efficiency_metrics(
+            mock_context,
+            mock_coh_client,
+            granularity='Monthly',
+            start_date='2026-06',
+            end_date='2026-08',
+        )
+
+        assert result['status'] == 'error'
+        assert result['operation'] == 'list_efficiency_metrics'
+        assert result['error_type'] == 'validation_error'
+        assert result['message'] == 'boom'
 
 
 @pytest.mark.asyncio
@@ -1632,21 +1737,24 @@ def test_latest_efficiency_point_none_when_no_timestamped_points():
 
 @pytest.mark.asyncio
 async def test_list_recommendations_single_page_passes_next_token(mock_context, mock_coh_client):
-    """A single-page (non-paginated) call surfaces the API's nextToken for resume."""
+    """A max_items stop surfaces the API's nextToken and flags the partial result."""
     mock_coh_client.list_recommendations.return_value = {
-        'items': [{'recommendationId': 'rec-1', 'accountId': '123456789012'}],
+        'items': [{'recommendationId': f'rec-{i}', 'accountId': '123456789012'} for i in range(2)],
         'nextToken': 'tok-abc',
     }
-    result = await list_recommendations(mock_context, mock_coh_client, max_results=10)
+    result = await list_recommendations(mock_context, mock_coh_client, max_items=2)
     assert result['status'] == 'success'
-    assert result['data']['nextToken'] == 'tok-abc'
+    assert mock_coh_client.list_recommendations.call_count == 1
+    assert result['data']['pagination']['next_token'] == 'tok-abc'
+    assert result['data']['complete_dataset'] is False
+    assert list(result['data'])[:2] == ['complete_dataset', 'warning']
 
 
 @pytest.mark.asyncio
 async def test_list_efficiency_metrics_single_page_passes_next_token(
     mock_context, mock_coh_client
 ):
-    """A single-page efficiency call surfaces the API's nextToken for resume."""
+    """A max_items stop on efficiency metrics surfaces the API's nextToken for resume."""
     mock_coh_client.list_efficiency_metrics.return_value = {
         'efficiencyMetricsByGroup': [
             {
@@ -1664,18 +1772,21 @@ async def test_list_efficiency_metrics_single_page_passes_next_token(
         granularity='Monthly',
         start_date='2026-07',
         end_date='2026-08',
+        max_items=1,
     )
     assert result['status'] == 'success'
-    assert result['data']['nextToken'] == 'tok-eff'
+    assert mock_coh_client.list_efficiency_metrics.call_args[1]['maxResults'] == 1
+    assert result['data']['pagination']['next_token'] == 'tok-eff'
+    assert result['data']['complete_dataset'] is False
 
 
 @pytest.mark.asyncio
 async def test_list_recommendation_summaries_single_page_passes_next_token(
     mock_context, mock_coh_client
 ):
-    """A single-page summaries call surfaces the API's nextToken for resume."""
+    """A max_items stop on summaries surfaces nextToken and flags the partial result."""
     mock_coh_client.list_recommendation_summaries.return_value = {
-        'summaries': [{'dimensionValue': 'EC2_INSTANCE', 'recommendationCount': 1}],
+        'items': [{'group': 'EC2_INSTANCE', 'recommendationCount': 1}],
         'groupBy': 'RESOURCE_TYPE',
         'currencyCode': 'USD',
         'metrics': {'savingsPercentage': 12.5},
@@ -1685,9 +1796,12 @@ async def test_list_recommendation_summaries_single_page_passes_next_token(
         mock_context,
         mock_coh_client,
         group_by='RESOURCE_TYPE',
+        max_items=1,
     )
     assert result['status'] == 'success'
-    assert result['data']['nextToken'] == 'tok-sum'
+    assert mock_coh_client.list_recommendation_summaries.call_count == 1
+    assert result['data']['pagination']['next_token'] == 'tok-sum'
+    assert list(result['data'])[:2] == ['complete_dataset', 'warning']
     # The optional top-level ``metrics`` block is surfaced when present.
     assert result['data']['metrics']['savings_percentage'] == 12.5
 
@@ -1800,14 +1914,13 @@ class TestEfficiencyPerformanceRanking:
         assert [g['group'] for g in result['data']['groups']] == ['lo', 'hi']
         assert result['data']['ranking_focus']['direction'] == 'Asc'
 
-    async def test_performance_mode_ignores_caller_max_results_for_fetch(
+    async def test_performance_mode_max_items_only_trims_ranked_list(
         self, mock_context, mock_coh_client
     ):
-        """A caller max_results is a display count, not a fetch size.
+        """A caller max_items is a display count, not a fetch size.
 
         It must not shrink the per-page fetch (which would corrupt the Pareto
-        denominator). The full material set is still returned (server-side does NOT
-        slice to N); the display "top N" is applied by the caller.
+        denominator); it only trims the ranked list returned.
         """
         mock_coh_client.list_efficiency_metrics.return_value = {
             'efficiencyMetricsByGroup': [
@@ -1823,7 +1936,7 @@ class TestEfficiencyPerformanceRanking:
             start_date='2026-07',
             end_date='2026-08',
             group_by='AccountId',
-            max_results=1,  # "top 1" display ask
+            max_items=1,  # "top 1" display ask
             ranking_mode='performance',
         )
 
@@ -1832,8 +1945,189 @@ class TestEfficiencyPerformanceRanking:
             mock_coh_client.list_efficiency_metrics.call_args[1]['maxResults']
             == EFFICIENCY_PARETO_PAGE_SIZE
         )
-        # Full material set returned; the display cap is the caller's job.
-        assert [g['group'] for g in result['data']['groups']] == ['A', 'B']
+        # Ranked over both groups, then trimmed to the top 1.
+        assert [g['group'] for g in result['data']['groups']] == ['A']
+        focus = result['data']['ranking_focus']
+        assert focus['material_groups'] == 2
+        assert focus['groups_fetched'] == 2
+        assert focus['groups_returned'] == 1
+        assert result['data']['pagination']['items_returned'] == 1
+        assert result['data']['pagination']['complete_dataset'] is True
+
+    async def test_performance_mode_fetch_cap_unchanged(self, mock_context, mock_coh_client):
+        """The internal fetch stops at EFFICIENCY_PARETO_MAX_PAGES full pages and flags cap_hit."""
+        pages = [
+            {
+                'efficiencyMetricsByGroup': [
+                    _eff_group(f'g{p}-{i}', 1000.0, 50.0)
+                    for i in range(EFFICIENCY_PARETO_PAGE_SIZE)
+                ],
+                'nextToken': f'tok-{p + 1}',
+            }
+            for p in range(EFFICIENCY_PARETO_MAX_PAGES + 1)
+        ]
+        mock_coh_client.list_efficiency_metrics.side_effect = pages
+
+        result = await list_efficiency_metrics(
+            mock_context,
+            mock_coh_client,
+            granularity='Monthly',
+            start_date='2026-07',
+            end_date='2026-08',
+            group_by='AccountId',
+            ranking_mode='performance',
+        )
+
+        calls = mock_coh_client.list_efficiency_metrics.call_args_list
+        assert len(calls) == EFFICIENCY_PARETO_MAX_PAGES
+        assert all(c.kwargs['maxResults'] == EFFICIENCY_PARETO_PAGE_SIZE for c in calls)
+        assert all(c.kwargs['orderBy'] == {'dimension': 'Spend', 'order': 'Desc'} for c in calls)
+        focus = result['data']['ranking_focus']
+        assert focus['cap_hit'] is True
+        assert focus['groups_fetched'] == EFFICIENCY_PARETO_MAX_PAGES * EFFICIENCY_PARETO_PAGE_SIZE
+
+    async def test_performance_mode_cap_hit_pagination_has_no_continuation(
+        self, mock_context, mock_coh_client
+    ):
+        """A capped ranking is partial but not continuable: no next_token, no max_items advice."""
+        pages = [
+            {
+                'efficiencyMetricsByGroup': [
+                    _eff_group(f'g{p}-{i}', 1000.0, 50.0)
+                    for i in range(EFFICIENCY_PARETO_PAGE_SIZE)
+                ],
+                'nextToken': f'tok-{p + 1}',
+            }
+            for p in range(EFFICIENCY_PARETO_MAX_PAGES + 1)
+        ]
+        mock_coh_client.list_efficiency_metrics.side_effect = pages
+
+        result = await list_efficiency_metrics(
+            mock_context,
+            mock_coh_client,
+            granularity='Monthly',
+            start_date='2026-07',
+            end_date='2026-08',
+            group_by='AccountId',
+            max_items=5,
+            ranking_mode='performance',
+        )
+
+        data = result['data']
+        cap = EFFICIENCY_PARETO_MAX_PAGES * EFFICIENCY_PARETO_PAGE_SIZE
+        assert list(data)[:2] == ['complete_dataset', 'warning']
+        assert data['complete_dataset'] is False
+        assert data['pagination'] == {
+            'complete_dataset': False,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 5,
+        }
+        warning = data['warning']
+        assert f'top {cap} spenders (fetch cap reached)' in warning
+        assert 'max_items' not in warning and 'next_token' not in warning
+        assert len(data['groups']) == 5
+
+    async def test_performance_mode_full_fetch_trimmed_is_complete(
+        self, mock_context, mock_coh_client
+    ):
+        """Trimming a fully fetched ranking to max_items is a top N, not partial data."""
+        mock_coh_client.list_efficiency_metrics.return_value = {
+            'efficiencyMetricsByGroup': [_eff_group(f'g{i}', 1000.0, float(i)) for i in range(10)]
+        }
+
+        result = await list_efficiency_metrics(
+            mock_context,
+            mock_coh_client,
+            granularity='Monthly',
+            start_date='2026-07',
+            end_date='2026-08',
+            group_by='AccountId',
+            max_items=5,
+            ranking_mode='performance',
+        )
+
+        data = result['data']
+        assert 'complete_dataset' not in data and 'warning' not in data
+        assert data['pagination'] == {
+            'complete_dataset': True,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 5,
+        }
+        assert len(data['groups']) == 5
+        focus = data['ranking_focus']
+        assert focus['groups_returned'] == 5
+        assert focus['material_groups'] == 8  # 80% of equal spend
+        assert focus['note'] == 'Returned the top 5 of 8 ranked groups (max_items).'
+
+    async def test_performance_mode_untrimmed_has_no_note(self, mock_context, mock_coh_client):
+        """Without a max_items trim, ranking_focus carries no ranked-vs-returned note."""
+        mock_coh_client.list_efficiency_metrics.return_value = {
+            'efficiencyMetricsByGroup': [_eff_group('A', 1000.0, 50.0)]
+        }
+
+        result = await list_efficiency_metrics(
+            mock_context,
+            mock_coh_client,
+            granularity='Monthly',
+            start_date='2026-07',
+            end_date='2026-08',
+            group_by='AccountId',
+            ranking_mode='performance',
+        )
+
+        assert 'note' not in result['data']['ranking_focus']
+        assert result['data']['pagination']['complete_dataset'] is True
+
+    async def test_performance_mode_early_stop_warning(self, mock_context, mock_coh_client):
+        """A fetch that fails mid-way is partial but not described as the cap."""
+        from botocore.exceptions import ClientError
+
+        mock_coh_client.list_efficiency_metrics.side_effect = [
+            {
+                'efficiencyMetricsByGroup': [_eff_group('A', 1000.0, 50.0)],
+                'nextToken': 'tok-2',
+            },
+            ClientError({'Error': {'Code': 'ThrottlingException', 'Message': 'x'}}, 'op'),
+        ]
+
+        result = await list_efficiency_metrics(
+            mock_context,
+            mock_coh_client,
+            granularity='Monthly',
+            start_date='2026-07',
+            end_date='2026-08',
+            group_by='AccountId',
+            ranking_mode='performance',
+        )
+
+        data = result['data']
+        assert data['complete_dataset'] is False
+        assert data['pagination']['next_token'] is None
+        assert 'top 1 spenders (fetch stopped early)' in data['warning']
+
+    @pytest.mark.parametrize('ranking_mode', [None, 'performance'])
+    @pytest.mark.parametrize('max_items', [0, -1])
+    async def test_max_items_below_one_is_validation_error(
+        self, mock_context, mock_coh_client, ranking_mode, max_items
+    ):
+        """max_items < 1 is rejected in both modes, before any API call."""
+        result = await list_efficiency_metrics(
+            mock_context,
+            mock_coh_client,
+            granularity='Monthly',
+            start_date='2026-07',
+            end_date='2026-08',
+            group_by='AccountId',
+            max_items=max_items,
+            ranking_mode=ranking_mode,
+        )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['message'] == 'max_items must be at least 1. Omit it to fetch every page.'
+        mock_coh_client.list_efficiency_metrics.assert_not_called()
 
     async def test_no_ranking_mode_returns_raw_series_unfiltered(
         self, mock_context, mock_coh_client
@@ -1858,3 +2152,342 @@ class TestEfficiencyPerformanceRanking:
         data = result['data']
         assert {g['group'] for g in data['groups']} == {'A', 'tiny'}
         assert 'ranking_focus' not in data
+
+
+class TestListEnrollmentStatuses:
+    """Tests for list_enrollment_statuses."""
+
+    _ITEM = {
+        'accountId': '123456789012',
+        'status': 'Active',
+        'lastUpdatedTimestamp': datetime(2026, 9, 1, 12, 0, 0),
+        'createdTimestamp': datetime(2025, 1, 1, 0, 0, 0),
+    }
+
+    @pytest.mark.asyncio
+    async def test_no_params_calls_api_without_arguments(self, mock_context):
+        """No params: the API is called with no arguments (the calling account)."""
+        client = MagicMock()
+        client.list_enrollment_statuses.return_value = {'items': [self._ITEM]}
+
+        result = await list_enrollment_statuses(mock_context, client)
+
+        client.list_enrollment_statuses.assert_called_once_with()
+        assert result['status'] == 'success'
+        assert result['data']['enrollment_statuses'] == [
+            {
+                'account_id': '123456789012',
+                'status': 'Active',
+                'last_updated_timestamp': '2026-09-01T12:00:00',
+                'created_timestamp': '2025-01-01T00:00:00',
+            }
+        ]
+
+    @pytest.mark.asyncio
+    async def test_epoch_second_timestamps_are_not_1970(self, mock_context):
+        """JSON callers send epoch seconds; enrollment dates must not land in 1970."""
+        client = MagicMock()
+        client.list_enrollment_statuses.return_value = {
+            'items': [
+                {
+                    **self._ITEM,
+                    'lastUpdatedTimestamp': 1788264000,
+                    'createdTimestamp': 1735689600.0,
+                }
+            ]
+        }
+
+        result = await list_enrollment_statuses(mock_context, client)
+
+        (entry,) = result['data']['enrollment_statuses']
+        assert entry['last_updated_timestamp'] == '2026-09-01T12:00:00'
+        assert entry['created_timestamp'] == '2025-01-01T00:00:00'
+
+    @pytest.mark.asyncio
+    async def test_account_id_forwarded(self, mock_context):
+        """account_id maps to the API's accountId."""
+        client = MagicMock()
+        client.list_enrollment_statuses.return_value = {'items': [self._ITEM]}
+
+        await list_enrollment_statuses(mock_context, client, account_id='123456789012')
+
+        client.list_enrollment_statuses.assert_called_once_with(accountId='123456789012')
+
+    @pytest.mark.asyncio
+    async def test_no_record_reported_as_inactive(self, mock_context):
+        """A never-enrolled calling account (no items) is reported as Inactive."""
+        client = MagicMock()
+        client.list_enrollment_statuses.return_value = {'items': []}
+
+        result = await list_enrollment_statuses(mock_context, client)
+
+        assert result['status'] == 'success'
+        (entry,) = result['data']['enrollment_statuses']
+        assert entry == {'status': 'Inactive'}
+
+    @pytest.mark.asyncio
+    async def test_no_record_for_named_account_reported_as_inactive(self, mock_context):
+        """A missing record for a named account (no items key) is also reported as Inactive."""
+        client = MagicMock()
+        client.list_enrollment_statuses.return_value = {}
+
+        result = await list_enrollment_statuses(mock_context, client, account_id='123456789012')
+
+        (entry,) = result['data']['enrollment_statuses']
+        client.list_enrollment_statuses.assert_called_once_with(accountId='123456789012')
+        assert entry == {'status': 'Inactive'}
+
+    @pytest.mark.asyncio
+    async def test_real_inactive_status_passed_through(self, mock_context):
+        """An Inactive status returned by the API is passed through with its timestamps."""
+        client = MagicMock()
+        client.list_enrollment_statuses.return_value = {
+            'items': [{**self._ITEM, 'status': 'Inactive'}]
+        }
+
+        result = await list_enrollment_statuses(mock_context, client)
+
+        (entry,) = result['data']['enrollment_statuses']
+        assert entry['status'] == 'Inactive'
+        assert entry['last_updated_timestamp'] == '2026-09-01T12:00:00'
+
+    @pytest.mark.asyncio
+    async def test_access_denied_surfaces_aws_message(self, mock_context):
+        """AccessDenied returns handle_aws_error's structured error with the AWS code."""
+        from botocore.exceptions import ClientError
+
+        client = MagicMock()
+        client.list_enrollment_statuses.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDeniedException', 'Message': 'denied'}},
+            'ListEnrollmentStatuses',
+        )
+
+        result = await list_enrollment_statuses(mock_context, client)
+
+        assert result['status'] == 'error'
+        assert result['service'] == 'Cost Optimization Hub'
+        assert result['operation'] == 'list_enrollment_statuses'
+        assert result['error_type'] == 'AccessDeniedException'
+        assert result['message'] == 'denied'
+
+    @pytest.mark.asyncio
+    async def test_non_client_error_returns_structured_error(self, mock_context):
+        """Non-AWS errors are also classified by handle_aws_error instead of raising."""
+        client = MagicMock()
+        client.list_enrollment_statuses.side_effect = RuntimeError('boom')
+
+        result = await list_enrollment_statuses(mock_context, client)
+
+        assert result['status'] == 'error'
+        assert result['operation'] == 'list_enrollment_statuses'
+        assert result['error_type'] == 'unknown_runtimeerror'
+        assert result['exception_type'] == 'RuntimeError'
+        assert result['message'] == 'boom'
+
+    @pytest.mark.asyncio
+    async def test_other_client_error_returns_message(self, mock_context):
+        """Other ClientErrors are passed through as the structured error_type and message."""
+        from botocore.exceptions import ClientError
+
+        client = MagicMock()
+        client.list_enrollment_statuses.side_effect = ClientError(
+            {'Error': {'Code': 'ValidationException', 'Message': 'bad account'}},
+            'ListEnrollmentStatuses',
+        )
+
+        result = await list_enrollment_statuses(mock_context, client, account_id='x')
+
+        assert result['status'] == 'error'
+        assert result['operation'] == 'list_enrollment_statuses'
+        assert result['error_type'] == 'ValidationException'
+        assert result['message'] == 'bad account'
+
+
+class TestGetPreferences:
+    """Tests for get_preferences."""
+
+    @pytest.mark.asyncio
+    async def test_formats_response(self, mock_context):
+        """The API is called with no arguments and fields are snake_cased."""
+        client = MagicMock()
+        client.get_preferences.return_value = {
+            'savingsEstimationMode': 'AfterDiscounts',
+            'memberAccountDiscountVisibility': 'All',
+            'preferredCommitment': {'term': 'OneYear', 'paymentOption': 'NoUpfront'},
+        }
+
+        result = await get_preferences(mock_context, client)
+
+        client.get_preferences.assert_called_once_with()
+        assert result == {
+            'status': 'success',
+            'data': {
+                'savings_estimation_mode': 'AfterDiscounts',
+                'member_account_discount_visibility': 'All',
+                'preferred_commitment': {'term': 'OneYear', 'payment_option': 'NoUpfront'},
+            },
+        }
+
+    @pytest.mark.asyncio
+    async def test_missing_preferred_commitment(self, mock_context):
+        """A response without preferredCommitment yields None term/payment_option."""
+        client = MagicMock()
+        client.get_preferences.return_value = {'savingsEstimationMode': 'BeforeDiscounts'}
+
+        result = await get_preferences(mock_context, client)
+
+        assert result['data']['preferred_commitment'] == {'term': None, 'payment_option': None}
+        assert result['data']['member_account_discount_visibility'] is None
+
+    @pytest.mark.asyncio
+    async def test_access_denied_surfaces_aws_message(self, mock_context):
+        """AccessDenied returns handle_aws_error's structured error with the AWS code."""
+        from botocore.exceptions import ClientError
+
+        client = MagicMock()
+        client.get_preferences.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDeniedException', 'Message': 'denied'}},
+            'GetPreferences',
+        )
+
+        result = await get_preferences(mock_context, client)
+
+        assert result['status'] == 'error'
+        assert result['service'] == 'Cost Optimization Hub'
+        assert result['operation'] == 'get_preferences'
+        assert result['error_type'] == 'AccessDeniedException'
+        assert result['message'] == 'denied'
+
+    @pytest.mark.asyncio
+    async def test_non_client_error_returns_structured_error(self, mock_context):
+        """Non-AWS errors are also classified by handle_aws_error instead of raising."""
+        client = MagicMock()
+        client.get_preferences.side_effect = RuntimeError('boom')
+
+        result = await get_preferences(mock_context, client)
+
+        assert result['status'] == 'error'
+        assert result['operation'] == 'get_preferences'
+        assert result['error_type'] == 'unknown_runtimeerror'
+        assert result['exception_type'] == 'RuntimeError'
+        assert result['message'] == 'boom'
+
+    @pytest.mark.asyncio
+    async def test_other_client_error_returns_message(self, mock_context):
+        """Other ClientErrors are passed through as the structured error_type and message."""
+        from botocore.exceptions import ClientError
+
+        client = MagicMock()
+        client.get_preferences.side_effect = ClientError(
+            {'Error': {'Code': 'ThrottlingException', 'Message': 'slow down'}},
+            'GetPreferences',
+        )
+
+        result = await get_preferences(mock_context, client)
+
+        assert result['status'] == 'error'
+        assert result['operation'] == 'get_preferences'
+        assert result['error_type'] == 'ThrottlingException'
+        assert result['message'] == 'slow down'
+
+
+_CONTINUATION_CASES = [
+    (
+        'list_recommendations',
+        list_recommendations,
+        'items',
+        {
+            'filters': {'accountIds': ['123456789012']},
+            'include_all_recommendations': True,
+            'order_by': {'dimension': 'EstimatedMonthlySavings', 'order': 'Desc'},
+        },
+    ),
+    (
+        'list_recommendation_summaries',
+        list_recommendation_summaries,
+        'items',
+        {'group_by': 'AccountId', 'filters': {'regions': ['us-east-1']}},
+    ),
+    (
+        'list_efficiency_metrics',
+        list_efficiency_metrics,
+        'efficiencyMetricsByGroup',
+        {
+            'granularity': 'Monthly',
+            'start_date': '2026-06',
+            'end_date': '2026-08',
+            'group_by': 'Region',
+            'order_by': {'dimension': 'Savings', 'order': 'Desc'},
+        },
+    ),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('method, helper, result_key, kwargs', _CONTINUATION_CASES)
+async def test_continuation_sends_caller_token_and_identical_params(
+    mock_context, mock_coh_client, method, helper, result_key, kwargs
+):
+    """A continuation call sends the caller's token byte-for-byte and the same request."""
+    api = getattr(mock_coh_client, method)
+    api.side_effect = [
+        {result_key: [{'group': 'a'}, {'group': 'b'}], 'nextToken': 'svc-token/+=='},
+        {result_key: [{'group': 'c'}]},
+    ]
+
+    first = await helper(mock_context, mock_coh_client, max_items=2, **kwargs)
+    token = first['data']['pagination']['next_token']
+    assert token == 'svc-token/+=='
+    second = await helper(mock_context, mock_coh_client, max_items=2, next_token=token, **kwargs)
+
+    first_call, second_call = (c.kwargs for c in api.call_args_list)
+    assert 'nextToken' not in first_call
+    assert second_call['nextToken'] == 'svc-token/+=='
+    strip = {'nextToken', 'maxResults'}
+    assert {k: v for k, v in first_call.items() if k not in strip} == {
+        k: v for k, v in second_call.items() if k not in strip
+    }
+    assert second['data']['pagination']['complete_dataset'] is True
+    assert second['data']['pagination']['items_returned'] == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('method, helper, result_key, kwargs', _CONTINUATION_CASES)
+async def test_invalid_next_token_maps_to_invalid_next_token(
+    mock_context, mock_coh_client, method, helper, result_key, kwargs
+):
+    """A rejected caller token surfaces as error_type invalid_next_token."""
+    from botocore.exceptions import ClientError
+
+    getattr(mock_coh_client, method).side_effect = ClientError(
+        {'Error': {'Code': 'InvalidNextTokenException', 'Message': 'bad token'}}, method
+    )
+
+    result = await helper(mock_context, mock_coh_client, next_token='stale', **kwargs)
+
+    assert result['status'] == 'error'
+    assert result['error_type'] == 'invalid_next_token'
+
+
+@pytest.mark.asyncio
+async def test_summaries_failure_after_first_page_returns_partial(mock_context, mock_coh_client):
+    """A failure after page 1 keeps page 1 and returns the failed page's token."""
+    from botocore.exceptions import ClientError
+
+    mock_coh_client.list_recommendation_summaries.side_effect = [
+        {
+            'items': [{'group': 'a', 'recommendationCount': 1}],
+            'estimatedTotalDedupedSavings': 5.0,
+            'nextToken': 'tok-2',
+        },
+        ClientError({'Error': {'Code': 'ThrottlingException', 'Message': 'slow'}}, 'op'),
+    ]
+
+    result = await list_recommendation_summaries(mock_context, mock_coh_client, 'AccountId')
+
+    assert result['status'] == 'success'
+    data = result['data']
+    assert data['complete_dataset'] is False
+    assert 'ThrottlingException' in data['warning']
+    assert data['estimated_total_deduped_savings'] == 5.0
+    assert data['pagination']['next_token'] == 'tok-2'

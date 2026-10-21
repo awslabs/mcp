@@ -91,7 +91,10 @@ def test_get_local_credentials_raises_no_credentials_error(mock_session_class):
             S3_CLI_NO_REGION,
             IRTranslation(
                 command_metadata=CommandMetadata(
-                    's3', 'Amazon Simple Storage Service', 'ListBuckets'
+                    's3',
+                    'Amazon Simple Storage Service',
+                    'ListBuckets',
+                    service_cli_name='s3api',
                 ),
             ),
         ),
@@ -142,7 +145,10 @@ def test_get_local_credentials_raises_no_credentials_error(mock_session_class):
                     ).as_failure()
                 ],
                 command_metadata=CommandMetadata(
-                    'cloud9', 'AWS Cloud9', 'DescribeEnvironmentStatus'
+                    'cloud9',
+                    'AWS Cloud9',
+                    'DescribeEnvironmentStatus',
+                    service_cli_name='cloud9',
                 ),
             ),
         ),
@@ -156,7 +162,12 @@ def test_get_local_credentials_raises_no_credentials_error(mock_session_class):
                         CommandMetadata('kinesis', 'Amazon Kinesis', 'GetRecords'),
                     ).as_failure()
                 ],
-                command_metadata=CommandMetadata('kinesis', 'Amazon Kinesis', 'GetRecords'),
+                command_metadata=CommandMetadata(
+                    'kinesis',
+                    'Amazon Kinesis',
+                    'GetRecords',
+                    service_cli_name='kinesis',
+                ),
             ),
         ),
         (
@@ -206,6 +217,7 @@ def test_get_local_credentials_raises_no_credentials_error(mock_session_class):
                     's3',
                     'Amazon Simple Storage Service',
                     'GetBucketIntelligentTieringConfiguration',
+                    service_cli_name='s3api',
                 ),
             ),
         ),
@@ -267,13 +279,21 @@ def test_get_local_credentials_raises_no_credentials_error(mock_session_class):
             IRTranslation(
                 command=IRCommand(
                     command_metadata=CommandMetadata(
-                        'kinesis', 'Amazon Kinesis', 'DescribeStream'
+                        'kinesis',
+                        'Amazon Kinesis',
+                        'DescribeStream',
+                        service_cli_name='kinesis',
                     ),
                     region='us-east-1',
                     parameters={},
                     is_awscli_customization=False,
                 ),
-                command_metadata=CommandMetadata('kinesis', 'Amazon Kinesis', 'DescribeStream'),
+                command_metadata=CommandMetadata(
+                    'kinesis',
+                    'Amazon Kinesis',
+                    'DescribeStream',
+                    service_cli_name='kinesis',
+                ),
             ),
         ),
     ],

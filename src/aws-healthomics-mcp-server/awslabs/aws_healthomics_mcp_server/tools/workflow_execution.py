@@ -39,11 +39,12 @@ from awslabs.aws_healthomics_mcp_server.consts import (
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_omics_client
 from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
 from awslabs.aws_healthomics_mcp_server.utils.s3_utils import ensure_s3_uri_ends_with_slash
-from datetime import datetime
+from awslabs.aws_healthomics_mcp_server.utils.validation_utils import normalize_session_policy
+from datetime import datetime, timezone
 from loguru import logger
 from mcp.server.mcpserver import Context
 from pydantic import Field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 
 def parse_iso_datetime(iso_string: str) -> datetime:
@@ -53,21 +54,21 @@ def parse_iso_datetime(iso_string: str) -> datetime:
         iso_string: ISO format datetime string
 
     Returns:
-        datetime object
+        Timezone-aware datetime object; a string without an offset is treated as UTC
 
     Raises:
         ValueError: If the datetime string is invalid
     """
     try:
-        # Handle both with and without timezone info
+        # Python 3.10's fromisoformat does not accept a trailing 'Z'
         if iso_string.endswith('Z'):
             iso_string = iso_string[:-1] + '+00:00'
-        elif '+' not in iso_string and iso_string.count(':') == 2:
-            # Add timezone if missing
-            iso_string += '+00:00'
-        return datetime.fromisoformat(iso_string)
+        parsed = datetime.fromisoformat(iso_string)
     except ValueError as e:
         raise ValueError(f"Invalid datetime format '{iso_string}': {str(e)}")
+    # Assume UTC when no offset is given (e.g. '2024-01-01' or '2024-01-01T10:00'),
+    # so the result can be compared with the timezone-aware run creation times
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
 
 
 def filter_runs_by_creation_time(
@@ -201,6 +202,18 @@ async def start_run(
             'Set to ALL to capture full engine logs for debugging.'
         ),
     ),
+    tags: Optional[Dict[str, str]] = Field(
+        None,
+        description='Optional tags (key-value pairs) to apply to the run',
+    ),
+    session_policy: Optional[Union[str, Dict[str, Any]]] = Field(
+        None,
+        description=(
+            'Optional inline IAM session policy (JSON string or object, max 2048 characters) '
+            'that scopes down the permissions of role_arn for this run. The effective '
+            'permissions are the intersection of the role policy and the session policy.'
+        ),
+    ),
     aws_profile: Optional[str] = Field(
         None,
         description='AWS profile name for this operation. Overrides the default credential chain.',
@@ -236,6 +249,9 @@ async def start_run(
         log_level: Optional log level for the run (OFF, FATAL, ERROR, or ALL).
             Controls engine log capture to CloudWatch. Defaults to the HealthOmics API
             default when omitted.
+        tags: Optional tags (key-value pairs) to apply to the run
+        session_policy: Optional inline IAM session policy (JSON string or dict) that
+            scopes down the permissions of role_arn for this run
         aws_profile: Optional AWS profile name override
         aws_region: Optional AWS region override
 
@@ -327,6 +343,15 @@ async def start_run(
             'Invalid log level',
         )
 
+    # Normalize tags the same way (guards against an unresolved Field default)
+    effective_tags = tags if isinstance(tags, dict) else None
+
+    # Validate and serialize the session policy
+    try:
+        effective_session_policy = normalize_session_policy(session_policy)
+    except ValueError as e:
+        return await handle_tool_error(ctx, e, 'Invalid session policy')
+
     # Ensure output URI ends with a slash
     try:
         output_uri = ensure_s3_uri_ends_with_slash(output_uri)
@@ -367,6 +392,12 @@ async def start_run(
     # Only set logLevel when provided, to preserve the HealthOmics API default otherwise
     if effective_log_level is not None:
         params['logLevel'] = effective_log_level
+
+    if effective_tags is not None:
+        params['tags'] = effective_tags
+
+    if effective_session_policy is not None:
+        params['sessionPolicy'] = effective_session_policy
 
     try:
         response = client.start_run(**params)
@@ -548,14 +579,32 @@ async def list_runs(
 
             result = {'runs': result_runs}
 
-            # If we have more filtered results than max_results, we could implement
-            # a custom pagination token, but for simplicity we'll omit nextToken
-            # when client-side filtering is applied
-            if len(filtered_runs) > max_results:
-                logger.info(
-                    f'Client-side filtering returned {len(filtered_runs)} results, '
-                    f'truncated to {max_results}. Pagination not supported with date filters.'
-                )
+            # If the filtered set was truncated to max_results, signal that more
+            # matching runs may exist rather than silently returning a short page.
+            # The upstream token (if any) is a best-effort resume point, not a fully
+            # correct cursor: resuming with it fetches upstream pages after the
+            # batches already scanned, so it skips the excess matches that were
+            # already fetched into this batch but discarded here by truncation.
+            if len(filtered_runs) >= max_results:
+                if current_token:
+                    result['nextToken'] = current_token
+                    logger.info(
+                        f'Client-side filtering returned {len(filtered_runs)} results, '
+                        f'truncated to {max_results}. Returning upstream nextToken so '
+                        'the caller can continue pagination.'
+                    )
+                elif len(filtered_runs) > max_results:
+                    # Matching runs were discarded by the max_results slice above and
+                    # upstream is exhausted, so there is no token to hand back at all.
+                    # Raise the pagination.has_more flag the wrapper's nested-pagination
+                    # idiom already recognizes, so it reports this page as incomplete
+                    # instead of fabricating a COMPLETE result.
+                    result['pagination'] = {'has_more': True}
+                    logger.info(
+                        f'Client-side filtering returned {len(filtered_runs)} results, '
+                        f'truncated to {max_results}. No further upstream pages are '
+                        'available, so no nextToken can be issued for the remaining matches.'
+                    )
 
             return result
         else:
@@ -639,6 +688,7 @@ async def get_run(
             'failureReason',
             'workflowVersionName',
             'scratchStorageMode',
+            'sessionPolicy',
         ]:
             if field in response:
                 result[field] = response[field]

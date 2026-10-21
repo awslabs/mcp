@@ -127,6 +127,15 @@ def test_get_billing_group_cost_report_tool_registered():
     assert tool.name == 'get-billing-group-cost-report'
 
 
+def test_get_billing_group_cost_report_describes_page_sizes():
+    """The description gives the 200-300 page size and what it means for a small max_items."""
+    tool = asyncio.run(billing_conductor_server.get_tool('get-billing-group-cost-report'))
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+    assert 'Results come in pages of up to 300' in description
+    assert 'a `max_items` below 200 can return up to 200' in description
+
+
 def test_list_pricing_rules_tool_registered():
     """Test that the list_pricing_rules tool is registered."""
     tool = asyncio.run(billing_conductor_server.get_tool('list-pricing-rules'))
@@ -139,6 +148,14 @@ def test_list_pricing_plans_tool_registered():
     tool = asyncio.run(billing_conductor_server.get_tool('list-pricing-plans'))
     assert tool is not None
     assert tool.name == 'list-pricing-plans'
+
+
+def test_get_billing_transfer_preference_tool_registered():
+    """Test that the get_billing_transfer_preference tool is registered."""
+    tool = asyncio.run(billing_conductor_server.get_tool('get-billing-transfer-preference'))
+    assert tool is not None
+    assert tool.name == 'get-billing-transfer-preference'
+    assert 'responsibility_transfer_arn' in tool.parameters.get('required', [])
 
 
 def test_list_custom_line_items_tool_registered():
@@ -174,7 +191,7 @@ class TestListBillingGroupsTool:
 
             assert result['status'] == STATUS_SUCCESS
             assert result['data']['total_count'] == 1
-            mock_op.assert_awaited_once_with(mock_ctx, None, None, 10, None)
+            mock_op.assert_awaited_once_with(mock_ctx, None, None, None, None)
 
     async def test_list_billing_groups_passes_all_params(self, mock_ctx):
         """Test that all parameters are passed through to the operation function."""
@@ -196,7 +213,7 @@ class TestListBillingGroupsTool:
                 mock_ctx,
                 billing_period=BILLING_PERIOD,
                 filters=filters_str,
-                max_pages=5,
+                max_items=5,
                 next_token='tok123',
             )
 
@@ -267,7 +284,7 @@ class TestListBillingGroupCostReportsTool:
             result = await real_fn(mock_ctx)  # type: ignore
 
             assert result['status'] == STATUS_SUCCESS
-            mock_op.assert_awaited_once_with(mock_ctx, None, None, 10, None)
+            mock_op.assert_awaited_once_with(mock_ctx, None, None, None, None)
 
     async def test_passes_all_params(self, mock_ctx):
         """Test that all parameters are passed through."""
@@ -284,7 +301,7 @@ class TestListBillingGroupCostReportsTool:
                 mock_ctx,
                 billing_period=BILLING_PERIOD,
                 filters=filters_str,
-                max_pages=2,
+                max_items=2,
                 next_token='tok',
             )
 
@@ -337,7 +354,7 @@ class TestGetBillingGroupCostReportTool:
             result = await real_fn(mock_ctx, arn=BILLING_GROUP_ARN_1)  # type: ignore
 
             assert result['status'] == STATUS_SUCCESS
-            mock_op.assert_awaited_once_with(mock_ctx, BILLING_GROUP_ARN_1, None, None, 10, None)
+            mock_op.assert_awaited_once_with(mock_ctx, BILLING_GROUP_ARN_1, None, None, None, None)
 
     async def test_passes_all_params(self, mock_ctx):
         """Test that all parameters are passed through."""
@@ -356,7 +373,7 @@ class TestGetBillingGroupCostReportTool:
                 arn=BILLING_GROUP_ARN_1,
                 billing_period_range=range_str,
                 group_by=group_by_str,
-                max_pages=3,
+                max_items=3,
                 next_token='tok',
             )
 
@@ -405,7 +422,7 @@ class TestListPricingRulesTool:
             result = await real_fn(mock_ctx)  # type: ignore
 
             assert result['status'] == STATUS_SUCCESS
-            mock_op.assert_awaited_once_with(mock_ctx, None, None, 10, None)
+            mock_op.assert_awaited_once_with(mock_ctx, None, None, None, None)
 
     async def test_passes_all_params(self, mock_ctx):
         """Test that all parameters are passed through."""
@@ -416,7 +433,7 @@ class TestListPricingRulesTool:
             mock_op.return_value = {'status': STATUS_SUCCESS, 'data': {}}
 
             await real_fn(  # type: ignore
-                mock_ctx, billing_period=BILLING_PERIOD, filters='{}', max_pages=2, next_token='t'
+                mock_ctx, billing_period=BILLING_PERIOD, filters='{}', max_items=2, next_token='t'
             )
 
             mock_op.assert_awaited_once_with(mock_ctx, BILLING_PERIOD, '{}', 2, 't')
@@ -460,7 +477,7 @@ class TestListPricingPlansTool:
             result = await real_fn(mock_ctx)  # type: ignore
 
             assert result['status'] == STATUS_SUCCESS
-            mock_op.assert_awaited_once_with(mock_ctx, None, None, 10, None)
+            mock_op.assert_awaited_once_with(mock_ctx, None, None, None, None)
 
     async def test_passes_all_params(self, mock_ctx):
         """Test that all parameters are passed through."""
@@ -471,7 +488,7 @@ class TestListPricingPlansTool:
             mock_op.return_value = {'status': STATUS_SUCCESS, 'data': {}}
 
             await real_fn(  # type: ignore
-                mock_ctx, billing_period=BILLING_PERIOD, filters='{}', max_pages=3, next_token='x'
+                mock_ctx, billing_period=BILLING_PERIOD, filters='{}', max_items=3, next_token='x'
             )
 
             mock_op.assert_awaited_once_with(mock_ctx, BILLING_PERIOD, '{}', 3, 'x')
@@ -515,7 +532,7 @@ class TestListPricingRulesForPlanTool:
             result = await real_fn(mock_ctx, pricing_plan_arn=PRICING_PLAN_ARN_1)  # type: ignore
 
             assert result['status'] == STATUS_SUCCESS
-            mock_op.assert_awaited_once_with(mock_ctx, PRICING_PLAN_ARN_1, None, None, 10, None)
+            mock_op.assert_awaited_once_with(mock_ctx, PRICING_PLAN_ARN_1, None, None, None)
 
     async def test_handles_unexpected_exception(self, mock_ctx):
         """Test that unexpected exceptions are caught by the tool wrapper."""
@@ -556,7 +573,7 @@ class TestListPricingPlansForRuleTool:
             result = await real_fn(mock_ctx, pricing_rule_arn=PRICING_RULE_ARN_1)  # type: ignore
 
             assert result['status'] == STATUS_SUCCESS
-            mock_op.assert_awaited_once_with(mock_ctx, PRICING_RULE_ARN_1, None, None, 10, None)
+            mock_op.assert_awaited_once_with(mock_ctx, PRICING_RULE_ARN_1, None, None, None)
 
     async def test_handles_unexpected_exception(self, mock_ctx):
         """Test that unexpected exceptions are caught by the tool wrapper."""
@@ -597,7 +614,7 @@ class TestListCustomLineItemsTool:
             result = await real_fn(mock_ctx)  # type: ignore
 
             assert result['status'] == STATUS_SUCCESS
-            mock_op.assert_awaited_once_with(mock_ctx, None, None, 10, None)
+            mock_op.assert_awaited_once_with(mock_ctx, None, None, None, None)
 
     async def test_passes_all_params(self, mock_ctx):
         """Test that all parameters are passed through."""
@@ -608,7 +625,7 @@ class TestListCustomLineItemsTool:
             mock_op.return_value = {'status': STATUS_SUCCESS, 'data': {}}
 
             await real_fn(  # type: ignore
-                mock_ctx, billing_period=BILLING_PERIOD, filters='{}', max_pages=5, next_token='n'
+                mock_ctx, billing_period=BILLING_PERIOD, filters='{}', max_items=5, next_token='n'
             )
 
             mock_op.assert_awaited_once_with(mock_ctx, BILLING_PERIOD, '{}', 5, 'n')
@@ -654,7 +671,7 @@ class TestListCustomLineItemVersionsTool:
             result = await real_fn(mock_ctx, arn=CUSTOM_LINE_ITEM_ARN_1)  # type: ignore
 
             assert result['status'] == STATUS_SUCCESS
-            mock_op.assert_awaited_once_with(mock_ctx, CUSTOM_LINE_ITEM_ARN_1, None, 10, None)
+            mock_op.assert_awaited_once_with(mock_ctx, CUSTOM_LINE_ITEM_ARN_1, None, None, None)
 
     async def test_handles_unexpected_exception(self, mock_ctx):
         """Test that unexpected exceptions are caught by the tool wrapper."""
@@ -700,7 +717,7 @@ class TestListResourcesAssociatedToCustomLineItemTool:
 
             assert result['status'] == STATUS_SUCCESS
             mock_op.assert_awaited_once_with(
-                mock_ctx, CUSTOM_LINE_ITEM_ARN_1, None, None, 10, None
+                mock_ctx, CUSTOM_LINE_ITEM_ARN_1, None, None, None, None
             )
 
     async def test_handles_unexpected_exception(self, mock_ctx):
@@ -751,7 +768,7 @@ class TestListAccountAssociationsTool:
 
             assert result['status'] == STATUS_SUCCESS
             assert result['data']['total_count'] == 1
-            mock_op.assert_awaited_once_with(mock_ctx, None, None, 10, None)
+            mock_op.assert_awaited_once_with(mock_ctx, None, None, None, None)
 
     async def test_list_account_associations_passes_all_params(self, mock_ctx):
         """Test that all parameters are passed through to the operation function."""
@@ -773,7 +790,7 @@ class TestListAccountAssociationsTool:
                 mock_ctx,
                 billing_period=BILLING_PERIOD,
                 filters=filters_str,
-                max_pages=3,
+                max_items=3,
                 next_token='tok456',
             )
 
@@ -799,3 +816,72 @@ class TestListAccountAssociationsTool:
 
             assert result['status'] == STATUS_ERROR
             mock_handle.assert_awaited_once()
+
+
+# --- Get Billing Transfer Preference Tool Tests ---
+
+
+@pytest.mark.asyncio
+class TestGetBillingTransferPreferenceTool:
+    """Tests for the get_billing_transfer_preference MCP tool wrapper."""
+
+    async def test_delegates_to_operation(self, mock_ctx):
+        """Test that the tool delegates to the operation function."""
+        bc_mod = _reload_bc_with_identity_decorator()
+        real_fn = bc_mod.get_billing_transfer_preference  # type: ignore
+        transfer_arn = (
+            'arn:aws:organizations::123456789012:transfer/o-abc123/billing/inbound/rt-12345678'
+        )
+
+        with patch.object(
+            bc_mod, '_get_billing_transfer_preference', new_callable=AsyncMock
+        ) as mock_op:
+            mock_op.return_value = {
+                'status': STATUS_SUCCESS,
+                'data': {'responsibility_transfer_arn': transfer_arn},
+            }
+
+            result = await real_fn(mock_ctx, responsibility_transfer_arn=transfer_arn)  # type: ignore
+
+            assert result['status'] == STATUS_SUCCESS
+            mock_op.assert_awaited_once_with(mock_ctx, transfer_arn)
+
+    async def test_handles_unexpected_exception(self, mock_ctx):
+        """Test that unexpected exceptions are caught by the tool wrapper."""
+        bc_mod = _reload_bc_with_identity_decorator()
+        real_fn = bc_mod.get_billing_transfer_preference  # type: ignore
+
+        with (
+            patch.object(
+                bc_mod, '_get_billing_transfer_preference', new_callable=AsyncMock
+            ) as mock_op,
+            patch.object(bc_mod, 'handle_aws_error', new_callable=AsyncMock) as mock_handle,
+        ):
+            mock_op.side_effect = RuntimeError('boom')
+            mock_handle.return_value = {'status': STATUS_ERROR, 'message': 'boom'}
+
+            result = await real_fn(  # type: ignore
+                mock_ctx, responsibility_transfer_arn='arn:example'
+            )
+
+            assert result['status'] == STATUS_ERROR
+            mock_handle.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_tool_schemas_follow_the_max_items_contract():
+    """Every paginated conductor tool takes max_items + next_token; the get-preference tool neither."""
+    from awslabs.billing_cost_management_mcp_server.tools import billing_conductor_tools as bct
+
+    # Other tests reload this module under a patched FastMCP; reload the real one here.
+    real = importlib.reload(bct)
+    tools = {t.name: t for t in await real.billing_conductor_server.list_tools()}
+    assert len(tools) == 12
+    for name, tool in tools.items():
+        params = set(tool.parameters['properties'])
+        assert not {'max_pages', 'max_results', 'page_size'} & params, name
+        if name == 'get-billing-transfer-preference':
+            assert not {'max_items', 'next_token'} & params
+        else:
+            assert {'max_items', 'next_token'} <= params, name
+            assert 'max_items' in tool.description, name

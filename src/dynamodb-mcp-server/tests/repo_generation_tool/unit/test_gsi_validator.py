@@ -144,13 +144,14 @@ class TestValidateTemplateParameters(TestGSIValidator):
         assert len(errors) == 1
         assert 'invalid_field' in errors[0].message
 
-        # Syntax error
+        # Syntax error: an unmatched/open brace is not a well-formed {field} placeholder, so the
+        # security key-template guard rejects it first (it runs before the structural check).
         template = 'USER#{user_id}#STATUS#{'
         errors = self.validator.validate_template_parameters(
             template, self.sample_fields, 'gsi_mappings[0]', 'sk_template'
         )
         assert len(errors) == 1
-        assert 'Unmatched braces' in errors[0].message
+        assert 'Unmatched braces' in errors[0].message or 'placeholder' in errors[0].message
 
         # Empty template
         errors = self.validator.validate_template_parameters(

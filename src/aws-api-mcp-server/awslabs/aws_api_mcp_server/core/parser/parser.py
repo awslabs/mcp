@@ -431,6 +431,7 @@ def _handle_service_command(
         service_full_sdk_name=_service_full_name(service_command.service_model),
         operation_sdk_name=operation_command._operation_model.name,
         has_streaming_output=operation_command._operation_model.has_streaming_output,
+        service_cli_name=service,
     )
     _validate_global_args(service, global_args)
     region = getattr(global_args, 'region', None)

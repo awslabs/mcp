@@ -73,6 +73,18 @@ def mock_ctx():
     return ctx
 
 
+def _assert_classified_error(result, error_type, operation):
+    """Assert an error response carries the top-level classification fields.
+
+    These match the fields handle_aws_error sets on AWS-side errors, so callers can
+    classify a failure without parsing the message or the region-keyed `data` payload.
+    """
+    assert result['status'] == STATUS_ERROR
+    assert result['error_type'] == error_type
+    assert result['operation'] == operation
+    assert result['service'] == 'Compute Optimizer Automation'
+
+
 # ===== Server / registration =====
 
 
@@ -184,72 +196,143 @@ def test_format_tags():
 # ===== Operation handlers (with mocked boto3 client) =====
 
 
-# Each list handler paired with its boto3 method, response list key, and any
-# required positional args (beyond ctx/client). Used to exercise the shared
-# pagination branches (max_results forwarding + next_token continuation) uniformly.
+# Each list handler paired with its boto3 method, response list key, any required
+# positional args (beyond ctx/client), and the largest page its API accepts. Used to
+# exercise the shared pagination contract uniformly.
 _LIST_HANDLERS = [
-    ('list_accounts', 'list_accounts', 'accounts', ()),
-    ('list_automation_events', 'list_automation_events', 'automationEvents', ()),
+    ('list_accounts', 'list_accounts', 'accounts', (), 1000),
+    ('list_automation_events', 'list_automation_events', 'automationEvents', (), 100),
     (
         'list_automation_event_steps',
         'list_automation_event_steps',
         'automationEventSteps',
         (EVENT_ID,),
+        100,
     ),
     (
         'list_automation_event_summaries',
         'list_automation_event_summaries',
         'automationEventSummaries',
         (),
+        100,
     ),
-    ('list_automation_rules', 'list_automation_rules', 'automationRules', ()),
-    ('list_recommended_actions', 'list_recommended_actions', 'recommendedActions', ()),
+    ('list_automation_rules', 'list_automation_rules', 'automationRules', (), 100),
+    ('list_recommended_actions', 'list_recommended_actions', 'recommendedActions', (), 100),
     (
         'list_recommended_action_summaries',
         'list_recommended_action_summaries',
         'recommendedActionSummaries',
         (),
+        100,
     ),
     (
         'list_automation_rule_preview',
         'list_automation_rule_preview',
         'previewResults',
         ('AccountRule', '["UpgradeEbsVolumeType"]'),
+        100,
     ),
     (
         'list_automation_rule_preview_summaries',
         'list_automation_rule_preview_summaries',
         'previewResultSummaries',
         ('AccountRule', '["UpgradeEbsVolumeType"]'),
+        100,
     ),
 ]
 
+# The response key each handler returns its formatted items under.
+_RESPONSE_LIST_KEYS = {
+    'list_accounts': 'accounts',
+    'list_automation_events': 'automation_events',
+    'list_automation_event_steps': 'automation_event_steps',
+    'list_automation_event_summaries': 'automation_event_summaries',
+    'list_automation_rules': 'automation_rules',
+    'list_recommended_actions': 'recommended_actions',
+    'list_recommended_action_summaries': 'recommended_action_summaries',
+    'list_automation_rule_preview': 'preview_results',
+    'list_automation_rule_preview_summaries': 'preview_result_summaries',
+}
+
+
+def _page(list_key, count, token=None):
+    """Build one API page holding `count` items and an optional continuation token."""
+    page = {list_key: [{} for _ in range(count)]}
+    if token:
+        page['nextToken'] = token
+    return page
+
+
+def _request_without_paging(kwargs):
+    """Return a request's parameters minus the token and page size."""
+    return {k: v for k, v in kwargs.items() if k not in ('nextToken', 'maxResults')}
+
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('op_name,method,list_key,args', _LIST_HANDLERS)
-async def test_list_handler_pagination_branches(mock_ctx, op_name, method, list_key, args):
-    """Each list handler forwards max_results and stops at max_pages, returning next_token."""
+@pytest.mark.parametrize('op_name,method,list_key,args,page_max', _LIST_HANDLERS)
+async def test_list_handler_fetches_every_page_without_max_items(
+    mock_ctx, op_name, method, list_key, args, page_max
+):
+    """Without max_items, each list handler follows nextToken until the last page."""
     client = MagicMock()
-    getattr(client, method).return_value = {list_key: [], 'nextToken': 'more'}
+    getattr(client, method).side_effect = [_page(list_key, 2, 't1'), _page(list_key, 1)]
 
-    result = await getattr(ops, op_name)(mock_ctx, client, *args, max_results=5, max_pages=1)
+    result = await getattr(ops, op_name)(mock_ctx, client, *args)
 
-    _, kwargs = getattr(client, method).call_args
-    assert kwargs['maxResults'] == 5
-    assert result['data']['next_token'] == 'more'
+    calls = getattr(client, method).call_args_list
+    assert len(calls) == 2
+    assert [c.kwargs['maxResults'] for c in calls] == [page_max, page_max]
+    assert 'nextToken' not in calls[0].kwargs
+    assert calls[1].kwargs['nextToken'] == 't1'
+    data = result['data']
+    assert len(data[_RESPONSE_LIST_KEYS[op_name]]) == 3
+    assert 'complete_dataset' not in data
+    assert 'warning' not in data
+    assert data['pagination'] == {
+        'complete_dataset': True,
+        'has_more': False,
+        'next_token': None,
+        'items_returned': 3,
+    }
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('op_name,method,list_key,args', _LIST_HANDLERS)
-async def test_list_handler_next_token_continuation(mock_ctx, op_name, method, list_key, args):
-    """Each list handler passes a provided next_token into the request."""
+@pytest.mark.parametrize('op_name,method,list_key,args,page_max', _LIST_HANDLERS)
+async def test_list_handler_max_items_stops_with_token(
+    mock_ctx, op_name, method, list_key, args, page_max
+):
+    """With max_items, pages shrink to the remainder and the service token is returned."""
     client = MagicMock()
-    getattr(client, method).return_value = {list_key: []}
+    getattr(client, method).side_effect = [_page(list_key, 2, 't1'), _page(list_key, 3, 't2')]
+
+    result = await getattr(ops, op_name)(mock_ctx, client, *args, max_items=5)
+
+    calls = getattr(client, method).call_args_list
+    assert len(calls) == 2
+    assert [c.kwargs['maxResults'] for c in calls] == [5, 3]
+    data = result['data']
+    assert len(data[_RESPONSE_LIST_KEYS[op_name]]) == 5
+    assert data['complete_dataset'] is False
+    assert 'Partial data' in data['warning']
+    assert data['pagination']['next_token'] == 't2'
+    assert data['pagination']['items_returned'] == 5
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('op_name,method,list_key,args,page_max', _LIST_HANDLERS)
+async def test_list_handler_next_token_continuation(
+    mock_ctx, op_name, method, list_key, args, page_max
+):
+    """A continuation sends the caller's token and otherwise-identical parameters."""
+    client = MagicMock()
+    getattr(client, method).side_effect = [_page(list_key, 1, 't2'), _page(list_key, 1)]
 
     await getattr(ops, op_name)(mock_ctx, client, *args, next_token='resume-here')
 
-    _, kwargs = getattr(client, method).call_args
-    assert kwargs['nextToken'] == 'resume-here'
+    first, second = getattr(client, method).call_args_list
+    assert first.kwargs['nextToken'] == 'resume-here'
+    assert second.kwargs['nextToken'] == 't2'
+    assert _request_without_paging(first.kwargs) == _request_without_paging(second.kwargs)
 
 
 @pytest.mark.asyncio
@@ -363,33 +446,57 @@ class TestListPagination:
         result = await ops.list_accounts(mock_ctx, client)
 
         assert client.list_accounts.call_count == 2
-        assert result['data']['count'] == 2
-        assert 'next_token' not in result['data']
+        assert result['data']['pagination']['items_returned'] == 2
+        assert result['data']['pagination']['next_token'] is None
         assert result['data']['accounts'][0]['account_id'] == '111'
 
-    async def test_list_accounts_respects_max_pages(self, mock_ctx):
-        """list_accounts stops at max_pages and returns the token to continue."""
+    async def test_list_accounts_first_page_larger_than_max_items(self, mock_ctx):
+        """The first page is kept whole even when it alone exceeds max_items."""
         client = MagicMock()
         client.list_accounts.return_value = {
-            'accounts': [{'accountId': '111', 'status': 'Active'}],
+            'accounts': [{'accountId': '111'}, {'accountId': '222'}],
             'nextToken': 'more',
         }
 
-        result = await ops.list_accounts(mock_ctx, client, max_pages=1)
+        result = await ops.list_accounts(mock_ctx, client, max_items=1)
 
         assert client.list_accounts.call_count == 1
-        assert result['data']['next_token'] == 'more'
-        assert result['data']['count'] == 1
+        assert client.list_accounts.call_args.kwargs['maxResults'] == 1
+        assert len(result['data']['accounts']) == 2
+        assert result['data']['pagination']['next_token'] == 'more'
 
-    async def test_list_accounts_passes_max_results(self, mock_ctx):
-        """list_accounts passes maxResults through to the API."""
+    async def test_list_rejected_next_token_maps_to_invalid_next_token(self, mock_ctx):
+        """A rejected caller token on the first page surfaces as invalid_next_token."""
         client = MagicMock()
-        client.list_accounts.return_value = {'accounts': []}
+        client.list_accounts.side_effect = ClientError(
+            {'Error': {'Code': 'InvalidNextTokenException', 'Message': 'bad'}}, 'ListAccounts'
+        )
 
-        await ops.list_accounts(mock_ctx, client, max_results=5)
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            mock_create.return_value = client
+            result = await automation_fn(
+                mock_ctx, operation='list_accounts', next_token='stale-token'
+            )
 
-        _, kwargs = client.list_accounts.call_args
-        assert kwargs['maxResults'] == 5
+        assert result['status'] == STATUS_ERROR
+        assert result['error_type'] == 'invalid_next_token'
+
+    async def test_mid_pagination_failure_returns_partial(self, mock_ctx):
+        """A failure after the first page keeps the fetched items as a partial result."""
+        client = MagicMock()
+        client.list_automation_rules.side_effect = [
+            {'automationRules': [{'ruleArn': RULE_ARN}], 'nextToken': 't1'},
+            ClientError({'Error': {'Code': 'ThrottlingException', 'Message': 'x'}}, 'List'),
+        ]
+
+        result = await ops.list_automation_rules(mock_ctx, client)
+
+        data = result['data']
+        assert result['status'] == STATUS_SUCCESS
+        assert data['complete_dataset'] is False
+        assert 'ThrottlingException' in data['warning']
+        assert data['pagination']['next_token'] == 't1'
+        assert len(data['automation_rules']) == 1
 
 
 @pytest.mark.asyncio
@@ -421,10 +528,43 @@ class TestListEvents:
         assert kwargs['filters'] == [{'name': 'EventStatus', 'values': ['Complete']}]
         assert kwargs['startTimeInclusive'] == datetime(2025, 1, 1, tzinfo=timezone.utc)
         assert kwargs['endTimeExclusive'] == datetime(2025, 2, 1, tzinfo=timezone.utc)
-        assert result['data']['count'] == 1
+        assert result['data']['pagination']['items_returned'] == 1
         event = result['data']['automation_events'][0]
         assert event['event_id'] == EVENT_ID
         assert event['estimated_monthly_savings']['after_discount_savings'] == 9.0
+
+    @pytest.mark.parametrize(
+        ('value', 'expected'),
+        [
+            ('2026-07-10T00:00:00Z', datetime(2026, 7, 10, tzinfo=timezone.utc)),
+            ('2026-07-10T13:45:30Z', datetime(2026, 7, 10, 13, 45, 30, tzinfo=timezone.utc)),
+            ('2026-07-10T13:45:30z', datetime(2026, 7, 10, 13, 45, 30, tzinfo=timezone.utc)),
+            ('2026-07-10Z', datetime(2026, 7, 10, tzinfo=timezone.utc)),
+            ('2026-07-10T13:45:30', datetime(2026, 7, 10, 13, 45, 30, tzinfo=timezone.utc)),
+            ('2026-07-10', datetime(2026, 7, 10, tzinfo=timezone.utc)),
+        ],
+    )
+    async def test_trailing_z_is_accepted_as_utc(self, mock_ctx, value, expected):
+        """A trailing 'Z' (UTC designator) parses to the same UTC datetime."""
+        client = MagicMock()
+        client.list_automation_events.return_value = {'automationEvents': []}
+
+        await ops.list_automation_events(mock_ctx, client, start_time=value, end_time=value)
+
+        _, kwargs = client.list_automation_events.call_args
+        assert kwargs['startTimeInclusive'] == expected
+        assert kwargs['endTimeExclusive'] == expected
+
+    @pytest.mark.parametrize(
+        'value',
+        ['Z', '2026-07-10T00:00:00ZZ', '2026-07-10T00:00:00+00:00', '2026-07-10T25:00:00Z'],
+    )
+    async def test_malformed_z_strings_still_rejected(self, mock_ctx, value):
+        """Only a single trailing Z is accepted; other malformed strings still fail."""
+        client = MagicMock()
+        with pytest.raises(ValueError, match='start_time'):
+            await ops.list_automation_events(mock_ctx, client, start_time=value)
+        client.list_automation_events.assert_not_called()
 
     async def test_invalid_time_raises_value_error(self, mock_ctx):
         """An invalid datetime string raises ValueError."""
@@ -758,6 +898,8 @@ class TestDispatchRouting:
                 operation='list_automation_rule_preview',
                 rule_type='AccountRule',
                 recommended_action_types='["UpgradeEbsVolumeType"]',
+                max_items=7,
+                next_token='tok',
             )
 
             mock_op.assert_awaited_once_with(
@@ -767,9 +909,8 @@ class TestDispatchRouting:
                 '["UpgradeEbsVolumeType"]',
                 None,
                 None,
-                None,
-                10,
-                None,
+                7,
+                'tok',
             )
 
     @pytest.mark.parametrize(
@@ -839,7 +980,7 @@ class TestDispatchRouting:
 
             result = await automation_fn(mock_ctx, operation='delete_everything')
 
-            assert result['status'] == STATUS_ERROR
+            _assert_classified_error(result, 'validation_error', 'delete_everything')
             assert result['data']['provided_operation'] == 'delete_everything'
 
     async def test_unsupported_operation_with_regions(self, mock_ctx):
@@ -849,7 +990,7 @@ class TestDispatchRouting:
                 mock_ctx, operation='delete_everything', regions=['us-east-1', 'eu-west-1']
             )
 
-        assert result['status'] == STATUS_ERROR
+        _assert_classified_error(result, 'validation_error', 'delete_everything')
         assert result['data']['provided_operation'] == 'delete_everything'
         mock_create.assert_not_called()
 
@@ -879,7 +1020,7 @@ class TestDispatchValidation:
         with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             result = await automation_fn(mock_ctx, operation='get_automation_event')
 
-            assert result['status'] == STATUS_ERROR
+            _assert_classified_error(result, 'validation_error', 'get_automation_event')
             assert 'event_id' in result['data']['missing_parameters']
             mock_create.assert_not_called()
 
@@ -888,7 +1029,7 @@ class TestDispatchValidation:
         with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             result = await automation_fn(mock_ctx, operation='list_automation_rule_preview')
 
-            assert result['status'] == STATUS_ERROR
+            _assert_classified_error(result, 'validation_error', 'list_automation_rule_preview')
             assert set(result['data']['missing_parameters']) == {
                 'rule_type',
                 'recommended_action_types',
@@ -900,7 +1041,7 @@ class TestDispatchValidation:
         with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
             result = await automation_fn(mock_ctx, operation='list_tags_for_resource')
 
-            assert result['status'] == STATUS_ERROR
+            _assert_classified_error(result, 'validation_error', 'list_tags_for_resource')
             assert 'resource_arn' in result['data']['missing_parameters']
             mock_create.assert_not_called()
 
@@ -916,7 +1057,7 @@ class TestFilterValidation:
                 mock_ctx, operation='list_automation_events', filters='{not json'
             )
 
-            assert result['status'] == STATUS_ERROR
+            _assert_classified_error(result, 'validation_error', 'list_automation_events')
             assert 'Invalid JSON' in result['message']
             mock_create.assert_not_called()
 
@@ -927,7 +1068,7 @@ class TestFilterValidation:
                 mock_ctx, operation='list_automation_events', filters='{"name": "EventStatus"}'
             )
 
-            assert result['status'] == STATUS_ERROR
+            _assert_classified_error(result, 'validation_error', 'list_automation_events')
             mock_create.assert_not_called()
 
     async def test_invalid_filter_name(self, mock_ctx):
@@ -939,7 +1080,7 @@ class TestFilterValidation:
                 filters='[{"name": "Nonsense", "values": ["x"]}]',
             )
 
-            assert result['status'] == STATUS_ERROR
+            _assert_classified_error(result, 'validation_error', 'list_automation_events')
             assert result['data']['invalid_filter_names'] == ['Nonsense']
             assert 'EventStatus' in result['data']['valid_filter_names']
             mock_create.assert_not_called()
@@ -1071,9 +1212,9 @@ class TestSqlOffload:
 
         result = await ops.list_recommended_actions(mock_ctx, client)
 
-        # Below the threshold the inline list and count survive; no SQL sentinel.
+        # Below the threshold the inline list and pagination block survive; no SQL sentinel.
         assert result['data']['recommended_actions'][0]['recommended_action_id'] == 'ra-1'
-        assert result['data']['count'] == 1
+        assert result['data']['pagination']['items_returned'] == 1
         assert 'data_stored' not in result['data']
 
     async def test_large_response_offloaded_to_sql(self, mock_ctx):
@@ -1115,15 +1256,17 @@ class TestSqlOffload:
             'nextToken': 'more-pages',
         }
 
-        result = await ops.list_recommended_actions(mock_ctx, client, max_pages=1)
+        result = await ops.list_recommended_actions(mock_ctx, client, max_items=60)
 
+        assert client.list_recommended_actions.call_count == 1
         assert result['data']['data_stored'] is True
-        assert result['data']['next_page_token'] == 'more-pages'
-        assert result['data']['has_more'] is True
+        assert result['data']['pagination']['next_token'] == 'more-pages'
+        assert result['data']['pagination']['has_more'] is True
+        assert result['data']['complete_dataset'] is False
 
-    @pytest.mark.parametrize('op_name,method,list_key,args', _LIST_HANDLERS)
+    @pytest.mark.parametrize('op_name,method,list_key,args,page_max', _LIST_HANDLERS)
     async def test_every_list_handler_routes_through_gate(
-        self, mock_ctx, op_name, method, list_key, args
+        self, mock_ctx, op_name, method, list_key, args, page_max
     ):
         """Every list handler routes through the SQL size gate with its operation name."""
         client = MagicMock()
@@ -1136,10 +1279,9 @@ class TestSqlOffload:
 
             await getattr(ops, op_name)(mock_ctx, client, *args)
 
-            _, kwargs = mock_gate.call_args
             gate_args = mock_gate.call_args.args
             assert gate_args[2] == f'compute_optimizer_automation_{op_name}'
-            assert kwargs['pagination_token_key'] == 'next_token'
+            assert gate_args[1]['pagination']['complete_dataset'] is True
 
 
 # The not-found error a region returns when an event ID (or an event's steps) lives
@@ -1163,6 +1305,78 @@ def test_partition_resource_not_found_errors():
     assert other_errors == {
         'us-west-2': {'error_type': 'AccessDeniedException', 'message': 'denied'}
     }
+
+
+@pytest.mark.parametrize(
+    ('region_errors', 'regions_not_found', 'expected'),
+    [
+        (
+            {
+                'us-east-1': {'error_type': 'AccessDeniedException'},
+                'eu-west-1': {'error_type': 'AccessDeniedException'},
+            },
+            [],
+            'AccessDeniedException',
+        ),
+        ({}, ['us-east-1', 'eu-west-1'], 'ResourceNotFoundException'),
+        (
+            {
+                'us-east-1': {'error_type': 'AccessDeniedException'},
+                'eu-west-1': {'error_type': 'ThrottlingException'},
+            },
+            [],
+            'multi_region_error',
+        ),
+        (
+            {'us-east-1': {'error_type': 'AccessDeniedException'}},
+            ['eu-west-1'],
+            'multi_region_error',
+        ),
+        ({'us-east-1': {'message': 'no type'}}, [], 'multi_region_error'),
+    ],
+)
+def test_multi_region_error_type(region_errors, regions_not_found, expected):
+    """The shared regional error type is promoted; disagreement is a multi_region_error."""
+    assert automation_tools._multi_region_error_type(region_errors, regions_not_found) == expected
+
+
+@pytest.mark.parametrize(
+    'region_errors,regions_not_found,expected',
+    [
+        (
+            {
+                'us-east-1': {'error_type': 'ThrottlingException'},
+                'eu-west-1': {'error_type': 'InternalServerException'},
+            },
+            [],
+            'retry_same_request',
+        ),
+        # An unmapped type with a 5xx stays transient, though http_status is nested
+        (
+            {'us-east-1': {'error_type': 'InternalError', 'http_status': 500}},
+            [],
+            'retry_same_request',
+        ),
+        # A throttled region may still hold the resource the others did not find
+        (
+            {'us-east-1': {'error_type': 'ThrottlingException'}},
+            ['eu-west-1'],
+            'retry_same_request',
+        ),
+        (
+            {
+                'us-east-1': {'error_type': 'ThrottlingException'},
+                'eu-west-1': {'error_type': 'AccessDeniedException'},
+            },
+            [],
+            'do_not_retry',
+        ),
+    ],
+)
+def test_multi_region_guidance(region_errors, regions_not_found, expected):
+    """retry_strategy is derived from every region's own error_type and http_status."""
+    retry_strategy, _ = automation_tools._multi_region_guidance(region_errors, regions_not_found)
+    assert retry_strategy == expected
 
 
 # The regions passed as `regions` by the fan-out tests. Callers choose the set now, so
@@ -1268,12 +1482,12 @@ class TestMultiRegionFanOut:
                 mock_ctx,
                 operation='list_recommended_actions',
                 regions=_REGIONS,
-                max_pages=1,
+                max_items=1,
             )
 
         data = result['data']
         assert result['status'] == STATUS_SUCCESS
-        assert data['count'] == 2
+        assert data['pagination']['items_returned'] == 2
         ids = sorted(item['recommended_action_id'] for item in data['recommended_actions'])
         assert ids == ['a1', 'a2']
         assert data['regions_queried'] == _REGIONS
@@ -1290,7 +1504,7 @@ class TestMultiRegionFanOut:
                 mock_ctx,
                 operation='list_recommended_actions',
                 regions=['eu-central-1', 'us-east-2'],
-                max_pages=1,
+                max_items=1,
             )
 
         regions_called = [call.args[0] for call in mock_create.call_args_list]
@@ -1311,7 +1525,7 @@ class TestMultiRegionFanOut:
                 mock_ctx,
                 operation='list_recommended_actions',
                 regions=['eu-west-1'],
-                max_pages=1,
+                max_items=1,
             )
 
         data = result['data']
@@ -1329,7 +1543,7 @@ class TestMultiRegionFanOut:
                 mock_ctx,
                 operation='list_recommended_actions',
                 regions=['us-east-1', 'us-east-1', 'eu-west-1'],
-                max_pages=1,
+                max_items=1,
             )
 
         regions_called = [call.args[0] for call in mock_create.call_args_list]
@@ -1379,11 +1593,11 @@ class TestMultiRegionFanOut:
                 recommended_action_types='["UpgradeEbsVolumeType"]',
                 organization_scope='{"accountIds": ["123456789012"]}',
                 criteria='{"region": [{"comparison": "StringEquals", "values": ["eu-west-1"]}]}',
-                max_pages=1,
+                max_items=1,
             )
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['count'] == 1
+        assert result['data']['pagination']['items_returned'] == 1
         assert result['data'][result_key][0]['region'] == 'eu-west-1'
         assert mock_create.call_count == len(_REGIONS)
 
@@ -1408,7 +1622,7 @@ class TestMultiRegionFanOut:
                 mock_ctx,
                 operation='list_automation_event_summaries',
                 regions=_REGIONS,
-                max_pages=1,
+                max_items=1,
             )
 
         summaries = result['data']['automation_event_summaries']
@@ -1429,7 +1643,7 @@ class TestMultiRegionFanOut:
                 mock_ctx,
                 operation='list_recommended_actions',
                 regions=_REGIONS,
-                max_pages=1,
+                max_items=1,
             )
 
         assert result['data']['recommended_actions'][0]['region'] == 'us-west-2'
@@ -1453,12 +1667,17 @@ class TestMultiRegionFanOut:
                 mock_ctx,
                 operation='list_recommended_actions',
                 regions=_REGIONS,
-                max_pages=1,
+                max_items=1,
             )
 
-        next_token = result['data']['next_token']
+        next_token = result['data']['pagination']['next_token']
         assert isinstance(next_token, str)
-        regions_tokens, error = parse_regional_next_token(next_token, _REGIONS)
+        regions_tokens, error = parse_regional_next_token(
+            next_token,
+            _REGIONS,
+            operation='list_recommended_actions',
+            service_name='Compute Optimizer Automation',
+        )
         assert error is None
         assert regions_tokens == {'eu-west-1': 'MORE'}
         assert 'region_next_tokens' not in result['data']
@@ -1481,7 +1700,7 @@ class TestMultiRegionFanOut:
                 operation='list_recommended_actions',
                 regions=_REGIONS,
                 next_token=encode_regional_next_token({'eu-west-1': 'abc'}),
-                max_pages=1,
+                max_items=1,
             )
 
         regions_called = [call.args[0] for call in mock_create.call_args_list]
@@ -1499,7 +1718,7 @@ class TestMultiRegionFanOut:
                 next_token=encode_regional_next_token({'eu-west-1': 'abc'}),
             )
 
-        assert result['status'] == STATUS_ERROR
+        _assert_classified_error(result, 'validation_error', 'list_recommended_actions')
         assert result['data']['unsupported_regions'] == ['eu-west-1']
         mock_create.assert_not_called()
 
@@ -1525,7 +1744,7 @@ class TestMultiRegionFanOut:
                 next_token=next_token,
             )
 
-        assert result['status'] == STATUS_ERROR
+        _assert_classified_error(result, 'validation_error', 'list_recommended_actions')
         assert message_fragment in result['message'].lower()
         mock_create.assert_not_called()
 
@@ -1544,15 +1763,38 @@ class TestMultiRegionFanOut:
                 mock_ctx,
                 operation='list_recommended_actions',
                 regions=_REGIONS,
-                max_pages=1,
+                max_items=1,
             )
 
         data = result['data']
         assert result['status'] == STATUS_SUCCESS
-        assert data['count'] == 1
+        assert data['pagination']['items_returned'] == 1
         assert 'sa-east-1' in data['region_errors']
         assert data['region_errors']['sa-east-1']['error_type'] == 'unknown_runtimeerror'
         assert data['region_errors']['sa-east-1']['message'] == 'sa-east-1 unavailable'
+
+    async def test_failed_region_makes_the_result_partial(self, mock_ctx):
+        """A region that failed outright means the merged answer is incomplete."""
+        factory = _list_factory(
+            'list_recommended_actions',
+            'recommendedActions',
+            {'us-east-1': {'recommendedActions': [{'recommendedActionId': 'a1'}]}},
+            errors=('sa-east-1',),
+        )
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            mock_create.side_effect = factory
+
+            result = await automation_fn(
+                mock_ctx, operation='list_recommended_actions', regions=_REGIONS
+            )
+
+        data = result['data']
+        assert data['complete_dataset'] is False
+        # No region has a token to continue with, so has_more is false.
+        assert data['pagination']['has_more'] is False
+        assert data['pagination']['next_token'] is None
+        assert 'sa-east-1' in data['warning']
+        assert 'without next_token' in data['warning']
 
     async def test_classifies_aws_region_errors(self, mock_ctx):
         """Service and transport failures remain machine-readable by region."""
@@ -1580,7 +1822,7 @@ class TestMultiRegionFanOut:
                 mock_ctx,
                 operation='list_recommended_actions',
                 regions=_REGIONS,
-                max_pages=1,
+                max_items=1,
             )
 
         error = result['data']['region_errors']['ap-south-1']
@@ -1605,11 +1847,69 @@ class TestMultiRegionFanOut:
                 mock_ctx,
                 operation='list_recommended_actions',
                 regions=_REGIONS,
-                max_pages=1,
+                max_items=1,
             )
 
-        assert result['status'] == STATUS_ERROR
+        # Every region failed the same way, so that shared type is promoted to the top level.
+        _assert_classified_error(result, 'unknown_runtimeerror', 'list_recommended_actions')
         assert len(result['data']['region_errors']) == len(_REGIONS)
+
+    async def test_all_regions_fail_with_shared_aws_error_promotes_it(self, mock_ctx):
+        """An AWS error code shared by every failed region becomes the top-level error_type."""
+        access_denied = ClientError(
+            {'Error': {'Code': 'AccessDeniedException', 'Message': 'denied'}},
+            'ListRecommendedActions',
+        )
+
+        def factory(region=None):
+            client = MagicMock()
+            client.list_recommended_actions.side_effect = access_denied
+            return client
+
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            mock_create.side_effect = factory
+
+            result = await automation_fn(
+                mock_ctx,
+                operation='list_recommended_actions',
+                regions=_REGIONS,
+                max_items=1,
+            )
+
+        _assert_classified_error(result, 'AccessDeniedException', 'list_recommended_actions')
+        assert set(result['data']['region_errors']) == set(_REGIONS)
+
+    async def test_all_regions_fail_differently_is_multi_region_error(self, mock_ctx):
+        """Regions failing for different reasons report multi_region_error with the detail."""
+        throttled = ClientError(
+            {'Error': {'Code': 'ThrottlingException', 'Message': 'slow down'}},
+            'ListRecommendedActions',
+        )
+
+        def factory(region=None):
+            client = MagicMock()
+            if region == 'us-east-1':
+                client.list_recommended_actions.side_effect = throttled
+            else:
+                client.list_recommended_actions.side_effect = RuntimeError('unavailable')
+            return client
+
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            mock_create.side_effect = factory
+
+            result = await automation_fn(
+                mock_ctx,
+                operation='list_recommended_actions',
+                regions=_REGIONS,
+                max_items=1,
+            )
+
+        _assert_classified_error(result, 'multi_region_error', 'list_recommended_actions')
+        region_errors = result['data']['region_errors']
+        assert region_errors['us-east-1']['error_type'] == 'ThrottlingException'
+        assert region_errors['eu-west-1']['error_type'] == 'unknown_runtimeerror'
+        # Throttled plus an unexpected failure: the unexpected one cannot be fixed by retrying
+        assert result['retry_strategy'] == 'do_not_retry'
 
     async def test_plain_token_rejected_in_multi_region_mode(self, mock_ctx):
         """A native single-region token is rejected when a regions list is given."""
@@ -1621,7 +1921,7 @@ class TestMultiRegionFanOut:
                 next_token='plaintoken==',
             )
 
-        assert result['status'] == STATUS_ERROR
+        _assert_classified_error(result, 'validation_error', 'list_recommended_actions')
         assert 'invalid multi-region next_token' in result['message'].lower()
         mock_create.assert_not_called()
 
@@ -1646,12 +1946,12 @@ class TestMultiRegionFanOut:
                 operation='list_automation_event_steps',
                 regions=_REGIONS,
                 event_id=EVENT_ID,
-                max_pages=1,
+                max_items=1,
             )
 
         data = result['data']
         assert result['status'] == STATUS_SUCCESS
-        assert data['count'] == 1
+        assert data['pagination']['items_returned'] == 1
         assert data['automation_event_steps'][0]['region'] == 'ap-south-1'
         assert 'region_errors' not in data
 
@@ -1671,10 +1971,12 @@ class TestMultiRegionFanOut:
                 operation='list_automation_event_steps',
                 regions=_REGIONS,
                 event_id=EVENT_ID,
-                max_pages=1,
+                max_items=1,
             )
 
-        assert result['status'] == STATUS_ERROR
+        _assert_classified_error(
+            result, 'ResourceNotFoundException', 'list_automation_event_steps'
+        )
         assert 'not found' in result['message'].lower()
         assert len(result['data']['regions_not_found']) == len(_REGIONS)
 
@@ -1697,11 +1999,11 @@ class TestMultiRegionFanOut:
                 operation='list_automation_event_steps',
                 regions=_REGIONS,
                 event_id=EVENT_ID,
-                max_pages=1,
+                max_items=1,
             )
 
         assert result['status'] == STATUS_SUCCESS
-        assert result['data']['count'] == 0
+        assert result['data']['pagination']['items_returned'] == 0
         assert result['data']['automation_event_steps'] == []
 
     async def test_event_steps_partial_search_failure_is_indeterminate(self, mock_ctx):
@@ -1723,10 +2025,11 @@ class TestMultiRegionFanOut:
                 operation='list_automation_event_steps',
                 regions=_REGIONS,
                 event_id=EVENT_ID,
-                max_pages=1,
+                max_items=1,
             )
 
-        assert result['status'] == STATUS_ERROR
+        # One region failed and the rest returned not found, so the regions disagree.
+        _assert_classified_error(result, 'multi_region_error', 'list_automation_event_steps')
         assert 'could not determine' in result['message'].lower()
         assert result['data']['region_errors']['us-east-1']['error_type'] == (
             'unknown_runtimeerror'
@@ -1778,7 +2081,7 @@ class TestMultiRegionGetAutomationEvent:
                 mock_ctx, operation='get_automation_event', regions=_REGIONS, event_id=EVENT_ID
             )
 
-        assert result['status'] == STATUS_ERROR
+        _assert_classified_error(result, 'ResourceNotFoundException', 'get_automation_event')
         assert 'not found' in result['message'].lower()
         assert result['data']['regions_queried'] == _REGIONS
 
@@ -1797,7 +2100,7 @@ class TestMultiRegionGetAutomationEvent:
                 mock_ctx, operation='get_automation_event', regions=_REGIONS, event_id=EVENT_ID
             )
 
-        assert result['status'] == STATUS_ERROR
+        _assert_classified_error(result, 'unknown_runtimeerror', 'get_automation_event')
         assert 'could not determine' in result['message'].lower()
         assert 'not found' not in result['message'].lower()
         assert len(result['data']['region_errors']) == len(_REGIONS)
@@ -1820,7 +2123,7 @@ class TestMultiRegionGetAutomationEvent:
                 mock_ctx, operation='get_automation_event', regions=_REGIONS, event_id=EVENT_ID
             )
 
-        assert result['status'] == STATUS_ERROR
+        _assert_classified_error(result, 'multi_region_error', 'get_automation_event')
         assert 'could not determine' in result['message'].lower()
         assert len(result['data']['regions_not_found']) == len(_REGIONS) - 1
 
@@ -1842,7 +2145,7 @@ class TestMultiRegionGetAutomationEvent:
                 mock_ctx, operation='get_automation_event', regions=_REGIONS, event_id=EVENT_ID
             )
 
-        assert result['status'] == STATUS_ERROR
+        _assert_classified_error(result, 'ResourceNotFoundException', 'get_automation_event')
         assert 'not found' in result['message'].lower()
 
     async def test_searches_only_the_requested_regions(self, mock_ctx):
@@ -1928,7 +2231,8 @@ class TestRegionRouting:
                 next_token=token,
             )
 
-        assert result['status'] == STATUS_ERROR
+        _assert_classified_error(result, 'validation_error', 'list_recommended_actions')
+        assert result['data']['parameter'] == 'next_token'
         assert 'cannot be used for a single-region request' in result['message']
         mock_create.assert_not_called()
 
@@ -2008,7 +2312,7 @@ class TestRegionRouting:
                 **extra_kwargs,
             )
 
-        assert result['status'] == STATUS_ERROR
+        _assert_classified_error(result, 'validation_error', operation)
         assert result['data']['parameter'] == 'regions'
         assert 'account-global' in result['message']
         mock_create.assert_not_called()
@@ -2049,7 +2353,7 @@ class TestRegionRouting:
                 mock_ctx, operation='list_recommended_actions', regions=regions
             )
 
-        assert result['status'] == STATUS_ERROR
+        _assert_classified_error(result, 'validation_error', 'list_recommended_actions')
         assert result['data']['parameter'] == 'regions'
         assert message_fragment in result['message']
         mock_create.assert_not_called()
@@ -2064,7 +2368,7 @@ class TestRegionRouting:
                 mock_ctx,
                 operation='list_recommended_actions',
                 regions=[' us-east-1 ', 'eu-west-1'],
-                max_pages=1,
+                max_items=1,
             )
 
         regions_called = [call.args[0] for call in mock_create.call_args_list]
@@ -2091,7 +2395,7 @@ class TestRegionRouting:
                 mock_ctx,
                 operation='list_recommended_actions',
                 regions=['us-east-1', 'moon-1'],
-                max_pages=1,
+                max_items=1,
             )
 
         assert result['status'] == STATUS_SUCCESS
@@ -2130,7 +2434,7 @@ class TestMultiRegionSqlOffload:
                 mock_ctx,
                 operation='list_recommended_actions',
                 regions=_REGIONS,
-                max_pages=1,
+                max_items=1,
             )
 
         data = result['data']
@@ -2141,6 +2445,203 @@ class TestMultiRegionSqlOffload:
         assert data['row_count'] == 60
         # regions_queried is passed as offload metadata so it survives the SQL conversion.
         assert data['regions_queried'] == _REGIONS
-        regions_tokens, error = parse_regional_next_token(data['next_token'], _REGIONS)
+        regions_tokens, error = parse_regional_next_token(
+            data['pagination']['next_token'],
+            _REGIONS,
+            operation='list_recommended_actions',
+            service_name='Compute Optimizer Automation',
+        )
         assert error is None
         assert regions_tokens == {'us-east-1': 'more-pages'}
+
+
+_TWO_REGIONS = ['us-east-1', 'eu-west-1']
+
+
+@pytest.mark.asyncio
+class TestMultiRegionPagination:
+    """With `regions`, each region pages independently and max_items applies per region."""
+
+    # Every queried region has scripted pages, so no region errors are expected.
+
+    @staticmethod
+    def _paged_factory(pages_by_region):
+        clients = {}
+
+        def factory(region=None):
+            client = MagicMock()
+            client.list_recommended_actions.side_effect = list(pages_by_region[region])
+            clients[region] = client
+            return client
+
+        return factory, clients
+
+    async def test_no_max_items_fetches_every_page_in_every_region(self, mock_ctx):
+        """Without max_items, every region is paged to its end and the result is complete."""
+        factory, clients = self._paged_factory(
+            {
+                'us-east-1': [
+                    _page('recommendedActions', 2, 'e1'),
+                    _page('recommendedActions', 1),
+                ],
+                'eu-west-1': [_page('recommendedActions', 1)],
+            }
+        )
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            mock_create.side_effect = factory
+            result = await automation_fn(
+                mock_ctx, operation='list_recommended_actions', regions=_TWO_REGIONS
+            )
+
+        data = result['data']
+        assert 'region_errors' not in data
+        assert clients['us-east-1'].list_recommended_actions.call_count == 2
+        assert 'complete_dataset' not in data
+        assert data['pagination'] == {
+            'complete_dataset': True,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 4,
+        }
+
+    async def test_max_items_applies_per_region(self, mock_ctx):
+        """Each region stops at max_items on its own and its token joins the bundle."""
+        factory, clients = self._paged_factory(
+            {
+                'us-east-1': [
+                    _page('recommendedActions', 1, 'e1'),
+                    _page('recommendedActions', 1, 'e2'),
+                ],
+                'eu-west-1': [_page('recommendedActions', 2, 'w1')],
+            }
+        )
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            mock_create.side_effect = factory
+            result = await automation_fn(
+                mock_ctx, operation='list_recommended_actions', regions=_TWO_REGIONS, max_items=2
+            )
+
+        data = result['data']
+        east_calls = clients['us-east-1'].list_recommended_actions.call_args_list
+        assert [c.kwargs['maxResults'] for c in east_calls] == [2, 1]
+        assert clients['eu-west-1'].list_recommended_actions.call_count == 1
+        assert len(data['recommended_actions']) == 4
+        assert data['complete_dataset'] is False
+        assert 'Partial data' in data['warning']
+        assert data['pagination']['items_returned'] == 4
+        regions_tokens, error = parse_regional_next_token(
+            data['pagination']['next_token'],
+            _TWO_REGIONS,
+            operation='list_recommended_actions',
+            service_name='Compute Optimizer Automation',
+        )
+        assert error is None
+        assert regions_tokens == {'us-east-1': 'e2', 'eu-west-1': 'w1'}
+
+    async def test_continuation_sends_each_region_its_token(self, mock_ctx):
+        """A bundled token resumes each region with its own token and identical params."""
+        factory, clients = self._paged_factory(
+            {
+                'us-east-1': [
+                    _page('recommendedActions', 1, 'e3'),
+                    _page('recommendedActions', 1),
+                ],
+                'eu-west-1': [_page('recommendedActions', 1)],
+            }
+        )
+        filters = '[{"name": "ResourceType", "values": ["EbsVolume"]}]'
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            mock_create.side_effect = factory
+            result = await automation_fn(
+                mock_ctx,
+                operation='list_recommended_actions',
+                regions=_TWO_REGIONS,
+                filters=filters,
+                next_token=encode_regional_next_token({'us-east-1': 'e2', 'eu-west-1': 'w1'}),
+            )
+
+        first, second = clients['us-east-1'].list_recommended_actions.call_args_list
+        assert first.kwargs['nextToken'] == 'e2'
+        assert second.kwargs['nextToken'] == 'e3'
+        assert _request_without_paging(first.kwargs) == _request_without_paging(second.kwargs)
+        assert first.kwargs['filters'] == [{'name': 'ResourceType', 'values': ['EbsVolume']}]
+        assert clients['eu-west-1'].list_recommended_actions.call_args.kwargs['nextToken'] == 'w1'
+        assert result['data']['pagination']['complete_dataset'] is True
+
+    async def test_region_failing_mid_pagination_names_the_region(self, mock_ctx):
+        """A region cut short by a failed page keeps its items and its own warning."""
+        factory, _ = self._paged_factory(
+            {
+                'us-east-1': [
+                    _page('recommendedActions', 1, 'e1'),
+                    ClientError(
+                        {'Error': {'Code': 'ThrottlingException', 'Message': 'x'}}, 'List'
+                    ),
+                ],
+                'eu-west-1': [_page('recommendedActions', 1)],
+            }
+        )
+        with patch(f'{_TOOLS_MODULE}.create_compute_optimizer_automation_client') as mock_create:
+            mock_create.side_effect = factory
+            result = await automation_fn(
+                mock_ctx, operation='list_recommended_actions', regions=_TWO_REGIONS
+            )
+
+        data = result['data']
+        assert data['complete_dataset'] is False
+        assert 'Region us-east-1:' in data['warning']
+        assert 'ThrottlingException' in data['warning']
+        assert len(data['recommended_actions']) == 2
+        regions_tokens, _ = parse_regional_next_token(
+            data['pagination']['next_token'],
+            _TWO_REGIONS,
+            operation='list_recommended_actions',
+            service_name='Compute Optimizer Automation',
+        )
+        assert regions_tokens == {'us-east-1': 'e1'}
+
+
+class TestMergeRegionPaginations:
+    """has_more in the merged block means there is a token to continue with."""
+
+    def test_failed_region_without_tokens_is_partial_but_not_continuable(self):
+        """Every succeeding region is complete, so nothing can continue."""
+        merged = automation_tools._merge_region_paginations(
+            items_returned=1,
+            region_next_tokens={},
+            region_paginations={'us-east-1': {'complete_dataset': True}},
+            region_errors={'sa-east-1': {'error_type': 'ServiceUnavailable'}},
+        )
+
+        assert merged['complete_dataset'] is False
+        assert merged['has_more'] is False
+        assert merged['next_token'] is None
+        assert 'sa-east-1' in merged['warning']
+
+    def test_failed_region_with_continuable_region_has_more(self):
+        """A region with a token keeps the merged result continuable."""
+        merged = automation_tools._merge_region_paginations(
+            items_returned=2,
+            region_next_tokens={'us-east-1': 'tok'},
+            region_paginations={'us-east-1': {'complete_dataset': False, 'items_returned': 2}},
+            region_errors={'sa-east-1': {'error_type': 'ServiceUnavailable'}},
+        )
+
+        assert merged['complete_dataset'] is False
+        assert merged['has_more'] is True
+        assert merged['next_token'] == encode_regional_next_token({'us-east-1': 'tok'})
+
+    def test_all_regions_complete(self):
+        """No partial or failed region gives a complete, non-continuable block."""
+        merged = automation_tools._merge_region_paginations(
+            items_returned=3,
+            region_next_tokens={},
+            region_paginations={'us-east-1': {'complete_dataset': True}},
+        )
+
+        assert merged == {
+            'complete_dataset': True,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 3,
+        }

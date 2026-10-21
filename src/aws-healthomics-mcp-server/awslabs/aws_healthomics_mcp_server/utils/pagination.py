@@ -191,7 +191,7 @@ def paginating(tool_name: str, fn: Callable[..., Any]) -> Callable[..., Any]:
         if isinstance(nested, dict) and 'has_more' in nested:
             token = nested.get('continuation_token')
             is_complete = not bool(nested['has_more'])
-            returned_count = len(result.get('results', []))
+            returned_count = _first_list_length(result.values())
             nested.update(
                 _pagination_block(is_complete, returned_count, tool_name, param_name, token)
             )

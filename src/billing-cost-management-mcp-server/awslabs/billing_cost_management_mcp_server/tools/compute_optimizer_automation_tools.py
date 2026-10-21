@@ -29,7 +29,14 @@ region. With no `regions`, a single call targets the AWS_REGION env var or us-ea
 
 import asyncio
 import botocore.session
-from ..utilities.aws_service_base import format_response, handle_aws_error, parse_json
+from ..utilities.aws_service_base import (
+    format_response,
+    handle_aws_error,
+    parse_json,
+    partial_data_warning,
+    with_pagination,
+)
+from ..utilities.error_contract import classify_error, combine_guidance
 from ..utilities.regional_fanout import (
     collect_regional_pages,
     encode_regional_next_token,
@@ -72,6 +79,9 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 _SERVICE_NAME = 'Compute Optimizer Automation'
 _BOTO_SERVICE_NAME = 'compute-optimizer-automation'
 _MAX_CONCURRENT_REGIONS = 8
+_RESOURCE_NOT_FOUND_ERROR_TYPE = 'ResourceNotFoundException'
+# Top-level error_type for a multi-region failure whose regions failed for different reasons.
+_MULTI_REGION_ERROR_TYPE = 'multi_region_error'
 
 # The operations this tool supports, in the order presented to callers.
 VALID_OPERATIONS = [
@@ -140,6 +150,61 @@ def _valid_filter_names_by_operation() -> Dict[str, List[str]]:
     return result
 
 
+def _validation_error(operation: str, data: Dict[str, Any], message: str) -> Dict[str, Any]:
+    """Return an error response for a local parameter-validation failure.
+
+    Sets the same top-level `error_type`, `operation`, and `service` fields that
+    handle_aws_error attaches to AWS-side errors, so callers can tell a bad parameter
+    apart from a service failure without parsing the message.
+    """
+    return format_response(
+        'error',
+        data,
+        message,
+        error_type='validation_error',
+        operation=operation,
+        service=_SERVICE_NAME,
+    )
+
+
+def _multi_region_error_type(
+    region_errors: Dict[str, Dict[str, Any]], regions_not_found: List[str]
+) -> str:
+    """Classify a failure in which no queried region succeeded.
+
+    Per-region error types are keyed by region name, which changes from call to call,
+    so the shared type is promoted to the top level when every failed region agrees.
+    Otherwise the failure is reported as a multi_region_error, and callers can still
+    read the per-region detail from `region_errors`.
+    """
+    error_types = {error.get('error_type') for error in region_errors.values()}
+    if regions_not_found:
+        error_types.add(_RESOURCE_NOT_FOUND_ERROR_TYPE)
+    if len(error_types) == 1:
+        error_type = error_types.pop()
+        if error_type:
+            return error_type
+    return _MULTI_REGION_ERROR_TYPE
+
+
+def _multi_region_guidance(
+    region_errors: Dict[str, Dict[str, Any]], regions_not_found: List[str]
+) -> Tuple[str, Optional[str]]:
+    """Return the (retry_strategy, hint) for a failure in which no queried region succeeded.
+
+    Derived from each region's own error_type and http_status, which stay nested in
+    region_errors, so the top-level multi_region_error or a promoted type alone would
+    lose them (e.g. throttled in one region and a 5xx in another is still transient).
+    """
+    guidance = [
+        classify_error(error.get('error_type'), error.get('http_status'))
+        for error in region_errors.values()
+    ]
+    if regions_not_found:
+        guidance.append(classify_error(_RESOURCE_NOT_FOUND_ERROR_TYPE))
+    return combine_guidance(guidance)
+
+
 compute_optimizer_automation_server = FastMCP(
     name='compute-optimizer-automation-tools',
     instructions='Tools for working with the AWS Compute Optimizer Automation API',
@@ -186,22 +251,22 @@ Supported operations (pass via the `operation` parameter):
 3. get_automation_rule: Details about a single automation rule, including its criteria
    and tags. Params: rule_arn (required)
 4. list_accounts: Organization accounts enrolled in Compute Optimizer and whether they
-   enabled Automation (management/delegated-admin only). Params: max_results, next_token
+   enabled Automation (management/delegated-admin only). Params: max_items, next_token
 5. list_automation_events: Automation events matching filters (created within the past
-   year). Params: filters, start_time, end_time, max_results, next_token
+   year). Params: filters, start_time, end_time, max_items, next_token
 6. list_automation_event_steps: Steps for a specific automation event.
-   Params: event_id (required), max_results, next_token
+   Params: event_id (required), max_items, next_token
 7. list_automation_event_summaries: Aggregated automation-event counts and savings.
-   Params: filters, start_date, end_date, max_results, next_token
+   Params: filters, start_date, end_date, max_items, next_token
 8. list_automation_rules: Automation rules matching filters.
-   Params: filters, max_results, next_token
+   Params: filters, max_items, next_token
 9. list_recommended_actions: Recommended actions matching filters.
-   Params: filters, max_results, next_token
+   Params: filters, max_items, next_token
 10. list_recommended_action_summaries: Aggregated recommended-action counts and savings.
-    Params: filters, max_results, next_token
+    Params: filters, max_items, next_token
 11. list_automation_rule_preview: Preview the recommended actions a rule config would
     match, without creating the rule. Params: rule_type (required),
-    recommended_action_types (required), organization_scope, criteria, max_results,
+    recommended_action_types (required), organization_scope, criteria, max_items,
     next_token
 12. list_automation_rule_preview_summaries: Aggregated summary of a rule preview.
     Params: same as list_automation_rule_preview
@@ -219,12 +284,19 @@ Valid filter names by operation:
   CurrentResourceDetailsEbsVolumeType, ResourceTagsKey, ResourceTagsValue, AccountId,
   RestartNeeded
 
-List operations paginate automatically up to max_pages (default 10, applied per region when
-`regions` is passed). The returned `count` is the number of items in this response, not a
-grand total. When more results remain, pass the returned opaque `next_token` string back
-unchanged along with the same `regions` list it was produced with. A multi-region response
-may also include `region_errors` ({region: structured error}) for regions that failed while
-others succeeded.
+PAGINATION (list_* operations only; the get_* operations and list_tags_for_resource take
+neither max_items nor next_token):
+- max_items is the total number of items returned. Omit it to fetch every page (no limit).
+  Pass it, or narrow the filters, for queries that can be large.
+- With `regions`, max_items applies PER REGION: each region returns up to max_items items, so
+  a response can hold up to max_items x len(regions) items.
+- If the response has complete_dataset: false, call again with a larger max_items, continue
+  with pagination.next_token (pass it back unchanged with otherwise identical parameters,
+  including the same `regions` list), or state in the answer that the result is partial.
+  pagination.items_returned counts the items in this response only; do not report it as a
+  total when the result is partial.
+- A multi-region response may also include `region_errors` ({region: structured error}) for
+  regions that failed while others succeeded.
 
 Examples:
 - {"operation": "get_enrollment_configuration"}
@@ -249,8 +321,7 @@ async def compute_optimizer_automation(
     recommended_action_types: Optional[str] = None,
     organization_scope: Optional[str] = None,
     criteria: Optional[str] = None,
-    max_results: Optional[int] = None,
-    max_pages: int = 10,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Retrieve data from AWS Compute Optimizer Automation.
@@ -265,20 +336,21 @@ async def compute_optimizer_automation(
         rule_arn: Automation rule ARN (get_automation_rule).
         resource_arn: Resource ARN (list_tags_for_resource).
         filters: Optional JSON string list of {name, values} filter objects.
-        start_time: Optional inclusive start datetime for list_automation_events (UTC).
-        end_time: Optional exclusive end datetime for list_automation_events (UTC).
+        start_time: Optional inclusive start datetime for list_automation_events (UTC;
+            YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS, trailing Z allowed).
+        end_time: Optional exclusive end datetime for list_automation_events (UTC;
+            YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS, trailing Z allowed).
         start_date: Optional inclusive start date for list_automation_event_summaries.
         end_date: Optional exclusive end date for list_automation_event_summaries.
         rule_type: Rule type for the preview operations ('OrganizationRule'/'AccountRule').
         recommended_action_types: JSON string array of action types for the preview operations.
         organization_scope: Optional JSON string {accountIds: [...]} for the preview operations.
         criteria: Optional JSON string of rule criteria conditions for the preview operations.
-        max_results: Optional maximum number of results per page (list operations).
-        max_pages: Maximum number of API pages to fetch (list operations). Defaults to 10.
-            Applied per region when `regions` is passed.
-        next_token: Optional pagination token from a previous response (list operations).
-            Pass the opaque string back unchanged, along with the same `regions` list it
-            was produced with.
+        max_items: Total number of items to return across all pages (per region when
+            regions is set). Omit it to fetch every page. List operations only.
+        next_token: The pagination.next_token from a previous response; continue with
+            otherwise identical parameters, including the same `regions` list. List
+            operations only.
 
     Returns:
         Dict containing the requested Compute Optimizer Automation data.
@@ -336,16 +408,15 @@ async def compute_optimizer_automation(
                 recommended_action_types=recommended_action_types,
                 organization_scope=organization_scope,
                 criteria=criteria,
-                max_results=max_results,
-                max_pages=max_pages,
+                max_items=max_items,
                 next_token=next_token,
             )
 
         # Catch the actionable cross-mode mistake locally instead of sending an encoded
         # regional map to AWS as though it were a native service token.
         if is_regional_next_token(next_token):
-            return format_response(
-                'error',
+            return _validation_error(
+                operation,
                 {'operation': operation, 'parameter': 'next_token'},
                 'A multi-region next_token cannot be used for a single-region request. '
                 'Pass the same `regions` list the token was produced with, or omit '
@@ -368,8 +439,7 @@ async def compute_optimizer_automation(
             recommended_action_types=recommended_action_types,
             organization_scope=organization_scope,
             criteria=criteria,
-            max_results=max_results,
-            max_pages=max_pages,
+            max_items=max_items,
             next_token=next_token,
         )
 
@@ -393,8 +463,7 @@ async def dispatch_regional(
     recommended_action_types: Optional[str] = None,
     organization_scope: Optional[str] = None,
     criteria: Optional[str] = None,
-    max_results: Optional[int] = None,
-    max_pages: int = 10,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Create one regional client and dispatch an operation to its handler."""
@@ -404,24 +473,24 @@ async def dispatch_regional(
         'get_automation_event': lambda: get_automation_event(ctx, client, str(event_id)),
         'get_automation_rule': lambda: get_automation_rule(ctx, client, str(rule_arn)),
         'get_enrollment_configuration': lambda: get_enrollment_configuration(ctx, client),
-        'list_accounts': lambda: list_accounts(ctx, client, max_results, max_pages, next_token),
+        'list_accounts': lambda: list_accounts(ctx, client, max_items, next_token),
         'list_automation_events': lambda: list_automation_events(
-            ctx, client, filters, start_time, end_time, max_results, max_pages, next_token
+            ctx, client, filters, start_time, end_time, max_items, next_token
         ),
         'list_automation_event_steps': lambda: list_automation_event_steps(
-            ctx, client, str(event_id), max_results, max_pages, next_token
+            ctx, client, str(event_id), max_items, next_token
         ),
         'list_automation_event_summaries': lambda: list_automation_event_summaries(
-            ctx, client, filters, start_date, end_date, max_results, max_pages, next_token
+            ctx, client, filters, start_date, end_date, max_items, next_token
         ),
         'list_automation_rules': lambda: list_automation_rules(
-            ctx, client, filters, max_results, max_pages, next_token
+            ctx, client, filters, max_items, next_token
         ),
         'list_recommended_actions': lambda: list_recommended_actions(
-            ctx, client, filters, max_results, max_pages, next_token
+            ctx, client, filters, max_items, next_token
         ),
         'list_recommended_action_summaries': lambda: list_recommended_action_summaries(
-            ctx, client, filters, max_results, max_pages, next_token
+            ctx, client, filters, max_items, next_token
         ),
         'list_automation_rule_preview': lambda: list_automation_rule_preview(
             ctx,
@@ -430,8 +499,7 @@ async def dispatch_regional(
             str(recommended_action_types),
             organization_scope,
             criteria,
-            max_results,
-            max_pages,
+            max_items,
             next_token,
         ),
         'list_automation_rule_preview_summaries': lambda: list_automation_rule_preview_summaries(
@@ -441,8 +509,7 @@ async def dispatch_regional(
             str(recommended_action_types),
             organization_scope,
             criteria,
-            max_results,
-            max_pages,
+            max_items,
             next_token,
         ),
         'list_tags_for_resource': lambda: list_tags_for_resource(ctx, client, str(resource_arn)),
@@ -450,8 +517,8 @@ async def dispatch_regional(
 
     handler = handlers.get(operation)
     if handler is None:
-        return format_response(
-            'error',
+        return _validation_error(
+            operation,
             {'provided_operation': operation, 'valid_operations': VALID_OPERATIONS},
             f'Unsupported operation: {operation}. Valid operations: {", ".join(VALID_OPERATIONS)}.',
         )
@@ -473,52 +540,53 @@ async def dispatch_multi_region(
     recommended_action_types: Optional[str] = None,
     organization_scope: Optional[str] = None,
     criteria: Optional[str] = None,
-    max_results: Optional[int] = None,
-    max_pages: int = 10,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Run a fan-out operation across the requested regions."""
     if operation == 'get_automation_event':
         return await _get_automation_event_multi_region(ctx, str(event_id), regions)
 
-    regions_tokens, token_error = parse_regional_next_token(next_token, regions)
+    regions_tokens, token_error = parse_regional_next_token(
+        next_token, regions, operation=operation, service_name=_SERVICE_NAME
+    )
     if token_error is not None:
         return token_error
 
-    # Each entry: (list_key, collect(client, token) -> (items, token), not_found_is_empty).
+    # Each entry: (list_key, collect(client, token) -> (items, pagination), not_found_is_empty).
     global_handlers = {
         'list_automation_events': (
             'automation_events',
             lambda client, token: _collect_automation_events(
-                ctx, client, filters, start_time, end_time, max_results, max_pages, token
+                ctx, client, filters, start_time, end_time, max_items, token
             ),
             False,
         ),
         'list_automation_event_steps': (
             'automation_event_steps',
             lambda client, token: _collect_automation_event_steps(
-                ctx, client, str(event_id), max_results, max_pages, token
+                ctx, client, str(event_id), max_items, token
             ),
             True,
         ),
         'list_automation_event_summaries': (
             'automation_event_summaries',
             lambda client, token: _collect_automation_event_summaries(
-                ctx, client, filters, start_date, end_date, max_results, max_pages, token
+                ctx, client, filters, start_date, end_date, max_items, token
             ),
             False,
         ),
         'list_recommended_actions': (
             'recommended_actions',
             lambda client, token: _collect_recommended_actions(
-                ctx, client, filters, max_results, max_pages, token
+                ctx, client, filters, max_items, token
             ),
             False,
         ),
         'list_recommended_action_summaries': (
             'recommended_action_summaries',
             lambda client, token: _collect_recommended_action_summaries(
-                ctx, client, filters, max_results, max_pages, token
+                ctx, client, filters, max_items, token
             ),
             False,
         ),
@@ -531,8 +599,7 @@ async def dispatch_multi_region(
                 str(recommended_action_types),
                 organization_scope,
                 criteria,
-                max_results,
-                max_pages,
+                max_items,
                 token,
             ),
             False,
@@ -546,8 +613,7 @@ async def dispatch_multi_region(
                 str(recommended_action_types),
                 organization_scope,
                 criteria,
-                max_results,
-                max_pages,
+                max_items,
                 token,
             ),
             False,
@@ -556,8 +622,8 @@ async def dispatch_multi_region(
 
     spec = global_handlers.get(operation)
     if spec is None:
-        return format_response(
-            'error',
+        return _validation_error(
+            operation,
             {'provided_operation': operation, 'valid_operations': VALID_OPERATIONS},
             f'Unsupported operation: {operation}. Valid operations: {", ".join(VALID_OPERATIONS)}.',
         )
@@ -575,12 +641,12 @@ def _partition_resource_not_found_errors(
     regions_not_found = [
         region
         for region, error in region_errors.items()
-        if error.get('error_type') == 'ResourceNotFoundException'
+        if error.get('error_type') == _RESOURCE_NOT_FOUND_ERROR_TYPE
     ]
     other_errors = {
         region: error
         for region, error in region_errors.items()
-        if error.get('error_type') != 'ResourceNotFoundException'
+        if error.get('error_type') != _RESOURCE_NOT_FOUND_ERROR_TYPE
     }
     return other_errors, regions_not_found
 
@@ -590,16 +656,25 @@ async def _run_multi_region_list(
     operation: str,
     list_key: str,
     regions_tokens: Dict[str, Optional[str]],
-    collect: Callable[[Any, Optional[str]], Awaitable[Tuple[List[Dict[str, Any]], Optional[str]]]],
+    collect: Callable[
+        [Any, Optional[str]], Awaitable[Tuple[List[Dict[str, Any]], Dict[str, Any]]]
+    ],
     not_found_is_empty: bool = False,
 ) -> Dict[str, Any]:
-    """Run and merge a regional list operation."""
+    """Run and merge a regional list operation.
+
+    Each region pages independently, so `max_items` applies per region. The regional
+    service tokens are bundled into one opaque token by the regional fan-out helpers.
+    """
+    region_paginations: Dict[str, Dict[str, Any]] = {}
 
     async def worker(
         region: str, token: Optional[str]
     ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
         client = await asyncio.to_thread(create_compute_optimizer_automation_client, region)
-        return await collect(client, token)
+        items, pagination = await collect(client, token)
+        region_paginations[region] = pagination
+        return items, pagination.get('next_token')
 
     outcomes = await collect_regional_pages(
         regions_tokens,
@@ -626,6 +701,9 @@ async def _run_multi_region_list(
             },
             f'The requested resource was not found in any of the {len(regions_not_found)} '
             f'region(s) queried for {operation}.',
+            error_type=_RESOURCE_NOT_FOUND_ERROR_TYPE,
+            operation=operation,
+            service=_SERVICE_NAME,
         )
 
     if region_errors and not successful_regions:
@@ -643,7 +721,17 @@ async def _run_multi_region_list(
             )
         else:
             message = f'All {len(region_errors)} region(s) failed for {operation}.'
-        return format_response('error', data, message)
+        retry_strategy, hint = _multi_region_guidance(region_errors, regions_not_found)
+        return format_response(
+            'error',
+            data,
+            message,
+            error_type=_multi_region_error_type(region_errors, regions_not_found),
+            operation=operation,
+            service=_SERVICE_NAME,
+            retry_strategy=retry_strategy,
+            hint=hint,
+        )
 
     return await _finalize_multi_region_list_response(
         ctx,
@@ -652,6 +740,7 @@ async def _run_multi_region_list(
         outcomes.items,
         list(regions_tokens),
         outcomes.next_tokens,
+        {region: region_paginations[region] for region in outcomes.successful_regions},
         region_errors,
     )
 
@@ -663,35 +752,78 @@ async def _finalize_multi_region_list_response(
     items: List[Dict[str, Any]],
     regions_queried: List[str],
     region_next_tokens: Dict[str, str],
+    region_paginations: Dict[str, Dict[str, Any]],
     region_errors: Dict[str, Dict[str, Any]],
 ) -> Dict[str, Any]:
     """Build a merged multi-region list response, offloading to SQL when large."""
-    response_data: Dict[str, Any] = {
-        list_key: items,
-        'count': len(items),
-        'regions_queried': regions_queried,
-    }
-    global_next_token = None
-    if region_next_tokens:
-        global_next_token = encode_regional_next_token(region_next_tokens)
-        response_data['next_token'] = global_next_token
+    response_data: Dict[str, Any] = {list_key: items, 'regions_queried': regions_queried}
     if region_errors:
         response_data['region_errors'] = region_errors
 
     offload_metadata: Dict[str, Any] = {'regions_queried': regions_queried}
-    if global_next_token:
-        offload_metadata['next_token'] = global_next_token
     if region_errors:
         offload_metadata['region_errors'] = region_errors
 
     response_data = await convert_response_if_needed(
         ctx,
-        response_data,
+        with_pagination(
+            response_data,
+            _merge_region_paginations(
+                len(items), region_next_tokens, region_paginations, region_errors
+            ),
+        ),
         f'compute_optimizer_automation_{operation}',
-        pagination_token_key='next_token',
         **offload_metadata,
     )
     return format_response('success', response_data)
+
+
+def _merge_region_paginations(
+    items_returned: int,
+    region_next_tokens: Dict[str, str],
+    region_paginations: Dict[str, Dict[str, Any]],
+    region_errors: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Combine each region's pagination block into one for the merged response.
+
+    The merged result is partial when any region is, or when a region failed outright.
+    Regional service tokens are bundled into one opaque token. A region cut short by a
+    failed page keeps its own warning, since it says whether a continuation can retry
+    that page. A region that failed outright has no token, so the warning says to query
+    it again on its own. ``has_more`` is true only when there is a token to continue
+    with, so a result whose only gap is a failed region is partial with ``has_more``
+    false.
+    """
+    partial_regions = [
+        region
+        for region, pagination in region_paginations.items()
+        if not pagination.get('complete_dataset', True)
+    ]
+    failed_regions = sorted(region_errors or {})
+    incomplete = bool(partial_regions or failed_regions)
+    next_token = encode_regional_next_token(region_next_tokens) if region_next_tokens else None
+    merged: Dict[str, Any] = {
+        'complete_dataset': not incomplete,
+        'has_more': next_token is not None,
+        'next_token': next_token,
+        'items_returned': items_returned,
+    }
+    if incomplete:
+        warning = partial_data_warning(items_returned)
+        if failed_regions:
+            warning += (
+                f' Regions {", ".join(failed_regions)} failed (see region_errors) and are not '
+                'in next_token; call again with only those regions, without next_token.'
+            )
+        for region in partial_regions:
+            pagination = region_paginations[region]
+            regional_warning = pagination.get('warning')
+            if regional_warning and regional_warning != partial_data_warning(
+                pagination.get('items_returned', 0)
+            ):
+                warning += f' Region {region}: {regional_warning}'
+        merged['warning'] = warning
+    return merged
 
 
 async def _get_automation_event_multi_region(
@@ -728,18 +860,27 @@ async def _get_automation_event_multi_region(
     if region_errors:
         data['region_errors'] = region_errors
         data['regions_not_found'] = regions_not_found
+        retry_strategy, hint = _multi_region_guidance(region_errors, regions_not_found)
         return format_response(
             'error',
             data,
             f'Could not determine whether automation event {event_id} exists because '
             f'{len(region_errors)} of {len(regions)} region(s) could not be searched. '
             'Review region_errors and retry.',
+            error_type=_multi_region_error_type(region_errors, regions_not_found),
+            operation='get_automation_event',
+            service=_SERVICE_NAME,
+            retry_strategy=retry_strategy,
+            hint=hint,
         )
     return format_response(
         'error',
         data,
         f'Automation event {event_id} was not found in any of the {len(regions)} '
         'region(s) queried.',
+        error_type=_RESOURCE_NOT_FOUND_ERROR_TYPE,
+        operation='get_automation_event',
+        service=_SERVICE_NAME,
     )
 
 
@@ -782,8 +923,8 @@ def _validate_operation_params(
 
     missing = [name for name, value in required.get(operation, []) if not value]
     if missing:
-        return format_response(
-            'error',
+        return _validation_error(
+            operation,
             {'operation': operation, 'missing_parameters': missing},
             f'Missing required parameter(s) for {operation}: {", ".join(missing)}.',
         )
@@ -810,16 +951,16 @@ def _resolve_requested_regions(
         return [], None
 
     if isinstance(regions, str) or not isinstance(regions, (list, tuple)):
-        return [], format_response(
-            'error',
+        return [], _validation_error(
+            operation,
             {'operation': operation, 'parameter': 'regions'},
             'The regions parameter must be a list of AWS region names, e.g. '
             '["us-east-1", "eu-west-1"].',
         )
 
     if any(not isinstance(region, str) or not region.strip() for region in regions):
-        return [], format_response(
-            'error',
+        return [], _validation_error(
+            operation,
             {'operation': operation, 'parameter': 'regions', 'regions': list(regions)},
             'Every entry in regions must be a non-empty AWS region name.',
         )
@@ -827,8 +968,8 @@ def _resolve_requested_regions(
     deduplicated = list(dict.fromkeys(region.strip() for region in regions))
 
     if operation in _SINGLE_REGION_OPERATIONS and len(deduplicated) > 1:
-        return [], format_response(
-            'error',
+        return [], _validation_error(
+            operation,
             {
                 'operation': operation,
                 'parameter': 'regions',
@@ -895,15 +1036,15 @@ def _validate_filters(operation: str, filters: Optional[str]) -> Optional[Dict[s
     try:
         parsed = parse_json(filters, 'filters')
     except ValueError as e:
-        return format_response(
-            'error',
+        return _validation_error(
+            operation,
             {'operation': operation, 'filters': filters},
             f'Invalid JSON for filters parameter: {e}',
         )
 
     if not isinstance(parsed, list):
-        return format_response(
-            'error',
+        return _validation_error(
+            operation,
             {'operation': operation, 'filters': filters},
             'The filters parameter must be a JSON array of {name, values} objects.',
         )
@@ -914,8 +1055,8 @@ def _validate_filters(operation: str, filters: Optional[str]) -> Optional[Dict[s
         if isinstance(item, dict) and item.get('name') not in valid_names
     ]
     if invalid:
-        return format_response(
-            'error',
+        return _validation_error(
+            operation,
             {
                 'operation': operation,
                 'invalid_filter_names': invalid,

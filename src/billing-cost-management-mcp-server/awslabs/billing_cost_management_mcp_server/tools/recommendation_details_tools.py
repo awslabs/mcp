@@ -37,7 +37,7 @@ from ..utilities.constants import (
     SERVICE_MAP,
     TERM_MAP,
 )
-from datetime import datetime
+from ..utilities.time_utils import format_timestamp_to_utc_iso
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
 
@@ -58,6 +58,13 @@ This tool combines data from:
 - Cost Explorer (Savings Plans/RI purchase recommendations)
 
 It provides comprehensive analysis with utilization metrics, savings calculations, and implementation guidance.
+
+COMMITMENT PURCHASE DETAILS:
+- For PurchaseReservedInstances, additional_details is the Cost Explorer reservation purchase
+  recommendation for the recommendation's service, term and payment option. It may list several
+  instance types and regions; EstimatedBreakEvenInMonths is per RecommendationDetails row.
+- Savings Plans recommendations carry no break-even. They return EstimatedROI (estimated savings /
+  Savings Plan cost x 100 over the lookback period), which is not a payback period.
 
 RESPONSE FORMATTING INSTRUCTIONS:
 The tool may return both raw recommendation data and a formatting template.
@@ -188,6 +195,24 @@ async def get_cost_explorer_data(ctx: Context, recommendation: Dict[str, Any]) -
         return {'error': f'Error getting Cost Explorer data: {str(e)}'}
 
 
+def missing_details_error(recommended_details: Dict[str, Any], kind: str) -> Dict[str, Any]:
+    """Explain why no supported commitment key was found in recommendedResourceDetails."""
+    # boto3 parses a union member its service model does not know as
+    # {'SDK_UNKNOWN_MEMBER': {'name': <member>}} and drops the member's configuration.
+    unknown = recommended_details.get('SDK_UNKNOWN_MEMBER')
+    if isinstance(unknown, dict):
+        return {
+            'error': (
+                f"Cost Optimization Hub returned a '{unknown.get('name')}' recommendation, "
+                f'which the installed AWS SDK cannot parse, so its {kind} purchase details '
+                'are unavailable. Upgrade boto3/botocore to retrieve them.'
+            )
+        }
+    return {
+        'error': f'No {kind} details found. Available keys: {list(recommended_details.keys())}'
+    }
+
+
 async def get_savings_plans_recommendation(
     ctx: Context, recommendation: Dict[str, Any], ce_client
 ) -> Dict[str, Any]:
@@ -196,16 +221,12 @@ async def get_savings_plans_recommendation(
     recommended_details = recommendation.get('recommendedResourceDetails', {})
 
     # Find the Savings Plans key in recommended details
-    savings_plans_key = None
-    for key in recommended_details.keys():
-        if key.endswith('SavingsPlans'):
-            savings_plans_key = key
-            break
+    savings_plans_key = next(
+        (key for key in recommended_details if key in SAVINGS_PLANS_TYPE_MAP), None
+    )
 
     if not savings_plans_key:
-        return {
-            'error': f'No Savings Plans details found. Available keys: {list(recommended_details.keys())}'
-        }
+        return missing_details_error(recommended_details, 'Savings Plans')
 
     # Extract configuration
     config = recommended_details[savings_plans_key].get('configuration', {})
@@ -264,17 +285,11 @@ async def get_reserved_instances_recommendation(
     # Get recommendation details
     recommended_details = recommendation.get('recommendedResourceDetails', {})
 
-    # Find the Reserved Instances key in recommended details
-    ri_key = None
-    for key in recommended_details.keys():
-        if key.endswith('ReservedInstances'):
-            ri_key = key
-            break
+    # Find the Reserved Instances (or DynamoDB reserved capacity) key in recommended details
+    ri_key = next((key for key in recommended_details if key in SERVICE_MAP), None)
 
     if not ri_key:
-        return {
-            'error': f'No Reserved Instances details found. Available keys: {list(recommended_details.keys())}'
-        }
+        return missing_details_error(recommended_details, 'Reserved Instances')
 
     # Extract configuration
     config = recommended_details[ri_key].get('configuration', {})
@@ -369,8 +384,10 @@ async def get_compute_optimizer_data(
             )
             return response
         elif resource_type == RESOURCE_TYPE_RDS:
-            response = compute_optimizer.get_rds_instance_recommendations(
-                instanceArns=[resource_arn]
+            # Compute Optimizer's RDS API is GetRDSDatabaseRecommendations, keyed by
+            # resourceArns; its results are under 'rdsDBRecommendations'.
+            response = compute_optimizer.get_rds_database_recommendations(
+                resourceArns=[resource_arn]
             )
             return response
         else:
@@ -380,15 +397,9 @@ async def get_compute_optimizer_data(
         return {'error': f'Error getting Compute Optimizer data: {str(e)}'}
 
 
-def format_timestamp(timestamp: Optional[int]) -> Optional[str]:
-    """Format Unix timestamp to ISO format string."""
-    if timestamp is None:
-        return None
-
-    try:
-        return datetime.fromtimestamp(timestamp / 1000).isoformat()
-    except Exception as e:
-        return str(f'Error: {e}, Timestamp: {timestamp}')  # Return as string if conversion fails
+def format_timestamp(timestamp: Any) -> Optional[str]:
+    """Format a COH timestamp (datetime, epoch seconds or epoch ms) as a UTC ISO string."""
+    return format_timestamp_to_utc_iso(timestamp)
 
 
 def get_template_for_recommendation(

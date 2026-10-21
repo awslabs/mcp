@@ -222,7 +222,11 @@ class TestGetPreferences:
             {'Error': {'Code': 'AccessDenied', 'Message': 'Access denied'}}, 'GetPreferences'
         )
         mock_create_client.side_effect = error
-        mock_handle_error.return_value = {'data': {'error': 'Access denied'}}
+        mock_handle_error.return_value = {
+            'status': 'error',
+            'error_type': 'AccessDenied',
+            'message': 'Access denied',
+        }
 
         # Execute
         result = await get_preferences(mock_context)
@@ -235,6 +239,8 @@ class TestGetPreferences:
         assert (
             'Failed to check BCM Pricing Calculator preferences: Access denied' in result['error']
         )
+        # The AWS classification is kept, not collapsed into "not configured"
+        assert result['error_type'] == 'AccessDenied'
         mock_context.error.assert_called()
 
 
@@ -261,7 +267,7 @@ class TestListWorkloadEstimates:
         mock_get_preferences.return_value = {'account_types': 'management account'}
 
         # Execute
-        result = await list_workload_estimates(mock_context, max_results=50)
+        result = await list_workload_estimates(mock_context, max_items=50)
 
         # Assert
         mock_create_client.assert_called_once_with('bcm-pricing-calculator')
@@ -271,8 +277,14 @@ class TestListWorkloadEstimates:
         assert result['status'] == 'success'
         assert 'workload_estimates' in result['data']
         assert len(result['data']['workload_estimates']) == 2
-        assert result['data']['total_count'] == 2
-        assert result['data']['has_more_results'] is False
+        assert result['data']['pagination'] == {
+            'complete_dataset': True,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 2,
+        }
+        assert 'total_count' not in result['data']
+        assert 'has_more_results' not in result['data']
 
         # Check first estimate details
         first_estimate = result['data']['workload_estimates'][0]
@@ -309,7 +321,7 @@ class TestListWorkloadEstimates:
             status_filter='VALID',
             name_filter='Test',
             name_match_option='CONTAINS',
-            max_results=25,
+            max_items=25,
         )
 
         # Assert
@@ -340,6 +352,29 @@ class TestListWorkloadEstimates:
         # Assert
         assert result['status'] == 'error'
         assert result['data']['error_code'] == 'PREFERENCES_NOT_CONFIGURED'
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
+    )
+    async def test_list_workload_estimates_preferences_access_denied(
+        self, mock_get_preferences, mock_context
+    ):
+        """An AWS error from the preferences check keeps its error_type."""
+        # Setup
+        mock_get_preferences.return_value = {
+            'error': 'Failed to check BCM Pricing Calculator preferences: Access denied',
+            'error_type': 'AccessDenied',
+        }
+
+        # Execute
+        result = await list_workload_estimates(mock_context)
+
+        # Assert
+        assert result['status'] == 'error'
+        assert result['data']['error_code'] == 'PREFERENCES_NOT_CONFIGURED'
+        assert result['error_type'] == 'AccessDenied'
+        assert result['operation'] == 'get_preferences'
+        assert result['service'] == 'BCM Pricing Calculator'
 
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
@@ -422,7 +457,11 @@ class TestGetWorkloadEstimate:
         # Assert
         assert result['status'] == 'error'
         assert 'Identifier is required' in result['data']['error']
+        assert result['message'] == result['data']['error']
         assert result['data']['error_code'] == 'MISSING_PARAMETER'
+        assert result['error_type'] == 'validation_error'
+        assert result['operation'] == 'get_workload_estimate'
+        assert result['service'] == 'BCM Pricing Calculator'
 
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
@@ -471,7 +510,7 @@ class TestListWorkloadEstimateUsage:
             mock_context,
             workload_estimate_id='estimate-123',
             service_code_filter='AmazonEC2',
-            max_results=50,
+            max_items=50,
         )
 
         # Assert
@@ -504,7 +543,11 @@ class TestListWorkloadEstimateUsage:
         # Assert
         assert result['status'] == 'error'
         assert 'workload_estimate_id is required' in result['data']['error']
+        assert result['message'] == result['data']['error']
         assert result['data']['error_code'] == 'MISSING_PARAMETER'
+        assert result['error_type'] == 'validation_error'
+        assert result['operation'] == 'list_workload_estimate_usage'
+        assert result['service'] == 'BCM Pricing Calculator'
 
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
@@ -534,7 +577,7 @@ class TestListWorkloadEstimateUsage:
             operation_filter='RunInstances',
             location_filter='US East (N. Virginia)',
             usage_group_filter='EC2-Instance',
-            max_results=100,
+            max_items=100,
         )
 
         # Assert
@@ -1339,98 +1382,164 @@ class TestListWorkloadEstimateUsagePreferencesNotConfigured:
 class TestEdgeCases:
     """Tests for edge cases and error conditions."""
 
-    @pytest.mark.asyncio
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
-    )
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
-    )
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.paginate_aws_response'
-    )
-    async def test_list_workload_estimates_with_pagination(
-        self,
-        mock_paginate_aws_response,
-        mock_create_client,
-        mock_get_preferences,
-        mock_context,
-        mock_bcm_pricing_calculator_client,
-    ):
-        """Test list_workload_estimates with pagination token."""
-        # Setup
-        mock_create_client.return_value = mock_bcm_pricing_calculator_client
-        mock_get_preferences.return_value = {'account_types': ['management account']}
-
-        # Mock the paginate_aws_response function to prevent infinite loop
-        mock_paginate_aws_response.return_value = (
-            [],  # results
-            {  # pagination_metadata
-                'total_count': 0,
-                'next_token': 'next-page-token',
-                'has_more_results': True,
-                'pages_fetched': 1,
-            },
-        )
-
-        # Execute
-        result = await list_workload_estimates(
-            mock_context, next_token='current-token', max_pages=2
-        )
-
-        # Assert
-        mock_paginate_aws_response.assert_called_once()
-        assert result['status'] == 'success'
-        assert result['data']['pagination']['next_token'] == 'next-page-token'
-        assert result['data']['pagination']['has_more_results'] is True
+    @staticmethod
+    async def _call(handler, client, **kwargs):
+        """Run a list handler against a client mock with preferences configured."""
+        with (
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
+                return_value=client,
+            ),
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences',
+                new=AsyncMock(return_value={'account_types': ['management account']}),
+            ),
+        ):
+            ctx = MagicMock()
+            ctx.info = AsyncMock()
+            ctx.warning = AsyncMock()
+            ctx.error = AsyncMock()
+            return await handler(ctx, **kwargs)
 
     @pytest.mark.asyncio
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences'
-    )
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
-    )
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.paginate_aws_response'
-    )
-    async def test_list_workload_estimate_usage_with_pagination(
-        self,
-        mock_paginate_aws_response,
-        mock_create_client,
-        mock_get_preferences,
-        mock_context,
-        mock_bcm_pricing_calculator_client,
-    ):
-        """Test list_workload_estimate_usage with pagination token."""
-        # Setup
-        mock_create_client.return_value = mock_bcm_pricing_calculator_client
-        mock_get_preferences.return_value = {'account_types': ['management account']}
+    async def test_list_workload_estimates_fetches_every_page(self):
+        """Without max_items every page is fetched at the largest page size."""
+        client = MagicMock()
+        client.list_workload_estimates.side_effect = [
+            {'items': [{'id': 'e1'}], 'nextToken': 'p2'},
+            {'items': [{'id': 'e2'}], 'nextToken': 'p3'},
+            {'items': [{'id': 'e3'}]},
+        ]
 
-        # Mock the paginate_aws_response function to prevent infinite loop
-        mock_paginate_aws_response.return_value = (
-            [],  # results
-            {  # pagination_metadata
-                'total_count': 0,
-                'next_token': 'usage-next-token',
-                'has_more_results': True,
-                'pages_fetched': 1,
-            },
+        result = await self._call(list_workload_estimates, client, status_filter='VALID')
+
+        calls = client.list_workload_estimates.call_args_list
+        assert [call.kwargs.get('nextToken') for call in calls] == [None, 'p2', 'p3']
+        assert all(call.kwargs['maxResults'] == 25 for call in calls)
+        data = result['data']
+        assert [e['id'] for e in data['workload_estimates']] == ['e1', 'e2', 'e3']
+        assert data['pagination']['complete_dataset'] is True
+        assert data['pagination']['items_returned'] == 3
+        assert 'warning' not in data
+
+    @pytest.mark.asyncio
+    async def test_list_workload_estimates_max_items_stops(self):
+        """max_items sizes the page and stops once reached, returning the service token."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {
+            'items': [{'id': 'e1'}, {'id': 'e2'}],
+            'nextToken': 'p2',
+        }
+
+        result = await self._call(list_workload_estimates, client, max_items=2)
+
+        assert client.list_workload_estimates.call_count == 1
+        assert client.list_workload_estimates.call_args.kwargs['maxResults'] == 2
+        data = result['data']
+        assert list(data)[:2] == ['complete_dataset', 'warning']
+        assert data['pagination'] == {
+            'complete_dataset': False,
+            'has_more': True,
+            'next_token': 'p2',
+            'items_returned': 2,
+        }
+
+    @pytest.mark.asyncio
+    async def test_list_workload_estimates_continuation_identical_params(self):
+        """A continuation sends the caller's token and otherwise the same request."""
+        client = MagicMock()
+        client.list_workload_estimates.side_effect = [
+            {'items': [{'id': 'e1'}], 'nextToken': 'p2'},
+            {'items': [{'id': 'e2'}]},
+        ]
+        kwargs = {'name_filter': 'Test', 'created_after': '2023-01-01T00:00:00Z', 'max_items': 1}
+
+        await self._call(list_workload_estimates, client, **kwargs)
+        result = await self._call(list_workload_estimates, client, next_token='p2', **kwargs)
+
+        first, resumed = (c.kwargs for c in client.list_workload_estimates.call_args_list)
+        assert resumed == {**first, 'nextToken': 'p2'}
+        assert result['data']['pagination']['complete_dataset'] is True
+
+    @pytest.mark.asyncio
+    async def test_list_workload_estimate_usage_fetches_every_page(self):
+        """Without max_items every usage page is fetched at the largest page size."""
+        client = MagicMock()
+        client.list_workload_estimate_usage.side_effect = [
+            {'items': [{'id': 'u1'}], 'nextToken': 'p2'},
+            {'items': [{'id': 'u2'}]},
+        ]
+
+        result = await self._call(
+            list_workload_estimate_usage, client, workload_estimate_id='estimate-123'
         )
 
-        # Execute
-        result = await list_workload_estimate_usage(
-            mock_context,
+        calls = client.list_workload_estimate_usage.call_args_list
+        assert [call.kwargs for call in calls] == [
+            {'workloadEstimateId': 'estimate-123', 'maxResults': 300},
+            {'workloadEstimateId': 'estimate-123', 'maxResults': 300, 'nextToken': 'p2'},
+        ]
+        data = result['data']
+        assert [u['id'] for u in data['usage_items']] == ['u1', 'u2']
+        assert data['workload_estimate_id'] == 'estimate-123'
+        assert data['pagination']['complete_dataset'] is True
+        assert 'total_count' not in data
+
+    @pytest.mark.asyncio
+    async def test_list_workload_estimate_usage_max_items_stops(self):
+        """max_items stops the usage walk and returns the service token."""
+        client = MagicMock()
+        client.list_workload_estimate_usage.return_value = {
+            'items': [{'id': 'u1'}],
+            'nextToken': 'usage-next-token',
+        }
+
+        result = await self._call(
+            list_workload_estimate_usage,
+            client,
             workload_estimate_id='estimate-123',
-            next_token='usage-current-token',
-            max_pages=2,
+            max_items=1,
         )
 
-        # Assert
-        mock_paginate_aws_response.assert_called_once()
-        assert result['status'] == 'success'
-        assert result['data']['pagination']['next_token'] == 'usage-next-token'
-        assert result['data']['pagination']['has_more_results'] is True
+        assert client.list_workload_estimate_usage.call_args.kwargs['maxResults'] == 1
+        data = result['data']
+        assert data['complete_dataset'] is False
+        assert data['pagination']['next_token'] == 'usage-next-token'
+        assert data['pagination']['has_more'] is True
+
+    @pytest.mark.asyncio
+    async def test_list_workload_estimate_usage_continuation_identical_params(self):
+        """A usage continuation sends the caller's token and otherwise the same request."""
+        client = MagicMock()
+        client.list_workload_estimate_usage.side_effect = [
+            {'items': [{'id': 'u1'}], 'nextToken': 'p2'},
+            {'items': [{'id': 'u2'}]},
+        ]
+        kwargs = {
+            'workload_estimate_id': 'estimate-123',
+            'service_code_filter': 'AmazonEC2',
+            'max_items': 1,
+        }
+
+        await self._call(list_workload_estimate_usage, client, **kwargs)
+        await self._call(list_workload_estimate_usage, client, next_token='p2', **kwargs)
+
+        first, resumed = (c.kwargs for c in client.list_workload_estimate_usage.call_args_list)
+        assert resumed == {**first, 'nextToken': 'p2'}
+
+    @pytest.mark.asyncio
+    async def test_rejected_token_is_invalid_next_token(self):
+        """A token the service rejects maps to invalid_next_token."""
+        client = MagicMock()
+        client.list_workload_estimates.side_effect = ClientError(
+            {'Error': {'Code': 'InvalidNextTokenException', 'Message': 'bad'}},
+            'ListWorkloadEstimates',
+        )
+
+        result = await self._call(list_workload_estimates, client, next_token='stale')
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'invalid_next_token'
 
     def test_format_workload_estimate_response_with_string_timestamps(self):
         """Test format_workload_estimate_response with string timestamps."""
@@ -1641,6 +1750,14 @@ class TestBcmPricingCalcCoreFunction:
         assert result['status'] == 'error'
         assert 'Invalid operation' in result['message']
         assert 'invalid_parameter' in result['data']
+        # The message lists the operations the tool actually accepts
+        assert (
+            'get_workload_estimate, list_workload_estimates, list_workload_estimate_usage, '
+            'get_preferences' in result['message']
+        )
+        assert result['error_type'] == 'validation_error'
+        assert result['operation'] == 'invalid_operation'
+        assert result['service'] == 'BCM Pricing Calculator'
         mock_context.info.assert_called_with(
             'Received BCM Pricing Calculator operation: invalid_operation'
         )
@@ -1695,7 +1812,7 @@ class TestBcmPricingCalcCoreFunction:
             name_filter='Test',
             name_match_option='CONTAINS',
             next_token='token123',
-            max_results=50,
+            max_items=50,
         )
 
         # Assert
@@ -1710,7 +1827,6 @@ class TestBcmPricingCalcCoreFunction:
             'CONTAINS',
             'token123',
             50,
-            None,
         )
         assert result['status'] == 'success'
         mock_context.info.assert_called_with(
@@ -1739,7 +1855,7 @@ class TestBcmPricingCalcCoreFunction:
             location_filter='US East (N. Virginia)',
             usage_group_filter='EC2-Instance',
             next_token='usage-token',
-            max_results=100,
+            max_items=100,
         )
 
         # Assert
@@ -1754,7 +1870,6 @@ class TestBcmPricingCalcCoreFunction:
             'EC2-Instance',
             'usage-token',
             100,
-            None,
         )
         assert result['status'] == 'success'
         mock_context.info.assert_called_with(
@@ -1802,6 +1917,9 @@ class TestBcmPricingCalcCoreFunction:
         assert result['status'] == 'error'
         assert result['data']['error'] == PREFERENCES_NOT_CONFIGURED_ERROR
         assert result['message'] == PREFERENCES_NOT_CONFIGURED_ERROR
+        assert result['error_type'] == 'PREFERENCES_NOT_CONFIGURED'
+        assert result['operation'] == 'get_preferences'
+        assert result['service'] == 'BCM Pricing Calculator'
         mock_context.info.assert_called_with(
             'Received BCM Pricing Calculator operation: get_preferences'
         )
@@ -1820,8 +1938,9 @@ class TestBcmPricingCalcCoreFunction:
         test_error = Exception('Test error')
         mock_get_workload_estimate.side_effect = test_error
         mock_handle_error.return_value = {
-            'data': {'error': 'Test error message'},
             'status': 'error',
+            'error_type': 'ValidationException',
+            'message': 'Test error message',
         }
 
         # Execute - call the core function directly
@@ -1834,7 +1953,7 @@ class TestBcmPricingCalcCoreFunction:
             mock_context,
             test_error,
             'get_workload_estimate',
-            'AWS Billing and Cost Management Pricing Calculator',
+            'BCM Pricing Calculator',
         )
         mock_context.error.assert_called_once()
         error_call_args = mock_context.error.call_args[0][0]
@@ -1850,6 +1969,9 @@ class TestBcmPricingCalcCoreFunction:
             'Failed to process AWS Billing and Cost Management Pricing Calculator request'
             in result['message']
         )
+        assert result['error_type'] == 'ValidationException'
+        assert result['operation'] == 'get_workload_estimate'
+        assert result['service'] == 'BCM Pricing Calculator'
 
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.list_workload_estimates'
@@ -1865,8 +1987,7 @@ class TestBcmPricingCalcCoreFunction:
         test_error = Exception('Direct error message')
         mock_list_estimates.side_effect = test_error
         mock_handle_error.return_value = {
-            'data': {},  # No error field in data
-            'status': 'error',
+            'status': 'error',  # No message field
         }
 
         # Execute - call the core function directly
@@ -1877,7 +1998,7 @@ class TestBcmPricingCalcCoreFunction:
             mock_context,
             test_error,
             'list_workload_estimates',
-            'AWS Billing and Cost Management Pricing Calculator',
+            'BCM Pricing Calculator',
         )
         mock_context.error.assert_called_once()
         error_call_args = mock_context.error.call_args[0][0]
@@ -1919,3 +2040,18 @@ class TestBcmPricingCalcToolSchema:
             name for name, spec in properties.items() if not spec.get('description', '').strip()
         ]
         assert not missing, f'Tool params missing schema descriptions: {missing}'
+
+    @pytest.mark.asyncio
+    async def test_paging_parameters_follow_the_max_items_contract(self):
+        """The tool takes max_items/next_token; max_results and max_pages are gone."""
+        tool = await bcm_pricing_calculator_server.get_tool('bcm-pricing-calc')
+        assert tool is not None
+        properties = tool.parameters.get('properties', {})
+        description = tool.description or ''
+
+        assert 'max_items' in properties
+        assert 'next_token' in properties
+        assert 'max_results' not in properties
+        assert 'max_pages' not in properties
+        assert 'complete_dataset' in description
+        assert 'max_results' not in description

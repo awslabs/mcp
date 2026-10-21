@@ -18,10 +18,14 @@ Updated to use shared utility functions.
 """
 
 from ..utilities.aws_service_base import (
+    PageSpec,
     create_aws_client,
+    first_page_fields,
     format_response,
     handle_aws_error,
+    paginate_aws_items,
     parse_json,
+    with_pagination,
 )
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
@@ -29,6 +33,22 @@ from typing import Any, Dict, Optional
 
 cost_comparison_server = FastMCP(
     name='cost-comparison-tools', instructions='Tools for working with AWS Cost Comparison API'
+)
+
+GET_COST_AND_USAGE_COMPARISONS = PageSpec(
+    result_key='CostAndUsageComparisons',
+    token_param='NextPageToken',
+    token_key_in_response='NextPageToken',
+    page_max=2000,
+    page_size_param='MaxResults',
+)
+
+GET_COST_COMPARISON_DRIVERS = PageSpec(
+    result_key='CostComparisonDrivers',
+    token_param='NextPageToken',
+    token_key_in_response='NextPageToken',
+    page_max=10,
+    page_size_param='MaxResults',
 )
 
 
@@ -76,14 +96,23 @@ You can group results by dimensions such as:
 - USAGE_TYPE: Type of usage (e.g., BoxUsage:t2.micro)
 - INSTANCE_TYPE: EC2 instance type (e.g., t2.micro, m5.large)
 - PLATFORM: Operating system (e.g., Windows, Linux)
-- TENANCY: Instance tenancy (e.g., shared, dedicated)
+- TENANCY: Instance tenancy. Exact, case-sensitive values: Shared, Dedicated, Host
 - RECORD_TYPE: Record type (e.g., Usage, Credit, Tax)
 - LEGAL_ENTITY_NAME: AWS seller of record
 
 Note:
 - Time periods must start and end on the first day of a month, with a duration of exactly one month
 - The getCostComparisonDrivers operation automatically includes SERVICE and USAGE_TYPE dimensions
-- Data is available for the last 13 months, or up to 38 months if multi-year data is enabled""",
+- Data is available for the last 13 months, or up to 38 months if multi-year data is enabled
+
+Pagination (both operations):
+- max_items: total number of comparisons or drivers returned. Omit it to fetch every page
+  (no limit). Pass it, or narrow group_by/filter, for comparisons that can be large (for
+  example grouped by USAGE_TYPE or LINKED_ACCOUNT).
+- If the result has complete_dataset: false, it is partial: call again with a larger
+  max_items, continue with next_token, or say the result is partial.
+- total_cost_and_usage comes from the first page only and isn't repeated on continuation
+  calls.""",
 )
 async def cost_comparison(
     ctx: Context,
@@ -95,7 +124,8 @@ async def cost_comparison(
     metric_for_comparison: str,
     group_by: Optional[str] = None,
     filter: Optional[str] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
+    next_token: Optional[str] = None,
     billing_view_arn: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Retrieves AWS cost comparison data using the Cost Explorer API.
@@ -110,7 +140,8 @@ async def cost_comparison(
         metric_for_comparison: The cost metric to compare (e.g., BlendedCost, UnblendedCost, AmortizedCost)
         group_by: Optional grouping of results as a JSON string (e.g., '[{"Type": "DIMENSION", "Key": "SERVICE"}]')
         filter: Optional filter to apply to the results as a JSON string
-        max_results: Maximum number of results to return (default: 10, max: 2000 for comparisons, max: 10 for drivers)
+        max_items: Total comparisons or drivers to return. None fetches every page.
+        next_token: Pagination token from a previous response
         billing_view_arn: Optional ARN of a specific billing view
 
     Returns:
@@ -133,7 +164,8 @@ async def cost_comparison(
                 metric_for_comparison,
                 group_by,
                 filter,
-                max_results,
+                max_items,
+                next_token,
                 billing_view_arn,
             )
         elif operation == 'getCostComparisonDrivers':
@@ -147,7 +179,8 @@ async def cost_comparison(
                 metric_for_comparison,
                 group_by,
                 filter,
-                max_results,
+                max_items,
+                next_token,
                 billing_view_arn,
             )
         else:
@@ -172,7 +205,8 @@ async def get_cost_and_usage_comparisons(
     metric_for_comparison: str,
     group_by: Optional[str],
     filter_expr: Optional[str],
-    max_results: Optional[int],
+    max_items: Optional[int],
+    next_token: Optional[str],
     billing_view_arn: Optional[str],
 ) -> Dict[str, Any]:
     """Retrieves cost and usage comparison data using the AWS Cost Explorer API.
@@ -187,7 +221,8 @@ async def get_cost_and_usage_comparisons(
         metric_for_comparison: Metric to compare
         group_by: Optional grouping as JSON string
         filter_expr: Optional filter as JSON string
-        max_results: Maximum results to return
+        max_items: Total items to return. None fetches every page.
+        next_token: Pagination token from a previous response
         billing_view_arn: Optional billing view ARN
 
     Returns:
@@ -208,43 +243,22 @@ async def get_cost_and_usage_comparisons(
         if filter_expr:
             request_params['Filter'] = parse_json(filter_expr, 'filter')
 
-        if max_results:
-            request_params['MaxResults'] = max_results
-        else:
-            request_params['MaxResults'] = 10
-
         if billing_view_arn:
             request_params['BillingViewArn'] = billing_view_arn
 
-        # Collect all data with internal pagination
-        all_comparisons = []
-        total_cost_and_usage = None
-        next_page_token = None
-        page_count = 0
-
-        while True:
-            page_count += 1
-
-            if next_page_token:
-                request_params['NextPageToken'] = next_page_token
-
-            await ctx.info(f'Fetching cost comparison page {page_count}')
-            response = ce_client.get_cost_and_usage_comparisons(**request_params)
-
-            page_comparisons = response.get('CostAndUsageComparisons', [])
-            all_comparisons.extend(page_comparisons)
-
-            await ctx.info(
-                f'Retrieved {len(page_comparisons)} comparisons (total: {len(all_comparisons)})'
-            )
-
-            # Capture total from first response
-            if total_cost_and_usage is None:
-                total_cost_and_usage = response.get('TotalCostAndUsage')
-
-            next_page_token = response.get('NextPageToken')
-            if not next_page_token:
-                break
+        all_comparisons, pages, pagination = await paginate_aws_items(
+            ctx,
+            'GetCostAndUsageComparisons',
+            ce_client.get_cost_and_usage_comparisons,
+            request_params,
+            GET_COST_AND_USAGE_COMPARISONS,
+            max_items=max_items,
+            next_token=next_token,
+        )
+        # The total covers the whole query, so only the first page carries it.
+        total_cost_and_usage = first_page_fields(pages, ['TotalCostAndUsage']).get(
+            'TotalCostAndUsage'
+        )
 
         # Format the response for better readability
         formatted_response: Dict[str, Any] = {'cost_and_usage_comparisons': []}
@@ -278,7 +292,7 @@ async def get_cost_and_usage_comparisons(
 
             formatted_response['cost_and_usage_comparisons'].append(formatted_comparison)
 
-        return format_response('success', formatted_response)
+        return format_response('success', with_pagination(formatted_response, pagination))
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
@@ -295,7 +309,8 @@ async def get_cost_comparison_drivers(
     metric_for_comparison: str,
     group_by: Optional[str],
     filter_expr: Optional[str],
-    max_results: Optional[int],
+    max_items: Optional[int],
+    next_token: Optional[str],
     billing_view_arn: Optional[str],
 ) -> Dict[str, Any]:
     """Retrieves cost comparison drivers using the AWS Cost Explorer API.
@@ -310,7 +325,8 @@ async def get_cost_comparison_drivers(
         metric_for_comparison: Metric to compare
         group_by: Optional grouping as JSON string
         filter_expr: Optional filter as JSON string
-        max_results: Maximum results to return
+        max_items: Total items to return. None fetches every page.
+        next_token: Pagination token from a previous response
         billing_view_arn: Optional billing view ARN
 
     Returns:
@@ -331,36 +347,18 @@ async def get_cost_comparison_drivers(
         if filter_expr:
             request_params['Filter'] = parse_json(filter_expr, 'filter')
 
-        if max_results:
-            request_params['MaxResults'] = max_results
-        else:
-            request_params['MaxResults'] = 10
-
         if billing_view_arn:
             request_params['BillingViewArn'] = billing_view_arn
 
-        # Collect all data with internal pagination
-        all_drivers = []
-        next_page_token = None
-        page_count = 0
-
-        while True:
-            page_count += 1
-
-            if next_page_token:
-                request_params['NextPageToken'] = next_page_token
-
-            await ctx.info(f'Fetching cost comparison drivers page {page_count}')
-            response = ce_client.get_cost_comparison_drivers(**request_params)
-
-            page_drivers = response.get('CostComparisonDrivers', [])
-            all_drivers.extend(page_drivers)
-
-            await ctx.info(f'Retrieved {len(page_drivers)} drivers (total: {len(all_drivers)})')
-
-            next_page_token = response.get('NextPageToken')
-            if not next_page_token:
-                break
+        all_drivers, _, pagination = await paginate_aws_items(
+            ctx,
+            'GetCostComparisonDrivers',
+            ce_client.get_cost_comparison_drivers,
+            request_params,
+            GET_COST_COMPARISON_DRIVERS,
+            max_items=max_items,
+            next_token=next_token,
+        )
 
         # Format the response for better readability
         formatted_response: Dict[str, Any] = {'cost_comparison_drivers': []}
@@ -405,7 +403,7 @@ async def get_cost_comparison_drivers(
 
             formatted_response['cost_comparison_drivers'].append(formatted_driver)
 
-        return format_response('success', formatted_response)
+        return format_response('success', with_pagination(formatted_response, pagination))
 
     except Exception as e:
         # Use shared error handler for consistent error reporting

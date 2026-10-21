@@ -40,7 +40,7 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/aws-knowledge-mcp-server                                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @FaresYoussef94 @animebar @zdwheels @nihal712 @forerocf @deepankanbn @GuXiangTS
 /src/aws-location-mcp-server                                   @awslabs/mcp-admins @awslabs/mcp-maintainers  @cgalvan @sethfitz @mojodna @saamzn @kmgrubbs
 /src/aws-network-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @juhala-aws @NetDevAutomate
-/src/aws-pricing-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @nspring00 @aytech-in @s12v
+/src/aws-pricing-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @nspring00 @aytech-in @s12v @ChristianBusch
 /src/aws-serverless-mcp-server                                 @awslabs/mcp-admins @awslabs/mcp-maintainers  @bx9900 @bnusunny @reedham-aws @roger-zhangg @valerena @Vandita2020 @seshubaws @vicheey @tobixlea @licjun
 /src/aws-support-mcp-server                                    @awslabs/mcp-admins @awslabs/mcp-maintainers  @Wook133
 /src/aws-transform-mcp-server                                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @occhangg @youtuyy @lexpanteli @linchenk369 @tanvir-anwar @dangmaul-amazon @yuwuc
@@ -50,6 +50,7 @@ NOTICE                                                         @awslabs/mcp-admi
 /src/cloudtrail-mcp-server                                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @rokafella
 /src/cloudwatch-applicationsignals-mcp-server                  @awslabs/mcp-admins @awslabs/mcp-maintainers  @yiyuan-he @mxiamxia @syed-ahsan-ishtiaque @thpierce @vastin @wangzlei @shiyangy-xray
 /src/cloudwatch-mcp-server                                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @gcacace @shri-tambe @agiuliano @goranmod @rashmidwaraka @bhatsarthak
+/src/db2-mcp-server                                            @awslabs/mcp-admins @awslabs/mcp-maintainers  @vikramkhatri @RobinGolden @shreyaskshekhar
 /src/document-loader-mcp-server                                @awslabs/mcp-admins @awslabs/mcp-maintainers  @andywidjaja @hvital @HaoOliv
 /src/documentdb-mcp-server                                     @awslabs/mcp-admins @awslabs/mcp-maintainers  @nitinahuja89
 /src/dynamodb-mcp-server                                       @awslabs/mcp-admins @awslabs/mcp-maintainers  @LeeroyHannigan @willykev

@@ -21,10 +21,12 @@ returns a standardized response envelope.
 """
 
 from ..utilities.aws_service_base import (
+    PageSpec,
     create_aws_client,
     format_response,
     handle_aws_error,
-    paginate_aws_response,
+    paginate_aws_items,
+    with_pagination,
 )
 from ..utilities.time_utils import (
     normalize_datetimes_to_iso,
@@ -32,6 +34,16 @@ from ..utilities.time_utils import (
 )
 from fastmcp import Context
 from typing import Any, Dict, List, Optional
+
+
+# ListInvoiceUnits returns up to 500 invoice units per page.
+LIST_INVOICE_UNITS_PAGE_SPEC = PageSpec(
+    result_key='InvoiceUnits',
+    token_param='NextToken',
+    token_key_in_response='NextToken',
+    page_max=500,
+    page_size_param='MaxResults',
+)
 
 
 def _create_invoicing_client() -> Any:
@@ -54,9 +66,8 @@ async def list_invoice_units(
     accounts: Optional[List[str]] = None,
     bill_source_accounts: Optional[List[str]] = None,
     as_of: Optional[str] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """List AWS invoice unit definitions for the caller's organization.
 
@@ -78,10 +89,8 @@ async def list_invoice_units(
         as_of: Return the invoice unit definitions as they existed at this
             UTC instant (``YYYY-MM-DD`` or ``YYYY-MM-DDTHH:MM:SS``). Defaults to
             the current definitions when omitted.
-        max_results: Maximum number of results per page (1-500).
+        max_items: Most invoice units to return. None fetches every page.
         next_token: Pagination token from a previous response to resume from.
-        max_pages: Maximum number of pages to auto-paginate through. Defaults to
-            all pages.
 
     Returns:
         Dict containing ``invoice_units`` (with ISO 8601 timestamps) and a
@@ -109,22 +118,16 @@ async def list_invoice_units(
             except ValueError as parse_error:
                 return format_response('error', {'message': str(parse_error)})
 
-        if max_results is not None:
-            request_params['MaxResults'] = max_results
-        if next_token:
-            request_params['NextToken'] = next_token
-
         client = _create_invoicing_client()
 
-        units, pagination = await paginate_aws_response(
+        units, _, pagination = await paginate_aws_items(
             ctx,
             'ListInvoiceUnits',
             client.list_invoice_units,
             request_params,
-            'InvoiceUnits',
-            token_param='NextToken',
-            token_key='NextToken',
-            max_pages=max_pages,
+            LIST_INVOICE_UNITS_PAGE_SPEC,
+            max_items=max_items,
+            next_token=next_token,
         )
 
         normalized = normalize_datetimes_to_iso(units)
@@ -132,8 +135,7 @@ async def list_invoice_units(
         await ctx.info(f'Successfully listed {len(normalized)} invoice units')
 
         return format_response(
-            'success',
-            {'invoice_units': normalized, 'pagination': pagination},
+            'success', with_pagination({'invoice_units': normalized}, pagination)
         )
 
     except Exception as e:

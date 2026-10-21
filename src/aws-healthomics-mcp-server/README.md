@@ -51,7 +51,7 @@ This MCP server provides tools for:
 
 ### Workflow Execution Tools
 
-1. **StartAHORun** - Start workflow runs with custom parameters, resource configuration, and optional VPC networking mode with a named configuration
+1. **StartAHORun** - Start workflow runs with custom parameters, resource configuration, optional VPC networking mode with a named configuration, optional tags, and an optional inline IAM session policy to scope down the run role
 2. **ListAHORuns** - List workflow runs with filtering by status and date ranges
 3. **GetAHORun** - Retrieve detailed run information including status and metadata
 4. **ListAHORunTasks** - List tasks for specific runs with status filtering
@@ -987,6 +987,14 @@ uv run ruff check
 
 # Type checking
 uv run pyright
+```
+
+### Changelog
+
+Add entries for your change under `## Unreleased` in `CHANGELOG.md`; don't guess a version number. Releases are cut by the repository's release automation, so after a release ships, move the released entries under their version heading by running this from a branch that is up to date with `main`:
+
+```bash
+python scripts/changelog_release.py          # use --check to only report what would move
 ```
 
 ## Running in a container

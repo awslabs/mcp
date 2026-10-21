@@ -1276,6 +1276,55 @@ async def test_extract_slides_general_exception():
                     print('✓ extract_slides_as_images general exception covered')
 
 
+def test_output_dir_containment_enforced_under_ci_env(tmp_path):
+    """Regression: the write path (output_dir) stays sandboxed under ambient CI env.
+
+    Companion to ``test_sandbox_enforced_under_ci_env_end_to_end`` (read path).
+    ``extract_slides_as_images`` validates ``output_dir`` via
+    ``validate_output_dir`` -> ``_is_within_base_directory`` -> ``_get_base_directory``,
+    the same helper the ``CI`` / ``GITHUB_ACTIONS`` / ``PYTEST_CURRENT_TEST`` bypass
+    affected. Pre-fix, the bypass widened the base to ``/`` so any ``output_dir``
+    was accepted (arbitrary-directory write). This asserts write-path containment
+    holds regardless of ambient CI signals.
+    """
+    from pathlib import Path
+
+    base_dir = tmp_path / 'sandbox'
+    base_dir.mkdir()
+
+    env = {
+        'DOCUMENT_BASE_DIR': str(base_dir),
+        'CI': 'true',
+        'GITHUB_ACTIONS': 'true',
+        'PYTEST_CURRENT_TEST': 'x',
+    }
+    with patch.dict(os.environ, env, clear=True):
+        # An output_dir OUTSIDE the sandbox is denied even with CI env present.
+        outside = tmp_path / 'evil_output'
+        error = validate_output_dir(str(outside))
+        assert error is not None
+        assert 'Access denied' in error
+
+        # An output_dir INSIDE the sandbox is allowed.
+        inside = base_dir / 'slides_out'
+        assert validate_output_dir(str(inside)) is None
+
+    # With no base configured, the default is the resolved cwd even under CI.
+    # Use a controlled cwd (not '/') so the check is platform-neutral and not
+    # dependent on where the suite runs.
+    with patch.dict(os.environ, {'CI': 'true'}, clear=True):
+        original_cwd = Path.cwd()
+        cwd_dir = tmp_path / 'cwd'
+        cwd_dir.mkdir()
+        os.chdir(cwd_dir)
+        try:
+            outside = tmp_path / 'evil_output'  # sibling of cwd, outside it
+            assert validate_output_dir(str(outside)) is not None
+        finally:
+            os.chdir(original_cwd)
+    print('✓ output_dir containment enforced under ambient CI env')
+
+
 if __name__ == '__main__':
     asyncio.run(test_server())
     asyncio.run(test_mcp_tool_functions())

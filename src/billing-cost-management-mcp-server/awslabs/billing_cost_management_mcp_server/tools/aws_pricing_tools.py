@@ -21,6 +21,7 @@ from ..utilities.aws_service_base import format_response, handle_aws_error
 
 # Import operation handlers from local module
 from .aws_pricing_operations import (
+    AWS_PRICING_SERVICE_NAME,
     get_attribute_values,
     get_pricing_from_api,
     get_service_attributes,
@@ -65,6 +66,13 @@ ARGS:
       service_code: AWS service code (e.g., 'AmazonEC2', 'AmazonS3', 'AmazonES'). Required for get_service_attributes, get_attribute_values, and get_pricing_from_api operations.
       attribute_name: Attribute name (e.g., 'instanceType', 'location', 'storageClass'). Required for get_attribute_values operation.
       filters: Optional filters for pricing queries. Format: {'instanceType': 't3.medium', 'location': 'US East (N. Virginia)'}
+      max_items: Total items to return (get_service_codes, get_attribute_values, get_pricing_from_api). Omit it to fetch every page (no limit). Pass it, or narrow filters, for queries that can be large: an unfiltered get_pricing_from_api call can return hundreds of thousands of products.
+      next_token: The pagination.next_token from a previous response of the same operation, to continue where it stopped. Send every other parameter unchanged.
+
+PAGINATION:
+- A partial result has `complete_dataset: false` and a warning. Call again with a larger max_items, continue with next_token, or state in the answer that the result is partial.
+- total_products_found counts only the products in that response, not earlier or later pages. get_service_codes and get_attribute_values return values in the order the service returns them, which is consistent across pages.
+- get_service_attributes is not paginated and ignores max_items and next_token.
 
 RETURNS:
         Dict containing the pricing information""",
@@ -75,7 +83,8 @@ async def aws_pricing(
     service_code: Optional[str] = None,
     attribute_name: Optional[str] = None,
     filters: Optional[str] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
+    next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """AWS pricing analysis tool.
 
@@ -85,7 +94,8 @@ async def aws_pricing(
         service_code: AWS service code (e.g., 'AmazonEC2', 'AmazonS3', 'AmazonES'). Required for get_service_attributes, get_attribute_values, and get_pricing_from_api operations.
         attribute_name: Attribute name (e.g., 'instanceType', 'location', 'storageClass'). Required for get_attribute_values operation.
         filters: Optional filters for pricing queries as a JSON string. Format: '{"instanceType": "t3.medium", "location": "US East (N. Virginia)"}'
-        max_results: Maximum number of results to return (optional)
+        max_items: Total items to return for the paginated operations. None fetches every page.
+        next_token: Continuation token from a previous response of the same operation.
 
     Returns:
         Dict containing the pricing information
@@ -94,13 +104,16 @@ async def aws_pricing(
         await ctx.info(f'AWS Pricing operation: {operation}')
 
         if operation == 'get_service_codes':
-            return await get_service_codes(ctx, max_results=max_results)
+            return await get_service_codes(ctx, max_items=max_items, next_token=next_token)
 
         elif operation == 'get_service_attributes':
             if not service_code:
                 return format_response(
                     'error',
                     {'message': 'service_code is required for get_service_attributes operation'},
+                    error_type='validation_error',
+                    operation=operation,
+                    service=AWS_PRICING_SERVICE_NAME,
                 )
             return await get_service_attributes(ctx, service_code)
 
@@ -111,9 +124,12 @@ async def aws_pricing(
                     {
                         'message': 'service_code and attribute_name are required for get_attribute_values operation'
                     },
+                    error_type='validation_error',
+                    operation=operation,
+                    service=AWS_PRICING_SERVICE_NAME,
                 )
             return await get_attribute_values(
-                ctx, service_code, attribute_name, max_results=max_results
+                ctx, service_code, attribute_name, max_items=max_items, next_token=next_token
             )
 
         elif operation == 'get_pricing_from_api':
@@ -121,8 +137,13 @@ async def aws_pricing(
                 return format_response(
                     'error',
                     {'message': 'service_code is required for get_pricing_from_api operation'},
+                    error_type='validation_error',
+                    operation=operation,
+                    service=AWS_PRICING_SERVICE_NAME,
                 )
-            return await get_pricing_from_api(ctx, service_code, filters, max_results=max_results)
+            return await get_pricing_from_api(
+                ctx, service_code, filters, max_items=max_items, next_token=next_token
+            )
 
         else:
             return format_response(
@@ -130,8 +151,11 @@ async def aws_pricing(
                 {
                     'message': f'Unknown operation: {operation}. Supported operations: get_service_codes, get_service_attributes, get_attribute_values, get_pricing_from_api'
                 },
+                error_type='validation_error',
+                operation=operation,
+                service=AWS_PRICING_SERVICE_NAME,
             )
 
     except Exception as e:
         # Use shared error handler for consistent error reporting
-        return await handle_aws_error(ctx, e, operation, 'AWS Pricing')
+        return await handle_aws_error(ctx, e, operation, AWS_PRICING_SERVICE_NAME)
