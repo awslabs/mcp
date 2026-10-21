@@ -1305,3 +1305,43 @@ def test_geo_routes_client_initialization_with_session_token(monkeypatch):
             kwargs['aws_session_token']
             == 'AQoEXAMPLEH4aoAH0gNCAPyJxz4BlCFFxWNE1OPTgk5TthT+FvwqnKwRcOIfrRh3c/LTo6UDdyJwOOvEVPvLXCrrrUtdnniCEXAMPLE/IvU1dYUg2RVAJBanLiHb4IgRmpRV3zrkuWJOgQs8IZZaIv2BXIa2R4Olgk'
         )
+
+
+@pytest.mark.asyncio
+async def test_tools_do_not_write_to_stdout(mock_boto3_client, mock_context, capsys):
+    """Tools must not write to stdout: over stdio it carries the JSON-RPC stream."""
+    from awslabs.aws_location_server.server import search_nearby as search_nearby_func
+    from botocore.exceptions import ClientError
+
+    with patch('awslabs.aws_location_server.server.geo_places_client') as mock_geo_client:
+        mock_geo_client.geo_places_client = mock_boto3_client
+
+        # reverse_geocode success path
+        mock_boto3_client.reverse_geocode.return_value = {
+            'Place': {'Address': {'Label': '123 Test St'}, 'Position': [-122.3321, 47.6062]}
+        }
+        await reverse_geocode(mock_context, longitude=-122.3321, latitude=47.6062)
+
+        # search_places ClientError and general exception paths
+        mock_boto3_client.geocode.side_effect = ClientError(
+            {'Error': {'Code': 'TestException', 'Message': 'Test error message'}}, 'geocode'
+        )
+        await search_places(mock_context, query='Seattle')
+        mock_boto3_client.geocode.side_effect = Exception('Test general exception')
+        await search_places(mock_context, query='Seattle')
+        mock_boto3_client.geocode.side_effect = None
+
+        # get_place and search_nearby exception paths
+        mock_boto3_client.get_place.side_effect = Exception('Test exception')
+        await get_place(mock_context, place_id='test-place-id')
+        mock_boto3_client.search_nearby.side_effect = Exception('Test exception')
+        await search_nearby_func(mock_context, longitude=-122.3321, latitude=47.6062, radius=500)
+
+        # search_places_open_now with no open places after radius expansion
+        mock_boto3_client.geocode.return_value = {
+            'ResultItems': [{'Position': [-122.3321, 47.6062]}]
+        }
+        mock_boto3_client.search_text.return_value = {'ResultItems': []}
+        await search_places_open_now(mock_context, query='coffee', initial_radius=25000)
+
+    assert capsys.readouterr().out == ''
