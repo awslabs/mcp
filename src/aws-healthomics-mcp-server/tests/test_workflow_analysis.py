@@ -741,6 +741,87 @@ class TestGetLogsFromStream:
         )
 
 
+class TestLogTimeFiltersWithoutOffset:
+    """Log time filters without a UTC offset are treated as UTC, not as server-local time."""
+
+    # 2024-01-15T10:00:00Z and 2024-01-15T11:00:00Z in epoch milliseconds
+    START_MS = 1705312800000
+    END_MS = 1705316400000
+
+    @pytest.mark.parametrize(
+        'start_time,end_time',
+        [
+            ('2024-01-15T10:00:00Z', '2024-01-15T11:00:00Z'),
+            ('2024-01-15T10:00:00+00:00', '2024-01-15T11:00:00+00:00'),
+            ('2024-01-15T10:00:00', '2024-01-15T11:00:00'),
+            ('2024-01-15T10:00', '2024-01-15T11:00'),
+        ],
+    )
+    @pytest.mark.asyncio
+    async def test_get_logs_from_stream(self, start_time, end_time, non_utc_local_timezone):
+        """_get_logs_from_stream sends the same epoch milliseconds with or without an offset."""
+        mock_client = MagicMock()
+        mock_client.get_log_events.return_value = {'events': []}
+
+        await _get_logs_from_stream(
+            mock_client, '/aws/omics/WorkflowLog', 'run-12345', start_time, end_time
+        )
+
+        call_kwargs = mock_client.get_log_events.call_args[1]
+        assert call_kwargs['startTime'] == self.START_MS
+        assert call_kwargs['endTime'] == self.END_MS
+
+    @pytest.mark.asyncio
+    async def test_get_logs_from_stream_keeps_explicit_offset(self, non_utc_local_timezone):
+        """An explicit offset is honoured, not replaced with UTC."""
+        mock_client = MagicMock()
+        mock_client.get_log_events.return_value = {'events': []}
+
+        await _get_logs_from_stream(
+            mock_client,
+            '/aws/omics/WorkflowLog',
+            'run-12345',
+            '2024-01-15T05:00:00-05:00',
+            '2024-01-15T16:00:00+05:00',
+        )
+
+        call_kwargs = mock_client.get_log_events.call_args[1]
+        assert call_kwargs['startTime'] == self.START_MS
+        assert call_kwargs['endTime'] == self.END_MS
+
+    @pytest.mark.parametrize(
+        'start_time,end_time',
+        [
+            ('2024-01-15T10:00:00Z', '2024-01-15T11:00:00Z'),
+            ('2024-01-15T10:00:00', '2024-01-15T11:00:00'),
+        ],
+    )
+    @patch('awslabs.aws_healthomics_mcp_server.tools.workflow_analysis.get_logs_client')
+    @pytest.mark.asyncio
+    async def test_get_run_manifest_logs_internal(
+        self, mock_get_logs_client, start_time, end_time, non_utc_local_timezone
+    ):
+        """_get_run_manifest_logs_internal sends the same epoch milliseconds with or without Z."""
+        from awslabs.aws_healthomics_mcp_server.tools.workflow_analysis import (
+            _get_run_manifest_logs_internal,
+        )
+
+        mock_client = MagicMock()
+        mock_get_logs_client.return_value = mock_client
+        mock_client.get_log_events.return_value = {'events': []}
+
+        await _get_run_manifest_logs_internal(
+            run_id='run-12345',
+            run_uuid='uuid-67890',
+            start_time=start_time,
+            end_time=end_time,
+        )
+
+        call_kwargs = mock_client.get_log_events.call_args[1]
+        assert call_kwargs['startTime'] == self.START_MS
+        assert call_kwargs['endTime'] == self.END_MS
+
+
 class TestGetRunLogsErrorHandling:
     """Test error handling in get_run_logs function."""
 
