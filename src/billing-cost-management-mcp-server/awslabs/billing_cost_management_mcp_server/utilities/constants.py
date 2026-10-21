@@ -237,7 +237,8 @@ SERVICE_MAP = {
     'redshiftReservedInstances': 'Amazon Redshift',
     'elastiCacheReservedInstances': 'Amazon ElastiCache',
     'openSearchReservedInstances': 'Amazon OpenSearch Service',
-    'memoryDbReservedInstances': 'Amazon MemoryDB',
+    'memoryDbReservedInstances': 'Amazon MemoryDB Service',
+    'dynamoDbReservedCapacity': 'Amazon DynamoDB Service',
 }
 
 # Savings Plans type mapping
@@ -245,6 +246,7 @@ SAVINGS_PLANS_TYPE_MAP = {
     'ec2InstanceSavingsPlans': 'EC2_INSTANCE_SP',
     'computeSavingsPlans': 'COMPUTE_SP',
     'sageMakerSavingsPlans': 'SAGEMAKER_SP',
+    'databaseSavingsPlans': 'DATABASE_SP',
 }
 
 
