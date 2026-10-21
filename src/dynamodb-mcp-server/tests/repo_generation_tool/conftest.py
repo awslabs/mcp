@@ -1,5 +1,7 @@
 """Shared fixtures for repo_generation_tool tests."""
 
+import builtins
+import io
 import pytest
 import subprocess
 from pathlib import Path
@@ -98,6 +100,42 @@ def repo_generation_tool_path():
         / 'dynamodb_mcp_server'
         / 'repo_generation_tool'
     )
+
+
+@pytest.fixture
+def legacy_default_encoding(monkeypatch):
+    """Make text-mode file I/O behave like a Windows host with a cp1252 default.
+
+    ``open()`` and ``Path.read_text()/write_text()`` called without an ``encoding``
+    use the cp1252 codec, and text-mode writes translate line feeds to CRLF. This
+    reproduces the defaults of a Windows host (``PYTHONUTF8`` unset, ANSI code page 1252) on
+    any platform, including when the test run itself has UTF-8 mode enabled.
+    """
+    real_open = io.open
+
+    def legacy_open(
+        file,
+        mode='r',
+        buffering=-1,
+        encoding=None,
+        errors=None,
+        newline=None,
+        closefd=True,
+        opener=None,
+    ):
+        if 'b' not in mode:
+            if encoding in (None, 'locale'):
+                encoding = 'cp1252'
+            if newline is None and any(flag in mode for flag in 'wax+'):
+                newline = '\r\n'
+        return real_open(file, mode, buffering, encoding, errors, newline, closefd, opener)
+
+    def legacy_text_encoding(encoding, stacklevel=2):
+        return 'locale' if encoding is None else encoding
+
+    monkeypatch.setattr(builtins, 'open', legacy_open)
+    monkeypatch.setattr(io, 'open', legacy_open)
+    monkeypatch.setattr(io, 'text_encoding', legacy_text_encoding)
 
 
 @pytest.fixture(scope='session')
