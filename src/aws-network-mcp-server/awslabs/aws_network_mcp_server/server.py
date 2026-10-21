@@ -14,7 +14,7 @@
 
 """AWS Core Networking MCP Server, that provides tools for AWS core network services for troubleshooting and analysis."""
 
-import logging
+import os
 import sys
 from awslabs.aws_network_mcp_server.tools import (
     cloud_wan,
@@ -25,14 +25,12 @@ from awslabs.aws_network_mcp_server.tools import (
     vpn,
 )
 from fastmcp import FastMCP
+from loguru import logger
 
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    stream=sys.stderr,
-)
-logger = logging.getLogger(__name__)
+# Log to stderr only: stdout carries the MCP STDIO transport.
+logger.remove()
+logger.add(sys.stderr, level=os.getenv('FASTMCP_LOG_LEVEL', 'WARNING'))
 
 
 mcp = FastMCP(
