@@ -113,7 +113,7 @@ async def _credits(
 1) get_credits - the credits objects held by an account: balance, expiration, applicability and sharing
    Required: operation="get_credits", start_date. start_date is accepted only within one year before today; a request reaching further back is narrowed to that limit.
    Optional:
-     - end_date: inclusive range end. A future end is narrowed to now; check `data.time_range`. Omit it to use the API default of today.
+     - end_date: inclusive range end. A future end is limited to now; check `data.time_range`. Omit it to use the API default of today.
      - account_id: 12-digit AWS account ID. Auto-detected via STS GetCallerIdentity when omitted.
      - payer_account_flag: set true only when the caller is the management account (the payer account of a consolidated billing family). When true and the caller is the management account, the response aggregates credits across the entire family; use this for "credits across my organization" questions. When false, omitted, or when the caller is a member account, the response covers only the account in `account_id`. Setting it true from a member account does NOT error: the call succeeds and returns just that account's credits, so an empty or small result must not be read as the organization having no credits, only as the caller not being the management account.
    Not paginated: the API returns the complete set in one call, and max_items / next_token are ignored.

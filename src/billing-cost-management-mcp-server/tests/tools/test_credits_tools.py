@@ -250,16 +250,16 @@ class TestToolRegistration:
 
     @pytest.mark.asyncio
     async def test_description_end_date_matches_clamp(self):
-        """The end_date line states the clamp instead of claiming a future end is rejected.
+        """The end_date line states the limit instead of claiming a future end is rejected.
 
-        The code clamps a future end to now and sets ``narrowed_from_request``, so the
+        The code limits a future end to now and sets ``narrowed_from_request``, so the
         old "Cannot be in the future" wording contradicted the behaviour and could lead
         a model to report the requested window rather than the one served.
         """
         description = (await _registered_tool()).description or ''
 
         assert 'Cannot be in the future' not in description
-        assert 'narrowed to now' in description
+        assert 'limited to now' in description
         assert 'time_range' in description
 
     @pytest.mark.asyncio
