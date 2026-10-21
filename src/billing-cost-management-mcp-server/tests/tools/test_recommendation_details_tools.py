@@ -24,7 +24,10 @@ These tests verify the functionality of detailed recommendation processing tools
 """
 
 import botocore.session
+import builtins
+import io
 import pytest
+from awslabs.billing_cost_management_mcp_server.tools import recommendation_details_tools
 from awslabs.billing_cost_management_mcp_server.tools.recommendation_details_tools import (
     format_base_recommendation,
     format_timestamp,
@@ -42,6 +45,7 @@ from awslabs.billing_cost_management_mcp_server.utilities.constants import (
 )
 from datetime import datetime, timezone
 from fastmcp import Context
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
 
@@ -1201,6 +1205,78 @@ class TestGetTemplateForRecommendation:
 
         # Assert
         assert result is None
+
+
+TEMPLATES_DIR = (
+    Path(recommendation_details_tools.__file__).parent.parent
+    / 'templates'
+    / 'recommendation_templates'
+)
+
+# Recommendation that selects each bundled template
+TEMPLATE_CASES = {
+    'savings_plans': {'actionType': 'PurchaseSavingsPlans'},
+    'reserved_instances': {'actionType': 'PurchaseReservedInstances'},
+    'idle': {'actionType': 'Stop'},
+    'ec2_instance': {'currentResourceType': 'Ec2Instance'},
+    'ec2_asg': {'currentResourceType': 'Ec2AutoScalingGroup'},
+    'ebs_volume': {'currentResourceType': 'EbsVolume'},
+    'ecs_service': {'currentResourceType': 'EcsService'},
+    'lambda_function': {'currentResourceType': 'LambdaFunction'},
+    'rds_database': {'currentResourceType': 'RdsDbInstance'},
+}
+
+
+@pytest.fixture
+def legacy_default_encoding(monkeypatch):
+    """Make text-mode file I/O behave like a Windows host whose default encoding is cp1252.
+
+    ``open()`` and ``Path.read_text()`` called without an ``encoding`` use cp1252. This
+    reproduces such a host on any platform, including when the test run itself has
+    UTF-8 mode enabled.
+    """
+    real_open = io.open
+
+    def legacy_open(
+        file,
+        mode='r',
+        buffering=-1,
+        encoding=None,
+        errors=None,
+        newline=None,
+        closefd=True,
+        opener=None,
+    ):
+        if 'b' not in mode and encoding in (None, 'locale'):
+            encoding = 'cp1252'
+        return real_open(file, mode, buffering, encoding, errors, newline, closefd, opener)
+
+    def legacy_text_encoding(encoding, stacklevel=2):
+        return 'locale' if encoding is None else encoding
+
+    monkeypatch.setattr(builtins, 'open', legacy_open)
+    monkeypatch.setattr(io, 'open', legacy_open)
+    monkeypatch.setattr(io, 'text_encoding', legacy_text_encoding)
+
+
+class TestGetTemplateForRecommendationEncoding:
+    """The bundled templates are UTF-8 and must read the same whatever the host's default is."""
+
+    def test_every_bundled_template_has_a_case(self):
+        """Guard: a new template file must be added to TEMPLATE_CASES."""
+        assert {path.stem for path in TEMPLATES_DIR.glob('*.template')} == set(TEMPLATE_CASES)
+
+    @pytest.mark.parametrize('name', sorted(TEMPLATE_CASES))
+    def test_template_is_read_as_utf8(self, name, legacy_default_encoding):
+        """Each template is returned exactly as stored, not as None or mojibake."""
+        expected = (TEMPLATES_DIR / f'{name}.template').read_text(encoding='utf-8')
+
+        result = get_template_for_recommendation(TEMPLATE_CASES[name], {})
+
+        assert result == expected
+        # Every bundled template has non-ASCII characters; make sure the comparison above
+        # is exercising a decoding difference.
+        assert not expected.isascii()
 
 
 @pytest.mark.asyncio
