@@ -14,8 +14,6 @@
 # This file is part of the awslabs namespace.
 # It is intentionally minimal to support PEP 420 namespace packages.
 
-import builtins
-import io
 import pytest
 from awslabs.amazon_mq_mcp_server.rabbitmq import handlers
 from awslabs.amazon_mq_mcp_server.rabbitmq.handlers import (
@@ -227,34 +225,19 @@ DOC_DIR = Path(handlers.__file__).parent / 'doc'
 
 @pytest.fixture
 def legacy_default_encoding(monkeypatch):
-    """Make text-mode file I/O behave like a Windows host whose default encoding is cp1252.
+    """Make ``Path.read_text()`` behave like on a Windows host whose default encoding is cp1252.
 
-    ``open()`` and ``Path.read_text()`` called without an ``encoding`` use cp1252. This
-    reproduces such a host on any platform, including when the test run itself has
-    UTF-8 mode enabled.
+    ``Path.read_text()`` called without an ``encoding`` uses cp1252. This reproduces such a host
+    on any platform, including when the test run itself has UTF-8 mode enabled. ``read_text``
+    is patched directly because on Python 3.10 ``pathlib`` binds ``io.open`` at import time, so
+    patching ``io.open`` would not reach it.
     """
-    real_open = io.open
+    real_read_text = Path.read_text
 
-    def legacy_open(
-        file,
-        mode='r',
-        buffering=-1,
-        encoding=None,
-        errors=None,
-        newline=None,
-        closefd=True,
-        opener=None,
-    ):
-        if 'b' not in mode and encoding in (None, 'locale'):
-            encoding = 'cp1252'
-        return real_open(file, mode, buffering, encoding, errors, newline, closefd, opener)
+    def legacy_read_text(self, encoding=None, errors=None):
+        return real_read_text(self, 'cp1252' if encoding is None else encoding, errors)
 
-    def legacy_text_encoding(encoding, stacklevel=2):
-        return 'locale' if encoding is None else encoding
-
-    monkeypatch.setattr(builtins, 'open', legacy_open)
-    monkeypatch.setattr(io, 'open', legacy_open)
-    monkeypatch.setattr(io, 'text_encoding', legacy_text_encoding)
+    monkeypatch.setattr(Path, 'read_text', legacy_read_text)
 
 
 class TestDocHandlersEncoding:
