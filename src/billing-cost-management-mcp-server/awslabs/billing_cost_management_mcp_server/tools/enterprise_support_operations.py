@@ -172,13 +172,13 @@ def _reject_month_before_earliest(billing_month: str) -> Optional[Dict[str, Any]
     return format_response(
         'error',
         {
-            'error_type': 'validation_error',
             'message': (
                 f'Billing month {billing_month} predates the earliest available '
                 f'Enterprise Support data ({EARLIEST_BILLING_MONTH}). Request '
                 f'{EARLIEST_BILLING_MONTH} or later.'
             ),
         },
+        error_type='validation_error',
     )
 
 
@@ -209,13 +209,13 @@ def _reject_month_not_yet_closed(billing_month: str) -> Optional[Dict[str, Any]]
     return format_response(
         'error',
         {
-            'error_type': 'validation_error',
             'message': (
                 f'Billing month {billing_month} is not available. Enterprise Support data '
                 'is only published for billing periods that have closed, so the most '
                 f'recent available month is {latest_month}.'
             ),
         },
+        error_type='validation_error',
     )
 
 
@@ -244,24 +244,24 @@ def _validate_billing_month(billing_month: Optional[str]) -> Optional[Dict[str, 
         return format_response(
             'error',
             {
-                'error_type': 'validation_error',
                 'message': (
                     'billing_month is required. Provide a single calendar month in '
                     'YYYY-MM format, for example "2026-06".'
                 ),
             },
+            error_type='validation_error',
         )
 
     if not BILLING_MONTH_PATTERN.fullmatch(billing_month):
         return format_response(
             'error',
             {
-                'error_type': 'validation_error',
                 'message': (
                     f"Invalid billing_month '{billing_month}'. Expected a single calendar "
                     'month in YYYY-MM format, for example "2026-06".'
                 ),
             },
+            error_type='validation_error',
         )
 
     return _reject_month_before_earliest(billing_month) or _reject_month_not_yet_closed(
