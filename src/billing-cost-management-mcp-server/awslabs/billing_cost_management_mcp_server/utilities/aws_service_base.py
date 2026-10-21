@@ -163,6 +163,31 @@ def parse_json(
         raise ValueError(f'Invalid JSON format for {parameter_name} parameter: {json_str}')
 
 
+DEFAULT_COST_METRICS = ['UnblendedCost']
+
+
+def parse_metrics(metrics: Optional[Union[str, List[str]]]) -> List[str]:
+    """Parse a Cost Explorer ``metrics`` argument into a list of metric names.
+
+    Args:
+        metrics: Metric names, as a list or a JSON array string
+
+    Returns:
+        The metric names, or ``['UnblendedCost']`` when ``metrics`` is not set or is empty
+
+    Raises:
+        ValueError: If ``metrics`` is not a list of non-empty metric names
+    """
+    if metrics is not None and not isinstance(metrics, (str, list)):
+        raise ValueError('metrics must be a list of metric names or a JSON array string')
+    parsed = parse_json(metrics, 'metrics')
+    if not parsed:
+        return list(DEFAULT_COST_METRICS)
+    if not isinstance(parsed, list) or not all(isinstance(m, str) and m for m in parsed):
+        raise ValueError('metrics must be a list of metric names or a JSON array string')
+    return parsed
+
+
 def get_date_range(
     start_date: Optional[str] = None, end_date: Optional[str] = None, default_days_ago: int = 30
 ) -> Tuple[str, str]:
