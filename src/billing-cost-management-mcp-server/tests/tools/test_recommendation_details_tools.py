@@ -1231,7 +1231,9 @@ TEMPLATE_CASES = {
 def legacy_default_encoding(monkeypatch):
     """Make text-mode file I/O behave like a Windows host whose default encoding is cp1252.
 
-    ``open()`` and ``Path.read_text()`` called without an ``encoding`` use cp1252. This
+    ``open()`` called without an ``encoding`` uses cp1252 (and, on Python 3.11+,
+    ``Path.read_text()`` too; on 3.10 ``pathlib`` binds ``io.open`` at import time, so only
+    the builtin ``open()`` is affected, which is what the code under test uses). This
     reproduces such a host on any platform, including when the test run itself has
     UTF-8 mode enabled.
     """
