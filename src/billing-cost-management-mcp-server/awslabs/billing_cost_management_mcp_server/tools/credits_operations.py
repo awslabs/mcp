@@ -217,7 +217,7 @@ def _build_get_credit_allocation_history_time_range(
 ) -> Dict[str, Any]:
     """Describe the window actually queried alongside the one requested.
 
-    Reporting both makes a narrowed window visible to the agent so a clamped
+    Reporting both makes a limited window visible to the agent so a limited
     result is never mistaken for a complete one.
 
     Args:
@@ -232,7 +232,7 @@ def _build_get_credit_allocation_history_time_range(
     return {
         'start_date': timestamp_to_utc_iso_string(start_epoch),
         'end_date': timestamp_to_utc_iso_string(end_epoch),
-        'narrowed_from_request': (start_epoch != requested_start or end_epoch != requested_end),
+        'limited_from_request': (start_epoch != requested_start or end_epoch != requested_end),
         'requested_start_date': timestamp_to_utc_iso_string(requested_start),
         'requested_end_date': timestamp_to_utc_iso_string(requested_end),
         'max_range_months': 24,
@@ -483,7 +483,7 @@ def _build_get_credits_time_range(
 ) -> Dict[str, Any]:
     """Describe the window actually queried alongside the one requested.
 
-    Reporting both makes a narrowed window visible to the agent so a clamped
+    Reporting both makes a limited window visible to the agent so a limited
     result is never mistaken for a complete one. A null end date means the API
     default of the current date applies.
 
@@ -499,7 +499,7 @@ def _build_get_credits_time_range(
     return {
         'start_date': timestamp_to_utc_iso_string(start_epoch),
         'end_date': (timestamp_to_utc_iso_string(end_epoch) if end_epoch is not None else None),
-        'narrowed_from_request': (start_epoch != requested_start or end_epoch != requested_end),
+        'limited_from_request': (start_epoch != requested_start or end_epoch != requested_end),
         'requested_start_date': timestamp_to_utc_iso_string(requested_start),
         'requested_end_date': (
             timestamp_to_utc_iso_string(requested_end) if requested_end is not None else None
@@ -526,8 +526,8 @@ async def _resolve_get_credits_window(
     time_range = _build_get_credits_time_range(
         start_epoch, end_epoch, requested_start, requested_end
     )
-    if time_range['narrowed_from_request']:
-        await ctx.info('Requested range narrowed to the enforced one-year lookback ending now')
+    if time_range['limited_from_request']:
+        await ctx.info('Requested range limited to the enforced one-year lookback ending now')
     return start_epoch, end_epoch, time_range
 
 
@@ -648,8 +648,8 @@ async def _resolve_get_credit_allocation_history_window(
     time_range = _build_get_credit_allocation_history_time_range(
         start_epoch, end_epoch, requested_start, requested_end
     )
-    if time_range['narrowed_from_request']:
-        await ctx.info('Requested range narrowed to the enforced 24-month window ending now')
+    if time_range['limited_from_request']:
+        await ctx.info('Requested range limited to the enforced 24-month window ending now')
     return start_epoch, end_epoch, time_range
 
 
@@ -779,9 +779,9 @@ async def get_credit_allocation_history(
 
     Returns the credit-level allocation ledger.
 
-    The API rejects ranges longer than 24 months. A longer request is narrowed to
+    The API rejects ranges longer than 24 months. A longer request is limited to
     the most recent 24 months rather than failing, and the response reports the
-    window actually queried so a narrowed result is never mistaken for a
+    window actually queried so a limited result is never mistaken for a
     complete one.
 
     Multi-month allocation windows can exceed the inline size threshold,

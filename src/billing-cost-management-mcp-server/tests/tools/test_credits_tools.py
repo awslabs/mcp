@@ -244,7 +244,7 @@ class TestToolRegistration:
         tool = await _registered_tool()
 
         assert 'partial_results' in (tool.description or '')
-        assert 'narrowed_from_request' in (tool.description or '')
+        assert 'limited_from_request' in (tool.description or '')
         assert 'one year before today' in (tool.description or '')
         assert 'never floats' in (tool.description or '')
 
@@ -252,7 +252,7 @@ class TestToolRegistration:
     async def test_description_end_date_matches_clamp(self):
         """The end_date line states the limit instead of claiming a future end is rejected.
 
-        The code limits a future end to now and sets ``narrowed_from_request``, so the
+        The code limits a future end to now and sets ``limited_from_request``, so the
         old "Cannot be in the future" wording contradicted the behaviour and could lead
         a model to report the requested window rather than the one served.
         """
