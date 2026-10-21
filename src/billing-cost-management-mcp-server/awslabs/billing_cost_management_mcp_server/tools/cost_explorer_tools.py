@@ -196,7 +196,7 @@ DIMENSION REFERENCE:
   separate Marketplace from AWS charges
 - LINKED_ACCOUNT: AWS member accounts
 - OPERATING_SYSTEM: OS type (e.g., Windows, Linux)
-- OPERATION: The API operation behind a charge (e.g., RunInstances, PutObject)
+- OPERATION: The API operation behind a charge (e.g., RunInstances, PutObject; for Amazon Bedrock, model-invocation operations). The dimension is OPERATION — there is no API_OPERATION dimension.
 - PLATFORM: EC2 operating system
 - PURCHASE_TYPE: Reservation type (e.g., On-Demand, Reserved)
 - REGION: AWS Region
