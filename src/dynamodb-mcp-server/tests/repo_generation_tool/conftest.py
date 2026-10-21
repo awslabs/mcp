@@ -106,10 +106,12 @@ def repo_generation_tool_path():
 def legacy_default_encoding(monkeypatch):
     """Make text-mode file I/O behave like a Windows host with a cp1252 default.
 
-    ``open()`` and ``Path.read_text()/write_text()`` called without an ``encoding``
-    use the cp1252 codec, and text-mode writes translate line feeds to CRLF. This
-    reproduces the defaults of a Windows host (``PYTHONUTF8`` unset, ANSI code page 1252) on
-    any platform, including when the test run itself has UTF-8 mode enabled.
+    ``open()`` called without an ``encoding`` uses the cp1252 codec (and, on Python 3.11+,
+    ``Path.read_text()`` / ``Path.write_text()`` too; on 3.10 ``pathlib`` binds ``io.open`` at
+    import time, so only the builtin ``open()`` is affected, which is what the code under
+    test uses), and text-mode writes translate line feeds to CRLF. This reproduces the
+    defaults of a Windows host (``PYTHONUTF8`` unset, ANSI code page 1252) on any platform,
+    including when the test run itself has UTF-8 mode enabled.
     """
     real_open = io.open
 
