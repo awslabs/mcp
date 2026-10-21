@@ -1,0 +1,180 @@
+# Copyright 2016-2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You
+# may not use this file except in compliance with the License. A copy of
+# the License is located at
+#
+#     http://aws.amazon.com/apache2.0/
+#
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
+# ANY KIND, either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+---
+# Module document. Translates directly into an almost-complete Module object
+name: !!str tcprecycle
+path: !!str
+version: !!str 3.1
+title: !!str Determines if aggressive TCP recycling is enabled
+helptext: !!str |
+  Determines if aggressive TCP recycling is enabled.
+  This can cause problems communicating with same subnet resources
+  Sudo is required for remediation
+placement: !!str run
+package:
+  - !!str
+language: !!str python
+remediation: !!str True
+content: !!str |
+  """
+  Determine if aggressive TCP recycling is enabled. This can cause problems communicating with same subnet
+  resources.
+
+  Functions:
+      detect: Determine if recycling is enabled.
+      fix: Disable recycle via sysctl and writes to a file to persist changes across reboot.
+      run: Detect if aggressive TCP recycling is enabled and attempt to remediate if remediation is enabled.
+  """
+  from __future__ import print_function
+  import os
+  import re
+  import subprocess
+  import sys
+
+  # Add the root program directory to sys.path so libraried functions can be imported
+  # when this module is directly invoked with the interpreter.
+  if __name__ == "__main__":  # pragma: no coverage
+      sys.path.insert(0, os.environ["EC2RL_CALLPATH"])
+
+  from ec2rlcore.prediag import backup
+  from ec2rlcore.prediag import get_config_dict
+  from ec2rlcore.prediag import restore
+
+  SEARCH_STRING = r"net.ipv4.tcp_tw_recycle"
+
+
+  def detect():
+      """
+      Detect if aggressive TCP recycling is enabled.
+      Note that this parameter was removed in the 4.12 kernel.
+
+      Returns:
+          (bool): True if aggressive TCP recycling is enabled.
+      """
+      sysctl_all_out = subprocess.check_output(["sysctl", "-a"], universal_newlines=True, stderr=subprocess.STDOUT)
+      for line in sysctl_all_out.splitlines():
+          if re.match(SEARCH_STRING, line) and line.split("=")[1].strip()!= "0":
+              return True
+      return False
+
+
+  def fix(config_file_path):
+      """
+      Attempt to disabled aggressive TCP recycling with sysctl and write the changes to a file to persist across reboots.
+
+      Parameters:
+          config_file_path (str): path to the configuration file to be edited.
+
+      Returns:
+          True (bool): If remediation is successful.
+      """
+      print("Setting net.ipv4.tcp_tw_recycle to 0")
+      try:
+          subprocess.check_output(["sysctl", "-w", "net.ipv4.tcp_tw_recycle=0"], stderr=subprocess.STDOUT)
+          print("[FIXED] net.ipv4.tcp_tw_recycle=0 for running system")
+      except subprocess.CalledProcessError:
+          print("[UNFIXED] sysctl -w net.ipv4.tcp_tw_recycle=0 failed for running system")
+          raise
+      try:
+          if not os.path.exists(config_file_path):
+              with open(config_file_path, "w") as config_file:
+                  config_file.write("net.ipv4.tcp_tw_recycle = 0\n")
+          else:
+              with open(config_file_path, "r") as config_file:
+                  contents = config_file.readlines()
+              new_contents = list()
+              found = False
+              for line in contents:
+                  if not found and "net.ipv4.tcp_tw_recycle" in line:
+                      new_contents.append("net.ipv4.tcp_tw_recycle = 0\n")
+                      found = True
+                  elif found and "net.ipv4.tcp_tw_recycle" in line:
+                      continue
+                  else:
+                      new_contents.append(line)
+              with open(config_file_path, "w") as config_file:
+                  config_file.writelines(new_contents)
+          print("[FIXED] net.ipv4.tcp_tw_recycle=0 in {}".format(config_file_path))
+      except Exception:
+          print("[UNFIXED] Failed to write config to {}".format(config_file_path))
+          raise
+
+      return True
+
+
+  def run():
+      """
+      Detect if aggressive TCP recycling is enabled and attempt to remediate if remediation is enabled.
+
+      Returns:
+          (bool): True if aggressive TCP recycling is disabled or it is enabled, but was remediated.
+      """
+      failure_msg = "[FAILURE] Aggressive TCP recycling is enabled. " \
+                    "This may cause networking issues when source TCP connections originate from a NAT device.\n" \
+                    "-- To disable, you can run 'sudo sysctl -w net.ipv4.tcp_tw_recycle=0'\n" \
+                    "-- To disable it from re-occuring on next boot, you can run " \
+                    "'echo 'net.ipv4.tcp_tw_recycle = 0' | sudo tee /etc/sysctl.d/55-tcp_rw_recycle.conf'"
+      problem_remediated = False
+      config_file_path = "/etc/sysctl.d/55-tcp_rw_recycle.conf"
+      sys_config_dict = dict()
+      try:
+          sys_config_dict = get_config_dict("tcprecycle")
+          print("Determining if aggressive TCP recycling is enabled")
+          if detect():
+              if sys_config_dict["REMEDIATE"] and sys_config_dict["SUDO"]:
+                  if os.path.isfile(config_file_path):
+                      backup(config_file_path, sys_config_dict["BACKED_FILES"], sys_config_dict["BACKUP_DIR"])
+                  fix(config_file_path)
+                  if detect():
+                      print(failure_msg)
+                      if "BACKED_FILES" in sys_config_dict.keys() and \
+                              config_file_path in sys_config_dict["BACKED_FILES"].keys():
+                          restore(config_file_path, sys_config_dict["BACKED_FILES"])
+                  else:
+                      print("[SUCCESS] Aggressive TCP recycling is disabled after remediation. "
+                            "Please see the logs for further details")
+                      problem_remediated = True
+              else:
+                  print("[UNFIXED] Remediation impossible without sudo and --remediate.")
+                  print("-- Running as root/sudo: {}".format(sys_config_dict["SUDO"]))
+                  print("-- Required --remediate flag specified: {}".format(sys_config_dict["REMEDIATE"]))
+                  print(failure_msg)
+          else:
+              print("[SUCCESS] Aggressive TCP recycling is disabled.")
+              problem_remediated = True
+          return problem_remediated
+      except Exception as ex:
+          print(ex)
+          print("[WARN] module generated an exception and exited abnormally. "
+                "Review the logs to determine the cause of the issue.")
+          if "BACKED_FILES" in sys_config_dict.keys() and config_file_path in sys_config_dict["BACKED_FILES"].keys():
+              restore(config_file_path, sys_config_dict["BACKED_FILES"])
+          return False
+
+
+  if __name__ == "__main__":  # pragma: no coverage
+      run()
+
+constraint:
+  requires_ec2: !!str False
+  domain: !!str net
+  class: !!str diagnose
+  distro: !!str alami alami2 al2023 ubuntu rhel suse
+  required: !!str
+  optional: !!str
+  software: !!str
+  sudo: !!str False
+  perfimpact: !!str False
+  parallelexclusive: !!str

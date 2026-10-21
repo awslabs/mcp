@@ -1,0 +1,60 @@
+# Copyright 2016-2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You
+# may not use this file except in compliance with the License. A copy of
+# the License is located at
+#
+#     http://aws.amazon.com/apache2.0/
+#
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
+# ANY KIND, either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+---
+# Module document. Translates directly into an almost-complete Module object
+name: !!str aptlog
+path: !!str
+version: !!str 1.0
+title: !!str Gather /var/log/apt and /var/log/dpkg.log files
+helptext: !!str |
+  Gather /var/log/apt and /var/log/dpkg.log files
+placement: !!str run
+package:
+  - !!str
+language: !!str bash
+content: !!str |
+  #!/bin/bash
+  error_trap()
+  {
+      printf "%0.s=" {1..80}
+      echo -e "\nERROR:	"$BASH_COMMAND" exited with an error on line ${BASH_LINENO[0]}"
+      exit 0
+  }
+  trap error_trap ERR
+
+  # read-in shared function
+  source functions.bash
+
+  echo "I will gather the /var/log/apt and /var/log/dpkg.log files from this machine"
+
+  if [[ -r /var/log/apt && -r /var/log/dpkg.log ]]; then
+      mkdir $EC2RL_GATHEREDDIR/aptlog
+      cp -r /var/log/apt/* $EC2RL_GATHEREDDIR/aptlog || true
+      cp /var/log/dpkg.log $EC2RL_GATHEREDDIR/aptlog || true
+      echo "I have attempted to copy the /var/log/apt and /var/log/dpkg.log files to ${EC2RL_GATHEREDDIR}/aptlog"
+  else
+      echo "No /var/log/apt or /var/log/dpkg.log files available or permission denied"
+  fi
+constraint:
+  requires_ec2: !!str False
+  domain: !!str os
+  class: !!str gather
+  distro: !!str ubuntu
+  required: !!str
+  optional: !!str
+  software: !!str
+  sudo: !!str True
+  perfimpact: !!str False
+  parallelexclusive: !!str

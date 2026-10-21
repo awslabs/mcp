@@ -1,0 +1,53 @@
+# Copyright 2016-2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You
+# may not use this file except in compliance with the License. A copy of
+# the License is located at
+#
+#     http://aws.amazon.com/apache2.0/
+#
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
+# ANY KIND, either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+---
+# Module document. Translates directly into an almost-complete Module object
+name: !!str kernelversion
+path: !!str
+version: !!str 1.0
+title: !!str Collect output from uname -r for system analysis
+helptext: !!str |
+  Collect output from uname -r for system analysis
+placement: !!str run
+package:
+  - !!str
+language: !!str bash
+content: !!str |
+  #!/bin/bash
+  error_trap()
+  {
+      printf "%0.s=" {1..80}
+      echo -e "\nERROR:	"$BASH_COMMAND" exited with an error on line ${BASH_LINENO[0]}"
+      exit 0
+  }
+  trap error_trap ERR
+
+  # read-in shared function
+  source functions.bash
+
+  echo "I will collect uname -r output from this $EC2RL_DISTRO box."
+
+  uname -r
+constraint:
+  requires_ec2: !!str False
+  domain: !!str os
+  class: !!str collect
+  distro: !!str alami alami2 al2023 ubuntu rhel suse
+  required: !!str
+  optional: !!str
+  software: !!str
+  sudo: !!str False
+  perfimpact: !!str False
+  parallelexclusive: !!str

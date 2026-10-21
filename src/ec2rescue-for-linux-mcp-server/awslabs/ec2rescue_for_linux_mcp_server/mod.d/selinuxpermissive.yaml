@@ -1,0 +1,141 @@
+# Copyright 2016-2023 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License"). You
+# may not use this file except in compliance with the License. A copy of
+# the License is located at
+#
+#     http://aws.amazon.com/apache2.0/
+#
+#
+# or in the "license" file accompanying this file. This file is
+# distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
+# ANY KIND, either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+---
+# Module document. Translates directly into an almost-complete Module object
+name: !!str selinuxpermissive
+path: !!str
+version: !!str 1.0
+title: !!str Sets selinux to permissive mode
+helptext: !!str |
+  Sets selinux to permissive mode
+  Requires --selinuxpermissive and --remediate
+placement: !!str run
+package:
+  - !!str
+language: !!str python
+remediation: !!str True
+content: !!str |
+  """
+  Sets selinux to permissive mode.
+
+  Functions:
+      detect: Determine if selinux is in a mode besides permissive.
+      fix: Set selinux to permissive mode.
+      run: Determine if selinux is in enforcing mode and, if it is, remediate the issue by setting selinux to permissive.
+  """
+  from __future__ import print_function
+  import os
+  import re
+  import sys
+
+  # Add the root program directory to sys.path so libraried functions can be imported
+  # when this module is directly invoked with the interpreter.
+  if __name__ == "__main__":  # pragma: no coverage
+      sys.path.insert(0, os.environ["EC2RL_CALLPATH"])
+
+  from ec2rlcore.prediag import backup
+  from ec2rlcore.prediag import get_config_dict
+  from ec2rlcore.prediag import restore
+
+
+  def detect(config_file_path):
+      """
+      Determine if selinux is in a mode besides permissive.
+
+      Returns:
+          (bool): True if selinux is in enforcing mode.
+      """
+      if not os.path.isfile(config_file_path):
+          return False
+      else:
+          with open(config_file_path, "r") as config_file:
+              return bool(re.search("SELINUX=enforcing", config_file.read()))
+
+
+  def fix(config_file_path):
+      """
+      Set selinux to permissive mode by writing to the config file.
+
+      Returns:
+          True (bool): True if selinux was set to permissive mode.
+      """
+      try:
+          with open(config_file_path, "r") as config_file:
+              filecontents = config_file.read()
+          filecontents = re.sub("SELINUX=enforcing", "SELINUX=permissive", filecontents)
+          with open(config_file_path, "w") as config_file:
+              config_file.write(filecontents)
+          return True
+      except Exception:
+          print("[WARN] Unable to replace contents of {}".format(config_file_path))
+          raise
+
+
+  def run():
+      """
+      Determine if selinux is in enforcing mode and, if it is, remediate the issue by setting selinux to permissive.
+
+      Returns:
+          (bool): True if remediation is successful
+      """
+      config_file_path = "/etc/selinux/config"
+      sys_config_dict = dict()
+      try:
+          sys_config_dict = get_config_dict("selinuxpermissive")
+          print("Determining if selinux is in enforcing mode")
+          if detect(config_file_path):
+              print("SELinux in enforcing mode, attempting to set permissive.")
+              print("Backing up {} first".format(config_file_path))
+              if os.path.isfile(config_file_path):
+                  backup(config_file_path, sys_config_dict["BACKED_FILES"], sys_config_dict["BACKUP_DIR"])
+              fix(config_file_path)
+              if detect(config_file_path):
+                  print("[FAILURE] failed to set selinux set to permissive")
+                  print("Please see https://github.com/awslabs/aws-ec2rescue-linux/blob/master/docs/"
+                        "modules/selinuxpermissive.md for further details")
+                  if "BACKED_FILES" in sys_config_dict.keys() and \
+                          config_file_path in sys_config_dict["BACKED_FILES"].keys():
+                      restore(config_file_path, sys_config_dict["BACKED_FILES"])
+                  return False
+              else:
+                  print("[SUCCESS] selinux set to permissive")
+          else:
+              print("[SUCCESS] selinux is not set to enforcing or config file absent")
+          print("Please see https://github.com/awslabs/aws-ec2rescue-linux/blob/master/docs/"
+                "modules/selinuxpermissive.md for further details")
+          return True
+      except Exception as ex:
+          print(ex)
+          print("[WARN] module generated an exception and exited abnormally. "
+                "Review the logs to determine the cause of the issue.")
+          if "BACKED_FILES" in sys_config_dict.keys() and config_file_path in sys_config_dict["BACKED_FILES"].keys():
+              restore(config_file_path, sys_config_dict["BACKED_FILES"])
+          return False
+
+
+  if __name__ == "__main__":  # pragma: no coverage
+      run()
+
+constraint:
+  requires_ec2: !!str False
+  domain: !!str os
+  class: !!str diagnose
+  distro: !!str alami alami2 al2023 ubuntu rhel suse
+  required: !!str selinuxpermissive remediate
+  optional: !!str
+  software: !!str
+  sudo: !!str True
+  perfimpact: !!str False
+  parallelexclusive: !!str
