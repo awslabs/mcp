@@ -32,7 +32,7 @@ from datetime import datetime, timedelta
 from loguru import logger
 from psycopg.conninfo import make_conninfo
 from psycopg_pool import AsyncConnectionPool
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 
 # Path to the combined AWS CA bundle shipped inside the wheel by hatch_build.py.
@@ -212,35 +212,19 @@ def _tls_remediation_hint(exc: BaseException, sslmode: str) -> Optional[str]:
     return None
 
 
-def get_credentials_from_secret(
-    secret_arn: str, region: str, is_test: bool = False
-) -> Tuple[str, str]:
-    """Fetch database (username, password) from AWS Secrets Manager.
+def _read_credentials_from_secret(
+    secret_arn: str, region: str, require_password: bool
+) -> Tuple[str, Optional[str]]:
+    """Read ``(username, password)`` from a Secrets Manager secret.
 
-    The secret payload is expected to be JSON with ``username``/``user``/
-    ``Username`` and ``password``/``Password`` fields — the standard shape
-    RDS-managed secrets produce.
-
-    Module-level so callers (e.g. ``server.internal_create_connection``
-    on the IAM-auth path, which only needs the username) can reuse it
-    without instantiating a connection pool.
-
-    Args:
-        secret_arn: Secrets Manager ARN.
-        region: AWS region of the secret.
-        is_test: If True, return deterministic test credentials instead of
-            hitting AWS. Intended for unit tests only.
-
-    Returns:
-        ``(username, password)`` tuple.
+    Shared by :func:`get_credentials_from_secret` and
+    :func:`get_username_from_secret`. When ``require_password`` is False the
+    password may be missing, in which case ``None`` is returned in its place.
 
     Raises:
-        ValueError: If the secret is missing, malformed, or lacks
-            username/password fields.
+        ValueError: If the secret is missing, malformed, lacks a username, or
+            lacks a password while ``require_password`` is True.
     """
-    if is_test:
-        return 'test_user', 'test_password'
-
     try:
         logger.debug(f'Creating Secrets Manager client in region {region}')
         session = boto3.Session()
@@ -268,17 +252,83 @@ def get_credentials_from_secret(
                 f'Secret does not contain username. Available keys: {", ".join(secret.keys())}'
             )
 
-        if not password:
+        if require_password and not password:
             logger.error('Password not found in secret')
             raise ValueError(
                 f'Secret does not contain password. Available keys: {", ".join(secret.keys())}'
             )
 
         logger.debug(f'Successfully extracted credentials for user: {username}')
-        return username, password
+        return username, password or None
     except Exception as e:
         logger.exception(f'Failed to retrieve credentials from Secrets Manager: {str(e)}')
         raise ValueError(f'Failed to retrieve credentials from Secrets Manager: {str(e)}')
+
+
+def get_credentials_from_secret(
+    secret_arn: str, region: str, is_test: bool = False
+) -> Tuple[str, str]:
+    """Fetch database (username, password) from AWS Secrets Manager.
+
+    The secret payload is expected to be JSON with ``username``/``user``/
+    ``Username`` and ``password``/``Password`` fields — the standard shape
+    RDS-managed secrets produce.
+
+    Callers that only need the username (the IAM-auth path, where the
+    password is a generated token) should use
+    :func:`get_username_from_secret` instead, which does not require a
+    password key.
+
+    Args:
+        secret_arn: Secrets Manager ARN.
+        region: AWS region of the secret.
+        is_test: If True, return deterministic test credentials instead of
+            hitting AWS. Intended for unit tests only.
+
+    Returns:
+        ``(username, password)`` tuple.
+
+    Raises:
+        ValueError: If the secret is missing, malformed, or lacks
+            username/password fields.
+    """
+    if is_test:
+        return 'test_user', 'test_password'
+
+    username, password = _read_credentials_from_secret(secret_arn, region, require_password=True)
+    # require_password=True guarantees a non-empty password here.
+    return username, cast(str, password)
+
+
+def get_username_from_secret(secret_arn: str, region: str, is_test: bool = False) -> str:
+    """Fetch only the database username from AWS Secrets Manager.
+
+    Used on the IAM-auth path (``PG_WIRE_IAM_PROTOCOL``), where the password
+    is a generated IAM auth token, so the secret only needs a ``username``
+    (or ``user``/``Username``) field. A ``password`` key is not required and
+    is ignored if present.
+
+    Module-level so callers (e.g. ``server.internal_create_connection`` and
+    ``server.validate_secret_arn_at_startup``) can reuse it without
+    instantiating a connection pool.
+
+    Args:
+        secret_arn: Secrets Manager ARN.
+        region: AWS region of the secret.
+        is_test: If True, return a deterministic test username instead of
+            hitting AWS. Intended for unit tests only.
+
+    Returns:
+        The username stored in the secret.
+
+    Raises:
+        ValueError: If the secret is missing, malformed, or lacks a username.
+    """
+    if is_test:
+        return 'test_user'
+
+    username, _ = _read_credentials_from_secret(secret_arn, region, require_password=False)
+    return username
 
 
 class PsycopgPoolConnection(AbstractDBConnection):
