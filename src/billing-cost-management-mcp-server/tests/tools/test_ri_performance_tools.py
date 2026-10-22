@@ -482,7 +482,7 @@ class TestGetReservationCoverage:
             PAGINATION_COMPLETE,
         )
 
-        mock_metrics = ['CoverageHours', 'CoverageCost']
+        mock_metrics = ['Hour', 'Cost']
         mock_group_by = [{'Type': 'DIMENSION', 'Key': 'INSTANCE_TYPE'}]
         mock_filter = {
             'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon Elastic Compute Cloud - Compute']}
@@ -766,7 +766,7 @@ class TestRIPerformance:
     async def test_ri_performance_with_all_params(self, mock_context):
         """Test ri_performance with all parameters."""
         # Setup
-        metrics = '["CoverageHours", "CoverageCost"]'
+        metrics = '["Hour", "Cost"]'
         group_by = '[{"Type": "DIMENSION", "Key": "INSTANCE_TYPE"}]'
         filter_expr = '{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon Elastic Compute Cloud - Compute"]}}'
         sort_by = '{"Key": "CoverageHoursPercentage", "SortOrder": "DESCENDING"}'
@@ -1179,6 +1179,21 @@ async def test_description_states_subscription_id_format_and_error():
     assert 'returns no match' not in description
     # Utilization accepts several SERVICE values; only coverage caps them at 2.
     assert 'SERVICE filter takes a single value' not in description
+
+
+@pytest.mark.asyncio
+async def test_metrics_arg_lists_the_values_cost_explorer_accepts():
+    """GetReservationCoverage takes Hour, Unit and Cost; other names are a ValidationException."""
+    tool = await ri_performance_server.get_tool('ri-performance')
+    assert tool is not None
+    metrics_doc = tool.parameters['properties']['metrics']['description']
+    assert '["Hour", "Cost"]' in metrics_doc
+    assert 'Valid values are Hour, Unit and Cost; Unit is EC2 only' in metrics_doc
+    # Without Metrics, Cost Explorer returns only CoverageHours.
+    assert 'Defaults to Hour only' in metrics_doc
+    assert 'Defaults to all metrics' not in metrics_doc
+    for wrong in ('HoursCoverage', 'CostCoverage', 'CoverageHours', 'CoverageCost'):
+        assert wrong not in metrics_doc
 
 
 @pytest.mark.asyncio
