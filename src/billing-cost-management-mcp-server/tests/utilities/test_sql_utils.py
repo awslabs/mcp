@@ -817,6 +817,22 @@ class TestConvertApiResponseToTableAdditional:
         assert _get_specialized_converter('budget_actions') == 'records'
         assert _get_specialized_converter('budget_notifications') == 'records'
 
+    def test_specialized_converter_routes_es_linked_account_charges_to_records(self):
+        """Enterprise Support linked-account charges map to the 'records' converter.
+
+        Without this entry the lookup returns None and the whole charges list is
+        offloaded into one cell of the generic (key, value) table, which cannot be
+        filtered, sorted or aggregated with SQL.
+        """
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _get_specialized_converter,
+        )
+
+        assert (
+            _get_specialized_converter('enterprise_support_list_linked_account_charges')
+            == 'records'
+        )
+
     def test_specialized_converter_routes_bvs_segment_ops_to_records(self):
         """BVS list billing view segments operations map to the 'records' converter."""
         from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
@@ -910,6 +926,46 @@ class TestConvertResponseIfNeeded:
         }
         assert 'next_token' not in result
         assert all(q['description'].startswith('PARTIAL DATA') for q in result['sample_queries'])
+
+    @pytest.mark.asyncio
+    async def test_es_linked_account_charges_offload_is_row_per_charge(self):
+        """An offloaded ES charges response stores one row per charge, with pagination kept.
+
+        The generic (key, value) fallback would store the whole charges list in a single
+        cell, so a query such as "top linked accounts by Support charge" could not run.
+        """
+        mock_context = MagicMock(spec=Context)
+        mock_context.info = AsyncMock()
+        pagination = {
+            'complete_dataset': True,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 3,
+        }
+        charges = [
+            {'account_id': '111122223333', 'total_support_eligible_spend': '100.00'},
+            {'account_id': '444455556666', 'total_support_eligible_spend': '200.00'},
+            {'account_id': '777788889999', 'total_support_eligible_spend': '300.00'},
+        ]
+        response = with_pagination({'linked_account_charges': charges}, pagination)
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.should_convert_to_sql',
+            return_value=True,
+        ):
+            result = await convert_response_if_needed(
+                mock_context, response, 'enterprise_support_list_linked_account_charges'
+            )
+
+        # One row per charge, not one row holding the whole list.
+        assert result['row_count'] == len(charges)
+        # Charge fields became columns, so the generic key/value pair is absent.
+        assert result['schema'] == ['account_id', 'total_support_eligible_spend']
+        assert 'value' not in result['schema']
+        assert result['preview'][0]['account_id'] == '111122223333'
+        # The lowercase pagination block survives the offload.
+        assert result['pagination']['items_returned'] == len(charges)
+        assert result['pagination']['complete_dataset'] is True
 
     @pytest.mark.asyncio
     async def test_partial_generic_offload_omits_rows_retrieved(self):

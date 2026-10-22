@@ -442,7 +442,7 @@ def get_template_for_recommendation(
         )
 
         if os.path.exists(template_path):
-            with open(template_path, 'r') as f:
+            with open(template_path, 'r', encoding='utf-8') as f:
                 return f.read()
     except Exception:
         # Template loading is optional, so we'll silently continue if not found
