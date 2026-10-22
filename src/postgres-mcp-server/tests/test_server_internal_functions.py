@@ -20,6 +20,35 @@ from awslabs.postgres_mcp_server.connection.db_connection_map import ConnectionM
 from unittest.mock import MagicMock, patch
 
 
+# The ARN setup_method pins as configured_default_secret_arn. A proxy whose Auth
+# registers a different secret is correctly skipped, so fixtures must match it.
+_FIXTURE_SECRET_ARN = (
+    'arn:aws:secretsmanager:us-east-1:123456789012:secret:test-secret'  # pragma: allowlist secret
+)
+
+
+def _proxy(endpoint, secret_arn=_FIXTURE_SECRET_ARN, iam_auth='DISABLED', name='my-proxy'):
+    """Build a DBProxy dict shaped like describe_db_proxies returns.
+
+    find_proxy_for_instance returns the whole proxy so the caller can check its
+    Auth config, so tests have to supply one that is actually compatible with the
+    connection method under test -- an incompatible proxy is skipped by design.
+    """
+    return {
+        'DBProxyName': name,
+        'Status': 'available',
+        'Endpoint': endpoint,
+        'Auth': [
+            {
+                'UserName': 'postgres',
+                'AuthScheme': 'SECRETS',
+                'SecretArn': secret_arn,
+                'IAMAuth': iam_auth,
+            }
+        ],
+    }
+
+
 class TestInternalCreateConnection:
     """Tests for internal_create_connection function."""
 
@@ -37,7 +66,8 @@ class TestInternalCreateConnection:
         server_module.configured_default_secret_arn = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:test-secret'  # pragma: allowlist secret
 
     def teardown_method(self, method):
-        """Restore the original Secrets Manager ARN configuration."""
+        """Restore the original Secrets Manager ARN and RDS Proxy configuration."""
+        server_module.configured_rds_proxy_mode = server_module.RDS_PROXY_OFF
         server_module.configured_secret_arns.clear()
         server_module.configured_secret_arns.update(self._prev_secret_arns)
         server_module.configured_default_secret_arn = self._prev_default_secret_arn
@@ -334,6 +364,8 @@ class TestInternalCreateConnection:
             patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
             patch('awslabs.postgres_mcp_server.server.find_proxy_for_instance') as mock_proxy,
         ):
+            # Proxy routing is opt-in; these tests exercise the opted-in path.
+            server_module.configured_rds_proxy_mode = server_module.RDS_PROXY_AUTO
             mock_map.get.return_value = None
             mock_props.return_value = {
                 'MasterUsername': 'postgres',
@@ -369,6 +401,8 @@ class TestInternalCreateConnection:
             patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
             patch('awslabs.postgres_mcp_server.server.find_proxy_for_instance') as mock_proxy,
         ):
+            # Proxy routing is opt-in; these tests exercise the opted-in path.
+            server_module.configured_rds_proxy_mode = server_module.RDS_PROXY_AUTO
             mock_map.get.return_value = None
             mock_props.return_value = {
                 'MasterUsername': 'postgres',
@@ -376,7 +410,7 @@ class TestInternalCreateConnection:
                 'Endpoint': {'Port': 5432},
                 'DBInstanceIdentifier': 'my-instance',
             }
-            mock_proxy.return_value = 'my-proxy.proxy-abc123.us-east-1.rds.amazonaws.com'
+            mock_proxy.return_value = _proxy('my-proxy.proxy-abc123.us-east-1.rds.amazonaws.com')
             mock_connection = MagicMock()
             mock_pg_conn.return_value = mock_connection
 
@@ -421,6 +455,8 @@ class TestInternalCreateConnection:
             patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
             patch('awslabs.postgres_mcp_server.server.find_proxy_for_instance') as mock_proxy,
         ):
+            # Proxy routing is opt-in; these tests exercise the opted-in path.
+            server_module.configured_rds_proxy_mode = server_module.RDS_PROXY_AUTO
             mock_map.get.return_value = None
             mock_props.return_value = {
                 'MasterUsername': 'postgres',
@@ -428,7 +464,7 @@ class TestInternalCreateConnection:
                 'Endpoint': {'Address': instance_host, 'Port': 5432},
                 'DBInstanceIdentifier': 'my-instance',
             }
-            mock_proxy.return_value = proxy_host
+            mock_proxy.return_value = _proxy(proxy_host)
             mock_pg_conn.return_value = MagicMock()
 
             server_module.internal_create_connection(
@@ -479,6 +515,8 @@ class TestInternalCreateConnection:
             patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
             patch('awslabs.postgres_mcp_server.server.find_proxy_for_instance') as mock_proxy,
         ):
+            # Proxy routing is opt-in; these tests exercise the opted-in path.
+            server_module.configured_rds_proxy_mode = server_module.RDS_PROXY_AUTO
             mock_map.get.return_value = None
             # No MasterUserSecret: IAM auth must fall back to MasterUsername, which
             # is the only path available on an instance with no managed password.
@@ -487,7 +525,7 @@ class TestInternalCreateConnection:
                 'Endpoint': {'Address': instance_host, 'Port': 5432},
                 'DBInstanceIdentifier': 'my-instance',
             }
-            mock_proxy.return_value = proxy_host
+            mock_proxy.return_value = _proxy(proxy_host, iam_auth='ENABLED')
             mock_pg_conn.return_value = MagicMock()
 
             _, response = server_module.internal_create_connection(
@@ -513,6 +551,140 @@ class TestInternalCreateConnection:
             assert payload['db_endpoint'] == instance_host
             assert payload['proxy_endpoint'] == proxy_host
 
+    def test_proxy_lookup_is_skipped_when_rds_proxy_mode_is_off(self):
+        """The default must not touch the proxy APIs at all.
+
+        --rds_proxy defaults to off precisely so that upgrading cannot change an
+        existing deployment's connection path. If the lookup ran anyway, a proxy
+        whose Auth config doesn't register this server's secret would turn a
+        working direct connection into an auth failure.
+        """
+        instance_host = 'instance.endpoint.com'
+
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_instance_properties'
+            ) as mock_props,
+            patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
+            patch('awslabs.postgres_mcp_server.server.find_proxy_for_instance') as mock_proxy,
+        ):
+            # Deliberately NOT setting configured_rds_proxy_mode: assert the default.
+            assert server_module.configured_rds_proxy_mode == server_module.RDS_PROXY_OFF
+            mock_map.get.return_value = None
+            mock_props.return_value = {
+                'MasterUsername': 'postgres',
+                'MasterUserSecret': {'SecretArn': 'arn:x'},  # pragma: allowlist secret
+                'Endpoint': {'Address': instance_host, 'Port': 5432},
+                'DBInstanceIdentifier': 'my-instance',
+            }
+            mock_pg_conn.return_value = MagicMock()
+
+            _, response = server_module.internal_create_connection(
+                region='us-east-1',
+                database_type=DatabaseType.RPG,
+                connection_method=ConnectionMethod.PG_WIRE_PROTOCOL,
+                cluster_identifier='',
+                db_endpoint=instance_host,
+                port=5432,
+                database='testdb',
+            )
+
+            mock_proxy.assert_not_called()
+            assert mock_pg_conn.call_args[1]['host'] == instance_host
+            assert 'proxy_endpoint' not in json.loads(response)
+
+    def test_proxy_connection_uses_the_proxy_listen_port_not_the_instance_port(self):
+        """A proxied connection must be dialed on 5432, whatever port the instance uses.
+
+        RDS Proxy for PostgreSQL always listens on the engine default and the
+        DBProxy API object carries no port to read, so carrying the instance's port
+        over would dial the wrong one -- and that port also feeds
+        generate_db_auth_token, which would then sign the token for the wrong port.
+        The reported port stays the instance's, since it is part of the identity.
+        """
+        instance_host = 'instance.endpoint.com'
+        proxy_host = 'my-proxy.proxy-abc123.us-east-1.rds.amazonaws.com'
+
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_instance_properties'
+            ) as mock_props,
+            patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
+            patch('awslabs.postgres_mcp_server.server.find_proxy_for_instance') as mock_proxy,
+        ):
+            server_module.configured_rds_proxy_mode = server_module.RDS_PROXY_AUTO
+            mock_map.get.return_value = None
+            mock_props.return_value = {
+                'MasterUsername': 'postgres',
+                'MasterUserSecret': {'SecretArn': 'arn:x'},  # pragma: allowlist secret
+                'Endpoint': {'Address': instance_host, 'Port': 5433},
+                'DBInstanceIdentifier': 'my-instance',
+            }
+            mock_proxy.return_value = _proxy(proxy_host)
+            mock_pg_conn.return_value = MagicMock()
+
+            _, response = server_module.internal_create_connection(
+                region='us-east-1',
+                database_type=DatabaseType.RPG,
+                connection_method=ConnectionMethod.PG_WIRE_PROTOCOL,
+                cluster_identifier='',
+                db_endpoint=instance_host,
+                port=5433,
+                database='testdb',
+            )
+
+            call_kwargs = mock_pg_conn.call_args[1]
+            assert call_kwargs['host'] == proxy_host
+            assert call_kwargs['port'] == 5432, 'proxy must be dialed on its listen port'
+            # Identity keeps the instance's real port.
+            assert json.loads(response)['port'] == 5433
+
+    def test_incompatible_proxy_is_skipped_and_connection_goes_direct(self):
+        """A proxy that would reject us must not be used.
+
+        Finding a proxy is not the same as being able to authenticate to it. Here
+        the proxy requires IAM auth while the connection is password-based, so
+        routing to it would fail; connecting directly is what this deployment
+        already does, so that is preferred over a guaranteed failure.
+        """
+        instance_host = 'instance.endpoint.com'
+
+        with (
+            patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_get_instance_properties'
+            ) as mock_props,
+            patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
+            patch('awslabs.postgres_mcp_server.server.find_proxy_for_instance') as mock_proxy,
+        ):
+            server_module.configured_rds_proxy_mode = server_module.RDS_PROXY_AUTO
+            mock_map.get.return_value = None
+            mock_props.return_value = {
+                'MasterUsername': 'postgres',
+                'MasterUserSecret': {'SecretArn': 'arn:x'},  # pragma: allowlist secret
+                'Endpoint': {'Address': instance_host, 'Port': 5432},
+                'DBInstanceIdentifier': 'my-instance',
+            }
+            mock_proxy.return_value = _proxy(
+                'my-proxy.proxy-abc123.us-east-1.rds.amazonaws.com', iam_auth='REQUIRED'
+            )
+            mock_pg_conn.return_value = MagicMock()
+
+            _, response = server_module.internal_create_connection(
+                region='us-east-1',
+                database_type=DatabaseType.RPG,
+                connection_method=ConnectionMethod.PG_WIRE_PROTOCOL,
+                cluster_identifier='',
+                db_endpoint=instance_host,
+                port=5432,
+                database='testdb',
+            )
+
+            assert mock_pg_conn.call_args[1]['host'] == instance_host
+            assert 'proxy_endpoint' not in json.loads(response)
+
     def test_rpg_instance_uses_direct_endpoint_when_no_proxy(self):
         """Test that direct endpoint is used when no RDS Proxy is found."""
         with (
@@ -523,6 +695,8 @@ class TestInternalCreateConnection:
             patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
             patch('awslabs.postgres_mcp_server.server.find_proxy_for_instance') as mock_proxy,
         ):
+            # Proxy routing is opt-in; these tests exercise the opted-in path.
+            server_module.configured_rds_proxy_mode = server_module.RDS_PROXY_AUTO
             mock_map.get.return_value = None
             mock_props.return_value = {
                 'MasterUsername': 'postgres',
@@ -559,6 +733,8 @@ class TestInternalCreateConnection:
             patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
             patch('awslabs.postgres_mcp_server.server.find_proxy_for_instance') as mock_proxy,
         ):
+            # Proxy routing is opt-in; these tests exercise the opted-in path.
+            server_module.configured_rds_proxy_mode = server_module.RDS_PROXY_AUTO
             mock_map.get.return_value = None
             mock_props.return_value = {
                 'MasterUsername': 'postgres',
@@ -608,6 +784,8 @@ class TestInternalCreateConnection:
             patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
             patch('awslabs.postgres_mcp_server.server.find_proxy_for_instance') as mock_proxy,
         ):
+            # Proxy routing is opt-in; these tests exercise the opted-in path.
+            server_module.configured_rds_proxy_mode = server_module.RDS_PROXY_AUTO
             mock_map.get.return_value = None
             mock_props.return_value = {
                 'MasterUsername': 'postgres',
@@ -617,7 +795,7 @@ class TestInternalCreateConnection:
                 'Endpoint': {'Address': instance_host, 'Port': 5432},
                 'DBInstanceIdentifier': 'my-instance',
             }
-            mock_proxy.return_value = proxy_host
+            mock_proxy.return_value = _proxy(proxy_host, secret_arn=pinned_arn)
             mock_pg_conn.return_value = MagicMock()
 
             server_module.internal_create_connection(

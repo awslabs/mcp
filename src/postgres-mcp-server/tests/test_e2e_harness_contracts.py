@@ -486,16 +486,42 @@ def test_proxy_harness_verify_tls_requires_an_explicit_ok_from_openssl():
     assert '19' in detail
 
 
-def test_proxy_harness_oracle_does_not_call_the_function_under_test():
-    """The expected-proxy oracle must be independent of find_proxy_for_instance.
+def test_proxy_harness_expectation_can_come_from_the_operator():
+    """A real assertion needs an expectation that shares nothing with the code.
 
-    If the harness checked the implementation against itself, a wrong answer
-    would agree with itself and pass.
+    The previous version of this test only checked that the derivation did not
+    *call* find_proxy_for_instance -- the letter of independence. The derivation
+    re-implemented the same matching, so a wrong answer agreed with itself. The
+    honest fix is an operator-declared expectation, which is what this flag is.
     """
-    src = inspect.getsource(proxy_e2e.expected_proxy_for_instance)
-    # Look for a *call*. The docstring names the function (without parentheses)
-    # precisely to explain this independence requirement.
-    assert 'find_proxy_for_instance(' not in src
+    parser = proxy_e2e.build_parser()
+    args = parser.parse_args(
+        [
+            '--region',
+            'us-east-1',
+            '--db-instance-identifier',
+            'i',
+            '--expect-proxy-endpoint',
+            'p.proxy-abc.us-east-1.rds.amazonaws.com',
+        ]
+    )
+    assert args.expect_proxy_endpoint == 'p.proxy-abc.us-east-1.rds.amazonaws.com'
+
+    # Optional, so the harness stays usable when the answer is not known up front.
+    bare = parser.parse_args(['--region', 'us-east-1', '--db-instance-identifier', 'i'])
+    assert bare.expect_proxy_endpoint == ''
+
+
+def test_proxy_harness_derivation_paginates_like_production():
+    """The fallback derivation must paginate, or it reports spurious mismatches.
+
+    Production paginates both describe calls. An un-paginated derivation can miss
+    a proxy the implementation finds and fail a run for no reason.
+    """
+    src = inspect.getsource(proxy_e2e.derive_proxy_for_instance)
+    assert src.count('get_paginator') == 2, 'both describe calls must paginate'
+    assert 'rds.describe_db_proxies()' not in src
+    assert 'rds.describe_db_proxy_targets(' not in src
 
 
 def test_proxy_harness_recorder_actually_records_skips():
@@ -539,3 +565,31 @@ def test_proxy_harness_recorder_keeps_results_independent():
     first.ok('other')
     assert second.result.skipped == []
     assert second.result.passed == []
+
+
+def test_proxy_harness_opts_into_proxy_routing():
+    """The harness must enable --rds_proxy, since the server default is off.
+
+    Proxy routing became opt-in after review. If the harness relied on the server
+    default, every proxy suite would report "no proxy detected" and fail for a
+    reason that has nothing to do with the code under test.
+    """
+    src = inspect.getsource(proxy_e2e.main_async)
+    assert 'configured_rds_proxy_mode' in src, (
+        'harness must set server.configured_rds_proxy_mode; the default is off'
+    )
+    assert 'RDS_PROXY_AUTO' in src
+
+
+def test_proxy_harness_derivation_filters_target_health_and_type():
+    """The fallback derivation must apply the same target filters as production.
+
+    Without them it disagrees with the implementation whenever a target is
+    unhealthy -- which is the state every proxied instance is in while stopped --
+    and reports that disagreement as a failure. A consistency check that fires on
+    a correctly-rejected target is worse than no check.
+    """
+    src = inspect.getsource(proxy_e2e.derive_proxy_for_instance)
+    assert 'TargetHealth' in src, 'derivation must consider target health'
+    assert "'AVAILABLE'" in src
+    assert "'RDS_INSTANCE'" in src

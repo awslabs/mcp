@@ -27,6 +27,9 @@
 # to, so by the time you can reach it you necessarily have credentials for it.
 # Hence no credential handling here.)
 #
+# Requires OpenSSL 1.1.1 or newer: the TLS check uses
+# `openssl s_client -starttls postgres`, which older versions do not support.
+#
 # A read-only role is sufficient and preferred: the harness only calls describe_*
 # RDS APIs, reads one Secrets Manager secret, and runs SELECTs.
 #
@@ -48,6 +51,7 @@
 #       [--sslmode verify-full] \
 #       [--ca-bundle path|system] \
 #       [--privilege-check off|warn|enforce] \
+#       [--expect-proxy-endpoint my-proxy.proxy-xxxx.us-east-1.rds.amazonaws.com] \
 #       [--log-level INFO] \
 #       [--log-file path.log]
 #
@@ -57,6 +61,16 @@ set -euo pipefail
 usage() {
   awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$0"
   exit "${1:-0}"
+}
+
+# Guard flags that take a value. Without this, `--region` as the last argument
+# aborts with "$2: unbound variable" under `set -u` rather than saying what is
+# wrong. $1 is the flag, $2 is the count of remaining arguments.
+need_arg() {
+  if [[ "$2" -lt 2 ]]; then
+    echo "ERROR: $1 requires a value" >&2
+    usage 1
+  fi
 }
 
 # --- defaults -------------------------------------------------------------
@@ -70,6 +84,7 @@ AUTH_TYPE=""
 SSLMODE=""
 CA_BUNDLE=""
 PRIVILEGE_CHECK=""
+EXPECT_PROXY_ENDPOINT=""
 LOG_LEVEL="INFO"
 LOG_FILE=""
 PASSTHROUGH=()
@@ -77,18 +92,19 @@ PASSTHROUGH=()
 # --- parse args -----------------------------------------------------------
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --region)                  REGION="$2"; shift 2 ;;
-    --db-instance-identifier)  DB_INSTANCE="$2"; shift 2 ;;
-    --no-proxy-instance)       NO_PROXY_INSTANCE="$2"; shift 2 ;;
-    --database)                DATABASE="$2"; shift 2 ;;
-    --profile)                 PROFILE="$2"; shift 2 ;;
-    --secret-arn)              SECRET_ARN="$2"; shift 2 ;;
-    --auth-type)               AUTH_TYPE="$2"; shift 2 ;;
-    --sslmode)                 SSLMODE="$2"; shift 2 ;;
-    --ca-bundle)               CA_BUNDLE="$2"; shift 2 ;;
-    --privilege-check)         PRIVILEGE_CHECK="$2"; shift 2 ;;
-    --log-level)               LOG_LEVEL="$2"; shift 2 ;;
-    --log-file)                LOG_FILE="$2"; shift 2 ;;
+    --region)                  need_arg "$1" "$#"; REGION="$2"; shift 2 ;;
+    --db-instance-identifier)  need_arg "$1" "$#"; DB_INSTANCE="$2"; shift 2 ;;
+    --no-proxy-instance)       need_arg "$1" "$#"; NO_PROXY_INSTANCE="$2"; shift 2 ;;
+    --database)                need_arg "$1" "$#"; DATABASE="$2"; shift 2 ;;
+    --profile)                 need_arg "$1" "$#"; PROFILE="$2"; shift 2 ;;
+    --secret-arn)              need_arg "$1" "$#"; SECRET_ARN="$2"; shift 2 ;;
+    --auth-type)               need_arg "$1" "$#"; AUTH_TYPE="$2"; shift 2 ;;
+    --sslmode)                 need_arg "$1" "$#"; SSLMODE="$2"; shift 2 ;;
+    --ca-bundle)               need_arg "$1" "$#"; CA_BUNDLE="$2"; shift 2 ;;
+    --privilege-check)         need_arg "$1" "$#"; PRIVILEGE_CHECK="$2"; shift 2 ;;
+    --expect-proxy-endpoint)   need_arg "$1" "$#"; EXPECT_PROXY_ENDPOINT="$2"; shift 2 ;;
+    --log-level)               need_arg "$1" "$#"; LOG_LEVEL="$2"; shift 2 ;;
+    --log-file)                need_arg "$1" "$#"; LOG_FILE="$2"; shift 2 ;;
     -h|--help)                 usage 0 ;;
     --)                        shift; PASSTHROUGH+=("$@"); break ;;
     *) echo "ERROR: unknown argument: $1" >&2; usage 1 ;;
@@ -115,8 +131,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$REPO_ROOT"
 
+# Logs go to a temp dir, not the package root: at DEBUG they contain endpoints
+# and secret ARNs, and a stray copy inside the repo is worth avoiding even
+# though *.log is gitignored at the repo root.
 if [[ -z "$LOG_FILE" ]]; then
-  LOG_FILE="$REPO_ROOT/proxy-e2e-$(date +%Y%m%d-%H%M%S).log"
+  LOG_FILE="${TMPDIR:-/tmp}/proxy-e2e-$(date +%Y%m%d-%H%M%S).log"
 fi
 
 # --- credentials ----------------------------------------------------------
@@ -150,6 +169,7 @@ cmd=(uv run --frozen python tests/e2e/proxy_e2e_test.py
 [[ -n "$SSLMODE" ]] && cmd+=(--sslmode "$SSLMODE")
 [[ -n "$CA_BUNDLE" ]] && cmd+=(--ca-bundle "$CA_BUNDLE")
 [[ -n "$PRIVILEGE_CHECK" ]] && cmd+=(--privilege-check "$PRIVILEGE_CHECK")
+[[ -n "$EXPECT_PROXY_ENDPOINT" ]] && cmd+=(--expect-proxy-endpoint "$EXPECT_PROXY_ENDPOINT")
 if [[ ${#PASSTHROUGH[@]} -gt 0 ]]; then
   cmd+=("${PASSTHROUGH[@]}")
 fi

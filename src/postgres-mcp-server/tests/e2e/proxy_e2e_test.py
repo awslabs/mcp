@@ -206,22 +206,49 @@ def resolve_instance(instance_id: str, region: str) -> Dict[str, Any]:
     return instances[0]
 
 
-def expected_proxy_for_instance(instance_id: str, region: str) -> Optional[Tuple[str, str]]:
-    """Independently determine which proxy fronts an instance.
+def derive_proxy_for_instance(instance_id: str, region: str) -> Optional[Tuple[str, str]]:
+    """Re-derive which proxy fronts an instance, as a fallback expectation.
 
-    Deliberately does not reuse ``find_proxy_for_instance``: this is the oracle
-    that function is checked against, so it must not share its logic. Returns
-    ``(proxy_name, endpoint)`` or None.
+    This is NOT an independent oracle, and earlier versions of this harness were
+    wrong to treat it as one. It necessarily re-implements the same matching the
+    code under test performs -- enumerate proxies, inspect targets, match on
+    identifier -- so it shares that code's blind spots: a wrong answer would agree
+    with itself. Prefer ``--expect-proxy-endpoint``, which takes the expectation
+    from the operator who built the infrastructure and shares nothing with the
+    implementation.
+
+    It paginates and applies the same target filters production does -- type and
+    health, not just the identifier. Omitting either produced false mismatches
+    rather than catching real ones: an un-paginated derivation can miss a proxy
+    the implementation finds, and a derivation blind to target health reports a
+    proxy while production correctly rejects it, which is the state any proxied
+    instance is in whenever it is stopped.
+
+    Returns ``(proxy_name, endpoint)`` or None.
     """
     rds = boto3.client('rds', region_name=region)
-    for proxy in rds.describe_db_proxies().get('DBProxies', []):
-        if proxy.get('Status') != 'available':
-            continue
-        name = proxy['DBProxyName']
-        targets = rds.describe_db_proxy_targets(DBProxyName=name).get('Targets', [])
-        for target in targets:
-            if target.get('RdsResourceId') == instance_id:
-                return (name, proxy.get('Endpoint', ''))
+    for proxy_page in rds.get_paginator('describe_db_proxies').paginate():
+        for proxy in proxy_page.get('DBProxies', []):
+            if proxy.get('Status') != 'available':
+                continue
+            name = proxy['DBProxyName']
+            targets_pages = rds.get_paginator('describe_db_proxy_targets').paginate(
+                DBProxyName=name
+            )
+            for targets_page in targets_pages:
+                for target in targets_page.get('Targets', []):
+                    if target.get('RdsResourceId') != instance_id:
+                        continue
+                    health = (target.get('TargetHealth') or {}).get('State')
+                    if target.get('Type') != 'RDS_INSTANCE' or health != 'AVAILABLE':
+                        logger.info(
+                            f"Proxy '{name}' targets '{instance_id}' but the target is "
+                            f'not usable (Type={target.get("Type")}, health={health}, '
+                            f'reason={(target.get("TargetHealth") or {}).get("Reason")}); '
+                            f'treating as no proxy, which is what the server does.'
+                        )
+                        continue
+                    return (name, proxy.get('Endpoint', ''))
     return None
 
 
@@ -305,6 +332,7 @@ async def suite_proxy_routing(
     database: str,
     method: ConnectionMethod,
     auth_type: str,
+    expect_proxy_endpoint: str = '',
 ) -> TestResult:
     """Run discovery, TLS, connect/query, secret-ordering, and conn-map checks."""
     rec = Recorder(instance_id, auth_type)
@@ -341,28 +369,50 @@ async def suite_proxy_routing(
     # --- 1. discovery ---------------------------------------------------------
     step = 'find_proxy_for_instance discovers the proxy'
     try:
-        oracle = expected_proxy_for_instance(instance_id, region)
-        found = find_proxy_for_instance(instance_id, region)
+        found_proxy = find_proxy_for_instance(instance_id, region)
     except Exception as e:
         rec.fail(step, f'{type(e).__name__}: {e}')
         return rec.result
 
-    if oracle is None:
-        rec.skip(
-            step,
-            f"no available RDS Proxy targets '{instance_id}'; point --db-instance-identifier "
-            'at a proxied instance (or pass this one as --no-proxy-instance instead)',
-        )
-        return rec.result
+    found = (found_proxy or {}).get('Endpoint', '') or None
 
-    proxy_name, expected_endpoint = oracle
-    if not rec.check(
-        step,
-        found == expected_endpoint,
-        f"proxy '{proxy_name}': expected {expected_endpoint!r}, got {found!r}",
-    ):
-        return rec.result
-    proxy_host = expected_endpoint
+    if expect_proxy_endpoint:
+        # Independent expectation: supplied by whoever built the infrastructure,
+        # sharing nothing with the implementation.
+        proxy_name = (found_proxy or {}).get('DBProxyName', '<none>')
+        if not rec.check(
+            step,
+            found == expect_proxy_endpoint,
+            f'expected {expect_proxy_endpoint!r} (declared via --expect-proxy-endpoint), '
+            f'got {found!r}',
+        ):
+            return rec.result
+        proxy_host = expect_proxy_endpoint
+    else:
+        # Weaker: re-derives the answer the same way the implementation does, so it
+        # can only catch a disagreement between two copies of the same logic.
+        derived = derive_proxy_for_instance(instance_id, region)
+        if derived is None:
+            rec.skip(
+                step,
+                f"no available RDS Proxy targets '{instance_id}'; point "
+                '--db-instance-identifier at a proxied instance (or pass this one as '
+                '--no-proxy-instance instead)',
+            )
+            return rec.result
+        proxy_name, derived_endpoint = derived
+        rec.note(
+            step,
+            'checked against a re-derived expectation, not an independent one; pass '
+            '--expect-proxy-endpoint for a real assertion',
+        )
+        if not rec.check(
+            f'{step} (consistency check only)',
+            found == derived_endpoint,
+            f"proxy '{proxy_name}': derived {derived_endpoint!r}, got {found!r}",
+        ):
+            return rec.result
+        proxy_host = derived_endpoint
 
     # --- 2. TLS under verify-full --------------------------------------------
     ca_bundle = server.configured_ca_bundle or _bundled_ca_file()
@@ -574,11 +624,11 @@ async def suite_negative_control(
     instance_id = instance.get('DBInstanceIdentifier', instance_id)
 
     step = 'control instance genuinely has no proxy'
-    oracle = expected_proxy_for_instance(instance_id, region)
+    derived = derive_proxy_for_instance(instance_id, region)
     if not rec.check(
         step,
-        oracle is None,
-        'none found' if oracle is None else f'unexpectedly fronted by {oracle[0]}',
+        derived is None,
+        'none found' if derived is None else f'unexpectedly fronted by {derived[0]}',
     ):
         return rec.result
 
@@ -633,6 +683,10 @@ async def main_async(args) -> int:
     server.privilege_check_policy = args.privilege_check
     server.configured_secret_arns.clear()
     server.configured_default_secret_arn = ''
+    # This harness exists to exercise proxy routing, so it opts in. The server's
+    # own default is 'off' -- see --rds_proxy. Without this the suites below would
+    # all report "no proxy" and fail for the wrong reason.
+    server.configured_rds_proxy_mode = server.RDS_PROXY_AUTO
 
     if args.secret_arn:
         # Pin per-target, keyed on the AWS-resolved instance endpoint -- which is
@@ -645,6 +699,7 @@ async def main_async(args) -> int:
     logger.info(
         f'config: region={args.region} sslmode={server.configured_sslmode} '
         f'privilege_check={server.privilege_check_policy} auth={args.auth_type} '
+        f'rds_proxy={server.configured_rds_proxy_mode} '
         f'readonly={server.readonly_query}'
     )
 
@@ -655,6 +710,7 @@ async def main_async(args) -> int:
             database=args.database,
             method=method,
             auth_type=args.auth_type,
+            expect_proxy_endpoint=args.expect_proxy_endpoint,
         )
     ]
 
@@ -716,6 +772,15 @@ def build_parser() -> argparse.ArgumentParser:
         default='pg_wire_secret',
         help='Auth method (default: pg_wire_secret). pg_wire_iam needs an rds-db:connect '
         'policy on the prx-* resource.',
+    )
+    p.add_argument(
+        '--expect-proxy-endpoint',
+        default='',
+        help='The proxy endpoint you expect to be selected. Supplying it turns the '
+        'discovery check into a real assertion against an expectation that shares '
+        'nothing with the code under test. Omitted, the harness re-derives the '
+        'answer the same way the implementation does, which only catches a '
+        'disagreement between two copies of the same logic.',
     )
     p.add_argument(
         '--secret-arn',
