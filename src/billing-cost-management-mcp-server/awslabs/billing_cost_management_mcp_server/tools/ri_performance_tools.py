@@ -26,6 +26,7 @@ from ..utilities.aws_service_base import (
     handle_aws_error,
     paginate_aws_items,
     parse_json,
+    whole_query_in_one_page,
     with_pagination,
 )
 from fastmcp import Context, FastMCP
@@ -109,8 +110,10 @@ PAGINATION (applies only when group_by is set; an item is one group of the queri
   fetch every page.
 - If the response has complete_dataset: false, call again with a larger max_items or max_pages,
   continue with next_token, or state in the answer that the result is partial.
-- `total` comes from the first page fetched and covers the whole query; it is not repeated on
-  continuation calls.""",
+- With group_by, the API's period `total` sums only the groups on its own page, so `total` is
+  returned only when the whole query came back in one page. It is omitted from a multi-page,
+  partial, or next_token continuation result; for the overall figure over the same window, call
+  again without group_by, whose `total` covers every period.""",
 )
 async def ri_performance(
     ctx: Context,
@@ -200,12 +203,13 @@ def _count_groups(entries: List[Dict[str, Any]]) -> int:
     return sum(len(entry.get('Groups') or []) for entry in entries)
 
 
-def _merge_periods(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _merge_periods(entries: List[Dict[str, Any]], keep_totals: bool) -> List[Dict[str, Any]]:
     """Merge consecutive entries for the same time period into one.
 
     A grouped query returns one time-period entry per page, each holding that page's groups, so
-    the groups of every page are gathered under a single entry. The period's Total repeats on
-    every page and is kept from the first.
+    the groups of every page are gathered under a single entry. The entry's Total sums only the
+    groups on its own page, so it is kept only when ``keep_totals`` says the page is the whole
+    query.
     """
     merged: List[Dict[str, Any]] = []
     for entry in entries:
@@ -213,6 +217,8 @@ def _merge_periods(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             merged[-1]['Groups'] = (merged[-1].get('Groups') or []) + (entry.get('Groups') or [])
         else:
             merged.append(dict(entry))
+            if not keep_totals:
+                merged[-1].pop('Total', None)
     return merged
 
 
@@ -324,11 +330,11 @@ async def get_reservation_coverage(
             max_items=max_items,
             next_token=next_token,
         )
-        all_coverages = _merge_periods(coverage_entries)
-
-        # Total covers the whole query and comes with the first page, so no extra request is
-        # needed for it.
-        total_coverage = first_page_fields(pages, ['Total']).get('Total')
+        # The API's Totals sum only the groups on their own page, so they cover the query only
+        # when the query is that one page.
+        whole_query = whole_query_in_one_page(pages, next_token, pagination)
+        all_coverages = _merge_periods(coverage_entries, keep_totals=whole_query)
+        total_coverage = first_page_fields(pages, ['Total']).get('Total') if whole_query else None
 
         # Format the response for better readability
         formatted_response: Dict[str, Any] = {
@@ -347,7 +353,6 @@ async def get_reservation_coverage(
 
             formatted_coverage: Dict[str, Any] = {
                 'time_period': {'start': time_period.get('Start'), 'end': time_period.get('End')},
-                'total': {},
                 'groups': [],
             }
 
@@ -483,16 +488,17 @@ async def get_reservation_utilization(
             next_token=next_token,
             max_pages=max_pages,
         )
-        all_utilizations = _merge_periods(utilization_entries)
-
-        # Total covers the whole query and comes with the first page, so no extra request is
-        # needed for it.
-        total_utilization = first_page_fields(pages, ['Total']).get('Total')
+        # The API's Totals sum only the groups on their own page, so they cover the query only
+        # when the query is that one page.
+        whole_query = whole_query_in_one_page(pages, next_token, pagination)
+        all_utilizations = _merge_periods(utilization_entries, keep_totals=whole_query)
+        total_utilization = (
+            first_page_fields(pages, ['Total']).get('Total') if whole_query else None
+        )
 
         # Format the response for better readability
         formatted_response: Dict[str, Any] = {
             'utilizations_by_time': [],
-            'total': {},
         }
 
         # Format total utilization if present
@@ -507,7 +513,6 @@ async def get_reservation_utilization(
 
             formatted_utilization: Dict[str, Any] = {
                 'time_period': {'start': time_period.get('Start'), 'end': time_period.get('End')},
-                'total': {},
                 'groups': [],
             }
 

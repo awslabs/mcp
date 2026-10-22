@@ -22,6 +22,7 @@ These tests verify the functionality of AWS Savings Plans performance monitoring
 - Error handling for missing Savings Plans data and invalid filter parameters
 """
 
+import botocore.session
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools import (
     get_savings_plans_coverage,
@@ -31,6 +32,8 @@ from awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools impor
 )
 from datetime import datetime, timedelta, timezone
 from fastmcp import Context
+from fastmcp.tools import FunctionTool
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -42,42 +45,17 @@ PAGINATION_COMPLETE = {
 }
 
 
-# Create a mock implementation for testing
-async def sp_performance(ctx, operation, **kwargs):
-    """Mock implementation of sp_performance for testing."""
-    # Simple mock implementation that returns predefined responses
-    await ctx.info(f'Processing {operation} operation')
+SP_TOOLS = 'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools'
 
-    if operation == 'get_savings_plans_coverage':
-        return {
-            'status': 'success',
-            'data': {
-                'savings_plans_coverages': [],
-                'total': {
-                    'SpendCoveredBySavingsPlans': '75.0',
-                    'OnDemandCost': '100.0',
-                    'TotalCost': '400.0',
-                    'CoveragePercentage': '75.0',
-                },
-            },
-        }
-    elif operation == 'get_savings_plans_utilization':
-        return {
-            'status': 'success',
-            'data': {
-                'savings_plans_utilizations': [],
-                'total': {
-                    'total_commitment': '100.0',
-                    'used_commitment': '95.0',
-                    'unused_commitment': '5.0',
-                    'utilization_percentage': '95.0',
-                },
-            },
-        }
-    elif operation == 'get_savings_plans_utilization_details':
-        return {'status': 'success', 'data': {'savings_plans_utilization_details': []}}
-    else:
-        return {'status': 'error', 'message': f'Unsupported operation: {operation}'}
+
+async def _call_tool(client, ctx, operation, **kwargs):
+    """Call the registered sp-performance tool with a mocked Cost Explorer client."""
+    tool = await sp_performance_server.get_tool('sp-performance')
+    assert isinstance(tool, FunctionTool)
+    with patch(f'{SP_TOOLS}.create_aws_client', return_value=client):
+        return await tool.fn(
+            ctx, operation=operation, start_date='2023-01-01', end_date='2023-01-31', **kwargs
+        )
 
 
 @pytest.fixture
@@ -134,13 +112,6 @@ def mock_ce_client():
                 ],
             }
         ],
-        'Total': {
-            'SpendCoveredBySavingsPlans': '75.0',
-            'OnDemandCost': '100.0',
-            'TotalCost': '400.0',
-            'CoveragePercentage': '75.0',
-        },
-        'NextToken': None,
     }
 
     # Set up mock response for get_savings_plans_utilization.
@@ -575,7 +546,12 @@ class TestGetSavingsPlansUtilization:
 
         assert result['status'] == 'success'
         assert len(result['data']['savings_plans_utilizations']) == 1
-        assert result['data']['time_period'] == {'start': '2023-01-01', 'end': '2023-01-31'}
+        assert result['data']['requested_time_period'] == {
+            'start': '2023-01-01',
+            'end': '2023-01-31',
+        }
+        # GetSavingsPlansUtilization has no top-level TimePeriod to report.
+        assert 'time_period' not in result['data']
 
         # The utilization figures nest under Utilization and are decimal strings.
         # Reading them from the top level, or parsing them into floats, is what
@@ -770,11 +746,16 @@ class TestGetSavingsPlansCoverage:
         assert 'savings_plans_coverages' in result['data']
         assert len(result['data']['savings_plans_coverages']) == 1
 
-        # Check total coverage: it comes from the first page, with no extra request.
+        # GetSavingsPlansCoverage returns no Total, so none is reported and no extra request
+        # is made for one.
         mock_ce_client.get_savings_plans_coverage.assert_not_called()
-        assert 'total' in result['data']
-        assert result['data']['total']['SpendCoveredBySavingsPlans'] == '75.0'
-        assert result['data']['total']['CoveragePercentage'] == '75.0'
+        assert 'total' not in result['data']
+        assert result['data']['requested_time_period'] == {
+            'start': '2023-01-01',
+            'end': '2023-01-31',
+        }
+        assert 'time_period' not in result['data']
+        assert result['data']['granularity'] == 'DAILY'
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
     @patch(
@@ -830,6 +811,8 @@ class TestGetSavingsPlansCoverage:
         assert 'Granularity' not in request_params
 
         assert result['status'] == 'success'
+        # Granularity was not sent, so the response does not claim one.
+        assert 'granularity' not in result['data']
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
     @patch(
@@ -867,77 +850,43 @@ class TestGetSavingsPlansCoverage:
 
 @pytest.mark.asyncio
 class TestSPPerformance:
-    """Tests for sp_performance function."""
+    """Tests for the registered sp-performance tool's operation dispatch."""
 
-    async def test_sp_performance_coverage(self, mock_context):
-        """Test sp_performance with get_savings_plans_coverage operation."""
-        # Execute
-        result = await sp_performance(
-            mock_context,
-            operation='get_savings_plans_coverage',
-            start_date='2023-01-01',
-            end_date='2023-01-31',
-        )
+    async def test_sp_performance_coverage(self, mock_context, mock_ce_client):
+        """Coverage is dispatched to GetSavingsPlansCoverage and reports no total."""
+        result = await _call_tool(mock_ce_client, mock_context, 'get_savings_plans_coverage')
 
-        # Assert
-        mock_context.info.assert_called_once()
         assert result['status'] == 'success'
-        assert 'savings_plans_coverages' in result['data']
-        assert 'total' in result['data']
-        data = result['data']
-        assert isinstance(data, dict)
-        total_data = data['total']
-        assert isinstance(total_data, dict) and 'SpendCoveredBySavingsPlans' in total_data
+        assert len(result['data']['savings_plans_coverages']) == 1
+        assert 'total' not in result['data']
+        mock_ce_client.get_savings_plans_coverage.assert_called_once()
 
-    async def test_sp_performance_utilization(self, mock_context):
-        """Test sp_performance with get_savings_plans_utilization operation."""
-        # Execute
-        result = await sp_performance(
-            mock_context,
-            operation='get_savings_plans_utilization',
-            start_date='2023-01-01',
-            end_date='2023-01-31',
-        )
+    async def test_sp_performance_utilization(self, mock_context, mock_ce_client):
+        """Utilization is dispatched to GetSavingsPlansUtilization and keeps the API Total."""
+        result = await _call_tool(mock_ce_client, mock_context, 'get_savings_plans_utilization')
 
-        # Assert
-        mock_context.info.assert_called_once()
         assert result['status'] == 'success'
-        assert 'savings_plans_utilizations' in result['data']
-        assert 'total' in result['data']
-        data = result['data']
-        assert isinstance(data, dict)
-        total_data = data['total']
-        assert isinstance(total_data, dict) and 'utilization_percentage' in total_data
+        assert len(result['data']['savings_plans_utilizations']) == 1
+        assert result['data']['total']['Utilization']['UtilizationPercentage'] == '95.0'
+        mock_ce_client.get_savings_plans_utilization.assert_called_once()
 
-    async def test_sp_performance_utilization_details(self, mock_context):
-        """Test sp_performance with get_savings_plans_utilization_details operation."""
-        # Execute
-        result = await sp_performance(
-            mock_context,
-            operation='get_savings_plans_utilization_details',
-            start_date='2023-01-01',
-            end_date='2023-01-31',
+    async def test_sp_performance_utilization_details(self, mock_context, mock_ce_client):
+        """Utilization details is dispatched to GetSavingsPlansUtilizationDetails."""
+        result = await _call_tool(
+            mock_ce_client, mock_context, 'get_savings_plans_utilization_details'
         )
 
-        # Assert
-        mock_context.info.assert_called_once()
         assert result['status'] == 'success'
-        assert 'savings_plans_utilization_details' in result['data']
+        assert len(result['data']['savings_plans_utilization_details']) == 2
+        mock_ce_client.get_savings_plans_utilization_details.assert_called_once()
 
-    async def test_sp_performance_unsupported_operation(self, mock_context):
-        """Test sp_performance with unsupported operation."""
-        # Execute
-        result = await sp_performance(
-            mock_context,
-            operation='unsupported_operation',
-            start_date='2023-01-01',
-            end_date='2023-01-31',
-        )
+    async def test_sp_performance_unsupported_operation(self, mock_context, mock_ce_client):
+        """An unknown operation is rejected without calling Cost Explorer."""
+        result = await _call_tool(mock_ce_client, mock_context, 'unsupported_operation')
 
-        # Assert
-        mock_context.info.assert_called_once()
         assert result['status'] == 'error'
         assert 'Unsupported operation' in result['message']
+        assert not mock_ce_client.method_calls
 
 
 def test_sp_performance_server_initialization():
@@ -965,16 +914,6 @@ def mock_context_async():
 @pytest.mark.asyncio
 class TestCoverageGaps:
     """Tests targeting specific uncovered lines."""
-
-    async def test_sp_performance_unsupported_operation(self, mock_context_async):
-        """Test sp_performance with unsupported operation - covers error path."""
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.create_aws_client'
-        ):
-            result = await sp_performance(mock_context_async, operation='unsupported_operation')
-
-            assert result['status'] == 'error'
-            assert 'Unsupported operation' in result['message']
 
     @patch('awslabs.billing_cost_management_mcp_server.tools.sp_performance_tools.get_date_range')
     async def test_savings_plans_utilization_empty_data(
@@ -1309,14 +1248,14 @@ async def _call_paged(function, client, ctx, max_items=None, next_token=None):
 class TestSpPerformancePagination:
     """The real pagination helper drives coverage and utilization details."""
 
-    async def test_no_max_items_fetches_every_page_and_takes_total_from_page_one(
+    async def test_no_max_items_fetches_every_page_with_one_call_per_page(
         self, mock_context, function, method, result_key, response_key
     ):
-        """Every page is fetched at MaxResults=10000; Total comes from page 1, no extra call."""
+        """Every page is fetched at MaxResults=10000, with exactly one call per page."""
         client = MagicMock()
         getattr(client, method).side_effect = [
-            {result_key: [{'n': 1}], 'Total': {'page': 1}, 'NextToken': 't1'},
-            {result_key: [{'n': 2}], 'Total': {'page': 2}},
+            {result_key: [{'n': 1}], 'NextToken': 't1'},
+            {result_key: [{'n': 2}]},
         ]
 
         result = await _call_paged(function, client, mock_context)
@@ -1324,7 +1263,6 @@ class TestSpPerformancePagination:
         data = result['data']
         assert result['status'] == 'success'
         assert data[response_key] == [{'n': 1}, {'n': 2}]
-        assert data['total'] == {'page': 1}
         assert 'complete_dataset' not in data
         assert data['pagination']['items_returned'] == 2
         calls = getattr(client, method).call_args_list
@@ -1366,3 +1304,296 @@ class TestSpPerformancePagination:
 
         assert second.pop('NextToken') == 'caller-token'
         assert second == first
+
+
+API_DETAILS_TOTAL = {
+    'Utilization': {
+        'TotalCommitment': '100.0',
+        'UsedCommitment': '30.47',
+        'UnusedCommitment': '69.53',
+        'UtilizationPercentage': '30.47',
+    }
+}
+API_DETAILS_PERIOD = {'Start': '2026-09-01', 'End': '2026-10-01'}
+
+
+@pytest.mark.asyncio
+class TestSpPerformanceEnvelope:
+    """Envelope fields come from the API response; request values are labelled as such."""
+
+    @patch(f'{SP_TOOLS}.get_date_range')
+    async def test_details_single_complete_page_returns_api_total_and_time_period(
+        self, mock_dates, mock_context
+    ):
+        """One complete page: its Total covers every plan, so total and time_period are the API's."""
+        mock_dates.return_value = ('2026-09-01', '2026-10-01')
+        client = MagicMock()
+        client.get_savings_plans_utilization_details.return_value = {
+            'SavingsPlansUtilizationDetails': [{'n': 1}, {'n': 2}],
+            'Total': API_DETAILS_TOTAL,
+            'TimePeriod': API_DETAILS_PERIOD,
+        }
+
+        result = await get_savings_plans_utilization_details(
+            mock_context, client, '2026-09-01', '2026-10-01', None
+        )
+
+        data = result['data']
+        assert data['total'] == API_DETAILS_TOTAL
+        assert data['time_period'] == API_DETAILS_PERIOD
+        assert data['requested_time_period'] == {'start': '2026-09-01', 'end': '2026-10-01'}
+
+    @patch(f'{SP_TOOLS}.get_date_range')
+    async def test_details_across_pages_omits_the_page_scoped_total(
+        self, mock_dates, mock_context
+    ):
+        """Each page's Total covers only that page's plans, so a multi-page result has no total.
+
+        Observed live with MaxResults=3: each page's Total.TotalCommitment was the sum of
+        that page's rows, and the page totals added up to the single-page query's Total.
+        """
+        mock_dates.return_value = ('2026-09-01', '2026-10-01')
+        client = MagicMock()
+        client.get_savings_plans_utilization_details.side_effect = [
+            {
+                'SavingsPlansUtilizationDetails': [{'n': 1}],
+                'Total': {'page': 1},
+                'TimePeriod': API_DETAILS_PERIOD,
+                'NextToken': 'tok',
+            },
+            {
+                'SavingsPlansUtilizationDetails': [{'n': 2}],
+                'Total': {'page': 2},
+                'TimePeriod': API_DETAILS_PERIOD,
+            },
+        ]
+
+        result = await get_savings_plans_utilization_details(
+            mock_context, client, '2026-09-01', '2026-10-01', None
+        )
+
+        data = result['data']
+        assert client.get_savings_plans_utilization_details.call_count == 2
+        assert data['savings_plans_utilization_details'] == [{'n': 1}, {'n': 2}]
+        assert 'total' not in data
+        assert data['time_period'] == API_DETAILS_PERIOD
+
+    @pytest.mark.parametrize(
+        'max_items,next_token,response',
+        [
+            (1, None, {'NextToken': 'more'}),
+            (None, 'caller-token', {}),
+        ],
+        ids=['partial', 'continuation'],
+    )
+    @patch(f'{SP_TOOLS}.get_date_range')
+    async def test_details_partial_or_continued_page_omits_total(
+        self, mock_dates, mock_context, max_items, next_token, response
+    ):
+        """A partial first page, or a later page reached by next_token, has a page-scoped Total."""
+        mock_dates.return_value = ('2026-09-01', '2026-10-01')
+        client = MagicMock()
+        client.get_savings_plans_utilization_details.return_value = {
+            'SavingsPlansUtilizationDetails': [{'n': 1}],
+            'Total': {'page': 1},
+            'TimePeriod': API_DETAILS_PERIOD,
+            **response,
+        }
+
+        result = await get_savings_plans_utilization_details(
+            mock_context, client, '2026-09-01', '2026-10-01', None, max_items, next_token
+        )
+
+        assert 'total' not in result['data']
+        assert result['data']['time_period'] == API_DETAILS_PERIOD
+
+    @patch(f'{SP_TOOLS}.get_date_range')
+    async def test_details_omits_period_and_total_the_api_did_not_send(
+        self, mock_dates, mock_context
+    ):
+        """No API TimePeriod or Total means neither key, never the request echo in their place."""
+        mock_dates.return_value = ('2026-09-01', '2026-10-01')
+        client = MagicMock()
+        client.get_savings_plans_utilization_details.return_value = {
+            'SavingsPlansUtilizationDetails': [{'n': 1}]
+        }
+
+        result = await get_savings_plans_utilization_details(
+            mock_context, client, '2026-09-01', '2026-10-01', None
+        )
+
+        data = result['data']
+        assert 'time_period' not in data
+        assert 'total' not in data
+        assert data['requested_time_period'] == {'start': '2026-09-01', 'end': '2026-10-01'}
+
+    @patch(f'{SP_TOOLS}.get_date_range')
+    async def test_details_empty_result_echoes_request_as_requested_time_period(
+        self, mock_dates, mock_context
+    ):
+        """The no-plans response labels the request window as requested, not as the API's."""
+        mock_dates.return_value = ('2026-09-01', '2026-10-01')
+        client = MagicMock()
+        client.get_savings_plans_utilization_details.return_value = {
+            'SavingsPlansUtilizationDetails': []
+        }
+
+        result = await get_savings_plans_utilization_details(
+            mock_context, client, '2026-09-01', '2026-10-01', None
+        )
+
+        data = result['data']
+        assert data['savings_plans_utilization_details'] == []
+        assert data['requested_time_period'] == {'start': '2026-09-01', 'end': '2026-10-01'}
+        assert 'time_period' not in data
+        assert 'No Savings Plans utilization details found' in data['message']
+
+    @patch(f'{SP_TOOLS}.get_date_range')
+    async def test_utilization_request_echo_is_requested_time_period(
+        self, mock_dates, mock_context
+    ):
+        """MONTHLY entries are labelled by calendar month; the request window is echoed as such."""
+        mock_dates.return_value = ('2026-08-17', '2026-10-01')
+        client = MagicMock()
+        entries = [
+            {'TimePeriod': {'Start': '2026-08-01', 'End': '2026-09-01'}},
+            {'TimePeriod': {'Start': '2026-09-01', 'End': '2026-10-01'}},
+        ]
+        client.get_savings_plans_utilization.return_value = {
+            'SavingsPlansUtilizationsByTime': entries,
+            'Total': API_DETAILS_TOTAL,
+        }
+
+        result = await get_savings_plans_utilization(
+            mock_context, client, '2026-08-17', '2026-10-01', 'MONTHLY', None
+        )
+
+        data = result['data']
+        assert 'time_period' not in data
+        assert data['requested_time_period'] == {'start': '2026-08-17', 'end': '2026-10-01'}
+        # The calendar-month labels reach the caller untouched.
+        assert data['savings_plans_utilizations'] == entries
+
+    @pytest.mark.parametrize('pages', [1, 2])
+    async def test_coverage_makes_one_call_per_page_and_reports_no_total(
+        self, mock_context, pages
+    ):
+        """Coverage costs one GetSavingsPlansCoverage call per page and invents no total."""
+        client = MagicMock()
+        responses = [
+            {'SavingsPlansCoverages': [{'n': i}], 'NextToken': f't{i}'} for i in range(pages)
+        ]
+        del responses[-1]['NextToken']
+        client.get_savings_plans_coverage.side_effect = responses
+
+        result = await _call_tool(client, mock_context, 'get_savings_plans_coverage')
+
+        assert client.get_savings_plans_coverage.call_count == pages
+        assert 'total' not in result['data']
+        assert len(result['data']['savings_plans_coverages']) == pages
+
+    async def test_grouped_coverage_omits_granularity(self, mock_context):
+        """With group_by, Granularity is neither sent nor reported."""
+        client = MagicMock()
+        client.get_savings_plans_coverage.return_value = {'SavingsPlansCoverages': []}
+
+        result = await _call_tool(
+            client,
+            mock_context,
+            'get_savings_plans_coverage',
+            granularity='MONTHLY',
+            group_by='[{"Type": "DIMENSION", "Key": "SERVICE"}]',
+        )
+
+        assert 'Granularity' not in client.get_savings_plans_coverage.call_args.kwargs
+        assert 'granularity' not in result['data']
+
+    async def test_ungrouped_coverage_reports_granularity_it_sent(self, mock_context):
+        """Without group_by, the reported granularity is the one sent."""
+        client = MagicMock()
+        client.get_savings_plans_coverage.return_value = {'SavingsPlansCoverages': []}
+
+        result = await _call_tool(
+            client, mock_context, 'get_savings_plans_coverage', granularity='MONTHLY'
+        )
+
+        assert client.get_savings_plans_coverage.call_args.kwargs['Granularity'] == 'MONTHLY'
+        assert result['data']['granularity'] == 'MONTHLY'
+
+    async def test_linked_account_filter_passes_through_without_group_by(self, mock_context):
+        """The documented per-account path: a LINKED_ACCOUNT filter, sent as-is."""
+        client = MagicMock()
+        client.get_savings_plans_coverage.return_value = {'SavingsPlansCoverages': []}
+        account_filter = '{"Dimensions": {"Key": "LINKED_ACCOUNT", "Values": ["111122223333"]}}'
+
+        await _call_tool(client, mock_context, 'get_savings_plans_coverage', filter=account_filter)
+
+        kwargs = client.get_savings_plans_coverage.call_args.kwargs
+        assert kwargs['Filter'] == {
+            'Dimensions': {'Key': 'LINKED_ACCOUNT', 'Values': ['111122223333']}
+        }
+        assert 'GroupBy' not in kwargs
+
+
+CE_MODEL = botocore.session.get_session().get_service_model('ce')
+
+
+def _output_members(operation: str) -> set:
+    """Member names of a Cost Explorer operation's output shape."""
+    shape: Any = CE_MODEL.operation_model(operation).output_shape
+    return set(shape.members)
+
+
+@pytest.mark.parametrize(
+    'operation,method',
+    [
+        ('GetSavingsPlansCoverage', 'get_savings_plans_coverage'),
+        ('GetSavingsPlansUtilization', 'get_savings_plans_utilization'),
+        ('GetSavingsPlansUtilizationDetails', 'get_savings_plans_utilization_details'),
+    ],
+)
+def test_mock_ce_responses_only_use_botocore_output_members(mock_ce_client, operation, method):
+    """Fixture responses carry only members the API can return (coverage has no Total)."""
+    members = _output_members(operation)
+    response = getattr(mock_ce_client, method).return_value
+
+    assert set(response) <= members, f'{method} fixture invents {set(response) - members}'
+
+
+def test_ce_sp_response_shapes_pin():
+    """Pin the output shapes the envelope relies on."""
+    assert 'Total' not in _output_members('GetSavingsPlansCoverage')
+    assert 'TimePeriod' not in _output_members('GetSavingsPlansUtilization')
+    assert {'Total', 'TimePeriod'} <= _output_members('GetSavingsPlansUtilizationDetails')
+
+
+@pytest.mark.asyncio
+class TestSpPerformanceDescription:
+    """The tool description tells the caller what the API accepts and what it returns."""
+
+    @staticmethod
+    async def _description() -> str:
+        tool = await sp_performance_server.get_tool('sp-performance')
+        assert tool is not None and tool.description
+        return tool.description
+
+    async def test_lists_utilization_details_filter_dimensions(self):
+        """Every GetSavingsPlansUtilizationDetails filter dimension is named."""
+        description = await self._description()
+        for dimension in (
+            'LINKED_ACCOUNT',
+            'SAVINGS_PLAN_ARN',
+            'REGION',
+            'PAYMENT_OPTION',
+            'INSTANCE_TYPE_FAMILY',
+        ):
+            assert dimension in description
+
+    async def test_explains_requested_time_period_versus_api_period(self):
+        """The request echo is named and the caller is pointed at the API's periods."""
+        description = await self._description()
+        assert 'requested_time_period' in description
+        assert 'figures cover\n  only 2026-08-17 onward' in description
+        assert 'they are not snapped' in description
+        assert 'covers only the Savings Plans on its own page' in description
+        assert 'Coverage has no `total`' in description
