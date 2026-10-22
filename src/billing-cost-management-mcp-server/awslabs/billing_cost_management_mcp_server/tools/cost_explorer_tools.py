@@ -28,6 +28,7 @@ from .cost_explorer_operations import (
     get_tags,
     get_usage_forecast,
 )
+from datetime import date, timedelta
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, List, Optional, Union
 
@@ -39,9 +40,35 @@ cost_explorer_server = FastMCP(
 )
 
 
-@cost_explorer_server.tool(
-    name='cost-explorer',
-    description="""Retrieves AWS cost and usage data using the Cost Explorer API.
+def _add_months(day: date, months: int) -> date:
+    """Return the first day of the month `months` after the month of `day`."""
+    year, month = divmod(day.month - 1 + months, 12)
+    return date(day.year + year, month + 1, 1)
+
+
+def _with_example_dates(description: str) -> str:
+    """Fill the example dates relative to today, so every example is valid as written.
+
+    Literal dates go stale: Cost Explorer rejects a forecast that starts before today, a
+    resource-level query older than 14 days, and history older than 13 months.
+    """
+    today = date.today()
+    month_start = today.replace(day=1)
+    dates = {
+        '__TODAY__': today,
+        '__WEEK_AGO__': today - timedelta(days=7),
+        '__MONTH_START__': month_start,
+        '__PREV_MONTH_START__': _add_months(month_start, -1),
+        '__SIX_MONTHS_AGO_START__': _add_months(month_start, -6),
+        '__NEXT_MONTH_START__': _add_months(month_start, 1),
+        '__FOUR_MONTHS_AHEAD_START__': _add_months(month_start, 4),
+    }
+    for token, value in dates.items():
+        description = description.replace(token, value.isoformat())
+    return description
+
+
+COST_EXPLORER_DESCRIPTION = _with_example_dates("""Retrieves AWS cost and usage data using the Cost Explorer API.
 
 IMPORTANT USAGE GUIDELINES:
 - Use UnblendedCost metric by default (not BlendedCost) unless user specifies otherwise
@@ -130,36 +157,37 @@ Correct filter examples:
 1) getCostAndUsage — account-level historical cost/usage
    Required: operation="getCostAndUsage", start_date, end_date, granularity, metrics
    Optional: group_by, filter, max_items, next_token, billing_view_arn
-   Example: {"operation": "getCostAndUsage", "start_date": "2024-01-01", "end_date": "2024-02-01", "granularity": "MONTHLY", "metrics": "[\\"UnblendedCost\\"]", "group_by": "[{\\"Type\\": \\"DIMENSION\\", \\"Key\\": \\"SERVICE\\"}]"}
+   Example: {"operation": "getCostAndUsage", "start_date": "__PREV_MONTH_START__", "end_date": "__MONTH_START__", "granularity": "MONTHLY", "metrics": "[\\"UnblendedCost\\"]", "group_by": "[{\\"Type\\": \\"DIMENSION\\", \\"Key\\": \\"SERVICE\\"}]"}
 
 2. getCostAndUsageWithResources - Resource-level cost data (limited to last 14 days)
    Required: operation="getCostAndUsageWithResources", filter, granularity, start_date, end_date
    Optional: metrics, group_by, max_items, next_token, billing_view_arn
    Notes: RESOURCE_ID must be included in either filter OR group_by parameters. The range must be within the last 14 days (start_date no earlier than 14 days ago). Hourly granularity is only available for EC2-Instances resource-level data. All other resource-level data is available at daily granularity.
-   Example: {"operation": "getCostAndUsageWithResources", "start_date": "2025-08-07", "end_date": "2025-08-21", "granularity": "DAILY", "filter": "{\\"Dimensions\\": {\\"Key\\": \\"SERVICE\\", \\"Values\\": [\\"Amazon Elastic Compute Cloud - Compute\\"]}}", "group_by": "[{\\"Type\\": \\"DIMENSION\\", \\"Key\\": \\"RESOURCE_ID\\"}]"}
+   Example: {"operation": "getCostAndUsageWithResources", "start_date": "__WEEK_AGO__", "end_date": "__TODAY__", "granularity": "DAILY", "filter": "{\\"Dimensions\\": {\\"Key\\": \\"SERVICE\\", \\"Values\\": [\\"Amazon Elastic Compute Cloud - Compute\\"]}}", "group_by": "[{\\"Type\\": \\"DIMENSION\\", \\"Key\\": \\"RESOURCE_ID\\"}]"}
    Returns: Cost data with resource-level granularity
 
 3. getDimensionValues - List of available values for specified dimension
    Required: operation="getDimensionValues", dimension, start_date, end_date
    Optional: context, search_string, filter, max_items, next_token, billing_view_arn
-   Example: {"operation": "getDimensionValues", "dimension": "SERVICE", "start_date": "2024-01-01", "end_date": "2024-02-01"}
+   Example: {"operation": "getDimensionValues", "dimension": "SERVICE", "start_date": "__PREV_MONTH_START__", "end_date": "__MONTH_START__"}
    Returns: List of values for specified dimension (see PAGINATION)
-   Notes: TAG is not a dimension here in the default COST_AND_USAGE context — to list a cost-allocation tag key's values use operation=getTagsOrValues (with tag_key); passing dimension=TAG is rejected. TAG is only valid as a dimension when context=RESERVATIONS (coverage).
+   Notes: Each context accepts its own dimensions. COST_AND_USAGE (the default) takes the DIMENSION REFERENCE keys below; RESOURCE_ID needs a window within the last 14 days. RESERVATIONS takes only AZ, INSTANCE_TYPE, INSTANCE_TYPE_FAMILY, LINKED_ACCOUNT, PLATFORM, REGION, SCOPE, SERVICE, TENANCY. SAVINGS_PLANS takes only INSTANCE_TYPE_FAMILY, LINKED_ACCOUNT, PAYMENT_OPTION, REGION, SAVINGS_PLAN_ARN, SAVINGS_PLANS_TYPE. TAG is not a dimension in any context: to list a cost-allocation tag key's values use operation=getTagsOrValues (with tag_key); passing dimension=TAG is rejected.
 
 4. getCostForecast - Future cost projections
-   Required: operation="getCostForecast", metric, granularity, start_date, end_date
-   Optional: filter, prediction_interval_level, billing_view_arn
-   Example: {"operation": "getCostForecast", "metric": "UNBLENDED_COST", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22"}
-   Notes: `metric` must be ALL CAPS and one of UNBLENDED_COST, BLENDED_COST, AMORTIZED_COST, NET_UNBLENDED_COST, NET_AMORTIZED_COST. `start_date` must be today or later. The horizon is up to 3 months (DAILY) or 18 months (MONTHLY).
+   Required: operation="getCostForecast", metric, granularity
+   Optional: start_date, end_date, filter, prediction_interval_level, billing_view_arn
+   Example 1 (default window): {"operation": "getCostForecast", "metric": "UNBLENDED_COST", "granularity": "MONTHLY"}
+   Example 2 (next three months): {"operation": "getCostForecast", "metric": "UNBLENDED_COST", "granularity": "MONTHLY", "start_date": "__NEXT_MONTH_START__", "end_date": "__FOUR_MONTHS_AHEAD_START__"}
+   Notes: `metric` must be ALL CAPS and one of UNBLENDED_COST, BLENDED_COST, AMORTIZED_COST, NET_UNBLENDED_COST, NET_AMORTIZED_COST (not the getCostAndUsage spelling `UnblendedCost`). `start_date` defaults to tomorrow and `end_date` to 90 days after `start_date`; a `start_date` you pass must be today or later. The horizon is up to 3 months (DAILY) or 18 months (MONTHLY). HOURLY is not supported. In `filter`, LINKED_ACCOUNT values must be 12-digit account IDs (not account names), and RESOURCE_ID is not allowed.
    Returns: Cost forecast for specified time period and granularity
 
 5. getUsageForecast - Future usage projections
-   Required: operation="getUsageForecast", metric, granularity, start_date, end_date, filter
-   Optional: prediction_interval_level, billing_view_arn
-   Example 1: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22", "filter": "{\\"Dimensions\\": {\\"Key\\": \\"USAGE_TYPE_GROUP\\", \\"Values\\": [\\"EC2: Running Hours\\"]}}"}
-   Example 2: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22", "filter": "{\\"And\\": [{\\"Dimensions\\": {\\"Key\\": \\"SERVICE\\", \\"Values\\": [\\"Amazon Elastic Compute Cloud - Compute\\"]}}, {\\"Dimensions\\": {\\"Key\\": \\"USAGE_TYPE\\", \\"Values\\": [\\"BoxUsage:p4de.24xlarge\\"]}}]}"}
-   Example 3: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "2025-08-22", "end_date": "2025-11-22", "filter": "{\\"Dimensions\\": {\\"Key\\": \\"USAGE_TYPE\\", \\"Values\\": [\\"BoxUsage:p4de.24xlarge\\", \\"Reservation:p4de.24xlarge\\", \\"UnusedBox:p4de.24xlarge\\"]}}", "group_by": "[{\\"Type\\": \\"DIMENSION\\", \\"Key\\": \\"REGION\\"}]"}
-   Notes: Valid values for metric is: USAGE_QUANTITY, NORMALIZED_USAGE_AMOUNT. Valid values for granularity is: DAILY, MONTHLY. Filter is REQUIRED and must specify USAGE_TYPE or USAGE_TYPE_GROUP to define what usage units to forecast.
+   Required: operation="getUsageForecast", metric, granularity, filter
+   Optional: start_date, end_date, prediction_interval_level, billing_view_arn
+   Example 1: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "start_date": "__NEXT_MONTH_START__", "end_date": "__FOUR_MONTHS_AHEAD_START__", "filter": "{\\"Dimensions\\": {\\"Key\\": \\"USAGE_TYPE_GROUP\\", \\"Values\\": [\\"EC2: Running Hours\\"]}}"}
+   Example 2: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "filter": "{\\"And\\": [{\\"Dimensions\\": {\\"Key\\": \\"SERVICE\\", \\"Values\\": [\\"Amazon Elastic Compute Cloud - Compute\\"]}}, {\\"Dimensions\\": {\\"Key\\": \\"USAGE_TYPE\\", \\"Values\\": [\\"BoxUsage:p4de.24xlarge\\"]}}]}"}
+   Example 3: {"operation": "getUsageForecast", "metric": "USAGE_QUANTITY", "granularity": "MONTHLY", "filter": "{\\"Dimensions\\": {\\"Key\\": \\"USAGE_TYPE\\", \\"Values\\": [\\"BoxUsage:p4de.24xlarge\\", \\"Reservation:p4de.24xlarge\\", \\"UnusedBox:p4de.24xlarge\\"]}}", "group_by": "[{\\"Type\\": \\"DIMENSION\\", \\"Key\\": \\"REGION\\"}]"}
+   Notes: Valid values for metric is: USAGE_QUANTITY, NORMALIZED_USAGE_AMOUNT. Valid values for granularity is: DAILY, MONTHLY. Filter is REQUIRED and must specify USAGE_TYPE or USAGE_TYPE_GROUP to define what usage units to forecast. Dates default and are limited as for getCostForecast.
    Returns: Usage forecast for specified time period and granularity
 
 6. getTagsOrValues - Available cost allocation tags or values
@@ -172,8 +200,8 @@ Correct filter examples:
 7. getCostCategories - Available cost categories or values inside a category
    Required: operation="getCostCategories", start_date, end_date
    Optional: cost_category_name, search_string, max_items, next_token, billing_view_arn
-   Example 1 (list category names): {"operation": "getCostCategories", "start_date": "2024-01-01", "end_date": "2024-08-01"}
-   Example 2 (list values inside a category): {"operation": "getCostCategories", "cost_category_name": "CostCenters", "start_date": "2024-01-01", "end_date": "2024-08-01"}
+   Example 1 (list category names): {"operation": "getCostCategories", "start_date": "__SIX_MONTHS_AGO_START__", "end_date": "__MONTH_START__"}
+   Example 2 (list values inside a category): {"operation": "getCostCategories", "cost_category_name": "CostCenters", "start_date": "__SIX_MONTHS_AGO_START__", "end_date": "__MONTH_START__"}
    Notes: Without cost_category_name the response contains CostCategoryNames. With cost_category_name set the response contains CostCategoryValues for that category. The category name list holds at most 5,000 names in total. See PAGINATION.
 
 8. getSavingsPlansUtilization - Savings Plans utilization data
@@ -202,7 +230,7 @@ DIMENSION REFERENCE:
 - REGION: AWS Region
 - RESOURCE_ID: Resource identifier. Only for getCostAndUsageWithResources (last 14 days)
 - SERVICE: AWS service (e.g., Amazon DynamoDB)
-- TAG: Cost allocation tag — valid as a GroupBy Type (`[{"Type":"TAG","Key":"<tag_key>"}]`) and inside filter `Tags` leaves. As a getDimensionValues dimension it is only valid in the RESERVATIONS coverage context, NOT in COST_AND_USAGE; to list a tag key's values use operation=getTagsOrValues (with tag_key).
+- TAG: Cost allocation tag — valid as a GroupBy Type (`[{"Type":"TAG","Key":"<tag_key>"}]`) and inside filter `Tags` leaves, but NOT a getDimensionValues dimension in any context; to list a tag key's values use operation=getTagsOrValues (with tag_key).
 - TENANCY: EC2 tenancy. Exact, case-sensitive values: Shared, Dedicated (Dedicated Instance),
   Host (Dedicated Host)
 - USAGE_TYPE: Usage type (e.g., DataTransfer-In-Bytes)
@@ -227,7 +255,12 @@ Billing view types:
   account owes to AWS for their Bill Source accounts' cloud consumption.
 - BILLING_TRANSFER_SHOWBACK: Available to Bill Transfer (bill receiver) account.
   AWS managed view showing pro forma showback/chargeback data (what Bill Source account owe their partner).
-  Use for showback/chargeback reporting in billing transfer scenarios.""",
+  Use for showback/chargeback reporting in billing transfer scenarios.""")
+
+
+@cost_explorer_server.tool(
+    name='cost-explorer',
+    description=COST_EXPLORER_DESCRIPTION,
 )
 async def cost_explorer(
     ctx: Context,
@@ -345,19 +378,18 @@ async def cost_explorer(
                     service=COST_EXPLORER_SERVICE_NAME,
                 )
 
-            # TAG is only a valid dimension in the RESERVATIONS coverage context; in the
-            # default COST_AND_USAGE context AWS rejects it with ValidationException. Catch
-            # it before the API round-trip and point to the operation that actually lists
-            # tag values. Do NOT reject TAG unconditionally — RESERVATIONS coverage uses it.
-            if dimension == 'TAG' and (context or 'COST_AND_USAGE') == 'COST_AND_USAGE':
+            # TAG is not a GetDimensionValues dimension in any context: AWS rejects it with
+            # ValidationException for COST_AND_USAGE, RESERVATIONS and SAVINGS_PLANS alike.
+            # Catch it before the API round-trip and point to the operation that actually
+            # lists tag values.
+            if dimension == 'TAG':
                 return format_response(
                     'error',
                     {
                         'message': (
-                            'TAG is not a COST_AND_USAGE getDimensionValues dimension. '
+                            'TAG is not a getDimensionValues dimension in any context. '
                             "To list a tag key's values use operation=getTagsOrValues "
-                            '(optionally with tag_key). TAG as a dimension is only valid '
-                            'in the RESERVATIONS coverage context.'
+                            '(optionally with tag_key).'
                         )
                     },
                     error_type='validation_error',
@@ -366,7 +398,7 @@ async def cost_explorer(
                     hint=(
                         "To list a cost-allocation tag key's values, call this tool with "
                         'operation=getTagsOrValues (pass tag_key for one key). Do **NOT** retry '
-                        'getDimensionValues with dimension=TAG in the COST_AND_USAGE context.'
+                        'getDimensionValues with dimension=TAG.'
                     ),
                 )
 
