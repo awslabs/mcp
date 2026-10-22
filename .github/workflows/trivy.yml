@@ -91,7 +91,7 @@ jobs:
           docker image save -o "${{ runner.temp }}/image.tar" docker.io/${{ matrix.dockerfile }}:${{ github.sha }}
 
       - name: Upload digest
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: image-${{ steps.checkout-depth.outputs.image-name }}
           path: ${{ runner.temp }}/image.tar
@@ -118,19 +118,19 @@ jobs:
 
       - name: Run Trivy vulnerability scanner
         if: hashFiles(format('{0}/trivy-results.sarif', matrix.dockerfile)) == ''
-        uses: aquasecurity/trivy-action@d2a0b60797ff03db6132bd4e2b293f9b37081297 #v0.34.2
+        uses: aquasecurity/trivy-action@8f28faec26515256b6d22074d1d2a8986f4cbd87 #v0.34.2
         with:
           image-ref: 'docker.io/${{ matrix.dockerfile }}:${{ github.sha }}'
           format: 'sarif'
           output: '${{ matrix.dockerfile }}/trivy-results.sarif'
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@e855781840494f215c54473a03cc9e82e2a400fc # v4.31.9
+        uses: github/codeql-action/upload-sarif@4e7f1a8de7dec137efca173f7b203e1bbbde5b58 # v4.31.9
         with:
           sarif_file: '${{ matrix.dockerfile }}/trivy-results.sarif'
 
       - name: Upload results
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: trivy-results-${{ steps.checkout-depth.outputs.image-name }}
           path: |
