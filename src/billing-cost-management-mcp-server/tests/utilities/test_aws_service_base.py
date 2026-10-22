@@ -30,6 +30,7 @@ from awslabs.billing_cost_management_mcp_server.utilities.aws_service_base impor
     get_date_range,
     handle_aws_error,
     parse_json,
+    parse_metrics,
     validate_date_format,
 )
 from datetime import datetime, timedelta
@@ -159,6 +160,54 @@ class TestParseJson:
         value = {'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon S3']}}
 
         assert parse_json(value, 'test_param') is value
+
+
+class TestParseMetrics:
+    """Tests for parse_metrics function."""
+
+    @pytest.mark.parametrize(
+        'metrics, expected',
+        [
+            (['UnblendedCost', 'UsageQuantity'], ['UnblendedCost', 'UsageQuantity']),
+            ('["UnblendedCost", "UsageQuantity"]', ['UnblendedCost', 'UsageQuantity']),
+            (None, ['UnblendedCost']),
+            ('', ['UnblendedCost']),
+            ([], ['UnblendedCost']),
+            ('[]', ['UnblendedCost']),
+        ],
+    )
+    def test_valid_metrics(self, metrics, expected):
+        """Lists and JSON array strings parse to a list; unset is the default."""
+        assert parse_metrics(metrics) == expected
+
+    def test_default_is_a_fresh_list(self):
+        """Mutating a returned default does not change the next default."""
+        parse_metrics(None).append('UsageQuantity')
+
+        assert parse_metrics(None) == ['UnblendedCost']
+
+    @pytest.mark.parametrize(
+        'metrics',
+        [
+            5,
+            {'UnblendedCost': True},
+            ['UnblendedCost', 1],
+            [''],
+            '[""]',
+            '{"UnblendedCost": true}',
+            '"UnblendedCost"',
+        ],
+    )
+    def test_invalid_metrics_raise(self, metrics):
+        """Anything but a list of non-empty metric names is rejected."""
+        with pytest.raises(ValueError, match='metrics must be a list of metric names'):
+            parse_metrics(metrics)
+
+    @pytest.mark.parametrize('metrics', ['[UnblendedCost', 'UnblendedCost'])
+    def test_invalid_json_raises(self, metrics):
+        """A string that is not valid JSON is rejected."""
+        with pytest.raises(ValueError, match='Invalid JSON format for metrics parameter'):
+            parse_metrics(metrics)
 
 
 class TestDateFunctions:

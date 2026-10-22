@@ -790,20 +790,22 @@ PERIOD = {'Start': '2023-01-01', 'End': '2023-01-31'}
 
 
 def _grouped_page(key, metric, groups, token=None, total=None):
-    """One page of a grouped RI response: a single period entry holding some groups."""
+    """One page of a grouped RI response: a single period entry holding some groups.
+
+    As in the API, a grouped page has no top-level Total; the period entry's Total sums only
+    the groups on this page.
+    """
     page = {
         key: [
             {
                 'TimePeriod': PERIOD,
                 'Groups': [{'Attributes': {'id': g}, metric: {}} for g in groups],
-                'Total': {},
+                'Total': total or {},
             }
         ]
     }
     if token:
         page['NextPageToken'] = token
-    if total is not None:
-        page['Total'] = total
     return page
 
 
@@ -940,6 +942,126 @@ class TestRIPerformancePagination:
         getattr(client, method).assert_called_once()
         assert 'MaxResults' not in getattr(client, method).call_args.kwargs
         assert result['data']['pagination']['complete_dataset'] is True
+
+
+def _page_total(function, value):
+    """A period Total in the API's shape for the operation."""
+    if function is get_reservation_coverage:
+        return {'CoverageHours': {'TotalRunningHours': value}}
+    return {'UtilizationPercentage': value}
+
+
+def _format_total(function, total):
+    if function is get_reservation_coverage:
+        return format_coverage_metrics(total)
+    return format_utilization_metrics(total)
+
+
+def _periods(function, data):
+    return data[
+        'coverages_by_time' if function is get_reservation_coverage else 'utilizations_by_time'
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('function,method,key,metric,page_size', RI_OPERATIONS)
+class TestRIPerformancePageTotals:
+    """A grouped page's Total sums only that page's groups, so it is kept only for a whole query."""
+
+    async def test_single_complete_page_keeps_the_period_total(
+        self, mock_context, function, method, key, metric, page_size
+    ):
+        """When the whole query is one page, its Total covers every group of the period."""
+        client = MagicMock()
+        getattr(client, method).return_value = _grouped_page(
+            key, metric, ['a', 'b'], total=_page_total(function, '7')
+        )
+
+        result = await _call_ri(function, client, mock_context, group_by=GROUP_BY_SUBSCRIPTION)
+
+        period = _periods(function, result['data'])[0]
+        assert period['total'] == _format_total(function, _page_total(function, '7'))
+
+    async def test_multi_page_omits_the_page_total(
+        self, mock_context, function, method, key, metric, page_size
+    ):
+        """Page 1's Total covers only page 1's groups, so a merged period reports no total."""
+        client = MagicMock()
+        getattr(client, method).side_effect = [
+            _grouped_page(key, metric, ['a', 'b'], token='t1', total=_page_total(function, '3')),
+            _grouped_page(key, metric, ['c'], total=_page_total(function, '4')),
+        ]
+
+        result = await _call_ri(function, client, mock_context, group_by=GROUP_BY_SUBSCRIPTION)
+
+        data = result['data']
+        assert data['pagination']['complete_dataset'] is True
+        period = _periods(function, data)[0]
+        assert [g['attributes']['id'] for g in period['groups']] == ['a', 'b', 'c']
+        assert 'total' not in period
+        assert 'total' not in data
+
+    async def test_partial_result_omits_the_page_total(
+        self, mock_context, function, method, key, metric, page_size
+    ):
+        """A result cut short by max_items or max_pages covers only some of the groups."""
+        client = MagicMock()
+        getattr(client, method).return_value = _grouped_page(
+            key, metric, ['a', 'b'], token='more', total=_page_total(function, '3')
+        )
+        limit = {'max_items': 2} if function is get_reservation_coverage else {'max_pages': 1}
+
+        result = await _call_ri(
+            function, client, mock_context, group_by=GROUP_BY_SUBSCRIPTION, **limit
+        )
+
+        data = result['data']
+        assert data['complete_dataset'] is False
+        assert 'total' not in _periods(function, data)[0]
+
+    async def test_continuation_omits_the_page_total(
+        self, mock_context, function, method, key, metric, page_size
+    ):
+        """The last page of a continuation is complete but holds only that page's groups."""
+        client = MagicMock()
+        getattr(client, method).return_value = _grouped_page(
+            key, metric, ['c'], total=_page_total(function, '4')
+        )
+
+        result = await _call_ri(
+            function, client, mock_context, group_by=GROUP_BY_SUBSCRIPTION, next_token='caller'
+        )
+
+        data = result['data']
+        assert data['pagination']['complete_dataset'] is True
+        assert 'total' not in _periods(function, data)[0]
+
+    async def test_ungrouped_keeps_every_total(
+        self, mock_context, function, method, key, metric, page_size
+    ):
+        """Without GroupBy the single response covers the whole query, so its Totals are kept."""
+        client = MagicMock()
+        getattr(client, method).return_value = {
+            key: [{'TimePeriod': PERIOD, 'Groups': [], 'Total': _page_total(function, '5')}],
+            'Total': _page_total(function, '5'),
+        }
+
+        result = await _call_ri(function, client, mock_context)
+
+        data = result['data']
+        expected = _format_total(function, _page_total(function, '5'))
+        assert data['total'] == expected
+        assert _periods(function, data)[0]['total'] == expected
+
+
+@pytest.mark.asyncio
+async def test_description_says_when_total_is_returned():
+    """The description no longer claims that page 1's total covers the whole query."""
+    tool = await ri_performance_server.get_tool('ri-performance')
+    assert tool is not None
+    description = tool.description or ''
+    assert 'returned only when the whole query came back in one page' in description
+    assert 'covers the whole query; it is not repeated' not in description
 
 
 @pytest.mark.asyncio

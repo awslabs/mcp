@@ -336,7 +336,7 @@ class TestGetCreditsWindow:
         sent = client.get_credits.call_args.kwargs['startDate']
         assert sent > _epoch_of(requested)
         assert abs(sent - expected_floor) <= 60
-        assert result['data']['time_range']['narrowed_from_request'] is True
+        assert result['data']['time_range']['limited_from_request'] is True
 
     @pytest.mark.asyncio
     async def test_narrowing_preserves_requested_window(self, mock_context, sample_credit):
@@ -361,7 +361,7 @@ class TestGetCreditsWindow:
         result = await _call_get_credits(mock_context, client, start_date=requested)
 
         assert client.get_credits.call_args.kwargs['startDate'] == _epoch_of(requested)
-        assert result['data']['time_range']['narrowed_from_request'] is False
+        assert result['data']['time_range']['limited_from_request'] is False
 
     @pytest.mark.asyncio
     async def test_future_end_date_is_clamped(self, mock_context, sample_credit):
@@ -374,7 +374,7 @@ class TestGetCreditsWindow:
 
         now_epoch = int(datetime.now(timezone.utc).timestamp())
         assert abs(client.get_credits.call_args.kwargs['endDate'] - now_epoch) <= 60
-        assert result['data']['time_range']['narrowed_from_request'] is True
+        assert result['data']['time_range']['limited_from_request'] is True
 
     @pytest.mark.asyncio
     async def test_window_start_never_exceeds_end(self, mock_context, sample_credit):
@@ -518,7 +518,7 @@ class TestGetCreditAllocationHistoryWindow:
 
         call = _paginate_call(client)
         assert call['endDate'] - call['startDate'] == MAX_ALLOCATION_HISTORY_SECONDS
-        assert result['data']['time_range']['narrowed_from_request'] is True
+        assert result['data']['time_range']['limited_from_request'] is True
 
     @pytest.mark.asyncio
     async def test_narrowing_preserves_requested_window(self, mock_context, sample_allocation):
@@ -549,7 +549,7 @@ class TestGetCreditAllocationHistoryWindow:
 
         now_epoch = int(datetime.now(timezone.utc).timestamp())
         assert _paginate_call(client)['endDate'] <= now_epoch
-        assert result['data']['time_range']['narrowed_from_request'] is True
+        assert result['data']['time_range']['limited_from_request'] is True
 
     @pytest.mark.asyncio
     async def test_future_billing_period_is_rejected(self, mock_context):
@@ -601,7 +601,7 @@ class TestGetCreditAllocationHistoryWindow:
             mock_context, client, billing_period='2026-06'
         )
 
-        assert result['data']['time_range']['narrowed_from_request'] is False
+        assert result['data']['time_range']['limited_from_request'] is False
 
 
 def _ledger_page(row, token=None, **extra):

@@ -115,6 +115,23 @@ def mock_ce_client():
     return mock_client
 
 
+def _passthrough_store():
+    """Patch the result store to return the response unchanged, recording its arguments."""
+    return patch(
+        'awslabs.billing_cost_management_mcp_server.tools.cost_explorer_operations.convert_response_if_needed',
+        new=AsyncMock(side_effect=lambda ctx, response, *args, **kwargs: response),
+    )
+
+
+METRICS_CASES = [
+    (None, ['UnblendedCost']),
+    ('', ['UnblendedCost']),
+    ([], ['UnblendedCost']),
+    ('["UnblendedCost", "UsageQuantity"]', ['UnblendedCost', 'UsageQuantity']),
+    (['AmortizedCost'], ['AmortizedCost']),
+]
+
+
 @pytest.fixture
 def sample_billing_view_arn():
     """Sample billing view ARN for testing billing view support."""
@@ -324,6 +341,37 @@ class TestGetCostAndUsage:
         assert 'Metrics' in call_kwargs
         assert 'GroupBy' in call_kwargs
         assert 'Filter' in call_kwargs
+
+    @pytest.mark.parametrize('metrics, expected', METRICS_CASES)
+    async def test_sends_and_stores_parsed_metrics(
+        self, mock_context, mock_ce_client, metrics, expected
+    ):
+        """The parsed metrics, default applied, are sent to the API and stored with the result."""
+        with _passthrough_store() as store:
+            result = await get_cost_and_usage(
+                mock_context,
+                mock_ce_client,
+                start_date='2023-01-01',
+                end_date='2023-01-07',
+                metrics=metrics,
+            )
+
+        assert result['status'] == 'success'
+        assert mock_ce_client.get_cost_and_usage.call_args.kwargs['Metrics'] == expected
+        assert store.call_args.kwargs['metrics'] == expected
+
+    @pytest.mark.parametrize(
+        'metrics', ['["UnblendedCost", 1]', '{"a": 1}', [''], 5, 'UnblendedCost']
+    )
+    async def test_invalid_metrics_is_a_validation_error(
+        self, mock_context, mock_ce_client, metrics
+    ):
+        """Invalid metrics are rejected before any API call."""
+        result = await get_cost_and_usage(mock_context, mock_ce_client, metrics=metrics)
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        mock_ce_client.get_cost_and_usage.assert_not_called()
 
     async def test_with_pagination(self, mock_context, mock_ce_client):
         """Test pagination handling in get_cost_and_usage."""
@@ -741,6 +789,42 @@ class TestGetCostAndUsageWithResources:
         assert 'Metrics' in call_kwargs
         assert 'GroupBy' in call_kwargs
         assert 'Filter' in call_kwargs
+
+    @pytest.mark.parametrize('metrics, expected', METRICS_CASES)
+    async def test_sends_and_stores_parsed_metrics(
+        self, mock_context, mock_ce_client, metrics, expected
+    ):
+        """The parsed metrics, default applied, are sent to the API and stored with the result."""
+        with _passthrough_store() as store:
+            result = await get_cost_and_usage_with_resources(
+                mock_context,
+                mock_ce_client,
+                start_date='2023-01-01',
+                end_date='2023-01-07',
+                metrics=metrics,
+            )
+
+        assert result['status'] == 'success'
+        assert (
+            mock_ce_client.get_cost_and_usage_with_resources.call_args.kwargs['Metrics']
+            == expected
+        )
+        assert store.call_args.kwargs['metrics'] == expected
+
+    @pytest.mark.parametrize(
+        'metrics', ['["UnblendedCost", 1]', '{"a": 1}', [''], 5, 'UnblendedCost']
+    )
+    async def test_invalid_metrics_is_a_validation_error(
+        self, mock_context, mock_ce_client, metrics
+    ):
+        """Invalid metrics are rejected before any API call."""
+        result = await get_cost_and_usage_with_resources(
+            mock_context, mock_ce_client, metrics=metrics
+        )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        mock_ce_client.get_cost_and_usage_with_resources.assert_not_called()
 
     async def test_error_handling(self, mock_context, mock_ce_client):
         """Test error handling in get_cost_and_usage_with_resources."""
