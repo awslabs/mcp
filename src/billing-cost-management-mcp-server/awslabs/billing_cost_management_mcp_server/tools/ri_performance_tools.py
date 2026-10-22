@@ -26,6 +26,7 @@ from ..utilities.aws_service_base import (
     handle_aws_error,
     paginate_aws_items,
     parse_json,
+    whole_query_in_one_page,
     with_pagination,
 )
 from fastmcp import Context, FastMCP
@@ -221,13 +222,6 @@ def _merge_periods(entries: List[Dict[str, Any]], keep_totals: bool) -> List[Dic
     return merged
 
 
-def _whole_query_in_one_page(
-    pages: List[Dict[str, Any]], next_token: Optional[str], pagination: Dict[str, Any]
-) -> bool:
-    """Whether the result is the whole query in one page, so the API's Totals cover it."""
-    return len(pages) == 1 and next_token is None and pagination['complete_dataset']
-
-
 # With GroupBy the API pages over the groups of a single time-period entry.
 CE_GET_RESERVATION_COVERAGE_GROUPED = PageSpec(
     result_key='CoveragesByTime',
@@ -338,7 +332,7 @@ async def get_reservation_coverage(
         )
         # The API's Totals sum only the groups on their own page, so they cover the query only
         # when the query is that one page.
-        whole_query = _whole_query_in_one_page(pages, next_token, pagination)
+        whole_query = whole_query_in_one_page(pages, next_token, pagination)
         all_coverages = _merge_periods(coverage_entries, keep_totals=whole_query)
         total_coverage = first_page_fields(pages, ['Total']).get('Total') if whole_query else None
 
@@ -496,7 +490,7 @@ async def get_reservation_utilization(
         )
         # The API's Totals sum only the groups on their own page, so they cover the query only
         # when the query is that one page.
-        whole_query = _whole_query_in_one_page(pages, next_token, pagination)
+        whole_query = whole_query_in_one_page(pages, next_token, pagination)
         all_utilizations = _merge_periods(utilization_entries, keep_totals=whole_query)
         total_utilization = (
             first_page_fields(pages, ['Total']).get('Total') if whole_query else None

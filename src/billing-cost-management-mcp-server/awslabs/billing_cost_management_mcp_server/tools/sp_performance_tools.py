@@ -26,6 +26,7 @@ from ..utilities.aws_service_base import (
     handle_aws_error,
     paginate_aws_items,
     parse_json,
+    whole_query_in_one_page,
     with_pagination,
 )
 from ..utilities.logging_utils import get_context_logger
@@ -440,10 +441,7 @@ async def get_savings_plans_utilization_details(
             formatted_response['time_period'] = first_page['TimePeriod']
         # The API's Total aggregates only the plans on its own page, so it covers the query
         # only when the query is that one page.
-        whole_query_in_one_page = (
-            len(pages) == 1 and next_token is None and pagination['complete_dataset']
-        )
-        if whole_query_in_one_page and 'Total' in first_page:
+        if 'Total' in first_page and whole_query_in_one_page(pages, next_token, pagination):
             formatted_response['total'] = first_page['Total']
 
         return format_response('success', with_pagination(formatted_response, pagination))
