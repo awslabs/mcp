@@ -160,7 +160,7 @@ class TestInternalCreateConnection:
             patch(
                 'awslabs.postgres_mcp_server.server.internal_get_cluster_properties'
             ) as mock_props,
-            patch('awslabs.postgres_mcp_server.server.get_credentials_from_secret') as mock_creds,
+            patch('awslabs.postgres_mcp_server.server.get_username_from_secret') as mock_creds,
             patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
         ):
             mock_map.get.return_value = None
@@ -170,7 +170,7 @@ class TestInternalCreateConnection:
                 'Endpoint': 'test.endpoint.com',
                 'Port': 5432,
             }
-            mock_creds.return_value = ('iam_username', 'unused_password')
+            mock_creds.return_value = 'iam_username'
             mock_connection = MagicMock()
             mock_pg_conn.return_value = mock_connection
 
@@ -210,9 +210,7 @@ class TestInternalCreateConnection:
                 patch(
                     'awslabs.postgres_mcp_server.server.internal_get_cluster_properties'
                 ) as mock_props,
-                patch(
-                    'awslabs.postgres_mcp_server.server.get_credentials_from_secret'
-                ) as mock_creds,
+                patch('awslabs.postgres_mcp_server.server.get_username_from_secret') as mock_creds,
                 patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
             ):
                 mock_map.get.return_value = None
@@ -503,11 +501,11 @@ class TestInternalCreateConnection:
             patch(
                 'awslabs.postgres_mcp_server.server.internal_get_cluster_properties'
             ) as mock_props,
-            patch('awslabs.postgres_mcp_server.server.get_credentials_from_secret') as mock_creds,
+            patch('awslabs.postgres_mcp_server.server.get_username_from_secret') as mock_creds,
             patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
         ):
             mock_map.get.return_value = None
-            mock_creds.return_value = ('iam_user', 'unused')
+            mock_creds.return_value = 'iam_user'
             # Note: writer endpoint intentionally has different capitalization
             # than the caller will supply, proving we don't echo caller input
             # back into the connection string.
@@ -1619,3 +1617,56 @@ class TestValidateTableNameSQLInjection:
     def test_backtick_injection(self):
         """Test that backtick injection attempt is rejected."""
         assert server_module.validate_table_name('`users`') is False
+
+
+class TestIamConnectionWithUsernameOnlySecret:
+    """End-to-end check of the IAM branch against a real username-only secret payload."""
+
+    def test_iam_connection_reads_username_only_secret(self):
+        """internal_create_connection accepts a secret with just a username in IAM mode."""
+        prev_default = server_module.configured_default_secret_arn
+        prev_map = dict(server_module.configured_secret_arns)
+        server_module.configured_default_secret_arn = 'arn:aws:secretsmanager:us-east-1:123456789012:secret:username-only'  # pragma: allowlist secret
+        server_module.configured_secret_arns.clear()
+        try:
+            with (
+                patch('awslabs.postgres_mcp_server.server.db_connection_map') as mock_map,
+                patch(
+                    'awslabs.postgres_mcp_server.server.internal_get_cluster_properties'
+                ) as mock_props,
+                patch(
+                    'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.boto3.Session'
+                ) as mock_session,
+                patch('awslabs.postgres_mcp_server.server.PsycopgPoolConnection') as mock_pg_conn,
+            ):
+                mock_map.get.return_value = None
+                mock_props.return_value = {
+                    'HttpEndpointEnabled': False,
+                    'DBClusterArn': 'arn:aws:rds:us-east-1:123456789012:cluster:test',
+                    'Endpoint': 'test.endpoint.com',
+                    'Port': 5432,
+                }
+                mock_client = MagicMock()
+                mock_session.return_value.client.return_value = mock_client
+                mock_client.get_secret_value.return_value = {
+                    'SecretString': '{"username": "app_reader"}'
+                }
+                mock_pg_conn.return_value = MagicMock()
+
+                server_module.internal_create_connection(
+                    region='us-east-1',
+                    database_type=DatabaseType.APG,
+                    connection_method=ConnectionMethod.PG_WIRE_IAM_PROTOCOL,
+                    cluster_identifier='test-cluster',
+                    db_endpoint='test.endpoint.com',
+                    port=5432,
+                    database='testdb',
+                )
+
+                call_kwargs = mock_pg_conn.call_args[1]
+                assert call_kwargs['is_iam_auth'] is True
+                assert call_kwargs['db_user'] == 'app_reader'
+        finally:
+            server_module.configured_default_secret_arn = prev_default
+            server_module.configured_secret_arns.clear()
+            server_module.configured_secret_arns.update(prev_map)
