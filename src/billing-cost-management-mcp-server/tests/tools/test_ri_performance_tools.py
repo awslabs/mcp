@@ -23,6 +23,7 @@ These tests verify the functionality of AWS Reserved Instance performance monito
 """
 
 import pytest
+import re
 from awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools import (
     format_coverage_metrics,
     format_utilization_metrics,
@@ -32,6 +33,7 @@ from awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools impor
 )
 from fastmcp import Context
 from fastmcp.tools import FunctionTool
+from typing import Dict
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -200,7 +202,7 @@ def mock_ce_client():
                 'Groups': [
                     {
                         'Attributes': {
-                            'SUBSCRIPTION_ID': '012345678901-ec2-us-east-1-t3.large',
+                            'SUBSCRIPTION_ID': '359809062',
                         },
                         'Utilization': {
                             'UtilizationPercentage': '90.0',
@@ -211,7 +213,7 @@ def mock_ce_client():
                     },
                     {
                         'Attributes': {
-                            'SUBSCRIPTION_ID': '012345678901-rds-us-east-1-db.m5.large',
+                            'SUBSCRIPTION_ID': '359809070',
                         },
                         'Utilization': {
                             'UtilizationPercentage': '80.0',
@@ -456,8 +458,10 @@ class TestGetReservationCoverage:
         )
 
         mock_metrics = ['CoverageHours', 'CoverageCost']
-        mock_group_by = [{'Type': 'DIMENSION', 'Key': 'SERVICE'}]
-        mock_filter = {'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon EC2']}}
+        mock_group_by = [{'Type': 'DIMENSION', 'Key': 'INSTANCE_TYPE'}]
+        mock_filter = {
+            'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon Elastic Compute Cloud - Compute']}
+        }
         mock_sort_by = {'Key': 'CoverageHoursPercentage', 'SortOrder': 'DESCENDING'}
 
         mock_parse_json.side_effect = [mock_metrics, mock_group_by, mock_filter, mock_sort_by]
@@ -615,7 +619,9 @@ class TestGetReservationUtilization:
         )
 
         mock_group_by = [{'Type': 'DIMENSION', 'Key': 'SUBSCRIPTION_ID'}]
-        mock_filter = {'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon EC2']}}
+        mock_filter = {
+            'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon Elastic Compute Cloud - Compute']}
+        }
         mock_sort_by = {'Key': 'UtilizationPercentage', 'SortOrder': 'DESCENDING'}
 
         mock_parse_json.side_effect = [mock_group_by, mock_filter, mock_sort_by]
@@ -736,8 +742,8 @@ class TestRIPerformance:
         """Test ri_performance with all parameters."""
         # Setup
         metrics = '["CoverageHours", "CoverageCost"]'
-        group_by = '[{"Type": "DIMENSION", "Key": "SERVICE"}]'
-        filter_expr = '{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon EC2"]}}'
+        group_by = '[{"Type": "DIMENSION", "Key": "INSTANCE_TYPE"}]'
+        filter_expr = '{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon Elastic Compute Cloud - Compute"]}}'
         sort_by = '{"Key": "CoverageHoursPercentage", "SortOrder": "DESCENDING"}'
 
         # Execute
@@ -1062,6 +1068,92 @@ async def test_description_says_when_total_is_returned():
     description = tool.description or ''
     assert 'returned only when the whole query came back in one page' in description
     assert 'covers the whole query; it is not repeated' not in description
+
+
+# GetReservationCoverage GroupBy keys per SERVICE filter value, as the service validates
+# them (Service.coverageGroupByDims) and confirmed by live calls. The API reference and
+# botocore list one flat set that includes INVOICING_ENTITY and OPERATING_SYSTEM, which no
+# service accepts, and omits INSTANCE_TYPE_FAMILY.
+COVERAGE_GROUP_BY_BY_SERVICE = {
+    'Amazon Elastic Compute Cloud - Compute': {
+        'AZ',
+        'INSTANCE_TYPE',
+        'INSTANCE_TYPE_FAMILY',
+        'LINKED_ACCOUNT',
+        'PLATFORM',
+        'REGION',
+        'TENANCY',
+    },
+    'Amazon Relational Database Service': {
+        'AZ',
+        'INSTANCE_TYPE',
+        'LINKED_ACCOUNT',
+        'DATABASE_ENGINE',
+        'REGION',
+        'DEPLOYMENT_OPTION',
+    },
+    'Amazon ElastiCache': {'AZ', 'INSTANCE_TYPE', 'LINKED_ACCOUNT', 'CACHE_ENGINE', 'REGION'},
+    'Amazon MemoryDB': {'AZ', 'INSTANCE_TYPE', 'LINKED_ACCOUNT', 'CACHE_ENGINE', 'REGION'},
+    'Amazon Redshift': {'AZ', 'INSTANCE_TYPE', 'LINKED_ACCOUNT', 'REGION'},
+    'Amazon OpenSearch Service': {'AZ', 'INSTANCE_TYPE', 'LINKED_ACCOUNT', 'REGION'},
+    'Amazon Elasticsearch Service': {'AZ', 'INSTANCE_TYPE', 'LINKED_ACCOUNT', 'REGION'},
+}
+
+
+async def _ri_description() -> str:
+    tool = await ri_performance_server.get_tool('ri-performance')
+    assert tool is not None
+    return tool.description or ''
+
+
+# The "<scope> only" suffixes the coverage attribute list uses, and the services each names.
+COVERAGE_SCOPES = {
+    'EC2': {'Amazon Elastic Compute Cloud - Compute'},
+    'RDS': {'Amazon Relational Database Service'},
+    'ElastiCache and MemoryDB': {'Amazon ElastiCache', 'Amazon MemoryDB'},
+}
+
+
+def _documented_coverage_group_by(description: str) -> Dict[str, set]:
+    """Per service, the coverage attributes documented for it ("<scope> only" or every service)."""
+    block = description.split('GROUPING get_reservation_coverage (group_by):', 1)[1]
+    documented: Dict[str, set] = {service: set() for service in COVERAGE_GROUP_BY_BY_SERVICE}
+    for line in block.split('\n\n', 1)[0].splitlines():
+        match = re.match(r'- ([A-Z_]+): .*?(?:\. ([A-Za-z0-9 ]+) only)?$', line)
+        if match:
+            key, scope = match.groups()
+            for service in COVERAGE_SCOPES[scope] if scope else documented:
+                documented[service].add(key)
+    return documented
+
+
+@pytest.mark.asyncio
+async def test_description_lists_coverage_group_by_keys_per_service():
+    """Each service's documented coverage group_by keys equal the keys the service accepts."""
+    assert _documented_coverage_group_by(await _ri_description()) == COVERAGE_GROUP_BY_BY_SERVICE
+
+
+@pytest.mark.asyncio
+async def test_description_names_keys_no_service_accepts_for_coverage():
+    """SERVICE, INVOICING_ENTITY and OPERATING_SYSTEM are called out as invalid for every service."""
+    description = ' '.join((await _ri_description()).split())
+    assert (
+        'SERVICE, INVOICING_ENTITY and OPERATING_SYSTEM are NOT valid group_by attributes here'
+        in description
+    )
+    assert 'call once per service to compare across services' in description
+
+
+@pytest.mark.asyncio
+async def test_description_states_subscription_id_format_and_error():
+    """SubscriptionId is digits only; an ARN or UUID is rejected, not silently unmatched."""
+    description = ' '.join((await _ri_description()).split())
+    assert 'GetReservationUtilization groups ONLY by SUBSCRIPTION_ID' in description
+    assert 'is a NUMERIC id' in description
+    assert 'must contain only digits' in description
+    assert 'returns no match' not in description
+    # Utilization accepts several SERVICE values; only coverage caps them at 2.
+    assert 'SERVICE filter takes a single value' not in description
 
 
 @pytest.mark.asyncio
