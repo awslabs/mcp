@@ -2,13 +2,16 @@
 
 import pytest
 from awslabs.postgres_mcp_server.connection.cp_api_connection import (
+    find_proxy_for_instance,
     internal_create_express_cluster,
     internal_create_rds_client,
     internal_create_serverless_cluster,
     internal_delete_cluster,
     internal_get_cluster_properties,
     internal_get_cluster_valid_endpoints,
+    proxy_supports_connection,
 )
+from awslabs.postgres_mcp_server.connection.db_connection_map import ConnectionMethod
 from botocore.exceptions import ClientError, WaiterError
 from typing import Dict, List, Optional
 from unittest.mock import ANY, MagicMock, patch
@@ -1580,3 +1583,622 @@ class TestInternalGetClusterValidEndpoints:
 
         assert ('cluster.writer.rds.amazonaws.com', 5432) in result
         mock_create_client.assert_not_called()
+
+
+# =============================================================================
+# TESTS FOR: find_proxy_for_instance
+# =============================================================================
+
+
+class TestFindProxyForInstance:
+    """Tests for find_proxy_for_instance function."""
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_returns_endpoint_when_proxy_found(self, mock_create_client):
+        """Test that the proxy endpoint is returned when a matching proxy is found."""
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+
+        # Setup proxy paginator
+        proxy_paginator = MagicMock()
+        proxy_paginator.paginate.return_value = [
+            {
+                'DBProxies': [
+                    {
+                        'DBProxyName': 'my-proxy',
+                        'Status': 'available',
+                        'Endpoint': 'my-proxy.proxy-abc123.us-east-1.rds.amazonaws.com',
+                    }
+                ]
+            }
+        ]
+
+        # Setup targets paginator
+        targets_paginator = MagicMock()
+        targets_paginator.paginate.return_value = [
+            {
+                'Targets': [
+                    {
+                        'RdsResourceId': 'my-instance',
+                        'Type': 'RDS_INSTANCE',
+                        'TargetHealth': {'State': 'AVAILABLE'},
+                    },
+                ]
+            }
+        ]
+
+        def get_paginator(operation):
+            if operation == 'describe_db_proxies':
+                return proxy_paginator
+            elif operation == 'describe_db_proxy_targets':
+                return targets_paginator
+            return MagicMock()
+
+        mock_rds.get_paginator.side_effect = get_paginator
+
+        result = find_proxy_for_instance('my-instance', 'us-east-1')
+
+        assert result is not None
+        assert result['Endpoint'] == 'my-proxy.proxy-abc123.us-east-1.rds.amazonaws.com'
+        mock_create_client.assert_called_once_with(region='us-east-1')
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_returns_none_when_no_proxies_exist(self, mock_create_client):
+        """Test that None is returned when no proxies exist in the region."""
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+
+        proxy_paginator = MagicMock()
+        proxy_paginator.paginate.return_value = [{'DBProxies': []}]
+        mock_rds.get_paginator.return_value = proxy_paginator
+
+        result = find_proxy_for_instance('my-instance', 'us-east-1')
+
+        assert result is None
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_returns_none_when_proxy_targets_different_instance(self, mock_create_client):
+        """Test that None is returned when proxy targets a different instance."""
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+
+        proxy_paginator = MagicMock()
+        proxy_paginator.paginate.return_value = [
+            {
+                'DBProxies': [
+                    {
+                        'DBProxyName': 'other-proxy',
+                        'Status': 'available',
+                        'Endpoint': 'other-proxy.proxy-abc123.us-east-1.rds.amazonaws.com',
+                    }
+                ]
+            }
+        ]
+
+        targets_paginator = MagicMock()
+        targets_paginator.paginate.return_value = [
+            {
+                'Targets': [
+                    {
+                        'RdsResourceId': 'different-instance',
+                        'Type': 'RDS_INSTANCE',
+                        'TargetHealth': {'State': 'AVAILABLE'},
+                    },
+                ]
+            }
+        ]
+
+        def get_paginator(operation):
+            if operation == 'describe_db_proxies':
+                return proxy_paginator
+            elif operation == 'describe_db_proxy_targets':
+                return targets_paginator
+            return MagicMock()
+
+        mock_rds.get_paginator.side_effect = get_paginator
+
+        result = find_proxy_for_instance('my-instance', 'us-east-1')
+
+        assert result is None
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_skips_unavailable_proxies(self, mock_create_client):
+        """Test that proxies with non-available status are skipped."""
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+
+        proxy_paginator = MagicMock()
+        proxy_paginator.paginate.return_value = [
+            {
+                'DBProxies': [
+                    {
+                        'DBProxyName': 'creating-proxy',
+                        'Status': 'creating',
+                        'Endpoint': 'creating-proxy.proxy-abc123.us-east-1.rds.amazonaws.com',
+                    },
+                    {
+                        'DBProxyName': 'available-proxy',
+                        'Status': 'available',
+                        'Endpoint': 'available-proxy.proxy-abc123.us-east-1.rds.amazonaws.com',
+                    },
+                ]
+            }
+        ]
+
+        targets_paginator = MagicMock()
+        targets_paginator.paginate.return_value = [
+            {
+                'Targets': [
+                    {
+                        'RdsResourceId': 'my-instance',
+                        'Type': 'RDS_INSTANCE',
+                        'TargetHealth': {'State': 'AVAILABLE'},
+                    },
+                ]
+            }
+        ]
+
+        def get_paginator(operation):
+            if operation == 'describe_db_proxies':
+                return proxy_paginator
+            elif operation == 'describe_db_proxy_targets':
+                return targets_paginator
+            return MagicMock()
+
+        mock_rds.get_paginator.side_effect = get_paginator
+
+        result = find_proxy_for_instance('my-instance', 'us-east-1')
+
+        # Should find the available proxy, not the creating one
+        assert result is not None
+        assert result['Endpoint'] == 'available-proxy.proxy-abc123.us-east-1.rds.amazonaws.com'
+        # describe_db_proxy_targets should only be called for the available proxy
+        targets_paginator.paginate.assert_called_once_with(DBProxyName='available-proxy')
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_continues_on_describe_targets_client_error(self, mock_create_client):
+        """A per-proxy ClientError skips that proxy and keeps looking.
+
+        Uses a proxy-specific fault rather than a permission error: a permission
+        error means the caller can never list targets for any proxy, which is
+        handled by short-circuiting instead (see the AccessDenied test below).
+        """
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+
+        proxy_paginator = MagicMock()
+        proxy_paginator.paginate.return_value = [
+            {
+                'DBProxies': [
+                    {
+                        'DBProxyName': 'error-proxy',
+                        'Status': 'available',
+                        'Endpoint': 'error-proxy.proxy-abc123.us-east-1.rds.amazonaws.com',
+                    },
+                    {
+                        'DBProxyName': 'good-proxy',
+                        'Status': 'available',
+                        'Endpoint': 'good-proxy.proxy-abc123.us-east-1.rds.amazonaws.com',
+                    },
+                ]
+            }
+        ]
+
+        # First proxy's targets call raises ClientError, second succeeds
+        error_targets_paginator = MagicMock()
+        error_targets_paginator.paginate.side_effect = ClientError(
+            {'Error': {'Code': 'InvalidDBProxyStateFault', 'Message': 'Proxy is modifying'}},
+            'DescribeDBProxyTargets',
+        )
+
+        good_targets_paginator = MagicMock()
+        good_targets_paginator.paginate.return_value = [
+            {
+                'Targets': [
+                    {
+                        'RdsResourceId': 'my-instance',
+                        'Type': 'RDS_INSTANCE',
+                        'TargetHealth': {'State': 'AVAILABLE'},
+                    },
+                ]
+            }
+        ]
+
+        call_count = {'n': 0}
+
+        def get_paginator(operation):
+            if operation == 'describe_db_proxies':
+                return proxy_paginator
+            elif operation == 'describe_db_proxy_targets':
+                call_count['n'] += 1
+                if call_count['n'] == 1:
+                    return error_targets_paginator
+                return good_targets_paginator
+            return MagicMock()
+
+        mock_rds.get_paginator.side_effect = get_paginator
+
+        result = find_proxy_for_instance('my-instance', 'us-east-1')
+
+        # Should skip the errored proxy and find the good one
+        assert result is not None
+        assert result['Endpoint'] == 'good-proxy.proxy-abc123.us-east-1.rds.amazonaws.com'
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_access_denied_stops_after_one_attempt(self, mock_create_client):
+        """A permissions failure must warn once and fall back, not retry per proxy.
+
+        Lacking rds:DescribeDBProxyTargets is a property of the caller, not of any
+        one proxy, so continuing the loop just multiplies identical warnings and
+        wasted API calls across every proxy in the region.
+        """
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+
+        proxy_paginator = MagicMock()
+        proxy_paginator.paginate.return_value = [
+            {
+                'DBProxies': [
+                    {
+                        'DBProxyName': f'proxy-{i}',
+                        'Status': 'available',
+                        'Endpoint': f'p{i}.example',
+                    }
+                    for i in range(4)
+                ]
+            }
+        ]
+
+        denied = MagicMock()
+        denied.paginate.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDeniedException', 'Message': 'Not authorized'}},
+            'DescribeDBProxyTargets',
+        )
+
+        target_calls = {'n': 0}
+
+        def get_paginator(operation):
+            if operation == 'describe_db_proxies':
+                return proxy_paginator
+            target_calls['n'] += 1
+            return denied
+
+        mock_rds.get_paginator.side_effect = get_paginator
+
+        result = find_proxy_for_instance('my-instance', 'us-east-1')
+
+        assert result is None
+        assert target_calls['n'] == 1, (
+            f'expected to stop after the first AccessDenied, but made '
+            f'{target_calls["n"]} describe_db_proxy_targets calls'
+        )
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_returns_none_on_describe_proxies_client_error(self, mock_create_client):
+        """Test that a ClientError on describe_db_proxies returns None gracefully."""
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+
+        proxy_paginator = MagicMock()
+        proxy_paginator.paginate.side_effect = ClientError(
+            {'Error': {'Code': 'AccessDenied', 'Message': 'Not authorized'}},
+            'DescribeDBProxies',
+        )
+        mock_rds.get_paginator.return_value = proxy_paginator
+
+        result = find_proxy_for_instance('my-instance', 'us-east-1')
+
+        assert result is None
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_returns_none_on_unexpected_exception(self, mock_create_client):
+        """Test that an unexpected exception returns None gracefully."""
+        mock_create_client.side_effect = RuntimeError('Unexpected failure')
+
+        result = find_proxy_for_instance('my-instance', 'us-east-1')
+
+        assert result is None
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_paginates_across_multiple_proxy_pages(self, mock_create_client):
+        """Test that pagination works across multiple pages of proxies."""
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+
+        proxy_paginator = MagicMock()
+        proxy_paginator.paginate.return_value = [
+            {
+                'DBProxies': [
+                    {
+                        'DBProxyName': 'proxy-page1',
+                        'Status': 'available',
+                        'Endpoint': 'proxy-page1.proxy-abc123.us-east-1.rds.amazonaws.com',
+                    }
+                ]
+            },
+            {
+                'DBProxies': [
+                    {
+                        'DBProxyName': 'proxy-page2',
+                        'Status': 'available',
+                        'Endpoint': 'proxy-page2.proxy-abc123.us-east-1.rds.amazonaws.com',
+                    }
+                ]
+            },
+        ]
+
+        # First proxy targets a different instance, second matches
+        page1_targets = MagicMock()
+        page1_targets.paginate.return_value = [
+            {
+                'Targets': [
+                    {
+                        'RdsResourceId': 'other-instance',
+                        'Type': 'RDS_INSTANCE',
+                        'TargetHealth': {'State': 'AVAILABLE'},
+                    }
+                ]
+            }
+        ]
+
+        page2_targets = MagicMock()
+        page2_targets.paginate.return_value = [
+            {
+                'Targets': [
+                    {
+                        'RdsResourceId': 'my-instance',
+                        'Type': 'RDS_INSTANCE',
+                        'TargetHealth': {'State': 'AVAILABLE'},
+                    }
+                ]
+            }
+        ]
+
+        call_count = {'n': 0}
+
+        def get_paginator(operation):
+            if operation == 'describe_db_proxies':
+                return proxy_paginator
+            elif operation == 'describe_db_proxy_targets':
+                call_count['n'] += 1
+                if call_count['n'] == 1:
+                    return page1_targets
+                return page2_targets
+            return MagicMock()
+
+        mock_rds.get_paginator.side_effect = get_paginator
+
+        result = find_proxy_for_instance('my-instance', 'us-east-1')
+
+        assert result is not None
+        assert result['Endpoint'] == 'proxy-page2.proxy-abc123.us-east-1.rds.amazonaws.com'
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_paginates_across_multiple_target_pages(self, mock_create_client):
+        """Test that pagination works across multiple pages of targets."""
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+
+        proxy_paginator = MagicMock()
+        proxy_paginator.paginate.return_value = [
+            {
+                'DBProxies': [
+                    {
+                        'DBProxyName': 'my-proxy',
+                        'Status': 'available',
+                        'Endpoint': 'my-proxy.proxy-abc123.us-east-1.rds.amazonaws.com',
+                    }
+                ]
+            }
+        ]
+
+        targets_paginator = MagicMock()
+        targets_paginator.paginate.return_value = [
+            {
+                'Targets': [
+                    {
+                        'RdsResourceId': 'other-instance-1',
+                        'Type': 'RDS_INSTANCE',
+                        'TargetHealth': {'State': 'AVAILABLE'},
+                    }
+                ]
+            },
+            {
+                'Targets': [
+                    {
+                        'RdsResourceId': 'my-instance',
+                        'Type': 'RDS_INSTANCE',
+                        'TargetHealth': {'State': 'AVAILABLE'},
+                    }
+                ]
+            },
+        ]
+
+        def get_paginator(operation):
+            if operation == 'describe_db_proxies':
+                return proxy_paginator
+            elif operation == 'describe_db_proxy_targets':
+                return targets_paginator
+            return MagicMock()
+
+        mock_rds.get_paginator.side_effect = get_paginator
+
+        result = find_proxy_for_instance('my-instance', 'us-east-1')
+
+        assert result is not None
+        assert result['Endpoint'] == 'my-proxy.proxy-abc123.us-east-1.rds.amazonaws.com'
+
+    @patch('awslabs.postgres_mcp_server.connection.cp_api_connection.internal_create_rds_client')
+    def test_empty_targets_list(self, mock_create_client):
+        """Test handling of a proxy with no targets."""
+        mock_rds = MagicMock()
+        mock_create_client.return_value = mock_rds
+
+        proxy_paginator = MagicMock()
+        proxy_paginator.paginate.return_value = [
+            {
+                'DBProxies': [
+                    {
+                        'DBProxyName': 'empty-proxy',
+                        'Status': 'available',
+                        'Endpoint': 'empty-proxy.proxy-abc123.us-east-1.rds.amazonaws.com',
+                    }
+                ]
+            }
+        ]
+
+        targets_paginator = MagicMock()
+        targets_paginator.paginate.return_value = [{'Targets': []}]
+
+        def get_paginator(operation):
+            if operation == 'describe_db_proxies':
+                return proxy_paginator
+            elif operation == 'describe_db_proxy_targets':
+                return targets_paginator
+            return MagicMock()
+
+        mock_rds.get_paginator.side_effect = get_paginator
+
+        result = find_proxy_for_instance('my-instance', 'us-east-1')
+
+        assert result is None
+
+
+# =============================================================================
+# TESTS FOR: proxy_supports_connection
+# =============================================================================
+
+SECRET_A = 'arn:aws:secretsmanager:us-east-1:111122223333:secret:a'  # pragma: allowlist secret
+SECRET_B = 'arn:aws:secretsmanager:us-east-1:111122223333:secret:b'  # pragma: allowlist secret
+
+
+def _auth_proxy(*entries, name='p1'):
+    """A DBProxy carrying the given Auth entries."""
+    return {
+        'DBProxyName': name,
+        'Status': 'available',
+        'Endpoint': 'p1.example',
+        'Auth': list(entries),
+    }
+
+
+def _entry(secret_arn=SECRET_A, iam_auth='DISABLED', user='postgres'):
+    """One UserAuthConfigInfo entry."""
+    return {
+        'UserName': user,
+        'AuthScheme': 'SECRETS',
+        'SecretArn': secret_arn,
+        'IAMAuth': iam_auth,
+    }
+
+
+class TestProxySupportsConnection:
+    """Whether a proxy will actually accept the connection we are about to make.
+
+    This is what makes --rds_proxy=auto safe: a proxy can front the instance and
+    still reject us, which would turn a working direct connection into an auth
+    failure. Each case below is a configuration we would otherwise route into.
+    """
+
+    def test_password_auth_accepted_when_secret_is_registered(self):
+        """The ordinary case: our secret is in the proxy's Auth list."""
+        ok, reason = proxy_supports_connection(
+            _auth_proxy(_entry(secret_arn=SECRET_A)),
+            ConnectionMethod.PG_WIRE_PROTOCOL,
+            SECRET_A,
+        )
+        assert ok is True
+        assert SECRET_A in reason or 'postgres' in reason
+
+    def test_password_auth_rejected_when_a_different_secret_is_registered(self):
+        """The proxy-for-someone-else case that motivated making this opt-in.
+
+        A proxy created for another consumer registers that consumer's secret. It
+        fronts our instance, but has no credentials for us.
+        """
+        ok, reason = proxy_supports_connection(
+            _auth_proxy(_entry(secret_arn=SECRET_B)),
+            ConnectionMethod.PG_WIRE_PROTOCOL,
+            SECRET_A,
+        )
+        assert ok is False
+        assert 'different secret' in reason
+
+    def test_password_auth_rejected_when_proxy_requires_iam(self):
+        """IAMAuth=REQUIRED accepts only IAM tokens, so a password is refused."""
+        ok, reason = proxy_supports_connection(
+            _auth_proxy(_entry(iam_auth='REQUIRED')),
+            ConnectionMethod.PG_WIRE_PROTOCOL,
+            SECRET_A,
+        )
+        assert ok is False
+        assert 'REQUIRED' in reason
+
+    def test_password_auth_rejected_when_no_secret_is_configured(self):
+        """Without a resolved secret there is nothing to match against."""
+        ok, reason = proxy_supports_connection(
+            _auth_proxy(_entry()), ConnectionMethod.PG_WIRE_PROTOCOL, ''
+        )
+        assert ok is False
+        assert 'secret' in reason
+
+    @pytest.mark.parametrize('iam_auth', ['REQUIRED', 'ENABLED'])
+    def test_iam_auth_accepted_when_permitted(self, iam_auth):
+        """Both REQUIRED and ENABLED allow an IAM token."""
+        ok, _ = proxy_supports_connection(
+            _auth_proxy(_entry(iam_auth=iam_auth)),
+            ConnectionMethod.PG_WIRE_IAM_PROTOCOL,
+            '',
+        )
+        assert ok is True
+
+    def test_iam_auth_rejected_when_disabled(self):
+        """IAMAuth=DISABLED refuses an IAM token even though the proxy fronts us."""
+        ok, reason = proxy_supports_connection(
+            _auth_proxy(_entry(iam_auth='DISABLED')),
+            ConnectionMethod.PG_WIRE_IAM_PROTOCOL,
+            '',
+        )
+        assert ok is False
+        assert 'DISABLED' in reason
+
+    def test_any_compatible_entry_is_enough(self):
+        """A proxy with several users only needs one entry that fits."""
+        ok, _ = proxy_supports_connection(
+            _auth_proxy(
+                _entry(secret_arn=SECRET_B, user='other'),
+                _entry(secret_arn=SECRET_A, user='postgres'),
+            ),
+            ConnectionMethod.PG_WIRE_PROTOCOL,
+            SECRET_A,
+        )
+        assert ok is True
+
+    def test_rds_api_never_uses_a_proxy(self):
+        """The Data API speaks HTTPS to the cluster, so a proxy is not on its path."""
+        ok, reason = proxy_supports_connection(
+            _auth_proxy(_entry()), ConnectionMethod.RDS_API, SECRET_A
+        )
+        assert ok is False
+        assert 'does not use an RDS Proxy' in reason
+
+    def test_proxy_with_no_auth_entries_is_rejected(self):
+        """Nothing to authenticate against."""
+        ok, reason = proxy_supports_connection(
+            _auth_proxy(), ConnectionMethod.PG_WIRE_PROTOCOL, SECRET_A
+        )
+        assert ok is False
+        assert 'no Auth entries' in reason
+
+    def test_missing_iam_auth_field_is_treated_as_disabled(self):
+        """Absent IAMAuth must not be read as permission to use IAM."""
+        entry = {'UserName': 'postgres', 'SecretArn': SECRET_A}
+        ok, _ = proxy_supports_connection(
+            _auth_proxy(entry), ConnectionMethod.PG_WIRE_IAM_PROTOCOL, ''
+        )
+        assert ok is False
+        # ... but password auth against the same entry is fine.
+        ok, _ = proxy_supports_connection(
+            _auth_proxy(entry), ConnectionMethod.PG_WIRE_PROTOCOL, SECRET_A
+        )
+        assert ok is True
