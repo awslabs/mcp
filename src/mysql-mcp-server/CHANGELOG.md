@@ -81,6 +81,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `sleep()` / `benchmark()` / `load_file()` treatment. Read-only status
   probes (`IS_FREE_LOCK`, `IS_USED_LOCK`) and the no-argument
   `LAST_INSERT_ID()` read remain allowed.
+- **CWE-184** — read-only mode now rejects multi-word mutating keywords
+  (`LOAD DATA`, `LOAD XML`, `REPLACE INTO`, etc.) when their words are
+  separated by any whitespace (multiple spaces, tab, newline), not just a
+  single space. The keyword pattern builder previously ran `re.escape` over
+  the whole phrase, baking in one literal space (`re.escape('LOAD DATA')` →
+  `LOAD\ DATA`), so any other MySQL-legal separator between the words slipped
+  past the gate. The builder now joins words with `\s+`, matching the sibling
+  MSSQL / Oracle / DB2 detectors. Whitespace variant of CVE-2026-85788,
+  whose earlier fix only normalised comments. Non-breaking: single-word
+  keywords are unaffected and the change only widens the inter-word
+  separator.
 
 ### Changed
 

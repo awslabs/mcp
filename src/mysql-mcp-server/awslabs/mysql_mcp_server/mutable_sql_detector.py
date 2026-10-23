@@ -80,6 +80,11 @@ MUTATING_KEYWORDS = {
     'KILL',
 }
 
+
+def _keyword_to_pattern(k: str) -> str:
+    return r'\s+'.join(re.escape(word) for word in k.split())
+
+
 # Compile regex pattern.
 #
 # Keywords are sorted longest-first so that multi-word entries
@@ -92,7 +97,7 @@ MUTATING_KEYWORDS = {
 # hash-seed dependent.
 _MUTATING_KEYWORDS_BY_LENGTH = sorted(MUTATING_KEYWORDS, key=len, reverse=True)
 MUTATING_PATTERN = re.compile(
-    r'(?i)\b(' + '|'.join(re.escape(k) for k in _MUTATING_KEYWORDS_BY_LENGTH) + r')\b'
+    r'(?i)\b(' + '|'.join(_keyword_to_pattern(k) for k in _MUTATING_KEYWORDS_BY_LENGTH) + r')\b'
 )
 
 
@@ -164,7 +169,7 @@ _STATEMENT_START_KEYWORDS_BY_LENGTH = sorted(
 # staying at least as strict.
 STATEMENT_START_MUTATING_PATTERN = re.compile(
     r'(?i)(?:^|;)\s*('
-    + '|'.join(re.escape(k) for k in _STATEMENT_START_KEYWORDS_BY_LENGTH)
+    + '|'.join(_keyword_to_pattern(k) for k in _STATEMENT_START_KEYWORDS_BY_LENGTH)
     + r')\b'
 )
 
