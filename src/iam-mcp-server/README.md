@@ -220,19 +220,24 @@ The server supports a read-only mode that prevents all mutating operations while
 - **Testing**: Allowing safe exploration of IAM resources without risk of changes
 - **Auditing**: Running the server in environments where only read access should be allowed
 
-### Enabling Read-Only Mode
+### Read-Only Mode is the Default
 
-Add the `--readonly` flag when starting the server:
+The server runs in read-only mode by default, so no flag is needed to enable it. To allow mutating operations, start the server with the `--allow-write` flag:
 
 ```bash
-# Using uvx
-uvx awslabs.iam-mcp-server@latest --readonly
+# Read-only (default) — no flag needed
+uvx awslabs.iam-mcp-server@latest
+
+# Enable write operations
+uvx awslabs.iam-mcp-server@latest --allow-write
 
 # Or if installed locally
-python -m awslabs.iam_mcp_server.server --readonly
+python -m awslabs.iam_mcp_server.server --allow-write
 ```
 
-### MCP Client Configuration with Read-Only Mode
+### MCP Client Configuration
+
+Read-only mode needs no configuration. To enable write operations, add `--allow-write` to the args array:
 
 #### Kiro
 ```json
@@ -240,7 +245,7 @@ python -m awslabs.iam_mcp_server.server --readonly
   "mcpServers": {
     "awslabs.iam-mcp-server": {
       "command": "uvx",
-      "args": ["awslabs.iam-mcp-server@latest", "--readonly"],
+      "args": ["awslabs.iam-mcp-server@latest", "--allow-write"],
       "env": {
         "AWS_PROFILE": "your-aws-profile",
         "AWS_REGION": "us-east-1"
@@ -251,11 +256,11 @@ python -m awslabs.iam_mcp_server.server --readonly
 ```
 
 #### Other MCP Clients
-Simply add `"--readonly"` to the args array in your MCP configuration.
+Leave the args as-is for read-only mode, or add `"--allow-write"` to the args array to enable write operations.
 
 ### Operations Blocked in Read-Only Mode
 
-When read-only mode is enabled, the following operations will return an error:
+In read-only mode (the default), the following operations will return an error unless the server is started with `--allow-write`:
 - `create_user`
 - `delete_user`
 - `create_role`
