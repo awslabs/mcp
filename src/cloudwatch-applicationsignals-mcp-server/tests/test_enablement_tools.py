@@ -3,8 +3,12 @@
 
 """Tests for enablement_tools module."""
 
+import builtins
+import io
 import pytest
+from awslabs.cloudwatch_applicationsignals_mcp_server import enablement_tools
 from awslabs.cloudwatch_applicationsignals_mcp_server.enablement_tools import get_enablement_guide
+from pathlib import Path
 from unittest.mock import patch
 
 
@@ -272,3 +276,80 @@ class TestGetEnablementGuide:
         assert 'Permission denied' in result
         assert 'file permissions or reinstall' in result
         assert 'issue with the MCP server installation' in result
+
+
+GUIDE_TEMPLATES = sorted(
+    (Path(enablement_tools.__file__).parent / 'enablement_guides' / 'templates').glob(
+        '*/*-enablement.md'
+    )
+)
+
+
+@pytest.fixture
+def legacy_default_encoding(monkeypatch):
+    """Make text-mode file I/O behave like a Windows host whose default encoding is cp1252.
+
+    ``open()`` called without an ``encoding`` uses cp1252 (and, on Python 3.11+,
+    ``Path.read_text()`` too; on 3.10 ``pathlib`` binds ``io.open`` at import time, so only
+    the builtin ``open()`` is affected, which is what the code under test uses). This
+    reproduces such a host on any platform, including when the test run itself has
+    UTF-8 mode enabled.
+    """
+    real_open = io.open
+
+    def legacy_open(
+        file,
+        mode='r',
+        buffering=-1,
+        encoding=None,
+        errors=None,
+        newline=None,
+        closefd=True,
+        opener=None,
+    ):
+        if 'b' not in mode and encoding in (None, 'locale'):
+            encoding = 'cp1252'
+        return real_open(file, mode, buffering, encoding, errors, newline, closefd, opener)
+
+    def legacy_text_encoding(encoding, stacklevel=2):
+        return 'locale' if encoding is None else encoding
+
+    monkeypatch.setattr(builtins, 'open', legacy_open)
+    monkeypatch.setattr(io, 'open', legacy_open)
+    monkeypatch.setattr(io, 'text_encoding', legacy_text_encoding)
+
+
+class TestGuideEncoding:
+    """The bundled guides are UTF-8 and must read the same whatever the host's default is."""
+
+    def test_guides_are_found(self):
+        """Guard against the parametrized test below silently collecting nothing."""
+        assert GUIDE_TEMPLATES
+
+    @pytest.mark.parametrize('template', GUIDE_TEMPLATES, ids=lambda path: path.stem)
+    async def test_guide_is_read_as_utf8(self, template, tmp_path, legacy_default_encoding):
+        """Every bundled guide is returned exactly as stored, not as an error or mojibake."""
+        platform, language = template.stem.removesuffix('-enablement').split('-')
+        expected = template.read_text(encoding='utf-8')
+
+        result = await get_enablement_guide(
+            service_platform=platform,
+            service_language=language,
+            iac_directory=str(tmp_path / 'iac'),
+            app_directory=str(tmp_path / 'app'),
+        )
+
+        assert not result.startswith('Fatal error')
+        assert result.endswith(expected)
+
+    async def test_non_ascii_guide_content_is_preserved(self, tmp_path, legacy_default_encoding):
+        """A guide containing an arrow keeps it, rather than the cp1252 mojibake for it."""
+        result = await get_enablement_guide(
+            service_platform='ec2',
+            service_language='python',
+            iac_directory=str(tmp_path / 'iac'),
+            app_directory=str(tmp_path / 'app'),
+        )
+
+        assert '→' in result
+        assert 'â†’' not in result
