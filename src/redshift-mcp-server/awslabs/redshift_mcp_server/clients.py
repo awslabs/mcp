@@ -15,6 +15,7 @@
 """AWS clients for the Redshift MCP Server, and the error codes their calls answer with."""
 
 import boto3
+import botocore.session
 import os
 import threading
 from awslabs.redshift_mcp_server import __version__
@@ -22,8 +23,16 @@ from awslabs.redshift_mcp_server.consts import (
     CLIENT_CONNECT_TIMEOUT,
     CLIENT_READ_TIMEOUT,
     CLIENT_RETRIES,
+    CREDENTIAL_REFRESH_TTL,
 )
 from botocore.config import Config
+from botocore.credentials import (
+    CredentialProvider,
+    RefreshableCredentials,
+    SharedCredentialProvider,
+)
+from botocore.exceptions import CredentialRetrievalError
+from datetime import datetime, timedelta, timezone
 from loguru import logger
 
 
@@ -42,6 +51,76 @@ BATCH_ACTION = 'redshift-data:BatchExecuteStatement'
 # on worker threads and the Data API client on the event loop, and two scrubs at once raised
 # KeyError from the second one's delete.
 _ENVIRONMENT_LOCK = threading.Lock()
+
+
+class RefreshingSharedCredentialProvider(CredentialProvider):
+    """Keys from the shared credentials file, read again each time they are a TTL old.
+
+    Botocore reads these keys once, as credentials that never expire, so a client signs with them
+    for the life of the process. Keys rewritten in place - by `aws configure`, say - went unseen
+    until a restart, and every call meanwhile failed with ExpiredToken, which botocore does not
+    retry. Here the same keys carry an expiry of their own, so the signer has botocore read the
+    file again, under its own refresh lock, on the first call after it passes. The client is never
+    rebuilt, and nothing that holds it can tell.
+
+    Only this source needs it. SSO, assume-role, web identity and container credentials already
+    refresh inside a client, and keys in the environment cannot be read again in-process.
+    """
+
+    # The method of the credentials it stands in for, so what a client reports is unchanged.
+    METHOD = SharedCredentialProvider.METHOD
+
+    def __init__(self, provider: SharedCredentialProvider, ttl: float):
+        """Wrap the session's own provider, so file, profile and parsing stay botocore's.
+
+        Args:
+            provider: The provider botocore built for this session's profile and file.
+            ttl: How long, in seconds, one read of the file is used before the next.
+        """
+        super().__init__()
+        self._provider = provider
+        self._ttl = ttl
+
+    def load(self):  # pyright: ignore[reportIncompatibleMethodOverride] - botocore is untyped
+        """Read the profile's keys, or None to leave the chain to the providers after this one."""
+        metadata = self._read()
+        if metadata is None:
+            return None
+        return RefreshableCredentials.create_from_metadata(
+            metadata=metadata,
+            refresh_using=self._refresh,
+            method=self.METHOD,
+            # Botocore's defaults refresh up to 15 minutes ahead of the expiry, which for a TTL
+            # this short is every call. At 0 the file is read once the expiry has passed, and a
+            # failed read raises instead of being swallowed, as an early one would be.
+            advisory_timeout=0,
+            mandatory_timeout=0,
+        )
+
+    def _read(self) -> dict | None:
+        credentials = self._provider.load()
+        if credentials is None:
+            return None
+        frozen = credentials.get_frozen_credentials()
+        expiry = datetime.now(timezone.utc) + timedelta(seconds=self._ttl)
+        return {
+            'access_key': frozen.access_key,
+            'secret_key': frozen.secret_key,
+            'token': frozen.token,
+            'account_id': frozen.account_id,
+            'expiry_time': expiry.isoformat(),
+        }
+
+    def _refresh(self) -> dict:
+        metadata = self._read()
+        if metadata is None:
+            # Raised to the call being signed, rather than signing it with keys the file no
+            # longer holds. The next call reads the file again.
+            raise CredentialRetrievalError(
+                provider=self.METHOD,
+                error_msg="the profile's keys are no longer in the shared credentials file",
+            )
+        return metadata
 
 
 class RedshiftClientManager:
@@ -92,6 +171,9 @@ class RedshiftClientManager:
         identity; passed in, it ranks above them, which is what naming a profile means. Botocore
         reads only AWS_DEFAULT_REGION, where the README gives AWS_REGION precedence.
 
+        Keys from the shared credentials file are read again every CREDENTIAL_REFRESH_TTL
+        seconds; see `RefreshingSharedCredentialProvider`.
+
         Args:
             service: The botocore service name.
 
@@ -105,9 +187,22 @@ class RedshiftClientManager:
                     del os.environ[name]
 
         try:
+            botocore_session = botocore.session.Session()
             session = boto3.Session(
+                botocore_session=botocore_session,
                 profile_name=os.environ.get('AWS_PROFILE'),
                 region_name=os.environ.get('AWS_REGION'),
+            )
+            # Only once the session has its profile: this builds the resolver the client would
+            # otherwise build, and the resolver fixes then which profile it reads and whether
+            # keys in the environment are passed over for it.
+            resolver = botocore_session.get_component('credential_provider')
+            resolver.insert_before(
+                SharedCredentialProvider.METHOD,
+                RefreshingSharedCredentialProvider(
+                    resolver.get_provider(SharedCredentialProvider.METHOD),
+                    ttl=CREDENTIAL_REFRESH_TTL,
+                ),
             )
             client = session.client(service, config=self._config)
         except Exception as e:
