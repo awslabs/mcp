@@ -257,33 +257,30 @@ class TestInternalHelpers:
         promql_client._reset_session()
 
     def test_get_credentials_success(self, monkeypatch):
-        """_get_credentials resolves frozen credentials from a boto3 session."""
+        """_get_credentials resolves frozen credentials from a factory client."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server import aws_clients
         from botocore.credentials import Credentials
 
         fake_creds = Credentials('AKID', 'SECRET', 'TOKEN')
-        fake_session = MagicMock()
-        fake_session.get_credentials.return_value = fake_creds
+        fake_client = MagicMock()
+        fake_client._request_signer._credentials = fake_creds
 
-        import boto3
-
-        monkeypatch.setattr(boto3, 'Session', lambda *a, **k: fake_session)
+        monkeypatch.setattr(aws_clients, 'get_client', lambda *a, **k: fake_client)
         # Run the real implementation captured before the autouse fixture stubbed it.
-        with patch.object(promql_client, '_region', lambda: 'us-east-1'):
-            frozen = _REAL_GET_CREDENTIALS()
+        frozen = _REAL_GET_CREDENTIALS()
         assert frozen.access_key == 'AKID'
         assert frozen.secret_key == 'SECRET'  # pragma: allowlist secret
 
     def test_get_credentials_missing_raises(self, monkeypatch):
-        """_get_credentials raises when no credentials are available."""
-        fake_session = MagicMock()
-        fake_session.get_credentials.return_value = None
+        """_get_credentials raises when the factory client has no credentials."""
+        from awslabs.cloudwatch_applicationsignals_mcp_server import aws_clients
 
-        import boto3
+        fake_client = MagicMock()
+        fake_client._request_signer._credentials = None
 
-        monkeypatch.setattr(boto3, 'Session', lambda *a, **k: fake_session)
-        with patch.object(promql_client, '_region', lambda: 'us-east-1'):
-            with pytest.raises(PromQLQueryError, match='credentials not found'):
-                _REAL_GET_CREDENTIALS()
+        monkeypatch.setattr(aws_clients, 'get_client', lambda *a, **k: fake_client)
+        with pytest.raises(PromQLQueryError, match='credentials not found'):
+            _REAL_GET_CREDENTIALS()
 
     def test_sleep_backoff_sleeps_before_final(self, monkeypatch):
         """_sleep_backoff sleeps on non-final attempts and not on the last."""

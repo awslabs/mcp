@@ -48,43 +48,39 @@ class TestAppSignalsFlag:
 class TestCheckAppSignalsEnabled:
     """Tests for the log-group probe that detects Application Signals."""
 
+    # The probe resolves its logs client through the client factory (get_client),
+    # so FAS credentials are honoured; tests patch the factory rather than boto3.
+    _GET_CLIENT = 'awslabs.cloudwatch_applicationsignals_mcp_server.aws_clients.get_client'
+
     def test_returns_true_when_log_group_present(self):
         """Return True when the AppSignals data log group exists."""
         logs = MagicMock()
         logs.describe_log_groups.return_value = {
             'logGroups': [{'logGroupName': '/aws/application-signals/data'}]
         }
-        fake_boto3 = MagicMock()
-        fake_boto3.client.return_value = logs
-        with patch.dict('sys.modules', {'boto3': fake_boto3}):
+        with patch(self._GET_CLIENT, return_value=logs) as mock_get_client:
             assert state.check_appsignals_enabled('us-east-1') is True
-        fake_boto3.client.assert_called_once_with('logs', region_name='us-east-1')
+        mock_get_client.assert_called_once_with('logs')
 
     def test_returns_false_when_log_group_absent(self):
         """Return False when no matching log group is returned."""
         logs = MagicMock()
         logs.describe_log_groups.return_value = {'logGroups': [{'logGroupName': '/aws/other'}]}
-        fake_boto3 = MagicMock()
-        fake_boto3.client.return_value = logs
-        with patch.dict('sys.modules', {'boto3': fake_boto3}):
+        with patch(self._GET_CLIENT, return_value=logs):
             assert state.check_appsignals_enabled('us-west-2') is False
 
     def test_returns_false_on_empty_response(self):
         """Return False when describe_log_groups returns no groups."""
         logs = MagicMock()
         logs.describe_log_groups.return_value = {}
-        fake_boto3 = MagicMock()
-        fake_boto3.client.return_value = logs
-        with patch.dict('sys.modules', {'boto3': fake_boto3}):
+        with patch(self._GET_CLIENT, return_value=logs):
             assert state.check_appsignals_enabled('us-east-1') is False
 
     def test_returns_false_on_exception(self):
-        """Swallow any boto3 error and return False."""
+        """Swallow any client error and return False."""
         logs = MagicMock()
         logs.describe_log_groups.side_effect = RuntimeError('boom')
-        fake_boto3 = MagicMock()
-        fake_boto3.client.return_value = logs
-        with patch.dict('sys.modules', {'boto3': fake_boto3}):
+        with patch(self._GET_CLIENT, return_value=logs):
             assert state.check_appsignals_enabled('us-east-1') is False
 
 

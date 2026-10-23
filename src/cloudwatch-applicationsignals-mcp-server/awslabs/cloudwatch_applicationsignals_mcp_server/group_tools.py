@@ -25,7 +25,7 @@ Tools:
 - list_grouping_attribute_definitions: List all custom grouping attribute definitions
 """
 
-from .aws_clients import AWS_REGION, applicationsignals_client, cloudwatch_client
+from .aws_clients import get_client, get_region
 from .canary_utils import check_canaries_for_service
 from .sli_report_client import AWSConfig, SLIReportClient
 from .utils import (
@@ -106,7 +106,9 @@ async def _discover_services_by_group(
     }
 
     try:
-        all_services = list_services_paginated(applicationsignals_client, start_time, end_time)
+        all_services = list_services_paginated(
+            get_client('application-signals'), start_time, end_time
+        )
 
         for service in all_services:
             stats['total_services_scanned'] += 1
@@ -180,7 +182,7 @@ def _build_group_header(
     return (
         f'{emoji} **{title}: {group_name}**\n'
         f'⏰ Time Range: {start_dt.strftime("%Y-%m-%d %H:%M")} to {end_dt.strftime("%Y-%m-%d %H:%M")} UTC\n'
-        f'🌎 Region: {AWS_REGION}\n'
+        f'🌎 Region: {get_region()}\n'
         f'📊 Services in group: {service_count}\n\n'
     )
 
@@ -456,7 +458,7 @@ async def audit_group_health(
             sli_data_available = False
             try:
                 config = AWSConfig(
-                    region=AWS_REGION,
+                    region=get_region(),
                     period_in_hours=period_hours,
                     service_name=svc_name,
                     key_attributes=key_attrs,
@@ -504,7 +506,7 @@ async def audit_group_health(
 
                 try:
                     # Get service detail for metric references
-                    service_response = applicationsignals_client.get_service(
+                    service_response = get_client('application-signals').get_service(
                         StartTime=start_dt,
                         EndTime=end_dt,
                         KeyAttributes=key_attrs,
@@ -520,7 +522,7 @@ async def audit_group_health(
 
                         if metric_type == 'Fault':
                             stats = fetch_metric_stats(
-                                cloudwatch_client,
+                                get_client('cloudwatch'),
                                 namespace,
                                 metric_name,
                                 dimensions,
@@ -560,7 +562,7 @@ async def audit_group_health(
 
                         elif metric_type == 'Error':
                             stats = fetch_metric_stats(
-                                cloudwatch_client,
+                                get_client('cloudwatch'),
                                 namespace,
                                 metric_name,
                                 dimensions,
@@ -600,7 +602,7 @@ async def audit_group_health(
 
                         elif metric_type == 'Latency':
                             stats = fetch_metric_stats(
-                                cloudwatch_client,
+                                get_client('cloudwatch'),
                                 namespace,
                                 metric_name,
                                 dimensions,
@@ -739,7 +741,7 @@ async def audit_group_health(
             unix_start = int(start_dt.timestamp())
             unix_end = int(end_dt.timestamp())
             canary_result = await check_canaries_for_service(
-                normalized_targets, unix_start, unix_end, AWS_REGION
+                normalized_targets, unix_start, unix_end, get_region()
             )
             if canary_result:
                 result += '\n' + '=' * 50 + '\n'
@@ -852,7 +854,7 @@ async def get_group_dependencies(
 
             # Get dependencies
             try:
-                response = applicationsignals_client.list_service_dependencies(
+                response = get_client('application-signals').list_service_dependencies(
                     StartTime=start_dt,
                     EndTime=end_dt,
                     KeyAttributes=key_attrs,
@@ -887,7 +889,7 @@ async def get_group_dependencies(
                         cache_key = (dep_name.lower(), dep_env.lower())
                         if cache_key not in dep_group_cache:
                             try:
-                                dep_svc_response = applicationsignals_client.get_service(
+                                dep_svc_response = get_client('application-signals').get_service(
                                     StartTime=start_dt,
                                     EndTime=end_dt,
                                     KeyAttributes=dep_key_attrs,
@@ -1065,7 +1067,7 @@ async def get_group_changes(
                 if next_token:
                     list_params['NextToken'] = next_token
 
-                response = applicationsignals_client.list_service_states(**list_params)
+                response = get_client('application-signals').list_service_states(**list_params)
                 service_states = response.get('ServiceStates', [])
                 next_token = response.get('NextToken')
 
@@ -1230,7 +1232,9 @@ async def list_grouping_attribute_definitions() -> str:
             if next_token:
                 list_params['NextToken'] = next_token
 
-            response = applicationsignals_client.list_grouping_attribute_definitions(**list_params)
+            response = get_client('application-signals').list_grouping_attribute_definitions(
+                **list_params
+            )
             definitions = response.get('GroupingAttributeDefinitions', [])
             all_definitions.extend(definitions)
 
@@ -1243,7 +1247,7 @@ async def list_grouping_attribute_definitions() -> str:
 
         # Build result
         result = '📋 **GROUPING ATTRIBUTE DEFINITIONS**\n'
-        result += f'🌎 Region: {AWS_REGION}\n'
+        result += f'🌎 Region: {get_region()}\n'
         if updated_at:
             if hasattr(updated_at, 'strftime'):
                 result += f'🕐 Last Updated: {updated_at.strftime("%Y-%m-%d %H:%M:%S")} UTC\n'
