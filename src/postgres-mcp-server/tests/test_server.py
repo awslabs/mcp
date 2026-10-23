@@ -1765,3 +1765,96 @@ if __name__ == '__main__':
     asyncio.run(test_run_query_throw_client_error())
     asyncio.run(test_run_query_write_queries_on_readonly_setting())
     asyncio.run(test_run_query_write_queries_on_readonly_setting())
+
+
+def test_main_accepts_username_only_secret_for_iam(monkeypatch, capsys):
+    """With PG_WIRE_IAM_PROTOCOL, startup accepts a secret that has no password.
+
+    The IAM auth token is the password, so the secret only needs a username.
+    The startup probe must read the username without requiring a password key.
+    """
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--region',
+            'us-west-2',
+            '--connection_method',
+            'PG_WIRE_IAM_PROTOCOL',
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:username-only',
+        ],
+    )
+
+    call_order = []
+
+    def _record_username(secret_arn, region, is_test=False):
+        call_order.append('get_username_from_secret')
+        return 'app_reader'
+
+    def _fail_credentials(secret_arn, region, is_test=False):
+        raise ValueError(
+            'Failed to retrieve credentials from Secrets Manager: '
+            'Secret does not contain password. Available keys: username'
+        )
+
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.mcp.run', lambda: call_order.append('mcp.run')
+    )
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_username_from_secret', _record_username
+    )
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_credentials_from_secret', _fail_credentials
+    )
+
+    main()
+
+    assert call_order == ['get_username_from_secret', 'mcp.run']
+
+
+def test_main_requires_password_for_non_iam_connection_method(monkeypatch, capsys):
+    """Password-based connection methods still require a password in the secret."""
+    monkeypatch.setattr(
+        sys,
+        'argv',
+        [
+            'server.py',
+            '--region',
+            'us-west-2',
+            '--connection_method',
+            'PG_WIRE_PROTOCOL',
+            '--secret_arn',  # pragma: allowlist secret
+            'arn:aws:secretsmanager:us-west-2:123456789012:secret:username-only',
+        ],
+    )
+
+    mcp_run_called = {'count': 0}
+
+    def _fail_credentials(secret_arn, region, is_test=False):
+        raise ValueError(
+            'Failed to retrieve credentials from Secrets Manager: '
+            'Secret does not contain password. Available keys: username'
+        )
+
+    def _unexpected_username_probe(secret_arn, region, is_test=False):
+        raise AssertionError('username-only probe must not be used outside IAM mode')
+
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.mcp.run',
+        lambda: mcp_run_called.__setitem__('count', mcp_run_called['count'] + 1),
+    )
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_credentials_from_secret', _fail_credentials
+    )
+    monkeypatch.setattr(
+        'awslabs.postgres_mcp_server.server.get_username_from_secret',
+        _unexpected_username_probe,
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        main()
+
+    assert excinfo.value.code == 1
+    assert mcp_run_called['count'] == 0
