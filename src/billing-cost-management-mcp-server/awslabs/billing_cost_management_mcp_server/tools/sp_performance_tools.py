@@ -26,6 +26,7 @@ from ..utilities.aws_service_base import (
     handle_aws_error,
     paginate_aws_items,
     parse_json,
+    whole_query_in_one_page,
     with_pagination,
 )
 from ..utilities.logging_utils import get_context_logger
@@ -71,11 +72,23 @@ DATES AND DATA FRESHNESS (all three operations):
   and do NOT retry the identical request — change the window instead.
 
 UTILIZATION DETAILS filters (get_savings_plans_utilization_details):
+- filter accepts LINKED_ACCOUNT, SAVINGS_PLAN_ARN, REGION, PAYMENT_OPTION,
+  INSTANCE_TYPE_FAMILY (note INSTANCE_TYPE_FAMILY here, INSTANCE_FAMILY for coverage).
 - The filter is a Cost Explorer Expression. And/Or each require at least TWO
   operands ("And expression must have at least 2 operands"). For a single
   condition, pass the leaf object directly — e.g.
   `{"Dimensions": {"Key": "REGION", "Values": ["us-east-1"]}}` — not wrapped in
   a one-element `And`/`Or`.
+
+RESPONSE PERIODS (all three operations):
+- `requested_time_period` echoes the start_date/end_date that were sent.
+- MONTHLY utilization labels each entry with its calendar month: a 2026-08-17 start
+  returns a first entry whose TimePeriod starts 2026-08-01, but its figures cover
+  only 2026-08-17 onward. Report that month as starting at the requested start.
+- MONTHLY coverage entries start at the requested start; they are not snapped.
+- Utilization details returns `time_period`: the requested start, and an end the API
+  may move earlier to the first day without complete data. Report that period.
+- `granularity` appears on coverage only when it was sent (not with group_by).
 
 IMPORTANT: For get_savings_plans_coverage, `granularity` and `group_by` are mutually
 exclusive. If `group_by` is provided, `granularity` is ignored (the Cost Explorer
@@ -89,8 +102,11 @@ get_savings_plans_utilization is not paginated and takes neither parameter):
   or narrow the date range or filter, for queries that can be large.
 - If the response has complete_dataset: false, call again with a larger max_items, continue with
   next_token, or state in the answer that the result is partial.
-- `total` comes from the first page fetched and covers the whole query; it is not repeated on
-  continuation calls.""",
+- For utilization details, the API's Total covers only the Savings Plans on its own page, so
+  `total` is returned only when the whole query came back in one page. It is omitted from a
+  multi-page, partial, or next_token continuation result; for the overall figure over the same
+  window, use the `total` of get_savings_plans_utilization. Coverage has no `total`; the
+  GetSavingsPlansCoverage API does not return one.""",
 )
 async def sp_performance(
     ctx: Context,
@@ -234,7 +250,7 @@ async def get_savings_plans_coverage(
         if filter_expr:
             request_params['Filter'] = parse_json(filter_expr, 'filter')
 
-        all_coverages, pages, pagination = await paginate_aws_items(
+        all_coverages, _, pagination = await paginate_aws_items(
             ctx,
             'GetSavingsPlansCoverage',
             ce_client.get_savings_plans_coverage,
@@ -244,18 +260,13 @@ async def get_savings_plans_coverage(
             next_token=next_token,
         )
 
-        # Format the response data
+        # GetSavingsPlansCoverage returns no Total, so there is none to report.
         formatted_response: Dict[str, Any] = {
             'savings_plans_coverages': all_coverages,
-            'time_period': {'start': start, 'end': end},
-            'granularity': granularity,
+            'requested_time_period': {'start': start, 'end': end},
         }
-
-        # Total covers the whole query and comes with the first page, so no extra request is
-        # needed for it.
-        total = first_page_fields(pages, ['Total']).get('Total')
-        if total is not None:
-            formatted_response['total'] = total
+        if 'Granularity' in request_params:
+            formatted_response['granularity'] = granularity
 
         return format_response('success', with_pagination(formatted_response, pagination))
 
@@ -314,7 +325,9 @@ async def get_savings_plans_utilization(
 
         formatted_response: Dict[str, Any] = {
             'savings_plans_utilizations': utilizations_by_time,
-            'time_period': {'start': start, 'end': end},
+            # The API has no top-level period. A MONTHLY entry's TimePeriod is labelled with its
+            # calendar month even when the requested start falls later in that month.
+            'requested_time_period': {'start': start, 'end': end},
             'granularity': granularity,
         }
 
@@ -399,6 +412,8 @@ async def get_savings_plans_utilization_details(
             next_token=next_token,
         )
 
+        requested_time_period = {'start': start, 'end': end}
+
         # Check if we have any details data
         if not all_details:
             await ctx_logger.warning(
@@ -409,7 +424,7 @@ async def get_savings_plans_utilization_details(
                 with_pagination(
                     {
                         'savings_plans_utilization_details': [],
-                        'time_period': {'start': start, 'end': end},
+                        'requested_time_period': requested_time_period,
                         'message': 'No Savings Plans utilization details found for the specified period. This could be because you do not have any active Savings Plans, or because the specified date range is outside your Savings Plans period.',
                     },
                     pagination,
@@ -418,13 +433,16 @@ async def get_savings_plans_utilization_details(
 
         formatted_response: Dict[str, Any] = {
             'savings_plans_utilization_details': all_details,
-            'time_period': {'start': start, 'end': end},
+            'requested_time_period': requested_time_period,
         }
 
-        # Total aggregates every plan in the query and comes with the first page.
-        total = first_page_fields(pages, ['Total']).get('Total')
-        if total is not None:
-            formatted_response['total'] = total
+        first_page = first_page_fields(pages, ['Total', 'TimePeriod'])
+        if 'TimePeriod' in first_page:
+            formatted_response['time_period'] = first_page['TimePeriod']
+        # The API's Total aggregates only the plans on its own page, so it covers the query
+        # only when the query is that one page.
+        if 'Total' in first_page and whole_query_in_one_page(pages, next_token, pagination):
+            formatted_response['total'] = first_page['Total']
 
         return format_response('success', with_pagination(formatted_response, pagination))
 

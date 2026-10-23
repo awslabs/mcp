@@ -26,6 +26,7 @@ from ..utilities.aws_service_base import (
     handle_aws_error,
     paginate_aws_items,
     parse_json,
+    whole_query_in_one_page,
     with_pagination,
 )
 from fastmcp import Context, FastMCP
@@ -55,38 +56,38 @@ This tool provides insights into your Reserved Instance (RI) and Savings Plans u
    - Helps identify RIs that could be modified or sold in the marketplace
 
 GROUPING get_reservation_coverage (group_by):
-GetReservationCoverage groups ONLY by these attributes:
+GetReservationCoverage groups ONLY by these attributes. Keys marked "only" apply just to
+that service (from the SERVICE filter, EC2 when omitted); others return a ValidationException:
 - AZ: Availability Zone (e.g. us-east-1a)
-- CACHE_ENGINE: ElastiCache engine (e.g. Redis, Memcached)
-- DATABASE_ENGINE: RDS database engine (e.g. PostgreSQL, MySQL, Aurora MySQL)
-- DEPLOYMENT_OPTION: deployment mode (e.g. Single-AZ, Multi-AZ)
+- CACHE_ENGINE: ElastiCache engine (e.g. Redis, Memcached). ElastiCache and MemoryDB only
+- DATABASE_ENGINE: RDS database engine (e.g. PostgreSQL, MySQL, Aurora MySQL). RDS only
+- DEPLOYMENT_OPTION: deployment mode (e.g. Single-AZ, Multi-AZ). RDS only
 - INSTANCE_TYPE: instance type (e.g. m4.xlarge, cache.r6g.large)
-- INVOICING_ENTITY: the Amazon entity that issues the invoice
+- INSTANCE_TYPE_FAMILY: instance family (e.g. m5, t3). EC2 only
 - LINKED_ACCOUNT: member account id in the organization
-- OPERATING_SYSTEM: operating system (e.g. Linux, Windows, RHEL)
-- PLATFORM: operating system / platform
+- PLATFORM: operating system / platform. EC2 only
 - REGION: AWS Region (e.g. us-east-1)
-- TENANCY: instance tenancy. Exact, case-sensitive values: Shared, Dedicated, Host
-SERVICE is NOT a valid group_by attribute here — grouping coverage by SERVICE
-returns a ValidationException. SERVICE is a FILTER dimension instead: pass it in
+- TENANCY: instance tenancy. Exact, case-sensitive values: Shared, Dedicated, Host. EC2 only
+SERVICE, INVOICING_ENTITY and OPERATING_SYSTEM are NOT valid group_by attributes here —
+grouping coverage by them returns a ValidationException. SERVICE is a FILTER dimension instead: pass it in
 `filter` (one SERVICE value per call; if you omit a SERVICE filter, Cost Explorer
 defaults to EC2), and call once per service to compare across services.
 Reservation coverage applies only to reservable services. The valid SERVICE
 filter values are "Amazon Elastic Compute Cloud - Compute" (the default when
-omitted), "Amazon Relational Database Service", "Amazon ElastiCache", and
-"Amazon Redshift". Use the full Cost Explorer service display name, not
+omitted), "Amazon Relational Database Service", "Amazon ElastiCache",
+"Amazon MemoryDB", "Amazon Redshift", "Amazon OpenSearch Service", and
+"Amazon Elasticsearch Service". Use the full Cost Explorer service display name, not
 "EC2"/"RDS".
 
 GROUPING get_reservation_utilization (group_by):
 GetReservationUtilization groups ONLY by SUBSCRIPTION_ID. No other attribute is
 valid. The SubscriptionId it returns (and that you filter on) is a NUMERIC id
 (e.g. "359809062"), not an ARN, instance id, or UUID — filtering SubscriptionId
-with an ARN/UUID returns no match.
+with an ARN/UUID returns a ValidationException ("must contain only digits").
 
 FILTERING (both operations): the Cost Explorer Expression supports only AND among
 dimensions and nests one level deep; multiple values for one dimension are OR'd.
-The SERVICE filter takes a single value and defaults to Amazon Elastic Compute
-Cloud - Compute when omitted.
+The SERVICE filter defaults to Amazon Elastic Compute Cloud - Compute when omitted.
 
 SCOPING LARGE QUERIES: a grouped or DAILY query over a wide window or many
 subscriptions can exceed the tool result size cap and return a ToolResultOversized
@@ -109,8 +110,10 @@ PAGINATION (applies only when group_by is set; an item is one group of the queri
   fetch every page.
 - If the response has complete_dataset: false, call again with a larger max_items or max_pages,
   continue with next_token, or state in the answer that the result is partial.
-- `total` comes from the first page fetched and covers the whole query; it is not repeated on
-  continuation calls.""",
+- With group_by, the API's period `total` sums only the groups on its own page, so `total` is
+  returned only when the whole query came back in one page. It is omitted from a multi-page,
+  partial, or next_token continuation result; for the overall figure over the same window, call
+  again without group_by, whose `total` covers every period.""",
 )
 async def ri_performance(
     ctx: Context,
@@ -135,8 +138,8 @@ async def ri_performance(
         end_date: End date in YYYY-MM-DD format (exclusive). Defaults to today if not provided.
         granularity: Time granularity of the data (DAILY or MONTHLY). Defaults to DAILY. Ignored when group_by is provided (granularity and group_by are mutually exclusive).
         metrics: List of metrics to retrieve for coverage as a JSON string (e.g., '["HoursCoverage", "CostCoverage"]'). Defaults to all metrics.
-        group_by: Optional grouping as a JSON string. For coverage: AZ, CACHE_ENGINE, DATABASE_ENGINE, DEPLOYMENT_OPTION, INSTANCE_TYPE, INVOICING_ENTITY, LINKED_ACCOUNT, OPERATING_SYSTEM, PLATFORM, REGION, or TENANCY (SERVICE is NOT valid — filter on it instead). For utilization: SUBSCRIPTION_ID only.
-        filter: Optional filter as a JSON string (e.g., by service, region, or instance type). SERVICE takes a single value and defaults to EC2 when omitted; valid coverage SERVICE values are "Amazon Elastic Compute Cloud - Compute", "Amazon Relational Database Service", "Amazon ElastiCache", and "Amazon Redshift" (use the full display name, not "EC2"/"RDS"). SubscriptionId values are numeric, not ARNs/UUIDs. A wide grouped/DAILY query may exceed the result size cap (ToolResultOversized) — scope it with a filter, a shorter window, or MONTHLY granularity.
+        group_by: Optional grouping as a JSON string. For coverage: AZ, CACHE_ENGINE, DATABASE_ENGINE, DEPLOYMENT_OPTION, INSTANCE_TYPE, INSTANCE_TYPE_FAMILY, LINKED_ACCOUNT, PLATFORM, REGION, or TENANCY, depending on the service (see the tool description) (SERVICE is NOT valid — filter on it instead). For utilization: SUBSCRIPTION_ID only.
+        filter: Optional filter as a JSON string (e.g., by service, region, or instance type). SERVICE defaults to EC2 when omitted; valid coverage SERVICE values are "Amazon Elastic Compute Cloud - Compute", "Amazon Relational Database Service", "Amazon ElastiCache", "Amazon MemoryDB", "Amazon Redshift", "Amazon OpenSearch Service", and "Amazon Elasticsearch Service" (use the full display name, not "EC2"/"RDS"). SubscriptionId values are numeric, not ARNs/UUIDs. A wide grouped/DAILY query may exceed the result size cap (ToolResultOversized) — scope it with a filter, a shorter window, or MONTHLY granularity.
         sort_by: Optional sorting configuration as a JSON string with key and direction (ASCENDING or DESCENDING).
         max_items: Total number of groups to return across all pages. Omit it to fetch every
             page. Applies only to get_reservation_coverage with group_by set.
@@ -200,12 +203,13 @@ def _count_groups(entries: List[Dict[str, Any]]) -> int:
     return sum(len(entry.get('Groups') or []) for entry in entries)
 
 
-def _merge_periods(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _merge_periods(entries: List[Dict[str, Any]], keep_totals: bool) -> List[Dict[str, Any]]:
     """Merge consecutive entries for the same time period into one.
 
     A grouped query returns one time-period entry per page, each holding that page's groups, so
-    the groups of every page are gathered under a single entry. The period's Total repeats on
-    every page and is kept from the first.
+    the groups of every page are gathered under a single entry. The entry's Total sums only the
+    groups on its own page, so it is kept only when ``keep_totals`` says the page is the whole
+    query.
     """
     merged: List[Dict[str, Any]] = []
     for entry in entries:
@@ -213,6 +217,8 @@ def _merge_periods(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             merged[-1]['Groups'] = (merged[-1].get('Groups') or []) + (entry.get('Groups') or [])
         else:
             merged.append(dict(entry))
+            if not keep_totals:
+                merged[-1].pop('Total', None)
     return merged
 
 
@@ -324,11 +330,11 @@ async def get_reservation_coverage(
             max_items=max_items,
             next_token=next_token,
         )
-        all_coverages = _merge_periods(coverage_entries)
-
-        # Total covers the whole query and comes with the first page, so no extra request is
-        # needed for it.
-        total_coverage = first_page_fields(pages, ['Total']).get('Total')
+        # The API's Totals sum only the groups on their own page, so they cover the query only
+        # when the query is that one page.
+        whole_query = whole_query_in_one_page(pages, next_token, pagination)
+        all_coverages = _merge_periods(coverage_entries, keep_totals=whole_query)
+        total_coverage = first_page_fields(pages, ['Total']).get('Total') if whole_query else None
 
         # Format the response for better readability
         formatted_response: Dict[str, Any] = {
@@ -347,7 +353,6 @@ async def get_reservation_coverage(
 
             formatted_coverage: Dict[str, Any] = {
                 'time_period': {'start': time_period.get('Start'), 'end': time_period.get('End')},
-                'total': {},
                 'groups': [],
             }
 
@@ -483,16 +488,17 @@ async def get_reservation_utilization(
             next_token=next_token,
             max_pages=max_pages,
         )
-        all_utilizations = _merge_periods(utilization_entries)
-
-        # Total covers the whole query and comes with the first page, so no extra request is
-        # needed for it.
-        total_utilization = first_page_fields(pages, ['Total']).get('Total')
+        # The API's Totals sum only the groups on their own page, so they cover the query only
+        # when the query is that one page.
+        whole_query = whole_query_in_one_page(pages, next_token, pagination)
+        all_utilizations = _merge_periods(utilization_entries, keep_totals=whole_query)
+        total_utilization = (
+            first_page_fields(pages, ['Total']).get('Total') if whole_query else None
+        )
 
         # Format the response for better readability
         formatted_response: Dict[str, Any] = {
             'utilizations_by_time': [],
-            'total': {},
         }
 
         # Format total utilization if present
@@ -507,7 +513,6 @@ async def get_reservation_utilization(
 
             formatted_utilization: Dict[str, Any] = {
                 'time_period': {'start': time_period.get('Start'), 'end': time_period.get('End')},
-                'total': {},
                 'groups': [],
             }
 
@@ -564,14 +569,13 @@ def format_coverage_metrics(coverage_data: Dict) -> Dict:
             'coverage_normalized_units_percentage': cnu.get('CoverageNormalizedUnitsPercentage'),
         }
 
-    # Format cost coverage
+    # Format cost coverage. CoverageCost holds only OnDemandCost (the on-demand cost of
+    # usage reservations did not cover); Cost Explorer reports no reserved cost or cost
+    # coverage percentage, so use coverage_hours_percentage for coverage.
     if 'CoverageCost' in coverage_data:
         cc = coverage_data['CoverageCost']
         formatted_coverage['coverage_cost'] = {
             'on_demand_cost': cc.get('OnDemandCost'),
-            'reserved_cost': cc.get('ReservedCost'),
-            'total_cost': cc.get('TotalCost'),
-            'coverage_cost_percentage': cc.get('CoverageCostPercentage'),
         }
 
     return formatted_coverage

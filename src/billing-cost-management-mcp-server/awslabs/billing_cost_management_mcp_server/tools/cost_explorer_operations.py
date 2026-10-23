@@ -27,6 +27,7 @@ from ..utilities.aws_service_base import (
     handle_aws_error,
     paginate_aws_items,
     parse_json,
+    parse_metrics,
     with_pagination,
 )
 from ..utilities.sql_utils import convert_response_if_needed
@@ -171,13 +172,9 @@ async def get_cost_and_usage(
         await ctx.info(f'Using date range: {start} to {end}')
 
         # Parse JSON inputs
-        metrics_list = parse_json(metrics, 'metrics')
+        metrics_list = parse_metrics(metrics)
         group_by_list = parse_json(group_by, 'group_by')
         filters = parse_json(filter_expr, 'filter')
-
-        # Set default metrics if not provided
-        if not metrics_list:
-            metrics_list = ['UnblendedCost']
 
         # Build request parameters
         request_params = {
@@ -214,7 +211,7 @@ async def get_cost_and_usage(
             start_date=start,
             end_date=end,
             group_by=group_by,
-            metrics=metrics,
+            metrics=metrics_list,
         )
 
         return format_response('success', table_response)
@@ -270,13 +267,9 @@ async def get_cost_and_usage_with_resources(
         await ctx.info(f'Using date range: {start} to {end}')
 
         # Parse JSON inputs
-        metrics_list = parse_json(metrics, 'metrics')
+        metrics_list = parse_metrics(metrics)
         group_by_list = parse_json(group_by, 'group_by')
         filters = parse_json(filter_expr, 'filter')
-
-        # Set default metrics if not provided
-        if not metrics_list:
-            metrics_list = ['UnblendedCost']
 
         # Build request parameters
         request_params = {
@@ -313,7 +306,7 @@ async def get_cost_and_usage_with_resources(
             start_date=start,
             end_date=end,
             group_by=group_by,
-            metrics=metrics,
+            metrics=metrics_list,
         )
 
         return format_response('success', table_response)

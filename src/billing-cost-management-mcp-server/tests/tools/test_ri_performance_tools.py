@@ -22,7 +22,9 @@ These tests verify the functionality of AWS Reserved Instance performance monito
 - Error handling for invalid date ranges and missing reservation data
 """
 
+import botocore.session
 import pytest
+import re
 from awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools import (
     format_coverage_metrics,
     format_utilization_metrics,
@@ -32,6 +34,7 @@ from awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools impor
 )
 from fastmcp import Context
 from fastmcp.tools import FunctionTool
+from typing import Dict
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -63,9 +66,6 @@ async def ri_performance(ctx, operation, **kwargs):
                     },
                     'coverage_cost': {
                         'on_demand_cost': '10.0',
-                        'reserved_cost': '30.0',
-                        'total_cost': '40.0',
-                        'coverage_cost_percentage': '75.0',
                     },
                 },
             },
@@ -118,9 +118,6 @@ def mock_ce_client():
                     },
                     'CoverageCost': {
                         'OnDemandCost': '10.0',
-                        'ReservedCost': '30.0',
-                        'TotalCost': '40.0',
-                        'CoverageCostPercentage': '75.0',
                     },
                 },
                 'Groups': [
@@ -138,9 +135,6 @@ def mock_ce_client():
                             },
                             'CoverageCost': {
                                 'OnDemandCost': '5.0',
-                                'ReservedCost': '15.0',
-                                'TotalCost': '20.0',
-                                'CoverageCostPercentage': '75.0',
                             },
                         },
                     },
@@ -158,9 +152,6 @@ def mock_ce_client():
                             },
                             'CoverageCost': {
                                 'OnDemandCost': '5.0',
-                                'ReservedCost': '15.0',
-                                'TotalCost': '20.0',
-                                'CoverageCostPercentage': '75.0',
                             },
                         },
                     },
@@ -176,9 +167,6 @@ def mock_ce_client():
             },
             'CoverageCost': {
                 'OnDemandCost': '10.0',
-                'ReservedCost': '30.0',
-                'TotalCost': '40.0',
-                'CoverageCostPercentage': '75.0',
             },
         },
     }
@@ -200,7 +188,7 @@ def mock_ce_client():
                 'Groups': [
                     {
                         'Attributes': {
-                            'SUBSCRIPTION_ID': '012345678901-ec2-us-east-1-t3.large',
+                            'SUBSCRIPTION_ID': '359809062',
                         },
                         'Utilization': {
                             'UtilizationPercentage': '90.0',
@@ -211,7 +199,7 @@ def mock_ce_client():
                     },
                     {
                         'Attributes': {
-                            'SUBSCRIPTION_ID': '012345678901-rds-us-east-1-db.m5.large',
+                            'SUBSCRIPTION_ID': '359809070',
                         },
                         'Utilization': {
                             'UtilizationPercentage': '80.0',
@@ -234,6 +222,49 @@ def mock_ce_client():
     return mock_client
 
 
+def _undeclared_members(value, shape, path='') -> list:
+    """Paths in a mocked response that the botocore output shape does not declare."""
+    if shape.type_name == 'structure' and isinstance(value, dict):
+        found = []
+        for key, item in value.items():
+            if key not in shape.members:
+                found.append(f'{path}.{key}')
+            else:
+                found += _undeclared_members(item, shape.members[key], f'{path}.{key}')
+        return found
+    if shape.type_name == 'list' and isinstance(value, list):
+        return [
+            p
+            for i, item in enumerate(value)
+            for p in _undeclared_members(item, shape.member, f'{path}[{i}]')
+        ]
+    if shape.type_name == 'map' and isinstance(value, dict):
+        return [
+            p
+            for k, item in value.items()
+            for p in _undeclared_members(item, shape.value, f'{path}[{k}]')
+        ]
+    return []
+
+
+@pytest.mark.parametrize(
+    'method,operation',
+    [
+        ('get_reservation_coverage', 'GetReservationCoverage'),
+        ('get_reservation_utilization', 'GetReservationUtilization'),
+    ],
+)
+def test_mock_ce_responses_only_use_botocore_output_members(mock_ce_client, method, operation):
+    """Mocked Cost Explorer responses hold only members the real API can return."""
+    output_shape = (
+        botocore.session.get_session()
+        .get_service_model('ce')
+        .operation_model(operation)
+        .output_shape
+    )
+    assert _undeclared_members(getattr(mock_ce_client, method).return_value, output_shape) == []
+
+
 def test_format_coverage_metrics():
     """Test format_coverage_metrics function."""
     # Setup
@@ -246,9 +277,6 @@ def test_format_coverage_metrics():
         },
         'CoverageCost': {
             'OnDemandCost': '10.0',
-            'ReservedCost': '30.0',
-            'TotalCost': '40.0',
-            'CoverageCostPercentage': '75.0',
         },
         'CoverageNormalizedUnits': {
             'OnDemandNormalizedUnits': '200.0',
@@ -270,9 +298,8 @@ def test_format_coverage_metrics():
     assert result['coverage_hours']['reserved_hours'] == '400.0'
     assert result['coverage_hours']['coverage_hours_percentage'] == '80.0'
 
-    assert result['coverage_cost']['on_demand_cost'] == '10.0'
-    assert result['coverage_cost']['reserved_cost'] == '30.0'
-    assert result['coverage_cost']['coverage_cost_percentage'] == '75.0'
+    # CoverageCost has only OnDemandCost; no always-null reserved/total/percentage keys.
+    assert result['coverage_cost'] == {'on_demand_cost': '10.0'}
 
     assert result['coverage_normalized_units']['on_demand_normalized_units'] == '200.0'
     assert result['coverage_normalized_units']['reserved_normalized_units'] == '800.0'
@@ -456,8 +483,10 @@ class TestGetReservationCoverage:
         )
 
         mock_metrics = ['CoverageHours', 'CoverageCost']
-        mock_group_by = [{'Type': 'DIMENSION', 'Key': 'SERVICE'}]
-        mock_filter = {'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon EC2']}}
+        mock_group_by = [{'Type': 'DIMENSION', 'Key': 'INSTANCE_TYPE'}]
+        mock_filter = {
+            'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon Elastic Compute Cloud - Compute']}
+        }
         mock_sort_by = {'Key': 'CoverageHoursPercentage', 'SortOrder': 'DESCENDING'}
 
         mock_parse_json.side_effect = [mock_metrics, mock_group_by, mock_filter, mock_sort_by]
@@ -615,7 +644,9 @@ class TestGetReservationUtilization:
         )
 
         mock_group_by = [{'Type': 'DIMENSION', 'Key': 'SUBSCRIPTION_ID'}]
-        mock_filter = {'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon EC2']}}
+        mock_filter = {
+            'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon Elastic Compute Cloud - Compute']}
+        }
         mock_sort_by = {'Key': 'UtilizationPercentage', 'SortOrder': 'DESCENDING'}
 
         mock_parse_json.side_effect = [mock_group_by, mock_filter, mock_sort_by]
@@ -736,8 +767,8 @@ class TestRIPerformance:
         """Test ri_performance with all parameters."""
         # Setup
         metrics = '["CoverageHours", "CoverageCost"]'
-        group_by = '[{"Type": "DIMENSION", "Key": "SERVICE"}]'
-        filter_expr = '{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon EC2"]}}'
+        group_by = '[{"Type": "DIMENSION", "Key": "INSTANCE_TYPE"}]'
+        filter_expr = '{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon Elastic Compute Cloud - Compute"]}}'
         sort_by = '{"Key": "CoverageHoursPercentage", "SortOrder": "DESCENDING"}'
 
         # Execute
@@ -790,20 +821,22 @@ PERIOD = {'Start': '2023-01-01', 'End': '2023-01-31'}
 
 
 def _grouped_page(key, metric, groups, token=None, total=None):
-    """One page of a grouped RI response: a single period entry holding some groups."""
+    """One page of a grouped RI response: a single period entry holding some groups.
+
+    As in the API, a grouped page has no top-level Total; the period entry's Total sums only
+    the groups on this page.
+    """
     page = {
         key: [
             {
                 'TimePeriod': PERIOD,
                 'Groups': [{'Attributes': {'id': g}, metric: {}} for g in groups],
-                'Total': {},
+                'Total': total or {},
             }
         ]
     }
     if token:
         page['NextPageToken'] = token
-    if total is not None:
-        page['Total'] = total
     return page
 
 
@@ -940,6 +973,212 @@ class TestRIPerformancePagination:
         getattr(client, method).assert_called_once()
         assert 'MaxResults' not in getattr(client, method).call_args.kwargs
         assert result['data']['pagination']['complete_dataset'] is True
+
+
+def _page_total(function, value):
+    """A period Total in the API's shape for the operation."""
+    if function is get_reservation_coverage:
+        return {'CoverageHours': {'TotalRunningHours': value}}
+    return {'UtilizationPercentage': value}
+
+
+def _format_total(function, total):
+    if function is get_reservation_coverage:
+        return format_coverage_metrics(total)
+    return format_utilization_metrics(total)
+
+
+def _periods(function, data):
+    return data[
+        'coverages_by_time' if function is get_reservation_coverage else 'utilizations_by_time'
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('function,method,key,metric,page_size', RI_OPERATIONS)
+class TestRIPerformancePageTotals:
+    """A grouped page's Total sums only that page's groups, so it is kept only for a whole query."""
+
+    async def test_single_complete_page_keeps_the_period_total(
+        self, mock_context, function, method, key, metric, page_size
+    ):
+        """When the whole query is one page, its Total covers every group of the period."""
+        client = MagicMock()
+        getattr(client, method).return_value = _grouped_page(
+            key, metric, ['a', 'b'], total=_page_total(function, '7')
+        )
+
+        result = await _call_ri(function, client, mock_context, group_by=GROUP_BY_SUBSCRIPTION)
+
+        period = _periods(function, result['data'])[0]
+        assert period['total'] == _format_total(function, _page_total(function, '7'))
+
+    async def test_multi_page_omits_the_page_total(
+        self, mock_context, function, method, key, metric, page_size
+    ):
+        """Page 1's Total covers only page 1's groups, so a merged period reports no total."""
+        client = MagicMock()
+        getattr(client, method).side_effect = [
+            _grouped_page(key, metric, ['a', 'b'], token='t1', total=_page_total(function, '3')),
+            _grouped_page(key, metric, ['c'], total=_page_total(function, '4')),
+        ]
+
+        result = await _call_ri(function, client, mock_context, group_by=GROUP_BY_SUBSCRIPTION)
+
+        data = result['data']
+        assert data['pagination']['complete_dataset'] is True
+        period = _periods(function, data)[0]
+        assert [g['attributes']['id'] for g in period['groups']] == ['a', 'b', 'c']
+        assert 'total' not in period
+        assert 'total' not in data
+
+    async def test_partial_result_omits_the_page_total(
+        self, mock_context, function, method, key, metric, page_size
+    ):
+        """A result cut short by max_items or max_pages covers only some of the groups."""
+        client = MagicMock()
+        getattr(client, method).return_value = _grouped_page(
+            key, metric, ['a', 'b'], token='more', total=_page_total(function, '3')
+        )
+        limit = {'max_items': 2} if function is get_reservation_coverage else {'max_pages': 1}
+
+        result = await _call_ri(
+            function, client, mock_context, group_by=GROUP_BY_SUBSCRIPTION, **limit
+        )
+
+        data = result['data']
+        assert data['complete_dataset'] is False
+        assert 'total' not in _periods(function, data)[0]
+
+    async def test_continuation_omits_the_page_total(
+        self, mock_context, function, method, key, metric, page_size
+    ):
+        """The last page of a continuation is complete but holds only that page's groups."""
+        client = MagicMock()
+        getattr(client, method).return_value = _grouped_page(
+            key, metric, ['c'], total=_page_total(function, '4')
+        )
+
+        result = await _call_ri(
+            function, client, mock_context, group_by=GROUP_BY_SUBSCRIPTION, next_token='caller'
+        )
+
+        data = result['data']
+        assert data['pagination']['complete_dataset'] is True
+        assert 'total' not in _periods(function, data)[0]
+
+    async def test_ungrouped_keeps_every_total(
+        self, mock_context, function, method, key, metric, page_size
+    ):
+        """Without GroupBy the single response covers the whole query, so its Totals are kept."""
+        client = MagicMock()
+        getattr(client, method).return_value = {
+            key: [{'TimePeriod': PERIOD, 'Groups': [], 'Total': _page_total(function, '5')}],
+            'Total': _page_total(function, '5'),
+        }
+
+        result = await _call_ri(function, client, mock_context)
+
+        data = result['data']
+        expected = _format_total(function, _page_total(function, '5'))
+        assert data['total'] == expected
+        assert _periods(function, data)[0]['total'] == expected
+
+
+@pytest.mark.asyncio
+async def test_description_says_when_total_is_returned():
+    """The description no longer claims that page 1's total covers the whole query."""
+    tool = await ri_performance_server.get_tool('ri-performance')
+    assert tool is not None
+    description = tool.description or ''
+    assert 'returned only when the whole query came back in one page' in description
+    assert 'covers the whole query; it is not repeated' not in description
+
+
+# GetReservationCoverage GroupBy keys per SERVICE filter value, as the service validates
+# them (Service.coverageGroupByDims) and confirmed by live calls. The API reference and
+# botocore list one flat set that includes INVOICING_ENTITY and OPERATING_SYSTEM, which no
+# service accepts, and omits INSTANCE_TYPE_FAMILY.
+COVERAGE_GROUP_BY_BY_SERVICE = {
+    'Amazon Elastic Compute Cloud - Compute': {
+        'AZ',
+        'INSTANCE_TYPE',
+        'INSTANCE_TYPE_FAMILY',
+        'LINKED_ACCOUNT',
+        'PLATFORM',
+        'REGION',
+        'TENANCY',
+    },
+    'Amazon Relational Database Service': {
+        'AZ',
+        'INSTANCE_TYPE',
+        'LINKED_ACCOUNT',
+        'DATABASE_ENGINE',
+        'REGION',
+        'DEPLOYMENT_OPTION',
+    },
+    'Amazon ElastiCache': {'AZ', 'INSTANCE_TYPE', 'LINKED_ACCOUNT', 'CACHE_ENGINE', 'REGION'},
+    'Amazon MemoryDB': {'AZ', 'INSTANCE_TYPE', 'LINKED_ACCOUNT', 'CACHE_ENGINE', 'REGION'},
+    'Amazon Redshift': {'AZ', 'INSTANCE_TYPE', 'LINKED_ACCOUNT', 'REGION'},
+    'Amazon OpenSearch Service': {'AZ', 'INSTANCE_TYPE', 'LINKED_ACCOUNT', 'REGION'},
+    'Amazon Elasticsearch Service': {'AZ', 'INSTANCE_TYPE', 'LINKED_ACCOUNT', 'REGION'},
+}
+
+
+async def _ri_description() -> str:
+    tool = await ri_performance_server.get_tool('ri-performance')
+    assert tool is not None
+    return tool.description or ''
+
+
+# The "<scope> only" suffixes the coverage attribute list uses, and the services each names.
+COVERAGE_SCOPES = {
+    'EC2': {'Amazon Elastic Compute Cloud - Compute'},
+    'RDS': {'Amazon Relational Database Service'},
+    'ElastiCache and MemoryDB': {'Amazon ElastiCache', 'Amazon MemoryDB'},
+}
+
+
+def _documented_coverage_group_by(description: str) -> Dict[str, set]:
+    """Per service, the coverage attributes documented for it ("<scope> only" or every service)."""
+    block = description.split('GROUPING get_reservation_coverage (group_by):', 1)[1]
+    documented: Dict[str, set] = {service: set() for service in COVERAGE_GROUP_BY_BY_SERVICE}
+    for line in block.split('\n\n', 1)[0].splitlines():
+        match = re.match(r'- ([A-Z_]+): .*?(?:\. ([A-Za-z0-9 ]+) only)?$', line)
+        if match:
+            key, scope = match.groups()
+            for service in COVERAGE_SCOPES[scope] if scope else documented:
+                documented[service].add(key)
+    return documented
+
+
+@pytest.mark.asyncio
+async def test_description_lists_coverage_group_by_keys_per_service():
+    """Each service's documented coverage group_by keys equal the keys the service accepts."""
+    assert _documented_coverage_group_by(await _ri_description()) == COVERAGE_GROUP_BY_BY_SERVICE
+
+
+@pytest.mark.asyncio
+async def test_description_names_keys_no_service_accepts_for_coverage():
+    """SERVICE, INVOICING_ENTITY and OPERATING_SYSTEM are called out as invalid for every service."""
+    description = ' '.join((await _ri_description()).split())
+    assert (
+        'SERVICE, INVOICING_ENTITY and OPERATING_SYSTEM are NOT valid group_by attributes here'
+        in description
+    )
+    assert 'call once per service to compare across services' in description
+
+
+@pytest.mark.asyncio
+async def test_description_states_subscription_id_format_and_error():
+    """SubscriptionId is digits only; an ARN or UUID is rejected, not silently unmatched."""
+    description = ' '.join((await _ri_description()).split())
+    assert 'GetReservationUtilization groups ONLY by SUBSCRIPTION_ID' in description
+    assert 'is a NUMERIC id' in description
+    assert 'must contain only digits' in description
+    assert 'returns no match' not in description
+    # Utilization accepts several SERVICE values; only coverage caps them at 2.
+    assert 'SERVICE filter takes a single value' not in description
 
 
 @pytest.mark.asyncio
