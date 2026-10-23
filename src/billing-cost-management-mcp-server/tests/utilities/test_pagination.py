@@ -21,6 +21,7 @@ from awslabs.billing_cost_management_mcp_server.utilities.aws_service_base impor
     handle_aws_error,
     paginate_aws_items,
     partial_data_warning,
+    whole_query_in_one_page,
     with_pagination,
 )
 from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
@@ -686,3 +687,20 @@ class TestResponseShape:
 
         assert first_page_fields(pages, ['Total', 'Missing']) == {'Total': 1}
         assert first_page_fields([], ['Total']) == {}
+
+    @pytest.mark.parametrize(
+        'pages,next_token,complete,expected',
+        [
+            ([{}], None, True, True),
+            ([{}, {}], None, True, False),
+            ([{}], None, False, False),
+            ([{}], 'caller-token', True, False),
+            ([], None, True, False),
+        ],
+        ids=['one-complete-page', 'two-pages', 'partial', 'continuation', 'no-pages'],
+    )
+    def test_whole_query_in_one_page(self, pages, next_token, complete, expected):
+        """Only a single, complete, non-continuation page is the whole query."""
+        pagination = {'complete_dataset': complete}
+
+        assert whole_query_in_one_page(pages, next_token, pagination) is expected

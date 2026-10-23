@@ -701,6 +701,23 @@ def first_page_fields(pages: Sequence[Dict[str, Any]], keys: Sequence[str]) -> D
     return {key: first[key] for key in keys if key in first}
 
 
+def whole_query_in_one_page(
+    pages: Sequence[Dict[str, Any]], next_token: Optional[str], pagination: Dict[str, Any]
+) -> bool:
+    """Whether the result is the whole query in one page.
+
+    Some APIs (e.g. Cost Explorer Savings Plans utilization details, and grouped Reserved
+    Instance coverage and utilization) sum a page's Total from only the rows on that page, so
+    such a Total covers the query only when this returns True.
+
+    Args:
+        pages: The pages from ``paginate_aws_items``.
+        next_token: The caller's token. A continuation's first page is not the query's.
+        pagination: The pagination block from ``paginate_aws_items``.
+    """
+    return len(pages) == 1 and next_token is None and pagination['complete_dataset']
+
+
 def format_response(
     status: str,
     data: Any,
