@@ -14,10 +14,41 @@
 
 """Shared test fixtures and configuration."""
 
+import ctypes
 import os
 import pytest
+import sys
+import time
+from datetime import datetime, timedelta
 from mcp.server.mcpserver import Context
 from unittest.mock import AsyncMock, MagicMock
+
+
+def _reload_local_timezone() -> None:
+    """Make the process re-read the TZ environment variable (time.tzset is missing on Windows)."""
+    tzset = getattr(time, 'tzset', None)
+    if tzset is not None:
+        tzset()
+    elif sys.platform == 'win32':
+        ctypes.CDLL('ucrtbase')._tzset()
+
+
+@pytest.fixture
+def non_utc_local_timezone(monkeypatch):
+    """Run the test with the process-local timezone set to UTC-05:00.
+
+    Naive datetimes are interpreted in the local timezone, so a test that checks a naive input is
+    treated as UTC has to run somewhere other than UTC (and other than the developer's own zone).
+    """
+    monkeypatch.setenv('TZ', 'EST5')
+    _reload_local_timezone()
+    if datetime(2024, 1, 15, 10).astimezone().utcoffset() != timedelta(hours=-5):
+        monkeypatch.undo()
+        _reload_local_timezone()
+        pytest.skip('cannot switch the local timezone on this platform')
+    yield
+    monkeypatch.undo()
+    _reload_local_timezone()
 
 
 @pytest.fixture

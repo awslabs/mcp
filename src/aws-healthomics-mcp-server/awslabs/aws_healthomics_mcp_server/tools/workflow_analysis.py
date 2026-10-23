@@ -15,6 +15,7 @@
 """Workflow analysis tools for the AWS HealthOmics MCP server."""
 
 from awslabs.aws_healthomics_mcp_server.utils.aws_utils import get_logs_client
+from awslabs.aws_healthomics_mcp_server.utils.datetime_utils import parse_iso_datetime_utc
 from awslabs.aws_healthomics_mcp_server.utils.error_utils import handle_tool_error
 from botocore.exceptions import ClientError
 from datetime import datetime, timezone
@@ -60,15 +61,15 @@ async def _get_logs_from_stream(
         params['nextToken'] = next_token
 
     if start_time:
-        # Ensure start_time is a string before calling replace
+        # Ensure start_time is a string before parsing
         start_time_str = str(start_time) if not isinstance(start_time, str) else start_time
-        start_dt = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
+        start_dt = parse_iso_datetime_utc(start_time_str)
         params['startTime'] = int(start_dt.timestamp() * 1000)
 
     if end_time:
-        # Ensure end_time is a string before calling replace
+        # Ensure end_time is a string before parsing
         end_time_str = str(end_time) if not isinstance(end_time, str) else end_time
-        end_dt = datetime.fromisoformat(end_time_str.replace('Z', '+00:00'))
+        end_dt = parse_iso_datetime_utc(end_time_str)
         params['endTime'] = int(end_dt.timestamp() * 1000)
 
     response = client.get_log_events(**params)
@@ -198,15 +199,15 @@ async def _get_run_manifest_logs_internal(
             params['nextToken'] = next_token
 
         if start_time:
-            # Ensure start_time is a string before calling replace
+            # Ensure start_time is a string before parsing
             start_time_str = str(start_time) if not isinstance(start_time, str) else start_time
-            start_dt = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
+            start_dt = parse_iso_datetime_utc(start_time_str)
             params['startTime'] = int(start_dt.timestamp() * 1000)
 
         if end_time:
-            # Ensure end_time is a string before calling replace
+            # Ensure end_time is a string before parsing
             end_time_str = str(end_time) if not isinstance(end_time, str) else end_time
-            end_dt = datetime.fromisoformat(end_time_str.replace('Z', '+00:00'))
+            end_dt = parse_iso_datetime_utc(end_time_str)
             params['endTime'] = int(end_dt.timestamp() * 1000)
 
         response = client.get_log_events(**params)
