@@ -262,6 +262,28 @@ class TestProcessNatGateways:
         assert result[0].private_ips == ['10.0.1.5', '10.0.1.6']
         assert result[0].public_ips == ['1.2.3.4', '1.2.3.5']
 
+    def test_private_nat_gateway_processing(self):
+        """Test processing a private NAT gateway, whose addresses have no public IP."""
+        data = {
+            'NatGateways': [
+                {
+                    'NatGatewayId': 'nat-456',
+                    'State': 'available',
+                    'SubnetId': 'subnet-456',
+                    'ConnectivityType': 'private',
+                    'NatGatewayAddresses': [
+                        {'PrivateIp': '10.0.2.5', 'NetworkInterfaceId': 'eni-456'},
+                    ],
+                }
+            ]
+        }
+
+        result = process_nat_gateways(data)
+
+        assert len(result) == 1
+        assert result[0].private_ips == ['10.0.2.5']
+        assert result[0].public_ips == []
+
     def test_empty_nat_gateways(self):
         """Test processing empty NAT gateways list."""
         data = {'NatGateways': []}

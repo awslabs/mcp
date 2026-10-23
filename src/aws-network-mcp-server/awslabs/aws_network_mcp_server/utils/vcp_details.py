@@ -250,7 +250,9 @@ def process_nat_gateways(nat_gateways: Dict[str, Any]) -> List[NatGatewayDict]:
 
         for address in nat['NatGatewayAddresses']:
             gw.private_ips.append(address['PrivateIp'])
-            gw.public_ips.append(address['PublicIp'])
+            # A private NAT gateway has no public IP
+            if 'PublicIp' in address:
+                gw.public_ips.append(address['PublicIp'])
 
         result.append(gw)
 
