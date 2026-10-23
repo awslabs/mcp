@@ -74,6 +74,9 @@ from awslabs.billing_cost_management_mcp_server.tools.invoice_units_tools import
     invoice_units_server,
 )
 from awslabs.billing_cost_management_mcp_server.tools.invoicing_tools import invoicing_server
+from awslabs.billing_cost_management_mcp_server.tools.premium_support_tools import (
+    business_support_server,
+)
 from awslabs.billing_cost_management_mcp_server.tools.procurement_preferences_tools import (
     procurement_preferences_server,
 )
@@ -268,6 +271,7 @@ def setup():
     mcp.mount(credits_server)
     mcp.mount(billing_preferences_server)
     mcp.mount(enterprise_support_server)
+    mcp.mount(business_support_server)
 
     register_prompts()
 
@@ -316,6 +320,7 @@ def setup():
         'invoicing',
         'get-billing-preferences',
         'list-billing-view-segments',
+        'business-support',
     ]
     for tool in tools:
         logger.info(f'- {tool}')
