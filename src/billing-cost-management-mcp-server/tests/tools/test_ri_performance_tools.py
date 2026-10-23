@@ -22,6 +22,7 @@ These tests verify the functionality of AWS Reserved Instance performance monito
 - Error handling for invalid date ranges and missing reservation data
 """
 
+import botocore.session
 import pytest
 import re
 from awslabs.billing_cost_management_mcp_server.tools.ri_performance_tools import (
@@ -65,9 +66,6 @@ async def ri_performance(ctx, operation, **kwargs):
                     },
                     'coverage_cost': {
                         'on_demand_cost': '10.0',
-                        'reserved_cost': '30.0',
-                        'total_cost': '40.0',
-                        'coverage_cost_percentage': '75.0',
                     },
                 },
             },
@@ -120,9 +118,6 @@ def mock_ce_client():
                     },
                     'CoverageCost': {
                         'OnDemandCost': '10.0',
-                        'ReservedCost': '30.0',
-                        'TotalCost': '40.0',
-                        'CoverageCostPercentage': '75.0',
                     },
                 },
                 'Groups': [
@@ -140,9 +135,6 @@ def mock_ce_client():
                             },
                             'CoverageCost': {
                                 'OnDemandCost': '5.0',
-                                'ReservedCost': '15.0',
-                                'TotalCost': '20.0',
-                                'CoverageCostPercentage': '75.0',
                             },
                         },
                     },
@@ -160,9 +152,6 @@ def mock_ce_client():
                             },
                             'CoverageCost': {
                                 'OnDemandCost': '5.0',
-                                'ReservedCost': '15.0',
-                                'TotalCost': '20.0',
-                                'CoverageCostPercentage': '75.0',
                             },
                         },
                     },
@@ -178,9 +167,6 @@ def mock_ce_client():
             },
             'CoverageCost': {
                 'OnDemandCost': '10.0',
-                'ReservedCost': '30.0',
-                'TotalCost': '40.0',
-                'CoverageCostPercentage': '75.0',
             },
         },
     }
@@ -236,6 +222,49 @@ def mock_ce_client():
     return mock_client
 
 
+def _undeclared_members(value, shape, path='') -> list:
+    """Paths in a mocked response that the botocore output shape does not declare."""
+    if shape.type_name == 'structure' and isinstance(value, dict):
+        found = []
+        for key, item in value.items():
+            if key not in shape.members:
+                found.append(f'{path}.{key}')
+            else:
+                found += _undeclared_members(item, shape.members[key], f'{path}.{key}')
+        return found
+    if shape.type_name == 'list' and isinstance(value, list):
+        return [
+            p
+            for i, item in enumerate(value)
+            for p in _undeclared_members(item, shape.member, f'{path}[{i}]')
+        ]
+    if shape.type_name == 'map' and isinstance(value, dict):
+        return [
+            p
+            for k, item in value.items()
+            for p in _undeclared_members(item, shape.value, f'{path}[{k}]')
+        ]
+    return []
+
+
+@pytest.mark.parametrize(
+    'method,operation',
+    [
+        ('get_reservation_coverage', 'GetReservationCoverage'),
+        ('get_reservation_utilization', 'GetReservationUtilization'),
+    ],
+)
+def test_mock_ce_responses_only_use_botocore_output_members(mock_ce_client, method, operation):
+    """Mocked Cost Explorer responses hold only members the real API can return."""
+    output_shape = (
+        botocore.session.get_session()
+        .get_service_model('ce')
+        .operation_model(operation)
+        .output_shape
+    )
+    assert _undeclared_members(getattr(mock_ce_client, method).return_value, output_shape) == []
+
+
 def test_format_coverage_metrics():
     """Test format_coverage_metrics function."""
     # Setup
@@ -248,9 +277,6 @@ def test_format_coverage_metrics():
         },
         'CoverageCost': {
             'OnDemandCost': '10.0',
-            'ReservedCost': '30.0',
-            'TotalCost': '40.0',
-            'CoverageCostPercentage': '75.0',
         },
         'CoverageNormalizedUnits': {
             'OnDemandNormalizedUnits': '200.0',
@@ -272,9 +298,8 @@ def test_format_coverage_metrics():
     assert result['coverage_hours']['reserved_hours'] == '400.0'
     assert result['coverage_hours']['coverage_hours_percentage'] == '80.0'
 
-    assert result['coverage_cost']['on_demand_cost'] == '10.0'
-    assert result['coverage_cost']['reserved_cost'] == '30.0'
-    assert result['coverage_cost']['coverage_cost_percentage'] == '75.0'
+    # CoverageCost has only OnDemandCost; no always-null reserved/total/percentage keys.
+    assert result['coverage_cost'] == {'on_demand_cost': '10.0'}
 
     assert result['coverage_normalized_units']['on_demand_normalized_units'] == '200.0'
     assert result['coverage_normalized_units']['reserved_normalized_units'] == '800.0'

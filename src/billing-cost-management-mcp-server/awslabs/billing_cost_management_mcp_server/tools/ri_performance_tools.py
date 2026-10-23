@@ -569,14 +569,13 @@ def format_coverage_metrics(coverage_data: Dict) -> Dict:
             'coverage_normalized_units_percentage': cnu.get('CoverageNormalizedUnitsPercentage'),
         }
 
-    # Format cost coverage
+    # Format cost coverage. CoverageCost holds only OnDemandCost (the on-demand cost of
+    # usage reservations did not cover); Cost Explorer reports no reserved cost or cost
+    # coverage percentage, so use coverage_hours_percentage for coverage.
     if 'CoverageCost' in coverage_data:
         cc = coverage_data['CoverageCost']
         formatted_coverage['coverage_cost'] = {
             'on_demand_cost': cc.get('OnDemandCost'),
-            'reserved_cost': cc.get('ReservedCost'),
-            'total_cost': cc.get('TotalCost'),
-            'coverage_cost_percentage': cc.get('CoverageCostPercentage'),
         }
 
     return formatted_coverage
