@@ -28,6 +28,7 @@ from awslabs.aws_pricing_mcp_server.server import (
     get_pricing_attribute_values,
     get_pricing_service_attributes,
     get_pricing_service_codes,
+    get_savings_plans_rates,
 )
 from pydantic import ValidationError
 from typing import Any, Dict
@@ -2191,3 +2192,134 @@ class TestGetPriceListUrls:
         assert result['region'] == 'us-east-1'
         assert result['price_list_arn'] == 'arn:aws:pricing::123456789012:price-list/AmazonEC2'
         mock_context.error.assert_called()
+
+
+class TestGetSavingsPlansRates:
+    """Tests for the get_savings_plans_rates function."""
+
+    SEARCH_RESULT = {
+        'savingsPlanOffering': {
+            'offeringId': 'offering-1',
+            'paymentOption': 'No Upfront',
+            'planType': 'Compute',
+            'durationSeconds': 31536000,
+            'currency': 'USD',
+        },
+        'rate': '0.0321',
+        'unit': 'Hrs',
+        'productType': 'EC2',
+        'serviceCode': 'AmazonEC2',
+        'usageType': 'BoxUsage:m5.xlarge',
+        'operation': 'RunInstances',
+        'properties': [{'name': 'instanceType', 'value': 'm5.xlarge'}],
+    }
+
+    @pytest.mark.asyncio
+    async def test_get_savings_plans_rates_success(self, mock_context):
+        """Test rates are returned and the filters are sent to the Savings Plans API."""
+        savings_plans_client = patch(
+            'awslabs.aws_pricing_mcp_server.server.create_savings_plans_client'
+        )
+        with savings_plans_client as create_client:
+            api = create_client.return_value.describe_savings_plans_offering_rates
+            api.return_value = {'searchResults': [self.SEARCH_RESULT]}
+
+            result = await get_savings_plans_rates(
+                mock_context,
+                service_code='AmazonEC2',
+                savings_plan_type='Compute',
+                payment_option='No Upfront',
+                region='us-east-1',
+                instance_type='m5.xlarge',
+                tenancy='shared',
+                product_description='Linux/UNIX',
+                max_results=50,
+            )
+
+        api.assert_called_once_with(
+            serviceCodes=['AmazonEC2'],
+            maxResults=50,
+            filters=[
+                {'name': 'region', 'values': ['us-east-1']},
+                {'name': 'instanceType', 'values': ['m5.xlarge']},
+                {'name': 'tenancy', 'values': ['shared']},
+                {'name': 'productDescription', 'values': ['Linux/UNIX']},
+            ],
+            savingsPlanTypes=['Compute'],
+            savingsPlanPaymentOptions=['No Upfront'],
+        )
+        assert result['status'] == 'success'
+        assert result['service_name'] == 'AmazonEC2'
+        assert len(result['data']) == 1
+        assert result['data'][0]['rate'] == '0.0321'
+        assert result['data'][0]['term_years'] == 1
+        assert result['data'][0]['properties'] == {'instanceType': 'm5.xlarge'}
+        assert 'next_token' not in result
+
+    @pytest.mark.asyncio
+    async def test_get_savings_plans_rates_only_sends_given_filters(self, mock_context):
+        """Test that only the service code and page size are sent when no filter is given."""
+        with patch('awslabs.aws_pricing_mcp_server.server.create_savings_plans_client') as create:
+            api = create.return_value.describe_savings_plans_offering_rates
+            api.return_value = {'searchResults': [self.SEARCH_RESULT]}
+
+            await get_savings_plans_rates(mock_context, service_code='AWSLambda')
+
+        api.assert_called_once_with(serviceCodes=['AWSLambda'], maxResults=100)
+
+    @pytest.mark.asyncio
+    async def test_get_savings_plans_rates_pagination(self, mock_context):
+        """Test the next token is forwarded and returned."""
+        with patch('awslabs.aws_pricing_mcp_server.server.create_savings_plans_client') as create:
+            api = create.return_value.describe_savings_plans_offering_rates
+            api.return_value = {'searchResults': [self.SEARCH_RESULT], 'nextToken': 'page-3'}
+
+            result = await get_savings_plans_rates(
+                mock_context, service_code='AmazonEC2', next_token='page-2'
+            )
+
+        assert api.call_args.kwargs['nextToken'] == 'page-2'
+        assert result['next_token'] == 'page-3'
+
+    @pytest.mark.asyncio
+    async def test_get_savings_plans_rates_empty_results(self, mock_context):
+        """Test an empty response is reported as an error."""
+        with patch('awslabs.aws_pricing_mcp_server.server.create_savings_plans_client') as create:
+            create.return_value.describe_savings_plans_offering_rates.return_value = {
+                'searchResults': []
+            }
+
+            result = await get_savings_plans_rates(mock_context, service_code='AmazonS3')
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'empty_results'
+        assert result['service_code'] == 'AmazonS3'
+        mock_context.error.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_savings_plans_rates_api_error(self, mock_context):
+        """Test an API failure (e.g. a missing permission) is reported with a hint."""
+        with patch('awslabs.aws_pricing_mcp_server.server.create_savings_plans_client') as create:
+            create.return_value.describe_savings_plans_offering_rates.side_effect = Exception(
+                'AccessDeniedException'
+            )
+
+            result = await get_savings_plans_rates(mock_context, service_code='AmazonEC2')
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'api_error'
+        assert 'AccessDeniedException' in result['message']
+        assert 'savingsplans:DescribeSavingsPlansOfferingRates' in result['suggestion']
+
+    @pytest.mark.asyncio
+    async def test_get_savings_plans_rates_client_creation_failure(self, mock_context):
+        """Test a client creation failure is reported."""
+        with patch(
+            'awslabs.aws_pricing_mcp_server.server.create_savings_plans_client',
+            side_effect=Exception('no credentials'),
+        ):
+            result = await get_savings_plans_rates(mock_context, service_code='AmazonEC2')
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'client_creation_failed'
+        assert 'no credentials' in result['message']

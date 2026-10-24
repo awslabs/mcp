@@ -32,18 +32,31 @@ from awslabs.aws_pricing_mcp_server.models import (
     NEXT_TOKEN_FIELD,
     OUTPUT_OPTIONS_FIELD,
     REGION_FIELD,
+    SAVINGS_PLAN_PAYMENT_OPTION_FIELD,
+    SAVINGS_PLAN_TYPE_FIELD,
+    SAVINGS_PLANS_INSTANCE_TYPE_FIELD,
+    SAVINGS_PLANS_PRODUCT_DESCRIPTION_FIELD,
+    SAVINGS_PLANS_REGION_FIELD,
+    SAVINGS_PLANS_SERVICE_CODE_FIELD,
+    SAVINGS_PLANS_TENANCY_FIELD,
     SERVICE_ATTRIBUTES_FILTER_FIELD,
     SERVICE_CODE_FIELD,
     SERVICE_CODES_FILTER_FIELD,
     ErrorResponse,
     OutputOptions,
     PricingFilter,
+    SavingsPlanPaymentOption,
+    SavingsPlanType,
 )
 from awslabs.aws_pricing_mcp_server.pricing_client import (
     create_pricing_client,
+    create_savings_plans_client,
     get_currency_for_region,
 )
-from awslabs.aws_pricing_mcp_server.pricing_transformer import transform_pricing_data
+from awslabs.aws_pricing_mcp_server.pricing_transformer import (
+    transform_pricing_data,
+    transform_savings_plans_rates,
+)
 from awslabs.aws_pricing_mcp_server.static.patterns import BEDROCK
 from awslabs.aws_pricing_mcp_server.terraform_analyzer import analyze_terraform_project
 from datetime import datetime, timezone
@@ -314,7 +327,7 @@ async def analyze_terraform_project_wrapper(
 
     **CONSTRAINTS:**
     - **CURRENT PRICING ONLY**: Use get_price_list_urls for historical data
-    - **NO SPOT/SAVINGS PLANS**: Only OnDemand, FlatRate, and Reserved Instance pricing available (ANY combination possible)
+    - **NO SPOT/SAVINGS PLANS**: Only OnDemand, FlatRate, and Reserved Instance pricing available (ANY combination possible). Use get_savings_plans_rates() for Savings Plans rates
     - **CHARACTER LIMIT**: 100,000 characters default response limit (use output_options to reduce)
     - **REGION AUTO-FILTER**: Region parameter automatically creates regionCode filter
 
@@ -1509,6 +1522,152 @@ async def get_price_list_urls(
     await ctx.info(f'Successfully retrieved price list file URLs for {service_code}')
 
     return result['urls']
+
+
+@mcp.tool(
+    name='get_savings_plans_rates',
+    description="""Get Savings Plans rates from the AWS Savings Plans API.
+
+    **PURPOSE:** The Price List API used by get_pricing() has no Savings Plans rates. This tool returns the discounted rates of Compute, EC2 Instance, SageMaker and Database Savings Plans, so they can be compared with the On-Demand prices of get_pricing().
+
+    **PARAMETERS:**
+    - service_code (required): Service the rates apply to (e.g., 'AmazonEC2', 'AWSLambda', 'AmazonRDS', 'AmazonSageMaker', 'AmazonDynamoDB', 'AmazonECS', 'AmazonEKS')
+    - savings_plan_type (optional): 'Compute', 'EC2Instance', 'SageMaker' or 'Database'
+    - payment_option (optional): 'All Upfront', 'Partial Upfront' or 'No Upfront'
+    - region (optional): AWS region code (e.g., 'us-east-1')
+    - instance_type (optional): Instance type (e.g., 'm5.xlarge')
+    - tenancy (optional): EC2 tenancy ('shared', 'dedicated' or 'host')
+    - product_description (optional): Operating system or database engine (e.g., 'Linux/UNIX')
+    - max_results / next_token: Pagination (default 100 results per page)
+
+    **RETURNS:** A list of rates. Each rate has the rate with its unit and currency, the Savings Plans type, payment option and term in years, and the properties of the rate (region, instance type, tenancy, ...). When more results are available, 'next_token' is returned.
+
+    **NOTES:**
+    - Requires the `savingsplans:DescribeSavingsPlansOfferingRates` IAM permission. The call is free of charge and returns generally available rates, not your own Savings Plans.
+    - Narrow the query with savings_plan_type, region and instance_type: an unfiltered service can have thousands of rates.
+    - The rates of 1 year and 3 year plans are returned separately (term_years).
+    """,
+    annotations=ToolAnnotations(read_only_hint=True),
+)
+async def get_savings_plans_rates(
+    ctx: Context,
+    service_code: str = SAVINGS_PLANS_SERVICE_CODE_FIELD,
+    savings_plan_type: Optional[SavingsPlanType] = SAVINGS_PLAN_TYPE_FIELD,
+    payment_option: Optional[SavingsPlanPaymentOption] = SAVINGS_PLAN_PAYMENT_OPTION_FIELD,
+    region: Optional[str] = SAVINGS_PLANS_REGION_FIELD,
+    instance_type: Optional[str] = SAVINGS_PLANS_INSTANCE_TYPE_FIELD,
+    tenancy: Optional[str] = SAVINGS_PLANS_TENANCY_FIELD,
+    product_description: Optional[str] = SAVINGS_PLANS_PRODUCT_DESCRIPTION_FIELD,
+    max_results: int = MAX_RESULTS_FIELD,
+    next_token: Optional[str] = NEXT_TOKEN_FIELD,
+) -> Dict[str, Any]:
+    """Get Savings Plans rates from the AWS Savings Plans API.
+
+    Args:
+        ctx: MCP context for logging and state management
+        service_code: Service the rates apply to (e.g., 'AmazonEC2', 'AWSLambda')
+        savings_plan_type: Optional Savings Plans type ('Compute', 'EC2Instance', 'SageMaker' or 'Database')
+        payment_option: Optional payment option ('All Upfront', 'Partial Upfront' or 'No Upfront')
+        region: Optional AWS region code (e.g., 'us-east-1')
+        instance_type: Optional instance type (e.g., 'm5.xlarge')
+        tenancy: Optional EC2 tenancy ('shared', 'dedicated' or 'host')
+        product_description: Optional operating system or database engine (e.g., 'Linux/UNIX')
+        max_results: Maximum number of rates to return per page (default: 100, max: 100)
+        next_token: Pagination token from a previous response to get the next page of results
+
+    Returns:
+        Dictionary containing the Savings Plans rates. If more results are available, the response
+        includes a 'next_token' field that can be used for subsequent requests.
+    """
+    # Handle Pydantic Field objects when called directly (not through MCP framework)
+    if isinstance(savings_plan_type, FieldInfo):
+        savings_plan_type = savings_plan_type.default
+    if isinstance(payment_option, FieldInfo):
+        payment_option = payment_option.default
+    if isinstance(region, FieldInfo):
+        region = region.default
+    if isinstance(instance_type, FieldInfo):
+        instance_type = instance_type.default
+    if isinstance(tenancy, FieldInfo):
+        tenancy = tenancy.default
+    if isinstance(product_description, FieldInfo):
+        product_description = product_description.default
+    if isinstance(max_results, FieldInfo):
+        max_results = max_results.default
+    if isinstance(next_token, FieldInfo):
+        next_token = next_token.default
+
+    logger.info(f'Getting Savings Plans rates for {service_code}')
+
+    try:
+        savings_plans_client = create_savings_plans_client()
+    except Exception as e:
+        return await create_error_response(
+            ctx=ctx,
+            error_type='client_creation_failed',
+            message=f'Failed to create AWS Savings Plans client: {str(e)}',
+            service_code=service_code,
+        )
+
+    # Only send the filters that were provided
+    filter_values = {
+        'region': region,
+        'instanceType': instance_type,
+        'tenancy': tenancy,
+        'productDescription': product_description,
+    }
+    api_params: Dict[str, Any] = {
+        'serviceCodes': [service_code],
+        'maxResults': max_results,
+    }
+    api_filters = [
+        {'name': name, 'values': [value]} for name, value in filter_values.items() if value
+    ]
+    if api_filters:
+        api_params['filters'] = api_filters
+    if savings_plan_type:
+        api_params['savingsPlanTypes'] = [savings_plan_type]
+    if payment_option:
+        api_params['savingsPlanPaymentOptions'] = [payment_option]
+    if next_token:
+        api_params['nextToken'] = next_token
+
+    try:
+        response = savings_plans_client.describe_savings_plans_offering_rates(**api_params)
+    except Exception as e:
+        return await create_error_response(
+            ctx=ctx,
+            error_type='api_error',
+            message=f'Failed to retrieve Savings Plans rates for service "{service_code}": {str(e)}',
+            service_code=service_code,
+            suggestion='Verify AWS credentials and permissions for savingsplans:DescribeSavingsPlansOfferingRates action, and that the service code and filter values are valid.',
+        )
+
+    search_results = response.get('searchResults', [])
+    if not search_results:
+        return await create_error_response(
+            ctx=ctx,
+            error_type='empty_results',
+            message=f'No Savings Plans rates found for service "{service_code}" with the given filters',
+            service_code=service_code,
+            suggestion='Check that the service code supports Savings Plans (e.g., AmazonEC2, AWSLambda, AmazonRDS, AmazonSageMaker), then try with fewer filters.',
+        )
+
+    rates = transform_savings_plans_rates(search_results)
+
+    logger.info(f'Successfully retrieved {len(rates)} Savings Plans rates for {service_code}')
+    await ctx.info(f'Successfully retrieved Savings Plans rates for {service_code}')
+
+    result: Dict[str, Any] = {
+        'status': 'success',
+        'service_name': service_code,
+        'data': rates,
+        'message': f'Retrieved {len(rates)} Savings Plans rates for {service_code} from AWS Savings Plans API',
+    }
+    if response.get('nextToken'):
+        result['next_token'] = response['nextToken']
+
+    return result
 
 
 def main():

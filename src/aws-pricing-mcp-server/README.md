@@ -13,6 +13,7 @@ MCP server for accessing real-time AWS pricing information and providing cost an
 - **Real-time pricing queries**: Access current pricing data with advanced filtering capabilities including multi-option comparisons and pattern matching
 - **Multi-region pricing comparisons**: Compare pricing across different AWS regions in a single query
 - **Bulk pricing data access**: Download complete pricing datasets in CSV/JSON formats for historical analysis and offline processing
+- **Savings Plans rates**: Look up the Compute, EC2 Instance, SageMaker and Database Savings Plans rates (`get_savings_plans_rates`), which are not part of the Price List API
 
 ### Cost Analysis & Planning
 
@@ -137,6 +138,8 @@ The MCP server requires specific AWS permissions and configuration:
 
 #### Required Permissions
 Your AWS IAM role or user must have `pricing:*` permissions to access the AWS Pricing API. The server only accesses generally available AWS pricing information and does not retrieve any user-specific data. All pricing API calls are **free of charge** and do not incur any costs.
+
+The `get_savings_plans_rates` tool calls the AWS Savings Plans API instead and additionally needs the `savingsplans:DescribeSavingsPlansOfferingRates` permission. It is free of charge as well and returns the generally available rates, not your own Savings Plans. The other tools do not need this permission.
 
 #### Configuration
 The server uses two key environment variables:
