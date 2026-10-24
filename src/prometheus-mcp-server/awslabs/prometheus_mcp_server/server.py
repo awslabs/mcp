@@ -958,6 +958,10 @@ async def configure_workspace_for_request(
         # Check if we have a URL from environment
         prometheus_url = os.getenv('PROMETHEUS_URL')
 
+        # A workspace_id passed by the caller selects that workspace, so keep it separate
+        # from an ID that is only extracted from the URL.
+        requested_workspace_id = workspace_id
+
         # If no workspace_id is provided, extract it from the URL if possible
         if not workspace_id and prometheus_url:
             extracted_workspace_id = extract_workspace_id_from_url(prometheus_url)
@@ -965,8 +969,8 @@ async def configure_workspace_for_request(
                 workspace_id = extracted_workspace_id
                 logger.info(f'Using workspace ID extracted from URL: {workspace_id}')
 
-        # If we have a URL but no workspace_id could be extracted, use the URL directly
-        if prometheus_url:
+        # If we have a URL and the caller did not name a workspace, use the URL directly
+        if prometheus_url and not requested_workspace_id:
             logger.info(f'Using Prometheus URL from environment: {prometheus_url}')
 
             # Test connection with the URL
