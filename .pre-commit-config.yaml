@@ -57,7 +57,13 @@ repos:
         name: check license header
         pass_filenames: false
         language: system
-        entry: npm
+        # `npm exec github:<repo>` shells out to git to resolve the dependency.
+        # Inside a `git worktree`, `git commit` exports GIT_DIR and an absolute
+        # GIT_INDEX_FILE to its hooks; the nested git inherits them and overwrites
+        # the committing worktree's index, so the commit records the fetched repo's
+        # tree instead of the staged changes. Clear the inherited git env so the
+        # nested git uses its own repo context. See issue #4668.
+        entry: env -u GIT_DIR -u GIT_INDEX_FILE -u GIT_WORK_TREE npm
         args: [
             'exec', '--',
             'github:viperproject/check-license-header#v1', 'check', '--config', './.github/workflows/check-license-header.json']
