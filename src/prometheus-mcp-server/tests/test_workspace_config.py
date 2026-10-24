@@ -270,6 +270,52 @@ class TestWorkspaceConfig:
             )
 
     @pytest.mark.asyncio
+    async def test_configure_workspace_for_request_with_workspace_id_and_env_url(
+        self, mock_context
+    ):
+        """An explicit workspace_id selects its workspace even when PROMETHEUS_URL is set."""
+        mock_get_workspace_details = AsyncMock(
+            return_value={
+                'workspace_id': 'ws-explicit',
+                'alias': 'explicit',
+                'status': 'ACTIVE',
+                'prometheus_url': 'https://example.com/workspaces/ws-explicit',
+                'region': 'us-east-1',
+            }
+        )
+        mock_test_connection = AsyncMock(return_value=True)
+
+        with (
+            patch.dict(
+                os.environ,
+                {'PROMETHEUS_URL': 'https://env.example.com/workspaces/ws-env'},
+            ),
+            patch(
+                'awslabs.prometheus_mcp_server.server.get_workspace_details',
+                mock_get_workspace_details,
+            ),
+            patch(
+                'awslabs.prometheus_mcp_server.server.PrometheusConnection.test_connection',
+                mock_test_connection,
+            ),
+            patch('awslabs.prometheus_mcp_server.server.logger'),
+        ):
+            result = await configure_workspace_for_request(
+                ctx=mock_context,
+                workspace_id='ws-explicit',
+                region='us-east-1',
+                profile=None,
+            )
+
+            assert result == {
+                'prometheus_url': 'https://example.com/workspaces/ws-explicit',
+                'region': 'us-east-1',
+                'profile': None,
+                'workspace_id': 'ws-explicit',
+            }
+            mock_get_workspace_details.assert_called_once_with('ws-explicit', 'us-east-1', None)
+
+    @pytest.mark.asyncio
     async def test_configure_workspace_for_request_with_workspace_id_connection_failure(
         self, mock_context
     ):
