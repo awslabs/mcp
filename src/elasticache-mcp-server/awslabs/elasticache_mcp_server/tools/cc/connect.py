@@ -61,6 +61,8 @@ async def _configure_security_groups(
         raise ValueError(f'No security groups found for cache cluster {cache_cluster_id}')
 
     # Get cache cluster port
+    if not cache_cluster.get('CacheNodes'):
+        raise ValueError(f'No cache nodes found for cluster {cache_cluster_id}')
     cache_port = cache_cluster['CacheNodes'][0]['Endpoint']['Port']
 
     # Get EC2 instance details
