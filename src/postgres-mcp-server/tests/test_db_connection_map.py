@@ -514,6 +514,24 @@ class TestDBConnectionMap:
         # completion, so its body never ran.
         assert started['count'] == 0
 
+    @pytest.mark.asyncio
+    async def test_close_all_async_awaits_coroutine_closes(self, connection_map):
+        """close_all_async() closes connections on the current event loop."""
+        completed = []
+
+        async def async_close():
+            completed.append('closed')
+
+        conn = MagicMock()
+        conn.close = MagicMock(side_effect=async_close)
+        connection_map.set(ConnectionMethod.RDS_API, 'c', 'e', 'db', conn)
+
+        await connection_map.close_all_async()
+
+        assert completed == ['closed']
+        conn.close.assert_called_once()
+        assert connection_map.map == {}
+
     def test_close_all_warns_when_coroutine_await_fails(self, connection_map):
         """A coroutine close() that raises is caught and logged, not propagated."""
 

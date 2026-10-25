@@ -13,9 +13,16 @@
 # limitations under the License.
 """Tests for server error handling and edge cases."""
 
+import asyncio
 import json
 import pytest
-from awslabs.postgres_mcp_server.connection.db_connection_map import ConnectionMethod, DatabaseType
+from awslabs.postgres_mcp_server import server as server_module
+from awslabs.postgres_mcp_server.connection.db_connection_map import (
+    ConnectionMethod,
+    DatabaseType,
+    DBConnectionMap,
+)
+from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import PsycopgPoolConnection
 from awslabs.postgres_mcp_server.server import (
     ConnectionValidationError,
     DummyCtx,
@@ -948,6 +955,154 @@ class TestMainStartupValidation:
 
         assert exc.value.code == 1
         mock_run.assert_not_called()
+
+
+class TestPsycopgStartupLifespan:
+    """Regression coverage for loop ownership of startup PG-wire connections."""
+
+    def test_startup_validation_and_first_query_share_mcp_loop(self):
+        """A startup PG-wire pool is never bound to a temporary asyncio.run loop."""
+
+        class AsyncContextManager:
+            def __init__(self, value):
+                self.value = value
+
+            async def __aenter__(self):
+                return self.value
+
+            async def __aexit__(self, *_):
+                return False
+
+        executed_sql = []
+
+        class Cursor:
+            def __init__(self):
+                self.description = None
+                self.rows = []
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_):
+                return False
+
+            async def execute(self, sql, *_):
+                executed_sql.append(sql)
+                if sql == server_module.POSTGRES_PRIVILEGE_QUERY:
+                    self.description = [
+                        ('is_superuser',),
+                        ('is_bypassrls',),
+                        ('is_rds_superuser',),
+                    ]
+                    self.rows = [(False, False, False)]
+                else:
+                    self.description = [('one',)]
+                    self.rows = [(1,)]
+
+            async def fetchall(self):
+                return self.rows
+
+        class WireConnection:
+            async def execute(self, *_):
+                pass
+
+            def transaction(self):
+                return AsyncContextManager(self)
+
+            def cursor(self):
+                return Cursor()
+
+        class Pool:
+            name = 'test-pool'
+            size = 1
+            idle = 1
+            min_size = 1
+            max_size = 10
+
+            def __init__(self, *_args, **_kwargs):
+                pass
+
+            async def open(self, *_):
+                pass
+
+            async def close(self):
+                pass
+
+            def connection(self, timeout=15.0):
+                return AsyncContextManager(WireConnection())
+
+        connection = PsycopgPoolConnection(
+            host='test.endpoint',
+            port=5432,
+            database='postgres',
+            readonly=True,
+            secret_arn='test-secret',
+            db_user='test-user',
+            region='us-east-1',
+            is_test=True,
+            sslmode='require',
+        )
+        connection_map = DBConnectionMap()
+        connection_map.set(
+            ConnectionMethod.PG_WIRE_IAM_PROTOCOL,
+            'test-cluster',
+            'test.endpoint',
+            'postgres',
+            connection,
+        )
+
+        def create_connection(**_):
+            return connection, '{}'
+
+        def run_on_mcp_loop():
+            async def serve():
+                async with server_module.server_lifespan(server_module.mcp):
+                    result = await server_module.run_query(
+                        sql='SELECT 1',
+                        ctx=DummyCtx(),
+                        connection_method=ConnectionMethod.PG_WIRE_IAM_PROTOCOL,
+                        cluster_identifier='test-cluster',
+                        db_endpoint='test.endpoint',
+                        database='postgres',
+                    )
+                    assert result == [{'one': 1}]
+
+            asyncio.run(serve())
+
+        with (
+            patch(
+                'awslabs.postgres_mcp_server.server.internal_create_connection',
+                side_effect=create_connection,
+            ),
+            patch(
+                'awslabs.postgres_mcp_server.connection.psycopg_pool_connection.AsyncConnectionPool',
+                Pool,
+            ),
+            patch('awslabs.postgres_mcp_server.server.db_connection_map', connection_map),
+            patch('awslabs.postgres_mcp_server.server.mcp.run', side_effect=run_on_mcp_loop),
+            patch(
+                'sys.argv',
+                [
+                    'server.py',
+                    '--region',
+                    'us-east-1',
+                    '--db_type',
+                    'APG',
+                    '--connection_method',
+                    'PG_WIRE_IAM_PROTOCOL',
+                    '--db_cluster_arn',
+                    'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+                    '--db_endpoint',
+                    'test.endpoint',
+                    '--database',
+                    'postgres',
+                ],
+            ),
+        ):
+            server_module.main()
+
+        assert executed_sql == [server_module.POSTGRES_PRIVILEGE_QUERY, 'SELECT 1']
+        assert connection_map.map == {}
 
 
 class TestCreateClusterBootstrapExemption:
