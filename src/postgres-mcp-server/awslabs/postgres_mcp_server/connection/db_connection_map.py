@@ -202,3 +202,22 @@ class DBConnectionMap:
                     result.close()
                 except Exception as e:
                     logger.warning(f'Failed to await close() for {key}: {e}')
+
+    async def aclose_all(self) -> None:
+        """Close all connections and clear the map on the current event loop.
+
+        This is the async counterpart to :meth:`close_all`. It is for server
+        lifespans, where a direct PostgreSQL pool must be closed on the same
+        event loop that initialized it.
+        """
+        with self._lock:
+            connections = list(self.map.items())
+            self.map.clear()
+
+        for key, conn in connections:
+            try:
+                result = conn.close()
+                if asyncio.iscoroutine(result):
+                    await result
+            except Exception as e:
+                logger.warning(f'Failed to close connection {key}: {e}')

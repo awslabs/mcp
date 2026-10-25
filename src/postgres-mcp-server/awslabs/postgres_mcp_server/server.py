@@ -43,13 +43,15 @@ from awslabs.postgres_mcp_server.connection.psycopg_pool_connection import (
 from awslabs.postgres_mcp_server.connection.rds_api_connection import RDSDataAPIConnection
 from awslabs.postgres_mcp_server.sql_guard import SqlPolicyError, assert_executable
 from botocore.exceptions import ClientError
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from datetime import datetime
 from loguru import logger
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.shared.exceptions import MCPError
 from mcp.types import INVALID_PARAMS
 from pydantic import Field
-from typing import Annotated, Any, Dict, List, Optional, Tuple
+from typing import Annotated, Any, AsyncIterator, Dict, List, Optional, Tuple
 
 
 # Max identifier length in bytes (NAMEDATALEN - 1, default compile-time constant)
@@ -105,6 +107,25 @@ privilege_check_policy = PRIVILEGE_CHECK_WARN
 # matches; cluster/instance MasterUserSecret is used as a final fallback.
 configured_secret_arns: Dict[str, str] = {}
 configured_default_secret_arn: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class StartupConnectionConfig:
+    """Configuration for a PG-wire connection opened with the MCP lifespan."""
+
+    region: str
+    database_type: DatabaseType
+    connection_method: ConnectionMethod
+    cluster_identifier: str
+    db_endpoint: str
+    port: int
+    database: str
+
+
+# PG-wire pools contain asyncio primitives. Keep their configuration here until
+# MCPServer enters its serving-loop lifespan, where the connection can safely be
+# created and validated.
+startup_connection_config: Optional[StartupConnectionConfig] = None
 
 
 class DummyCtx(Context):
@@ -350,11 +371,56 @@ def attach_privilege_advisory(llm_response: str, db_connection: AbstractDBConnec
     return json.dumps(payload, indent=2, default=str)
 
 
+async def initialize_startup_pg_wire_connection(config: StartupConnectionConfig) -> None:
+    """Create and validate the configured PG-wire connection on the serving loop."""
+    try:
+        db_connection, _ = internal_create_connection(
+            region=config.region,
+            database_type=config.database_type,
+            connection_method=config.connection_method,
+            cluster_identifier=config.cluster_identifier,
+            db_endpoint=config.db_endpoint,
+            port=config.port,
+            database=config.database,
+        )
+        # validate_connection executes a query, which initializes a PG-wire
+        # pool as needed. Keeping both operations here prevents its pool and
+        # RWLock from being bound to a short-lived asyncio.run() loop.
+        await validate_connection(db_connection, privilege_check_policy)
+        logger.success('Successfully validated database connection to Postgres')
+    except ConnectionValidationError as e:
+        # The exception message carries its own remediation: an over-privileged
+        # rejection mentions the --privilege_check override, while a
+        # connectivity/unverifiable failure does not (relaxing the policy would
+        # not make an unreachable DB reachable).
+        logger.error(f'Refusing to start: {e}')
+        raise SystemExit(1) from e
+    except Exception as e:
+        logger.error(
+            f'Failed to validate database connection to Postgres: {e}. Exit the MCP server'
+        )
+        raise SystemExit(1) from e
+
+
+@asynccontextmanager
+async def server_lifespan(_: MCPServer) -> AsyncIterator[None]:
+    """Manage loop-bound PG-wire startup connections and their cleanup."""
+    try:
+        if startup_connection_config is not None:
+            await initialize_startup_pg_wire_connection(startup_connection_config)
+        yield
+    finally:
+        # PsycopgPoolConnection.close() reacquires its asyncio RWLock, so it
+        # must run on this same serving loop as startup and the tool calls.
+        await db_connection_map.aclose_all()
+
+
 mcp = MCPServer(
     'pg-mcp MCP server. This is the starting point for all solutions created',
     dependencies=[
         'loguru',
     ],
+    lifespan=server_lifespan,
 )
 
 
@@ -1382,6 +1448,11 @@ def main():
     global privilege_check_policy
     global configured_ca_bundle
     global configured_sslmode
+    global startup_connection_config
+
+    # A process may call main() more than once in tests. Never let a pending
+    # PG-wire connection from a previous invocation leak into this server run.
+    startup_connection_config = None
 
     parser = argparse.ArgumentParser(
         description='An AWS Labs Model Context Protocol (MCP) server for postgres'
@@ -1557,11 +1628,8 @@ def main():
 
     try:
         if args.db_type:
-            # Create the appropriate database connection based on the provided parameters
-            db_connection: Optional[AbstractDBConnection] = None
-
             cluster_identifier = args.db_cluster_arn.split(':')[-1]
-            db_connection, llm_response = internal_create_connection(
+            startup_config = StartupConnectionConfig(
                 region=args.region,
                 database_type=DatabaseType[args.db_type],
                 connection_method=ConnectionMethod[args.connection_method],
@@ -1571,33 +1639,52 @@ def main():
                 database=args.database,
             )
 
-            # Validate the database connection: connectivity plus the
-            # least-privilege guardrail. Under 'enforce' a superuser /
-            # rds_superuser connection aborts startup; under the default
-            # 'warn' it is allowed with a logged warning.
-            if db_connection:
-                try:
-                    asyncio.run(validate_connection(db_connection, privilege_check_policy))
-                    logger.success('Successfully validated database connection to Postgres')
-                except ConnectionValidationError as e:
-                    # The exception message carries its own remediation: an
-                    # over-privileged rejection mentions the --privilege_check
-                    # override, while a connectivity/unverifiable failure does
-                    # not (relaxing the policy would not make an unreachable DB
-                    # reachable).
-                    logger.error(f'Refusing to start: {e}')
-                    sys.exit(1)
-                except Exception as e:
-                    logger.error(
-                        f'Failed to validate database connection to Postgres: {e}. '
-                        'Exit the MCP server'
-                    )
-                    sys.exit(1)
+            if startup_config.connection_method in (
+                ConnectionMethod.PG_WIRE_PROTOCOL,
+                ConnectionMethod.PG_WIRE_IAM_PROTOCOL,
+            ):
+                # Do not construct or validate a PG-wire connection here:
+                # mcp.run() creates the serving event loop. The lifespan opens
+                # the pool and validates it on that loop immediately before
+                # tools can be called.
+                startup_connection_config = startup_config
+            else:
+                db_connection, _ = internal_create_connection(
+                    region=startup_config.region,
+                    database_type=startup_config.database_type,
+                    connection_method=startup_config.connection_method,
+                    cluster_identifier=startup_config.cluster_identifier,
+                    db_endpoint=startup_config.db_endpoint,
+                    port=startup_config.port,
+                    database=startup_config.database,
+                )
+
+                # RDS Data API connections have no loop-bound connection pool,
+                # so retain their existing fail-fast validation behavior.
+                if db_connection:
+                    try:
+                        asyncio.run(validate_connection(db_connection, privilege_check_policy))
+                        logger.success('Successfully validated database connection to Postgres')
+                    except ConnectionValidationError as e:
+                        # The exception message carries its own remediation: an
+                        # over-privileged rejection mentions the --privilege_check
+                        # override, while a connectivity/unverifiable failure does
+                        # not (relaxing the policy would not make an unreachable DB
+                        # reachable).
+                        logger.error(f'Refusing to start: {e}')
+                        sys.exit(1)
+                    except Exception as e:
+                        logger.error(
+                            f'Failed to validate database connection to Postgres: {e}. '
+                            'Exit the MCP server'
+                        )
+                        sys.exit(1)
 
         logger.info('Postgres MCP server started')
         mcp.run()
         logger.info('Postgres MCP server stopped')
     finally:
+        startup_connection_config = None
         db_connection_map.close_all()
 
 

@@ -13,9 +13,15 @@
 # limitations under the License.
 """Tests for server error handling and edge cases."""
 
+import asyncio
+import awslabs.postgres_mcp_server.server as server_module
 import json
 import pytest
-from awslabs.postgres_mcp_server.connection.db_connection_map import ConnectionMethod, DatabaseType
+from awslabs.postgres_mcp_server.connection.db_connection_map import (
+    ConnectionMethod,
+    DatabaseType,
+    DBConnectionMap,
+)
 from awslabs.postgres_mcp_server.server import (
     ConnectionValidationError,
     DummyCtx,
@@ -948,6 +954,98 @@ class TestMainStartupValidation:
 
         assert exc.value.code == 1
         mock_run.assert_not_called()
+
+
+class TestPgWireStartupLifespan:
+    """Regression coverage for PG-wire startup loop affinity."""
+
+    @staticmethod
+    def _argv():
+        """CLI args sufficient to configure a startup PG-wire connection."""
+        return [
+            'server.py',
+            '--region',
+            'us-east-1',
+            '--db_type',
+            'APG',
+            '--connection_method',
+            'PG_WIRE_IAM_PROTOCOL',
+            '--db_cluster_arn',
+            'arn:aws:rds:us-east-1:123456789012:cluster:test-cluster',
+            '--db_endpoint',
+            'test.endpoint.com',
+            '--database',
+            'testdb',
+        ]
+
+    def test_main_uses_serving_loop_for_pg_wire_startup_and_query(self, monkeypatch):
+        """PG-wire setup, first query, and cleanup share the MCP serving loop."""
+        connection_map = DBConnectionMap()
+        observed_loops = []
+        serving_loops = []
+        mock_connection = MagicMock()
+        mock_connection.readonly_query = True
+
+        def current_loop_or_none():
+            try:
+                return asyncio.get_running_loop()
+            except RuntimeError:
+                return None
+
+        async def execute_query(sql, parameters=None):
+            observed_loops.append(('query', current_loop_or_none()))
+            return {
+                'columnMetadata': [{'name': 'value'}],
+                'records': [[{'longValue': 1}]],
+            }
+
+        async def close():
+            observed_loops.append(('close', current_loop_or_none()))
+
+        mock_connection.execute_query = AsyncMock(side_effect=execute_query)
+        mock_connection.close = AsyncMock(side_effect=close)
+
+        def create_connection(**kwargs):
+            observed_loops.append(('create', current_loop_or_none()))
+            connection_map.set(
+                kwargs['connection_method'],
+                kwargs['cluster_identifier'],
+                kwargs['db_endpoint'],
+                kwargs['database'],
+                mock_connection,
+            )
+            return mock_connection, '{}'
+
+        async def validate_connection(connection, policy):
+            assert connection is mock_connection
+            observed_loops.append(('validate', current_loop_or_none()))
+
+        async def serve_with_lifespan():
+            serving_loops.append(asyncio.get_running_loop())
+            async with server_module.server_lifespan(server_module.mcp):
+                result = await server_module.run_query(
+                    sql='SELECT 1',
+                    ctx=DummyCtx(),
+                    connection_method=ConnectionMethod.PG_WIRE_IAM_PROTOCOL,
+                    cluster_identifier='test-cluster',
+                    db_endpoint='test.endpoint.com',
+                    database='testdb',
+                )
+            assert result == [{'value': 1}]
+
+        monkeypatch.setattr(server_module, 'db_connection_map', connection_map)
+        monkeypatch.setattr(server_module, 'internal_create_connection', create_connection)
+        monkeypatch.setattr(server_module, 'validate_connection', validate_connection)
+        monkeypatch.setattr(server_module.mcp, 'run', lambda: asyncio.run(serve_with_lifespan()))
+
+        with patch('sys.argv', self._argv()):
+            server_module.main()
+
+        assert server_module.mcp.settings.lifespan is server_module.server_lifespan
+        assert [stage for stage, _ in observed_loops] == ['create', 'validate', 'query', 'close']
+        assert len(serving_loops) == 1
+        assert all(loop is serving_loops[0] for _, loop in observed_loops)
+        mock_connection.close.assert_awaited_once()
 
 
 class TestCreateClusterBootstrapExemption:
