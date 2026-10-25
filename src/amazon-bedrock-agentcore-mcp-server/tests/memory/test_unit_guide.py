@@ -85,3 +85,10 @@ class TestGetMemoryGuide:
         assert 'Prerequisites' in MEMORY_GUIDE
         assert 'agentcore-cli' in MEMORY_GUIDE or 'agentcore' in MEMORY_GUIDE
         assert 'do NOT need the CLI' in MEMORY_GUIDE
+
+    @pytest.mark.asyncio
+    async def test_guide_has_no_git_conflict_markers(self, mock_ctx):
+        """Guide contains no unresolved git merge conflict markers."""
+        for marker in ('<<<<<<<', '>>>>>>>', '\n=======\n'):
+            assert marker not in MEMORY_GUIDE
+        assert '@anthropic-ai/agentcore-cli' not in MEMORY_GUIDE
