@@ -1206,6 +1206,44 @@ async def _call_tool(client, ctx, **kwargs):
 
 
 @pytest.mark.asyncio
+class TestReservationCoverageRequest:
+    """GetReservationCoverage request construction reaches the Cost Explorer client intact."""
+
+    async def test_grouped_coverage_omits_granularity_from_api_call(self, mock_context):
+        """Cost Explorer rejects Granularity with GroupBy, so it is never sent."""
+        client = MagicMock()
+        client.get_reservation_coverage.return_value = {'CoveragesByTime': []}
+
+        await _call_tool(
+            client,
+            mock_context,
+            operation='get_reservation_coverage',
+            granularity='MONTHLY',
+            group_by='[{"Type": "DIMENSION", "Key": "INSTANCE_TYPE"}]',
+        )
+
+        kwargs = client.get_reservation_coverage.call_args.kwargs
+        assert kwargs['GroupBy'] == [{'Type': 'DIMENSION', 'Key': 'INSTANCE_TYPE'}]
+        assert 'Granularity' not in kwargs
+
+    async def test_ungrouped_coverage_sends_granularity_to_api_call(self, mock_context):
+        """Without GroupBy, the requested granularity remains part of the API call."""
+        client = MagicMock()
+        client.get_reservation_coverage.return_value = {'CoveragesByTime': []}
+
+        await _call_tool(
+            client,
+            mock_context,
+            operation='get_reservation_coverage',
+            granularity='MONTHLY',
+        )
+
+        kwargs = client.get_reservation_coverage.call_args.kwargs
+        assert 'GroupBy' not in kwargs
+        assert kwargs['Granularity'] == 'MONTHLY'
+
+
+@pytest.mark.asyncio
 class TestMaxPages:
     """get_reservation_utilization takes max_pages; coverage keeps max_items."""
 
