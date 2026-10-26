@@ -117,12 +117,19 @@ The test suite automatically generates sample documents for testing:
 
 ## Docker
 
-You can also run this server in a Docker container:
+You can also run this server in a Docker container. The image speaks MCP over
+**stdio** (the Dockerfile does not expose an HTTP port), so use `--interactive`
+and omit `-p`:
 
 ```bash
-docker build -t document-loader-mcp-server .
-docker run -p 8000:8000 document-loader-mcp-server
+docker build -t awslabs/document-loader-mcp-server .
+docker run --rm --interactive \
+  -e FASTMCP_LOG_LEVEL=ERROR \
+  awslabs/document-loader-mcp-server
 ```
+
+For MCP clients, point `command` at `docker` with `run --rm --interactive` and
+the image name (same pattern as the other awslabs MCP Docker examples).
 
 ## License
 
