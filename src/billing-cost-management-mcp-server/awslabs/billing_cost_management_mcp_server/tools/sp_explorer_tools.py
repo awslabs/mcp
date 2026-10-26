@@ -232,6 +232,8 @@ SP_DESCRIBE_SAVINGS_PLANS = PageSpec(
     token_key_in_response='nextToken',
     page_max=1000,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
 
@@ -339,6 +341,8 @@ SP_DESCRIBE_SAVINGS_PLAN_RATES = PageSpec(
     token_key_in_response='nextToken',
     page_max=1000,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
 
@@ -421,6 +425,8 @@ SP_DESCRIBE_SAVINGS_PLANS_OFFERINGS = PageSpec(
     token_key_in_response='nextToken',
     page_max=1000,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
 
@@ -532,6 +538,8 @@ SP_DESCRIBE_SAVINGS_PLANS_OFFERING_RATES = PageSpec(
     token_key_in_response='nextToken',
     page_max=1000,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
 

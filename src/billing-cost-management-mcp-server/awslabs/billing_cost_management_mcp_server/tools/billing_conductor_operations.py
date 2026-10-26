@@ -55,6 +55,8 @@ def _bc_page_spec(result_key: str) -> PageSpec:
         token_key_in_response='NextToken',
         page_max=100,
         page_size_param='MaxResults',
+        # Billing Conductor reports a bad caller next_token as ValidationException.
+        caller_token_error_codes=frozenset({'ValidationException'}),
     )
 
 
@@ -188,6 +190,8 @@ BC_LIST_ACCOUNT_ASSOCIATIONS = PageSpec(
     token_param='NextToken',
     token_key_in_response='NextToken',
     page_max=100,
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
 

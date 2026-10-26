@@ -49,6 +49,8 @@ LIST_WORKLOAD_ESTIMATES_PAGE_SPEC = PageSpec(
     token_key_in_response='nextToken',
     page_max=25,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 # ListWorkloadEstimateUsage returns up to 300 usage lines per page.
 LIST_WORKLOAD_ESTIMATE_USAGE_PAGE_SPEC = PageSpec(
@@ -57,6 +59,8 @@ LIST_WORKLOAD_ESTIMATE_USAGE_PAGE_SPEC = PageSpec(
     token_key_in_response='nextToken',
     page_max=300,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 PREFERENCES_NOT_CONFIGURED_ERROR = 'BCM Pricing Calculator preferences are not configured. Please configure preferences before using this service.'
 

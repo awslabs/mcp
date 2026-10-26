@@ -424,7 +424,8 @@ class PageSpec:
         caller_token_error_codes: Codes that mean a rejected token only on the first
             request of a continuation, i.e. when the caller's own next_token was sent.
             For services that report a bad token with a generic code (e.g.
-            ``InternalServerException``); on a later page that code is an ordinary failure.
+            ``ValidationException`` or ``InternalServerException``); on a later page that
+            code is an ordinary failure.
     """
 
     result_key: Union[str, Tuple[str, ...]]

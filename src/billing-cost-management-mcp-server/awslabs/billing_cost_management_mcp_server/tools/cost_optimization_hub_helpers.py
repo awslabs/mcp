@@ -54,6 +54,8 @@ COH_LIST_RECOMMENDATIONS = PageSpec(
     token_key_in_response='nextToken',
     page_max=1000,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 COH_LIST_RECOMMENDATION_SUMMARIES = PageSpec(
     result_key='items',
@@ -61,6 +63,8 @@ COH_LIST_RECOMMENDATION_SUMMARIES = PageSpec(
     token_key_in_response='nextToken',
     page_max=1000,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 COH_LIST_EFFICIENCY_METRICS = PageSpec(
     result_key='efficiencyMetricsByGroup',
@@ -68,6 +72,8 @@ COH_LIST_EFFICIENCY_METRICS = PageSpec(
     token_key_in_response='nextToken',
     page_max=1000,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 # Performance ranking's internal fetch: EFFICIENCY_PARETO_PAGE_SIZE groups per page, highest
 # spend first, up to EFFICIENCY_PARETO_MAX_PAGES pages (a cap of pages x page size groups).
