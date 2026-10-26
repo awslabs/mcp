@@ -315,32 +315,24 @@ class TestGetCostAndUsage:
         group_by_json = '[{"Type": "DIMENSION", "Key": "SERVICE"}]'
         filter_json = '{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon EC2"]}}'
 
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.parse_json'
-        ) as mock_parse_json:
-            # Set up mock return values for parse_json calls
-            mock_parse_json.side_effect = [
-                ['UnblendedCost', 'UsageQuantity'],  # metrics
-                [{'Type': 'DIMENSION', 'Key': 'SERVICE'}],  # group_by
-                {'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon EC2']}},  # filter
-            ]
+        await get_cost_and_usage(
+            mock_context,
+            mock_ce_client,
+            start_date='2023-01-01',
+            end_date='2023-01-31',
+            granularity='DAILY',
+            metrics=metrics_json,
+            group_by=group_by_json,
+            filter_expr=filter_json,
+        )
 
-            await get_cost_and_usage(
-                mock_context,
-                mock_ce_client,
-                start_date='2023-01-01',
-                end_date='2023-01-31',
-                granularity='DAILY',
-                metrics=metrics_json,
-                group_by=group_by_json,
-                filter_expr=filter_json,
-            )
-
-        # Verify the client was called with parsed parameters
+        # The JSON arguments are parsed and sent as given.
         call_kwargs = mock_ce_client.get_cost_and_usage.call_args[1]
-        assert 'Metrics' in call_kwargs
-        assert 'GroupBy' in call_kwargs
-        assert 'Filter' in call_kwargs
+        assert call_kwargs['Metrics'] == ['UnblendedCost', 'UsageQuantity']
+        assert call_kwargs['GroupBy'] == [{'Type': 'DIMENSION', 'Key': 'SERVICE'}]
+        assert call_kwargs['Filter'] == {
+            'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon EC2']}
+        }
 
     @pytest.mark.parametrize('metrics, expected', METRICS_CASES)
     async def test_sends_and_stores_parsed_metrics(
@@ -763,32 +755,24 @@ class TestGetCostAndUsageWithResources:
         group_by_json = '[{"Type": "RESOURCE", "Key": "RESOURCE_ID"}]'
         filter_json = '{"Dimensions": {"Key": "SERVICE", "Values": ["Amazon EC2"]}}'
 
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.parse_json'
-        ) as mock_parse_json:
-            # Set up mock return values for parse_json calls
-            mock_parse_json.side_effect = [
-                ['UnblendedCost'],  # metrics
-                [{'Type': 'RESOURCE', 'Key': 'RESOURCE_ID'}],  # group_by
-                {'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon EC2']}},  # filter
-            ]
+        await get_cost_and_usage_with_resources(
+            mock_context,
+            mock_ce_client,
+            start_date='2023-01-01',
+            end_date='2023-01-07',
+            granularity='DAILY',
+            metrics=metrics_json,
+            group_by=group_by_json,
+            filter_expr=filter_json,
+        )
 
-            await get_cost_and_usage_with_resources(
-                mock_context,
-                mock_ce_client,
-                start_date='2023-01-01',
-                end_date='2023-01-07',
-                granularity='DAILY',
-                metrics=metrics_json,
-                group_by=group_by_json,
-                filter_expr=filter_json,
-            )
-
-        # Verify the client was called with parsed parameters
+        # The JSON arguments are parsed and sent as given.
         call_kwargs = mock_ce_client.get_cost_and_usage_with_resources.call_args[1]
-        assert 'Metrics' in call_kwargs
-        assert 'GroupBy' in call_kwargs
-        assert 'Filter' in call_kwargs
+        assert call_kwargs['Metrics'] == ['UnblendedCost']
+        assert call_kwargs['GroupBy'] == [{'Type': 'RESOURCE', 'Key': 'RESOURCE_ID'}]
+        assert call_kwargs['Filter'] == {
+            'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon EC2']}
+        }
 
     @pytest.mark.parametrize('metrics, expected', METRICS_CASES)
     async def test_sends_and_stores_parsed_metrics(
