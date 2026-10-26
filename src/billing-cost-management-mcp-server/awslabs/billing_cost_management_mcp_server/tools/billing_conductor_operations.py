@@ -319,7 +319,8 @@ async def list_billing_group_cost_reports(
 # A changed parameter or a malformed token fails with ValidationException, and an expired token
 # can fail with ValidationException or InternalServerException. Either code on a call that
 # carried a next_token means that token is unusable, so the helper maps it to
-# invalid_next_token only then.
+# invalid_next_token only then. The expired-token InternalServerException need not name the
+# token, so this spec does not require the message to.
 BC_GET_BILLING_GROUP_COST_REPORT = PageSpec(
     result_key='BillingGroupCostReportResults',
     token_param='NextToken',
@@ -328,6 +329,7 @@ BC_GET_BILLING_GROUP_COST_REPORT = PageSpec(
     page_size_param='MaxResults',
     page_min=200,
     caller_token_error_codes=frozenset({'ValidationException', 'InternalServerException'}),
+    caller_token_message_required=False,
 )
 
 

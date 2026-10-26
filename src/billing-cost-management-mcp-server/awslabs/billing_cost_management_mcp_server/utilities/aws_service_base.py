@@ -425,7 +425,12 @@ class PageSpec:
             request of a continuation, i.e. when the caller's own next_token was sent.
             For services that report a bad token with a generic code (e.g.
             ``ValidationException`` or ``InternalServerException``); on a later page that
-            code is an ordinary failure.
+            code is an ordinary failure. Because such a code also reports other invalid
+            arguments, it counts as a rejected token only when the error message names the
+            token (contains "token"), unless ``caller_token_message_required`` is False.
+        caller_token_message_required: Require the error message to name the token before
+            a ``caller_token_error_codes`` code is treated as a rejected token. Set False
+            only for a service whose token errors do not name the token.
     """
 
     result_key: Union[str, Tuple[str, ...]]
@@ -439,6 +444,7 @@ class PageSpec:
     count_items: Callable[[List[Any]], int] = len
     token_error_codes: FrozenSet[str] = field(default=TOKEN_ERROR_CODES)
     caller_token_error_codes: FrozenSet[str] = frozenset()
+    caller_token_message_required: bool = True
 
 
 def partial_data_warning(items_returned: int, limit_param: str = 'max_items') -> str:
@@ -493,6 +499,18 @@ def _error_code(error: Exception) -> str:
     if isinstance(error, ClientError):
         return error.response.get('Error', {}).get('Code', 'UnknownError')
     return type(error).__name__
+
+
+def _is_caller_token_error(error: Exception, code: str, spec: PageSpec) -> bool:
+    """Whether a generic error code on the first request means the caller's token was rejected."""
+    if code not in spec.caller_token_error_codes:
+        return False
+    if not spec.caller_token_message_required:
+        return True
+    message = (
+        error.response.get('Error', {}).get('Message') if isinstance(error, ClientError) else ''
+    )
+    return 'token' in (message or '').lower()
 
 
 def _items_of(response: Dict[str, Any], result_key: Union[str, Tuple[str, ...]]) -> List[Any]:
@@ -617,7 +635,7 @@ async def paginate_aws_items(
             code = _error_code(error)
             is_token_error = bool(token) and code in spec.token_error_codes
             if not pages:
-                if next_token and (is_token_error or code in spec.caller_token_error_codes):
+                if next_token and (is_token_error or _is_caller_token_error(error, code, spec)):
                     raise InvalidNextTokenError(operation, code) from error
                 raise
             # Keep what was fetched. The token that requested the failed page lets a

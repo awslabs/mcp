@@ -18,7 +18,8 @@ Services outside Cost Explorer, Budgets and Price List report a bad next_token w
 generic code (ValidationException or InvalidParameterValueException) instead of
 InvalidNextTokenException. Each operation's PageSpec names that code, so a rejected caller
 token gets the restart hint, while the same code without a caller token stays an ordinary
-error.
+error. Because those codes also report other invalid arguments, the message must name
+the token too, except for the billing group cost report, whose expired-token error may not.
 """
 
 import pytest
@@ -253,8 +254,8 @@ def ctx():
     return context
 
 
-def _client_error(code):
-    return ClientError({'Error': {'Code': code, 'Message': 'Invalid pagination token.'}}, 'Op')
+def _client_error(code, message='Invalid pagination token.'):
+    return ClientError({'Error': {'Code': code, 'Message': message}}, 'Op')
 
 
 @pytest.mark.parametrize('spec, code', SPECS)
@@ -291,3 +292,43 @@ async def test_same_code_on_a_later_page_keeps_the_retry_token(ctx, spec, code):
 
     assert pagination['complete_dataset'] is False
     assert pagination['next_token'] == 't1'
+
+
+@pytest.mark.parametrize('spec, code', SPECS)
+async def test_same_code_about_another_argument_is_unchanged(ctx, spec, code):
+    """With a caller next_token, the code stays the service's error when it names another argument."""
+    api = MagicMock(side_effect=_client_error(code, 'maxResults must be between 1 and 100.'))
+
+    with pytest.raises(ClientError) as raised:
+        await paginate_aws_items(ctx, 'op', api, {}, spec, next_token='bogus')
+
+    assert raised.value.response['Error']['Code'] == code
+
+
+@pytest.mark.parametrize('code', ['ValidationException', 'InternalServerException'])
+async def test_cost_report_maps_its_codes_without_a_token_message(ctx, code):
+    """The cost report's expired token need not name the token, so its codes map by code alone."""
+    api = MagicMock(side_effect=_client_error(code, 'An internal error occurred.'))
+
+    with pytest.raises(InvalidNextTokenError):
+        await paginate_aws_items(
+            ctx,
+            'op',
+            api,
+            {},
+            billing_conductor_operations.BC_GET_BILLING_GROUP_COST_REPORT,
+            next_token='bogus',
+        )
+
+
+@pytest.mark.parametrize('spec, code', SPECS)
+async def test_unlisted_code_with_caller_token_is_unchanged(ctx, spec, code):
+    """A code the spec does not list stays the service's error, even when it names the token."""
+    api = MagicMock(
+        side_effect=_client_error('AccessDeniedException', 'Not authorized to use token.')
+    )
+
+    with pytest.raises(ClientError) as raised:
+        await paginate_aws_items(ctx, 'op', api, {}, spec, next_token='bogus')
+
+    assert raised.value.response['Error']['Code'] == 'AccessDeniedException'
