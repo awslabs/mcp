@@ -29,8 +29,8 @@ from awslabs.billing_cost_management_mcp_server.utilities.aws_service_base impor
     format_response,
     get_date_range,
     handle_aws_error,
-    paginate_aws_response,
     parse_json,
+    parse_metrics,
     validate_date_format,
 )
 from datetime import datetime, timedelta
@@ -160,6 +160,54 @@ class TestParseJson:
         value = {'Dimensions': {'Key': 'SERVICE', 'Values': ['Amazon S3']}}
 
         assert parse_json(value, 'test_param') is value
+
+
+class TestParseMetrics:
+    """Tests for parse_metrics function."""
+
+    @pytest.mark.parametrize(
+        'metrics, expected',
+        [
+            (['UnblendedCost', 'UsageQuantity'], ['UnblendedCost', 'UsageQuantity']),
+            ('["UnblendedCost", "UsageQuantity"]', ['UnblendedCost', 'UsageQuantity']),
+            (None, ['UnblendedCost']),
+            ('', ['UnblendedCost']),
+            ([], ['UnblendedCost']),
+            ('[]', ['UnblendedCost']),
+        ],
+    )
+    def test_valid_metrics(self, metrics, expected):
+        """Lists and JSON array strings parse to a list; unset is the default."""
+        assert parse_metrics(metrics) == expected
+
+    def test_default_is_a_fresh_list(self):
+        """Mutating a returned default does not change the next default."""
+        parse_metrics(None).append('UsageQuantity')
+
+        assert parse_metrics(None) == ['UnblendedCost']
+
+    @pytest.mark.parametrize(
+        'metrics',
+        [
+            5,
+            {'UnblendedCost': True},
+            ['UnblendedCost', 1],
+            [''],
+            '[""]',
+            '{"UnblendedCost": true}',
+            '"UnblendedCost"',
+        ],
+    )
+    def test_invalid_metrics_raise(self, metrics):
+        """Anything but a list of non-empty metric names is rejected."""
+        with pytest.raises(ValueError, match='metrics must be a list of metric names'):
+            parse_metrics(metrics)
+
+    @pytest.mark.parametrize('metrics', ['[UnblendedCost', 'UnblendedCost'])
+    def test_invalid_json_raises(self, metrics):
+        """A string that is not valid JSON is rejected."""
+        with pytest.raises(ValueError, match='Invalid JSON format for metrics parameter'):
+            parse_metrics(metrics)
 
 
 class TestDateFunctions:
@@ -355,6 +403,122 @@ class TestHandleAwsError:
         assert result['operation'] == 'Connect'
         assert result['message'] == 'AWS service connection error: BotoCoreError'
 
+    @pytest.mark.asyncio
+    async def test_handle_param_validation_error(self):
+        """Classify ParamValidationError as validation_error, not aws_connection_error.
+
+        ParamValidationError is a client-side botocore validation failure (a BotoCoreError
+        subclass). It must surface as a parameter-shape problem rather than a transient
+        connection failure. The `boto_error_type` field is preserved for diagnostics.
+        """
+        # Setup
+        ctx = AsyncMock()
+        from botocore.exceptions import ParamValidationError
+
+        error = ParamValidationError(
+            report='Unknown parameter in filter.Tags: "MatchValue", must be one of: Key, Values, MatchOptions'
+        )
+
+        # Execute
+        result = await handle_aws_error(ctx, error, 'GetCostAndUsage', 'Cost Explorer')
+
+        # Assert — logged as a warning (validation), not an error (connection)
+        ctx.warning.assert_called_once()
+        warning_msg = ctx.warning.call_args.args[0]
+        assert 'ParamValidationError' in warning_msg
+        assert "Error in Cost Explorer operation 'GetCostAndUsage'" in warning_msg
+
+        # Verify response structure
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['boto_error_type'] == 'ParamValidationError'
+        assert result['service'] == 'Cost Explorer'
+        assert result['operation'] == 'GetCostAndUsage'
+        assert 'Unknown parameter in filter.Tags' in result['message']
+        assert 'MatchValue' in result['details']
+
+    @pytest.mark.asyncio
+    async def test_param_validation_error_is_modify_request(self):
+        """ParamValidationError maps to modify_request, so the caller fixes the request."""
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            MODIFY_REQUEST,
+            add_retry_guidance,
+        )
+        from botocore.exceptions import ParamValidationError
+
+        error = ParamValidationError(report='Missing required parameter in input: "TimePeriod"')
+        result = await handle_aws_error(AsyncMock(), error, 'GetCostAndUsage', 'Cost Explorer')
+
+        assert 'retry_strategy' not in result
+        assert add_retry_guidance(result)['retry_strategy'] == MODIFY_REQUEST
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'error_factory',
+        [
+            lambda e: e.NoCredentialsError(),
+            lambda e: e.PartialCredentialsError(provider='env', cred_var='AWS_SECRET_ACCESS_KEY'),
+            lambda e: e.NoRegionError(),
+            lambda e: e.ProfileNotFound(profile='missing'),
+            lambda e: e.UnknownServiceError(service_name='nope', known_service_names='ce'),
+        ],
+        ids=[
+            'NoCredentialsError',
+            'PartialCredentialsError',
+            'NoRegionError',
+            'ProfileNotFound',
+            'UnknownServiceError',
+        ],
+    )
+    async def test_configuration_botocore_errors_are_do_not_retry(self, error_factory):
+        """Credential/configuration BotoCoreErrors keep error_type but are not retryable."""
+        import botocore.exceptions as boto_exceptions
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            DO_NOT_RETRY,
+            add_retry_guidance,
+        )
+
+        error = error_factory(boto_exceptions)
+        result = await handle_aws_error(AsyncMock(), error, 'GetCostAndUsage', 'Cost Explorer')
+
+        # error_type stays stable; retry_strategy is set explicitly and survives the middleware
+        assert result['error_type'] == 'aws_connection_error'
+        assert result['boto_error_type'] == type(error).__name__
+        assert result['retry_strategy'] == DO_NOT_RETRY
+        assert 'Do not retry' in result['hint']
+        assert add_retry_guidance(result)['retry_strategy'] == DO_NOT_RETRY
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'error_factory',
+        [
+            lambda e: e.EndpointConnectionError(endpoint_url='https://ce.us-east-1.amazonaws.com'),
+            lambda e: e.ConnectTimeoutError(endpoint_url='https://ce.us-east-1.amazonaws.com'),
+            lambda e: e.ReadTimeoutError(endpoint_url='https://ce.us-east-1.amazonaws.com'),
+            lambda e: e.ConnectionClosedError(endpoint_url='https://ce.us-east-1.amazonaws.com'),
+        ],
+        ids=[
+            'EndpointConnectionError',
+            'ConnectTimeoutError',
+            'ReadTimeoutError',
+            'ConnectionClosedError',
+        ],
+    )
+    async def test_connection_botocore_errors_stay_retryable(self, error_factory):
+        """Real connection failures are still retry_same_request."""
+        import botocore.exceptions as boto_exceptions
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            RETRY_SAME_REQUEST,
+            add_retry_guidance,
+        )
+
+        error = error_factory(boto_exceptions)
+        result = await handle_aws_error(AsyncMock(), error, 'GetCostAndUsage', 'Cost Explorer')
+
+        assert result['error_type'] == 'aws_connection_error'
+        assert 'retry_strategy' not in result
+        assert add_retry_guidance(result)['retry_strategy'] == RETRY_SAME_REQUEST
+
 
 class TestFormatResponse:
     """Tests for format_response function."""
@@ -459,87 +623,3 @@ class TestFormatResponse:
         result = format_response('success', {'message': 'No results'})
 
         assert result == {'status': 'success', 'data': {'message': 'No results'}}
-
-
-class TestPaginateAwsResponse:
-    """Tests for paginate_aws_response pagination metadata."""
-
-    @pytest.mark.asyncio
-    async def test_last_page_empty_string_token(self):
-        """Test that an empty-string token on the last page reports no more pages."""
-        # Setup
-        ctx = AsyncMock()
-        # Some AWS APIs (e.g. Savings Plans DescribeSavingsPlansOfferingRates)
-        # return an empty-string token on the final page rather than omitting it.
-        api_function = MagicMock(return_value={'Items': [1, 2, 3], 'NextToken': ''})
-
-        # Execute
-        results, metadata = await paginate_aws_response(
-            ctx,
-            'TestOperation',
-            api_function,
-            {},
-            'Items',
-        )
-
-        # Assert
-        assert results == [1, 2, 3]
-        assert metadata['has_more'] is False
-        assert metadata['complete_dataset'] is True
-        assert metadata['next_token'] is None
-        assert metadata['pages_fetched'] == 1
-        assert metadata['total_results'] == 3
-
-    @pytest.mark.asyncio
-    async def test_max_pages_hit_with_token(self):
-        """Test that hitting max_pages with a real token still reports more pages."""
-        # Setup
-        ctx = AsyncMock()
-        api_function = MagicMock(
-            side_effect=[
-                {'Items': [1, 2], 'NextToken': 'token-1'},
-                {'Items': [3, 4], 'NextToken': 'token-2'},
-            ]
-        )
-
-        # Execute
-        results, metadata = await paginate_aws_response(
-            ctx,
-            'TestOperation',
-            api_function,
-            {},
-            'Items',
-            max_pages=2,
-        )
-
-        # Assert
-        assert results == [1, 2, 3, 4]
-        assert metadata['has_more'] is True
-        assert metadata['complete_dataset'] is False
-        assert metadata['next_token'] == 'token-2'
-        assert metadata['pages_fetched'] == 2
-        assert metadata['total_results'] == 4
-
-    @pytest.mark.asyncio
-    async def test_missing_token_key(self):
-        """Test that a missing token key reports no more pages (unchanged behavior)."""
-        # Setup
-        ctx = AsyncMock()
-        api_function = MagicMock(return_value={'Items': [1, 2, 3]})
-
-        # Execute
-        results, metadata = await paginate_aws_response(
-            ctx,
-            'TestOperation',
-            api_function,
-            {},
-            'Items',
-        )
-
-        # Assert
-        assert results == [1, 2, 3]
-        assert metadata['has_more'] is False
-        assert metadata['complete_dataset'] is True
-        assert metadata['next_token'] is None
-        assert metadata['pages_fetched'] == 1
-        assert metadata['total_results'] == 3

@@ -125,11 +125,9 @@ def mock_ce_client(sample_recommendation, sample_recommendation_details):
 
 PAGINATION_COMPLETE = {
     'complete_dataset': True,
-    'pages_fetched': 1,
-    'total_results': 1,
     'has_more': False,
     'next_token': None,
-    'duration_ms': 1,
+    'items_returned': 1,
 }
 
 
@@ -150,7 +148,6 @@ class TestGetSavingsPlansPurchaseRecommendation:
             None,
             None,
             None,
-            None,
         )
 
         request_params = mock_ce_client.get_savings_plans_purchase_recommendation.call_args[1]
@@ -159,6 +156,8 @@ class TestGetSavingsPlansPurchaseRecommendation:
             'TermInYears': 'ONE_YEAR',
             'PaymentOption': 'NO_UPFRONT',
             'LookbackPeriodInDays': 'THIRTY_DAYS',
+            # Without max_items the largest page is requested.
+            'PageSize': 6000,
         }
 
         assert result['status'] == 'success'
@@ -169,9 +168,7 @@ class TestGetSavingsPlansPurchaseRecommendation:
             result['data']['SavingsPlansPurchaseRecommendation']
             == (sample_recommendation['SavingsPlansPurchaseRecommendation'])
         )
-        assert result['data']['pagination']['complete_dataset'] is True
-        assert result['data']['pagination']['pages_fetched'] == 1
-        assert result['data']['pagination']['total_results'] == 1
+        assert result['data']['pagination'] == PAGINATION_COMPLETE
 
     async def test_optional_parameters(self, mock_context, mock_ce_client):
         """Account scope, filter, and paging are added only when supplied."""
@@ -184,9 +181,8 @@ class TestGetSavingsPlansPurchaseRecommendation:
             'SIXTY_DAYS',
             'PAYER',
             {'Dimensions': {'Key': 'LINKED_ACCOUNT', 'Values': ['111122223333']}},
-            'token-from-caller',
             25,
-            None,
+            'token-from-caller',
         )
 
         request_params = mock_ce_client.get_savings_plans_purchase_recommendation.call_args[1]
@@ -194,6 +190,7 @@ class TestGetSavingsPlansPurchaseRecommendation:
         assert request_params['Filter'] == {
             'Dimensions': {'Key': 'LINKED_ACCOUNT', 'Values': ['111122223333']}
         }
+        # The caller's token is sent unchanged, and max_items sizes the page.
         assert request_params['NextPageToken'] == 'token-from-caller'
         assert request_params['PageSize'] == 25
 
@@ -238,7 +235,6 @@ class TestGetSavingsPlansPurchaseRecommendation:
             None,
             None,
             None,
-            None,
         )
 
         recommendation = result['data']['SavingsPlansPurchaseRecommendation']
@@ -261,23 +257,32 @@ class TestGetSavingsPlansPurchaseRecommendation:
 
         assert result['data']['pagination'] == {
             'complete_dataset': True,
-            'pages_fetched': 3,
-            'total_results': 3,
             'has_more': False,
             'next_token': None,
-            'duration_ms': result['data']['pagination']['duration_ms'],
+            'items_returned': 3,
         }
+        assert 'complete_dataset' not in {k for k in result['data'] if k != 'pagination'}
+        # Every page repeats the request; only the token changes.
+        calls = mock_ce_client.get_savings_plans_purchase_recommendation.call_args_list
+        assert all(
+            {k: v for k, v in c[1].items() if k != 'NextPageToken'} == calls[0][1] for c in calls
+        )
         # The merged result reports paging through pagination, not a stray top-level token.
         assert 'NextPageToken' not in result['data']
 
-    async def test_max_pages_stops_early_and_reports_the_token(self, mock_context, mock_ce_client):
+    async def test_max_items_stops_and_reports_the_token(self, mock_context, mock_ce_client):
         """Stopping short is reported, so a truncated recommendation cannot read as complete."""
-        mock_ce_client.get_savings_plans_purchase_recommendation.return_value = {
-            'SavingsPlansPurchaseRecommendation': {
-                'SavingsPlansPurchaseRecommendationDetails': [{'RecommendationDetailId': 'd'}]
-            },
-            'NextPageToken': 'more-to-come',
-        }
+        mock_ce_client.get_savings_plans_purchase_recommendation.side_effect = [
+            {
+                'SavingsPlansPurchaseRecommendation': {
+                    'SavingsPlansPurchaseRecommendationDetails': [
+                        {'RecommendationDetailId': f'd{page}'}
+                    ]
+                },
+                'NextPageToken': token,
+            }
+            for page, token in ((1, 'page-2'), (2, 'more-to-come'))
+        ]
 
         result = await get_savings_plans_purchase_recommendation(
             mock_context,
@@ -288,12 +293,15 @@ class TestGetSavingsPlansPurchaseRecommendation:
             'THIRTY_DAYS',
             None,
             None,
-            None,
-            None,
             2,
+            None,
         )
 
-        assert mock_ce_client.get_savings_plans_purchase_recommendation.call_count == 2
+        # One detail per page: the page sizes are 2 then 1, and the run stops at 2 items.
+        calls = mock_ce_client.get_savings_plans_purchase_recommendation.call_args_list
+        assert [c[1]['PageSize'] for c in calls] == [2, 1]
+        assert result['data']['complete_dataset'] is False
+        assert 'Partial data' in result['data']['warning']
         assert result['data']['pagination']['complete_dataset'] is False
         assert result['data']['pagination']['has_more'] is True
         assert result['data']['pagination']['next_token'] == 'more-to-come'
@@ -334,7 +342,6 @@ class TestGetSavingsPlansPurchaseRecommendation:
             None,
             None,
             None,
-            None,
         )
 
         # The empty-token page is consumed and no further request is made for an empty token.
@@ -343,7 +350,7 @@ class TestGetSavingsPlansPurchaseRecommendation:
         assert pagination['has_more'] is False
         assert pagination['next_token'] is None
         assert pagination['complete_dataset'] is True
-        assert pagination['total_results'] == 2
+        assert pagination['items_returned'] == 2
 
     async def test_a_page_without_details_is_not_treated_as_a_list(
         self, mock_context, mock_ce_client
@@ -371,7 +378,6 @@ class TestGetSavingsPlansPurchaseRecommendation:
             None,
             None,
             None,
-            None,
         )
 
         assert result['status'] == 'success'
@@ -379,7 +385,7 @@ class TestGetSavingsPlansPurchaseRecommendation:
         assert recommendation['SavingsPlansPurchaseRecommendationDetails'] == [
             {'RecommendationDetailId': 'detail-1'}
         ]
-        assert result['data']['pagination']['total_results'] == 1
+        assert result['data']['pagination']['items_returned'] == 1
 
     async def test_missing_required_parameters_are_rejected_by_botocore(
         self, mock_context, mock_ce_client
@@ -404,7 +410,6 @@ class TestGetSavingsPlansPurchaseRecommendation:
             None,
             None,
             None,
-            None,
         )
 
         assert result['status'] == 'error'
@@ -422,7 +427,6 @@ class TestGetSavingsPlansPurchaseRecommendation:
             'ONE_YEAR',
             'NO_UPFRONT',
             'THIRTY_DAYS',
-            None,
             None,
             None,
             None,
@@ -499,66 +503,90 @@ class TestStartSavingsPlansPurchaseRecommendationGeneration:
 class TestListSavingsPlansPurchaseRecommendationGeneration:
     """Tests for list_savings_plans_purchase_recommendation_generation."""
 
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.sp_recommendation_tools.paginate_aws_response'
-    )
-    async def test_basic(self, mock_paginate, mock_context, mock_ce_client):
-        """Generations page through GenerationSummaryList."""
+    async def test_basic(self, mock_context, mock_ce_client):
+        """Generations come back under GenerationSummaryList at the largest page size."""
         generations = (
             mock_ce_client.list_savings_plans_purchase_recommendation_generation.return_value[
                 'GenerationSummaryList'
             ]
         )
-        mock_paginate.return_value = (generations, PAGINATION_COMPLETE)
 
         result = await list_savings_plans_purchase_recommendation_generation(
-            mock_context, mock_ce_client, None, None, None, None, None
+            mock_context, mock_ce_client, None, None, None, None
         )
-
-        call_kwargs = mock_paginate.call_args[1]
-        assert call_kwargs['operation_name'] == 'ListSavingsPlansPurchaseRecommendationGeneration'
-        assert call_kwargs['result_key'] == 'GenerationSummaryList'
-        # Cost Explorer uses NextPageToken; the Savings Plans service uses nextToken.
-        assert call_kwargs['token_param'] == 'NextPageToken'
-        assert call_kwargs['token_key'] == 'NextPageToken'
 
         assert result['status'] == 'success'
         assert result['data']['GenerationSummaryList'] == generations
         assert result['data']['pagination']['complete_dataset'] is True
+        mock_ce_client.list_savings_plans_purchase_recommendation_generation.assert_called_once_with(
+            PageSize=6000
+        )
 
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.sp_recommendation_tools.paginate_aws_response'
-    )
-    async def test_optional_parameters(self, mock_paginate, mock_context, mock_ce_client):
-        """Status and id filters are decoded and forwarded."""
-        mock_paginate.return_value = ([], PAGINATION_COMPLETE)
+    async def test_no_max_items_fetches_every_page(self, mock_context, mock_ce_client):
+        """Cost Explorer uses NextPageToken; every page is followed."""
+        method = mock_ce_client.list_savings_plans_purchase_recommendation_generation
+        method.side_effect = [
+            {'GenerationSummaryList': [{'RecommendationId': 'a'}], 'NextPageToken': 't1'},
+            {'GenerationSummaryList': [{'RecommendationId': 'b'}]},
+        ]
 
+        result = await list_savings_plans_purchase_recommendation_generation(
+            mock_context, mock_ce_client, 'SUCCEEDED', None, None, None
+        )
+
+        data = result['data']
+        assert [g['RecommendationId'] for g in data['GenerationSummaryList']] == ['a', 'b']
+        assert 'complete_dataset' not in data
+        assert method.call_args_list[1][1] == {
+            'GenerationStatus': 'SUCCEEDED',
+            'PageSize': 6000,
+            'NextPageToken': 't1',
+        }
+
+    async def test_max_items_stops_and_returns_the_token(self, mock_context, mock_ce_client):
+        """max_items sizes the page and the service token comes back."""
+        method = mock_ce_client.list_savings_plans_purchase_recommendation_generation
+        method.return_value = {
+            'GenerationSummaryList': [{'RecommendationId': 'a'}],
+            'NextPageToken': 'more',
+        }
+
+        result = await list_savings_plans_purchase_recommendation_generation(
+            mock_context, mock_ce_client, None, None, 1, None
+        )
+
+        assert result['data']['complete_dataset'] is False
+        assert result['data']['pagination']['next_token'] == 'more'
+        method.assert_called_once_with(PageSize=1)
+
+    async def test_continuation_sends_caller_token_and_identical_params(
+        self, mock_context, mock_ce_client
+    ):
+        """Status and id filters are forwarded with the caller's token."""
         await list_savings_plans_purchase_recommendation_generation(
             mock_context,
             mock_ce_client,
             'SUCCEEDED',
             ['a1b2c3d4-1111-2222-3333-444455556666'],
+            None,
             'token-from-caller',
-            10,
-            2,
         )
 
-        request_params = mock_paginate.call_args[1]['request_params']
-        assert request_params['GenerationStatus'] == 'SUCCEEDED'
-        assert request_params['RecommendationIds'] == ['a1b2c3d4-1111-2222-3333-444455556666']
-        assert request_params['NextPageToken'] == 'token-from-caller'
-        assert request_params['PageSize'] == 10
-        assert mock_paginate.call_args[1]['max_pages'] == 2
+        mock_ce_client.list_savings_plans_purchase_recommendation_generation.assert_called_once_with(
+            GenerationStatus='SUCCEEDED',
+            RecommendationIds=['a1b2c3d4-1111-2222-3333-444455556666'],
+            PageSize=6000,
+            NextPageToken='token-from-caller',
+        )
 
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.sp_recommendation_tools.paginate_aws_response'
-    )
-    async def test_error(self, mock_paginate, mock_context, mock_ce_client):
+    async def test_error(self, mock_context, mock_ce_client):
         """A client failure is reported rather than raised."""
-        mock_paginate.side_effect = Exception('LimitExceededException')
+        mock_ce_client.list_savings_plans_purchase_recommendation_generation.side_effect = (
+            Exception('LimitExceededException')
+        )
 
         result = await list_savings_plans_purchase_recommendation_generation(
-            mock_context, mock_ce_client, None, None, None, None, None
+            mock_context, mock_ce_client, None, None, None, None
         )
 
         assert result['status'] == 'error'
@@ -591,6 +619,8 @@ class TestSpRecommendationDispatch:
         mock_create_client.assert_called_once_with('ce', region_name='us-east-1')
         args = mock_impl.await_args[0]
         assert args[2:6] == ('COMPUTE_SP', 'ONE_YEAR', 'NO_UPFRONT', 'THIRTY_DAYS')
+        # max_items and next_token default to None (fetch everything from the start).
+        assert args[8:] == (None, None)
 
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.sp_recommendation_tools.create_aws_client'
@@ -634,19 +664,20 @@ class TestSpRecommendationDispatch:
         'awslabs.billing_cost_management_mcp_server.tools.sp_recommendation_tools.list_savings_plans_purchase_recommendation_generation'
     )
     async def test_routes_to_list_generations(self, mock_impl, mock_create_client, mock_context):
-        """The generation status filter and max_pages arrive."""
+        """The generation status filter, max_items and next_token arrive."""
         mock_impl.return_value = {'status': 'success', 'data': {}}
 
         await sp_recommendation(
             mock_context,
             operation='list_savings_plans_purchase_recommendation_generation',
             generation_status='FAILED',
-            max_pages=2,
+            max_items=2,
+            next_token='tok',
         )
 
         args = mock_impl.await_args[0]
         assert args[2] == 'FAILED'
-        assert args[6] == 2
+        assert args[4:6] == (2, 'tok')
 
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.sp_recommendation_tools.create_aws_client'

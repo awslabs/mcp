@@ -21,9 +21,12 @@ and returns a standardized response envelope.
 """
 
 from ..utilities.aws_service_base import (
+    PageSpec,
     create_aws_client,
     format_response,
     handle_aws_error,
+    paginate_aws_items,
+    with_pagination,
 )
 from ..utilities.sql_utils import convert_response_if_needed
 from ..utilities.time_utils import (
@@ -51,6 +54,17 @@ MAX_ALLOCATION_HISTORY_SECONDS = 63072000
 # limit than the allocation ledger's. 365 days is used rather than a calendar
 # year because it is never wider than the limit, including across a leap day.
 MAX_CREDITS_LOOKBACK_SECONDS = 31536000
+
+# GetCreditAllocationHistory accepts maxResults up to 1,000 but clamps a page to 500 ledger rows,
+# and it only ends a page at a bill boundary, so a page can hold more rows than maxResults. The
+# helper keeps such an oversized page.
+GET_CREDIT_ALLOCATION_HISTORY_PAGE_SPEC = PageSpec(
+    result_key='creditAllocationHistoryList',
+    token_param='nextToken',
+    token_key_in_response='nextToken',
+    page_max=500,
+    page_size_param='maxResults',
+)
 
 # IAM action required by each operation, used to build an actionable message
 # when the caller's policy is missing it.
@@ -203,7 +217,7 @@ def _build_get_credit_allocation_history_time_range(
 ) -> Dict[str, Any]:
     """Describe the window actually queried alongside the one requested.
 
-    Reporting both makes a narrowed window visible to the agent so a clamped
+    Reporting both makes a limited window visible to the agent so a limited
     result is never mistaken for a complete one.
 
     Args:
@@ -218,7 +232,7 @@ def _build_get_credit_allocation_history_time_range(
     return {
         'start_date': timestamp_to_utc_iso_string(start_epoch),
         'end_date': timestamp_to_utc_iso_string(end_epoch),
-        'narrowed_from_request': (start_epoch != requested_start or end_epoch != requested_end),
+        'limited_from_request': (start_epoch != requested_start or end_epoch != requested_end),
         'requested_start_date': timestamp_to_utc_iso_string(requested_start),
         'requested_end_date': timestamp_to_utc_iso_string(requested_end),
         'max_range_months': 24,
@@ -314,69 +328,44 @@ async def _paginate_get_credit_allocation_history(
     ctx: Context,
     client: Any,
     request_params: Dict[str, Any],
-    max_results: Optional[int],
+    max_items: Optional[int],
     next_token: Optional[str],
-    max_pages: Optional[int],
 ) -> tuple:
-    """Page the allocation ledger with the SDK paginator, keeping completeness flags.
+    """Page the allocation ledger, keeping the service's completeness flags.
 
-    The SDK declares ``partialResults`` and ``failedMonths`` as non-aggregate keys, so
-    they appear on each page rather than being summed. Both are combined across pages
-    here, because a total computed over an incomplete ledger would otherwise read as
-    authoritative.
-
-    The resume point is read from the page the caller stopped on rather than from the
-    iterator, because the SDK only populates its own resume token when it applies its
-    internal item limit, never when a consumer breaks out of the loop.
+    Each page carries its own ``partialResults`` and ``failedMonths``. Both are
+    combined across the pages kept, because a total computed over an incomplete
+    ledger would otherwise read as authoritative.
 
     Args:
         ctx: The MCP context object.
         client: The billing client.
         request_params: Operation parameters, without paging controls.
-        max_results: Items per page, or None for the service default.
+        max_items: Most rows to return, or None for every page.
         next_token: Continuation token to resume from, or None.
-        max_pages: Maximum pages to fetch, or None for all.
 
     Returns:
-        Tuple of (rows, pagination_metadata, completeness).
+        Tuple of (rows, pagination, completeness).
     """
-    started = datetime.now(timezone.utc)
-    paging: Dict[str, Any] = {}
-    if max_results is not None:
-        paging['PageSize'] = max_results
-    if next_token:
-        paging['StartingToken'] = next_token
+    rows, pages, pagination = await paginate_aws_items(
+        ctx,
+        'GetCreditAllocationHistory',
+        client.get_credit_allocation_history,
+        request_params,
+        GET_CREDIT_ALLOCATION_HISTORY_PAGE_SPEC,
+        max_items=max_items,
+        next_token=next_token,
+    )
 
-    paginator = client.get_paginator('get_credit_allocation_history')
-    pages = paginator.paginate(**request_params, PaginationConfig=paging)
-
-    rows: list = []
     failed_months: list = []
     partial_results = False
-    pages_fetched = 0
-    resume_token = None
-
     for page in pages:
-        rows.extend(page.get('creditAllocationHistoryList') or [])
         partial_results = partial_results or bool(page.get('partialResults'))
         for month in page.get('failedMonths') or []:
             if month not in failed_months:
                 failed_months.append(month)
-        pages_fetched += 1
-        resume_token = page.get('nextToken')
-        if max_pages is not None and pages_fetched >= max_pages:
-            break
-    duration_ms = (datetime.now(timezone.utc) - started).total_seconds() * 1000
-    await ctx.info(f'Fetched {pages_fetched} page(s), {len(rows)} allocation records')
+    await ctx.info(f'Fetched {len(pages)} page(s), {len(rows)} allocation records')
 
-    pagination = {
-        'complete_dataset': not resume_token,
-        'pages_fetched': pages_fetched,
-        'total_results': len(rows),
-        'has_more': bool(resume_token),
-        'next_token': resume_token or None,
-        'duration_ms': int(duration_ms),
-    }
     completeness = {'partial_results': partial_results, 'failed_months': failed_months}
     return rows, pagination, completeness
 
@@ -494,7 +483,7 @@ def _build_get_credits_time_range(
 ) -> Dict[str, Any]:
     """Describe the window actually queried alongside the one requested.
 
-    Reporting both makes a narrowed window visible to the agent so a clamped
+    Reporting both makes a limited window visible to the agent so a limited
     result is never mistaken for a complete one. A null end date means the API
     default of the current date applies.
 
@@ -510,7 +499,7 @@ def _build_get_credits_time_range(
     return {
         'start_date': timestamp_to_utc_iso_string(start_epoch),
         'end_date': (timestamp_to_utc_iso_string(end_epoch) if end_epoch is not None else None),
-        'narrowed_from_request': (start_epoch != requested_start or end_epoch != requested_end),
+        'limited_from_request': (start_epoch != requested_start or end_epoch != requested_end),
         'requested_start_date': timestamp_to_utc_iso_string(requested_start),
         'requested_end_date': (
             timestamp_to_utc_iso_string(requested_end) if requested_end is not None else None
@@ -537,8 +526,8 @@ async def _resolve_get_credits_window(
     time_range = _build_get_credits_time_range(
         start_epoch, end_epoch, requested_start, requested_end
     )
-    if time_range['narrowed_from_request']:
-        await ctx.info('Requested range narrowed to the enforced one-year lookback ending now')
+    if time_range['limited_from_request']:
+        await ctx.info('Requested range limited to the enforced one-year lookback ending now')
     return start_epoch, end_epoch, time_range
 
 
@@ -659,8 +648,8 @@ async def _resolve_get_credit_allocation_history_window(
     time_range = _build_get_credit_allocation_history_time_range(
         start_epoch, end_epoch, requested_start, requested_end
     )
-    if time_range['narrowed_from_request']:
-        await ctx.info('Requested range narrowed to the enforced 24-month window ending now')
+    if time_range['limited_from_request']:
+        await ctx.info('Requested range limited to the enforced 24-month window ending now')
     return start_epoch, end_epoch, time_range
 
 
@@ -669,9 +658,8 @@ async def _fetch_get_credit_allocation_history(
     client: Any,
     request_params: Dict[str, Any],
     time_range: Dict[str, Any],
-    max_results: Optional[int],
+    max_items: Optional[int],
     next_token: Optional[str],
-    max_pages: Optional[int],
 ) -> Dict[str, Any]:
     """Page the allocation ledger and assemble the response body.
 
@@ -680,23 +668,24 @@ async def _fetch_get_credit_allocation_history(
         client: The billing client.
         request_params: Operation parameters, without paging controls.
         time_range: Description of the window queried.
-        max_results: Items per page, or None for the service default.
+        max_items: Most rows to return, or None for every page.
         next_token: Continuation token to resume from, or None.
-        max_pages: Maximum pages to fetch, or None for all.
 
     Returns:
-        The assembled response body.
+        The assembled response body, with the ``pagination`` block attached.
     """
     allocations, pagination, completeness = await _paginate_get_credit_allocation_history(
-        ctx, client, request_params, max_results, next_token, max_pages
+        ctx, client, request_params, max_items, next_token
     )
     await ctx.info(f'Successfully retrieved {len(allocations)} credit allocation records')
-    return {
-        'credit_allocation_history': allocations,
-        'time_range': time_range,
-        'completeness': completeness,
-        'pagination': pagination,
-    }
+    return with_pagination(
+        {
+            'credit_allocation_history': allocations,
+            'time_range': time_range,
+            'completeness': completeness,
+        },
+        pagination,
+    )
 
 
 async def get_credits(
@@ -783,17 +772,16 @@ async def get_credit_allocation_history(
     billing_period: Optional[str] = None,
     account_id: Optional[str] = None,
     credit_id: Optional[Any] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Get credits ledger to show how credits were applied per service per billing period.
 
     Returns the credit-level allocation ledger.
 
-    The API rejects ranges longer than 24 months. A longer request is narrowed to
+    The API rejects ranges longer than 24 months. A longer request is limited to
     the most recent 24 months rather than failing, and the response reports the
-    window actually queried so a narrowed result is never mistaken for a
+    window actually queried so a limited result is never mistaken for a
     complete one.
 
     Multi-month allocation windows can exceed the inline size threshold,
@@ -813,10 +801,8 @@ async def get_credit_allocation_history(
         credit_id: Restrict the ledger to a single credit. The API declares this
             as a long, while ``GetCredits`` returns ``creditId`` as a string, so
             a string value is converted to an integer here.
-        max_results: Maximum number of results per page.
+        max_items: Most ledger rows to return. None fetches every page.
         next_token: Pagination token from a previous response to resume from.
-        max_pages: Maximum number of pages to auto-paginate through. Defaults to
-            all pages.
 
     Returns:
         Dict containing ``credit_allocation_history``, the ``time_range``
@@ -844,18 +830,16 @@ async def get_credit_allocation_history(
         client = _create_billing_client()
 
         response = await _fetch_get_credit_allocation_history(
-            ctx, client, request_params, time_range, max_results, next_token, max_pages
+            ctx, client, request_params, time_range, max_items, next_token
         )
 
         return await _finalize_response(
             ctx,
             response,
             'credits_get_credit_allocation_history',
-            pagination_token_key='nextToken',
             account_id=resolved_account_id,
             time_range=response['time_range'],
             completeness=response['completeness'],
-            pagination=response['pagination'],
         )
 
     except Exception as e:

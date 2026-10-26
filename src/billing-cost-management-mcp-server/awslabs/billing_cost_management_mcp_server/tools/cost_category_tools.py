@@ -21,10 +21,12 @@ Dedicated tools for Cost Category management APIs:
 
 import json
 from ..utilities.aws_service_base import (
+    PageSpec,
     create_aws_client,
     format_response,
     handle_aws_error,
-    paginate_aws_response,
+    paginate_aws_items,
+    with_pagination,
 )
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
@@ -33,6 +35,14 @@ from typing import Any, Dict, Optional
 cost_category_server = FastMCP(
     name='cost-category-tools',
     instructions='Tools for managing AWS Cost Categories',
+)
+
+LIST_COST_CATEGORY_DEFINITIONS = PageSpec(
+    result_key='CostCategoryReferences',
+    token_param='NextToken',
+    token_key_in_response='NextToken',
+    page_max=100,
+    page_size_param='MaxResults',
 )
 
 
@@ -114,15 +124,19 @@ The tool returns CostCategoryReference objects containing:
 - ProcessingStatus: APPLIED or PROCESSING
 - SupportedResourceTypes
 
-You can filter and paginate with:
+You can filter with:
 - effective_on: ISO 8601 datetime to return only categories active at that time.
   Defaults to current date.
 - supported_resource_types: JSON array to filter by resource type support.
   Valid values: "billing:rispgroupsharing", "billing:billingview"
   Example: '["billing:billingview"]'
   Returns only categories supporting all specified types.
-- max_results: Results per page (1-100, default 20)
-- max_pages: Max pages to auto-paginate through
+
+Pagination:
+- max_items: total number of cost categories returned. Omit it to fetch every page
+  (no limit).
+- If the result has complete_dataset: false, it is partial: call again with a larger
+  max_items, continue with next_token, or say the result is partial.
 
 Limits: 50 cost categories per management account, 500 rules per category (API),
 100 rules per category (console), 10 split charge rules per category.
@@ -135,9 +149,8 @@ async def list_cost_category_definitions(
     ctx: Context,
     effective_on: Optional[str] = None,
     supported_resource_types: Optional[str] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """List cost category definitions.
 
@@ -145,9 +158,8 @@ async def list_cost_category_definitions(
         ctx: The MCP context object
         effective_on: Optional ISO 8601 datetime to filter by active date
         supported_resource_types: Optional JSON array of resource type strings
-        max_results: Max results per page (1-100, default 20)
+        max_items: Total cost categories to return. None fetches every page.
         next_token: Pagination token from previous response
-        max_pages: Max pages to auto-paginate through
 
     Returns:
         Dict containing the list of cost category references
@@ -173,30 +185,19 @@ async def list_cost_category_definitions(
                     operation='ListCostCategoryDefinitions',
                     service='Cost Explorer',
                 )
-        if max_results is not None:
-            params['MaxResults'] = max_results
 
-        if next_token:
-            params['NextToken'] = next_token
-        if next_token or max_pages:
-            results, pagination = await paginate_aws_response(
-                ctx,
-                'ListCostCategoryDefinitions',
-                lambda **p: ce_client.list_cost_category_definitions(**p),
-                params,
-                'CostCategoryReferences',
-                max_pages=max_pages,
-            )
-            return format_response(
-                'success',
-                {
-                    'CostCategoryReferences': results,
-                    'Pagination': pagination,
-                },
-            )
-
-        response = ce_client.list_cost_category_definitions(**params)
-        return format_response('success', response)
+        references, _, pagination = await paginate_aws_items(
+            ctx,
+            'ListCostCategoryDefinitions',
+            ce_client.list_cost_category_definitions,
+            params,
+            LIST_COST_CATEGORY_DEFINITIONS,
+            max_items=max_items,
+            next_token=next_token,
+        )
+        return format_response(
+            'success', with_pagination({'CostCategoryReferences': references}, pagination)
+        )
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'ListCostCategoryDefinitions', 'Cost Explorer')

@@ -18,17 +18,118 @@ This module contains the individual operation handlers for the Cost Explorer too
 Updated to use shared utility functions.
 """
 
+import math
 from ..utilities.aws_service_base import (
+    PageSpec,
+    first_page_fields,
     format_response,
     get_date_range,
     handle_aws_error,
-    paginate_aws_response,
+    paginate_aws_items,
     parse_json,
+    parse_metrics,
+    with_pagination,
 )
 from ..utilities.sql_utils import convert_response_if_needed
+from dataclasses import replace
 from datetime import datetime, timedelta
 from fastmcp import Context
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
+
+
+# Most rows (period x group cells) one GetCostAndUsage page holds, shared across its metrics.
+CE_COST_AND_USAGE_CELLS_PER_PAGE = 5000
+
+# Fields only the first page carries in full. Per-page lists that describe that page's
+# results (DimensionValueAttributes) are concatenated instead.
+_FIRST_PAGE_KEYS = ('GroupDefinitions', 'TotalSize')
+_CONCATENATED_PAGE_KEYS = ('DimensionValueAttributes',)
+
+
+def count_cost_and_usage_rows(results_by_time: List[Dict[str, Any]]) -> int:
+    """Count GetCostAndUsage rows: one per group per period, or one per period without groups.
+
+    Periods with no groups still count as one row, as they do toward the server's page size.
+    """
+    return sum(max(1, len(period.get('Groups') or [])) for period in results_by_time)
+
+
+# getCostAndUsage / WithResources: the service sets the page size, which shrinks with the
+# number of metrics. page_max is replaced per request (see _cost_and_usage_spec).
+CE_GET_COST_AND_USAGE = PageSpec(
+    result_key='ResultsByTime',
+    token_param='NextPageToken',
+    token_key_in_response='NextPageToken',
+    page_max=CE_COST_AND_USAGE_CELLS_PER_PAGE,
+    count_items=count_cost_and_usage_rows,
+)
+
+# getDimensionValues / getTags / getCostCategories without SortBy: up to 5,000 values per
+# page. MaxResults is ignored or rejected without SortBy, so it is never sent.
+CE_GET_DIMENSION_VALUES = PageSpec(
+    result_key='DimensionValues',
+    token_param='NextPageToken',
+    token_key_in_response='NextPageToken',
+    page_max=5000,
+)
+CE_GET_TAGS = replace(CE_GET_DIMENSION_VALUES, result_key='Tags')
+CE_GET_COST_CATEGORY_NAMES = replace(CE_GET_DIMENSION_VALUES, result_key='CostCategoryNames')
+CE_GET_COST_CATEGORY_VALUES = replace(CE_GET_DIMENSION_VALUES, result_key='CostCategoryValues')
+
+
+def _cost_and_usage_spec(metrics: List[str]) -> PageSpec:
+    """GetCostAndUsage's spec for one request: the page holds 5,000 cells across all metrics."""
+    page_max = math.ceil(CE_COST_AND_USAGE_CELLS_PER_PAGE / max(1, len(set(metrics))))
+    return replace(CE_GET_COST_AND_USAGE, page_max=page_max)
+
+
+def merge_pages(pages: List[Dict[str, Any]], items: List[Any], result_key: str) -> Dict[str, Any]:
+    """Merge fetched Cost Explorer pages into one boto3-shaped response, without the token.
+
+    ``GroupDefinitions`` and ``TotalSize`` come from the first page,
+    ``DimensionValueAttributes`` are concatenated and ``ReturnSize`` is recomputed.
+    """
+    response = first_page_fields(pages, _FIRST_PAGE_KEYS)
+    for key in _CONCATENATED_PAGE_KEYS:
+        if any(key in page for page in pages):
+            # A value can repeat on several pages (e.g. one account's name), so keep the first.
+            merged: List[Any] = []
+            seen_values = set()
+            for value in (v for page in pages for v in page.get(key) or []):
+                marker = value.get('Value') if isinstance(value, dict) else None
+                if marker is not None and marker in seen_values:
+                    continue
+                if marker is not None:
+                    seen_values.add(marker)
+                merged.append(value)
+            response[key] = merged
+    response[result_key] = items
+    if any('ReturnSize' in page for page in pages):
+        response['ReturnSize'] = len(items)
+    return response
+
+
+async def _fetch_pages(
+    ctx: Context,
+    operation: str,
+    api_call: Callable[..., Dict[str, Any]],
+    request_params: Dict[str, Any],
+    spec: PageSpec,
+    max_items: Optional[int],
+    next_token: Optional[str],
+) -> Dict[str, Any]:
+    """Fetch pages per ``spec`` and merge them, with the ``pagination`` block attached."""
+    items, pages, pagination = await paginate_aws_items(
+        ctx,
+        operation,
+        api_call,
+        request_params,
+        spec,
+        max_items=max_items,
+        next_token=next_token,
+    )
+    merged = merge_pages(pages, items, str(spec.result_key))
+    return with_pagination(merged, pagination)
 
 
 async def get_cost_and_usage(
@@ -41,12 +142,10 @@ async def get_cost_and_usage(
     group_by: Optional[Union[str, List[Dict[str, Any]]]] = None,
     filter_expr: Optional[Union[str, Dict[str, Any]]] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
+    max_items: Optional[int] = None,
     billing_view_arn: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Get cost and usage data with automatic pagination.
-
-    Uses shared utilities for date handling, JSON parsing, and pagination.
+    """Get cost and usage data, fetching every page unless ``max_items`` stops earlier.
 
     Args:
         ctx: MCP context
@@ -57,8 +156,8 @@ async def get_cost_and_usage(
         metrics: List of metrics, as a list or JSON string
         group_by: Optional grouping, as a list or JSON string
         filter_expr: Optional filters, as an object or JSON string
-        next_token: Pagination token
-        max_pages: Maximum number of pages to fetch
+        next_token: Continuation token from a previous response
+        max_items: Most items to return; None fetches every page
         billing_view_arn: Optional ARN of a billing view to scope the query.
             If not provided, defaults to the account's primary billing view.
 
@@ -73,13 +172,9 @@ async def get_cost_and_usage(
         await ctx.info(f'Using date range: {start} to {end}')
 
         # Parse JSON inputs
-        metrics_list = parse_json(metrics, 'metrics')
+        metrics_list = parse_metrics(metrics)
         group_by_list = parse_json(group_by, 'group_by')
         filters = parse_json(filter_expr, 'filter')
-
-        # Set default metrics if not provided
-        if not metrics_list:
-            metrics_list = ['UnblendedCost']
 
         # Build request parameters
         request_params = {
@@ -98,33 +193,15 @@ async def get_cost_and_usage(
         if billing_view_arn:
             request_params['BillingViewArn'] = billing_view_arn
 
-        # Handle pagination
-
-        # Create function to call API
-        def api_call(**params):
-            return ce_client.get_cost_and_usage(**params)
-
-        # Use shared pagination utility
-        if next_token or max_pages:
-            # paginate_aws_response only sets the token on iter 2+, so inject
-            # the caller's token into the first boto3 request explicitly.
-            if next_token:
-                request_params['NextPageToken'] = next_token
-
-            results, pagination_metadata = await paginate_aws_response(
-                ctx,
-                'getCostAndUsage',
-                api_call,
-                request_params,
-                'ResultsByTime',
-                'NextPageToken',
-                'NextPageToken',
-                max_pages,
-            )
-
-            response = {'ResultsByTime': results, 'Pagination': pagination_metadata}
-        else:
-            response = ce_client.get_cost_and_usage(**request_params)
+        response = await _fetch_pages(
+            ctx,
+            'getCostAndUsage',
+            ce_client.get_cost_and_usage,
+            request_params,
+            _cost_and_usage_spec(metrics_list),
+            max_items,
+            next_token,
+        )
 
         table_response = await convert_response_if_needed(
             ctx,
@@ -134,7 +211,7 @@ async def get_cost_and_usage(
             start_date=start,
             end_date=end,
             group_by=group_by,
-            metrics=metrics,
+            metrics=metrics_list,
         )
 
         return format_response('success', table_response)
@@ -154,7 +231,7 @@ async def get_cost_and_usage_with_resources(
     group_by: Optional[Union[str, List[Dict[str, Any]]]] = None,
     filter_expr: Optional[Union[str, Dict[str, Any]]] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
+    max_items: Optional[int] = None,
     billing_view_arn: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Get resource-level cost and usage data.
@@ -170,8 +247,8 @@ async def get_cost_and_usage_with_resources(
         metrics: List of metrics, as a list or JSON string
         group_by: Optional grouping, as a list or JSON string
         filter_expr: Optional filters, as an object or JSON string
-        next_token: Pagination token
-        max_pages: Maximum number of pages to fetch
+        next_token: Continuation token from a previous response
+        max_items: Most items to return; None fetches every page
         billing_view_arn: Optional ARN of a billing view to scope the query.
             If not provided, defaults to the account's primary billing view.
 
@@ -190,13 +267,9 @@ async def get_cost_and_usage_with_resources(
         await ctx.info(f'Using date range: {start} to {end}')
 
         # Parse JSON inputs
-        metrics_list = parse_json(metrics, 'metrics')
+        metrics_list = parse_metrics(metrics)
         group_by_list = parse_json(group_by, 'group_by')
         filters = parse_json(filter_expr, 'filter')
-
-        # Set default metrics if not provided
-        if not metrics_list:
-            metrics_list = ['UnblendedCost']
 
         # Build request parameters
         request_params = {
@@ -215,28 +288,15 @@ async def get_cost_and_usage_with_resources(
         if billing_view_arn:
             request_params['BillingViewArn'] = billing_view_arn
 
-        # Handle pagination — same NextPageToken contract as getCostAndUsage.
-        if next_token or max_pages:
-            # paginate_aws_response only sets the token on iter 2+, so inject
-            # the caller's token into the first boto3 request explicitly.
-            if next_token:
-                request_params['NextPageToken'] = next_token
-
-            results, pagination_metadata = await paginate_aws_response(
-                ctx,
-                'getCostAndUsageWithResources',
-                lambda **params: ce_client.get_cost_and_usage_with_resources(**params),
-                request_params,
-                'ResultsByTime',
-                'NextPageToken',
-                'NextPageToken',
-                max_pages,
-            )
-
-            response = {'ResultsByTime': results, 'Pagination': pagination_metadata}
-        else:
-            await ctx.info('Calling getCostAndUsageWithResources API')
-            response = ce_client.get_cost_and_usage_with_resources(**request_params)
+        response = await _fetch_pages(
+            ctx,
+            'getCostAndUsageWithResources',
+            ce_client.get_cost_and_usage_with_resources,
+            request_params,
+            _cost_and_usage_spec(metrics_list),
+            max_items,
+            next_token,
+        )
 
         table_response = await convert_response_if_needed(
             ctx,
@@ -246,7 +306,7 @@ async def get_cost_and_usage_with_resources(
             start_date=start,
             end_date=end,
             group_by=group_by,
-            metrics=metrics,
+            metrics=metrics_list,
         )
 
         return format_response('success', table_response)
@@ -263,9 +323,8 @@ async def get_dimension_values(
     end_date: Optional[str] = None,
     search_string: Optional[str] = None,
     filter_expr: Optional[Union[str, Dict[str, Any]]] = None,
-    max_results: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
+    max_items: Optional[int] = None,
     billing_view_arn: Optional[str] = None,
     context: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -279,9 +338,8 @@ async def get_dimension_values(
         end_date: End date in YYYY-MM-DD format (exclusive)
         search_string: Optional string to filter results
         filter_expr: Optional filters, as an object or JSON string
-        max_results: Maximum number of results per page
-        next_token: Pagination token
-        max_pages: Maximum number of pages to fetch
+        next_token: Continuation token from a previous response
+        max_items: Most items to return; None fetches every page
         billing_view_arn: Optional ARN of a billing view to scope the query.
             If not provided, defaults to the account's primary billing view.
         context: The context for the call, which can be COST_AND_USAGE, RESERVATIONS, or
@@ -310,35 +368,21 @@ async def get_dimension_values(
         if filters:
             request_params['Filter'] = filters
 
-        if max_results:
-            request_params['MaxResults'] = max_results
-
         if billing_view_arn:
             request_params['BillingViewArn'] = billing_view_arn
 
         if context:
             request_params['Context'] = context
 
-        # Handle pagination
-        if next_token or max_pages:
-            if next_token:
-                request_params['NextPageToken'] = next_token
-            results, pagination_metadata = await paginate_aws_response(
-                ctx,
-                'getDimensionValues',
-                lambda **params: ce_client.get_dimension_values(**params),
-                request_params,
-                'DimensionValues',
-                'NextPageToken',
-                'NextPageToken',
-                max_pages,
-            )
-
-            # Format paginated response
-            response = {'DimensionValues': results, 'Pagination': pagination_metadata}
-        else:
-            # For single page, make direct call
-            response = ce_client.get_dimension_values(**request_params)
+        response = await _fetch_pages(
+            ctx,
+            'getDimensionValues',
+            ce_client.get_dimension_values,
+            request_params,
+            CE_GET_DIMENSION_VALUES,
+            max_items,
+            next_token,
+        )
 
         table_response = await convert_response_if_needed(
             ctx,
@@ -534,7 +578,7 @@ async def get_tags(
     search_string: Optional[str] = None,
     tag_key: Optional[str] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
+    max_items: Optional[int] = None,
     billing_view_arn: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Get tags used for Cost Explorer grouping.
@@ -546,8 +590,8 @@ async def get_tags(
         end_date: End date in YYYY-MM-DD format (exclusive)
         search_string: Optional string to filter results
         tag_key: Optional specific tag key to get values for
-        next_token: Pagination token
-        max_pages: Maximum number of pages to fetch
+        next_token: Continuation token from a previous response
+        max_items: Most items to return; None fetches every page
         billing_view_arn: Optional ARN of a billing view to scope the query.
             If not provided, defaults to the account's primary billing view.
 
@@ -575,30 +619,10 @@ async def get_tags(
         if billing_view_arn:
             request_params['BillingViewArn'] = billing_view_arn
 
-        # Handle pagination
-        if next_token or max_pages:
-            api_function = ce_client.get_tags
-            # GetTags returns tag values under 'Tags' too when TagKey is set.
-            result_key = 'Tags'
-
-            if next_token:
-                request_params['NextPageToken'] = next_token
-            results, pagination_metadata = await paginate_aws_response(
-                ctx,
-                operation,
-                lambda **params: api_function(**params),
-                request_params,
-                result_key,
-                'NextPageToken',
-                'NextPageToken',
-                max_pages,
-            )
-
-            # Format paginated response
-            response = {result_key: results, 'Pagination': pagination_metadata}
-        else:
-            # For single page, make direct call
-            response = ce_client.get_tags(**request_params)
+        # GetTags returns tag values under 'Tags' too when TagKey is set.
+        response = await _fetch_pages(
+            ctx, operation, ce_client.get_tags, request_params, CE_GET_TAGS, max_items, next_token
+        )
 
         table_response = await convert_response_if_needed(
             ctx,
@@ -625,7 +649,7 @@ async def get_cost_categories(
     search_string: Optional[str] = None,
     cost_category_name: Optional[str] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
+    max_items: Optional[int] = None,
     billing_view_arn: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Get cost categories.
@@ -637,8 +661,8 @@ async def get_cost_categories(
         end_date: End date in YYYY-MM-DD format (exclusive)
         search_string: Optional string to filter results
         cost_category_name: Optional specific cost category to get values for
-        next_token: Pagination token
-        max_pages: Maximum number of pages to fetch
+        next_token: Continuation token from a previous response
+        max_items: Most items to return; None fetches every page
         billing_view_arn: Optional ARN of a billing view to scope the query.
             If not provided, defaults to the account's primary billing view.
 
@@ -646,10 +670,8 @@ async def get_cost_categories(
         Cost categories response
     """
     operation = 'getCostCategories'
-    await ctx.info(
-        f'Calling {operation} API'
-        + (f' for cost category {cost_category_name!r}' if cost_category_name else '')
-    )
+    # The category name is customer content, so it is not logged.
+    await ctx.info(f'Calling {operation} API')
 
     try:
         # Get date range with defaults
@@ -672,32 +694,17 @@ async def get_cost_categories(
             request_params['BillingViewArn'] = billing_view_arn
 
         # Response field name depends on whether CostCategoryName was supplied.
-        result_key = 'CostCategoryValues' if cost_category_name else 'CostCategoryNames'
+        spec = CE_GET_COST_CATEGORY_VALUES if cost_category_name else CE_GET_COST_CATEGORY_NAMES
 
-        # Handle pagination
-        if next_token or max_pages:
-            result_key = 'CostCategories' if not cost_category_name else 'CostCategoryValues'
-
-            if next_token:
-                request_params['NextPageToken'] = next_token
-
-            # For paginated requests, use the paginate utility
-            results, pagination_metadata = await paginate_aws_response(
-                ctx,
-                operation,
-                lambda **params: ce_client.get_cost_categories(**params),
-                request_params,
-                result_key,
-                'NextPageToken',
-                'NextPageToken',
-                max_pages,
-            )
-
-            # Format paginated response
-            response = {result_key: results, 'Pagination': pagination_metadata}
-        else:
-            # For single page, make direct call
-            response = ce_client.get_cost_categories(**request_params)
+        response = await _fetch_pages(
+            ctx,
+            operation,
+            ce_client.get_cost_categories,
+            request_params,
+            spec,
+            max_items,
+            next_token,
+        )
 
         table_response = await convert_response_if_needed(
             ctx,
@@ -723,10 +730,8 @@ async def get_savings_plans_utilization(
     end_date: Optional[str] = None,
     granularity: str = 'MONTHLY',
     filter_expr: Optional[Union[str, Dict[str, Any]]] = None,
-    next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """Get Savings Plans utilization.
+    """Get Savings Plans utilization. The API is not paginated.
 
     Args:
         ctx: MCP context
@@ -735,8 +740,6 @@ async def get_savings_plans_utilization(
         end_date: End date in YYYY-MM-DD format (exclusive)
         granularity: Time granularity (DAILY, MONTHLY)
         filter_expr: Optional filters, as an object or JSON string
-        next_token: Pagination token
-        max_pages: Maximum number of pages to fetch
 
     Returns:
         Savings Plans utilization response
@@ -758,29 +761,7 @@ async def get_savings_plans_utilization(
         if filters:
             request_params['Filter'] = filters
 
-        # Handle pagination
-        if next_token or max_pages:
-            if next_token:
-                request_params['NextToken'] = next_token
-            results, pagination_metadata = await paginate_aws_response(
-                ctx,
-                'getSavingsPlansUtilization',
-                lambda **params: ce_client.get_savings_plans_utilization(**params),
-                request_params,
-                'SavingsPlansUtilizationsByTime',
-                'NextToken',
-                'NextToken',
-                max_pages,
-            )
-
-            # Format paginated response
-            response = {
-                'SavingsPlansUtilizationsByTime': results,
-                'Pagination': pagination_metadata,
-            }
-        else:
-            # For single page, make direct call
-            response = ce_client.get_savings_plans_utilization(**request_params)
+        response = ce_client.get_savings_plans_utilization(**request_params)
 
         return format_response('success', response)
 

@@ -19,10 +19,14 @@ Each operation handles the AWS API call, pagination, and response formatting.
 """
 
 from ..utilities.aws_service_base import (
+    PageSpec,
     create_aws_client,
+    first_page_fields,
     format_response,
     handle_aws_error,
+    paginate_aws_items,
     parse_json,
+    with_pagination,
 )
 from ..utilities.constants import REGION_US_EAST_1
 from ..utilities.time_utils import timestamp_to_utc_iso_string
@@ -43,11 +47,50 @@ def _create_billing_conductor_client() -> Any:
     return create_aws_client('billingconductor', region_name=BILLING_CONDUCTOR_DEFAULT_REGION)
 
 
+def _bc_page_spec(result_key: str) -> PageSpec:
+    """Build the PageSpec shared by the Billing Conductor lists that take MaxResults 1-100."""
+    return PageSpec(
+        result_key=result_key,
+        token_param='NextToken',
+        token_key_in_response='NextToken',
+        page_max=100,
+        page_size_param='MaxResults',
+    )
+
+
+def _request_params(
+    base: Optional[Dict[str, Any]] = None,
+    billing_period: Optional[str] = None,
+    filters: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Build request parameters shared by the Billing Conductor list operations.
+
+    Args:
+        base: Required parameters of the operation (e.g. ``Arn``).
+        billing_period: Optional billing period in YYYY-MM format.
+        filters: Optional JSON string with filter criteria.
+
+    Returns:
+        Request parameters without the token or page size.
+    """
+    request_params: Dict[str, Any] = dict(base or {})
+    if billing_period:
+        request_params['BillingPeriod'] = billing_period
+    parsed_filters = parse_json(filters, 'filters')
+    if parsed_filters:
+        request_params['Filters'] = parsed_filters
+    return request_params
+
+
+# ListBillingGroups: MaxResults 1-100.
+BC_LIST_BILLING_GROUPS = _bc_page_spec('BillingGroups')
+
+
 async def list_billing_groups(
     ctx: Context,
     billing_period: Optional[str] = None,
     filters: Optional[str] = None,
-    max_pages: int = 10,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """List billing groups from AWS Billing Conductor.
@@ -56,61 +99,31 @@ async def list_billing_groups(
         ctx: The MCP context object.
         billing_period: Optional billing period in YYYY-MM format.
         filters: Optional JSON string with filter criteria.
-        max_pages: Maximum number of API pages to fetch. Each page returns
-            up to 100 results, so the default of 10 could return up to ~1000 items.
+        max_items: Most billing groups to return. None fetches every page.
         next_token: Optional pagination token to continue from.
 
     Returns:
-        Dict containing the formatted billing group information.
+        Dict containing the formatted billing group information and a ``pagination`` block.
     """
     try:
-        request_params: Dict[str, Any] = {}
-
-        if billing_period:
-            request_params['BillingPeriod'] = billing_period
-
-        parsed_filters = parse_json(filters, 'filters')
-        if parsed_filters:
-            request_params['Filters'] = parsed_filters
-
+        request_params = _request_params(billing_period=billing_period, filters=filters)
         bc_client = _create_billing_conductor_client()
 
-        all_billing_groups: List[Dict[str, Any]] = []
-        current_token = next_token
-        page_count = 0
-
-        while page_count < max_pages:
-            page_count += 1
-            if current_token:
-                request_params['NextToken'] = current_token
-
-            await ctx.info(f'Fetching billing groups page {page_count}')
-            response = bc_client.list_billing_groups(**request_params)
-
-            page_billing_groups = response.get('BillingGroups', [])
-            all_billing_groups.extend(page_billing_groups)
-
-            await ctx.info(
-                f'Retrieved {len(page_billing_groups)} billing groups '
-                f'(total: {len(all_billing_groups)})'
-            )
-
-            current_token = response.get('NextToken')
-            if not current_token:
-                break
-
-        formatted_billing_groups = _format_billing_groups(all_billing_groups)
+        billing_groups, _, pagination = await paginate_aws_items(
+            ctx,
+            'ListBillingGroups',
+            bc_client.list_billing_groups,
+            request_params,
+            BC_LIST_BILLING_GROUPS,
+            max_items=max_items,
+            next_token=next_token,
+        )
 
         response_data: Dict[str, Any] = {
-            'billing_groups': formatted_billing_groups,
-            'total_count': len(formatted_billing_groups),
+            'billing_groups': _format_billing_groups(billing_groups),
             'billing_period': billing_period or 'current',
         }
-
-        if current_token:
-            response_data['next_token'] = current_token
-
-        return format_response('success', response_data)
+        return format_response('success', with_pagination(response_data, pagination))
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'listBillingGroups', 'Billing Conductor')
@@ -167,11 +180,22 @@ def _format_billing_groups(billing_groups: List[Dict[str, Any]]) -> List[Dict[st
     return formatted_groups
 
 
+# ListAccountAssociations has no page-size parameter: the service returns up to 100 linked
+# accounts per page and can return a short page with a token. With an AccountId/AccountIds
+# filter it returns a single page (up to 30).
+BC_LIST_ACCOUNT_ASSOCIATIONS = PageSpec(
+    result_key='LinkedAccounts',
+    token_param='NextToken',
+    token_key_in_response='NextToken',
+    page_max=100,
+)
+
+
 async def list_account_associations(
     ctx: Context,
     billing_period: Optional[str] = None,
     filters: Optional[str] = None,
-    max_pages: int = 10,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """List linked account associations from AWS Billing Conductor.
@@ -180,60 +204,31 @@ async def list_account_associations(
         ctx: The MCP context object.
         billing_period: Optional billing period in YYYY-MM format.
         filters: Optional JSON string with filter criteria.
-        max_pages: Maximum number of API pages to fetch.
+        max_items: Most linked accounts to return. None fetches every page.
         next_token: Optional pagination token to continue from.
 
     Returns:
-        Dict containing the formatted account association information.
+        Dict containing the formatted account association information and a ``pagination`` block.
     """
     try:
-        request_params: Dict[str, Any] = {}
-
-        if billing_period:
-            request_params['BillingPeriod'] = billing_period
-
-        parsed_filters = parse_json(filters, 'filters')
-        if parsed_filters:
-            request_params['Filters'] = parsed_filters
-
+        request_params = _request_params(billing_period=billing_period, filters=filters)
         bc_client = _create_billing_conductor_client()
 
-        all_linked_accounts: List[Dict[str, Any]] = []
-        current_token = next_token
-        page_count = 0
-
-        while page_count < max_pages:
-            page_count += 1
-            if current_token:
-                request_params['NextToken'] = current_token
-
-            await ctx.info(f'Fetching account associations page {page_count}')
-            response = bc_client.list_account_associations(**request_params)
-
-            page_linked_accounts = response.get('LinkedAccounts', [])
-            all_linked_accounts.extend(page_linked_accounts)
-
-            await ctx.info(
-                f'Retrieved {len(page_linked_accounts)} linked accounts '
-                f'(total: {len(all_linked_accounts)})'
-            )
-
-            current_token = response.get('NextToken')
-            if not current_token:
-                break
-
-        formatted_accounts = _format_linked_accounts(all_linked_accounts)
+        linked_accounts, _, pagination = await paginate_aws_items(
+            ctx,
+            'ListAccountAssociations',
+            bc_client.list_account_associations,
+            request_params,
+            BC_LIST_ACCOUNT_ASSOCIATIONS,
+            max_items=max_items,
+            next_token=next_token,
+        )
 
         response_data: Dict[str, Any] = {
-            'linked_accounts': formatted_accounts,
-            'total_count': len(formatted_accounts),
+            'linked_accounts': _format_linked_accounts(linked_accounts),
             'billing_period': billing_period or 'current',
         }
-
-        if current_token:
-            response_data['next_token'] = current_token
-
-        return format_response('success', response_data)
+        return format_response('success', with_pagination(response_data, pagination))
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'listAccountAssociations', 'Billing Conductor')
@@ -267,11 +262,15 @@ def _format_linked_accounts(
     return formatted_accounts
 
 
+# ListBillingGroupCostReports: MaxResults 1-100.
+BC_LIST_BILLING_GROUP_COST_REPORTS = _bc_page_spec('BillingGroupCostReports')
+
+
 async def list_billing_group_cost_reports(
     ctx: Context,
     billing_period: Optional[str] = None,
     filters: Optional[str] = None,
-    max_pages: int = 10,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """List billing group cost report summaries from AWS Billing Conductor.
@@ -280,62 +279,52 @@ async def list_billing_group_cost_reports(
         ctx: The MCP context object.
         billing_period: Optional billing period in YYYY-MM format.
         filters: Optional JSON string with filter criteria.
-        max_pages: Maximum number of API pages to fetch.
+        max_items: Most cost reports to return. None fetches every page.
         next_token: Optional pagination token to continue from.
 
     Returns:
-        Dict containing the formatted billing group cost report information.
+        Dict containing the formatted billing group cost reports and a ``pagination`` block.
     """
     try:
-        request_params: Dict[str, Any] = {}
-
-        if billing_period:
-            request_params['BillingPeriod'] = billing_period
-
-        parsed_filters = parse_json(filters, 'filters')
-        if parsed_filters:
-            request_params['Filters'] = parsed_filters
-
+        request_params = _request_params(billing_period=billing_period, filters=filters)
         bc_client = _create_billing_conductor_client()
 
-        all_cost_reports: List[Dict[str, Any]] = []
-        current_token = next_token
-        page_count = 0
-
-        while page_count < max_pages:
-            page_count += 1
-            if current_token:
-                request_params['NextToken'] = current_token
-
-            await ctx.info(f'Fetching billing group cost reports page {page_count}')
-            response = bc_client.list_billing_group_cost_reports(**request_params)
-
-            page_cost_reports = response.get('BillingGroupCostReports', [])
-            all_cost_reports.extend(page_cost_reports)
-
-            await ctx.info(
-                f'Retrieved {len(page_cost_reports)} cost reports (total: {len(all_cost_reports)})'
-            )
-
-            current_token = response.get('NextToken')
-            if not current_token:
-                break
-
-        formatted_cost_reports = _format_billing_group_cost_reports(all_cost_reports)
+        cost_reports, _, pagination = await paginate_aws_items(
+            ctx,
+            'ListBillingGroupCostReports',
+            bc_client.list_billing_group_cost_reports,
+            request_params,
+            BC_LIST_BILLING_GROUP_COST_REPORTS,
+            max_items=max_items,
+            next_token=next_token,
+        )
 
         response_data: Dict[str, Any] = {
-            'billing_group_cost_reports': formatted_cost_reports,
-            'total_count': len(formatted_cost_reports),
+            'billing_group_cost_reports': _format_billing_group_cost_reports(cost_reports),
             'billing_period': billing_period or 'current',
         }
-
-        if current_token:
-            response_data['next_token'] = current_token
-
-        return format_response('success', response_data)
+        return format_response('success', with_pagination(response_data, pagination))
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'listBillingGroupCostReports', 'Billing Conductor')
+
+
+# GetBillingGroupCostReport: MaxResults 200-300. The token is bound to Arn, GroupBy and
+# BillingPeriodRange and expires shortly after the first call; it is not bound to MaxResults, so
+# each page can ask for a different size within the range. Every page is full except the last.
+# A changed parameter or a malformed token fails with ValidationException, and an expired token
+# can fail with ValidationException or InternalServerException. Either code on a call that
+# carried a next_token means that token is unusable, so the helper maps it to
+# invalid_next_token only then.
+BC_GET_BILLING_GROUP_COST_REPORT = PageSpec(
+    result_key='BillingGroupCostReportResults',
+    token_param='NextToken',
+    token_key_in_response='NextToken',
+    page_max=300,
+    page_size_param='MaxResults',
+    page_min=200,
+    caller_token_error_codes=frozenset({'ValidationException', 'InternalServerException'}),
+)
 
 
 async def get_billing_group_cost_report(
@@ -343,7 +332,7 @@ async def get_billing_group_cost_report(
     arn: str,
     billing_period_range: Optional[str] = None,
     group_by: Optional[str] = None,
-    max_pages: int = 10,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Get detailed cost report for a specific billing group.
@@ -353,11 +342,13 @@ async def get_billing_group_cost_report(
         arn: The billing group ARN.
         billing_period_range: Optional JSON string with billing period range.
         group_by: Optional JSON string with group by attributes.
-        max_pages: Maximum number of API pages to fetch.
+        max_items: Most cost report results to return. None fetches every page. Pages hold 200
+            to 300 results, so a max_items below 200 can return up to 200.
         next_token: Optional pagination token to continue from.
 
     Returns:
-        Dict containing the formatted billing group cost report results.
+        Dict containing the formatted billing group cost report results and a ``pagination``
+        block.
     """
     try:
         request_params: Dict[str, Any] = {'Arn': arn}
@@ -372,41 +363,23 @@ async def get_billing_group_cost_report(
 
         bc_client = _create_billing_conductor_client()
 
-        all_results: List[Dict[str, Any]] = []
-        current_token = next_token
-        page_count = 0
-
-        while page_count < max_pages:
-            page_count += 1
-            if current_token:
-                request_params['NextToken'] = current_token
-
-            await ctx.info(f'Fetching billing group cost report page {page_count}')
-            response = bc_client.get_billing_group_cost_report(**request_params)
-
-            page_results = response.get('BillingGroupCostReportResults', [])
-            all_results.extend(page_results)
-
-            await ctx.info(
-                f'Retrieved {len(page_results)} cost report results (total: {len(all_results)})'
-            )
-
-            current_token = response.get('NextToken')
-            if not current_token:
-                break
-
-        formatted_results = _format_billing_group_cost_report_results(all_results)
+        results, _, pagination = await paginate_aws_items(
+            ctx,
+            'GetBillingGroupCostReport',
+            bc_client.get_billing_group_cost_report,
+            request_params,
+            BC_GET_BILLING_GROUP_COST_REPORT,
+            max_items=max_items,
+            next_token=next_token,
+        )
 
         response_data: Dict[str, Any] = {
-            'billing_group_cost_report_results': formatted_results,
-            'total_count': len(formatted_results),
+            'billing_group_cost_report_results': _format_billing_group_cost_report_results(
+                results
+            ),
             'arn': arn,
         }
-
-        if current_token:
-            response_data['next_token'] = current_token
-
-        return format_response('success', response_data)
+        return format_response('success', with_pagination(response_data, pagination))
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'getBillingGroupCostReport', 'Billing Conductor')
@@ -475,11 +448,15 @@ def _format_billing_group_cost_report_results(
     return formatted_results
 
 
+# ListCustomLineItems: MaxResults 1-100.
+BC_LIST_CUSTOM_LINE_ITEMS = _bc_page_spec('CustomLineItems')
+
+
 async def list_custom_line_items(
     ctx: Context,
     billing_period: Optional[str] = None,
     filters: Optional[str] = None,
-    max_pages: int = 10,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """List custom line items from AWS Billing Conductor.
@@ -488,70 +465,45 @@ async def list_custom_line_items(
         ctx: The MCP context object.
         billing_period: Optional billing period in YYYY-MM format.
         filters: Optional JSON string with filter criteria.
-        max_pages: Maximum number of API pages to fetch.
+        max_items: Most custom line items to return. None fetches every page.
         next_token: Optional pagination token to continue from.
 
     Returns:
-        Dict containing the formatted custom line item information.
+        Dict containing the formatted custom line items and a ``pagination`` block.
     """
     try:
-        request_params: Dict[str, Any] = {}
-
-        if billing_period:
-            request_params['BillingPeriod'] = billing_period
-
-        parsed_filters = parse_json(filters, 'filters')
-        if parsed_filters:
-            request_params['Filters'] = parsed_filters
-
+        request_params = _request_params(billing_period=billing_period, filters=filters)
         bc_client = _create_billing_conductor_client()
 
-        all_custom_line_items: List[Dict[str, Any]] = []
-        current_token = next_token
-        page_count = 0
-
-        while page_count < max_pages:
-            page_count += 1
-            if current_token:
-                request_params['NextToken'] = current_token
-
-            await ctx.info(f'Fetching custom line items page {page_count}')
-            response = bc_client.list_custom_line_items(**request_params)
-
-            page_items = response.get('CustomLineItems', [])
-            all_custom_line_items.extend(page_items)
-
-            await ctx.info(
-                f'Retrieved {len(page_items)} custom line items '
-                f'(total: {len(all_custom_line_items)})'
-            )
-
-            current_token = response.get('NextToken')
-            if not current_token:
-                break
-
-        formatted_items = _format_custom_line_items(all_custom_line_items)
+        custom_line_items, _, pagination = await paginate_aws_items(
+            ctx,
+            'ListCustomLineItems',
+            bc_client.list_custom_line_items,
+            request_params,
+            BC_LIST_CUSTOM_LINE_ITEMS,
+            max_items=max_items,
+            next_token=next_token,
+        )
 
         response_data: Dict[str, Any] = {
-            'custom_line_items': formatted_items,
-            'total_count': len(formatted_items),
+            'custom_line_items': _format_custom_line_items(custom_line_items),
             'billing_period': billing_period or 'current',
         }
-
-        if current_token:
-            response_data['next_token'] = current_token
-
-        return format_response('success', response_data)
+        return format_response('success', with_pagination(response_data, pagination))
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'listCustomLineItems', 'Billing Conductor')
+
+
+# ListCustomLineItemVersions: MaxResults 1-100.
+BC_LIST_CUSTOM_LINE_ITEM_VERSIONS = _bc_page_spec('CustomLineItemVersions')
 
 
 async def list_custom_line_item_versions(
     ctx: Context,
     arn: str,
     filters: Optional[str] = None,
-    max_pages: int = 10,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """List versions for a specific custom line item.
@@ -560,60 +512,38 @@ async def list_custom_line_item_versions(
         ctx: The MCP context object.
         arn: The custom line item ARN.
         filters: Optional JSON string with filter criteria.
-        max_pages: Maximum number of API pages to fetch.
+        max_items: Most versions to return. None fetches every page.
         next_token: Optional pagination token to continue from.
 
     Returns:
-        Dict containing the formatted custom line item version information.
+        Dict containing the formatted custom line item versions and a ``pagination`` block.
     """
     try:
-        request_params: Dict[str, Any] = {'Arn': arn}
-
-        parsed_filters = parse_json(filters, 'filters')
-        if parsed_filters:
-            request_params['Filters'] = parsed_filters
-
+        request_params = _request_params({'Arn': arn}, filters=filters)
         bc_client = _create_billing_conductor_client()
 
-        all_versions: List[Dict[str, Any]] = []
-        current_token = next_token
-        page_count = 0
-
-        while page_count < max_pages:
-            page_count += 1
-            if current_token:
-                request_params['NextToken'] = current_token
-
-            await ctx.info(f'Fetching custom line item versions page {page_count}')
-            response = bc_client.list_custom_line_item_versions(**request_params)
-
-            page_versions = response.get('CustomLineItemVersions', [])
-            all_versions.extend(page_versions)
-
-            await ctx.info(
-                f'Retrieved {len(page_versions)} custom line item versions '
-                f'(total: {len(all_versions)})'
-            )
-
-            current_token = response.get('NextToken')
-            if not current_token:
-                break
-
-        formatted_versions = _format_custom_line_item_versions(all_versions)
+        versions, _, pagination = await paginate_aws_items(
+            ctx,
+            'ListCustomLineItemVersions',
+            bc_client.list_custom_line_item_versions,
+            request_params,
+            BC_LIST_CUSTOM_LINE_ITEM_VERSIONS,
+            max_items=max_items,
+            next_token=next_token,
+        )
 
         response_data: Dict[str, Any] = {
-            'custom_line_item_versions': formatted_versions,
-            'total_count': len(formatted_versions),
+            'custom_line_item_versions': _format_custom_line_item_versions(versions),
             'arn': arn,
         }
-
-        if current_token:
-            response_data['next_token'] = current_token
-
-        return format_response('success', response_data)
+        return format_response('success', with_pagination(response_data, pagination))
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'listCustomLineItemVersions', 'Billing Conductor')
+
+
+# ListResourcesAssociatedToCustomLineItem: MaxResults 1-100.
+BC_LIST_RESOURCES_ASSOCIATED_TO_CUSTOM_LINE_ITEM = _bc_page_spec('AssociatedResources')
 
 
 async def list_resources_associated_to_custom_line_item(
@@ -621,7 +551,7 @@ async def list_resources_associated_to_custom_line_item(
     arn: str,
     billing_period: Optional[str] = None,
     filters: Optional[str] = None,
-    max_pages: int = 10,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """List resources associated to a custom line item.
@@ -631,61 +561,34 @@ async def list_resources_associated_to_custom_line_item(
         arn: The custom line item ARN.
         billing_period: Optional billing period in YYYY-MM format.
         filters: Optional JSON string with filter criteria.
-        max_pages: Maximum number of API pages to fetch.
+        max_items: Most associated resources to return. None fetches every page.
         next_token: Optional pagination token to continue from.
 
     Returns:
-        Dict containing the formatted associated resource information.
+        Dict containing the formatted associated resources and a ``pagination`` block.
     """
     try:
-        request_params: Dict[str, Any] = {'Arn': arn}
-
-        if billing_period:
-            request_params['BillingPeriod'] = billing_period
-
-        parsed_filters = parse_json(filters, 'filters')
-        if parsed_filters:
-            request_params['Filters'] = parsed_filters
-
+        request_params = _request_params(
+            {'Arn': arn}, billing_period=billing_period, filters=filters
+        )
         bc_client = _create_billing_conductor_client()
 
-        all_resources: List[Dict[str, Any]] = []
-        current_token = next_token
-        page_count = 0
-
-        while page_count < max_pages:
-            page_count += 1
-            if current_token:
-                request_params['NextToken'] = current_token
-
-            await ctx.info(f'Fetching associated resources page {page_count}')
-            response = bc_client.list_resources_associated_to_custom_line_item(**request_params)
-
-            page_resources = response.get('AssociatedResources', [])
-            all_resources.extend(page_resources)
-
-            await ctx.info(
-                f'Retrieved {len(page_resources)} associated resources '
-                f'(total: {len(all_resources)})'
-            )
-
-            current_token = response.get('NextToken')
-            if not current_token:
-                break
-
-        formatted_resources = _format_associated_resources(all_resources)
+        resources, _, pagination = await paginate_aws_items(
+            ctx,
+            'ListResourcesAssociatedToCustomLineItem',
+            bc_client.list_resources_associated_to_custom_line_item,
+            request_params,
+            BC_LIST_RESOURCES_ASSOCIATED_TO_CUSTOM_LINE_ITEM,
+            max_items=max_items,
+            next_token=next_token,
+        )
 
         response_data: Dict[str, Any] = {
             'arn': arn,
-            'associated_resources': formatted_resources,
-            'total_count': len(formatted_resources),
+            'associated_resources': _format_associated_resources(resources),
             'billing_period': billing_period or 'current',
         }
-
-        if current_token:
-            response_data['next_token'] = current_token
-
-        return format_response('success', response_data)
+        return format_response('success', with_pagination(response_data, pagination))
 
     except Exception as e:
         return await handle_aws_error(
@@ -827,11 +730,15 @@ def _format_associated_resources(
     return formatted_resources
 
 
+# ListPricingRules: MaxResults 1-100.
+BC_LIST_PRICING_RULES = _bc_page_spec('PricingRules')
+
+
 async def list_pricing_rules(
     ctx: Context,
     billing_period: Optional[str] = None,
     filters: Optional[str] = None,
-    max_pages: int = 10,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """List pricing rules from AWS Billing Conductor.
@@ -840,69 +747,45 @@ async def list_pricing_rules(
         ctx: The MCP context object.
         billing_period: Optional billing period in YYYY-MM format.
         filters: Optional JSON string with filter criteria.
-        max_pages: Maximum number of API pages to fetch.
+        max_items: Most pricing rules to return. None fetches every page.
         next_token: Optional pagination token to continue from.
 
     Returns:
-        Dict containing the formatted pricing rule information.
+        Dict containing the formatted pricing rules and a ``pagination`` block.
     """
     try:
-        request_params: Dict[str, Any] = {}
-
-        if billing_period:
-            request_params['BillingPeriod'] = billing_period
-
-        parsed_filters = parse_json(filters, 'filters')
-        if parsed_filters:
-            request_params['Filters'] = parsed_filters
-
+        request_params = _request_params(billing_period=billing_period, filters=filters)
         bc_client = _create_billing_conductor_client()
 
-        all_pricing_rules: List[Dict[str, Any]] = []
-        current_token = next_token
-        page_count = 0
-
-        while page_count < max_pages:
-            page_count += 1
-            if current_token:
-                request_params['NextToken'] = current_token
-
-            await ctx.info(f'Fetching pricing rules page {page_count}')
-            response = bc_client.list_pricing_rules(**request_params)
-
-            page_rules = response.get('PricingRules', [])
-            all_pricing_rules.extend(page_rules)
-
-            await ctx.info(
-                f'Retrieved {len(page_rules)} pricing rules (total: {len(all_pricing_rules)})'
-            )
-
-            current_token = response.get('NextToken')
-            if not current_token:
-                break
-
-        formatted_rules = _format_pricing_rules(all_pricing_rules)
+        pricing_rules, _, pagination = await paginate_aws_items(
+            ctx,
+            'ListPricingRules',
+            bc_client.list_pricing_rules,
+            request_params,
+            BC_LIST_PRICING_RULES,
+            max_items=max_items,
+            next_token=next_token,
+        )
 
         response_data: Dict[str, Any] = {
-            'pricing_rules': formatted_rules,
-            'total_count': len(formatted_rules),
+            'pricing_rules': _format_pricing_rules(pricing_rules),
             'billing_period': billing_period or 'current',
         }
-
-        if current_token:
-            response_data['next_token'] = current_token
-
-        return format_response('success', response_data)
+        return format_response('success', with_pagination(response_data, pagination))
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'listPricingRules', 'Billing Conductor')
+
+
+# ListPricingPlans: MaxResults 1-100.
+BC_LIST_PRICING_PLANS = _bc_page_spec('PricingPlans')
 
 
 async def list_pricing_plans(
     ctx: Context,
     billing_period: Optional[str] = None,
     filters: Optional[str] = None,
-    max_pages: int = 10,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """List pricing plans from AWS Billing Conductor.
@@ -911,70 +794,45 @@ async def list_pricing_plans(
         ctx: The MCP context object.
         billing_period: Optional billing period in YYYY-MM format.
         filters: Optional JSON string with filter criteria.
-        max_pages: Maximum number of API pages to fetch.
+        max_items: Most pricing plans to return. None fetches every page.
         next_token: Optional pagination token to continue from.
 
     Returns:
-        Dict containing the formatted pricing plan information.
+        Dict containing the formatted pricing plans and a ``pagination`` block.
     """
     try:
-        request_params: Dict[str, Any] = {}
-
-        if billing_period:
-            request_params['BillingPeriod'] = billing_period
-
-        parsed_filters = parse_json(filters, 'filters')
-        if parsed_filters:
-            request_params['Filters'] = parsed_filters
-
+        request_params = _request_params(billing_period=billing_period, filters=filters)
         bc_client = _create_billing_conductor_client()
 
-        all_pricing_plans: List[Dict[str, Any]] = []
-        current_token = next_token
-        page_count = 0
-
-        while page_count < max_pages:
-            page_count += 1
-            if current_token:
-                request_params['NextToken'] = current_token
-
-            await ctx.info(f'Fetching pricing plans page {page_count}')
-            response = bc_client.list_pricing_plans(**request_params)
-
-            page_plans = response.get('PricingPlans', [])
-            all_pricing_plans.extend(page_plans)
-
-            await ctx.info(
-                f'Retrieved {len(page_plans)} pricing plans (total: {len(all_pricing_plans)})'
-            )
-
-            current_token = response.get('NextToken')
-            if not current_token:
-                break
-
-        formatted_plans = _format_pricing_plans(all_pricing_plans)
+        pricing_plans, _, pagination = await paginate_aws_items(
+            ctx,
+            'ListPricingPlans',
+            bc_client.list_pricing_plans,
+            request_params,
+            BC_LIST_PRICING_PLANS,
+            max_items=max_items,
+            next_token=next_token,
+        )
 
         response_data: Dict[str, Any] = {
-            'pricing_plans': formatted_plans,
-            'total_count': len(formatted_plans),
+            'pricing_plans': _format_pricing_plans(pricing_plans),
             'billing_period': billing_period or 'current',
         }
-
-        if current_token:
-            response_data['next_token'] = current_token
-
-        return format_response('success', response_data)
+        return format_response('success', with_pagination(response_data, pagination))
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'listPricingPlans', 'Billing Conductor')
+
+
+# ListPricingRulesAssociatedToPricingPlan: MaxResults 1-100.
+BC_LIST_PRICING_RULES_FOR_PLAN = _bc_page_spec('PricingRuleArns')
 
 
 async def list_pricing_rules_associated_to_pricing_plan(
     ctx: Context,
     pricing_plan_arn: str,
     billing_period: Optional[str] = None,
-    max_results: Optional[int] = None,
-    max_pages: int = 10,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """List pricing rules associated with a pricing plan.
@@ -983,66 +841,36 @@ async def list_pricing_rules_associated_to_pricing_plan(
         ctx: The MCP context object.
         pricing_plan_arn: The ARN of the pricing plan.
         billing_period: Optional billing period in YYYY-MM format.
-        max_results: Optional maximum number of results per page (1-100).
-        max_pages: Maximum number of API pages to fetch.
+        max_items: Most pricing rule ARNs to return. None fetches every page.
         next_token: Optional pagination token to continue from.
 
     Returns:
-        Dict containing the pricing rule ARNs associated with the pricing plan.
+        Dict containing the pricing rule ARNs associated with the pricing plan and a
+        ``pagination`` block.
     """
     try:
-        request_params: Dict[str, Any] = {'PricingPlanArn': pricing_plan_arn}
-
-        if billing_period:
-            request_params['BillingPeriod'] = billing_period
-
-        if max_results is not None:
-            request_params['MaxResults'] = max_results
-
+        request_params = _request_params(
+            {'PricingPlanArn': pricing_plan_arn}, billing_period=billing_period
+        )
         bc_client = _create_billing_conductor_client()
 
-        all_pricing_rule_arns: List[str] = []
-        current_token = next_token
-        page_count = 0
-        response_billing_period = None
-        response_pricing_plan_arn = None
+        pricing_rule_arns, pages, pagination = await paginate_aws_items(
+            ctx,
+            'ListPricingRulesAssociatedToPricingPlan',
+            bc_client.list_pricing_rules_associated_to_pricing_plan,
+            request_params,
+            BC_LIST_PRICING_RULES_FOR_PLAN,
+            max_items=max_items,
+            next_token=next_token,
+        )
 
-        while page_count < max_pages:
-            page_count += 1
-            if current_token:
-                request_params['NextToken'] = current_token
-
-            await ctx.info(f'Fetching pricing rules associated to pricing plan page {page_count}')
-            response = bc_client.list_pricing_rules_associated_to_pricing_plan(**request_params)
-
-            page_arns = response.get('PricingRuleArns', [])
-            all_pricing_rule_arns.extend(page_arns)
-
-            if response_billing_period is None:
-                response_billing_period = response.get('BillingPeriod')
-            if response_pricing_plan_arn is None:
-                response_pricing_plan_arn = response.get('PricingPlanArn')
-
-            await ctx.info(
-                f'Retrieved {len(page_arns)} pricing rule ARNs '
-                f'(total: {len(all_pricing_rule_arns)})'
-            )
-
-            current_token = response.get('NextToken')
-            if not current_token:
-                break
-
+        first_page = first_page_fields(pages, ['BillingPeriod', 'PricingPlanArn'])
         response_data: Dict[str, Any] = {
-            'pricing_rule_arns': all_pricing_rule_arns,
-            'total_count': len(all_pricing_rule_arns),
-            'pricing_plan_arn': response_pricing_plan_arn or pricing_plan_arn,
-            'billing_period': response_billing_period or billing_period or 'current',
+            'pricing_rule_arns': pricing_rule_arns,
+            'pricing_plan_arn': first_page.get('PricingPlanArn') or pricing_plan_arn,
+            'billing_period': first_page.get('BillingPeriod') or billing_period or 'current',
         }
-
-        if current_token:
-            response_data['next_token'] = current_token
-
-        return format_response('success', response_data)
+        return format_response('success', with_pagination(response_data, pagination))
 
     except Exception as e:
         return await handle_aws_error(
@@ -1050,12 +878,15 @@ async def list_pricing_rules_associated_to_pricing_plan(
         )
 
 
+# ListPricingPlansAssociatedWithPricingRule: MaxResults 1-100.
+BC_LIST_PRICING_PLANS_FOR_RULE = _bc_page_spec('PricingPlanArns')
+
+
 async def list_pricing_plans_associated_with_pricing_rule(
     ctx: Context,
     pricing_rule_arn: str,
     billing_period: Optional[str] = None,
-    max_results: Optional[int] = None,
-    max_pages: int = 10,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """List pricing plans associated with a pricing rule.
@@ -1064,68 +895,36 @@ async def list_pricing_plans_associated_with_pricing_rule(
         ctx: The MCP context object.
         pricing_rule_arn: The ARN of the pricing rule.
         billing_period: Optional billing period in YYYY-MM format.
-        max_results: Optional maximum number of results per page (1-100).
-        max_pages: Maximum number of API pages to fetch.
+        max_items: Most pricing plan ARNs to return. None fetches every page.
         next_token: Optional pagination token to continue from.
 
     Returns:
-        Dict containing the pricing plan ARNs associated with the pricing rule.
+        Dict containing the pricing plan ARNs associated with the pricing rule and a
+        ``pagination`` block.
     """
     try:
-        request_params: Dict[str, Any] = {'PricingRuleArn': pricing_rule_arn}
-
-        if billing_period:
-            request_params['BillingPeriod'] = billing_period
-
-        if max_results is not None:
-            request_params['MaxResults'] = max_results
-
+        request_params = _request_params(
+            {'PricingRuleArn': pricing_rule_arn}, billing_period=billing_period
+        )
         bc_client = _create_billing_conductor_client()
 
-        all_pricing_plan_arns: List[str] = []
-        current_token = next_token
-        page_count = 0
-        response_billing_period = None
-        response_pricing_rule_arn = None
+        pricing_plan_arns, pages, pagination = await paginate_aws_items(
+            ctx,
+            'ListPricingPlansAssociatedWithPricingRule',
+            bc_client.list_pricing_plans_associated_with_pricing_rule,
+            request_params,
+            BC_LIST_PRICING_PLANS_FOR_RULE,
+            max_items=max_items,
+            next_token=next_token,
+        )
 
-        while page_count < max_pages:
-            page_count += 1
-            if current_token:
-                request_params['NextToken'] = current_token
-
-            await ctx.info(
-                f'Fetching pricing plans associated with pricing rule page {page_count}'
-            )
-            response = bc_client.list_pricing_plans_associated_with_pricing_rule(**request_params)
-
-            page_arns = response.get('PricingPlanArns', [])
-            all_pricing_plan_arns.extend(page_arns)
-
-            if response_billing_period is None:
-                response_billing_period = response.get('BillingPeriod')
-            if response_pricing_rule_arn is None:
-                response_pricing_rule_arn = response.get('PricingRuleArn')
-
-            await ctx.info(
-                f'Retrieved {len(page_arns)} pricing plan ARNs '
-                f'(total: {len(all_pricing_plan_arns)})'
-            )
-
-            current_token = response.get('NextToken')
-            if not current_token:
-                break
-
+        first_page = first_page_fields(pages, ['BillingPeriod', 'PricingRuleArn'])
         response_data: Dict[str, Any] = {
-            'pricing_plan_arns': all_pricing_plan_arns,
-            'total_count': len(all_pricing_plan_arns),
-            'pricing_rule_arn': response_pricing_rule_arn or pricing_rule_arn,
-            'billing_period': response_billing_period or billing_period or 'current',
+            'pricing_plan_arns': pricing_plan_arns,
+            'pricing_rule_arn': first_page.get('PricingRuleArn') or pricing_rule_arn,
+            'billing_period': first_page.get('BillingPeriod') or billing_period or 'current',
         }
-
-        if current_token:
-            response_data['next_token'] = current_token
-
-        return format_response('success', response_data)
+        return format_response('success', with_pagination(response_data, pagination))
 
     except Exception as e:
         return await handle_aws_error(

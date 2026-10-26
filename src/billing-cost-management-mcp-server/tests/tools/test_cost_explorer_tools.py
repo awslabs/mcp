@@ -22,9 +22,14 @@ These tests verify the functionality of the Cost Explorer tools, including:
 - Error handling for API exceptions
 """
 
+import asyncio
+import botocore.session
 import fastmcp
 import importlib
+import json
+import jsonschema
 import pytest
+import re
 from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_operations import (
     get_cost_and_usage,
     get_cost_and_usage_with_resources,
@@ -38,7 +43,8 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_operations i
 from awslabs.billing_cost_management_mcp_server.tools.cost_explorer_tools import (
     cost_explorer_server,
 )
-from datetime import datetime
+from botocore.validate import ParamValidator
+from datetime import date, datetime, timedelta
 from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -827,8 +833,14 @@ async def test_cost_explorer_missing_dimension():
 
 
 @pytest.mark.asyncio
-async def test_cost_explorer_get_dimension_values_tag_default_context_blocked(mock_context):
-    """GetDimensionValues(dimension=TAG) in the default COST_AND_USAGE context is rejected pre-call."""
+@pytest.mark.parametrize('context', [None, 'COST_AND_USAGE', 'RESERVATIONS', 'SAVINGS_PLANS'])
+async def test_cost_explorer_get_dimension_values_tag_blocked_in_every_context(
+    mock_context, context
+):
+    """GetDimensionValues(dimension=TAG) is rejected pre-call in every context.
+
+    Cost Explorer accepts TAG as a dimension in none of them (see CE_DIMENSIONS_BY_CONTEXT).
+    """
     ce_mod = _reload_ce_with_identity_decorator()
     real_fn = ce_mod.cost_explorer  # type: ignore
 
@@ -837,12 +849,12 @@ async def test_cost_explorer_get_dimension_values_tag_default_context_blocked(mo
         patch.object(ce_mod, 'get_dimension_values', new_callable=AsyncMock) as mock_impl,
     ):
         res = await real_fn(  # type: ignore
-            mock_context, operation='getDimensionValues', dimension='TAG'
+            mock_context, operation='getDimensionValues', dimension='TAG', context=context
         )
 
     assert res['status'] == 'error'
     assert 'getTagsOrValues' in res['data']['message']
-    assert 'COST_AND_USAGE' in res['data']['message']
+    assert 'any context' in res['data']['message']
     assert res['error_type'] == 'validation_error'
     # Explicit, operation-specific hint set at the tool layer (survives middleware enrichment).
     assert 'getTagsOrValues' in res['hint']
@@ -856,34 +868,6 @@ async def test_cost_explorer_get_dimension_values_tag_default_context_blocked(mo
     assert enriched['hint'] == res['hint']
     # Guard fires before the AWS GetDimensionValues round-trip (the real handler is never called).
     mock_impl.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_cost_explorer_get_dimension_values_tag_reservations_context_allowed(mock_context):
-    """TAG is valid in the RESERVATIONS coverage context, so the guard must not block it."""
-    ce_mod = _reload_ce_with_identity_decorator()
-    real_fn = ce_mod.cost_explorer  # type: ignore
-
-    with (
-        patch.object(ce_mod, 'create_aws_client') as mock_create_client,
-        patch.object(ce_mod, 'get_dimension_values', new_callable=AsyncMock) as mock_impl,
-    ):
-        mock_create_client.return_value = MagicMock()
-        mock_impl.return_value = {'status': 'success', 'data': {}}
-
-        res = await real_fn(  # type: ignore
-            mock_context,
-            operation='getDimensionValues',
-            dimension='TAG',
-            context='RESERVATIONS',
-        )
-
-    assert res['status'] == 'success'
-    # The guard let it through to the real handler, which received dimension=TAG.
-    mock_impl.assert_awaited_once()
-    await_args = mock_impl.await_args
-    assert await_args is not None
-    assert await_args.args[2] == 'TAG'
 
 
 @pytest.mark.asyncio
@@ -937,7 +921,7 @@ async def test_ce_real_get_cost_and_usage_passes_all_args_reload_identity_decora
             group_by='[{"Type":"DIMENSION","Key":"SERVICE"}]',
             filter='{"Dimensions":{"Key":"SERVICE","Values":["AmazonEC2"]}}',
             next_token='tok',
-            max_pages=3,
+            max_items=3,
         )
 
         assert res['status'] == 'success'
@@ -1025,9 +1009,8 @@ async def test_ce_real_get_dimension_values_passes_args_reload_identity_decorato
             end_date='2023-03-31',
             search_string='Amazon',
             filter='{}',
-            max_results=25,
             next_token='abc',
-            max_pages=2,
+            max_items=2,
         )
 
         assert res['status'] == 'success'
@@ -1040,7 +1023,6 @@ async def test_ce_real_get_dimension_values_passes_args_reload_identity_decorato
             '2023-03-31',
             'Amazon',
             '{}',
-            25,
             'abc',
             2,
             None,
@@ -1222,7 +1204,7 @@ async def test_ce_real_get_tags_and_values_routing_reload_identity_decorator(moc
             end_date='2023-01-31',
             search_string='Env',
             next_token='n1',
-            max_pages=2,
+            max_items=2,
         )
         assert res1['status'] == 'success'
 
@@ -1235,7 +1217,7 @@ async def test_ce_real_get_tags_and_values_routing_reload_identity_decorator(moc
             search_string='Env',
             tag_key='Environment',
             next_token='n2',
-            max_pages=3,
+            max_items=3,
         )
         assert res2['status'] == 'success'
 
@@ -1289,7 +1271,7 @@ async def test_ce_real_get_cost_categories_and_values_routing_reload_identity_de
             end_date='2023-01-31',
             search_string='Dept',
             next_token='p1',
-            max_pages=2,
+            max_items=2,
         )
         assert res1['status'] == 'success'
 
@@ -1304,7 +1286,7 @@ async def test_ce_real_get_cost_categories_and_values_routing_reload_identity_de
             search_string='Dept',
             cost_category_name='Department',
             next_token='p2',
-            max_pages=4,
+            max_items=4,
         )
         assert res2['status'] == 'success'
 
@@ -1357,9 +1339,10 @@ async def test_ce_real_get_savings_plans_utilization_passes_args_reload_identity
             granularity='MONTHLY',
             filter='{}',
             next_token='tkn',
-            max_pages=5,
+            max_items=5,
         )
 
+        # The API is not paginated, so next_token and max_items are not passed on.
         assert res['status'] == 'success'
         mock_create_client.assert_called_once_with('ce')
         mock_impl.assert_awaited_once_with(
@@ -1369,8 +1352,6 @@ async def test_ce_real_get_savings_plans_utilization_passes_args_reload_identity
             '2023-01-31',
             'MONTHLY',
             '{}',
-            'tkn',
-            5,
         )
 
 
@@ -1487,7 +1468,6 @@ async def test_ce_real_get_dimension_values_with_billing_view_arn(
             mock_context,
             fake_client,
             'SERVICE',
-            None,
             None,
             None,
             None,
@@ -1794,3 +1774,334 @@ async def test_tool_schema_publishes_structured_types():
     assert types('metrics') == {'string', 'array', 'null'}
     assert types('group_by') == {'string', 'array', 'null'}
     assert types('filter') == {'string', 'object', 'null'}
+
+
+def _registered_tool(server, tool_name):
+    """Return a registered tool as published to MCP clients."""
+
+    async def _get():
+        async with fastmcp.Client(server) as client:
+            tools = await client.list_tools()
+        return next(t for t in tools if t.name == tool_name)
+
+    return asyncio.run(_get())
+
+
+def _dimension_reference_keys(description):
+    """Return the keys listed in the DIMENSION REFERENCE block."""
+    block = description.split('DIMENSION REFERENCE:')[1].split('\n\n')[0]
+    return re.findall(r'^- ([A-Z_]+):', block, flags=re.MULTILINE)
+
+
+def _rendered_examples(description):
+    """Return every `{"operation": ...}` example exactly as the model sees it."""
+    return re.findall(
+        r'Example(?: \d)?(?: \([^)]*\))?: (\{"operation".*\})\s*$', description, re.M
+    )
+
+
+# Dimensions Cost Explorer's GetDimensionValues accepts per context, as listed by the service
+# in its ValidationException for an unsupported dimension (captured 2026-10-20). These lists,
+# not botocore's Dimension enum, are what a documented key must be in: the enum also has keys
+# the service rejects here (LINKED_ACCOUNT_NAME, SERVICE_CODE, ...) and lacks some it accepts
+# (RESERVATION_MODIFIED). COST_AND_USAGE holds the dimensions every account gets; the service
+# enables a few more per account (PAYER_ACCOUNT, PRODUCT_ATTRIBUTE), so they are left out.
+CE_DIMENSIONS_BY_CONTEXT = {
+    'COST_AND_USAGE': frozenset(
+        {
+            'AZ',
+            'INSTANCE_TYPE',
+            'LINKED_ACCOUNT',
+            'OPERATION',
+            'PURCHASE_TYPE',
+            'SERVICE',
+            'USAGE_TYPE',
+            'USAGE_TYPE_GROUP',
+            'PLATFORM',
+            'TENANCY',
+            'RECORD_TYPE',
+            'LEGAL_ENTITY_NAME',
+            'INVOICING_ENTITY',
+            'DEPLOYMENT_OPTION',
+            'DATABASE_ENGINE',
+            'CACHE_ENGINE',
+            'INSTANCE_TYPE_FAMILY',
+            'REGION',
+            'BILLING_ENTITY',
+            'RESERVATION_ID',
+            'RESOURCE_ID',
+            'SAVINGS_PLANS_TYPE',
+            'SAVINGS_PLAN_ARN',
+            'OPERATING_SYSTEM',
+            'RESERVATION_MODIFIED',
+        }
+    ),
+    'RESERVATIONS': frozenset(
+        {
+            'AZ',
+            'INSTANCE_TYPE',
+            'LINKED_ACCOUNT',
+            'PLATFORM',
+            'SCOPE',
+            'REGION',
+            'TENANCY',
+            'SERVICE',
+            'INSTANCE_TYPE_FAMILY',
+        }
+    ),
+    'SAVINGS_PLANS': frozenset(
+        {
+            'SAVINGS_PLANS_TYPE',
+            'PAYMENT_OPTION',
+            'REGION',
+            'INSTANCE_TYPE_FAMILY',
+            'LINKED_ACCOUNT',
+            'SAVINGS_PLAN_ARN',
+        }
+    ),
+}
+
+
+class TestCostExplorerDescriptionContract:
+    """The cost-explorer description matches Cost Explorer's real dimensions, values and shapes."""
+
+    @pytest.fixture(scope='class')
+    def tool(self):
+        """The registered cost-explorer tool."""
+        ce_mod = _reload_ce_with_registered_tools()
+        return _registered_tool(ce_mod.cost_explorer_server, 'cost-explorer')
+
+    @pytest.mark.parametrize(
+        'module_name, tool_name, server_attr',
+        [
+            ('cost_explorer_tools', 'cost-explorer', 'cost_explorer_server'),
+            ('ri_performance_tools', 'ri-performance', 'ri_performance_server'),
+            ('cost_comparison_tools', 'cost-comparison', 'cost_comparison_server'),
+        ],
+    )
+    def test_tenancy_reference_uses_exact_ce_values(self, module_name, tool_name, server_attr):
+        """TENANCY lists the case-sensitive values Cost Explorer matches: Shared, Dedicated, Host."""
+        module = importlib.reload(
+            importlib.import_module(
+                f'awslabs.billing_cost_management_mcp_server.tools.{module_name}'
+            )
+        )
+        description = _registered_tool(getattr(module, server_attr), tool_name).description or ''
+        # The TENANCY entry is its line plus any indented continuation lines.
+        match = re.search(r'^- TENANCY:.*(?:\n  .*)*', description, re.MULTILINE)
+        assert match is not None
+        tenancy = match.group(0)
+        assert 'case-sensitive' in tenancy
+        for value in ('Shared', 'Dedicated', 'Host'):
+            assert re.search(rf'\b{value}\b', tenancy)
+        for wrong in ('shared', 'dedicated', 'default', 'SHARED', 'DEDICATED', 'HOST'):
+            assert not re.search(rf'\b{wrong}\b', tenancy)
+
+    def test_description_prefers_monthly_for_whole_month_rankings(self, tool):
+        """Whole-month totals and rankings are steered to MONTHLY; the code default stays DAILY."""
+        assert 'DAILY granularity for periods <3 months' not in tool.description
+        assert (
+            'Use MONTHLY granularity for totals or rankings over whole months' in tool.description
+        )
+        assert tool.input_schema['properties']['granularity']['default'] == 'DAILY'
+
+    def test_dimension_reference_keys_are_ce_dimensions(self, tool):
+        """Every DIMENSION REFERENCE key except the TAG note is in botocore's ce Dimension enum."""
+        enum = set(
+            botocore.session.get_session().get_service_model('ce').shape_for('Dimension').enum
+        )
+        keys = _dimension_reference_keys(tool.description)
+        assert set(keys) - enum == {'TAG'}
+        tag_line = next(ln for ln in tool.description.splitlines() if ln.startswith('- TAG:'))
+        assert 'getTagsOrValues' in tag_line
+
+    def test_dimension_reference_names_commonly_needed_keys(self, tool):
+        """OPERATION, BILLING_ENTITY, RESOURCE_ID, USAGE_TYPE_GROUP and INVOICING_ENTITY are listed."""
+        keys = _dimension_reference_keys(tool.description)
+        for key in (
+            'OPERATION',
+            'BILLING_ENTITY',
+            'RESOURCE_ID',
+            'USAGE_TYPE_GROUP',
+            'INVOICING_ENTITY',
+        ):
+            assert key in keys
+        resource_line = next(
+            ln for ln in tool.description.splitlines() if ln.startswith('- RESOURCE_ID:')
+        )
+        assert 'getCostAndUsageWithResources' in resource_line
+        assert '14 days' in resource_line
+
+    def test_every_rendered_example_validates_against_input_schema(self, tool):
+        """Each example is valid JSON and satisfies the published input schema."""
+        examples = _rendered_examples(tool.description)
+        assert len(examples) >= 12
+        for example in examples:
+            jsonschema.validate(json.loads(example), tool.input_schema)
+
+    def test_rendered_examples_json_encode_structured_params(self, tool):
+        """Examples pass metrics, group_by and filter as JSON strings that decode cleanly.
+
+        Copies of this description (and older clients) may type these parameters as plain
+        strings, so the examples use the form every variant accepts.
+        """
+        for example in _rendered_examples(tool.description):
+            call = json.loads(example)
+            for name in ('metrics', 'group_by', 'filter'):
+                if name in call:
+                    assert isinstance(call[name], str), (name, example)
+                    json.loads(call[name])
+
+    def test_filter_grammar_states_values_rules_and_examples_follow_them(self, tool):
+        """Dimensions need Values; ABSENT leaves omit Values; every documented filter complies."""
+        grammar = tool.description.split('FILTER EXPRESSION GRAMMAR')[1].split('## OPERATIONS')[0]
+        assert 'Dimensions: `Values` is required and must not be empty.' in grammar
+        assert 'omit `Values` entirely' in grammar
+
+        documented = [
+            json.loads(example)
+            for example in re.findall(r'^- `(\{.*\})`$', grammar, flags=re.MULTILINE)
+        ]
+        documented += [
+            json.loads(json.loads(e)['filter'])
+            for e in _rendered_examples(tool.description)
+            if '"filter"' in e
+        ]
+        assert any('ABSENT' in json.dumps(f) for f in documented)
+
+        def leaves(expression):
+            for key, value in expression.items():
+                if key in ('And', 'Or'):
+                    for child in value:
+                        yield from leaves(child)
+                elif key == 'Not':
+                    yield from leaves(value)
+                else:
+                    yield key, value
+
+        for expression in documented:
+            for leaf_type, leaf in leaves(expression):
+                if 'ABSENT' in leaf.get('MatchOptions', []):
+                    assert leaf_type in ('Tags', 'CostCategories')
+                    assert 'Values' not in leaf
+                else:
+                    assert leaf['Values']
+
+    def test_documented_filters_pass_botocore_validation(self, tool):
+        """Every filter in an example is a valid Cost Explorer Expression."""
+        validator = ParamValidator()
+        input_shape = (
+            botocore.session.get_session()
+            .get_service_model('ce')
+            .operation_model('GetCostAndUsage')
+            .input_shape
+        )
+        filters = [
+            json.loads(json.loads(e)['filter'])
+            for e in _rendered_examples(tool.description)
+            if '"filter"' in e
+        ]
+        assert filters
+        for expression in filters:
+            report = validator.validate(
+                {
+                    'TimePeriod': {'Start': '2026-01-01', 'End': '2026-02-01'},
+                    'Granularity': 'MONTHLY',
+                    'Metrics': ['UnblendedCost'],
+                    'Filter': expression,
+                },
+                input_shape,
+            )
+            assert not report.has_errors(), report.generate_report()
+
+    def test_no_context_accepts_tag(self):
+        """TAG is in none of the service's per-context lists, so the guard is unconditional."""
+        for context, dimensions in CE_DIMENSIONS_BY_CONTEXT.items():
+            assert 'TAG' not in dimensions, context
+
+    def test_dimension_reference_keys_are_accepted_by_the_service(self, tool):
+        """Every DIMENSION REFERENCE key except the TAG note is a COST_AND_USAGE dimension."""
+        keys = set(_dimension_reference_keys(tool.description)) - {'TAG'}
+        assert keys <= CE_DIMENSIONS_BY_CONTEXT['COST_AND_USAGE']
+
+    @pytest.mark.parametrize('context', ['RESERVATIONS', 'SAVINGS_PLANS'])
+    def test_get_dimension_values_notes_list_each_context(self, tool, context):
+        """The getDimensionValues notes list exactly the dimensions each context accepts."""
+        match = re.search(rf'{context} takes only ([A-Z_, ]+)\.', tool.description)
+        assert match is not None, context
+        assert set(match.group(1).split(', ')) == CE_DIMENSIONS_BY_CONTEXT[context]
+
+    def test_tag_is_described_as_rejected_in_every_context(self, tool):
+        """No line still says TAG is a valid getDimensionValues dimension in some context."""
+        assert 'TAG is not a dimension in any context' in tool.description
+        assert 'RESERVATIONS coverage context' not in tool.description
+
+    def test_example_dates_are_valid_today(self, tool):
+        """Every example date is inside the window Cost Explorer accepts today.
+
+        The dates are rendered relative to today because literal ones go stale: a forecast
+        cannot start before today, resource-level data covers the last 14 days, and history
+        covers the current month and the previous 13 months.
+        """
+        today = date.today()
+        month_start = today.replace(day=1)
+        history_start = date(month_start.year - 1, month_start.month, 1)  # inside 13 months
+        years, month = divmod(month_start.month - 1 + 18, 12)
+        forecast_horizon = date(month_start.year + years, month + 1, 1)  # MONTHLY: 18 months
+        checked = 0
+        for example in _rendered_examples(tool.description):
+            call = json.loads(example)
+            if 'start_date' not in call:
+                continue
+            start = date.fromisoformat(call['start_date'])
+            end = date.fromisoformat(call['end_date'])
+            assert start < end, call
+            operation = call['operation']
+            if operation in ('getCostForecast', 'getUsageForecast'):
+                assert start >= today, call
+                assert end <= forecast_horizon, call
+            elif operation == 'getCostAndUsageWithResources':
+                assert start >= today - timedelta(days=14), call
+                assert end <= today + timedelta(days=1), call
+            else:
+                assert start >= history_start, call
+                assert end <= today + timedelta(days=1), call
+            checked += 1
+        assert checked >= 6
+        assert not re.search(r'__[A-Z_]+__', tool.description)
+
+    def test_forecasts_show_dated_and_default_windows(self, tool):
+        """Forecast examples show both an explicit window and the default one."""
+        forecasts = [
+            json.loads(e)
+            for e in _rendered_examples(tool.description)
+            if json.loads(e)['operation'] in ('getCostForecast', 'getUsageForecast')
+        ]
+        assert any('start_date' in call for call in forecasts)
+        assert any('start_date' not in call for call in forecasts)
+
+    def test_forecast_notes_state_the_forecast_filter_limits(self, tool):
+        """Forecast filters take only 12-digit LINKED_ACCOUNT IDs and no RESOURCE_ID.
+
+        Cost Explorer rejects both with ValidationException for GetCostForecast and
+        GetUsageForecast, though getCostAndUsage accepts RESOURCE_ID.
+        """
+        notes = tool.description.split('4. getCostForecast')[1].split('5. getUsageForecast')[0]
+        assert 'LINKED_ACCOUNT values must be 12-digit account IDs' in notes
+        assert 'RESOURCE_ID is not allowed' in notes
+
+
+def test_description_documents_max_items_paging():
+    """The description explains max_items and no longer mentions the removed paging params."""
+    from awslabs.billing_cost_management_mcp_server.tools import cost_explorer_tools
+
+    # Read the module constant: other tests reload the module with an identity decorator,
+    # which drops the registered tool's metadata.
+    description = cost_explorer_tools.COST_EXPLORER_DESCRIPTION
+    assert isinstance(description, str)
+    assert 'max_items' in description
+    assert 'Omit it to fetch every page' in description
+    assert 'complete_dataset: false' in description
+    assert 'next_token' in description
+    for removed in ('max_pages', 'max_results', 'automatic pagination', 'Pagination is automatic'):
+        assert removed not in description

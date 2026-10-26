@@ -30,6 +30,10 @@ import sqlite3
 import sys
 import tempfile
 import uuid
+from awslabs.billing_cost_management_mcp_server.utilities.aws_service_base import (
+    partial_data_warning,
+    with_pagination,
+)
 from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
     _coerce_for_column,
     convert_api_response_to_table,
@@ -813,6 +817,22 @@ class TestConvertApiResponseToTableAdditional:
         assert _get_specialized_converter('budget_actions') == 'records'
         assert _get_specialized_converter('budget_notifications') == 'records'
 
+    def test_specialized_converter_routes_es_linked_account_charges_to_records(self):
+        """Enterprise Support linked-account charges map to the 'records' converter.
+
+        Without this entry the lookup returns None and the whole charges list is
+        offloaded into one cell of the generic (key, value) table, which cannot be
+        filtered, sorted or aggregated with SQL.
+        """
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _get_specialized_converter,
+        )
+
+        assert (
+            _get_specialized_converter('enterprise_support_list_linked_account_charges')
+            == 'records'
+        )
+
     def test_specialized_converter_routes_bvs_segment_ops_to_records(self):
         """BVS list billing view segments operations map to the 'records' converter."""
         from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
@@ -855,87 +875,213 @@ class TestConvertResponseIfNeeded:
 
         assert result is response
 
+    @pytest.mark.asyncio
+    async def test_small_partial_response_leads_with_warning(self):
+        """A below-threshold partial response keeps complete_dataset/warning ahead of its data."""
+        mock_context = MagicMock(spec=Context)
+        pagination = {
+            'complete_dataset': False,
+            'has_more': True,
+            'next_token': 'page3',
+            'items_returned': 2,
+            'warning': partial_data_warning(2),
+        }
+        response = with_pagination({'items': [1, 2]}, pagination)
+
+        result = await convert_response_if_needed(mock_context, response, 'test_api')
+
+        assert list(result)[:2] == ['complete_dataset', 'warning']
+        assert result['warning'] == partial_data_warning(2)
+        assert result['pagination']['next_token'] == 'page3'
+
+    @pytest.mark.asyncio
+    async def test_partial_offload_sentinel_leads_with_signal(self):
+        """An offloaded partial result leads with complete_dataset, warning and rows_retrieved."""
+        mock_context = MagicMock(spec=Context)
+        mock_context.info = AsyncMock()
+        pagination = {
+            'complete_dataset': False,
+            'has_more': True,
+            'next_token': 'page2',
+            'items_returned': 2,
+            'warning': 'Partial data: custom',
+        }
+        response = with_pagination({'actions': [{'a': 1}, {'a': 2}]}, pagination)
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.should_convert_to_sql',
+            return_value=True,
+        ):
+            result = await convert_response_if_needed(mock_context, response, 'budget_actions')
+
+        keys = list(result)
+        assert keys[:4] == ['status', 'complete_dataset', 'warning', 'rows_retrieved']
+        assert result['warning'] == 'Partial data: custom'
+        # The sentinel carries the same nested pagination block as an inline result.
+        assert result['pagination'] == {
+            'complete_dataset': False,
+            'has_more': True,
+            'next_token': 'page2',
+            'items_returned': 2,
+        }
+        assert 'next_token' not in result
+        assert all(q['description'].startswith('PARTIAL DATA') for q in result['sample_queries'])
+
+    @pytest.mark.asyncio
+    async def test_es_linked_account_charges_offload_is_row_per_charge(self):
+        """An offloaded ES charges response stores one row per charge, with pagination kept.
+
+        The generic (key, value) fallback would store the whole charges list in a single
+        cell, so a query such as "top linked accounts by Support charge" could not run.
+        """
+        mock_context = MagicMock(spec=Context)
+        mock_context.info = AsyncMock()
+        pagination = {
+            'complete_dataset': True,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 3,
+        }
+        charges = [
+            {'account_id': '111122223333', 'total_support_eligible_spend': '100.00'},
+            {'account_id': '444455556666', 'total_support_eligible_spend': '200.00'},
+            {'account_id': '777788889999', 'total_support_eligible_spend': '300.00'},
+        ]
+        response = with_pagination({'linked_account_charges': charges}, pagination)
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.should_convert_to_sql',
+            return_value=True,
+        ):
+            result = await convert_response_if_needed(
+                mock_context, response, 'enterprise_support_list_linked_account_charges'
+            )
+
+        # One row per charge, not one row holding the whole list.
+        assert result['row_count'] == len(charges)
+        # Charge fields became columns, so the generic key/value pair is absent.
+        assert result['schema'] == ['account_id', 'total_support_eligible_spend']
+        assert 'value' not in result['schema']
+        assert result['preview'][0]['account_id'] == '111122223333'
+        # The lowercase pagination block survives the offload.
+        assert result['pagination']['items_returned'] == len(charges)
+        assert result['pagination']['complete_dataset'] is True
+
+    @pytest.mark.asyncio
+    async def test_partial_generic_offload_omits_rows_retrieved(self):
+        """The generic key/value flatten stores fields, not items, so it reports no rows_retrieved."""
+        mock_context = MagicMock(spec=Context)
+        mock_context.info = AsyncMock()
+        pagination = {
+            'complete_dataset': False,
+            'has_more': True,
+            'next_token': 'page2',
+            'items_returned': 2,
+            'warning': 'Partial data: custom',
+        }
+        response = with_pagination({'Things': [{'a': 1}, {'a': 2}]}, pagination)
+
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.should_convert_to_sql',
+            return_value=True,
+        ):
+            result = await convert_response_if_needed(mock_context, response, 'unmapped_api')
+
+        assert result['data_stored'] is True
+        assert list(result)[:3] == ['status', 'complete_dataset', 'warning']
+        assert 'rows_retrieved' not in result
+        assert result['pagination']['next_token'] == 'page2'
+        assert result['sample_queries']
+        assert all(q['description'].startswith('PARTIAL DATA') for q in result['sample_queries'])
+
 
 class TestDerivePaginationEnvelope:
     """Tests for _derive_pagination_envelope auto-derivation from response shape."""
 
-    def test_from_paginated_wrapper(self):
-        """Response with Pagination sub-dict (paginate_aws_response output) populates the envelope."""
+    def test_from_pagination_block(self):
+        """The lowercase pagination block populates the envelope, signal first."""
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _derive_pagination_envelope,
+        )
+
+        block = {
+            'complete_dataset': False,
+            'has_more': True,
+            'next_token': 'page2',
+            'items_returned': 3,
+        }
+        envelope = _derive_pagination_envelope({'items': [1, 2, 3], 'pagination': block})
+
+        assert envelope == {
+            'complete_dataset': False,
+            'warning': partial_data_warning(3),
+            'pagination': block,
+        }
+        assert list(envelope)[:2] == ['complete_dataset', 'warning']
+
+    def test_top_level_warning_is_kept(self):
+        """A specific top-level warning (e.g. a failed page) wins over the generic one."""
         from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
             _derive_pagination_envelope,
         )
 
         response = {
-            'ResultsByTime': [{'TimePeriod': {'Start': '2023-01-01'}}],
-            'Pagination': {
-                'next_token': 'page2',
-                'has_more': True,
-                'pages_fetched': 3,
+            'warning': 'Partial data: throttled',
+            'pagination': {
                 'complete_dataset': False,
+                'has_more': True,
+                'next_token': 't',
+                'items_returned': 1,
             },
         }
 
-        envelope = _derive_pagination_envelope(response)
+        assert _derive_pagination_envelope(response)['warning'] == 'Partial data: throttled'
 
-        assert envelope == {
-            'next_page_token': 'page2',
-            'has_more': True,
-            'pages_fetched': 3,
-        }
-
-    def test_from_single_page_response_with_token(self):
-        """Single-page boto3 response with NextPageToken populates the envelope."""
+    def test_partial_without_token_is_still_partial(self):
+        """complete_dataset, not has_more, decides partiality: a restart has no token."""
         from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
             _derive_pagination_envelope,
         )
 
-        response = {
-            'ResultsByTime': [{'TimePeriod': {'Start': '2023-01-01'}}],
-            'NextPageToken': 'continue-here',
-        }
-
-        envelope = _derive_pagination_envelope(response)
-
-        assert envelope == {
-            'next_page_token': 'continue-here',
-            'has_more': True,
-            'pages_fetched': 1,
-        }
-
-    def test_from_single_page_response_with_null_token(self):
-        """Final-page boto3 response (NextPageToken present but None) marks has_more=False."""
-        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
-            _derive_pagination_envelope,
-        )
-
-        response = {
-            'ResultsByTime': [{'TimePeriod': {'Start': '2023-01-01'}}],
-            'NextPageToken': None,
-        }
-
-        envelope = _derive_pagination_envelope(response)
-
-        assert envelope == {
-            'next_page_token': None,
+        block = {
+            'complete_dataset': False,
             'has_more': False,
-            'pages_fetched': 1,
+            'next_token': None,
+            'items_returned': 2,
         }
+        envelope = _derive_pagination_envelope(
+            {'warning': 'Partial data: restart', 'pagination': block}
+        )
 
-    def test_custom_token_key(self):
-        """token_key override picks up alternative continuation-token field names (e.g. NextToken)."""
+        assert envelope['complete_dataset'] is False
+        assert envelope['warning'] == 'Partial data: restart'
+
+    def test_complete_pagination_block(self):
+        """A complete result carries no warning."""
         from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
             _derive_pagination_envelope,
         )
 
-        response = {'PriceList': ['{...}'], 'NextToken': 'page2'}
-
-        envelope = _derive_pagination_envelope(response, token_key='NextToken')
-
-        assert envelope == {
-            'next_page_token': 'page2',
-            'has_more': True,
-            'pages_fetched': 1,
+        block = {
+            'complete_dataset': True,
+            'has_more': False,
+            'next_token': None,
+            'items_returned': 4,
         }
+
+        assert _derive_pagination_envelope({'pagination': block}) == {
+            'complete_dataset': True,
+            'pagination': block,
+        }
+
+    def test_raw_token_fields_are_not_pagination(self):
+        """Only the pagination block counts; a raw service token field is ignored."""
+        from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
+            _derive_pagination_envelope,
+        )
+
+        assert _derive_pagination_envelope({'PriceList': ['{}'], 'NextToken': 'page2'}) == {}
+        assert _derive_pagination_envelope({'Pagination': {'has_more': True}}) == {}
 
     def test_non_paginated_response_returns_empty(self):
         """Forecast / pricing responses without pagination markers get an empty envelope so unrelated APIs aren't polluted."""
@@ -1496,6 +1642,44 @@ class TestConvertApiResponseToTableSpecificTypes:
         assert 'table_name' in result
         assert 'sample_queries' in result
 
+    async def test_pricing_products_malformed_entry_is_returned_inline(self, mock_context):
+        """A malformed PriceList entry fails the offload, so every product is returned inline.
+
+        Storing it as an empty row would report a product count the data does not have.
+        """
+        conn = sqlite3.connect(':memory:')
+        # The schema table exists, so the malformed entry is the only reason the offload fails.
+        conn.execute(
+            'CREATE TABLE IF NOT EXISTS schema_info '
+            '(table_name TEXT PRIMARY KEY, created_at TEXT, operation TEXT, '
+            'query TEXT, row_count INTEGER)'
+        )
+        price_list = [
+            '{"product": {"productFamily": "Compute Instance", "sku": "SKU123"}}',
+            '{not json',
+            '{"product": {"productFamily": "Storage", "sku": "SKU456"}}',
+        ]
+        response = {'PriceList': list(price_list)}
+
+        with (
+            patch(
+                'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.should_convert_to_sql',
+                return_value=True,
+            ),
+            patch(
+                'awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_db_connection',
+                return_value=(conn, conn.cursor()),
+            ),
+        ):
+            result = await convert_response_if_needed(
+                mock_context, response, 'aws_pricing_get_products', service_code='AmazonEC2'
+            )
+
+        assert result is response
+        assert result['PriceList'] == price_list
+        assert 'data_stored' not in result
+        assert 'table_name' not in result
+
     @patch('sqlite3.connect')
     @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
     async def test_convert_cost_and_usage_response(
@@ -2042,7 +2226,7 @@ class TestConvertResponseIfNeededErrorHandling:
         assert result is response
 
     async def test_convert_response_if_needed_conversion_error(self, mock_context):
-        """Test convert_response_if_needed falls back to the original response on conversion error."""
+        """An oversized response that can't be stored is returned inline, not as an error."""
         # Large enough to trigger the offload branch
         response = {'data': 'x' * 30000}
 

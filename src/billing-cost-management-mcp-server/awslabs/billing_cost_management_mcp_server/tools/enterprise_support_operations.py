@@ -23,10 +23,12 @@ monetary amounts remain decimal strings.
 
 import re
 from ..utilities.aws_service_base import (
+    PageSpec,
     create_aws_client,
     format_response,
     handle_aws_error,
-    paginate_aws_response,
+    paginate_aws_items,
+    with_pagination,
 )
 from ..utilities.sql_utils import convert_response_if_needed
 from ..utilities.time_utils import normalize_datetimes_to_iso
@@ -46,6 +48,15 @@ BILLING_MONTH_PATTERN = re.compile(r'\d{4}-(0[1-9]|1[0-2])')
 # Oldest billing month the Enterprise Support APIs serve. Requests earlier than
 # this are rejected locally rather than spending a call that cannot return data.
 EARLIEST_BILLING_MONTH = '2025-01'
+
+# ListEnterpriseSupportLinkedAccountCharges returns up to 100 linked accounts per page.
+LIST_LINKED_ACCOUNT_CHARGES_PAGE_SPEC = PageSpec(
+    result_key='linkedAccount',
+    token_param='nextToken',
+    token_key_in_response='nextToken',
+    page_max=100,
+    page_size_param='maxResults',
+)
 
 
 def _create_billing_client() -> Any:
@@ -165,8 +176,9 @@ def _reject_month_before_earliest(billing_month: str) -> Optional[Dict[str, Any]
                 f'Billing month {billing_month} predates the earliest available '
                 f'Enterprise Support data ({EARLIEST_BILLING_MONTH}). Request '
                 f'{EARLIEST_BILLING_MONTH} or later.'
-            )
+            ),
         },
+        error_type='validation_error',
     )
 
 
@@ -201,8 +213,9 @@ def _reject_month_not_yet_closed(billing_month: str) -> Optional[Dict[str, Any]]
                 f'Billing month {billing_month} is not available. Enterprise Support data '
                 'is only published for billing periods that have closed, so the most '
                 f'recent available month is {latest_month}.'
-            )
+            ),
         },
+        error_type='validation_error',
     )
 
 
@@ -234,8 +247,9 @@ def _validate_billing_month(billing_month: Optional[str]) -> Optional[Dict[str, 
                 'message': (
                     'billing_month is required. Provide a single calendar month in '
                     'YYYY-MM format, for example "2026-06".'
-                )
+                ),
             },
+            error_type='validation_error',
         )
 
     if not BILLING_MONTH_PATTERN.fullmatch(billing_month):
@@ -245,8 +259,9 @@ def _validate_billing_month(billing_month: Optional[str]) -> Optional[Dict[str, 
                 'message': (
                     f"Invalid billing_month '{billing_month}'. Expected a single calendar "
                     'month in YYYY-MM format, for example "2026-06".'
-                )
+                ),
             },
+            error_type='validation_error',
         )
 
     return _reject_month_before_earliest(billing_month) or _reject_month_not_yet_closed(
@@ -269,8 +284,6 @@ def _strip_response_metadata(api_response: Dict[str, Any]) -> Dict[str, Any]:
 def _build_linked_account_charges_request(
     billing_month: str,
     account_id: Optional[str],
-    max_results: Optional[int],
-    next_token: Optional[str],
 ) -> Dict[str, Any]:
     """Build the ListEnterpriseSupportLinkedAccountCharges request parameters.
 
@@ -282,19 +295,14 @@ def _build_linked_account_charges_request(
     Args:
         billing_month: The billing month in ``YYYY-MM`` format.
         account_id: Optional linked account to filter to.
-        max_results: Optional page size.
-        next_token: Optional pagination token from a previous response.
 
     Returns:
-        The request parameters to send.
+        The request parameters to send, without the token and page size, which
+        the paginator adds per page.
     """
     request_params: Dict[str, Any] = {'billingMonth': billing_month}
     if account_id:
         request_params['accountId'] = account_id
-    if max_results is not None:
-        request_params['maxResults'] = max_results
-    if next_token:
-        request_params['nextToken'] = next_token
     return request_params
 
 
@@ -315,17 +323,16 @@ async def _finalize_linked_account_charges(
     Args:
         ctx: The MCP context object.
         charges: The linked account charges gathered across pages.
-        pagination: The paginator's report of what it fetched.
+        pagination: The pagination block from ``paginate_aws_items``.
         billing_month: The billing month the charges cover.
         account_id: The linked account filter that was applied, if any.
 
     Returns:
         The standardized success envelope.
     """
-    response = {
-        'linked_account_charges': normalize_datetimes_to_iso(charges),
-        'pagination': pagination,
-    }
+    response = with_pagination(
+        {'linked_account_charges': normalize_datetimes_to_iso(charges)}, pagination
+    )
     converted = await convert_response_if_needed(
         ctx,
         response,
@@ -427,9 +434,8 @@ async def list_linked_account_charges(
     ctx: Context,
     billing_month: Optional[str] = None,
     account_id: Optional[str] = None,
-    max_results: Optional[int] = None,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
-    max_pages: Optional[int] = None,
 ) -> Dict[str, Any]:
     """List the per-linked-account Enterprise Support charges for a billing period.
 
@@ -439,8 +445,8 @@ async def list_linked_account_charges(
     Support charge.
 
     Pagination goes through the shared paginator, which follows ``nextToken``
-    until the results are exhausted or ``max_pages`` is reached, and reports what
-    it fetched so a partial walk is visible rather than silent. A large
+    until the results are exhausted or the next page could exceed ``max_items``,
+    and reports what it fetched so a partial walk is visible rather than silent. A large
     organization can return more rows than fit in context, so the assembled
     result goes through the shared size threshold that offloads to session SQL.
 
@@ -448,9 +454,8 @@ async def list_linked_account_charges(
         ctx: The MCP context object.
         billing_month: The billing month in ``YYYY-MM`` format.
         account_id: Optional linked account ID to filter to a single account.
-        max_results: Optional maximum results per page (1-100).
+        max_items: Optional most linked accounts to return. None fetches every page.
         next_token: Optional pagination token from a previous response.
-        max_pages: Optional maximum number of pages to fetch. Defaults to all.
 
     Returns:
         Dict containing ``linked_account_charges`` and ``pagination``, or a
@@ -463,18 +468,17 @@ async def list_linked_account_charges(
     try:
         client = _create_billing_client()
         request_params = _build_linked_account_charges_request(
-            cast(str, billing_month), account_id, max_results, next_token
+            cast(str, billing_month), account_id
         )
 
-        charges, pagination = await paginate_aws_response(
+        charges, _, pagination = await paginate_aws_items(
             ctx,
             'ListEnterpriseSupportLinkedAccountCharges',
-            lambda **params: client.list_enterprise_support_linked_account_charges(**params),
+            client.list_enterprise_support_linked_account_charges,
             request_params,
-            'linkedAccount',
-            token_param='nextToken',
-            token_key='nextToken',
-            max_pages=max_pages,
+            LIST_LINKED_ACCOUNT_CHARGES_PAGE_SPEC,
+            max_items=max_items,
+            next_token=next_token,
         )
 
         await ctx.info(

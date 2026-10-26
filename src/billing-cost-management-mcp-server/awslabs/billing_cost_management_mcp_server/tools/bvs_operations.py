@@ -19,11 +19,13 @@ Each operation handles the AWS API call and response formatting.
 """
 
 from ..utilities.aws_service_base import (
+    PageSpec,
     create_aws_client,
     format_response,
     handle_aws_error,
-    paginate_aws_response,
+    paginate_aws_items,
     parse_json,
+    with_pagination,
 )
 from ..utilities.constants import REGION_US_EAST_1
 from ..utilities.sql_utils import convert_response_if_needed
@@ -32,7 +34,7 @@ from ..utilities.time_utils import (
     utc_datetime_string_to_epoch_seconds,
 )
 from fastmcp import Context
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 
 # AWS Billing is a global service that operates in us-east-1
@@ -85,11 +87,20 @@ async def get_billing_view(
         return await handle_aws_error(ctx, e, 'getBillingView', 'Billing')
 
 
+# ListSourceViewsForBillingView: maxResults 1-100.
+BVS_LIST_SOURCE_VIEWS_FOR_BILLING_VIEW = PageSpec(
+    result_key='sourceViews',
+    token_param='nextToken',
+    token_key_in_response='nextToken',
+    page_max=100,
+    page_size_param='maxResults',
+)
+
+
 async def list_source_views_for_billing_view(
     ctx: Context,
     arn: str,
-    max_results: Optional[int] = None,
-    max_pages: int = 10,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """List the source views (managed AWS billing views) associated with the billing view.
@@ -98,60 +109,42 @@ async def list_source_views_for_billing_view(
         ctx: The MCP context object.
         arn: The Amazon Resource Name (ARN) that can be used to uniquely identify
             the billing view.
-        max_results: Optional maximum number of entries a paginated response contains.
-            Valid range: 1-100.
-        max_pages: Maximum number of API pages to fetch. Each page returns up to
-            max_results results. Defaults to 10.
+        max_items: Most source views to return. None fetches every page.
         next_token: Optional pagination token to continue from a previous response.
 
     Returns:
-        Dict containing the list of source view ARNs associated with the billing view.
+        Dict containing the list of source view ARNs associated with the billing view and a
+        ``pagination`` block.
     """
     try:
-        request_params: Dict[str, Any] = {'arn': arn}
-
-        if max_results is not None:
-            request_params['maxResults'] = max_results
-
         bvs_client = _create_bvs_client()
 
-        all_source_views: List[str] = []
-        current_token = next_token
-        page_count = 0
+        source_views, _, pagination = await paginate_aws_items(
+            ctx,
+            'ListSourceViewsForBillingView',
+            bvs_client.list_source_views_for_billing_view,
+            {'arn': arn},
+            BVS_LIST_SOURCE_VIEWS_FOR_BILLING_VIEW,
+            max_items=max_items,
+            next_token=next_token,
+        )
 
-        while page_count < max_pages:
-            page_count += 1
-            if current_token:
-                request_params['nextToken'] = current_token
-
-            await ctx.info(f'Fetching source views for billing view {arn} (page {page_count})')
-            response = bvs_client.list_source_views_for_billing_view(**request_params)
-
-            page_source_views = response.get('sourceViews', [])
-            all_source_views.extend(page_source_views)
-
-            await ctx.info(
-                f'Retrieved {len(page_source_views)} source views (total: {len(all_source_views)})'
-            )
-
-            current_token = response.get('nextToken')
-            if not current_token:
-                break
-
-        await ctx.info('Successfully listed source views for billing view')
-
-        response_data: Dict[str, Any] = {
-            'source_views': all_source_views,
-            'total_count': len(all_source_views),
-        }
-
-        if current_token:
-            response_data['next_token'] = current_token
-
-        return format_response('success', response_data)
+        return format_response(
+            'success', with_pagination({'source_views': source_views}, pagination)
+        )
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'listSourceViewsForBillingView', 'Billing')
+
+
+# ListBillingViews: maxResults 1-100.
+BVS_LIST_BILLING_VIEWS = PageSpec(
+    result_key='billingViews',
+    token_param='nextToken',
+    token_key_in_response='nextToken',
+    page_max=100,
+    page_size_param='maxResults',
+)
 
 
 async def list_billing_views(
@@ -160,11 +153,10 @@ async def list_billing_views(
     active_before_inclusive: Optional[str] = None,
     arns: Optional[str] = None,
     billing_view_types: Optional[str] = None,
-    max_results: Optional[int] = None,
     names: Optional[str] = None,
     owner_account_id: Optional[str] = None,
     source_account_id: Optional[str] = None,
-    max_pages: int = 10,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """List the billing views available for a given time period.
@@ -189,18 +181,15 @@ async def list_billing_views(
         billing_view_types: Optional JSON string containing a list of billing view types
             to filter by (PRIMARY, BILLING_GROUP, CUSTOM, BILLING_TRANSFER,
             BILLING_TRANSFER_SHOWBACK).
-        max_results: Optional maximum number of billing views to retrieve per page.
-            Default is 100. Valid range: 1-100.
         names: Optional JSON string containing a list of StringSearch objects with
             searchOption and searchValue fields for filtering by name.
         owner_account_id: Optional owner account ID to filter by (12-digit AWS account ID).
         source_account_id: Optional source account ID to filter by (12-digit AWS account ID).
-        max_pages: Maximum number of API pages to fetch. Each page returns up to
-            max_results results. Defaults to 10.
+        max_items: Most billing views to return. None fetches every page.
         next_token: Optional pagination token to continue from a previous response.
 
     Returns:
-        Dict containing the formatted billing view list information.
+        Dict containing the formatted billing view list information and a ``pagination`` block.
     """
     try:
         request_params: Dict[str, Any] = {}
@@ -228,9 +217,6 @@ async def list_billing_views(
         if parsed_billing_view_types:
             request_params['billingViewTypes'] = parsed_billing_view_types
 
-        if max_results is not None:
-            request_params['maxResults'] = max_results
-
         parsed_names = parse_json(names, 'names')
         if parsed_names:
             request_params['names'] = parsed_names
@@ -243,45 +229,20 @@ async def list_billing_views(
 
         bvs_client = _create_bvs_client()
 
-        all_billing_views: List[Dict[str, Any]] = []
-        current_token = next_token
-        page_count = 0
-
-        while page_count < max_pages:
-            page_count += 1
-            if current_token:
-                request_params['nextToken'] = current_token
-
-            await ctx.info(f'Fetching billing views page {page_count}')
-            response = bvs_client.list_billing_views(**request_params)
-
-            page_billing_views = response.get('billingViews', [])
-            all_billing_views.extend(page_billing_views)
-
-            await ctx.info(
-                f'Retrieved {len(page_billing_views)} billing views '
-                f'(total: {len(all_billing_views)})'
-            )
-
-            current_token = response.get('nextToken')
-            if not current_token:
-                break
-
-        formatted_billing_views = [
-            _format_list_billing_view_element(bv) for bv in all_billing_views
-        ]
-
-        await ctx.info('Successfully listed billing views')
+        billing_views, _, pagination = await paginate_aws_items(
+            ctx,
+            'ListBillingViews',
+            bvs_client.list_billing_views,
+            request_params,
+            BVS_LIST_BILLING_VIEWS,
+            max_items=max_items,
+            next_token=next_token,
+        )
 
         response_data: Dict[str, Any] = {
-            'billing_views': formatted_billing_views,
-            'total_count': len(formatted_billing_views),
+            'billing_views': [_format_list_billing_view_element(bv) for bv in billing_views],
         }
-
-        if current_token:
-            response_data['next_token'] = current_token
-
-        return format_response('success', response_data)
+        return format_response('success', with_pagination(response_data, pagination))
 
     except Exception as e:
         return await handle_aws_error(ctx, e, 'listBillingViews', 'Billing')
@@ -327,13 +288,22 @@ async def get_resource_policy(
         return await handle_aws_error(ctx, e, 'getResourcePolicy', 'Billing')
 
 
+# ListBillingViewSegments: maxResults 1-100.
+BVS_LIST_BILLING_VIEW_SEGMENTS = PageSpec(
+    result_key='items',
+    token_param='nextToken',
+    token_key_in_response='nextToken',
+    page_max=100,
+    page_size_param='maxResults',
+)
+
+
 async def list_billing_view_segments(
     ctx: Context,
     arn: Optional[str] = None,
-    max_results: Optional[int] = None,
     begin_date_inclusive: Optional[str] = None,
     end_date_exclusive: Optional[str] = None,
-    max_pages: int = 10,
+    max_items: Optional[int] = None,
     next_token: Optional[str] = None,
 ) -> Dict[str, Any]:
     """List the segments of a billing view over a given time period.
@@ -350,8 +320,6 @@ async def list_billing_view_segments(
         arn: Optional ARN that uniquely identifies the billing view.
             If not provided, the caller's PRIMARY billing view is used.
             Must reference a primary billing view; custom billing views are not supported.
-        max_results: Optional maximum number of segments per page.
-            Valid range: 1-100. Default is 100.
         begin_date_inclusive: Optional UTC datetime string for the inclusive start of the
             billing period. Format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS (UTC).
             Must be provided together with end_date_exclusive.
@@ -360,21 +328,17 @@ async def list_billing_view_segments(
             billing period. Format: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS (UTC).
             Must be provided together with begin_date_inclusive.
             If omitted, the current billing period (calendar month in UTC) is used.
-        max_pages: Maximum number of API pages to fetch. Each page returns up to
-            max_results results. Defaults to 10.
+        max_items: Most segments to return. None fetches every page.
         next_token: Optional pagination token to continue from a previous response.
 
     Returns:
-        Dict containing the list of billing view segments.
+        Dict containing the list of billing view segments and a ``pagination`` block.
     """
     try:
         request_params: Dict[str, Any] = {}
 
         if arn:
             request_params['arn'] = arn
-
-        if max_results is not None:
-            request_params['maxResults'] = max_results
 
         if begin_date_inclusive or end_date_exclusive:
             if not begin_date_inclusive or not end_date_exclusive:
@@ -387,32 +351,24 @@ async def list_billing_view_segments(
                 'endDateExclusive': utc_datetime_string_to_epoch_seconds(end_date_exclusive),
             }
 
-        if next_token:
-            request_params['nextToken'] = next_token
-
         bvs_client = _create_bvs_client()
 
-        segments, pagination = await paginate_aws_response(
+        segments, _, pagination = await paginate_aws_items(
             ctx,
             'ListBillingViewSegments',
             bvs_client.list_billing_view_segments,
             request_params,
-            'items',
-            token_param='nextToken',
-            token_key='nextToken',
-            max_pages=max_pages,
+            BVS_LIST_BILLING_VIEW_SEGMENTS,
+            max_items=max_items,
+            next_token=next_token,
         )
-
-        await ctx.info(f'Successfully retrieved {len(segments)} billing view segments')
 
         formatted_segments = [_format_billing_view_segment(segment) for segment in segments]
 
         converted = await convert_response_if_needed(
             ctx,
-            {'segments': formatted_segments, 'pagination': pagination},
+            with_pagination({'segments': formatted_segments}, pagination),
             'bvs_list_billing_view_segments',
-            pagination_token_key='nextToken',
-            pagination=pagination,
         )
         return format_response('success', converted)
 
