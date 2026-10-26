@@ -441,8 +441,8 @@ class TestGetEBSVolumeRecommendations:
         assert option['savings_opportunity']['savings_percentage'] == 40.0
 
     async def test_with_filters(self, mock_context, mock_co_client):
-        """Test get_ebs_volume_recommendations with filters, account IDs, and next token."""
-        filters = '[{"Name":"Finding","Values":["OVERPROVISIONED"]}]'
+        """Filters (values normalized to the API spelling), account IDs and next token are sent."""
+        filters = '[{"Name":"Finding","Values":["not_optimized"]}]'
         account_ids = '["123456789012"]'
 
         await get_ebs_volume_recommendations(
@@ -456,7 +456,7 @@ class TestGetEBSVolumeRecommendations:
 
         mock_co_client.get_ebs_volume_recommendations.assert_called_once()
         call_kwargs = mock_co_client.get_ebs_volume_recommendations.call_args[1]
-        assert call_kwargs['filters'] == [{'name': 'Finding', 'values': ['OVERPROVISIONED']}]
+        assert call_kwargs['filters'] == [{'name': 'Finding', 'values': ['NotOptimized']}]
         assert call_kwargs['accountIds'] == ['123456789012']
         assert call_kwargs['nextToken'] == 'next-page'
 
@@ -511,9 +511,9 @@ class TestGetLambdaFunctionRecommendations:
         assert option['savings_opportunity']['estimated_monthly_savings']['value'] == 5.20
 
     async def test_with_filters(self, mock_context, mock_co_client):
-        """Test get_lambda_function_recommendations with filters."""
+        """Filters (values normalized to the API spelling) and account IDs are sent."""
         # Setup
-        filters = '[{"Name":"Finding","Values":["OVER_PROVISIONED"]}]'
+        filters = '[{"Name":"Finding","Values":["NOT_OPTIMIZED"]}]'
         account_ids = '["123456789012"]'
 
         # Execute
@@ -531,7 +531,7 @@ class TestGetLambdaFunctionRecommendations:
         call_kwargs = mock_co_client.get_lambda_function_recommendations.call_args[1]
 
         # Verify that the parsed parameters were passed to the client
-        assert call_kwargs['filters'] == [{'name': 'Finding', 'values': ['OVER_PROVISIONED']}]
+        assert call_kwargs['filters'] == [{'name': 'Finding', 'values': ['NotOptimized']}]
         assert call_kwargs['accountIds'] == ['123456789012']
         assert call_kwargs['nextToken'] == 'next-page'
 
