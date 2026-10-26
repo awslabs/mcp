@@ -215,23 +215,9 @@ async def get_recommendation(
 
         # Make the API call
         await ctx_logger.info(f'Fetching recommendation {recommendation_id}')
-        response = coh_client.get_recommendation(**request_params)
-
-        # The response IS the recommendation data
-        recommendation = response
-
-        if not recommendation:
-            await ctx_logger.warning(
-                f'No recommendation found for recommendation {recommendation_id}'
-            )
-            return format_response(
-                'warning',
-                {
-                    'recommendation_id': recommendation_id,
-                    'message': 'No recommendation found for the specified recommendation.',
-                },
-                'No recommendation found. The recommendation may not have optimization opportunities, or the recommendation ID may be incorrect.',
-            )
+        # The response IS the recommendation data. A missing recommendation raises
+        # ResourceNotFoundException (handled below); boto3 never returns an empty response.
+        recommendation = coh_client.get_recommendation(**request_params)
 
         # Build response using actual API fields
         formatted_response = {
@@ -249,7 +235,7 @@ async def get_recommendation(
             'currency_code': recommendation.get('currencyCode'),
             'implementation_effort': recommendation.get('implementationEffort'),
             'source': recommendation.get('source'),
-            'last_refresh_timestamp': str(recommendation.get('lastRefreshTimestamp')),
+            'last_refresh_timestamp': format_timestamp(recommendation.get('lastRefreshTimestamp')),
             'lookback_period_in_days': recommendation.get('recommendationLookbackPeriodInDays'),
             'cost_calculation_lookback_period_in_days': recommendation.get(
                 'costCalculationLookbackPeriodInDays'
