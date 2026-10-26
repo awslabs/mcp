@@ -390,28 +390,20 @@ class TestGetAutoScalingGroupRecommendations:
         filters = '[{"Name":"Finding","Values":["NOT_OPTIMIZED"]}]'
         account_ids = '["123456789012"]'
 
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.parse_json'
-        ) as mock_parse_json:
-            mock_parse_json.side_effect = [
-                [{'Name': 'Finding', 'Values': ['NOT_OPTIMIZED']}],  # filters
-                ['123456789012'],  # account_ids
-            ]
+        await get_auto_scaling_group_recommendations(
+            mock_context,
+            mock_co_client,
+            max_items=10,
+            filters=filters,
+            account_ids=account_ids,
+            next_token='next-page',
+        )
 
-            await get_auto_scaling_group_recommendations(
-                mock_context,
-                mock_co_client,
-                max_items=10,
-                filters=filters,
-                account_ids=account_ids,
-                next_token='next-page',
-            )
-
-            mock_co_client.get_auto_scaling_group_recommendations.assert_called_once()
-            call_kwargs = mock_co_client.get_auto_scaling_group_recommendations.call_args[1]
-            assert 'filters' in call_kwargs
-            assert 'accountIds' in call_kwargs
-            assert call_kwargs['nextToken'] == 'next-page'
+        mock_co_client.get_auto_scaling_group_recommendations.assert_called_once()
+        call_kwargs = mock_co_client.get_auto_scaling_group_recommendations.call_args[1]
+        assert call_kwargs['filters'] == [{'name': 'Finding', 'values': ['NotOptimized']}]
+        assert call_kwargs['accountIds'] == ['123456789012']
+        assert call_kwargs['nextToken'] == 'next-page'
 
 
 @pytest.mark.asyncio
@@ -453,28 +445,20 @@ class TestGetEBSVolumeRecommendations:
         filters = '[{"Name":"Finding","Values":["OVERPROVISIONED"]}]'
         account_ids = '["123456789012"]'
 
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.parse_json'
-        ) as mock_parse_json:
-            mock_parse_json.side_effect = [
-                [{'Name': 'Finding', 'Values': ['OVERPROVISIONED']}],  # filters
-                ['123456789012'],  # account_ids
-            ]
+        await get_ebs_volume_recommendations(
+            mock_context,
+            mock_co_client,
+            max_items=10,
+            filters=filters,
+            account_ids=account_ids,
+            next_token='next-page',
+        )
 
-            await get_ebs_volume_recommendations(
-                mock_context,
-                mock_co_client,
-                max_items=10,
-                filters=filters,
-                account_ids=account_ids,
-                next_token='next-page',
-            )
-
-            mock_co_client.get_ebs_volume_recommendations.assert_called_once()
-            call_kwargs = mock_co_client.get_ebs_volume_recommendations.call_args[1]
-            assert 'filters' in call_kwargs
-            assert 'accountIds' in call_kwargs
-            assert call_kwargs['nextToken'] == 'next-page'
+        mock_co_client.get_ebs_volume_recommendations.assert_called_once()
+        call_kwargs = mock_co_client.get_ebs_volume_recommendations.call_args[1]
+        assert call_kwargs['filters'] == [{'name': 'Finding', 'values': ['OVERPROVISIONED']}]
+        assert call_kwargs['accountIds'] == ['123456789012']
+        assert call_kwargs['nextToken'] == 'next-page'
 
 
 @pytest.mark.asyncio
@@ -532,34 +516,24 @@ class TestGetLambdaFunctionRecommendations:
         filters = '[{"Name":"Finding","Values":["OVER_PROVISIONED"]}]'
         account_ids = '["123456789012"]'
 
-        # Use patch to handle the parse_json calls
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.parse_json'
-        ) as mock_parse_json:
-            # Set up mock return values for parse_json calls
-            mock_parse_json.side_effect = [
-                [{'Name': 'Finding', 'Values': ['OVER_PROVISIONED']}],  # filters
-                ['123456789012'],  # account_ids
-            ]
+        # Execute
+        await get_lambda_function_recommendations(
+            mock_context,
+            mock_co_client,
+            max_items=10,
+            filters=filters,
+            account_ids=account_ids,
+            next_token='next-page',
+        )
 
-            # Execute
-            await get_lambda_function_recommendations(
-                mock_context,
-                mock_co_client,
-                max_items=10,
-                filters=filters,
-                account_ids=account_ids,
-                next_token='next-page',
-            )
+        # Assert
+        mock_co_client.get_lambda_function_recommendations.assert_called_once()
+        call_kwargs = mock_co_client.get_lambda_function_recommendations.call_args[1]
 
-            # Assert
-            mock_co_client.get_lambda_function_recommendations.assert_called_once()
-            call_kwargs = mock_co_client.get_lambda_function_recommendations.call_args[1]
-
-            # Verify that the parsed parameters were passed to the client
-            assert 'filters' in call_kwargs
-            assert 'accountIds' in call_kwargs
-            assert call_kwargs['nextToken'] == 'next-page'
+        # Verify that the parsed parameters were passed to the client
+        assert call_kwargs['filters'] == [{'name': 'Finding', 'values': ['OVER_PROVISIONED']}]
+        assert call_kwargs['accountIds'] == ['123456789012']
+        assert call_kwargs['nextToken'] == 'next-page'
 
     async def test_function_name_derived_from_arn(self, mock_context, mock_co_client):
         """function_name is derived from the ARN, handling version/alias suffixes."""
@@ -647,34 +621,26 @@ class TestGetRDSRecommendations:
         filters = '[{"Name":"InstanceFinding","Values":["Overprovisioned"]}]'
         account_ids = '["123456789012"]'
 
-        # Use patch to handle the parse_json calls
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.parse_json'
-        ) as mock_parse_json:
-            # Set up mock return values for parse_json calls
-            mock_parse_json.side_effect = [
-                [{'Name': 'InstanceFinding', 'Values': ['Overprovisioned']}],  # filters
-                ['123456789012'],  # account_ids
-            ]
+        # Execute
+        await get_rds_recommendations(
+            mock_context,
+            mock_co_client,
+            max_items=10,
+            filters=filters,
+            account_ids=account_ids,
+            next_token='next-page-rds',
+        )
 
-            # Execute
-            await get_rds_recommendations(
-                mock_context,
-                mock_co_client,
-                max_items=10,
-                filters=filters,
-                account_ids=account_ids,
-                next_token='next-page-rds',
-            )
+        # Assert
+        mock_co_client.get_rds_database_recommendations.assert_called_once()
+        call_kwargs = mock_co_client.get_rds_database_recommendations.call_args[1]
 
-            # Assert
-            mock_co_client.get_rds_database_recommendations.assert_called_once()
-            call_kwargs = mock_co_client.get_rds_database_recommendations.call_args[1]
-
-            # Verify that the parsed parameters were passed to the client
-            assert 'filters' in call_kwargs
-            assert 'accountIds' in call_kwargs
-            assert call_kwargs['nextToken'] == 'next-page-rds'
+        # Verify that the parsed parameters were passed to the client
+        assert call_kwargs['filters'] == [
+            {'name': 'InstanceFinding', 'values': ['Overprovisioned']}
+        ]
+        assert call_kwargs['accountIds'] == ['123456789012']
+        assert call_kwargs['nextToken'] == 'next-page-rds'
 
 
 @pytest.mark.asyncio
@@ -1933,33 +1899,23 @@ class TestGetECSServiceRecommendations:
             'nextToken': None,
         }
 
-        # Use patch to handle the parse_json calls
-        with patch(
-            'awslabs.billing_cost_management_mcp_server.utilities.aws_service_base.parse_json'
-        ) as mock_parse_json:
-            # Set up mock return values for parse_json calls
-            mock_parse_json.side_effect = [
-                [{'Name': 'Finding', 'Values': ['Overprovisioned']}],  # filters
-                ['558889323918'],  # account_ids
-            ]
+        # Execute
+        await get_ecs_service_recommendations(
+            mock_context,
+            mock_co_client,
+            max_items=10,
+            filters=filters,
+            account_ids=account_ids,
+            next_token='next-token',
+        )
 
-            # Execute
-            await get_ecs_service_recommendations(
-                mock_context,
-                mock_co_client,
-                max_items=10,
-                filters=filters,
-                account_ids=account_ids,
-                next_token='next-token',
-            )
+        # Assert
+        mock_co_client.get_ecs_service_recommendations.assert_called_once()
+        call_kwargs = mock_co_client.get_ecs_service_recommendations.call_args[1]
 
-            # Assert
-            mock_co_client.get_ecs_service_recommendations.assert_called_once()
-            call_kwargs = mock_co_client.get_ecs_service_recommendations.call_args[1]
-
-            assert 'filters' in call_kwargs
-            assert 'accountIds' in call_kwargs
-            assert call_kwargs['nextToken'] == 'next-token'
+        assert call_kwargs['filters'] == [{'name': 'Finding', 'values': ['Overprovisioned']}]
+        assert call_kwargs['accountIds'] == ['558889323918']
+        assert call_kwargs['nextToken'] == 'next-token'
 
 
 @pytest.mark.asyncio

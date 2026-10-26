@@ -394,22 +394,6 @@ class TestAwsPricing:
         assert 'message' in result
         assert 'Unknown operation' in result['message']
 
-    @patch(
-        'awslabs.billing_cost_management_mcp_server.tools.aws_pricing_operations.get_service_codes'
-    )
-    async def test_aws_pricing_error_handling(self, mock_get_service_codes, mock_context):
-        """Test aws_pricing error handling."""
-        # Setup
-        error = Exception('API error')
-        mock_get_service_codes.side_effect = error
-
-        # Execute
-        result = {'status': 'error', 'message': 'API error'}
-
-        # Assert
-        assert result['status'] == 'error'
-        assert result['message'] == 'API error'
-
 
 def test_aws_pricing_server_initialization():
     """Test that the aws_pricing_server is properly initialized."""

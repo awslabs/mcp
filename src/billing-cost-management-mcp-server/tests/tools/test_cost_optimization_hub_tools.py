@@ -266,6 +266,21 @@ async def test_get_recommendation_success(mock_context):
     assert result['data']['recommendation_id'] == 'rec-1'
 
 
+@pytest.fixture(scope='module', autouse=True)
+def _restore_real_tool_module():
+    """Reload the module with the real FastMCP.tool after this file's tests.
+
+    _reload_coh_with_identity_decorator() leaves the module's server with no registered tools;
+    restoring it keeps later test files from seeing that state.
+    """
+    yield
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as module,
+    )
+
+    importlib.reload(module)
+
+
 def _reload_coh_with_identity_decorator():
     """Reload cost_optimization_hub_tools with FastMCP.tool patched to return the original function unchanged (identity decorator).
 

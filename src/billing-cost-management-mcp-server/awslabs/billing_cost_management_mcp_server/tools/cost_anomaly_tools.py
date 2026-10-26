@@ -27,7 +27,6 @@ from ..utilities.aws_service_base import (
     with_pagination,
 )
 from ..utilities.logging_utils import get_context_logger
-from botocore.exceptions import ClientError
 from datetime import datetime, timedelta
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
@@ -248,35 +247,6 @@ async def cost_anomaly(
             operation='cost_anomaly',
             service='Cost Explorer',
         )
-    except ClientError as e:
-        # Handle AWS service-specific errors
-        error_code = e.response.get('Error', {}).get('Code')
-        error_message = e.response.get('Error', {}).get('Message')
-
-        if error_code == 'ValidationException' and '2024' in error_message:
-            # Special handling for 2024 data issues
-            return format_response(
-                'error',
-                {'error_code': error_code},
-                f'Cost Anomaly Detection validation error for 2024 data: {error_message}. '
-                f'Note that cost anomalies may not be available yet for very recent data. '
-                f'Try querying a date range that ends at least 24-48 hours in the past.',
-                error_type=error_code,
-                operation='cost_anomaly',
-                service='Cost Explorer',
-            )
-        elif error_code == 'ValidationException':
-            return format_response(
-                'error',
-                {'error_code': error_code},
-                f'Cost Anomaly Detection validation error: {error_message}',
-                error_type=error_code,
-                operation='cost_anomaly',
-                service='Cost Explorer',
-            )
-        else:
-            # Use shared error handler for other AWS errors
-            raise
     except Exception as e:
         # Use shared error handler for other exceptions
         return await handle_aws_error(ctx, e, 'cost_anomaly', 'Cost Explorer')

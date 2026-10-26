@@ -721,45 +721,11 @@ def test_cost_explorer_server_initialization():
 
 
 @pytest.mark.asyncio
-async def test_cost_explorer_main_function():
-    """Test cost_explorer main function with getCostAndUsage operation."""
-    mock_context = AsyncMock()
-
-    with patch(
-        'awslabs.billing_cost_management_mcp_server.tools.cost_explorer_tools.create_aws_client'
-    ) as mock_client:
-        mock_client.return_value = MagicMock()
-
-        result = await cost_explorer(
-            mock_context,
-            operation='getCostAndUsage',
-            start_date='2024-01-01',
-            end_date='2024-01-31',
-        )
-
-        assert result['status'] in ['success', 'error']
-    assert len(cost_explorer_server.instructions or '') > 0, (
-        'Server instructions should not be empty'
-    )
-    instructions = cost_explorer_server.instructions
-    assert instructions is not None
-    assert (
-        'Tools for working with AWS Cost Explorer API' in instructions if instructions else False
-    ), 'Server instructions should mention AWS Cost Explorer API'
-
-    # Check that the cost_explorer tool was registered correctly
+async def test_cost_explorer_tool_is_registered():
+    """The cost-explorer tool is registered on the server under its public name."""
     tool = await cost_explorer_server.get_tool('cost-explorer')
     assert tool is not None, 'The cost_explorer tool should be registered with the server'
-    assert tool.name == 'cost-explorer', (
-        'The registered cost_explorer tool should have the right name'
-    )
-
-    # Check server has expected methods and properties
-    assert hasattr(cost_explorer_server, 'run'), "Server should have a 'run' method"
-    assert hasattr(cost_explorer_server, 'name'), "Server should have a 'name' property"
-    assert hasattr(cost_explorer_server, 'instructions'), (
-        "Server should have 'instructions' property"
-    )
+    assert tool.name == 'cost-explorer'
 
 
 # Tests for cost_explorer_operations module

@@ -739,14 +739,12 @@ class TestGetCostAndUsageWithResources:
             assert result['status'] == 'success'
             assert result['data'] is not None
 
-    async def test_date_adjustment_for_14_day_limit(self, mock_context, mock_ce_client):
-        """Test date adjustment for the 14-day limit of resource data."""
-        # Setup a date more than 14 days ago
+    async def test_start_date_older_than_14_days_is_sent_unchanged(
+        self, mock_context, mock_ce_client
+    ):
+        """A start date past the 14-day window is not clamped; the service validates it."""
         today = datetime.now()
         old_date = (today - timedelta(days=20)).strftime('%Y-%m-%d')
-
-        # Expected adjusted date (14 days ago)
-        (today - timedelta(days=14)).strftime('%Y-%m-%d')
 
         await get_cost_and_usage_with_resources(
             mock_context,
@@ -756,6 +754,8 @@ class TestGetCostAndUsageWithResources:
         )
 
         mock_ce_client.get_cost_and_usage_with_resources.assert_called_once()
+        call_kwargs = mock_ce_client.get_cost_and_usage_with_resources.call_args[1]
+        assert call_kwargs['TimePeriod']['Start'] == old_date
 
     async def test_with_json_parameters(self, mock_context, mock_ce_client):
         """Test with JSON parameters for metrics, group_by, and filters."""
