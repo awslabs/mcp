@@ -1808,6 +1808,9 @@ class TestWhitespaceSeparatorBypass:
             "LOAD\nDATA INFILE 'x' INTO TABLE t",
             "LOAD  XML INFILE 'x' INTO TABLE t",
             'REPLACE  INTO t VALUES (1)',
+            "LOAD -- c\nDATA INFILE 'x' INTO TABLE t",
+            "LOAD #c\nDATA INFILE 'x' INTO TABLE t",
+            'LOAD  INDEX INTO CACHE t',
         ],
         ids=[
             'load_data_one_space',
@@ -1817,6 +1820,9 @@ class TestWhitespaceSeparatorBypass:
             'load_data_newline',
             'load_xml_two_spaces',
             'replace_into_two_spaces',
+            'load_data_line_comment',
+            'load_data_hash_comment',
+            'load_index_two_spaces',
         ],
     )
     def test_multiword_keyword_blocks_under_any_whitespace(self, sql):

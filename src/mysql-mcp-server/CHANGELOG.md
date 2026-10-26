@@ -88,10 +88,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the whole phrase, baking in one literal space (`re.escape('LOAD DATA')` →
   `LOAD\ DATA`), so any other MySQL-legal separator between the words slipped
   past the gate. The builder now joins words with `\s+`, matching the sibling
-  MSSQL / Oracle / DB2 detectors. Whitespace variant of CVE-2026-85788,
-  whose earlier fix only normalised comments. Non-breaking: single-word
-  keywords are unaffected and the change only widens the inter-word
-  separator.
+  MSSQL / Oracle / DB2 detectors. Whitespace variant of CVE-2026-85788; this
+  also closes `--` and `#` line comments between keyword words, which
+  comment-stripping reduces to a newline that the earlier comment fix missed.
+  Non-breaking: single-word keywords are unaffected and the change only widens
+  the inter-word separator.
 
 ### Changed
 

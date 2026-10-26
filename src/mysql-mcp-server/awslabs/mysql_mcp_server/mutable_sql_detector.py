@@ -407,7 +407,7 @@ def detect_mutating_keywords(sql_text: str) -> list[str]:
     sql_for_check = _strip_comments_for_scan(sql_text)
     matches = MUTATING_PATTERN.findall(sql_for_check)
     matches += STATEMENT_START_MUTATING_PATTERN.findall(sql_for_check)
-    return list({m.upper() for m in matches})
+    return list({re.sub(r'\s+', ' ', m).upper() for m in matches})
 
 
 def check_sql_injection_risk(sql: str) -> list[dict]:
