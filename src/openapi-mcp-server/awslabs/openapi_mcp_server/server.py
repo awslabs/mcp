@@ -22,7 +22,7 @@ import signal
 import sys
 
 # Import from our modules - use direct imports from sub-modules for better patching in tests
-from awslabs.openapi_mcp_server import logger
+from awslabs.openapi_mcp_server import LOG_LEVELS, get_log_level_from_env, logger
 from awslabs.openapi_mcp_server.api.config import Config, load_config
 from awslabs.openapi_mcp_server.prompts import MCPPromptManager
 from awslabs.openapi_mcp_server.utils.http_client import HttpClientFactory, make_request_with_retry
@@ -623,9 +623,9 @@ def main():
     # Server configuration
     parser.add_argument(
         '--log-level',
-        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
-        default='INFO',
-        help='Set logging level',
+        choices=LOG_LEVELS,
+        default=get_log_level_from_env(),
+        help='Set logging level (default: the LOG_LEVEL environment variable, or INFO)',
     )
     parser.add_argument('--debug', action='store_true', help='Enable debug mode')
 
@@ -723,6 +723,11 @@ def main():
     logger.remove()
     logger.add(lambda msg: print(msg, end='', file=sys.stderr), level=args.log_level)
     logger.info(f'Starting server with logging level: {args.log_level}')
+    env_log_level = os.environ.get('LOG_LEVEL', '').strip()
+    if env_log_level and env_log_level.upper() not in LOG_LEVELS:
+        logger.warning(
+            f'Ignoring unrecognized LOG_LEVEL={env_log_level!r}; expected one of {", ".join(LOG_LEVELS)}'
+        )
 
     # Load configuration
     logger.debug('Loading configuration from arguments and environment')

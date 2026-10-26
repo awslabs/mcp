@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Spec URL loading is DNS-pinned end to end; the previous README note about deploying behind an egress proxy for "full DNS pinning" no longer applies.
 - **BREAKING (edge case)**: OpenAPI specs containing external `$ref`s — remote `http(s)://`/`file://` references, or relative multi-file references like `schemas.yaml#/Pet` — are now refused. Specs using only internal (`#/components/...`) references are unaffected. Bundle multi-file specs into a single document before loading.
 
+### Fixed
+- The `LOG_LEVEL` environment variable shown in the README install configurations was ignored: the server always logged at `INFO` unless `--log-level` was passed. `LOG_LEVEL` now sets the default level (case-insensitive); `--log-level` still takes precedence, and an unrecognized value falls back to `INFO` with a warning.
+
 ## [1.1.0] - 2026-05-31
 
 ### Added
