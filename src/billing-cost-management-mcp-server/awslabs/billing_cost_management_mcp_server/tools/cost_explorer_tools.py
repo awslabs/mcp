@@ -247,9 +247,11 @@ DIMENSION REFERENCE:
   (out-of-cycle and non-RI subscription charges), Tax, Credit, Refund, and these discounts by full
   name: Bundled Discount, Distributor Discount, Enterprise Discount Program Discount, Marketplace
   Discount, Private Rate Card Discount, RI Volume Discount, Solution Provider Program Discount.
-  The CUR and Cost Categories line-item types RIFee and Fee match nothing in a Cost Explorer
-  filter: use Recurring and Upfront for RI fees, Other for other fees. Call getDimensionValues
-  with RECORD_TYPE for the values present in the account.
+  These differ from the CUR and Cost Categories line-item types: Cost Explorer reports RIFee as
+  Recurring, so a RIFee filter matches nothing, and reports most CUR Fee rows as Upfront, Other or
+  Support, so a Fee filter misses them (use Upfront for RI upfront fees, Other for other
+  subscription fees; Fee can remain for a fee that is none of these). Call getDimensionValues with
+  RECORD_TYPE for the values present in the account.
 
 BILLING VIEW SUPPORT:
 Most Cost Explorer operations support an optional billing_view_arn parameter that allows you to scope

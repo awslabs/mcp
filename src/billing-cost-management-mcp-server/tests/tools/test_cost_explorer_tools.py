@@ -1929,8 +1929,10 @@ class TestCostExplorerDescriptionContract:
             assert re.search(rf'\b{value}\b', record_type), value
         # The old prose guesses are gone, and the CUR codes are named only as non-values.
         assert 'e.g., RI fees, usage costs' not in record_type
-        assert 'RIFee and Fee match nothing in a Cost Explorer filter' in record_type
-        assert 'use Recurring and Upfront for RI fees' in record_type
+        assert 'reports RIFee as Recurring, so a RIFee filter matches nothing' in record_type
+        assert 'most CUR Fee rows as Upfront, Other or Support' in record_type
+        assert 'use Upfront for RI upfront fees, Other for other subscription fees' in record_type
+        assert 'RIFee and Fee match nothing' not in record_type
         assert 'getDimensionValues with RECORD_TYPE' in record_type
 
     @pytest.mark.parametrize(
