@@ -43,6 +43,9 @@ VALID_OPERATIONS = [
     'list_workload_estimate_usage',
     'get_preferences',
 ]
+# WorkloadEstimateStatus values. The service matches the STATUS filter exactly and
+# case-sensitively, and returns no estimates (not an error) for any other value.
+VALID_WORKLOAD_ESTIMATE_STATUSES = ('UPDATING', 'VALID', 'INVALID', 'ACTION_NEEDED')
 # ListWorkloadEstimates returns up to 25 estimates per page.
 LIST_WORKLOAD_ESTIMATES_PAGE_SPEC = PageSpec(
     result_key='items',
@@ -306,7 +309,8 @@ async def bcm_pricing_calc(
             (ISO format: YYYY-MM-DDTHH:MM:SS).
         expires_before: Filter estimates expiring before this timestamp
             (ISO format: YYYY-MM-DDTHH:MM:SS).
-        status_filter: Filter by status (UPDATING, VALID, INVALID, ACTION_NEEDED).
+        status_filter: Filter by status: one of UPDATING, VALID, INVALID, ACTION_NEEDED
+            (case-insensitive). Any other value is rejected.
         name_filter: Filter by name (supports partial matching).
         name_match_option: Match option for the name filter
             (EQUALS, STARTS_WITH, CONTAINS). Defaults to CONTAINS.
@@ -426,7 +430,8 @@ async def list_workload_estimates(
         created_before: Filter estimates created before this timestamp (ISO format: YYYY-MM-DDTHH:MM:SS)
         expires_after: Filter estimates expiring after this timestamp (ISO format: YYYY-MM-DDTHH:MM:SS)
         expires_before: Filter estimates expiring before this timestamp (ISO format: YYYY-MM-DDTHH:MM:SS)
-        status_filter: Filter by status (UPDATING, VALID, INVALID, ACTION_NEEDED)
+        status_filter: Filter by status: one of UPDATING, VALID, INVALID, ACTION_NEEDED
+            (case-insensitive). Any other value is rejected.
         name_filter: Filter by name (supports partial matching)
         name_match_option: Match option for name filter (EQUALS, STARTS_WITH, CONTAINS)
         next_token: Continuation token from a previous response
@@ -436,10 +441,25 @@ async def list_workload_estimates(
         Dict containing the workload estimates information. This contains the following information about a workload estimate:
         id: The unique identifier of the workload estimate.
         name: The name of the workload estimate.
-        status: The current status of the workload estimate. Possible values are UPDATIN, VALID, INVALID, ACTION_NEEDED
+        status: The current status of the workload estimate. Possible values are UPDATING, VALID, INVALID, ACTION_NEEDED
     """
     try:
         await ctx.info('Listing workload estimates')
+
+        # Validate before any AWS call: an unknown or wrongly cased status matches nothing.
+        if status_filter:
+            normalized_status = status_filter.strip().upper()
+            if normalized_status not in VALID_WORKLOAD_ESTIMATE_STATUSES:
+                return format_response(
+                    'error',
+                    {'invalid_parameter': 'status_filter', 'value': status_filter},
+                    f'Invalid status_filter: {status_filter}. '
+                    f'Must be one of: {", ".join(VALID_WORKLOAD_ESTIMATE_STATUSES)}.',
+                    error_type='validation_error',
+                    operation='list_workload_estimates',
+                    service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
+                )
+            status_filter = normalized_status
 
         # Create BCM Pricing Calculator client
         bcm_client = create_aws_client('bcm-pricing-calculator')

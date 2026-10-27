@@ -2124,3 +2124,89 @@ class TestNonTransientBotocoreRetryStrategy:
 
         assert result['status'] == 'error'
         assert result['retry_strategy'] == expected
+
+
+class TestStatusFilterValidation:
+    """status_filter is matched exactly by the service, so it is normalized and validated locally."""
+
+    @staticmethod
+    async def _list(client, **kwargs):
+        """Run list_workload_estimates against a client mock with preferences configured."""
+        with (
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client',
+                return_value=client,
+            ) as create_client,
+            patch(
+                'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.get_preferences',
+                new=AsyncMock(return_value={'account_types': ['management account']}),
+            ) as get_prefs,
+        ):
+            ctx = MagicMock()
+            ctx.info = AsyncMock()
+            ctx.warning = AsyncMock()
+            ctx.error = AsyncMock()
+            result = await list_workload_estimates(ctx, **kwargs)
+            return result, create_client, get_prefs
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'given,sent',
+        [
+            ('VALID', 'VALID'),
+            ('valid', 'VALID'),
+            ('Action_Needed', 'ACTION_NEEDED'),
+            (' updating ', 'UPDATING'),
+            ('invalid', 'INVALID'),
+        ],
+    )
+    async def test_status_filter_is_upper_cased(self, given, sent):
+        """Any casing of a valid status is sent upper-cased, since the service match is case-sensitive."""
+        client = MagicMock()
+        client.list_workload_estimates.return_value = {'items': []}
+
+        result, _, _ = await self._list(client, status_filter=given)
+
+        assert result['status'] == 'success'
+        filters = client.list_workload_estimates.call_args.kwargs['filters']
+        assert filters == [{'name': 'STATUS', 'values': [sent], 'matchOption': 'EQUALS'}]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize('given', ['COMPLETE', 'VALIDATED', 'ACTION NEEDED', '   '])
+    async def test_unknown_status_is_rejected_before_any_call(self, given):
+        """A value outside the enum returns validation_error listing the valid values, with no AWS call."""
+        client = MagicMock()
+
+        result, create_client, get_prefs = await self._list(client, status_filter=given)
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert result['data']['invalid_parameter'] == 'status_filter'
+        assert result['data']['value'] == given
+        for status in ('UPDATING', 'VALID', 'INVALID', 'ACTION_NEEDED'):
+            assert status in result['message']
+        create_client.assert_not_called()
+        get_prefs.assert_not_called()
+        client.list_workload_estimates.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_core_routes_rejection_for_list_operation(self, mock_context):
+        """The tool entry point returns the same validation_error for a bad status_filter."""
+        with patch(
+            'awslabs.billing_cost_management_mcp_server.tools.bcm_pricing_calculator_tools.create_aws_client'
+        ) as create_client:
+            result = await bcm_pricing_calc_core(
+                mock_context, operation='list_workload_estimates', status_filter='COMPLETE'
+            )
+
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        create_client.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_schema_lists_status_values(self):
+        """The served status_filter description lists the accepted values."""
+        tool = await bcm_pricing_calculator_server.get_tool('bcm-pricing-calc')
+        assert tool is not None
+        text = ' '.join(tool.parameters['properties']['status_filter']['description'].split())
+        assert 'UPDATING, VALID, INVALID, ACTION_NEEDED' in text
