@@ -332,14 +332,24 @@ def filter_state_machines_by_tag(state_machines, tag_key, tag_value):
     return tagged_state_machines
 
 
+def get_all_state_machines():
+    """Retrieve all available Step Functions state machines using pagination."""
+    paginator = sfn_client.get_paginator('list_state_machines')
+    all_state_machines = []
+
+    for page in paginator.paginate():
+        all_state_machines.extend(page.get('stateMachines', []))
+
+    return all_state_machines
+
+
 def register_state_machines():
     """Register Step Functions state machines as individual tools."""
     try:
         logger.info('Registering Step Functions state machines as individual tools...')
-        state_machines = sfn_client.list_state_machines()
 
         # Get all state machines
-        all_state_machines = state_machines['stateMachines']
+        all_state_machines = get_all_state_machines()
         logger.info(f'Total Step Functions state machines found: {len(all_state_machines)}')
 
         # First filter by state machine name if prefix or list is set
