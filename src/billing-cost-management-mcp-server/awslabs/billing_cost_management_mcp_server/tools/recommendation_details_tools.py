@@ -37,7 +37,6 @@ from ..utilities.constants import (
     SERVICE_MAP,
     TERM_MAP,
 )
-from ..utilities.redaction import redact_identifiers
 from ..utilities.time_utils import format_timestamp_to_utc_iso
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
@@ -192,8 +191,8 @@ async def get_cost_explorer_data(ctx: Context, recommendation: Dict[str, Any]) -
         else:
             return {'error': 'Unsupported action type for Cost Explorer data'}
     except Exception as e:
-        await ctx.error(f'Error getting Cost Explorer data: {type(e).__name__}')
-        return {'error': f'Error getting Cost Explorer data: {redact_identifiers(str(e))}'}
+        await ctx.error(f'Error getting Cost Explorer data: {str(e)}')
+        return {'error': f'Error getting Cost Explorer data: {str(e)}'}
 
 
 def missing_details_error(recommended_details: Dict[str, Any], kind: str) -> Dict[str, Any]:
@@ -275,10 +274,8 @@ async def get_savings_plans_recommendation(
         response = ce_client.get_savings_plans_purchase_recommendation(**params)
         return response.get('SavingsPlansPurchaseRecommendation', {})
     except Exception as e:
-        await ctx.error(f'Error getting Savings Plans recommendation: {type(e).__name__}')
-        return {
-            'error': f'Error getting Savings Plans recommendation: {redact_identifiers(str(e))}'
-        }
+        await ctx.error(f'Error getting Savings Plans recommendation: {str(e)}')
+        return {'error': f'Error getting Savings Plans recommendation: {str(e)}'}
 
 
 async def get_reserved_instances_recommendation(
@@ -332,10 +329,8 @@ async def get_reserved_instances_recommendation(
         response = ce_client.get_reservation_purchase_recommendation(**params)
         return response
     except Exception as e:
-        await ctx.error(f'Error getting Reserved Instance recommendation: {type(e).__name__}')
-        return {
-            'error': f'Error getting Reserved Instance recommendation: {redact_identifiers(str(e))}'
-        }
+        await ctx.error(f'Error getting Reserved Instance recommendation: {str(e)}')
+        return {'error': f'Error getting Reserved Instance recommendation: {str(e)}'}
 
 
 async def get_compute_optimizer_data(
@@ -398,8 +393,8 @@ async def get_compute_optimizer_data(
         else:
             return {'error': f'Unsupported resource type: {resource_type}'}
     except Exception as e:
-        await ctx.error(f'Error getting Compute Optimizer data: {type(e).__name__}')
-        return {'error': f'Error getting Compute Optimizer data: {redact_identifiers(str(e))}'}
+        await ctx.error(f'Error getting Compute Optimizer data: {str(e)}')
+        return {'error': f'Error getting Compute Optimizer data: {str(e)}'}
 
 
 def format_timestamp(timestamp: Any) -> Optional[str]:

@@ -427,8 +427,6 @@ Tool errors are returned with `isError: true` and a JSON body that includes:
 
 A tool can override the mapping for a specific error by passing `retry_strategy=` and `hint=` to `format_response`. Session SQL errors from invalid queries are `modify_request`, and when every region of a multi-region call fails, `retry_strategy` is combined from each region's own error. A botocore `ParamValidationError` (malformed request parameters, rejected before any request is sent) is a `validation_error`. `aws_connection_error` is `retry_same_request` only for real connection failures: botocore's `ConnectionError` and `HTTPClientError` classes (such as `EndpointConnectionError` and `ReadTimeoutError`) and `CapacityNotAvailableError`; `boto_error_type` names the botocore class. Every other botocore error keeps `error_type: aws_connection_error` but sets its own `retry_strategy`: `modify_request` for botocore's other argument checks (`UnknownParameterError`, `RangeError`, ...), and `do_not_retry` for credential and configuration errors (`NoCredentialsError`, `CredentialRetrievalError` from a failed `credential_process`, an expired SSO token, `NoRegionError`, `ProfileNotFound`, ...) and any other SDK-side failure, since a retry fails the same way. The full mapping is in `utilities/error_contract.py`.
 
-Error text never carries AWS identifiers: every ARN and 12-digit account ID in an error response (for example the caller's role ARN in an `AccessDenied` message) is replaced with `[ARN redacted]` or `[account ID redacted]`. The rest of the message, including the denied action, is kept. Successful results are not redacted.
-
 ## Supported AWS Services
 
 The server currently supports the following AWS services

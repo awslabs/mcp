@@ -34,7 +34,6 @@ import time
 from . import constants
 from .error_contract import DO_NOT_RETRY, MODIFY_REQUEST, InvalidNextTokenError
 from .logging_utils import get_context_logger, get_logger
-from .redaction import redact_identifiers
 from botocore.config import Config
 from botocore.exceptions import (
     BotoCoreError,
@@ -449,9 +448,7 @@ async def handle_aws_error(
             }
         )
 
-    # AWS error text names the caller (its role ARN and account ID) and the resource;
-    # none of that may reach the client. Log messages are redacted by the context logger.
-    return redact_identifiers(error_response)
+    return error_response
 
 
 # Error codes meaning the caller's next_token can no longer be used. AWS Pricing raises

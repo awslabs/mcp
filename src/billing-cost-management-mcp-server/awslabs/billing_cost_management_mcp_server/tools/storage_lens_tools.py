@@ -168,7 +168,7 @@ class ManifestHandler:
                 return await self._find_latest_manifest(bucket, key)
 
         except Exception as e:
-            await self.ctx.error(f'Failed to get manifest: {type(e).__name__}')
+            await self.ctx.error(f'Failed to get manifest: {str(e)}')
             raise
 
     async def _read_manifest_file(self, bucket: str, key: str) -> Dict[str, Any]:
@@ -187,9 +187,7 @@ class ManifestHandler:
             await self.ctx.info(f'Successfully read manifest file at s3://{bucket}/{key}')
             return manifest_content
         except Exception as e:
-            await self.ctx.error(
-                f'Failed to read manifest file at s3://{bucket}/{key}: {type(e).__name__}'
-            )
+            await self.ctx.error(f'Failed to read manifest file at s3://{bucket}/{key}: {str(e)}')
             # Re-raise unwrapped so handle_aws_error keeps the AWS error code
             raise
 
@@ -244,7 +242,7 @@ class ManifestHandler:
 
         except Exception as e:
             await self.ctx.error(
-                f'Failed to locate manifest file in s3://{bucket}/{key}: {type(e).__name__}'
+                f'Failed to locate manifest file in s3://{bucket}/{key}: {str(e)}'
             )
             # Re-raise unwrapped so handle_aws_error keeps the AWS error code
             raise
@@ -490,7 +488,7 @@ class AthenaHandler:
             return AthenaQueryExecution(query_execution_id=query_execution_id, status='STARTED')
 
         except Exception as e:
-            await self.ctx.error(f'Error starting Athena query: {type(e).__name__}')
+            await self.ctx.error(f'Error starting Athena query: {str(e)}')
             # Re-raise unwrapped so handle_aws_error keeps the AWS error code
             raise
 
@@ -524,8 +522,7 @@ class AthenaHandler:
                     reason = response['QueryExecution']['Status'].get(
                         'StateChangeReason', 'Unknown error'
                     )
-                    # The reason can quote the query; it reaches the caller in the error
-                    await self.ctx.error('Athena query failed')
+                    await self.ctx.error(f'Query failed: {reason}')
                     # A failed Athena query is almost always the query itself
                     raise ValueError(f'Query failed: {reason}')
                 elif state == 'SUCCEEDED':
@@ -545,7 +542,7 @@ class AthenaHandler:
 
         except Exception as e:
             # Use shared error handler for consistent error reporting
-            await self.ctx.error(f'Error waiting for query completion: {type(e).__name__}')
+            await self.ctx.error(f'Error waiting for query completion: {str(e)}')
             raise
 
     async def get_query_results(self, query_execution_id: str) -> Dict[str, Any]:
@@ -586,7 +583,7 @@ class AthenaHandler:
 
         except Exception as e:
             # Use shared error handler for consistent error reporting
-            await self.ctx.error(f'Error getting query results: {type(e).__name__}')
+            await self.ctx.error(f'Error getting query results: {str(e)}')
             raise
 
     def determine_output_location(

@@ -101,9 +101,7 @@ from awslabs.billing_cost_management_mcp_server.utilities.error_contract import 
     add_retry_guidance,
 )
 from awslabs.billing_cost_management_mcp_server.utilities.logging_utils import get_logger
-from awslabs.billing_cost_management_mcp_server.utilities.redaction import redact_identifiers
 from fastmcp import FastMCP
-from fastmcp.exceptions import FastMCPError, ToolError
 from fastmcp.server.middleware import Middleware
 from fastmcp.tools import ToolResult
 
@@ -133,31 +131,18 @@ class ErrorSignalingMiddleware(Middleware):
     content and structured_content for backward compatibility.
 
     It also adds retry_strategy (and hint, when one applies) derived from error_type,
-    unless the tool already set them (see utilities/error_contract.py), and redacts
-    ARNs and account IDs from the error, whichever code path built it (see
-    utilities/redaction.py).
+    unless the tool already set them (see utilities/error_contract.py).
     """
 
     async def on_call_tool(self, context, call_next):
         """Intercept tool results and set is_error for error responses."""
-        try:
-            result = await call_next(context)
-        except FastMCPError as error:
-            # An exception that escaped the tool (FastMCP wraps others in ToolError):
-            # FastMCP sends its text to the client.
-            redacted = redact_identifiers(str(error))
-            if redacted != str(error):
-                # In place, so the type, attributes and cause chain are kept
-                error.args = (redacted,)
-                if str(error) != redacted:  # a subclass that formats its own text
-                    raise ToolError(redacted) from error
-            raise
+        result = await call_next(context)
         if (
             isinstance(result, ToolResult)
             and isinstance(result.structured_content, dict)
             and result.structured_content.get('status') == 'error'
         ):
-            structured_content = redact_identifiers(add_retry_guidance(result.structured_content))
+            structured_content = add_retry_guidance(result.structured_content)
             content = result.content
             # When content is the serialized structured_content (the case for dict
             # returns), re-derive it so the text the model reads carries the same fields.
@@ -166,13 +151,6 @@ class ErrorSignalingMiddleware(Middleware):
                 and content == ToolResult(structured_content=result.structured_content).content
             ):
                 content = ToolResult(structured_content=structured_content).content
-            else:
-                content = [
-                    item.model_copy(update={'text': redact_identifiers(item.text)})
-                    if isinstance(item, mcp_types.TextContent)
-                    else item
-                    for item in content
-                ]
             return _ErrorToolResult(
                 content=content,
                 structured_content=structured_content,
