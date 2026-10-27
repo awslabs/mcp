@@ -962,6 +962,19 @@ def test_compute_optimizer_server_initialization():
     assert isinstance(compute_optimizer_server, FastMCP)
 
 
+@pytest.fixture(scope='module', autouse=True)
+def _restore_real_tool_module():
+    """Reload the module with the real FastMCP.tool after this file's tests.
+
+    _reload_compute_optimizer_with_identity_decorator() leaves the module's server with no registered tools;
+    restoring it keeps later test files from seeing that state.
+    """
+    yield
+    from awslabs.billing_cost_management_mcp_server.tools import compute_optimizer_tools as module
+
+    importlib.reload(module)
+
+
 def _reload_compute_optimizer_with_identity_decorator() -> Any:
     """Reload compute_optimizer_tools with FastMCP.tool patched to return the original function unchanged (identity decorator).
 

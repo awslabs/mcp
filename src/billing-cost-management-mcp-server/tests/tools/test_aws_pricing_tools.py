@@ -665,6 +665,19 @@ async def test_aws_pricing_get_pricing_from_api_passes_filters_dict_too_extra(mo
         mock_impl.assert_awaited_once_with(mock_context, 'AmazonEC2', filters, max_items=None)
 
 
+@pytest.fixture(scope='module', autouse=True)
+def _restore_real_tool_module():
+    """Reload the module with the real FastMCP.tool after this file's tests.
+
+    _reload_pricing_with_identity_decorator() leaves the module's server with no registered tools;
+    restoring it keeps later test files from seeing that state.
+    """
+    yield
+    from awslabs.billing_cost_management_mcp_server.tools import aws_pricing_tools as module
+
+    importlib.reload(module)
+
+
 def _reload_pricing_with_identity_decorator():
     """Reload aws_pricing_tools with FastMCP.tool patched to return the original function unchanged (identity decorator).
 
