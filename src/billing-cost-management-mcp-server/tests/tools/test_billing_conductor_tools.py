@@ -136,6 +136,23 @@ def test_get_billing_group_cost_report_describes_page_sizes():
     assert 'a `max_items` below 200 can return up to 200' in description
 
 
+@pytest.mark.parametrize(
+    'tool_name', ['list-billing-group-cost-reports', 'get-billing-group-cost-report']
+)
+def test_cost_report_descriptions_state_margin_sign_and_unit(tool_name):
+    """Margin is proforma minus AWS cost, and margin percentage is a fraction, not a percent."""
+    tool = asyncio.run(billing_conductor_server.get_tool(tool_name))
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+    assert (
+        'Margin (proforma cost minus AWS cost; negative means the proforma cost is below'
+        in description
+    )
+    assert 'as a fraction, not a percent: -0.25 means -25%' in description
+    assert '"0.0" when the AWS cost is 0' in description
+    assert 'percentage of billing group margin' not in description
+
+
 def test_list_pricing_rules_tool_registered():
     """Test that the list_pricing_rules tool is registered."""
     tool = asyncio.run(billing_conductor_server.get_tool('list-pricing-rules'))
