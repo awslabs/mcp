@@ -239,7 +239,15 @@ DIMENSION REFERENCE:
   Host (Dedicated Host)
 - USAGE_TYPE: Usage type (e.g., DataTransfer-In-Bytes)
 - USAGE_TYPE_GROUP: Group of related usage types (e.g., EC2: Running Hours)
-- RECORD_TYPE: Charge types (e.g., RI fees, usage costs)
+- RECORD_TYPE: Charge type. Exact, case-sensitive values: Usage, DiscountedUsage (RI-covered
+  usage), SavingsPlanCoveredUsage, SavingsPlanNegation, SavingsPlanRecurringFee,
+  SavingsPlanUpfrontFee, Recurring (RI recurring fee), Upfront (RI upfront fee), Support, Other
+  (out-of-cycle and non-RI subscription charges), Tax, Credit, Refund, and these discounts by full
+  name: Bundled Discount, Distributor Discount, Enterprise Discount Program Discount, Marketplace
+  Discount, Private Rate Card Discount, RI Volume Discount, Solution Provider Program Discount.
+  The CUR and Cost Categories line-item types RIFee and Fee match nothing in a Cost Explorer
+  filter: use Recurring and Upfront for RI fees, Other for other fees. Call getDimensionValues
+  with RECORD_TYPE for the values present in the account.
 
 BILLING VIEW SUPPORT:
 Most Cost Explorer operations support an optional billing_view_arn parameter that allows you to scope

@@ -1897,6 +1897,42 @@ class TestCostExplorerDescriptionContract:
         for wrong in ('shared', 'dedicated', 'default', 'SHARED', 'DEDICATED', 'HOST'):
             assert not re.search(rf'\b{wrong}\b', tenancy)
 
+    def test_record_type_reference_uses_exact_ce_values(self, tool):
+        """RECORD_TYPE lists the values Cost Explorer matches, not CUR codes or prose."""
+        match = re.search(r'^- RECORD_TYPE:.*(?:\n  .*)*', tool.description, re.MULTILINE)
+        assert match is not None
+        # Re-join wrapped lines so multi-word values split across a line break still match.
+        record_type = ' '.join(match.group(0).split())
+        assert 'case-sensitive' in record_type
+        for value in (
+            'Usage',
+            'DiscountedUsage',
+            'SavingsPlanCoveredUsage',
+            'SavingsPlanNegation',
+            'SavingsPlanRecurringFee',
+            'SavingsPlanUpfrontFee',
+            'Recurring',
+            'Upfront',
+            'Support',
+            'Other',
+            'Tax',
+            'Credit',
+            'Refund',
+            'Bundled Discount',
+            'Enterprise Discount Program Discount',
+            'Private Rate Card Discount',
+            'RI Volume Discount',
+            'Solution Provider Program Discount',
+            'Distributor Discount',
+            'Marketplace Discount',
+        ):
+            assert re.search(rf'\b{value}\b', record_type), value
+        # The old prose guesses are gone, and the CUR codes are named only as non-values.
+        assert 'e.g., RI fees, usage costs' not in record_type
+        assert 'RIFee and Fee match nothing in a Cost Explorer filter' in record_type
+        assert 'use Recurring and Upfront for RI fees' in record_type
+        assert 'getDimensionValues with RECORD_TYPE' in record_type
+
     def test_description_prefers_monthly_for_whole_month_rankings(self, tool):
         """Whole-month totals and rankings are steered to MONTHLY; the code default stays DAILY."""
         assert 'DAILY granularity for periods <3 months' not in tool.description
