@@ -263,6 +263,26 @@ class TestToolRegistration:
         assert 'time_range' in description
 
     @pytest.mark.asyncio
+    async def test_description_scopes_remaining_balance_to_active_credits(self):
+        """The balance guidance totals only unexpired, started credits.
+
+        GetCredits returns expired credits with their remainingAmount intact and
+        creditStatus still ENABLED, so the old "report remainingAmount" rule led a
+        model to count expired balances as usable.
+        """
+        description = (await _registered_tool()).description or ''
+
+        assert 'For "how much credit do I have left", report remainingAmount,' not in description
+        assert (
+            'total remainingAmount only over credits whose validityStatus is ACTIVE and '
+            'whose creditStatus is not DISABLED, per currencyCode'
+        ) in description
+        assert 'validityStatus (ACTIVE|EXPIRED|NOT_YET_ACTIVE|UNKNOWN)' in description
+        assert 'validity_evaluated_at' in description
+        assert 'not zeroed' in description
+        assert 'not an expiration indicator' in description
+
+    @pytest.mark.asyncio
     async def test_description_documents_max_items_contract(self):
         """The description documents max_items/next_token and drops the old paging params."""
         description = (await _registered_tool()).description or ''
