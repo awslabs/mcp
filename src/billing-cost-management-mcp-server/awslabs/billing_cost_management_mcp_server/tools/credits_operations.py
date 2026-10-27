@@ -128,7 +128,7 @@ def _credit_validity_status(
     is reached; the same rule is used here. A readable date that settles the
     status wins; otherwise a date that is present but unreadable gives ``UNKNOWN``
     rather than a guess, so it is never counted as usable by default. A credit
-    with no ``endDate`` has no reported expiration.
+    with no ``endDate`` is treated as not expiring.
 
     Args:
         dates: ``_read_credit_date`` results keyed by field name.

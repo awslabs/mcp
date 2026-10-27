@@ -307,8 +307,9 @@ class TestGetCreditsValidity:
             (-60, -1, 'EXPIRED'),
             (5, 35, 'NOT_YET_ACTIVE'),
             (-60, None, 'ACTIVE'),
+            (5, None, 'NOT_YET_ACTIVE'),
         ],
-        ids=['active', 'expired', 'not-yet-active', 'no-end-date'],
+        ids=['active', 'expired', 'not-yet-active', 'no-end-date', 'no-end-date-not-started'],
     )
     async def test_validity_status_from_dates(
         self, mock_context, sample_credit, start_days, end_days, expected
@@ -320,6 +321,23 @@ class TestGetCreditsValidity:
         result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
 
         assert result['data']['credits'][0]['validityStatus'] == expected
+
+    @pytest.mark.asyncio
+    async def test_placeholder_end_date_is_active(self, mock_context, sample_credit):
+        """A 2099-12-31 no-expiry placeholder classifies ACTIVE, so its balance counts as usable."""
+        now = datetime.now(timezone.utc)
+        credit = dict(
+            sample_credit,
+            startDate=now - timedelta(days=30),
+            endDate=datetime(2099, 12, 31, tzinfo=timezone.utc),
+        )
+        client = _get_credits_client([credit])
+
+        result = await _call_get_credits(mock_context, client, start_date=_offset_date(-180))
+
+        returned = result['data']['credits'][0]
+        assert returned['validityStatus'] == 'ACTIVE'
+        assert returned['endDate'] == '2099-12-31T00:00:00'
 
     @pytest.mark.asyncio
     async def test_expired_credit_keeps_balance_and_status(self, mock_context, sample_credit):

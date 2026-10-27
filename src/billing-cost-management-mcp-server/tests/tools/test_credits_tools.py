@@ -283,6 +283,26 @@ class TestToolRegistration:
         assert 'not an expiration indicator' in description
 
     @pytest.mark.asyncio
+    async def test_description_says_credits_without_end_date_do_not_expire(self):
+        """A missing or far-future endDate is described as no expiry, not as a 2099 expiry.
+
+        The API leaves endDate unset for a credit that never expires, and some such
+        credits carry a far-future endDate instead.
+        """
+        description = ' '.join(((await _registered_tool()).description or '').split())
+
+        assert 'a missing date does not count against it' not in description
+        assert (
+            'A credit with no endDate does not expire and is ACTIVE once its startDate is reached'
+        ) in description
+        assert (
+            'An endDate in 2099 or later (for example 2099-12-31) is a no-expiry placeholder'
+            in description
+        )
+        assert 'not as expiring in that year' in description
+        assert 'except when it is missing or a placeholder in 2099 or later' in description
+
+    @pytest.mark.asyncio
     async def test_description_documents_max_items_contract(self):
         """The description documents max_items/next_token and drops the old paging params."""
         description = (await _registered_tool()).description or ''
