@@ -532,10 +532,21 @@ class CloudWatchMetricsTools:
         time_window_seconds = int((end_time - start_time).total_seconds())
         calculated_period = max(60, int(time_window_seconds / target_datapoints))
 
-        # Round up to the nearest multiple of 60
+        # CloudWatch keeps 1-minute data for 15 days, 5-minute data for 63 days and
+        # 1-hour data after that. A period that is not a multiple of the resolution
+        # still available at start_time returns no datapoints for the older data.
+        start_age = datetime.now(timezone.utc) - start_time
+        if start_age > timedelta(days=63):
+            resolution = 3600
+        elif start_age > timedelta(days=15):
+            resolution = 300
+        else:
+            resolution = 60
+
+        # Round up to the nearest multiple of the resolution
         period = (
-            calculated_period + (60 - calculated_period % 60)
-            if calculated_period % 60 != 0
+            calculated_period + (resolution - calculated_period % resolution)
+            if calculated_period % resolution != 0
             else calculated_period
         )
 
