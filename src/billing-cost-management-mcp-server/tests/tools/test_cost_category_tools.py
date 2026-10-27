@@ -37,6 +37,19 @@ from unittest.mock import AsyncMock, MagicMock, patch
 COST_CATEGORY_ARN = 'arn:aws:ce::123456789012:costcategory/abcd-1234-efgh-5678'
 
 
+@pytest.fixture(scope='module', autouse=True)
+def _restore_real_tool_module():
+    """Reload the module with the real FastMCP.tool after this file's tests.
+
+    _reload_with_identity_decorator() leaves the module's server with no registered tools;
+    restoring it keeps later test files from seeing that state.
+    """
+    yield
+    from awslabs.billing_cost_management_mcp_server.tools import cost_category_tools as module
+
+    importlib.reload(module)
+
+
 def _reload_with_identity_decorator() -> Any:
     """Reload module with FastMCP.tool patched to return the original function."""
     from awslabs.billing_cost_management_mcp_server.tools import cost_category_tools as mod
