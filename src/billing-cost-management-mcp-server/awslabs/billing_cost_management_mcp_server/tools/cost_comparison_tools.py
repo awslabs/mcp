@@ -17,6 +17,8 @@
 Updated to use shared utility functions.
 """
 
+import calendar
+import re
 from ..utilities.aws_service_base import (
     PageSpec,
     create_aws_client,
@@ -27,8 +29,9 @@ from ..utilities.aws_service_base import (
     parse_json,
     with_pagination,
 )
+from datetime import date, datetime, timezone
 from fastmcp import Context, FastMCP
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 
 cost_comparison_server = FastMCP(
@@ -51,6 +54,142 @@ GET_COST_COMPARISON_DRIVERS = PageSpec(
     page_size_param='MaxResults',
 )
 
+# The request rules the Cost Explorer comparison APIs enforce, checked here so that a
+# request CE would reject fails without an AWS call and names the rule it broke.
+_DATE_PATTERN = re.compile(r'^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}Z)?$')
+MAX_HISTORY_MONTHS = 38
+DEFAULT_HISTORY_MONTHS = 13
+COMPARISON_METRICS = (
+    'AmortizedCost',
+    'BlendedCost',
+    'NetAmortizedCost',
+    'NetUnblendedCost',
+    'NormalizedUsageAmount',
+    'UnblendedCost',
+    'UsageQuantity',
+)
+DRIVER_METRICS = tuple(m for m in COMPARISON_METRICS if 'Cost' in m)
+_OPERATION_METRICS = {
+    'getCostAndUsageComparisons': COMPARISON_METRICS,
+    'getCostComparisonDrivers': DRIVER_METRICS,
+}
+_WHOLE_MONTHS = (
+    'cost-comparison needs whole calendar months: each period starts on the 1st of a month '
+    'and ends on the 1st of the next month (for example 2026-08-01 to 2026-09-01). For other '
+    'windows, use cost-explorer getCostAndUsage once per window.'
+)
+_MULTI_YEAR_HINT = (
+    'A period starts more than 13 months ago. Cost Explorer keeps 13 months of cost history '
+    'unless multi-year data at monthly granularity is enabled in Cost Management preferences '
+    '(up to 38 months). Do not retry the same request: choose months within the last 13 '
+    'months, or tell the user to enable multi-year data.'
+)
+
+
+def _utc_today() -> date:
+    """Today's date in UTC, the clock Cost Explorer checks periods against."""
+    return datetime.now(timezone.utc).date()
+
+
+def _months_before(day: date, months: int) -> date:
+    """``day`` minus ``months`` months, clamped to the month's last day (Java minusMonths)."""
+    index = day.year * 12 + day.month - 1 - months
+    year, month = divmod(index, 12)
+    month += 1
+    return date(year, month, min(day.day, calendar.monthrange(year, month)[1]))
+
+
+def _upper_snake(metric: str) -> str:
+    """UnblendedCost -> UNBLENDED_COST, the alternative spelling CE also accepts."""
+    return re.sub(r'(?<!^)(?=[A-Z])', '_', metric).upper()
+
+
+def _parse_month(name: str, start: str, end: str) -> Tuple[date, date]:
+    """Parse one period and require it to be exactly one calendar month."""
+    for value in (start, end):
+        if not isinstance(value, str) or not _DATE_PATTERN.match(value):
+            raise ValueError(
+                f'{name} period date {value!r} is not in YYYY-MM-DD format. {_WHOLE_MONTHS}'
+            )
+    try:
+        first, last = date.fromisoformat(start[:10]), date.fromisoformat(end[:10])
+    except ValueError:
+        raise ValueError(
+            f'{name} period {start} to {end} contains an invalid date. {_WHOLE_MONTHS}'
+        ) from None
+    next_month = _months_before(first, -1)
+    if first.day != 1 or last != next_month:
+        raise ValueError(f'{name} period {start} to {end} is not one whole month. {_WHOLE_MONTHS}')
+    return first, last
+
+
+def validate_comparison_request(
+    operation: str,
+    baseline_start_date: str,
+    baseline_end_date: str,
+    comparison_start_date: str,
+    comparison_end_date: str,
+    metric_for_comparison: str,
+    today: Optional[date] = None,
+) -> None:
+    """Raise ValueError naming the rule if Cost Explorer would reject the request.
+
+    Only rules the CE comparison backend enforces are checked, so nothing CE accepts is
+    rejected: the baseline may be later than the comparison period, and a period 14 to
+    38 months back is left to CE, since only CE knows whether multi-year data is enabled.
+
+    Args:
+        operation: getCostAndUsageComparisons or getCostComparisonDrivers
+        baseline_start_date: Baseline period start
+        baseline_end_date: Baseline period end (exclusive)
+        comparison_start_date: Comparison period start
+        comparison_end_date: Comparison period end (exclusive)
+        metric_for_comparison: The metric to compare
+        today: The current UTC date; defaults to the real one
+
+    Raises:
+        ValueError: The request breaks a rule; the message names it.
+    """
+    today = today or _utc_today()
+    periods = {
+        'baseline': _parse_month('baseline', baseline_start_date, baseline_end_date),
+        'comparison': _parse_month('comparison', comparison_start_date, comparison_end_date),
+    }
+    if periods['baseline'] == periods['comparison']:
+        raise ValueError(
+            'baseline and comparison periods are the same month. Compare two different months.'
+        )
+    oldest = _months_before(today, MAX_HISTORY_MONTHS)
+    for name, (first, last) in periods.items():
+        if last > today:
+            raise ValueError(
+                f'{name} period {first} to {last} includes the current or a future month. '
+                'cost-comparison compares completed months only; the latest you can use is '
+                f'{_months_before(today.replace(day=1), 1)} to {today.replace(day=1)}. For '
+                'month-to-date costs, use cost-explorer getCostAndUsage.'
+            )
+        if first < oldest:
+            raise ValueError(
+                f'{name} period {first} to {last} starts more than {MAX_HISTORY_MONTHS} months '
+                f'ago (before {oldest}). Cost Explorer keeps at most {MAX_HISTORY_MONTHS} months '
+                f'of history ({DEFAULT_HISTORY_MONTHS} unless multi-year data is enabled), so no '
+                'setting makes this month available.'
+            )
+    allowed = _OPERATION_METRICS.get(operation, COMPARISON_METRICS)
+    if metric_for_comparison not in allowed and metric_for_comparison not in {
+        _upper_snake(m) for m in allowed
+    }:
+        raise ValueError(
+            f'metric_for_comparison {metric_for_comparison!r} is not supported by {operation}. '
+            f'Use one of (exact case): {", ".join(allowed)}.'
+        )
+
+
+def _starts_before_default_history(today: date, *starts: str) -> bool:
+    """True if any period start is older than the default 13-month history."""
+    cutoff = _months_before(today, DEFAULT_HISTORY_MONTHS)
+    return any(date.fromisoformat(start[:10]) < cutoff for start in starts)
+
 
 @cost_comparison_server.tool(
     name='cost-comparison',
@@ -65,10 +204,12 @@ USE THIS TOOL ONLY FOR:
 - **Service-level impact analysis** for month-over-month changes
 - **Executive reporting** on monthly cost variances
 
-STRICT LIMITATIONS:
+STRICT LIMITATIONS (requests that break them fail with validation_error and no AWS call):
 - ONLY compares exactly one month to another month
 - Both periods must start on 1st day of month, end on 1st day of next month
-- Cannot compare weeks, quarters, or custom periods
+- The two periods must be different months (either one may be the earlier)
+- Only completed months: the current month and future months are rejected
+- Cannot compare weeks, quarters, or custom periods: use cost-explorer getCostAndUsage
 - DO NOT USE for general cost analysis or flexible time periods
 
 This tool supports two main operations:
@@ -76,18 +217,19 @@ This tool supports two main operations:
 2. getCostComparisonDrivers: Identify key factors driving cost changes between two time periods
 
 Both operations require:
-- BaselineTimePeriod: Earlier time period for comparison (must be exactly one month)
-- ComparisonTimePeriod: Later time period for comparison (must be exactly one month)
+- BaselineTimePeriod: The reference period, usually the earlier one (must be exactly one month)
+- ComparisonTimePeriod: The period compared against the baseline, usually the later one (must be exactly one month)
 - MetricForComparison: The cost metric to compare (e.g., BlendedCost, UnblendedCost)
 
-Supported metrics for comparison include:
+Supported metrics (exact case):
 - AmortizedCost: Costs with upfront and recurring reservation fees spread across the period
 - BlendedCost: Average cost of all usage throughout the billing period
 - NetAmortizedCost: Amortized cost after discounts
 - NetUnblendedCost: Unblended cost after discounts
-- NormalizedUsageAmount: Normalized usage amount
+- NormalizedUsageAmount: Normalized usage amount. getCostAndUsageComparisons only
 - UnblendedCost: Actual costs incurred during the specified period
-- UsageQuantity: Usage amounts in their respective units
+- UsageQuantity: Usage amounts in their respective units. getCostAndUsageComparisons only
+getCostComparisonDrivers accepts only the five cost metrics.
 
 You can group results by dimensions such as:
 - SERVICE: AWS service (e.g., Amazon EC2, Amazon S3)
@@ -103,7 +245,10 @@ You can group results by dimensions such as:
 Note:
 - Time periods must start and end on the first day of a month, with a duration of exactly one month
 - The getCostComparisonDrivers operation automatically includes SERVICE and USAGE_TYPE dimensions
-- Data is available for the last 13 months, or up to 38 months if multi-year data is enabled
+- Data is available for the last 13 months, or up to 38 months if multi-year data is enabled.
+  A period starting more than 38 months ago is rejected locally. For 14-38 months back,
+  Cost Explorer decides; if it reports the data unavailable, the error carries a hint
+  about multi-year data
 
 Pagination (both operations):
 - max_items: total number of comparisons or drivers returned. Omit it to fetch every page
@@ -137,7 +282,7 @@ async def cost_comparison(
         baseline_end_date: Baseline period end date in YYYY-MM-DD format (must be first day of next month)
         comparison_start_date: Comparison period start date in YYYY-MM-DD format (must be first day of month)
         comparison_end_date: Comparison period end date in YYYY-MM-DD format (must be first day of next month)
-        metric_for_comparison: The cost metric to compare (e.g., BlendedCost, UnblendedCost, AmortizedCost)
+        metric_for_comparison: The metric to compare, exact case. getCostAndUsageComparisons: AmortizedCost, BlendedCost, NetAmortizedCost, NetUnblendedCost, NormalizedUsageAmount, UnblendedCost, UsageQuantity. getCostComparisonDrivers: the five *Cost metrics only
         group_by: Optional grouping of results as a JSON string (e.g., '[{"Type": "DIMENSION", "Key": "SERVICE"}]')
         filter: Optional filter to apply to the results as a JSON string
         max_items: Total comparisons or drivers to return. None fetches every page.
@@ -150,26 +295,30 @@ async def cost_comparison(
     try:
         await ctx.info(f'Cost comparison operation: {operation}')
 
+        if operation not in _OPERATION_METRICS:
+            return format_response(
+                'error',
+                {},
+                f"Unsupported operation: {operation}. Use 'getCostAndUsageComparisons' or 'getCostComparisonDrivers'.",
+                error_type='validation_error',
+            )
+
+        today = _utc_today()
+        validate_comparison_request(
+            operation,
+            baseline_start_date,
+            baseline_end_date,
+            comparison_start_date,
+            comparison_end_date,
+            metric_for_comparison,
+            today,
+        )
+
         # Initialize Cost Explorer client using shared utility
         ce_client = create_aws_client('ce', region_name='us-east-1')
 
         if operation == 'getCostAndUsageComparisons':
-            return await get_cost_and_usage_comparisons(
-                ctx,
-                ce_client,
-                baseline_start_date,
-                baseline_end_date,
-                comparison_start_date,
-                comparison_end_date,
-                metric_for_comparison,
-                group_by,
-                filter,
-                max_items,
-                next_token,
-                billing_view_arn,
-            )
-        elif operation == 'getCostComparisonDrivers':
-            return await get_cost_comparison_drivers(
+            result = await get_cost_and_usage_comparisons(
                 ctx,
                 ce_client,
                 baseline_start_date,
@@ -184,12 +333,29 @@ async def cost_comparison(
                 billing_view_arn,
             )
         else:
-            return format_response(
-                'error',
-                {},
-                f"Unsupported operation: {operation}. Use 'getCostAndUsageComparisons' or 'getCostComparisonDrivers'.",
-                error_type='invalid_operation',
+            result = await get_cost_comparison_drivers(
+                ctx,
+                ce_client,
+                baseline_start_date,
+                baseline_end_date,
+                comparison_start_date,
+                comparison_end_date,
+                metric_for_comparison,
+                group_by,
+                filter,
+                max_items,
+                next_token,
+                billing_view_arn,
             )
+
+        # CE has no data for a period older than its history window; when that may be
+        # the 13-month default, say how to extend it.
+        unavailable = result.get('error_type') == 'DataUnavailableException'
+        if unavailable and _starts_before_default_history(
+            today, baseline_start_date, comparison_start_date
+        ):
+            result['hint'] = _MULTI_YEAR_HINT
+        return result
 
     except Exception as e:
         # Use shared error handler for consistent error reporting

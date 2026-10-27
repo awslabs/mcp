@@ -22,18 +22,48 @@ These tests verify the functionality of cost comparison tools, including:
 - Error handling for invalid date ranges and comparison parameters
 """
 
+import boto3
 import pytest
 from awslabs.billing_cost_management_mcp_server.tools.cost_comparison_tools import (
+    COMPARISON_METRICS,
+    DRIVER_METRICS,
+    GET_COST_AND_USAGE_COMPARISONS,
+    GET_COST_COMPARISON_DRIVERS,
+    _months_before,
+    _utc_today,
+    cost_comparison,
     cost_comparison_server,
     get_cost_and_usage_comparisons,
     get_cost_comparison_drivers,
+    validate_comparison_request,
 )
 from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
     MODIFY_REQUEST,
     add_retry_guidance,
 )
+from botocore.exceptions import ClientError
+from botocore.stub import Stubber
+from datetime import date
 from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock, patch
+
+
+MODULE = 'awslabs.billing_cost_management_mcp_server.tools.cost_comparison_tools'
+OPERATIONS = ['getCostAndUsageComparisons', 'getCostComparisonDrivers']
+CE_METHOD = {
+    'getCostAndUsageComparisons': 'get_cost_and_usage_comparisons',
+    'getCostComparisonDrivers': 'get_cost_comparison_drivers',
+}
+
+
+def month_start(months_back: int) -> str:
+    """First day of the month `months_back` months before the current UTC month."""
+    return _months_before(_utc_today().replace(day=1), months_back).isoformat()
+
+
+def month(months_back: int):
+    """(start, end) of one whole calendar month, `months_back` months before this one."""
+    return month_start(months_back), month_start(months_back - 1)
 
 
 @pytest.fixture
@@ -818,11 +848,12 @@ class TestGetCostComparisonDrivers:
         assert result['message'] == 'API error'
 
 
+# Two consecutive whole months that pass the dispatcher's local date checks.
 _COMPARISON_ARGS = {
-    'baseline_start_date': '2023-01-01',
-    'baseline_end_date': '2023-02-01',
-    'comparison_start_date': '2023-02-01',
-    'comparison_end_date': '2023-03-01',
+    'baseline_start_date': month(2)[0],
+    'baseline_end_date': month(2)[1],
+    'comparison_start_date': month(1)[0],
+    'comparison_end_date': month(1)[1],
     'metric_for_comparison': 'BlendedCost',
 }
 
@@ -920,7 +951,7 @@ class TestCostComparison:
         assert result['status'] == 'error'
         assert 'Unsupported operation' in result['message']
         # A request error the caller can fix: modify_request, not do_not_retry.
-        assert result['error_type'] == 'invalid_operation'
+        assert result['error_type'] == 'validation_error'
         assert add_retry_guidance(result)['retry_strategy'] == MODIFY_REQUEST
         comparisons.assert_not_called()
         drivers.assert_not_called()
@@ -987,10 +1018,10 @@ async def test_cost_comparison_tool_passes_pagination_params(mock_context, opera
             result = await mod.cost_comparison(  # type: ignore[reportCallIssue]
                 mock_context,
                 operation=operation,
-                baseline_start_date='2023-01-01',
-                baseline_end_date='2023-02-01',
-                comparison_start_date='2023-02-01',
-                comparison_end_date='2023-03-01',
+                baseline_start_date=month(2)[0],
+                baseline_end_date=month(2)[1],
+                comparison_start_date=month(1)[0],
+                comparison_end_date=month(1)[1],
                 metric_for_comparison='BlendedCost',
                 max_items=7,
                 next_token='tok',
@@ -1000,3 +1031,393 @@ async def test_cost_comparison_tool_passes_pagination_params(mock_context, opera
 
     assert result['status'] == 'success'
     assert mock_handler.call_args.args[9:11] == (7, 'tok')
+
+
+# ---------------------------------------------------------------------------
+# The real cost-comparison dispatcher: local checks of the rules Cost Explorer's
+# comparison APIs enforce. Dates are relative to today so the tests don't rot.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def dispatch_ce_client():
+    """A CE client whose comparison calls succeed with an empty page."""
+    client = MagicMock()
+    client.get_cost_and_usage_comparisons.return_value = {'CostAndUsageComparisons': []}
+    client.get_cost_comparison_drivers.return_value = {'CostComparisonDrivers': []}
+    return client
+
+
+async def _call(ctx, client, operation, baseline, comparison, **kwargs):
+    with patch(f'{MODULE}.create_aws_client', return_value=client):
+        return await cost_comparison(
+            ctx,
+            operation=operation,
+            baseline_start_date=baseline[0],
+            baseline_end_date=baseline[1],
+            comparison_start_date=comparison[0],
+            comparison_end_date=comparison[1],
+            metric_for_comparison=kwargs.pop('metric_for_comparison', 'UnblendedCost'),
+            **kwargs,
+        )
+
+
+def _assert_local_validation_error(result, client, *needles):
+    assert result['status'] == 'error'
+    assert result.get('error_type') == 'validation_error', result
+    assert add_retry_guidance(result)['retry_strategy'] == 'modify_request'
+    for needle in needles:
+        assert needle in result['message'], (needle, result['message'])
+    client.get_cost_and_usage_comparisons.assert_not_called()
+    client.get_cost_comparison_drivers.assert_not_called()
+
+
+def _client_error(code, message, request_id='r1'):
+    return ClientError(
+        {
+            'Error': {'Code': code, 'Message': message},
+            'ResponseMetadata': {'RequestId': request_id, 'HTTPStatusCode': 400},
+        },
+        'GetCostComparisonDrivers',
+    )
+
+
+MISALIGNED = {
+    'baseline_mid_month': ((month_start(2)[:8] + '15', month_start(1)[:8] + '15'), month(1)),
+    'baseline_two_months': ((month_start(3), month_start(1)), month(1)),
+    'comparison_end_second_of_month': (month(2), (month_start(1), month_start(0)[:8] + '02')),
+    'comparison_reversed_bounds': (month(2), (month_start(0), month_start(1))),
+    'baseline_not_a_date': (('last month', month_start(1)), month(1)),
+    'baseline_impossible_date': ((month_start(2)[:8] + '32', month_start(1)), month(1)),
+}
+
+
+@pytest.mark.asyncio
+class TestCostComparisonDispatcherValidation:
+    """Requests CE would reject fail locally, naming the rule, with no AWS call."""
+
+    @pytest.mark.parametrize('operation', OPERATIONS)
+    @pytest.mark.parametrize('case', list(MISALIGNED))
+    async def test_month_misaligned_period_rejected_without_aws_call(
+        self, mock_context, dispatch_ce_client, operation, case
+    ):
+        """U1: a period that is not one whole calendar month points to getCostAndUsage."""
+        baseline, comparison = MISALIGNED[case]
+        result = await _call(mock_context, dispatch_ce_client, operation, baseline, comparison)
+        _assert_local_validation_error(
+            result, dispatch_ce_client, 'whole calendar months', 'getCostAndUsage'
+        )
+
+    @pytest.mark.parametrize('operation', OPERATIONS)
+    async def test_same_month_twice_rejected_without_aws_call(
+        self, mock_context, dispatch_ce_client, operation
+    ):
+        """CE rejects a baseline equal to the comparison period."""
+        result = await _call(mock_context, dispatch_ce_client, operation, month(1), month(1))
+        _assert_local_validation_error(result, dispatch_ce_client, 'same month')
+
+    @pytest.mark.parametrize('operation', OPERATIONS)
+    @pytest.mark.parametrize('months_back', [0, -1], ids=['current_month', 'next_month'])
+    async def test_current_or_future_comparison_period_rejected_without_aws_call(
+        self, mock_context, dispatch_ce_client, operation, months_back
+    ):
+        """U2: CE compares completed months only (current month included, per its code)."""
+        result = await _call(
+            mock_context, dispatch_ce_client, operation, month(1), month(months_back)
+        )
+        _assert_local_validation_error(
+            result, dispatch_ce_client, 'current or a future month', month(1)[0]
+        )
+
+    @pytest.mark.parametrize('operation', OPERATIONS)
+    async def test_future_baseline_rejected_without_aws_call(
+        self, mock_context, dispatch_ce_client, operation
+    ):
+        """The completed-month rule applies to the baseline period too."""
+        result = await _call(mock_context, dispatch_ce_client, operation, month(-2), month(1))
+        _assert_local_validation_error(result, dispatch_ce_client, 'baseline period')
+
+    @pytest.mark.parametrize('operation', OPERATIONS)
+    @pytest.mark.parametrize('months_back', [39, 40])
+    async def test_baseline_beyond_38_months_rejected_without_aws_call(
+        self, mock_context, dispatch_ce_client, operation, months_back
+    ):
+        """U3: no setting makes a month older than 38 months available."""
+        result = await _call(
+            mock_context, dispatch_ce_client, operation, month(months_back), month(1)
+        )
+        _assert_local_validation_error(result, dispatch_ce_client, '38 months')
+
+    @pytest.mark.parametrize('operation', OPERATIONS)
+    @pytest.mark.parametrize('months_back', [14, 37])
+    async def test_baseline_14_to_37_months_back_is_not_rejected_locally(
+        self, mock_context, dispatch_ce_client, operation, months_back
+    ):
+        """U4: the MCP can't see the multi-year setting, so CE decides for 14-38 months."""
+        result = await _call(
+            mock_context, dispatch_ce_client, operation, month(months_back), month(1)
+        )
+        assert result['status'] == 'success'
+        getattr(dispatch_ce_client, CE_METHOD[operation]).assert_called_once()
+
+    @pytest.mark.parametrize('operation', OPERATIONS)
+    async def test_baseline_later_than_comparison_reaches_ce(
+        self, mock_context, dispatch_ce_client, operation
+    ):
+        """CE accepts a baseline later than the comparison period (live-verified)."""
+        result = await _call(mock_context, dispatch_ce_client, operation, month(1), month(2))
+        assert result['status'] == 'success'
+        getattr(dispatch_ce_client, CE_METHOD[operation]).assert_called_once()
+
+    async def test_data_unavailable_for_old_baseline_gets_multi_year_hint(
+        self, mock_context, dispatch_ce_client
+    ):
+        """U5: CE's DataUnavailableException for a >13-month period names multi-year data."""
+        dispatch_ce_client.get_cost_comparison_drivers.side_effect = _client_error(
+            'DataUnavailableException', 'Cost data unavailable.'
+        )
+        result = await _call(
+            mock_context, dispatch_ce_client, 'getCostComparisonDrivers', month(14), month(13)
+        )
+        assert result['error_type'] == 'DataUnavailableException'
+        assert result['message'] == 'Cost data unavailable.'
+        assert 'multi-year' in result['hint']
+        assert add_retry_guidance(result)['hint'] == result['hint']
+
+    async def test_data_unavailable_for_recent_months_has_no_multi_year_hint(
+        self, mock_context, dispatch_ce_client
+    ):
+        """Within 13 months the multi-year setting isn't the cause, so no hint is added."""
+        dispatch_ce_client.get_cost_and_usage_comparisons.side_effect = _client_error(
+            'DataUnavailableException', 'Cost data unavailable.'
+        )
+        result = await _call(
+            mock_context, dispatch_ce_client, 'getCostAndUsageComparisons', month(2), month(1)
+        )
+        assert result['error_type'] == 'DataUnavailableException'
+        assert 'hint' not in result
+
+    @pytest.mark.parametrize('operation', OPERATIONS)
+    async def test_valid_month_pair_reaches_ce_unchanged(
+        self, mock_context, dispatch_ce_client, operation
+    ):
+        """U8: a valid request is sent as given, with the API's largest page size."""
+        baseline, comparison = month(2), month(1)
+        result = await _call(mock_context, dispatch_ce_client, operation, baseline, comparison)
+        assert result['status'] == 'success'
+        kwargs = getattr(dispatch_ce_client, CE_METHOD[operation]).call_args[1]
+        assert kwargs['BaselineTimePeriod'] == {'Start': baseline[0], 'End': baseline[1]}
+        assert kwargs['ComparisonTimePeriod'] == {'Start': comparison[0], 'End': comparison[1]}
+        assert kwargs['MetricForComparison'] == 'UnblendedCost'
+        assert (
+            kwargs['MaxResults']
+            == {
+                'getCostAndUsageComparisons': 2000,
+                'getCostComparisonDrivers': 10,
+            }[operation]
+        )
+
+    @pytest.mark.parametrize(
+        'operation,max_items,page_size',
+        [('getCostAndUsageComparisons', 5000, 2000), ('getCostComparisonDrivers', 20, 10)],
+    )
+    async def test_large_max_items_never_sends_more_than_the_page_cap(
+        self, mock_context, dispatch_ce_client, operation, max_items, page_size
+    ):
+        """U6/U7: max_items above the API cap pages instead of sending MaxResults > cap."""
+        await _call(
+            mock_context, dispatch_ce_client, operation, month(2), month(1), max_items=max_items
+        )
+        kwargs = getattr(dispatch_ce_client, CE_METHOD[operation]).call_args[1]
+        assert kwargs['MaxResults'] == page_size
+
+    @pytest.mark.parametrize('metric', ['unblendedCost', 'unblended_cost', 'Cost', ''])
+    @pytest.mark.parametrize('operation', OPERATIONS)
+    async def test_metric_outside_supported_set_rejected_without_aws_call(
+        self, mock_context, dispatch_ce_client, operation, metric
+    ):
+        """U10: metric names are exact-case; the message lists the supported ones."""
+        result = await _call(
+            mock_context,
+            dispatch_ce_client,
+            operation,
+            month(2),
+            month(1),
+            metric_for_comparison=metric,
+        )
+        _assert_local_validation_error(result, dispatch_ce_client, 'UnblendedCost', operation)
+
+    @pytest.mark.parametrize(
+        'metric', ['UsageQuantity', 'NormalizedUsageAmount', 'USAGE_QUANTITY']
+    )
+    async def test_usage_metrics_rejected_for_drivers_without_aws_call(
+        self, mock_context, dispatch_ce_client, metric
+    ):
+        """CE's drivers API accepts cost metrics only (INVALID_COST_METRIC, live-verified)."""
+        result = await _call(
+            mock_context,
+            dispatch_ce_client,
+            'getCostComparisonDrivers',
+            month(2),
+            month(1),
+            metric_for_comparison=metric,
+        )
+        _assert_local_validation_error(result, dispatch_ce_client, 'NetAmortizedCost')
+        assert 'UsageQuantity' not in result['message'].split('Use one of')[1]
+
+    @pytest.mark.parametrize('operation', OPERATIONS)
+    async def test_every_supported_metric_reaches_ce(
+        self, mock_context, dispatch_ce_client, operation
+    ):
+        """U11: every documented metric, and its UPPER_SNAKE alias, reaches CE."""
+        metrics = (
+            COMPARISON_METRICS if operation == 'getCostAndUsageComparisons' else DRIVER_METRICS
+        )
+        aliases = {'UnblendedCost': 'UNBLENDED_COST', 'NetAmortizedCost': 'NET_AMORTIZED_COST'}
+        for metric in [*metrics, *aliases.values()]:
+            result = await _call(
+                mock_context,
+                dispatch_ce_client,
+                operation,
+                month(2),
+                month(1),
+                metric_for_comparison=metric,
+            )
+            assert result['status'] == 'success', (metric, result)
+        assert getattr(dispatch_ce_client, CE_METHOD[operation]).call_count == len(metrics) + 2
+
+    async def test_malformed_filter_shape_is_not_reported_as_transient(self, mock_context):
+        """U9: botocore's ParamValidationError is a validation error, not a connection one."""
+        client = boto3.client(
+            'ce', region_name='us-east-1', aws_access_key_id='x', aws_secret_access_key='y'
+        )
+        with Stubber(client) as stubber:
+            # A queued response gets the call past the Stubber to botocore's validation.
+            stubber.add_response('get_cost_and_usage_comparisons', {})
+            result = await _call(
+                mock_context,
+                client,
+                'getCostAndUsageComparisons',
+                month(2),
+                month(1),
+                filter='{"Dimensions": {"Key": "SERVICE", "MatchValue": "Amazon EC2"}}',
+            )
+        assert result['status'] == 'error'
+        assert result['error_type'] == 'validation_error'
+        assert add_retry_guidance(result)['retry_strategy'] == 'modify_request'
+
+    async def test_ce_validation_exception_message_survives(
+        self, mock_context, dispatch_ce_client
+    ):
+        """U12: CE's own message, error_type and request_id reach the agent unchanged."""
+        dispatch_ce_client.get_cost_comparison_drivers.side_effect = _client_error(
+            'ValidationException', 'Invalid GroupBy dimension.', request_id='r2'
+        )
+        result = await _call(
+            mock_context, dispatch_ce_client, 'getCostComparisonDrivers', month(2), month(1)
+        )
+        assert result['error_type'] == 'ValidationException'
+        assert result['message'] == 'Invalid GroupBy dimension.'
+        assert result['request_id'] == 'r2'
+        assert add_retry_guidance(result)['retry_strategy'] == 'modify_request'
+        assert 'hint' not in result
+
+    async def test_unsupported_operation_makes_no_aws_client(self, mock_context):
+        """An unknown operation is rejected before dates are checked or a client is made."""
+        with patch(f'{MODULE}.create_aws_client') as create:
+            result = await cost_comparison(
+                mock_context,
+                operation='unsupportedOperation',
+                baseline_start_date='x',
+                baseline_end_date='x',
+                comparison_start_date='x',
+                comparison_end_date='x',
+                metric_for_comparison='BlendedCost',
+            )
+        assert result['status'] == 'error'
+        assert 'Unsupported operation' in result['message']
+        assert result['error_type'] == 'validation_error'
+        assert add_retry_guidance(result)['retry_strategy'] == 'modify_request'
+        create.assert_not_called()
+
+
+class TestValidateComparisonRequest:
+    """Boundaries of the rules, at a fixed date."""
+
+    TODAY = date(2026, 10, 23)
+
+    def _validate(self, baseline, comparison, today=TODAY, metric='UnblendedCost'):
+        (baseline_start, baseline_end), (comparison_start, comparison_end) = baseline, comparison
+        validate_comparison_request(
+            'getCostAndUsageComparisons',
+            baseline_start,
+            baseline_end,
+            comparison_start,
+            comparison_end,
+            metric,
+            today=today,
+        )
+
+    def test_oldest_allowed_start_is_today_minus_38_months(self):
+        """CE rejects a start before today minus 38 months, to the day."""
+        self._validate(('2023-09-01', '2023-10-01'), ('2026-09-01', '2026-10-01'))
+        with pytest.raises(ValueError, match='before 2023-08-23'):
+            self._validate(('2023-08-01', '2023-09-01'), ('2026-09-01', '2026-10-01'))
+
+    def test_month_38_back_is_allowed_on_the_first(self):
+        """On the 1st, the month exactly 38 months back is still in range."""
+        self._validate(
+            ('2023-08-01', '2023-09-01'), ('2026-09-01', '2026-10-01'), today=date(2026, 10, 1)
+        )
+
+    def test_last_month_is_allowed_on_the_first(self):
+        """A period ending today (the 1st) is complete."""
+        self._validate(
+            ('2026-08-01', '2026-09-01'), ('2026-09-01', '2026-10-01'), today=date(2026, 10, 1)
+        )
+
+    def test_december_to_january_is_one_month(self):
+        """A period may span the year boundary."""
+        self._validate(('2025-12-01', '2026-01-01'), ('2026-09-01', '2026-10-01'))
+
+    def test_timestamp_form_is_accepted(self):
+        """CE accepts YYYY-MM-DDThh:mm:ssZ as well as YYYY-MM-DD."""
+        self._validate(
+            ('2026-08-01T00:00:00Z', '2026-09-01T00:00:00Z'), ('2026-09-01', '2026-10-01')
+        )
+
+    def test_months_before_clamps_to_month_end(self):
+        """Like Java's minusMonths, the day clamps to the shorter month."""
+        assert _months_before(date(2026, 3, 31), 1) == date(2026, 2, 28)
+        assert _months_before(date(2026, 1, 15), -1) == date(2026, 2, 15)
+
+
+def test_page_caps_match_botocore_max_results():
+    """U13: the page sizes the tool sends match the botocore model's MaxResults caps."""
+    shapes = boto3.client(
+        'ce', region_name='us-east-1', aws_access_key_id='x', aws_secret_access_key='y'
+    ).meta.service_model
+    assert (
+        shapes.shape_for('CostAndUsageComparisonsMaxResults').metadata['max']
+        == GET_COST_AND_USAGE_COMPARISONS.page_max
+    )
+    assert (
+        shapes.shape_for('CostComparisonDriversMaxResults').metadata['max']
+        == GET_COST_COMPARISON_DRIVERS.page_max
+    )
+
+
+@pytest.mark.asyncio
+async def test_description_states_the_enforced_rules():
+    """The served description names the rules the tool now enforces."""
+    tool = await cost_comparison_server.get_tool('cost-comparison')
+    assert tool is not None
+    description = ' '.join((tool.description or '').split())
+    assert 'the current month and future months are rejected' in description
+    assert 'The two periods must be different months' in description
+    assert 'more than 38 months ago is rejected locally' in description
+    assert 'getCostComparisonDrivers accepts only the five cost metrics' in description
+    assert (
+        'UsageQuantity: Usage amounts in their respective units. getCostAndUsageComparisons only'
+        in description
+    )

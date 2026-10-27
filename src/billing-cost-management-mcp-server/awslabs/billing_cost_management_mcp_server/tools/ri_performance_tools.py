@@ -137,7 +137,7 @@ async def ri_performance(
         start_date: Start date in YYYY-MM-DD format (inclusive). Defaults to 30 days ago if not provided.
         end_date: End date in YYYY-MM-DD format (exclusive). Defaults to today if not provided.
         granularity: Time granularity of the data (DAILY or MONTHLY). Defaults to DAILY. Ignored when group_by is provided (granularity and group_by are mutually exclusive).
-        metrics: List of metrics to retrieve for coverage as a JSON string (e.g., '["HoursCoverage", "CostCoverage"]'). Defaults to all metrics.
+        metrics: List of metrics to retrieve for coverage as a JSON string (e.g., '["Hour", "Cost"]'). Valid values are Hour, Unit and Cost; Unit is EC2 only. Defaults to Hour only.
         group_by: Optional grouping as a JSON string. For coverage: AZ, CACHE_ENGINE, DATABASE_ENGINE, DEPLOYMENT_OPTION, INSTANCE_TYPE, INSTANCE_TYPE_FAMILY, LINKED_ACCOUNT, PLATFORM, REGION, or TENANCY, depending on the service (see the tool description) (SERVICE is NOT valid — filter on it instead). For utilization: SUBSCRIPTION_ID only.
         filter: Optional filter as a JSON string (e.g., by service, region, or instance type). SERVICE defaults to EC2 when omitted; valid coverage SERVICE values are "Amazon Elastic Compute Cloud - Compute", "Amazon Relational Database Service", "Amazon ElastiCache", "Amazon MemoryDB", "Amazon Redshift", "Amazon OpenSearch Service", and "Amazon Elasticsearch Service" (use the full display name, not "EC2"/"RDS"). SubscriptionId values are numeric, not ARNs/UUIDs. A wide grouped/DAILY query may exceed the result size cap (ToolResultOversized) — scope it with a filter, a shorter window, or MONTHLY granularity.
         sort_by: Optional sorting configuration as a JSON string with key and direction (ASCENDING or DESCENDING).
@@ -297,14 +297,13 @@ async def get_reservation_coverage(
         if metrics:
             request_params['Metrics'] = parse_json(metrics, 'metrics')
 
-        if group_by:
-            request_params['GroupBy'] = parse_json(group_by, 'group_by')
-
         # GetReservationCoverage treats Granularity and GroupBy as mutually
         # exclusive: "Granularity is not supported when specifying groupBy".
-        # Only send Granularity when the request is not grouped, otherwise the
-        # API returns a ValidationException.
-        if not group_by:
+        # Construct exactly one of them so a grouped request cannot include
+        # Granularity, which the API rejects with a ValidationException.
+        if group_by:
+            request_params['GroupBy'] = parse_json(group_by, 'group_by')
+        else:
             request_params['Granularity'] = granularity
 
         if filter_expr:

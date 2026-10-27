@@ -1606,19 +1606,21 @@ async def execute_session_sql(
         # Execute the main query
         await ctx.info(f'Executing SQL query: {query[:100]}...')
 
-        # Get query type (read or write)
-        query_upper = query.strip().upper()
-        is_write_operation = any(
-            query_upper.startswith(cmd)
-            for cmd in ['INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER']
-        )
-
         # Execute the query with validation
         validate_sql_query(query)
         cursor.execute(query)
 
-        # Commit if this is a write operation
-        if is_write_operation:
+        # Commit if the statement opened a transaction.
+        #
+        # We rely on sqlite3's own view of the transaction state rather than a
+        # keyword-prefix check on the query text. A prefix check misses writes
+        # that sqlite3 still runs inside an implicit transaction -- for example
+        # comment-prefixed DML ("/* c */ INSERT ...") and REPLACE statements --
+        # leaving the transaction uncommitted so the write is silently rolled
+        # back when the connection closes. conn.in_transaction reflects the
+        # actual engine state and commits exactly when there is something to
+        # commit.
+        if conn.in_transaction:
             conn.commit()
 
         # Get results

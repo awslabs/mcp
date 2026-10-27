@@ -166,7 +166,7 @@ mcp = FastMCP(
 
 When using these tools, always:
 1. Use UnblendedCost metric by default
-2. Exclude Credits and Refunds by default
+2. Report net cost, with credits and refunds included, unless the user asks for charges before credits
 3. Be concise and focus on essential information first
 4. For optimization queries, focus on top 2-3 highest impact recommendations
 
