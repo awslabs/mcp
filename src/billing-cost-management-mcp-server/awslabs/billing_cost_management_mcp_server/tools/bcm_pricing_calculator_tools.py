@@ -66,6 +66,8 @@ LIST_WORKLOAD_ESTIMATE_USAGE_PAGE_SPEC = PageSpec(
     # The service reports a bad caller next_token as ValidationException.
     caller_token_error_codes=frozenset({'ValidationException'}),
 )
+# MatchOption values. The service rejects any other value, including other casings.
+VALID_MATCH_OPTIONS = ('EQUALS', 'STARTS_WITH', 'CONTAINS')
 PREFERENCES_NOT_CONFIGURED_ERROR = 'BCM Pricing Calculator preferences are not configured. Please configure preferences before using this service.'
 
 bcm_pricing_calculator_server = FastMCP(
@@ -131,12 +133,12 @@ async def bcm_pricing_calc_core(
         expires_before: Filter estimates expiring before this timestamp
         status_filter: Filter by status
         name_filter: Filter by name
-        name_match_option: Match option for name filter
+        name_match_option: Match option for name filter (EQUALS, STARTS_WITH, CONTAINS)
         usage_account_id_filter: Filter by AWS account ID
         service_code_filter: Filter by AWS service code
         usage_type_filter: Filter by usage type
         operation_filter: Filter by operation name
-        location_filter: Filter by location/region
+        location_filter: Filter by region code (e.g. us-east-1)
         usage_group_filter: Filter by usage group
         next_token: Continuation token from a previous response (list operations only)
         max_items: Total items to return (list operations only). None fetches every page.
@@ -312,15 +314,23 @@ async def bcm_pricing_calc(
         status_filter: Filter by status: one of UPDATING, VALID, INVALID, ACTION_NEEDED
             (case-insensitive). Any other value is rejected.
         name_filter: Filter by name (supports partial matching).
-        name_match_option: Match option for the name filter
-            (EQUALS, STARTS_WITH, CONTAINS). Defaults to CONTAINS.
-        usage_account_id_filter: Filter usage lines by AWS account ID.
-        service_code_filter: Filter usage lines by AWS service code
-            (e.g. AmazonEC2, AmazonS3).
-        usage_type_filter: Filter usage lines by usage type.
-        operation_filter: Filter usage lines by operation name.
-        location_filter: Filter usage lines by location/region.
-        usage_group_filter: Filter usage lines by usage group.
+            Matched using name_match_option; always case-sensitive: Demo does not
+            match DEMO.
+        name_match_option: How name_filter is matched: EQUALS, STARTS_WITH or CONTAINS.
+            Defaults to CONTAINS. The option may be given in any case; when name_filter
+            is set, any other value is rejected.
+        usage_account_id_filter: Filter usage lines by AWS account ID (EQUALS).
+        service_code_filter: Filter usage lines by AWS service code (EQUALS,
+            case-sensitive), e.g. AmazonEC2 or AmazonS3; amazonec2 matches nothing.
+        usage_type_filter: Filter usage lines whose usage type contains this text
+            (CONTAINS, case-sensitive), e.g. BoxUsage.
+        operation_filter: Filter usage lines whose operation contains this text
+            (CONTAINS, case-sensitive). RunInstances also matches RunInstances:0002
+            and the other platform variants; an exact match is not available.
+        location_filter: Filter usage lines by region code (EQUALS, case-sensitive),
+            e.g. us-east-1. A location name such as US East (N. Virginia), as used
+            by aws-pricing, matches nothing.
+        usage_group_filter: Filter usage lines by usage group (EQUALS, case-sensitive).
         next_token: Continuation token from a previous response (list operations only).
         max_items: Total items to return (list operations only). None fetches every page.
 
@@ -433,7 +443,9 @@ async def list_workload_estimates(
         status_filter: Filter by status: one of UPDATING, VALID, INVALID, ACTION_NEEDED
             (case-insensitive). Any other value is rejected.
         name_filter: Filter by name (supports partial matching)
-        name_match_option: Match option for name filter (EQUALS, STARTS_WITH, CONTAINS)
+            Matching is case-sensitive.
+        name_match_option: Match option for name filter (EQUALS, STARTS_WITH, CONTAINS),
+            in any case. Checked only when name_filter is set.
         next_token: Continuation token from a previous response
         max_items: Total items to return. None fetches every page.
 
@@ -444,6 +456,21 @@ async def list_workload_estimates(
         status: The current status of the workload estimate. Possible values are UPDATING, VALID, INVALID, ACTION_NEEDED
     """
     try:
+        # The service accepts only upper-case match options; reject others before any AWS call.
+        if name_filter:
+            normalized_match_option = (name_match_option or '').strip().upper()
+            if normalized_match_option not in VALID_MATCH_OPTIONS:
+                return format_response(
+                    'error',
+                    {'invalid_parameter': 'name_match_option', 'value': name_match_option},
+                    f'Invalid name_match_option: {name_match_option}. '
+                    f'Must be one of: {", ".join(VALID_MATCH_OPTIONS)}.',
+                    error_type='validation_error',
+                    operation='list_workload_estimates',
+                    service=BCM_PRICING_CALCULATOR_SERVICE_NAME,
+                )
+            name_match_option = normalized_match_option
+
         await ctx.info('Listing workload estimates')
 
         # Validate before any AWS call: an unknown or wrongly cased status matches nothing.
@@ -642,12 +669,12 @@ async def list_workload_estimate_usage(
     Args:
         ctx: The MCP context object
         workload_estimate_id: The unique identifier of the workload estimate
-        usage_account_id_filter: Filter by AWS account ID
-        service_code_filter: Filter by AWS service code (e.g., AmazonEC2, AmazonS3)
-        usage_type_filter: Filter by usage type
-        operation_filter: Filter by operation name
-        location_filter: Filter by location/region
-        usage_group_filter: Filter by usage group
+        usage_account_id_filter: Filter by AWS account ID (EQUALS)
+        service_code_filter: Filter by AWS service code (EQUALS, e.g. AmazonEC2, AmazonS3)
+        usage_type_filter: Filter by usage type (CONTAINS)
+        operation_filter: Filter by operation name (CONTAINS)
+        location_filter: Filter by region code (EQUALS, e.g. us-east-1)
+        usage_group_filter: Filter by usage group (EQUALS)
         next_token: Continuation token from a previous response
         max_items: Total items to return. None fetches every page.
 
