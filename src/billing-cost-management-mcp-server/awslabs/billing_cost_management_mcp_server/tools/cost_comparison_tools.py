@@ -188,6 +188,7 @@ async def cost_comparison(
                 'error',
                 {},
                 f"Unsupported operation: {operation}. Use 'getCostAndUsageComparisons' or 'getCostComparisonDrivers'.",
+                error_type='invalid_operation',
             )
 
     except Exception as e:

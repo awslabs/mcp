@@ -1285,7 +1285,7 @@ class TestValidateSqlQuery:
         Without this rejection, an attacker (or a prompt-injected
         agent) can attach any SQLite file readable by the process
         and read it back via subsequent SELECTs — a filter bypass
-        that the blacklist previously missed.
+        that the denylist previously missed.
         """
         from awslabs.billing_cost_management_mcp_server.utilities.sql_utils import (
             validate_sql_query,
@@ -1317,8 +1317,8 @@ class TestSessionAuthorizer:
     """Engine-level defense against ATTACH DATABASE.
 
     The authorizer is the second line of defense behind the regex
-    blacklist in ``validate_sql_query``. Even if the query text were
-    to slip past the blacklist (comment tricks, whitespace variants,
+    denylist in ``validate_sql_query``. Even if the query text were
+    to slip past the denylist (comment tricks, whitespace variants,
     dynamic SQL from a trigger), the SQLite parser calls the
     authorizer for every operation the query would perform. ATTACH
     returns SQLITE_DENY here, so the connection refuses to mount any

@@ -142,7 +142,7 @@ def cleanup_session_db() -> None:
 def _session_authorizer(action, arg1, arg2, db_name, trigger_name):
     """SQLite authorizer callback: deny cross-DB attach/detach.
 
-    Belt-and-suspenders with the regex blacklist in
+    Belt-and-suspenders with the regex denylist in
     :func:`validate_sql_query`. The regex catches the query text
     before SQLite parses it; this authorizer catches every SQL parser
     action the connection actually attempts, including anything the

@@ -28,6 +28,10 @@ from awslabs.billing_cost_management_mcp_server.tools.cost_comparison_tools impo
     get_cost_and_usage_comparisons,
     get_cost_comparison_drivers,
 )
+from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+    MODIFY_REQUEST,
+    add_retry_guidance,
+)
 from fastmcp import Context
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -915,6 +919,9 @@ class TestCostComparison:
 
         assert result['status'] == 'error'
         assert 'Unsupported operation' in result['message']
+        # A request error the caller can fix: modify_request, not do_not_retry.
+        assert result['error_type'] == 'invalid_operation'
+        assert add_retry_guidance(result)['retry_strategy'] == MODIFY_REQUEST
         comparisons.assert_not_called()
         drivers.assert_not_called()
 
