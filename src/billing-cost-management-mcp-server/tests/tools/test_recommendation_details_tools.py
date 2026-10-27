@@ -784,6 +784,26 @@ class TestGetCostExplorerData:
         assert result == {'test': 'data'}
 
     @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.recommendation_details_tools.get_savings_plans_recommendation'
+    )
+    async def test_get_cost_explorer_data_error_redacts_identifiers(
+        self, mock_get_savings_plans, mock_context, mock_ce_client
+    ):
+        """The embedded error is redacted; the client log names only the exception class."""
+        mock_get_savings_plans.side_effect = RuntimeError(
+            'User: arn:aws:sts::123456789012:assumed-role/ExampleRole/s is not authorized'
+        )
+
+        result = await get_cost_explorer_data(mock_context, {'actionType': 'PurchaseSavingsPlans'})
+
+        assert result == {
+            'error': 'Error getting Cost Explorer data: User: [ARN redacted] is not authorized'
+        }
+        mock_context.error.assert_called_once_with(
+            'Error getting Cost Explorer data: RuntimeError'
+        )
+
+    @patch(
         'awslabs.billing_cost_management_mcp_server.tools.recommendation_details_tools.get_reserved_instances_recommendation'
     )
     async def test_get_cost_explorer_data_reserved_instances(

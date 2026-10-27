@@ -1507,3 +1507,16 @@ def test_validate_forbidden_node_in_walk():
         result = validate_query_is_readonly_select('SELECT 1')
         assert result is not None
         assert 'CREATE' in result
+
+
+@pytest.mark.asyncio
+async def test_get_manifest_failure_logs_only_the_exception_class(manifest_handler, mock_context):
+    """The client log for a failed manifest lookup carries no exception text."""
+    manifest_handler.s3_client.get_object.side_effect = RuntimeError(
+        'denied for arn:aws:sts::123456789012:assumed-role/ExampleRole/s'
+    )
+
+    with pytest.raises(RuntimeError):
+        await manifest_handler.get_manifest('s3://bucket/path/manifest.json')
+
+    assert mock_context.error.call_args_list[-1].args[0] == 'Failed to get manifest: RuntimeError'

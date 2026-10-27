@@ -394,3 +394,26 @@ class TestErrorRedactionEndToEnd:
             await middleware.on_call_tool(mock_context, call_next)
 
         assert raised.value is original
+
+    @pytest.mark.asyncio
+    async def test_raised_error_that_formats_its_own_text(self, middleware, mock_context):
+        """A FastMCP error whose text is not its args is re-raised as a redacted ToolError."""
+        from fastmcp.exceptions import ToolError
+
+        class ScopeError(ToolError):
+            def __init__(self, scopes):
+                super().__init__(scopes)
+                self.scopes = scopes
+
+            def __str__(self):
+                return f'Required: {self.scopes}'
+
+        original = ScopeError('arn:aws:iam::123456789012:role/Example')
+        call_next = AsyncMock(side_effect=original)
+
+        with pytest.raises(ToolError) as raised:
+            await middleware.on_call_tool(mock_context, call_next)
+
+        assert type(raised.value) is ToolError
+        assert str(raised.value) == 'Required: [ARN redacted]'
+        assert raised.value.__cause__ is original
