@@ -195,9 +195,12 @@ def _multi_region_guidance(
     Derived from each region's own error_type and http_status, which stay nested in
     region_errors, so the top-level multi_region_error or a promoted type alone would
     lose them (e.g. throttled in one region and a 5xx in another is still transient).
+    A region's own retry_strategy, when its error set one, wins over that mapping.
     """
     guidance = [
-        classify_error(error.get('error_type'), error.get('http_status'))
+        (error['retry_strategy'], error.get('hint'))
+        if error.get('retry_strategy')
+        else classify_error(error.get('error_type'), error.get('http_status'))
         for error in region_errors.values()
     ]
     if regions_not_found:

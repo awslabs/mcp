@@ -21,6 +21,7 @@ including formatted console output and optional file logging.
 import os
 import sys
 import time
+from .redaction import redact_identifiers
 from fastmcp import Context
 from loguru import logger
 from pathlib import Path
@@ -113,7 +114,9 @@ class LoggerContextAdapter:
 
     This class enables seamless integration between MCP context-based logging
     and Loguru. It wraps the MCP context methods to also log through Loguru,
-    ensuring consistent log formatting and aggregation.
+    ensuring consistent log formatting and aggregation. Messages sent to the MCP
+    client have ARNs and account IDs redacted (see redaction.py); the server-side
+    Loguru log keeps them.
     """
 
     def __init__(self, ctx: Context, module_name: str):
@@ -132,7 +135,7 @@ class LoggerContextAdapter:
         Args:
             message: The debug message to log
         """
-        await self.ctx.debug(message)
+        await self.ctx.debug(redact_identifiers(message))
         self.logger.debug(message)
 
     async def info(self, message: str) -> None:
@@ -141,7 +144,7 @@ class LoggerContextAdapter:
         Args:
             message: The info message to log
         """
-        await self.ctx.info(message)
+        await self.ctx.info(redact_identifiers(message))
         self.logger.info(message)
 
     async def warning(self, message: str) -> None:
@@ -150,7 +153,7 @@ class LoggerContextAdapter:
         Args:
             message: The warning message to log
         """
-        await self.ctx.warning(message)
+        await self.ctx.warning(redact_identifiers(message))
         self.logger.warning(message)
 
     async def error(self, message: str, exc_info: bool = False) -> None:
@@ -160,7 +163,7 @@ class LoggerContextAdapter:
             message: The error message to log
             exc_info: Whether to include exception info in the log
         """
-        await self.ctx.error(message)
+        await self.ctx.error(redact_identifiers(message))
         if exc_info:
             self.logger.exception(message)
         else:

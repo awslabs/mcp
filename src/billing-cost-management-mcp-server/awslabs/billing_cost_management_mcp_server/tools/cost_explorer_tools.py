@@ -323,7 +323,7 @@ async def cost_explorer(
     try:
         ce_client = create_aws_client('ce')
     except Exception as client_error:
-        await ctx.error(f'Failed to create AWS client: {str(client_error)}')
+        await ctx.error(f'Failed to create AWS client: {type(client_error).__name__}')
         error_message = f'Failed to create AWS client: {str(client_error)}'
         return format_response(
             'error',

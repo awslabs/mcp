@@ -218,3 +218,173 @@ class TestErrorSignalingEndToEnd:
         content = result.content[0]
         assert isinstance(content, TextContent)
         assert json.loads(content.text) == result.structured_content
+
+
+class TestErrorRedaction:
+    """No ARN or account ID reaches the client in an error result, whatever path built it."""
+
+    CALLER_ARN = 'arn:aws:sts::123456789012:assumed-role/ExampleRole/example-session'
+
+    @pytest.mark.asyncio
+    async def test_structured_and_derived_content_redacted(self, middleware, mock_context):
+        """A tool's own error dict (not built by handle_aws_error) is redacted."""
+        error_result = ToolResult(
+            structured_content={
+                'status': 'error',
+                'error_type': 'AccessDeniedException',
+                'message': f'User: {self.CALLER_ARN} is not authorized',
+                'data': {'message': 'Account 123456789012 is not allowed'},
+            },
+        )
+        call_next = AsyncMock(return_value=error_result)
+
+        result = await middleware.on_call_tool(mock_context, call_next)
+
+        mcp_result = result.to_mcp_result()
+        assert mcp_result.structured_content['message'] == 'User: [ARN redacted] is not authorized'
+        assert mcp_result.structured_content['data']['message'] == (
+            'Account [account ID redacted] is not allowed'
+        )
+        assert json.loads(mcp_result.content[0].text) == mcp_result.structured_content
+
+    @pytest.mark.asyncio
+    async def test_custom_content_redacted(self, middleware, mock_context):
+        """Custom text content is kept, with its identifiers redacted."""
+        custom = [TextContent(type='text', text=f'Denied for {self.CALLER_ARN}')]
+        error_result = ToolResult(
+            content=custom,
+            structured_content={'status': 'error', 'error_type': 'access_denied'},
+        )
+        call_next = AsyncMock(return_value=error_result)
+
+        result = await middleware.on_call_tool(mock_context, call_next)
+
+        mcp_result = result.to_mcp_result()
+        assert mcp_result.content == [TextContent(type='text', text='Denied for [ARN redacted]')]
+
+    @pytest.mark.asyncio
+    async def test_success_response_not_redacted(self, middleware, mock_context):
+        """Account IDs are data in a successful result (e.g. a LINKED_ACCOUNT group key)."""
+        success_result = ToolResult(
+            structured_content={'status': 'success', 'data': {'account': '123456789012'}},
+        )
+        call_next = AsyncMock(return_value=success_result)
+
+        result = await middleware.on_call_tool(mock_context, call_next)
+
+        assert result is success_result
+
+
+class TestErrorRedactionEndToEnd:
+    """Trust boundary: an AccessDenied through handle_aws_error and FastMCP leaks nothing."""
+
+    @pytest.mark.asyncio
+    async def test_access_denied_reaches_client_without_identifiers(self):
+        """Neither the tool result nor the MCP log messages carry the ARN or account ID."""
+        from awslabs.billing_cost_management_mcp_server.utilities.aws_service_base import (
+            handle_aws_error,
+        )
+        from botocore.exceptions import ClientError
+        from fastmcp import Client, Context, FastMCP
+
+        caller = 'arn:aws:sts::123456789012:assumed-role/ExampleRole/example-session'
+        server = FastMCP(name='test')
+        server.add_middleware(ErrorSignalingMiddleware())
+
+        @server.tool
+        async def denied_tool(ctx: Context) -> dict:
+            error = ClientError(
+                {
+                    'Error': {
+                        'Code': 'AccessDeniedException',
+                        'Message': f'User: {caller} is not authorized to perform: ce:GetCostAndUsage',
+                    },
+                    'ResponseMetadata': {'RequestId': 'req-1', 'HTTPStatusCode': 400},
+                },
+                'GetCostAndUsage',
+            )
+            return await handle_aws_error(ctx, error, 'GetCostAndUsage', 'Cost Explorer')
+
+        logs = []
+
+        async def log_handler(message):
+            logs.append(str(message.data))
+
+        async with Client(server, log_handler=log_handler) as client:
+            result = await client.call_tool('denied_tool', raise_on_error=False)
+
+        assert result.is_error is True
+        everything = json.dumps(result.structured_content) + result.content[0].text + ''.join(logs)
+        assert logs
+        for secret in ('123456789012', 'arn:aws', 'ExampleRole', 'example-session'):
+            assert secret not in everything, secret
+        assert 'ce:GetCostAndUsage' in result.structured_content['message']
+        assert result.structured_content['retry_strategy'] == 'do_not_retry'
+
+    @pytest.mark.asyncio
+    async def test_raised_exception_text_is_redacted(self):
+        """An exception that escapes a tool reaches the client without identifiers."""
+        from fastmcp import Client, FastMCP
+
+        server = FastMCP(name='test')
+        server.add_middleware(ErrorSignalingMiddleware())
+
+        @server.tool
+        def raising_tool() -> dict:
+            raise RuntimeError(
+                'User: arn:aws:sts::123456789012:assumed-role/ExampleRole/s is not authorized'
+            )
+
+        async with Client(server) as client:
+            result = await client.call_tool('raising_tool', raise_on_error=False)
+
+        assert result.is_error is True
+        text = result.content[0].text
+        assert 'User: [ARN redacted] is not authorized' in text
+        assert '123456789012' not in text and 'ExampleRole' not in text
+
+    @pytest.mark.asyncio
+    async def test_raised_fastmcp_error_keeps_type_and_is_redacted(self, middleware, mock_context):
+        """A FastMCP error raised past the tool keeps its type, with its text redacted."""
+        from fastmcp.exceptions import ValidationError
+
+        call_next = AsyncMock(
+            side_effect=ValidationError('bad arn arn:aws:iam::123456789012:role/Example')
+        )
+
+        with pytest.raises(ValidationError) as raised:
+            await middleware.on_call_tool(mock_context, call_next)
+
+        assert str(raised.value) == 'bad arn [ARN redacted]'
+
+    @pytest.mark.asyncio
+    async def test_raised_tool_error_keeps_attributes_and_cause(self, middleware, mock_context):
+        """Redaction happens in place: log_level and the original cause survive."""
+        import logging
+        from fastmcp.exceptions import ToolError
+
+        cause = RuntimeError('original')
+        error = ToolError('denied for 123456789012', log_level=logging.WARNING)
+        error.__cause__ = cause
+        call_next = AsyncMock(side_effect=error)
+
+        with pytest.raises(ToolError) as raised:
+            await middleware.on_call_tool(mock_context, call_next)
+
+        assert raised.value is error
+        assert str(raised.value) == 'denied for [account ID redacted]'
+        assert raised.value.log_level == logging.WARNING
+        assert raised.value.__cause__ is cause
+
+    @pytest.mark.asyncio
+    async def test_raised_error_without_identifiers_is_unchanged(self, middleware, mock_context):
+        """Nothing to redact: the original exception propagates as is."""
+        from fastmcp.exceptions import ToolError
+
+        original = ToolError('Error calling tool: boom')
+        call_next = AsyncMock(side_effect=original)
+
+        with pytest.raises(ToolError) as raised:
+            await middleware.on_call_tool(mock_context, call_next)
+
+        assert raised.value is original

@@ -1087,6 +1087,33 @@ class TestGetComputeOptimizerData:
     @patch(
         'awslabs.billing_cost_management_mcp_server.tools.recommendation_details_tools.create_aws_client'
     )
+    async def test_get_compute_optimizer_data_error_redacts_identifiers(
+        self, mock_create_aws_client, mock_context, mock_compute_optimizer_client
+    ):
+        """The embedded error is redacted and the client log carries no exception text."""
+        mock_create_aws_client.return_value = mock_compute_optimizer_client
+        mock_compute_optimizer_client.get_rds_database_recommendations.side_effect = Exception(
+            'User: arn:aws:sts::123456789012:assumed-role/ExampleRole/s is not authorized '
+            'to perform: compute-optimizer:GetRDSDatabaseRecommendations'
+        )
+        recommendation = {
+            'actionType': 'Modify',
+            'currentResourceType': 'RdsDbInstance',
+            'resourceArn': 'arn:aws:rds:us-east-1:123456789012:db:test-db',
+            'region': 'us-east-1',
+        }
+
+        result = await get_compute_optimizer_data(mock_context, recommendation)
+
+        assert '123456789012' not in result['error'] and 'arn:aws' not in result['error']
+        assert 'User: [ARN redacted] is not authorized' in result['error']
+        # The client log names only the exception class, never its text
+        logged = mock_context.error.call_args.args[0]
+        assert logged == 'Error getting Compute Optimizer data: Exception'
+
+    @patch(
+        'awslabs.billing_cost_management_mcp_server.tools.recommendation_details_tools.create_aws_client'
+    )
     async def test_get_compute_optimizer_data_unsupported_type(
         self, mock_create_aws_client, mock_context, mock_compute_optimizer_client
     ):

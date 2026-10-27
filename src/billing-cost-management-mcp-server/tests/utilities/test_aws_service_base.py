@@ -22,6 +22,7 @@ This module contains unit tests for the aws_service_base.py module, including:
 - Response formatting utilities
 """
 
+import json
 import pytest
 from awslabs.billing_cost_management_mcp_server.utilities.aws_service_base import (
     __version__,
@@ -401,7 +402,9 @@ class TestHandleAwsError:
         assert result['error_type'] == 'aws_connection_error'
         assert result['service'] == 'EC2'
         assert result['operation'] == 'Connect'
-        assert result['message'] == 'AWS service connection error: BotoCoreError'
+        # The base class is not a connection failure, so it is not retryable
+        assert result['message'] == 'AWS SDK error (not a connection failure): BotoCoreError'
+        assert result['retry_strategy'] == 'do_not_retry'
 
     @pytest.mark.asyncio
     async def test_handle_param_validation_error(self):
@@ -518,6 +521,324 @@ class TestHandleAwsError:
         assert result['error_type'] == 'aws_connection_error'
         assert 'retry_strategy' not in result
         assert add_retry_guidance(result)['retry_strategy'] == RETRY_SAME_REQUEST
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'error_factory, hint_start',
+        [
+            # credential_process failed (e.g. an expired SSO or federation session)
+            (
+                lambda e: e.CredentialRetrievalError(provider='custom-process', error_msg=''),
+                'AWS credentials or client configuration',
+            ),
+            (
+                lambda e: e.TokenRetrievalError(provider='sso', error_msg='expired'),
+                'AWS credentials or client configuration',
+            ),
+            (
+                lambda e: e.SSOTokenLoadError(error_msg='token expired'),
+                'AWS credentials or client configuration',
+            ),
+            (
+                lambda e: e.UnauthorizedSSOTokenError(),
+                'AWS credentials or client configuration',
+            ),
+            (
+                lambda e: e.OperationNotPageableError(operation_name='get_cost_forecast'),
+                'The AWS SDK rejected the call',
+            ),
+            (
+                lambda e: e.DataNotFoundError(data_path='ce/2017-10-25'),
+                'The AWS SDK rejected the call',
+            ),
+            (
+                lambda e: e.WaiterError(name='Done', reason='Max attempts', last_response={}),
+                'The AWS SDK rejected the call',
+            ),
+        ],
+        ids=[
+            'CredentialRetrievalError',
+            'TokenRetrievalError',
+            'SSOTokenLoadError',
+            'UnauthorizedSSOTokenError',
+            'OperationNotPageableError',
+            'DataNotFoundError',
+            'WaiterError',
+        ],
+    )
+    async def test_non_connection_botocore_errors_are_do_not_retry(
+        self, error_factory, hint_start
+    ):
+        """A BotoCoreError outside botocore's transient classes is not a connection failure."""
+        import botocore.exceptions as boto_exceptions
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            DO_NOT_RETRY,
+            add_retry_guidance,
+        )
+
+        error = error_factory(boto_exceptions)
+        result = await handle_aws_error(AsyncMock(), error, 'GetCostAndUsage', 'Cost Explorer')
+
+        assert result['error_type'] == 'aws_connection_error'
+        assert result['boto_error_type'] == type(error).__name__
+        assert result['message'].startswith('AWS SDK error (not a connection failure): ')
+        assert result['hint'].startswith(hint_start)
+        assert 'Do not retry' in result['hint']
+        assert add_retry_guidance(result)['retry_strategy'] == DO_NOT_RETRY
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'error_factory',
+        [
+            lambda e: e.UnknownParameterError(
+                name='Foo', operation='GetCostAndUsage', choices='TimePeriod'
+            ),
+            lambda e: e.UnknownKeyError(value='x', param='Filter', choices='And, Or'),
+            lambda e: e.RangeError(value=0, param='MaxResults', min_value=1, max_value=100),
+        ],
+        ids=['UnknownParameterError', 'UnknownKeyError', 'RangeError'],
+    )
+    async def test_botocore_validation_errors_are_modify_request(self, error_factory):
+        """Botocore's ValidationError family means the arguments are wrong, like ParamValidationError."""
+        import botocore.exceptions as boto_exceptions
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            MODIFY_REQUEST,
+            add_retry_guidance,
+        )
+
+        error = error_factory(boto_exceptions)
+        result = await handle_aws_error(AsyncMock(), error, 'GetCostAndUsage', 'Cost Explorer')
+
+        # error_type stays stable for callers that key on it; retry_strategy is explicit
+        assert result['error_type'] == 'aws_connection_error'
+        assert result['boto_error_type'] == type(error).__name__
+        assert result['details'] == str(error)
+        assert 'Correct them' in result['hint']
+        assert add_retry_guidance(result)['retry_strategy'] == MODIFY_REQUEST
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'error_factory',
+        [
+            lambda e: e.IncompleteReadError(actual_bytes=1, expected_bytes=2),
+            lambda e: e.FlexibleChecksumError(error_msg='Expected checksum did not match'),
+        ],
+        ids=['IncompleteReadError', 'FlexibleChecksumError'],
+    )
+    async def test_body_read_failures_are_retryable(self, error_factory):
+        """A response body cut short or corrupted in transit is transient."""
+        import botocore.exceptions as boto_exceptions
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            RETRY_SAME_REQUEST,
+            add_retry_guidance,
+        )
+
+        error = error_factory(boto_exceptions)
+        result = await handle_aws_error(AsyncMock(), error, 'GetObject', 'S3')
+
+        assert 'retry_strategy' not in result
+        assert add_retry_guidance(result)['retry_strategy'] == RETRY_SAME_REQUEST
+
+    @pytest.mark.asyncio
+    async def test_retry_quota_exhausted_stays_retryable(self):
+        """CapacityNotAvailableError means the SDK ran out of retries for now: try later."""
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            RETRY_SAME_REQUEST,
+            add_retry_guidance,
+        )
+        from botocore.exceptions import CapacityNotAvailableError
+
+        result = await handle_aws_error(
+            AsyncMock(), CapacityNotAvailableError(), 'GetCostAndUsage', 'Cost Explorer'
+        )
+
+        assert result['message'] == 'AWS service connection error: CapacityNotAvailableError'
+        assert add_retry_guidance(result)['retry_strategy'] == RETRY_SAME_REQUEST
+
+    @pytest.mark.asyncio
+    async def test_every_botocore_error_class_is_classified(self):
+        """Only botocore's transient classes are retryable; every other BotoCoreError is not.
+
+        Walks the installed botocore, so a class added by a botocore upgrade is covered.
+        """
+        import botocore.exceptions as boto_exceptions
+        import inspect
+        from awslabs.billing_cost_management_mcp_server.utilities.error_contract import (
+            DO_NOT_RETRY,
+            MODIFY_REQUEST,
+            RETRY_SAME_REQUEST,
+            add_retry_guidance,
+        )
+
+        transient = (
+            boto_exceptions.ConnectionError,
+            boto_exceptions.HTTPClientError,
+            boto_exceptions.CapacityNotAvailableError,
+            boto_exceptions.IncompleteReadError,
+            boto_exceptions.ChecksumError,
+            boto_exceptions.FlexibleChecksumError,
+        )
+        # Pinned by name, so the check does not just mirror the implementation's tuple
+        assert {
+            cls.__name__
+            for _, cls in inspect.getmembers(boto_exceptions, inspect.isclass)
+            if issubclass(cls, transient)
+        } >= {
+            'EndpointConnectionError',
+            'ConnectTimeoutError',
+            'ReadTimeoutError',
+            'ConnectionClosedError',
+            'ProxyConnectionError',
+            'SSLError',
+            'ResponseStreamingError',
+            'IncompleteReadError',
+            'ChecksumError',
+            'FlexibleChecksumError',
+            'CapacityNotAvailableError',
+        }
+        classes = [
+            cls
+            for _, cls in inspect.getmembers(boto_exceptions, inspect.isclass)
+            if issubclass(cls, boto_exceptions.BotoCoreError)
+        ]
+        assert len(classes) > 50
+
+        for cls in classes:
+            error = cls.__new__(cls)  # skip __init__: each class needs different kwargs
+            result = add_retry_guidance(await handle_aws_error(AsyncMock(), error, 'Op', 'Svc'))
+            if issubclass(cls, transient):
+                expected = RETRY_SAME_REQUEST
+            elif issubclass(cls, (boto_exceptions.ValidationError, ValueError)) or (
+                cls is boto_exceptions.ParamValidationError
+            ):
+                expected = MODIFY_REQUEST
+            else:
+                expected = DO_NOT_RETRY
+            assert result['retry_strategy'] == expected, cls.__name__
+
+
+class TestHandleAwsErrorRedaction:
+    """No ARN or account ID from the error text reaches the tool response."""
+
+    CALLER_ARN = 'arn:aws:sts::123456789012:assumed-role/ExampleRole/example-session'
+    RESOURCE_ARN = 'arn:aws:billing::210987654321:billingview/primary'
+
+    def _assert_clean(self, result):
+        text = json.dumps(result)
+        for secret in (
+            '123456789012',
+            '210987654321',
+            'arn:aws',
+            'ExampleRole',
+            'example-session',
+        ):
+            assert secret not in text, secret
+
+    @pytest.mark.asyncio
+    async def test_access_denied_redacts_caller_and_resource(self):
+        """The live AccessDenied shape: the action stays, the identifiers go, keys are unchanged."""
+        from botocore.exceptions import ClientError
+
+        message = (
+            f'User: {self.CALLER_ARN} is not authorized to perform: billing:GetBillingView '
+            f'on resource: {self.RESOURCE_ARN} because no resource-based policy allows the '
+            'billing:GetBillingView action'
+        )
+        error = ClientError(
+            {
+                'Error': {'Code': 'AccessDeniedException', 'Message': message},
+                'ResponseMetadata': {'RequestId': 'req-1', 'HTTPStatusCode': 400},
+            },
+            'GetBillingView',
+        )
+
+        result = await handle_aws_error(AsyncMock(), error, 'getBillingView', 'Billing')
+
+        self._assert_clean(result)
+        assert set(result) == {
+            'status',
+            'service',
+            'operation',
+            'error_type',
+            'message',
+            'request_id',
+            'http_status',
+            'full_error',
+            'full_response',
+        }
+        assert result['error_type'] == 'AccessDeniedException'
+        assert result['request_id'] == 'req-1'
+        assert 'is not authorized to perform: billing:GetBillingView' in result['message']
+        assert '[ARN redacted]' in result['message']
+
+    @pytest.mark.asyncio
+    async def test_foreign_account_message_redacted(self):
+        """The 'Account <id> is not allowed' shape carries no ARN, only the account ID."""
+        from botocore.exceptions import ClientError
+
+        error = ClientError(
+            {
+                'Error': {
+                    'Code': 'AccessDeniedException',
+                    'Message': 'Account 123456789012 is not allowed to access this resource.',
+                },
+                'ResponseMetadata': {'HTTPStatusCode': 400},
+            },
+            'DescribeCostCategoryDefinition',
+        )
+
+        result = await handle_aws_error(AsyncMock(), error, 'Describe', 'Cost Explorer')
+
+        self._assert_clean(result)
+        assert result['message'] == (
+            'Account [account ID redacted] is not allowed to access this resource.'
+        )
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        'error',
+        [
+            ValueError(f'Invalid billing view {RESOURCE_ARN}'),
+            RuntimeError(f'query failed for {CALLER_ARN}'),
+            KeyError('account 123456789012'),
+        ],
+        ids=['ValueError', 'RuntimeError', 'KeyError'],
+    )
+    async def test_every_branch_redacts(self, error):
+        """The validation and unknown-error branches redact too."""
+        result = await handle_aws_error(AsyncMock(), error, 'Op', 'Svc')
+
+        self._assert_clean(result)
+
+    @pytest.mark.asyncio
+    async def test_param_validation_error_redacts(self):
+        """A botocore validation report that echoes an ARN argument is redacted."""
+        from botocore.exceptions import ParamValidationError
+
+        error = ParamValidationError(report=f'Invalid value {self.RESOURCE_ARN} for Arn')
+        result = await handle_aws_error(AsyncMock(), error, 'Op', 'Svc')
+
+        self._assert_clean(result)
+
+    @pytest.mark.asyncio
+    async def test_context_log_messages_are_redacted(self):
+        """The error message logged to the MCP client is redacted as well."""
+        from botocore.exceptions import ClientError
+
+        ctx = AsyncMock()
+        error = ClientError(
+            {
+                'Error': {'Code': 'AccessDeniedException', 'Message': f'User: {self.CALLER_ARN}'},
+                'ResponseMetadata': {'HTTPStatusCode': 400},
+            },
+            'GetBillingView',
+        )
+
+        await handle_aws_error(ctx, error, 'getBillingView', 'Billing')
+
+        logged = ctx.error.call_args.args[0]
+        assert 'User: [ARN redacted]' in logged
+        assert '123456789012' not in logged
 
 
 class TestFormatResponse:
