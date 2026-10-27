@@ -95,7 +95,7 @@ You can group results by dimensions such as:
 - REGION: AWS Region
 - USAGE_TYPE: Type of usage (e.g., BoxUsage:t2.micro)
 - INSTANCE_TYPE: EC2 instance type (e.g., t2.micro, m5.large)
-- PLATFORM: Operating system (e.g., Windows, Linux)
+- PLATFORM: Operating system (e.g., Linux/UNIX, Windows (Amazon VPC))
 - TENANCY: Instance tenancy. Exact, case-sensitive values: Shared, Dedicated, Host
 - RECORD_TYPE: Record type (e.g., Usage, Credit, Tax)
 - LEGAL_ENTITY_NAME: AWS seller of record

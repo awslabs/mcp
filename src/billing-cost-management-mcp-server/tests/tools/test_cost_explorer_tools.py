@@ -1933,6 +1933,86 @@ class TestCostExplorerDescriptionContract:
         assert 'use Recurring and Upfront for RI fees' in record_type
         assert 'getDimensionValues with RECORD_TYPE' in record_type
 
+    @pytest.mark.parametrize(
+        'module_name, tool_name, server_attr, key, values, wrong',
+        [
+            (
+                'cost_explorer_tools',
+                'cost-explorer',
+                'cost_explorer_server',
+                'DATABASE_ENGINE',
+                ('Aurora MySQL', 'Aurora PostgreSQL', 'MySQL', 'PostgreSQL'),
+                ('Aurora',),
+            ),
+            (
+                'cost_explorer_tools',
+                'cost-explorer',
+                'cost_explorer_server',
+                'DEPLOYMENT_OPTION',
+                ('Single-AZ', 'Multi-AZ'),
+                ('SingleAZ', 'MultiAZ'),
+            ),
+            (
+                'cost_explorer_tools',
+                'cost-explorer',
+                'cost_explorer_server',
+                'INSTANCE_TYPE_FAMILY',
+                ('m5', 't3', 'c6g', 'r5', 'R5'),
+                ('Compute Optimized', 'Memory Optimized'),
+            ),
+            (
+                'cost_explorer_tools',
+                'cost-explorer',
+                'cost_explorer_server',
+                'OPERATING_SYSTEM',
+                ('Linux/UNIX', 'Windows (Amazon VPC)'),
+                ('Windows', 'Linux'),
+            ),
+            (
+                'cost_explorer_tools',
+                'cost-explorer',
+                'cost_explorer_server',
+                'PLATFORM',
+                ('Linux/UNIX', 'Windows (Amazon VPC)'),
+                ('Windows', 'Linux'),
+            ),
+            (
+                'cost_explorer_tools',
+                'cost-explorer',
+                'cost_explorer_server',
+                'PURCHASE_TYPE',
+                ('On Demand Instances', 'Standard Reserved Instances', 'Savings Plans'),
+                ('On-Demand',),
+            ),
+            (
+                'cost_comparison_tools',
+                'cost-comparison',
+                'cost_comparison_server',
+                'PLATFORM',
+                ('Linux/UNIX', 'Windows (Amazon VPC)'),
+                ('Windows', 'Linux'),
+            ),
+        ],
+    )
+    def test_dimension_examples_use_exact_ce_values(
+        self, module_name, tool_name, server_attr, key, values, wrong
+    ):
+        """Dimension examples are values Cost Explorer returns, not console or pricing labels."""
+        module = importlib.reload(
+            importlib.import_module(
+                f'awslabs.billing_cost_management_mcp_server.tools.{module_name}'
+            )
+        )
+        description = _registered_tool(getattr(module, server_attr), tool_name).description or ''
+        match = re.search(rf'^- {key}:.*(?:\n  .*)*', description, re.MULTILINE)
+        assert match is not None
+        entry = ' '.join(match.group(0).split())
+        for value in values:
+            assert re.search(rf'(?<![\w-]){re.escape(value)}(?![\w-])', entry), value
+        for value in wrong:
+            # A wrong value only counts as a whole list item, so 'Aurora MySQL' is not 'Aurora'.
+            assert not re.search(rf'[ (]{re.escape(value)}(?=[,);.]|$)', entry), value
+
     def test_description_prefers_monthly_for_whole_month_rankings(self, tool):
         """Whole-month totals and rankings are steered to MONTHLY; the code default stays DAILY."""
         assert 'DAILY granularity for periods <3 months' not in tool.description
