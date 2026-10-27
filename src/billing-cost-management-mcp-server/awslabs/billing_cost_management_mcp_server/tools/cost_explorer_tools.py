@@ -72,7 +72,11 @@ COST_EXPLORER_DESCRIPTION = _with_example_dates("""Retrieves AWS cost and usage 
 
 IMPORTANT USAGE GUIDELINES:
 - Use UnblendedCost metric by default (not BlendedCost) unless user specifies otherwise
-- Exclude record_types 'Credit' and 'Refund' by default unless user requests inclusion
+- A query with no RECORD_TYPE filter returns net cost: credits and refunds are already
+  subtracted. Filtering them out returns charges before credits, which can be far higher than
+  what the account paid: a commitment fee refunded in the same month
+  is counted once with no offsetting refund. Group by RECORD_TYPE to see which charge types
+  (usage, fees, credits, refunds, tax) make up a total
 - Use MONTHLY granularity for totals or rankings over whole months; use DAILY only when a daily
   trend is asked for or the window is shorter than a month
 - Start with high-level dimensions (SERVICE, LINKED_ACCOUNT) before detailed ones

@@ -37,6 +37,8 @@ GET_FREE_TIER_USAGE_PAGE_SPEC = PageSpec(
     token_key_in_response='nextToken',
     page_max=1000,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as ValidationException.
+    caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
 free_tier_usage_server = FastMCP(

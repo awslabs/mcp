@@ -22,7 +22,9 @@ They also fix the two offering operations sharing one set of tool parameter name
 while the API spells three of its fields differently for each.
 """
 
+import fastmcp
 import pytest
+import re
 import sqlite3
 from awslabs.billing_cost_management_mcp_server.tools.sp_explorer_tools import (
     describe_savings_plan_rates,
@@ -1205,3 +1207,139 @@ class TestSpExplorerPagination:
 
         assert second.pop('nextToken') == 'caller-token'
         assert second == first
+
+
+@pytest.mark.asyncio
+class TestDescribeSavingsPlansScope:
+    """DescribeSavingsPlans is scoped to the calling account, and the tool says so.
+
+    From a management account whose plans were bought in member accounts the API
+    returns none of them, even when asked for by id or ARN, and its response shape
+    carries no owner field to say otherwise. A caller that reads the empty list as
+    "owns none" sizes a fresh commitment over usage existing plans already cover,
+    so the scope has to be stated where the caller will see it.
+    """
+
+    @staticmethod
+    async def _description() -> str:
+        """The sp-explorer description as published to MCP clients."""
+        async with fastmcp.Client(sp_explorer_server) as client:
+            tools = await client.list_tools()
+        description = next(t for t in tools if t.name == 'sp-explorer').description
+        assert description is not None, 'sp-explorer is served with no description'
+        return description
+
+    async def test_description_states_calling_account_scope(self):
+        """The scope is named: the calling account only, management account included."""
+        description = await self._description()
+
+        assert 'The plans the account owns' not in description
+        assert re.search(r'calling account only', description, re.I)
+        assert re.search(r'management account', description, re.I)
+
+    async def test_description_points_to_org_wide_sources(self):
+        """The org-wide alternatives are named, with the owner read from the ARN."""
+        description = await self._description()
+
+        assert 'get_savings_plans_utilization_details' in description
+        assert 'SAVINGS_PLAN_ARN' in description
+        assert 'SAVINGS_PLANS' in description
+        assert re.search(r"ARN'?s? account", description, re.I)
+
+    async def test_description_states_the_window_the_org_wide_source_needs(self):
+        """Both alternatives read Cost Explorer, which defaults to 30 days.
+
+        get_savings_plans_utilization_details resolves its window through
+        get_date_range, whose default is 30 days ago, and Cost Explorer lists a plan
+        only where it has utilization records inside the window. Pointing a caller
+        there without saying so swaps one silent under-report for a narrower one: a
+        retired or currently idle member-owned plan still displaces a new purchase.
+        """
+        description = await self._description()
+
+        assert re.search(r'12-month', description, re.I)
+        assert re.search(r'start_date and end_date', description)
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.sp_explorer_tools.paginate_aws_items')
+    async def test_member_owned_plan_ids_return_empty_success_not_error(
+        self, mock_paginate, mock_context, mock_sp_client
+    ):
+        """Member-owned ids are passed through, and the empty result is a success.
+
+        Pins the live passthrough: the ids reach boto3 unchanged and the empty list
+        is not turned into an error, so nothing downstream has to special-case it.
+        """
+        mock_paginate.return_value = ([], [], PAGINATION_COMPLETE)
+        member_plan = '11111111-2222-4333-8444-555555555555'
+
+        result = await describe_savings_plans(
+            mock_context, mock_sp_client, None, [member_plan], None, None, None, None
+        )
+
+        assert mock_paginate.call_args[0][3] == {'savingsPlanIds': [member_plan]}
+        assert result['status'] == 'success'
+        assert result['data']['savingsPlans'] == []
+        assert result['data']['pagination'] == PAGINATION_COMPLETE
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.sp_explorer_tools.paginate_aws_items')
+    async def test_empty_inventory_explains_the_scope_in_the_result(
+        self, mock_paginate, mock_context, mock_sp_client
+    ):
+        """An empty result carries the scope, as sp-performance's empty results do.
+
+        The description only helps a caller that re-reads it. This puts the same
+        statement in the response a caller consumes at runtime.
+        """
+        mock_paginate.return_value = ([], [], PAGINATION_COMPLETE)
+
+        result = await describe_savings_plans(
+            mock_context, mock_sp_client, None, None, None, None, None, None
+        )
+
+        message = result['data']['message']
+        assert re.search(r'calling account', message, re.I)
+        assert re.search(r'does not mean the organization owns none', message, re.I)
+        assert 'get_savings_plans_utilization_details' in message
+        assert 'SAVINGS_PLAN_ARN' in message
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.sp_explorer_tools.paginate_aws_items')
+    async def test_a_non_empty_inventory_carries_no_message(
+        self, mock_paginate, mock_context, mock_sp_client, sample_savings_plan
+    ):
+        """The message is the empty case only; a populated result keeps its shape."""
+        mock_paginate.return_value = ([sample_savings_plan], [], PAGINATION_COMPLETE)
+
+        result = await describe_savings_plans(
+            mock_context, mock_sp_client, None, None, None, None, None, None
+        )
+
+        assert 'message' not in result['data']
+
+
+@pytest.mark.asyncio
+class TestDescribeSavingsPlanRatesRequiredParameter:
+    """savingsPlanId is required, so an unset one is omitted rather than sent as None."""
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.sp_explorer_tools.paginate_aws_items')
+    async def test_unset_savings_plan_id_is_omitted(
+        self, mock_paginate, mock_context, mock_sp_client
+    ):
+        """Botocore names a missing field; a None value it reports as a type error."""
+        mock_paginate.return_value = ([], [], PAGINATION_COMPLETE)
+
+        await describe_savings_plan_rates(mock_context, mock_sp_client, None, None, None, None)
+
+        assert 'savingsPlanId' not in mock_paginate.call_args[0][3]
+
+    @patch('awslabs.billing_cost_management_mcp_server.tools.sp_explorer_tools.paginate_aws_items')
+    async def test_a_given_savings_plan_id_is_still_sent(
+        self, mock_paginate, mock_context, mock_sp_client
+    ):
+        """The ordinary path is unchanged."""
+        mock_paginate.return_value = ([], [], PAGINATION_COMPLETE)
+
+        await describe_savings_plan_rates(
+            mock_context, mock_sp_client, '577d4a65', None, None, None
+        )
+
+        assert mock_paginate.call_args[0][3]['savingsPlanId'] == '577d4a65'
