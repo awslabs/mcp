@@ -26,6 +26,54 @@ from pydantic import Field
 from typing import Optional, Union
 
 
+# CloudWatch Logs Insights query commands that may legally start a query stage
+# (the text that follows a '|'). See:
+# https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax.html
+INSIGHTS_STAGE_COMMANDS = frozenset(
+    {
+        'fields',
+        'display',
+        'filter',
+        'stats',
+        'sort',
+        'limit',
+        'parse',
+        'dedup',
+        'diff',
+        'unmask',
+        'pattern',
+    }
+)
+
+
+def _normalize_filter_pattern(filter_pattern: str) -> str:
+    """Turn a user-supplied filter_pattern into a valid Insights query stage.
+
+    The value is appended to the query after a '|', so it must begin with a
+    CloudWatch Logs Insights command. If the caller already provided a full
+    command (e.g. ``filter @message like /ERROR/``) it is used unchanged.
+    Otherwise the value is treated as a plain search term (e.g. ``ERROR``) and
+    wrapped in a case-insensitive substring filter on @message, which avoids
+    the ``unexpected symbol`` error raised when a bare term is pasted after a
+    pipe.
+
+    Args:
+        filter_pattern: The raw filter_pattern value from the tool caller.
+
+    Returns:
+        A valid Insights stage, or an empty string if the input is blank.
+    """
+    stripped = filter_pattern.strip().lstrip('|').strip()
+    if not stripped:
+        return ''
+    first_token = stripped.split(None, 1)[0].lower()
+    if first_token in INSIGHTS_STAGE_COMMANDS:
+        return stripped
+    # Bare term: escape forward slashes so they do not terminate the regex.
+    escaped = stripped.replace('/', r'\/')
+    return f'filter @message like /{escaped}/'
+
+
 class CloudWatchHandler:
     """Handler for CloudWatch operations in the EKS MCP Server.
 
@@ -125,7 +173,7 @@ class CloudWatchHandler:
         ),
         filter_pattern: Optional[str] = Field(
             None,
-            description='Additional CloudWatch Logs filter pattern to apply. Uses CloudWatch Logs Insights syntax (e.g., "ERROR", "field=value"). IMPORTANT: Use this to narrow down results for specific issues.',
+            description='Additional filter to narrow results, given as a full CloudWatch Logs Insights command, e.g. "filter @message like /ERROR/" or "filter level=\\"error\\"". A plain search term such as "ERROR" is also accepted and is automatically wrapped as a case-insensitive @message substring filter. Do NOT pass a bare term expecting Logs Insights filter-pattern syntax; it must be (or become) a valid query command.',
         ),
         fields: Optional[str] = Field(
             None,
@@ -153,7 +201,9 @@ class CloudWatchHandler:
 
         ## Usage Tips
         - Start with a small time range (15-30 minutes) and expand if needed
-        - Use filter_pattern to narrow down results (e.g., "ERROR", "exception")
+        - Use filter_pattern to narrow down results. Pass a full Insights command
+          (e.g. "filter @message like /ERROR/") or a plain term (e.g. "ERROR"),
+          which is wrapped into a valid @message filter automatically.
         - For JSON logs, the tool automatically parses nested structures
         - Combine with get_k8s_events for comprehensive troubleshooting
         - Use resource_type="cluster" when querying cluster-level logs to avoid filtering by cluster name twice
@@ -212,9 +262,15 @@ class CloudWatchHandler:
             if resource_type != 'cluster' and resource_name is not None:
                 query += f"\n| filter @message like '{resource_name}'"
 
-            # Add additional filter pattern if provided
-            if filter_pattern:
-                query += f'\n| {filter_pattern}'
+            # Add additional filter pattern if provided. A full Insights
+            # command is used as-is; a bare term (e.g. "ERROR") is wrapped in a
+            # valid filter stage so it does not break the query. The isinstance
+            # guard skips the unset-default sentinel (a pydantic FieldInfo) when
+            # the method is invoked directly rather than through the MCP layer.
+            if isinstance(filter_pattern, str) and filter_pattern:
+                normalized_filter = _normalize_filter_pattern(filter_pattern)
+                if normalized_filter:
+                    query += f'\n| {normalized_filter}'
 
             # Add sorting and limit
             query += f'\n| sort @timestamp desc\n| limit {limit}'

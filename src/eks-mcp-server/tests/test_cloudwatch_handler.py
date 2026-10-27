@@ -1232,3 +1232,58 @@ class TestCloudWatchHandler:
 
         # Verify that get_query_results was called twice
         assert mock_logs_client.get_query_results.call_count == 2
+
+
+class TestNormalizeFilterPattern:
+    """Tests for _normalize_filter_pattern.
+
+    Regression coverage for the bug where a bare filter_pattern term (e.g.
+    "ERROR") was pasted directly after a '|', producing an invalid CloudWatch
+    Logs Insights query ("unexpected symbol found ERROR").
+    """
+
+    @pytest.mark.parametrize(
+        'raw,expected',
+        [
+            # Bare terms get wrapped into a valid filter stage.
+            ('ERROR', 'filter @message like /ERROR/'),
+            ('field=value', 'filter @message like /field=value/'),
+            ('OutOfMemory killed', 'filter @message like /OutOfMemory killed/'),
+            ('"connection refused"', 'filter @message like /"connection refused"/'),
+            # A stray leading pipe is stripped, then the term is wrapped.
+            ('| ERROR', 'filter @message like /ERROR/'),
+            # Forward slashes in a bare term are escaped so they do not end the regex.
+            ('a/b', r'filter @message like /a\/b/'),
+            # Full Insights commands pass through unchanged (whitespace trimmed).
+            ('filter @message like /ERROR/', 'filter @message like /ERROR/'),
+            ("filter level = 'ERROR'", "filter level = 'ERROR'"),
+            ('stats count(*) by bin(5m)', 'stats count(*) by bin(5m)'),
+            ('parse @message "* error *" as x', 'parse @message "* error *" as x'),
+            # Command keyword match is case-insensitive.
+            ('FILTER @message like /warn/', 'FILTER @message like /warn/'),
+            # Blank / pipe-only input yields an empty stage (caller skips it).
+            ('', ''),
+            ('   ', ''),
+            ('|', ''),
+        ],
+    )
+    def test_normalize(self, raw, expected):
+        """Each input maps to a valid stage or an empty string."""
+        from awslabs.eks_mcp_server.cloudwatch_handler import _normalize_filter_pattern
+
+        assert _normalize_filter_pattern(raw) == expected
+
+    def test_every_nonempty_result_starts_with_a_command(self):
+        """No normalized stage may start with a non-command token."""
+        from awslabs.eks_mcp_server.cloudwatch_handler import (
+            INSIGHTS_STAGE_COMMANDS,
+            _normalize_filter_pattern,
+        )
+
+        for raw in ['ERROR', 'field=value', 'two words', '| ERROR', 'a/b/c']:
+            stage = _normalize_filter_pattern(raw)
+            assert stage, f'expected a non-empty stage for {raw!r}'
+            first = stage.split(None, 1)[0].lower()
+            assert first in INSIGHTS_STAGE_COMMANDS, (
+                f'stage for {raw!r} starts with invalid command {first!r}'
+            )
