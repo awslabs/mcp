@@ -297,14 +297,13 @@ async def get_reservation_coverage(
         if metrics:
             request_params['Metrics'] = parse_json(metrics, 'metrics')
 
-        if group_by:
-            request_params['GroupBy'] = parse_json(group_by, 'group_by')
-
         # GetReservationCoverage treats Granularity and GroupBy as mutually
         # exclusive: "Granularity is not supported when specifying groupBy".
-        # Only send Granularity when the request is not grouped, otherwise the
-        # API returns a ValidationException.
-        if not group_by:
+        # Construct exactly one of them so a grouped request cannot include
+        # Granularity, which the API rejects with a ValidationException.
+        if group_by:
+            request_params['GroupBy'] = parse_json(group_by, 'group_by')
+        else:
             request_params['Granularity'] = granularity
 
         if filter_expr:
