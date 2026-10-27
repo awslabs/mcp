@@ -381,6 +381,8 @@ COA_LIST_AUTOMATION_EVENTS = PageSpec(
     token_key_in_response='nextToken',
     page_max=100,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as InvalidParameterValueException.
+    caller_token_error_codes=frozenset({'InvalidParameterValueException'}),
 )
 COA_LIST_AUTOMATION_EVENT_STEPS = PageSpec(
     result_key='automationEventSteps',
@@ -388,6 +390,8 @@ COA_LIST_AUTOMATION_EVENT_STEPS = PageSpec(
     token_key_in_response='nextToken',
     page_max=100,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as InvalidParameterValueException.
+    caller_token_error_codes=frozenset({'InvalidParameterValueException'}),
 )
 COA_LIST_AUTOMATION_EVENT_SUMMARIES = PageSpec(
     result_key='automationEventSummaries',
@@ -395,6 +399,8 @@ COA_LIST_AUTOMATION_EVENT_SUMMARIES = PageSpec(
     token_key_in_response='nextToken',
     page_max=100,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as InvalidParameterValueException.
+    caller_token_error_codes=frozenset({'InvalidParameterValueException'}),
 )
 COA_LIST_AUTOMATION_RULES = PageSpec(
     result_key='automationRules',
@@ -402,6 +408,8 @@ COA_LIST_AUTOMATION_RULES = PageSpec(
     token_key_in_response='nextToken',
     page_max=100,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as InvalidParameterValueException.
+    caller_token_error_codes=frozenset({'InvalidParameterValueException'}),
 )
 COA_LIST_RECOMMENDED_ACTIONS = PageSpec(
     result_key='recommendedActions',
@@ -409,6 +417,8 @@ COA_LIST_RECOMMENDED_ACTIONS = PageSpec(
     token_key_in_response='nextToken',
     page_max=100,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as InvalidParameterValueException.
+    caller_token_error_codes=frozenset({'InvalidParameterValueException'}),
 )
 COA_LIST_RECOMMENDED_ACTION_SUMMARIES = PageSpec(
     result_key='recommendedActionSummaries',
@@ -416,6 +426,8 @@ COA_LIST_RECOMMENDED_ACTION_SUMMARIES = PageSpec(
     token_key_in_response='nextToken',
     page_max=100,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as InvalidParameterValueException.
+    caller_token_error_codes=frozenset({'InvalidParameterValueException'}),
 )
 COA_LIST_AUTOMATION_RULE_PREVIEW = PageSpec(
     result_key='previewResults',
@@ -423,6 +435,8 @@ COA_LIST_AUTOMATION_RULE_PREVIEW = PageSpec(
     token_key_in_response='nextToken',
     page_max=100,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as InvalidParameterValueException.
+    caller_token_error_codes=frozenset({'InvalidParameterValueException'}),
 )
 COA_LIST_AUTOMATION_RULE_PREVIEW_SUMMARIES = PageSpec(
     result_key='previewResultSummaries',
@@ -430,6 +444,8 @@ COA_LIST_AUTOMATION_RULE_PREVIEW_SUMMARIES = PageSpec(
     token_key_in_response='nextToken',
     page_max=100,
     page_size_param='maxResults',
+    # The service reports a bad caller next_token as InvalidParameterValueException.
+    caller_token_error_codes=frozenset({'InvalidParameterValueException'}),
 )
 
 
