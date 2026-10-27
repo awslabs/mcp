@@ -120,15 +120,14 @@ The test suite automatically generates sample documents for testing:
 You can also run this server in a Docker container. The image speaks MCP over
 **stdio** (the Dockerfile does not expose an HTTP port), so use `--interactive`
 and omit `-p`. Mount a host docs folder so tools can see files, and set
-`DOCUMENT_BASE_DIR` to that mount (paths you pass to tools are container paths
-like `/documents/report.pdf`). Add `:ro` to the mount if you only read documents;
+`DOCUMENT_BASE_DIR` to that mount (paths you pass to tools are container paths like `/docs/report.pdf`). Add `:ro` to the mount if you only read documents;
 leave it writable for `extract_slides_as_images`.
 
 ```bash
 docker build -t awslabs/document-loader-mcp-server .
 docker run --rm --interactive \
-  -v "$PWD/docs:/documents" \
-  -e DOCUMENT_BASE_DIR=/documents \
+  -v "$PWD/docs:/docs" \
+  -e DOCUMENT_BASE_DIR=/docs \
   -e FASTMCP_LOG_LEVEL=ERROR \
   awslabs/document-loader-mcp-server
 ```
@@ -140,11 +139,13 @@ Example MCP client config:
   "mcpServers": {
     "awslabs.document-loader-mcp-server": {
       "command": "docker",
-      "args": ["run", "--rm", "--interactive",
-               "-v", "/absolute/path/to/docs:/documents",
-               "-e", "DOCUMENT_BASE_DIR=/documents",
-               "-e", "FASTMCP_LOG_LEVEL=ERROR",
-               "awslabs/document-loader-mcp-server"]
+      "args": [
+        "run", "--rm", "--interactive",
+        "-v", "/path/to/docs:/docs",
+        "-e", "DOCUMENT_BASE_DIR=/docs",
+        "-e", "FASTMCP_LOG_LEVEL=ERROR",
+        "awslabs/document-loader-mcp-server"
+      ]
     }
   }
 }
