@@ -35,6 +35,7 @@ from ..utilities.constants import (
 from datetime import datetime
 from enum import Enum
 from fastmcp import Context, FastMCP
+from sqlglot import exp
 from sqlglot.errors import ParseError as SqlglotParseError
 from typing import Any, Dict, List, Optional, TypedDict
 from urllib.parse import urlparse
@@ -83,6 +84,28 @@ def validate_query_is_readonly_select(query: str) -> str | None:
         if node.key in _FORBIDDEN:
             return f'Query validation failed: {node.key.upper()} statements are not allowed.'
     return None
+
+
+def references_qualified_table(query: str, database_name: str, table_name: str) -> bool:
+    """Return True if the query reads the table as ``<database_name>.<table_name>``.
+
+    Table references are read from the parsed SQL, so a name inside a string literal or a
+    comment does not count, quoted identifiers do, and names are compared case-insensitively
+    as Athena does. A catalog prefix other than Athena's default ``AwsDataCatalog`` names a
+    different table and does not count.
+    """
+    try:
+        statements = sqlglot.parse(query, read='trino')
+    except SqlglotParseError:
+        return False
+    return any(
+        table.name.lower() == table_name.lower()
+        and table.db.lower() == database_name.lower()
+        and table.catalog.lower() in ('', 'awsdatacatalog')
+        for stmt in statements
+        if stmt is not None
+        for table in stmt.find_all(exp.Table)
+    )
 
 
 # Using constants from centralized constants.py file
@@ -641,37 +664,33 @@ class StorageLensQueryTool:
             Dict[str, Any]: Query results and metadata
         """
         try:
-            # 1. Locate and parse manifest file
+            # 1. Replace the {table} placeholder, then require that the query reads the qualified
+            # table. Any other query is rejected before AWS is called; nothing but {table} is
+            # rewritten.
+            qualified_table = f'{database_name}.{table_name}'
+            formatted_query = query.replace('{table}', qualified_table)
+            if not references_qualified_table(formatted_query, database_name, table_name):
+                raise ValueError(
+                    'Query must reference the table with the {table} placeholder (for example '
+                    f'SELECT * FROM {{table}}) or by its qualified name {qualified_table}, and '
+                    'must parse as SQL once {table} is replaced.'
+                )
+
+            # 2. Locate and parse manifest file
             manifest = await self.manifest_handler.get_manifest(manifest_location)
 
-            # 2. Extract data location and schema information
+            # 3. Extract data location and schema information
             data_location = self.manifest_handler.extract_data_location(manifest)
             schema_info = self.manifest_handler.parse_schema(manifest)
 
-            # 3. Determine output location if not provided
+            # 4. Determine output location if not provided
             if not output_location:
                 output_location = self.athena_handler.determine_output_location(data_location)
 
-            # 4. Setup Athena database and table if needed
+            # 5. Setup Athena database and table if needed
             await self.athena_handler.setup_table(
                 database_name, table_name, schema_info, data_location, output_location
             )
-
-            # 5. Replace {table} placeholder in query with actual table name
-            formatted_query = query
-            if '{table}' in query:
-                formatted_query = query.replace('{table}', f'{database_name}.{table_name}')
-            elif f'{database_name}.{table_name}' not in query:
-                # If query doesn't contain the full table name and doesn't have the placeholder
-                # then prepend the database and table name to the FROM clause
-                if ' from ' in query.lower():
-                    formatted_query = query.lower().replace(
-                        ' from ', f' FROM {database_name}.{table_name} '
-                    )
-                else:
-                    raise ValueError(
-                        'Query must either contain {table} placeholder or explicitly reference the table.'
-                    )
 
             # 6. Execute query
             query_result = await self.athena_handler.execute_query(
@@ -715,7 +734,7 @@ class StorageLensQueryTool:
 IMPORTANT USAGE GUIDELINES:
 - Before using this tool, provide a 1-3 sentence explanation starting with "EXPLANATION:"
 - Use standard SQL syntax for Athena queries
-- Use {table} as a placeholder for the Storage Lens metrics table name
+- Reference the Storage Lens metrics table with the {table} placeholder (or its qualified <database>.<table> name). A query that does neither is rejected with a validation_error. Every {table} is replaced; nothing else in the query is changed
 - Perform aggregations (GROUP BY) when analyzing data across multiple dimensions
 
 This tool allows you to analyze S3 Storage Lens metrics data using SQL queries.
@@ -820,7 +839,8 @@ async def storage_lens_run_query(
 
     Args:
         ctx: The MCP context
-        query: SQL query to execute against the data (use {table} as a placeholder for the table name)
+        query: SQL query to execute against the data. Reference the table with the {table}
+            placeholder or its qualified <database>.<table> name; other queries are rejected.
         manifest_location: S3 URI to manifest file or folder (overrides environment variable)
         output_location: S3 location for Athena query results (overrides environment variable)
         database_name: Athena database name (defaults to 'storage_lens_db')
