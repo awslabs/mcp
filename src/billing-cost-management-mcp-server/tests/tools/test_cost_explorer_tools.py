@@ -1915,6 +1915,13 @@ class TestCostExplorerDescriptionContract:
         assert 'For part of a month, such as the rest of this month, use DAILY' in cost
         assert 'MONTHLY periods are whole calendar months' in usage
 
+    def test_description_flags_partial_monthly_sp_utilization(self, tool):
+        """The getSavingsPlansUtilization notes flag partial MONTHLY entries and period_note."""
+        notes = tool.description.split('8. getSavingsPlansUtilization')[1].split('Returns:')[0]
+        assert "each entry's TimePeriod is its whole calendar month" in notes
+        assert 'cover only the requested days' in notes
+        assert '`period_note`' in notes
+
     def test_dimension_reference_keys_are_ce_dimensions(self, tool):
         """Every DIMENSION REFERENCE key except the TAG note is in botocore's ce Dimension enum."""
         enum = set(

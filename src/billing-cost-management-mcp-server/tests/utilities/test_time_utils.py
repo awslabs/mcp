@@ -18,6 +18,7 @@ import pytest
 from awslabs.billing_cost_management_mcp_server.utilities.time_utils import (
     EPOCH_MILLISECONDS_THRESHOLD,
     format_timestamp_to_utc_iso,
+    monthly_period_note,
     normalize_datetimes_to_iso,
     timestamp_to_utc_iso_string,
 )
@@ -221,3 +222,61 @@ class TestFormatTimestampToUtcIso:
         ) as mock_logger:
             assert format_timestamp_to_utc_iso(value) is None
         mock_logger.warning.assert_called_once()
+
+
+class TestMonthlyPeriodNote:
+    """Tests for monthly_period_note."""
+
+    def test_no_periods_returns_empty(self):
+        """No entries, no note."""
+        assert monthly_period_note('2026-01-24', '2026-03-10', []) == {}
+
+    def test_periods_matching_request_return_empty(self):
+        """Labels within the request need no note."""
+        periods = [
+            {'Start': '2026-01-24', 'End': '2026-02-01'},
+            {'Start': '2026-02-01', 'End': '2026-03-10'},
+        ]
+        assert monthly_period_note('2026-01-24', '2026-03-10', periods) == {}
+
+    def test_start_snapped_only(self):
+        """Only the first entry is flagged when only the start is snapped."""
+        periods = [
+            {'Start': '2026-01-01', 'End': '2026-02-01'},
+            {'Start': '2026-02-01', 'End': '2026-03-01'},
+        ]
+        note = monthly_period_note('2026-01-24', '2026-03-01', periods)['period_note']
+        assert 'first entry, labelled 2026-01-01 to 2026-02-01, covers only 2026-01-24' in note
+        assert 'last entry' not in note
+
+    def test_end_snapped_only(self):
+        """Only the last entry is flagged when only the end is snapped."""
+        periods = [
+            {'Start': '2026-01-01', 'End': '2026-02-01'},
+            {'Start': '2026-02-01', 'End': '2026-03-01'},
+        ]
+        note = monthly_period_note('2026-01-01', '2026-02-10', periods)['period_note']
+        assert (
+            'last entry, labelled 2026-02-01 to 2026-03-01, covers only the days before 2026-02-10'
+            in note
+        )
+        assert 'first entry' not in note
+
+    def test_single_entry_snapped_at_both_ends(self):
+        """One entry snapped at both ends is described once."""
+        periods = [{'Start': '2026-01-01', 'End': '2026-02-01'}]
+        note = monthly_period_note('2026-01-05', '2026-01-15', periods)['period_note']
+        assert (
+            'entry labelled 2026-01-01 to 2026-02-01 covers only 2026-01-05 to 2026-01-15' in note
+        )
+
+    def test_missing_first_label_still_flags_snapped_last_entry(self):
+        """A first entry without a TimePeriod does not hide a snapped last entry."""
+        periods = [None, {'Start': '2026-02-01', 'End': '2026-03-01'}]
+        note = monthly_period_note('2026-01-24', '2026-02-10', periods)['period_note']
+        assert 'last entry, labelled 2026-02-01 to 2026-03-01' in note
+        assert 'first entry' not in note
+
+    def test_missing_labels_return_empty(self):
+        """Entries without a TimePeriod are not flagged."""
+        assert monthly_period_note('2026-01-24', '2026-03-10', [None, {}]) == {}

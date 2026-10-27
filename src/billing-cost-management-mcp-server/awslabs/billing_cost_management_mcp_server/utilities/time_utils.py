@@ -16,7 +16,7 @@
 
 from .logging_utils import get_logger
 from datetime import datetime, timezone
-from typing import Any, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 
 logger = get_logger(__name__)
@@ -157,3 +157,61 @@ def normalize_datetimes_to_iso(obj: Any) -> Any:
     if isinstance(obj, datetime):
         return timestamp_to_utc_iso_string(obj)
     return obj
+
+
+def monthly_period_note(
+    requested_start: str,
+    requested_end: str,
+    periods: List[Optional[Dict[str, Any]]],
+) -> Dict[str, str]:
+    """Say when MONTHLY entries are labelled with more of the month than their figures cover.
+
+    With MONTHLY granularity, GetReservationUtilization and GetSavingsPlansUtilization label
+    each entry with its whole calendar month, while the figures cover only the requested
+    days: a request for 2026-01-24 to 2026-03-10 returns a first entry labelled 2026-01-01
+    to 2026-02-01 holding only 2026-01-24 onward, and a last entry labelled 2026-03-01 to
+    2026-04-01 holding only the days before 2026-03-10.
+
+    Args:
+        requested_start: Requested start date (YYYY-MM-DD, inclusive)
+        requested_end: Requested end date (YYYY-MM-DD, exclusive)
+        periods: Each returned entry's TimePeriod (``{'Start': ..., 'End': ...}``), in order
+
+    Returns:
+        ``{'period_note': ...}`` when the first label starts before the requested start or
+        the last label ends after the requested end, otherwise an empty dict.
+    """
+    if not periods:
+        return {}
+    first_start, first_end = (periods[0] or {}).get('Start'), (periods[0] or {}).get('End')
+    last_start, last_end = (periods[-1] or {}).get('Start'), (periods[-1] or {}).get('End')
+    start_snapped = bool(first_start and first_end) and first_start < requested_start
+    end_snapped = bool(last_start and last_end) and last_end > requested_end
+    if not (start_snapped or end_snapped):
+        return {}
+    if len(periods) == 1:
+        details = (
+            f'The entry labelled {first_start} to {first_end} covers only {requested_start} '
+            f'to {requested_end}.'
+        )
+    else:
+        parts = []
+        if start_snapped:
+            parts.append(
+                f'The first entry, labelled {first_start} to {first_end}, covers only '
+                f'{requested_start} onward.'
+            )
+        if end_snapped:
+            parts.append(
+                f'The last entry, labelled {last_start} to {last_end}, covers only the days '
+                f'before {requested_end}.'
+            )
+        details = ' '.join(parts)
+    return {
+        'period_note': (
+            'Cost Explorer labels each MONTHLY entry with its whole calendar month, but the '
+            f'figures cover only the requested days. {details} Report those months as partial: '
+            f'the figures, and total, cover {requested_start} to {requested_end} (end '
+            'exclusive) only.'
+        )
+    }

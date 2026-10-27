@@ -30,6 +30,7 @@ from ..utilities.aws_service_base import (
     with_pagination,
 )
 from ..utilities.logging_utils import get_context_logger
+from ..utilities.time_utils import monthly_period_note
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, Optional
 
@@ -88,9 +89,13 @@ UTILIZATION DETAILS filters (get_savings_plans_utilization_details):
 
 RESPONSE PERIODS (all three operations):
 - `requested_time_period` echoes the start_date/end_date that were sent.
-- MONTHLY utilization labels each entry with its calendar month: a 2026-08-17 start
-  returns a first entry whose TimePeriod starts 2026-08-01, but its figures cover
-  only 2026-08-17 onward. Report that month as starting at the requested start.
+- MONTHLY utilization labels each entry's TimePeriod with its whole calendar month, but
+  the figures cover only the requested days. A 2026-08-17 to 2026-09-10 request returns
+  a first entry labelled 2026-08-01 to 2026-09-01 holding only 2026-08-17 onward, and a
+  last entry labelled 2026-09-01 to 2026-10-01 holding only the days before 2026-09-10.
+  `period_note` says when this happened. Report those months as partial, from the
+  requested start to the requested end, not as whole months; `total` also covers only
+  the requested days.
 - MONTHLY coverage entries start at the requested start; they are not snapped.
 - Utilization details returns `time_period`: the requested start, and an end the API
   may move earlier to the first day without complete data. Report that period.
@@ -332,9 +337,12 @@ async def get_savings_plans_utilization(
         formatted_response: Dict[str, Any] = {
             'savings_plans_utilizations': utilizations_by_time,
             # The API has no top-level period. A MONTHLY entry's TimePeriod is labelled with its
-            # calendar month even when the requested start falls later in that month.
+            # whole calendar month even when the requested start or end falls inside that month.
             'requested_time_period': {'start': start, 'end': end},
             'granularity': granularity,
+            **monthly_period_note(
+                start, end, [entry.get('TimePeriod') for entry in utilizations_by_time]
+            ),
         }
 
         if total is not None:

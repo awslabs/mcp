@@ -29,6 +29,7 @@ from ..utilities.aws_service_base import (
     whole_query_in_one_page,
     with_pagination,
 )
+from ..utilities.time_utils import monthly_period_note
 from fastmcp import Context, FastMCP
 from typing import Any, Dict, List, Optional
 
@@ -96,6 +97,20 @@ message. It means there is no data for that window, not a failure and not zero
 utilization: report that, and do not resend the identical request. A start_date at
 least 3 days before today is usually past that delay; query an earlier window only if
 the question allows it.
+
+RESPONSE PERIODS (both operations; dates are YYYY-MM-DD, end exclusive):
+- `requested_time_period` echoes the start_date/end_date that were sent.
+- get_reservation_utilization with MONTHLY granularity labels each entry's `time_period`
+  with its whole calendar month, but the figures cover only the requested days. A
+  2026-01-24 to 2026-03-10 request returns a first entry labelled 2026-01-01 to 2026-02-01
+  holding only 2026-01-24 onward, and a last entry labelled 2026-03-01 to 2026-04-01
+  holding only the days before 2026-03-10. `period_note` says when this happened. Report
+  those months as partial, from the requested start to the requested end, not as whole
+  months; `total` also covers only the requested days.
+- With group_by, get_reservation_utilization returns one entry labelled with the requested
+  period.
+- get_reservation_coverage entries are not snapped: the first starts at the requested start
+  and the last ends at the requested end.
 
 SCOPING LARGE QUERIES: a grouped or DAILY query over a wide window or many
 subscriptions can exceed the tool result size cap and return a ToolResultOversized
@@ -346,6 +361,7 @@ async def get_reservation_coverage(
         # Format the response for better readability
         formatted_response: Dict[str, Any] = {
             'coverages_by_time': [],
+            'requested_time_period': {'start': start, 'end': end},
         }
 
         # Format total coverage if present
@@ -504,8 +520,14 @@ async def get_reservation_utilization(
         )
 
         # Format the response for better readability
+        # MONTHLY entries are labelled with their whole calendar month even where the figures
+        # cover only part of it (the requested start or end falls inside the month).
         formatted_response: Dict[str, Any] = {
             'utilizations_by_time': [],
+            'requested_time_period': {'start': start, 'end': end},
+            **monthly_period_note(
+                start, end, [entry.get('TimePeriod') for entry in all_utilizations]
+            ),
         }
 
         # Format total utilization if present

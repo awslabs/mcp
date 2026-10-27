@@ -1703,6 +1703,48 @@ class TestGetCostCategories:
 class TestGetSavingsPlansUtilization:
     """Tests for get_savings_plans_utilization function."""
 
+    async def test_monthly_entries_wider_than_request_get_period_note(self, mock_context):
+        """MONTHLY entries labelled with whole months that the window cuts are flagged."""
+        client = MagicMock()
+        entries = [
+            {'TimePeriod': {'Start': '2026-08-01', 'End': '2026-09-01'}},
+            {'TimePeriod': {'Start': '2026-09-01', 'End': '2026-10-01'}},
+        ]
+        client.get_savings_plans_utilization.return_value = {
+            'SavingsPlansUtilizationsByTime': entries,
+            'Total': {},
+        }
+
+        result = await get_savings_plans_utilization(
+            mock_context, client, '2026-08-17', '2026-09-10', 'MONTHLY'
+        )
+
+        data = result['data']
+        assert data['SavingsPlansUtilizationsByTime'] == entries
+        assert (
+            'first entry, labelled 2026-08-01 to 2026-09-01, covers only 2026-08-17'
+            in (data['period_note'])
+        )
+        assert (
+            'last entry, labelled 2026-09-01 to 2026-10-01, covers only the days before'
+            in (data['period_note'])
+        )
+
+    async def test_whole_month_request_has_no_period_note(self, mock_context):
+        """Labels that match the request need no note."""
+        client = MagicMock()
+        client.get_savings_plans_utilization.return_value = {
+            'SavingsPlansUtilizationsByTime': [
+                {'TimePeriod': {'Start': '2026-08-01', 'End': '2026-09-01'}}
+            ],
+        }
+
+        result = await get_savings_plans_utilization(
+            mock_context, client, '2026-08-01', '2026-09-01', 'MONTHLY'
+        )
+
+        assert 'period_note' not in result['data']
+
     async def test_basic_call(self, mock_context, mock_ce_client):
         """Test basic call to get_savings_plans_utilization."""
         result = await get_savings_plans_utilization(

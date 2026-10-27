@@ -31,6 +31,7 @@ from ..utilities.aws_service_base import (
     with_pagination,
 )
 from ..utilities.sql_utils import convert_response_if_needed
+from ..utilities.time_utils import monthly_period_note
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from fastmcp import Context
@@ -815,8 +816,18 @@ async def get_savings_plans_utilization(
             request_params['Filter'] = filters
 
         response = ce_client.get_savings_plans_utilization(**request_params)
+        # MONTHLY entries are labelled with their whole calendar month even where the figures
+        # cover only part of it (the requested start or end falls inside the month).
+        period_note = monthly_period_note(
+            start,
+            end,
+            [
+                entry.get('TimePeriod')
+                for entry in response.get('SavingsPlansUtilizationsByTime') or []
+            ],
+        )
 
-        return format_response('success', response)
+        return format_response('success', {**period_note, **response})
 
     except Exception as e:
         # Use shared error handling
