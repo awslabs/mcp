@@ -41,6 +41,14 @@ GET_FREE_TIER_USAGE_PAGE_SPEC = PageSpec(
     caller_token_error_codes=frozenset({'ValidationException'}),
 )
 
+# GetFreeTierUsage rejects a filter value longer than this.
+MAX_FILTER_VALUE_LENGTH = 20
+
+# Filter keys GetFreeTierUsage matches as text. Only USAGE_PERCENTAGE is numeric.
+TEXT_FILTER_KEYS = frozenset(
+    {'SERVICE', 'OPERATION', 'USAGE_TYPE', 'REGION', 'FREE_TIER_TYPE', 'DESCRIPTION'}
+)
+
 free_tier_usage_server = FastMCP(
     name='free-tier-usage-tools', instructions='Tools for working with AWS Free Tier Usage API'
 )
@@ -55,10 +63,16 @@ This tool provides insights into your AWS Free Tier usage across services:
 1. get_free_tier_usage: Shows your current Free Tier usage across AWS services
    - Helps identify where you are approaching Free Tier limits
    - Shows actual usage against Free Tier allocations
-   - Supports filtering by service, region, or usage type
-   - Possible Dimensions values are: 'SERVICE'|'OPERATION'|'USAGE_TYPE'|'REGION'|'FREE_TIER_TYPE'|'DESCRIPTION'|'USAGE_PERCENTAGE'
-   - Possible MatchOptions are: 'EQUALS'|'STARTS_WITH'|'ENDS_WITH'|'CONTAINS'|'GREATER_THAN_OR_EQUAL'
    - Returns `data.freeTierUsages`, a `data.summary` computed over the returned rows, and `data.pagination`
+
+FILTER (optional JSON string):
+- Shape: {"Dimensions": {"Key": "SERVICE", "Values": ["AmazonSNS"], "MatchOptions": ["EQUALS"]}}. MatchOptions is required and takes exactly one option. A row matches if it matches any of the Values.
+- Combine filters with {"And": [...]} or {"Or": [...]} (at least 2 filters each) or {"Not": {...}}. Each object holds exactly one of Dimensions, And, Or, Not.
+- Keys SERVICE, OPERATION, USAGE_TYPE, REGION, FREE_TIER_TYPE and DESCRIPTION take EQUALS, STARTS_WITH, ENDS_WITH or CONTAINS. Matching ignores case and spaces, so "awslambda" matches "AWS Lambda".
+- Each value is at most 20 characters of letters, digits, spaces and - : . _ / , $ ( ). A long service name such as "Amazon Simple Notification Service" is rejected. Use CONTAINS with part of the name ("Notification"), or the short code the API accepts for some long names (AmazonSNS, AmazonEC2, AmazonS3, AmazonRDS, AmazonSES, AWSSQS).
+- REGION is a region code such as us-east-1, or "global".
+- FREE_TIER_TYPE is text such as "Always Free", "12 Months Free" or "Free Trial".
+- USAGE_PERCENTAGE is actual usage as a percent of the limit. It takes GREATER_THAN_OR_EQUAL and one number from 0 to 100 (80 means 80%). Only USAGE_PERCENTAGE takes GREATER_THAN_OR_EQUAL.
 
 PAGINATION:
 - max_items: total usage rows returned. Omit it to fetch every page (no limit). Pass it, or narrow the filter, when the account has many Free Tier rows.
@@ -78,7 +92,7 @@ async def free_tier_usage(
     Args:
         ctx: The MCP context object
         operation: The operation to perform: 'get_free_tier_usage'
-        filter: Optional filter to apply to the results as a JSON string.
+        filter: Optional filter as a JSON string, in the shape the description gives.
         max_items: Total usage rows to return. None fetches every page.
         next_token: Continuation token from a previous response.
 
@@ -130,6 +144,16 @@ async def get_free_tier_usage_data(
         request_params: Dict[str, Any] = {}
         if filter_expr:
             request_params['filter'] = parse_json(filter_expr, 'filter')
+            filter_error = _filter_error(request_params['filter'])
+            if filter_error:
+                return format_response(
+                    'error',
+                    {'invalid_parameter': 'filter'},
+                    filter_error,
+                    error_type='validation_error',
+                    operation='get_free_tier_usage',
+                    service='Free Tier Usage',
+                )
 
         all_usages, _, pagination = await paginate_aws_items(
             ctx,
@@ -154,6 +178,52 @@ async def get_free_tier_usage_data(
     except Exception as e:
         # Use shared error handler for consistent error reporting
         return await handle_aws_error(ctx, e, 'get_free_tier_usage_data', 'Free Tier Usage')
+
+
+def _filter_error(expression: Any) -> Optional[str]:
+    """Return why a filter would fail or never match, else None.
+
+    Only these two traps are checked: the API rejects a value over 20 characters, and
+    accepts GREATER_THAN_OR_EQUAL on a text key but never matches a row with it. Any
+    other malformed filter is left for the SDK and the API to report.
+
+    Args:
+        expression: The parsed filter expression
+
+    Returns:
+        The error message, or None when neither trap applies
+    """
+    if not isinstance(expression, dict):
+        return None
+    dimensions = expression.get('Dimensions')
+    if isinstance(dimensions, dict):
+        key = dimensions.get('Key')
+        match_options = dimensions.get('MatchOptions')
+        if key in TEXT_FILTER_KEYS and match_options == ['GREATER_THAN_OR_EQUAL']:
+            return (
+                f'GREATER_THAN_OR_EQUAL applies only to USAGE_PERCENTAGE. The API accepts it '
+                f'on {key} but never matches a row with it. Use EQUALS, STARTS_WITH, '
+                'ENDS_WITH or CONTAINS.'
+            )
+        values = dimensions.get('Values')
+        for value in values if isinstance(values, list) else []:
+            if isinstance(value, str) and len(value) > MAX_FILTER_VALUE_LENGTH:
+                return (
+                    f'Filter value "{value}" for {key} is {len(value)} characters; the API '
+                    f'allows at most {MAX_FILTER_VALUE_LENGTH}. For a long service name, use '
+                    'CONTAINS with part of the name, or its short code where the API has one '
+                    '(for example AmazonSNS).'
+                )
+    children = [expression.get('Not')]
+    for operator in ('And', 'Or'):
+        operands = expression.get(operator)
+        if isinstance(operands, list):
+            children.extend(operands)
+    for child in children:
+        error = _filter_error(child)
+        if error:
+            return error
+    return None
 
 
 def create_free_tier_usage_summary(usages: List[Dict[str, Any]]) -> Dict[str, Any]:
