@@ -623,8 +623,11 @@ async def list_efficiency_metrics(
     """List cost efficiency metrics from Cost Optimization Hub.
 
     Returns time-series efficiency data (efficiency score, estimated savings, and
-    spend) aggregated over the requested time period and optionally grouped by
-    account ID or Region.
+    spend), optionally grouped by account ID or Region. Each point is a one-day
+    snapshot (estimated savings of the recommendations open that day, spend for
+    the 30 days ending that day); a Monthly point is the snapshot for the last
+    day of the month that has data, with spend for the 30 days ending on the
+    month's last day.
 
     Fetches every page, or stops before exceeding ``max_items``, and returns the combined
     groups with a ``pagination`` block. ``orderBy`` is sent on every page. In ``performance``

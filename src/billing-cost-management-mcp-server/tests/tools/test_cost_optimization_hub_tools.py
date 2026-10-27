@@ -1777,3 +1777,39 @@ async def test_coh_summaries_group_by_tag_key_without_key(mock_context):
 
     assert res['error_type'] == 'validation_error'
     mock_summaries.assert_not_awaited()
+
+
+async def _coh_served_description() -> str:
+    """Return the cost-optimization description as served (reloaded with the real decorator).
+
+    Other tests reload the module with an identity decorator, which leaves a server
+    with no tools, so reload it here with the real one.
+    """
+    from awslabs.billing_cost_management_mcp_server.tools import (
+        cost_optimization_hub_tools as coh_mod,
+    )
+
+    coh_mod = importlib.reload(coh_mod)
+    tool = await coh_mod.cost_optimization_hub_server.get_tool('cost-optimization')
+    assert tool is not None
+    return ' '.join((tool.description or '').split())
+
+
+@pytest.mark.asyncio
+async def test_description_does_not_route_trends_to_monthly_efficiency():
+    """A Monthly efficiency point is one day's snapshot, so trend questions go to Daily."""
+    flat = await _coh_served_description()
+    assert 'month-over-month change' not in flat
+    assert 'its trend over time' not in flat
+    assert 'not a monthly average or total' in flat
+    assert 'last day of the month that has data' in flat
+    assert "For a trend or a change over time, use 'Daily'" in flat
+
+
+@pytest.mark.asyncio
+async def test_description_says_what_an_efficiency_point_covers():
+    """Each point is a snapshot over trailing-30-day spend; Monthly covers completed months."""
+    flat = await _coh_served_description()
+    assert 'one-day snapshot, not a period total' in flat
+    assert 'the 30 days ending that day' in flat
+    assert 'Only completed months are returned' in flat
