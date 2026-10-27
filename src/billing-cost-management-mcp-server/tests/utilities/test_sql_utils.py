@@ -598,6 +598,94 @@ class TestExecuteSessionSql:
             mock_connection.reset_mock()
             mock_cursor.reset_mock()
 
+    @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
+    async def test_comment_prefixed_insert_is_durable(
+        self, mock_get_path, temp_db_path, mock_context
+    ):
+        """A comment-prefixed INSERT must persist after the connection closes.
+
+        Regression test for the keyword-prefix commit check: ``.strip()`` does
+        not remove a leading SQL comment, so ``startswith('INSERT')`` was False
+        and the write was never committed. sqlite3 still opens an implicit
+        transaction for the statement, so the write was silently rolled back on
+        close. We read the row back on a FRESH connection to assert durability,
+        not just in-memory visibility.
+        """
+        mock_get_path.return_value = temp_db_path
+
+        # Seed a table on its own connection so the INSERT below is the only
+        # thing under test.
+        seed = sqlite3.connect(temp_db_path)
+        seed.execute('CREATE TABLE t (id INTEGER)')
+        seed.execute('INSERT INTO t VALUES (101)')
+        seed.commit()
+        seed.close()
+
+        result = await execute_session_sql(mock_context, '/* c */ INSERT INTO t VALUES (2)')
+        assert result['status'] == 'success'
+
+        # Fresh connection: only committed data is visible here.
+        check = sqlite3.connect(temp_db_path)
+        rows = check.execute('SELECT id FROM t ORDER BY id').fetchall()
+        check.close()
+        assert rows == [(2,), (101,)], f'comment-prefixed INSERT was not committed: {rows}'
+
+    @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
+    async def test_replace_statement_is_durable(self, mock_get_path, temp_db_path, mock_context):
+        """A REPLACE statement must persist after the connection closes.
+
+        Regression test: ``REPLACE`` is valid SQLite DML (synonym for
+        ``INSERT OR REPLACE``) but was absent from the keyword list, so the
+        write was never committed and was rolled back on close.
+        """
+        mock_get_path.return_value = temp_db_path
+
+        seed = sqlite3.connect(temp_db_path)
+        seed.execute('CREATE TABLE t (id INTEGER PRIMARY KEY)')
+        seed.execute('INSERT INTO t VALUES (101)')
+        seed.commit()
+        seed.close()
+
+        result = await execute_session_sql(mock_context, 'REPLACE INTO t VALUES (3)')
+        assert result['status'] == 'success'
+
+        check = sqlite3.connect(temp_db_path)
+        rows = check.execute('SELECT id FROM t ORDER BY id').fetchall()
+        check.close()
+        assert rows == [(3,), (101,)], f'REPLACE was not committed: {rows}'
+
+    @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
+    async def test_plain_write_operations_still_durable(
+        self, mock_get_path, temp_db_path, mock_context
+    ):
+        """Baseline: plain INSERT/UPDATE still commit after the fix.
+
+        Guards against a regression where switching to ``conn.in_transaction``
+        might stop committing ordinary writes. DELETE/DROP/ALTER/TRUNCATE are
+        intentionally not covered because ``validate_sql_query`` rejects them.
+        """
+        mock_get_path.return_value = temp_db_path
+
+        seed = sqlite3.connect(temp_db_path)
+        seed.execute('CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT)')
+        seed.commit()
+        seed.close()
+
+        insert_result = await execute_session_sql(
+            mock_context, "INSERT INTO t VALUES (1, 'alice')"
+        )
+        assert insert_result['status'] == 'success'
+
+        update_result = await execute_session_sql(
+            mock_context, "UPDATE t SET name = 'bob' WHERE id = 1"
+        )
+        assert update_result['status'] == 'success'
+
+        check = sqlite3.connect(temp_db_path)
+        rows = check.execute('SELECT id, name FROM t').fetchall()
+        check.close()
+        assert rows == [(1, 'bob')], f'plain write operations were not committed: {rows}'
+
     @patch('sqlite3.connect')
     @patch('awslabs.billing_cost_management_mcp_server.utilities.sql_utils.get_session_db_path')
     async def test_execute_with_connection_error(self, mock_get_path, mock_connect, mock_context):
