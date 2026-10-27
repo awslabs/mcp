@@ -362,6 +362,18 @@ def _validate_order_by(
     return None
 
 
+DEDUPLICATION_NOTE_DEFAULT = (
+    'Cost Optimization Hub returned its deduplicated view: one action per resource and one '
+    'Savings Plans/Reserved Instances purchase option per covered usage. Alternatives are '
+    'hidden; call again with include_all_recommendations=true to compare purchase options.'
+)
+DEDUPLICATION_NOTE_ALL = (
+    'Includes alternatives for the same resource or the same usage. Alternatives are '
+    'mutually exclusive, so do not add their estimated savings together. For a '
+    'deduplicated total, use list_recommendation_summaries.'
+)
+
+
 cost_optimization_hub_server = FastMCP(
     name='cost-optimization-hub-tools',
     instructions='Tools for working with AWS Cost Optimization Hub API',
@@ -442,6 +454,30 @@ EstimatedMonthlyCost, RestartNeeded, ImplementationEffort, AccountId, RollbackPo
 Region, ResourceType, ActionType, ResourceArn, ResourceId, EstimatedSavingsPercentage.
 ('list_recommendation_summaries' does not support order_by.)
 
+Deduplication (list_recommendations, 'include_all_recommendations'):
+- By default (false or omitted) Cost Optimization Hub deduplicates what it returns.
+  For each resource it keeps one action, the one with the highest estimated savings.
+  For Savings Plans and Reserved Instances (discounts for a 1- or 3-year commitment
+  to a set spend or usage) it keeps one recommended purchase option per covered usage
+  and hides the alternatives. For example, when it keeps a Compute Savings Plan it
+  hides the EC2 Instance Savings Plan and EC2 Reserved Instance options for that
+  usage, and when it keeps a Database Savings Plan it hides the database Reserved
+  Instances that plan covers. In a management (payer) account it keeps the
+  organization-wide options (summary ends "(Payer account level)") and hides the
+  options sized for one account ("(Linked account level)"). Filter 'accountIds' to
+  member accounts, without the management account, to see those for member
+  accounts; include_all_recommendations=true lists all of them.
+- Which option is kept depends on 'filters': filtering resourceTypes to options the
+  default hid (e.g. ["Ec2ReservedInstances"]) returns those, still deduplicated
+  among the filtered types. It does not mean they save more than the option the
+  default kept.
+- Set include_all_recommendations=true to compare purchase options or to list every
+  action for a resource. That list includes alternatives for the same resource or the
+  same usage; alternatives are mutually exclusive, so do not add their estimated
+  savings together. For a deduplicated total, use list_recommendation_summaries.
+- list_recommendation_summaries always uses the deduplicated set (its totals are
+  deduplicated savings) and does not take include_all_recommendations.
+
 Available Filter Parameters (pass as JSON string):
 - resourceTypes: ['Ec2Instance', 'LambdaFunction', 'EbsVolume', 'EcsService', 'Ec2AutoScalingGroup', 'Ec2InstanceSavingsPlans', 'ComputeSavingsPlans', 'SageMakerSavingsPlans', 'Ec2ReservedInstances', 'RdsReservedInstances', 'OpenSearchReservedInstances', 'RedshiftReservedInstances', 'ElastiCacheReservedInstances', 'RdsDbInstanceStorage', 'RdsDbInstance', 'AuroraDbClusterStorage', 'DynamoDbReservedCapacity', 'MemoryDbReservedInstances', 'NatGateway', 'DynamoDBTable', 'ElastiCacheCluster', 'MemoryDBCluster', 'DocumentDBCluster', 'WorkSpaces', 'SageMakerEndpoint']
 - actionTypes: ['Rightsize', 'Stop', 'Upgrade', 'PurchaseSavingsPlans', 'PurchaseReservedInstances', 'MigrateToGraviton', 'Delete', 'ScaleIn']
@@ -505,7 +541,11 @@ async def cost_optimization_hub(
         group_by: Optional grouping parameter. For list_recommendation_summaries any
             of the recommendation dimensions, or 'TagKey:<tag key>'; for
             list_efficiency_metrics only AccountId or Region.
-        include_all_recommendations: Whether to include all recommendations
+        include_all_recommendations: For list_recommendations only. False or
+            omitted (default): one deduplicated recommendation per resource, and
+            one Savings Plans/Reserved Instances purchase option per covered usage;
+            Cost Optimization Hub hides the alternatives. True: every recommendation,
+            including alternatives whose savings must not be added together.
         next_token: Pagination token to resume from a previous response.
             Applies to list_recommendations, list_recommendation_summaries, and
             list_efficiency_metrics.
@@ -651,6 +691,11 @@ async def cost_optimization_hub(
                         'next_token': next_token,
                         'order_by': order_by,
                     }
+                    result['data']['deduplication_note'] = (
+                        DEDUPLICATION_NOTE_ALL
+                        if include_all_recommendations
+                        else DEDUPLICATION_NOTE_DEFAULT
+                    )
 
                 return result
 
