@@ -13,9 +13,8 @@
 # limitations under the License.
 """Windows event loop configuration tests."""
 
-from unittest.mock import Mock, patch
-
 import awslabs.postgres_mcp_server.server as server_module
+from unittest.mock import Mock, patch
 
 
 def test_windows_uses_selector_event_loop_policy(monkeypatch):
