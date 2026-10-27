@@ -58,7 +58,9 @@ You can filter anomalies by:
 - Date range (required)
 - Monitor ARN (optional)
 - Feedback status (optional)
-- Total impact (optional)
+- Total impact (optional): total_impact_start alone matches total impact >= that value;
+  with total_impact_end it matches start..end inclusive. total_impact_operator overrides
+  this and compares against total_impact_start; total_impact_end is used only with BETWEEN.
 
 Note: Both start_date and end_date are INCLUSIVE. To get anomalies including today, use today's date as end_date.
 
@@ -98,9 +100,9 @@ async def cost_anomaly(
         feedback: Optional filter for anomalies by feedback status (YES, NO, PLANNED_ACTIVITY).
         max_items: Optional total number of anomalies to return. None fetches every page.
         next_token: Optional pagination token from a previous response.
-        total_impact_operator: Optional numeric operator for filtering by total impact (EQUAL, GREATER_THAN, LESS_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN_OR_EQUAL, BETWEEN).
-        total_impact_start: Optional start value for total impact filter.
-        total_impact_end: Optional end value for total impact filter (required when using BETWEEN operator).
+        total_impact_operator: Optional numeric operator for filtering by total impact (EQUAL, GREATER_THAN, LESS_THAN, GREATER_THAN_OR_EQUAL, LESS_THAN_OR_EQUAL, BETWEEN). Needs total_impact_start. Defaults to GREATER_THAN_OR_EQUAL when only total_impact_start is given, BETWEEN when total_impact_end is also given.
+        total_impact_start: Optional dollar value the operator compares against (the lower bound for BETWEEN).
+        total_impact_end: Optional upper bound in dollars, inclusive. Used only with BETWEEN; needs total_impact_start.
 
     Returns:
         Dict containing the cost anomaly information
@@ -203,6 +205,47 @@ async def cost_anomaly(
                 'error',
                 {'invalid_parameter': 'total_impact_operator', 'value': total_impact_operator},
                 f'Invalid total_impact_operator: {total_impact_operator}. Must be one of: {", ".join(valid_operators)}',
+                error_type='validation_error',
+                operation='cost_anomaly',
+                service='Cost Explorer',
+            )
+
+        # TotalImpactFilter requires NumericOperator and StartValue; the API reads EndValue
+        # only for BETWEEN. Never drop a value the caller gave.
+        if total_impact_start is None and (total_impact_operator or total_impact_end is not None):
+            given = 'total_impact_operator' if total_impact_operator else 'total_impact_end'
+            message = (
+                f'{given} needs total_impact_start, the dollar value to compare against '
+                '(the lower bound for BETWEEN).'
+            )
+            if not total_impact_operator:
+                message += (
+                    f' For anomalies at or below {total_impact_end}, pass '
+                    "total_impact_operator='LESS_THAN_OR_EQUAL' and "
+                    f'total_impact_start={total_impact_end}.'
+                )
+            elif total_impact_end is not None and total_impact_operator != 'BETWEEN':
+                message += ' total_impact_end is only used with BETWEEN.'
+            return format_response(
+                'error',
+                {'invalid_parameter': 'total_impact_start'},
+                message,
+                error_type='validation_error',
+                operation='cost_anomaly',
+                service='Cost Explorer',
+            )
+
+        if total_impact_start is not None and not total_impact_operator:
+            total_impact_operator = (
+                'BETWEEN' if total_impact_end is not None else 'GREATER_THAN_OR_EQUAL'
+            )
+
+        if total_impact_end is not None and total_impact_operator != 'BETWEEN':
+            return format_response(
+                'error',
+                {'invalid_parameter': 'total_impact_end', 'value': total_impact_end},
+                f'total_impact_end is only used with BETWEEN; the API ignores it with '
+                f'{total_impact_operator}. Use BETWEEN or drop total_impact_end.',
                 error_type='validation_error',
                 operation='cost_anomaly',
                 service='Cost Explorer',
